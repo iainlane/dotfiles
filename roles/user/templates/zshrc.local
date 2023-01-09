@@ -1,0 +1,66 @@
+#[[ -z $GPG_AGENT_INFO ]] && eval $(gpg-agent --daemon -q) 
+export GPG_TTY=$(tty)
+
+HOSTNAME=$(hostname)
+
+[ -e "~/.keychain/${HOSTNAME}-sh" ] && source ~/.keychain/${HOSTNAME}-sh
+[ -e "~/.keychain/${HOSTNAME}-sh-gpg" ] && source ~/.keychain/${HOSTNAME}-sh-gpg
+
+if [ -z "$GPG_AGENT_INFO" ] || [ -z "$SSH_AUTH_SOCK" ] && [ -x /usr/bin/keychain ]; then
+    eval $(keychain --eval --quick --quiet --agents gpg,ssh --host ${HOSTNAME})
+fi
+
+# define profiles based on directories:
+zstyle ":chpwd:profiles:$HOME/dev/debian(|/|/*)"       profile debian
+zstyle ":chpwd:profiles:$HOME/dev/ubuntu(|/|/*)"       profile ubuntu
+zstyle ":chpwd:profiles:$HOME/dev/canonical(|/|/*)"    profile canonical
+zstyle ":chpwd:profiles:$HOME/dev/gnome(|/|/*)"        profile gnome
+
+chpwd_profile_debian()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export EMAIL="laney@debian.org"         # Our email address.
+  export DEB_VENDOR=Debian
+  export ZSH_USERNAME_COLOUR=red
+  setup_environment
+}
+
+chpwd_profile_ubuntu()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export EMAIL="laney@ubuntu.com"         # Our email address.
+  export DEB_VENDOR=Ubuntu
+  export ZSH_USERNAME_COLOUR=yellow
+  setup_environment
+}
+
+chpwd_profile_canonical()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export EMAIL="iain.lane@canonical.com"         # Our email address.
+  export DEB_VENDOR=Ubuntu
+  export ZSH_USERNAME_COLOUR=magenta
+  setup_environment
+}
+
+chpwd_profile_gnome()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export EMAIL="iainl@gnome.org"         # Our email address.
+  export DEB_VENDOR=Ubuntu
+  export ZSH_USERNAME_COLOUR=green
+  setup_environment
+}
+
+chpwd_profile_default()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export NAME="Iain Lane"                 # Our name.
+  export GPGKEY="0xE352D5C51C5041D4"      # Our GnuPG key ID.
+  export EMAIL="iain@orangesquash.org.uk"
+  unset DEB_VENDOR
+  export ZSH_USERNAME_COLOUR=cyan
+  setup_environment
+}
+
+chpwd_profile_default

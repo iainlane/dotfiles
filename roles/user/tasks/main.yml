@@ -1,0 +1,26 @@
+- name: Create users
+  user:
+    append: true
+    update_password: on_create
+
+    # per user
+    comment: "{{ item.comment }}"
+    groups: "{{ item.groups }}"
+    name: "{{ item.name }}"
+    shell: "{{ item.shell}}"
+    uid: "{{ item.uid }}"
+  become: yes
+  become_user: root
+  become_method: sudo
+  loop: "{{ users }}"
+
+- name: Copy a new zshrc
+  ansible.builtin.copy:
+    src: templates/zshrc
+    dest: "~/.zshrc"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0664'
+    backup: yes
+  loop: "{{ users }}"
+

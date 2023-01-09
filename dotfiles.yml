@@ -13,4 +13,6 @@
     - role: pipewire
       tags:
         - pipewire
-
+    - role: user
+      tags:
+        - user
