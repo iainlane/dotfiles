@@ -1,0 +1,15 @@
+package_upgrade: yes
+packages:
+  - ansible
+  - build-essential
+  - curl
+  - ripgrep
+  - wget
+  - zplug
+  - zsh
+
+  # GUI
+  - adwaita-icon-theme-full
+  - gnome-session
+
+remove_packages:

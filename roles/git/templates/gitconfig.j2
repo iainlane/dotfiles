@@ -1,0 +1,86 @@
+[user]
+	name = {{ full_name }}
+	email = {{ git_email }}
+	signingkey = {{ gpg_fingerprint }}
+[giggle]
+	main-window-maximized = true
+	main-window-geometry = 0x0+0+0
+	file-view-vpane-position = 399
+	history-view-vpane-position = 194
+	main-window-view = HistoryView
+
+
+[core]
+	excludesfile = ~/.gitignore
+
+[merge "dpkg-mergechangelogs"]
+	name = debian/changelog merge driver
+    driver = dpkg-mergechangelogs -m %O %A %B %A
+[push]
+	default = current
+[bz]
+	browser = firefox3
+[color]
+	ui = true
+[diff]
+	tool = vimdiff
+[difftool]
+	prompt = false
+[sendemail]
+	smtpencryption = tls
+	smtpserver = mail.messagingengine.com
+	smtpuser = laney@fastmail.fm
+	smtpserverport = 587
+	suppresscc = self
+[url "ssh://git.gnome.org/git/"]
+	insteadOf = gnome:
+	pushInsteadOf = "git://git.gnome.org/git/"
+[url "git+ssh://laney@git.launchpad.net/"]
+	insteadof = lp:
+[rerere]
+	enabled = true
+[alias]
+	mr = !sh -c 'git fetch $0 merge-requests/$1/head'
+	pb = !sh -c 'git fetch origin "$0:$0"'
+	du = diff '@{u}'
+[commit]
+	gpgSign = true
+[merge]
+	tool = vimdiff
+[rebase]
+	autosquash = true
+[gitubuntu]
+	lpuser = laney
+[pull]
+	ff = only
+[init]
+	defaultBranch = main
+
+[pager]
+	diff = delta
+	log = delta
+	reflog = delta
+	show = delta
+
+
+[delta]
+	#plus-style = "syntax #012800"
+	#minus-style = "syntax #340001"
+	syntax-theme = Solarized (light)
+	navigate = true
+
+[interactive]
+	diffFilter = delta --color-only
+
+[credential]
+	helper = store
+[url "https://user@hostname"]
+	insteadOf = ssh://git@hostname
+[url "https://x-access-token@github.com"]
+	insteadOf = ssh://git@github.com
+[url "https://x-access-token@127.0.0.1:38057"]
+	insteadOf = ssh://git@127.0.0.1:38057
+[url "https://x-access-token@some-host"]
+	insteadOf = ssh://git@some-host
+
+# vim: set noexpandtab:

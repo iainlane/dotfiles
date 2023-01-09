@@ -1,0 +1,8 @@
+snaps:
+- code
+- go
+- kubectl
+- slack
+- spotify
+- telegram-desktop
+- yq
