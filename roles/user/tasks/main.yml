@@ -15,7 +15,7 @@
   loop: "{{ users }}"
 
 - name: Copy a new zshrc
-  ansible.builtin.copy:
+  copy:
     src: templates/zshrc
     dest: "~/.zshrc"
     owner: "{{ item.name }}"
@@ -24,3 +24,12 @@
     backup: yes
   loop: "{{ users }}"
 
+- name: Copy a new zshrc.local
+  copy:
+    src: templates/zshrc.local
+    dest: "~/.zshrc.local"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0664'
+    backup: yes
+  loop: "{{ users }}"
