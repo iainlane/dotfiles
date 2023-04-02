@@ -8,7 +8,6 @@
     groups: "{{ item.groups }}"
     name: "{{ item.name }}"
     shell: "{{ item.shell}}"
-    uid: "{{ item.uid }}"
   become: yes
   become_user: root
   become_method: sudo

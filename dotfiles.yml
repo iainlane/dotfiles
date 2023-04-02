@@ -4,15 +4,32 @@
     - role: git
       tags:
         - git
+        - common
     - role: apt
       tags:
         - apt
+        - common
     - role: snap
       tags:
         - snap
+        - common
     - role: pipewire
       tags:
         - pipewire
+        - common
     - role: user
       tags:
         - user
+        - common
+    - role: cloud-sdks
+      tags:
+        - cloud-sdks
+        - work
+    - role: work-packages
+      tags:
+        - work-packages
+        - work
+    - role: cargo
+      tags:
+        - cargo
+        - common

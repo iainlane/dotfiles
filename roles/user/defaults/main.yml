@@ -1,6 +1,5 @@
 users:
   - name: laney
     comment: Iain Lane
-    uid: 1000
-    groups: [sudo, docker, kvm]
+    groups: [sudo, kvm]
     shell: /bin/zsh

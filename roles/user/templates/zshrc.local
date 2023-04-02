@@ -15,6 +15,7 @@ zstyle ":chpwd:profiles:$HOME/dev/debian(|/|/*)"       profile debian
 zstyle ":chpwd:profiles:$HOME/dev/ubuntu(|/|/*)"       profile ubuntu
 zstyle ":chpwd:profiles:$HOME/dev/canonical(|/|/*)"    profile canonical
 zstyle ":chpwd:profiles:$HOME/dev/gnome(|/|/*)"        profile gnome
+zstyle ":chpwd:profiles:$HOME/dev/grafana(|/|/*)"      profile grafana
 
 chpwd_profile_debian()
 {
@@ -52,6 +53,15 @@ chpwd_profile_gnome()
   setup_environment
 }
 
+chpwd_profile_grafana()
+{
+  [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
+  export EMAIL="iain.lane@grafana.com"         # Our email address.
+  export ZSH_USERNAME_COLOUR=cyan
+  export GPGKEY=0xAB2F5FB2C0B9FCE22B9D773B3B590AA273354714
+  setup_environment
+}
+
 chpwd_profile_default()
 {
   [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
@@ -59,8 +69,8 @@ chpwd_profile_default()
   export GPGKEY="0xE352D5C51C5041D4"      # Our GnuPG key ID.
   export EMAIL="iain@orangesquash.org.uk"
   unset DEB_VENDOR
-  export ZSH_USERNAME_COLOUR=cyan
+  export ZSH_USERNAME_COLOUR=blue
   setup_environment
 }
 
-chpwd_profile_default
+chpwd_profiles

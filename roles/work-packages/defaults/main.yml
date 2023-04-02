@@ -1,0 +1,7 @@
+package_upgrade: yes
+packages:
+  - jq
+  - jsonnet
+  - shellcheck
+
+remove_packages:

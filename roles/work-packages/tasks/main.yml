@@ -1,0 +1,10 @@
+- include_tasks:
+    file: roles/apt/tasks/main.yml
+
+- name: Install crane
+  shell: go install github.com/google/go-containerregistry/cmd/crane@latest
+  become: no
+
+- name: Install conftest
+  shell: go install github.com/open-policy-agent/conftest@latest
+  become: no

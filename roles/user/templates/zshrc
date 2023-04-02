@@ -40,7 +40,7 @@ if [ -d /opt/homebrew/bin ]; then
   PATH=${PATH:+$PATH:}/opt/homebrew/bin
 fi
 if [ -d $HOME/go/bin ]; then
-  PATH=${PATH:+$PATH:}$HOME/go/bin
+  PATH=$HOME/go/bin${PATH:+:$PATH}
 fi
 export QUILT_PATCHES=debian/patches
 export BAT_THEME="Solarized (light)"
