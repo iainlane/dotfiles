@@ -1,3 +1,36 @@
-- name: Install git-delta
+# curl and run rustup
+- name: Install Rust
+  command:
+    cmd: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+    creates: ~/.cargo/bin/rustup
+    chdir: ~
+
+- name: Add Cargo to PATH
+  lineinfile:
+    path: ~/.zshenv
+    regexp: '\.cargo/env'
+    line: '[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"'
+    create: yes
+    insertafter: EOF
+    state: present
+
+- name: Install Rust components
+  command:
+    cmd: ~/.cargo/bin/rustup component add {{ item }}
+  loop:
+    - rustfmt
+    - clippy
+    - rust-analysis
+    - rust-src
+
+- name: Install Cargo packages
   community.general.cargo:
-    name: git-delta
+    name: "{{ item }}"
+  loop:
+    - bat
+    - du-dust
+    - exa
+    - fd-find
+    - git-delta
+    - ripgrep
+    - tokei

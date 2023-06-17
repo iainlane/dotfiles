@@ -5,6 +5,10 @@
       tags:
         - git
         - common
+    - role: go
+      tags:
+        - go
+        - common
     - role: apt
       tags:
         - apt

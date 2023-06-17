@@ -1,0 +1,6 @@
+- name: Install go packages (all)
+  command:
+    cmd: go install '{{ item }}'
+  loop:
+    - github.com/rs/curlie@latest
+    - github.com/muesli/duf@latest
