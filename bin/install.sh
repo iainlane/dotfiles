@@ -9,3 +9,7 @@ ROOT="$(realpath "${SCRIPTDIR}/..")"
 # Install the dotfiles.
 ln -s "${ROOT}/roles/user/templates/zshrc" "${HOME}/.zshrc"
 ln -s "${ROOT}/roles/user/templates/zshrc.local" "${HOME}/.zshrc"
+
+zplug install
+
+# TODO: vim
