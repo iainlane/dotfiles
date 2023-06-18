@@ -155,7 +155,12 @@ ZSH_GIT_PS1_NO_ASYNC=1
 ZSH_THEME_GIT_PROMPT_PREFIX=" ["
 ZSH_THEME_GIT_PROMPT_SUFFIX="]"
 zplug "woefe/git-prompt.zsh"
+zplug "zsh-users/zsh-syntax-highlighting", from:github, defer:3
 zplug load
+
+if ! zplug check; then
+    zplug install
+fi
 
 autoload -U promptinit; promptinit
 prompt walters
