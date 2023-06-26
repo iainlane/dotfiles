@@ -10,6 +10,4 @@ ROOT="$(realpath "${SCRIPTDIR}/..")"
 ln -sf "${ROOT}/roles/user/templates/zshrc" "${HOME}/.zshrc"
 ln -sf "${ROOT}/roles/user/templates/zshrc.local" "${HOME}/.zshrc.local"
 
-zplug install
-
 # TODO: vim
