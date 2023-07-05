@@ -1,0 +1,19 @@
+- name: Add terraform
+  block:
+    - name: gpg key
+      get_url:
+        url: https://apt.releases.hashicorp.com/gpg
+        dest: /etc/apt/keyrings/hashicorp.asc
+
+    - name: apt source
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+        state: present
+
+    - name: install
+      apt:
+        pkg:
+          - terraform
+  become: true
+  become_user: root
+  become_method: sudo

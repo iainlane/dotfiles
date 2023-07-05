@@ -44,3 +44,10 @@
       tags:
         - work-packages
         - work
+- name: Install home things
+  hosts: home
+  roles:
+    - role: terraform
+      tags:
+        - terraform
+        - home
