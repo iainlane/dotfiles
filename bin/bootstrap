@@ -6,7 +6,9 @@ if ! command -v ansible; then
   sudo apt install ansible
 fi
 
-ansible-playbook -i ~/.dotfiles/hosts ~/.dotfiles/dotfiles.yml --ask-become-pass "$@"
+ROOTDIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)"
+
+ansible-playbook -i "${ROOTDIR}/inventory" "${ROOTDIR}/dotfiles.yml" --limit "$(hostname)" --ask-become-pass "$@"
 
 if command -v terminal-notifier 1>/dev/null 2>&1; then
   terminal-notifier -title "dotfiles: Bootstrap complete" -message "Successfully set up dev environment."

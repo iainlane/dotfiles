@@ -1,9 +1,16 @@
 package_upgrade: yes
 packages:
   - ansible
+  - black
   - build-essential
   - curl
+  - fonts-roboto
+  - htop
   - httpie
+  - podman
+  - pycodestyle
+  - python3-pip
+  - vim
   - wget
   - zplug
   - zsh
@@ -11,5 +18,7 @@ packages:
   # GUI
   - adwaita-icon-theme-full
   - gnome-session
+  - gnome-tweaks
+  - tilix
 
 remove_packages:

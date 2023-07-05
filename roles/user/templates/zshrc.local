@@ -17,6 +17,8 @@ zstyle ":chpwd:profiles:$HOME/dev/canonical(|/|/*)"    profile canonical
 zstyle ":chpwd:profiles:$HOME/dev/gnome(|/|/*)"        profile gnome
 zstyle ":chpwd:profiles:$HOME/dev/grafana(|/|/*)"      profile grafana
 
+export NAME="Iain Lane"                 # Our name.
+
 chpwd_profile_debian()
 {
   [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
@@ -65,7 +67,6 @@ chpwd_profile_grafana()
 chpwd_profile_default()
 {
   [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
-  export NAME="Iain Lane"                 # Our name.
   export GPGKEY="0xE352D5C51C5041D4"      # Our GnuPG key ID.
   export EMAIL="iain@orangesquash.org.uk"
   unset DEB_VENDOR

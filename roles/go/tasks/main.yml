@@ -2,5 +2,6 @@
   command:
     cmd: go install '{{ item }}'
   loop:
+    - github.com/muesli/deckmaster@latest
     - github.com/rs/curlie@latest
     - github.com/muesli/duf@latest

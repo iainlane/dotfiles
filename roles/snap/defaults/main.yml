@@ -1,6 +1,7 @@
 snaps:
 - code
 - go
+- helm
 - kubectl
 - slack
 - spotify

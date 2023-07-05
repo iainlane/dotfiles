@@ -26,6 +26,7 @@
 - name: Install Cargo packages
   community.general.cargo:
     name: "{{ item }}"
+    state: latest
   loop:
     - bat
     - du-dust

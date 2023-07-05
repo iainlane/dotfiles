@@ -7,3 +7,4 @@
   loop:
     - github.com/google/go-containerregistry/cmd/crane@latest
     - github.com/open-policy-agent/conftest@latest
+    - github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest

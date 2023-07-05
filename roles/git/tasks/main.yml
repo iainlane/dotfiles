@@ -1,6 +1,6 @@
 - name: Install git
   apt: name=git state=present
-  become: yes
+  become: true
   become_user: root
   become_method: sudo
 
@@ -18,3 +18,27 @@
   template:
     src: "gitconfig.j2"
     dest: "{{dotfiles_user_home}}/.gitconfig"
+
+- name: Add gh cli
+  block:
+    - name: gpg key
+      get_url:
+        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+        dest: /etc/apt/keyrings/githubcli.gpg
+
+    - name: apt source
+      apt_repository:
+        filename: github-cli
+        repo: "deb [signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main"
+        state: present
+        update_cache: false
+      register: add_repo
+      until: add_repo
+
+    - name: install
+      apt:
+        pkg:
+          - gh
+  become: true
+  become_user: root
+  become_method: sudo

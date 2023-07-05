@@ -1,5 +1,6 @@
 package_upgrade: yes
 packages:
+  - clamav
   - jq
   - jsonnet
   - shellcheck

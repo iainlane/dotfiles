@@ -1,30 +1,41 @@
-- name: Set up local workstation
-  hosts: local
+- name: Set up local workstation (all)
+  hosts: all
   roles:
     - role: git
       tags:
         - git
-        - common
+        - all
     - role: go
       tags:
         - go
-        - common
+        - all
     - role: apt
       tags:
         - apt
-        - common
+        - all
+    - role: google-chrome
+      tags:
+        - google-chrome
+        - all
     - role: snap
       tags:
         - snap
-        - common
+        - all
     - role: pipewire
       tags:
         - pipewire
-        - common
+        - all
     - role: user
       tags:
         - user
-        - common
+        - all
+    - role: cargo
+      tags:
+        - cargo
+        - all
+- name: Install work things
+  hosts: work
+  roles:
     - role: cloud-sdks
       tags:
         - cloud-sdks
@@ -33,7 +44,3 @@
       tags:
         - work-packages
         - work
-    - role: cargo
-      tags:
-        - cargo
-        - common

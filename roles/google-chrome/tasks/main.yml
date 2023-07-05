@@ -1,0 +1,24 @@
+- name: Add google-chrome-stable
+  block:
+    - name: gpg key
+      get_url:
+        url: "https://dl.google.com/linux/linux_signing_key.pub"
+        dest: /etc/apt/keyrings/google-chrome.asc
+
+    - name: apt source
+      apt_repository:
+        filename: google-chrome
+        repo: deb [signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main
+        state: present
+        update_cache: false
+      register: add_repo
+      until: add_repo
+
+    - name: install
+      apt:
+        name: "google-chrome-stable"
+        state: latest
+        update_cache: true
+  become: true
+  become_user: root
+  become_method: sudo
