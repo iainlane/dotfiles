@@ -3,7 +3,7 @@
 
 - name: Install go packages (work)
   command:
-    cmd: go install '{{ item }}''
+    cmd: go install '{{ item }}'
   loop:
     - github.com/derailed/k9s@latest
     - github.com/google/go-containerregistry/cmd/crane@latest
