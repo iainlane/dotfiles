@@ -1,15 +1,19 @@
-- name: Upgrade apt
-  apt: upgrade=yes
-  when: package_upgrade
-  become: yes
+- name: Upgrade apt packages
+  apt:
+    upgrade: full
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
   become_user: root
   become_method: sudo
 
 - name: Install apt packages
   apt:
     name: "{{ item }}"
-    update_cache: yes
-  become: yes
+    update_cache: true
+    state: latest
+    cache_valid_time: 3600
+  become: true
   become_user: root
   become_method: sudo
   loop: "{{ packages }}"
@@ -17,9 +21,9 @@
 - name: Remove apt packages
   apt:
     name: "{{ item }}"
-    update_cache: yes
+    update_cache: false
     state: absent
-  become: yes
+  become: true
   become_user: root
   become_method: sudo
   loop: "{{ remove_packages if remove_packages is iterable else [] }}"
