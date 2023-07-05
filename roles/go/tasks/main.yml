@@ -2,6 +2,7 @@
   command:
     cmd: go install '{{ item }}'
   loop:
+    - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
     - github.com/muesli/deckmaster@latest
-    - github.com/rs/curlie@latest
     - github.com/muesli/duf@latest
+    - github.com/rs/curlie@latest

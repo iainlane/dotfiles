@@ -5,6 +5,7 @@
   command:
     cmd: go install '{{ item }}''
   loop:
+    - github.com/derailed/k9s@latest
     - github.com/google/go-containerregistry/cmd/crane@latest
-    - github.com/open-policy-agent/conftest@latest
     - github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+    - github.com/open-policy-agent/conftest@latest
