@@ -1,6 +1,4 @@
-personal:
-  hosts:
-    sherwood:
+all:
   vars:
     ansible_connection: local
 
@@ -9,10 +7,16 @@ personal:
     full_name: Iain Lane
     git_user: laney
     git_email: iain@orangesquash.org.uk
-    gpg_fingerprint: 3D0EFB95E7B5237F16E82258E352D5C51C5041D4
   children:
-    work:
-      hosts:
-        florence:
-      vars:
-        gpg_fingerprint: AB2F5FB2C0B9FCE22B9D773B3B590AA273354714
+    common:
+      children:
+        home:
+          hosts:
+            sherwood:
+          vars:
+            gpg_fingerprint: 3D0EFB95E7B5237F16E82258E352D5C51C5041D4
+        work:
+          hosts:
+            florence:
+          vars:
+            gpg_fingerprint: AB2F5FB2C0B9FCE22B9D773B3B590AA273354714
