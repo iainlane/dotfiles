@@ -8,7 +8,7 @@
     - name: apt source
       apt_repository:
         filename: google-chrome
-        repo: deb [signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main
+        repo: deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main
         state: present
         update_cache: false
       register: add_repo
