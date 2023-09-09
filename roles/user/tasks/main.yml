@@ -32,3 +32,8 @@
     mode: '0664'
     backup: yes
   loop: "{{ users }}"
+
+- name: Set npm path
+  command:
+    cmd: npm config set prefix ~/.npm
+  become: no

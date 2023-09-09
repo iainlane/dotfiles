@@ -35,7 +35,7 @@ export LANG="en_GB.UTF-8"               # ...as default language.
 export TZ="Europe/London"               # Force our time to be at this location.
 export EDITOR="vim"                     # Long live vim (as our editor).
 export PAGER="less --RAW-CONTROL-CHARS --quit-if-one-screen --no-init" # Pager to use.
-export PATH=$HOME/.local/bin:$HOME/bin:$HOME/.cabal/bin:$HOME/dev/ubuntu/ubuntu-dev-tools:$HOME/dev/ubuntu/ubuntu-archive-tools:$HOME/dev/random/flutter/bin:$PATH # Add some dirs to PATH
+export PATH=$HOME/.local/bin:$HOME/bin:$HOME/.cabal/bin:$HOME/.npm/bin:$HOME/dev/ubuntu/ubuntu-dev-tools:$HOME/dev/ubuntu/ubuntu-archive-tools:$HOME/dev/random/flutter/bin:$PATH # Add some dirs to PATH
 if [ -d /opt/homebrew/bin ]; then
   PATH=${PATH:+$PATH:}/opt/homebrew/bin
 fi
