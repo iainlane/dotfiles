@@ -63,6 +63,7 @@ if is_mac; then
   export LESSOPEN="|/opt/homebrew/bin/lesspipe.sh %s" LESS_ADVANCED_PREPROCESSOR=1
 else
   export LESSOPEN="| lesspipe %s"         # Useful less pipe.
+  export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
 fi
 
 export ZPLUG_HOME=~/.cache/zplug

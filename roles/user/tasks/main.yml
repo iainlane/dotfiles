@@ -37,3 +37,13 @@
   command:
     cmd: npm config set prefix ~/.npm
   become: no
+
+- name: avoid annoying message when running docker
+  copy:
+    content: ""
+    dest: /etc/containers/nodocker
+    force: false
+    group: root
+    owner: root
+    mode: 0644
+  become: no

@@ -9,6 +9,7 @@ packages:
   - httpie
   - npm
   - podman
+  - podman-docker
   - pycodestyle
   - python3-pip
   - vim
