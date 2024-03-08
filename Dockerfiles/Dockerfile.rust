@@ -1,0 +1,17 @@
+FROM mikefarah/yq:4.42.1 AS yq
+
+WORKDIR /tmp
+
+COPY roles/cargo/tasks/main.yml .
+
+RUN yq -0 '.[] | select(.name == "Install Cargo packages") | .loop[]' main.yml > packages
+
+FROM rust:1.76.0-bookworm AS build
+
+COPY --from=yq /tmp/packages /packages
+
+RUN xargs --null --max-args=1 --max-procs=0 cargo install --root=/cargobins < /packages
+
+FROM scratch
+
+COPY --from=build /cargobins/* /usr/local/bin/
