@@ -19,7 +19,7 @@
     dest: "~/.zshrc"
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
-    mode: '0664'
+    mode: "0664"
     backup: yes
   loop: "{{ users }}"
 
@@ -29,7 +29,7 @@
     dest: "~/.zshrc.local"
     owner: "{{ item.name }}"
     group: "{{ item.name }}"
-    mode: '0664'
+    mode: "0664"
     backup: yes
   loop: "{{ users }}"
 
@@ -46,4 +46,23 @@
     group: root
     owner: root
     mode: 0644
+  become: no
+
+- name: Clone monaspace repo
+  git:
+    repo: "https://github.com/githubnext/monaspace.git"
+    dest: "~/dev/random/monaspace"
+    update: yes
+  become: no
+
+- name: Ensure font directory exists
+  file:
+    path: "~/.local/share/fonts"
+    state: directory
+  become: no
+
+- name: Install monaspace fonts
+  command:
+    chdir: "~/dev/random/monaspace"
+    cmd: "util/install_linux.sh"
   become: no
