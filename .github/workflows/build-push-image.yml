@@ -148,7 +148,7 @@ jobs:
     if: always() && needs.build.result == 'success'
     steps:
       - name: Remove artifacts
-        uses: GeekyEggo/delete-artifact@65041433121f7239077fa20be14c0690f70569de # v4.1.0
+        uses: GeekyEggo/delete-artifact@24928e75e6e6590170563b8ddae9fac674508aa1 # v5.0.0
         with:
           name: |
             binary-${{ github.run_id }}-*
