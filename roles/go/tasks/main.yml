@@ -3,6 +3,25 @@
     cmd: go install '{{ item }}'
   loop:
     - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    - github.com/muesli/deckmaster@latest
+    - github.com/junegunn/fzf@latest
+    - github.com/mr-karan/doggo/cmd/doggo@latest
     - github.com/muesli/duf@latest
     - github.com/rs/curlie@latest
+
+- name: Install go packages (linux specific)
+  command:
+    cmd: go install '{{ item }}'
+  loop:
+    - github.com/muesli/deckmaster@latest
+  when: os_family == 'debian'
+
+- name: Install `doggo` completions
+  block:
+    - command:
+        cmd: doggo completions zsh
+      register: doggo_completion
+
+    - copy:
+        content: '{{ doggo_completion.stdout }}'
+        dest: ~/.zsh-functions/_doggo
+

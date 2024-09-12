@@ -1,5 +1,5 @@
 users:
   - name: laney
     comment: Iain Lane
-    groups: [sudo, kvm]
+    user_type: admin
     shell: /bin/zsh

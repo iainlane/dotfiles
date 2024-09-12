@@ -1,53 +1,70 @@
+- name: Gather OS facts
+  hosts: all
+  gather_facts: yes
+
+- name: Set up os_family fact
+  hosts: all
+  tasks:
+    - name: Set os_family fact
+      set_fact:
+        os_family: "{{ ansible_distribution | lower }}"
+
+    - name: Map Ubuntu to Debian
+      set_fact:
+        os_family: "debian"
+      when: ansible_distribution == "ubuntu"
+
+    - name: Map `macosx` to `macos`
+      set_fact:
+        os_family: "macos"
+      when: os_family == "macosx"
+
+- name: Add host to OS group
+  hosts: all
+  tasks:
+    - name: Add host to macos group
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: macos
+      when: os_family == "macos"
+
+    - name: Add host to debian group
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: linux
+      when: os_family == "linux"
+
+- name: Add host to home group if not a work machine
+  hosts: all:!work
+  tasks:
+    - name: Add host to home group
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: home
+
 - name: Set up local workstation (all)
   hosts: all
   roles:
-    - role: git
-      tags:
-        - git
-        - all
-    - role: go
-      tags:
-        - go
-        - all
-    - role: apt
-      tags:
-        - apt
-        - all
-    - role: google-chrome
-      tags:
-        - google-chrome
-        - all
-    - role: snap
-      tags:
-        - snap
-        - all
-    - role: pipewire
-      tags:
-        - pipewire
-        - all
     - role: user
-      tags:
-        - user
-        - all
+    - role: git
+    - role: go
     - role: cargo
-      tags:
-        - cargo
-        - all
+
+- name: Set up local workstation (debian)
+  hosts: linux
+  roles:
+    - role: apt
+    - role: google-chrome
+    - role: snap
+    - role: pipewire
+
 - name: Install work things
   hosts: work
   roles:
     - role: cloud-sdks
-      tags:
-        - cloud-sdks
-        - work
     - role: work-packages
-      tags:
-        - work-packages
-        - work
+
 - name: Install home things
   hosts: home
   roles:
     - role: terraform
-      tags:
-        - terraform
-        - home

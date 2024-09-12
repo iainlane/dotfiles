@@ -1,9 +1,26 @@
 #!/bin/sh
+# vim: set expandtab ts=2 sw=2:
 
 set -e
 
+is_mac() {
+  if [ -z "${OSTYPE}" ]; then
+    OSTYPE="$(uname | tr '[:upper:]' '[:lower:]')"
+  fi
+
+  if [ "${OSTYPE#darwin*}" != "${OSTYPE}" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 if ! command -v ansible; then
-  sudo apt install ansible
+  if is_mac; then
+    brew install ansible
+  else
+    sudo apt install -y ansible
+  fi
 fi
 
 ROOTDIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)"

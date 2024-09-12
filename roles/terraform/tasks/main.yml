@@ -17,3 +17,14 @@
   become: true
   become_user: root
   become_method: sudo
+  when: os_family == 'debian'
+
+- name: Add terraform (MacOS)
+  block:
+    - name: Tap
+      community.general.homebrew_tap:
+        name: hashicorp/tap
+
+    - name: Install
+      community.general.homebrew:
+        name: terraform

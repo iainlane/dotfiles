@@ -5,7 +5,7 @@
 
     # per user
     comment: "{{ item.comment }}"
-    groups: "{{ item.groups }}"
+    groups: "{{ usergroups[os_family][item.user_type] }}"
     name: "{{ item.name }}"
     shell: "{{ item.shell}}"
   become: yes
@@ -13,25 +13,40 @@
   become_method: sudo
   loop: "{{ users }}"
 
-- name: Copy a new zshrc
-  copy:
-    src: templates/zshrc
-    dest: "~/.zshrc"
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
-    mode: "0664"
-    backup: yes
-  loop: "{{ users }}"
+  vars:
+    usergroups:
+      macos:
+        admin: [admin]
+        regular: []
+      debian:
+        admin: [sudo, kvm]
+        regular: []
 
-- name: Copy a new zshrc.local
+- name: Define zplug path
+  set_fact:
+    zplug_zshrc_path: "~/dev/random/zplug"
+
+- name: Install zplug
+  git:
+    repo: https://github.com/zplug/zplug
+    dest: "{{ zplug_zshrc_path }}"
+    update: yes
+
+# Do the copying above in a loop
+- name: Copy zsh files
   copy:
-    src: templates/zshrc.local
-    dest: "~/.zshrc.local"
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     mode: "0664"
-    backup: yes
-  loop: "{{ users }}"
+  loop:
+    - { src: "templates/zshrc", dest: "~/.zshrc" }
+    - { src: "templates/zshrc.local", dest: "~/.zshrc.local" }
+    - { src: "templates/zshenv", dest: "~/.zshenv" }
+
+- name: Make empty ~/.zsh-functions directory
+  file:
+    path: ~/.zsh-functions
+    state: directory
 
 - name: Set npm path
   command:
@@ -47,6 +62,7 @@
     owner: root
     mode: 0644
   become: no
+  when: os_family == "debian"
 
 - name: Clone monaspace repo
   git:
@@ -64,5 +80,8 @@
 - name: Install monaspace fonts
   command:
     chdir: "~/dev/random/monaspace"
-    cmd: "util/install_linux.sh"
+    cmd: "util/install_{{ os_family }}.sh"
   become: no
+
+  vars:
+    os_type: "{{ ansible_distribution }}"

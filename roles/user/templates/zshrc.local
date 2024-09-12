@@ -58,7 +58,7 @@ chpwd_profile_gnome()
 chpwd_profile_grafana()
 {
   [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
-  export EMAIL="iain.lane@grafana.com"         # Our email address.
+  export EMAIL="iain@grafana.com"         # Our email address.
   export ZSH_USERNAME_COLOUR=cyan
   export GPGKEY=0xAB2F5FB2C0B9FCE22B9D773B3B590AA273354714
   setup_environment

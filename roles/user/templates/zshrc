@@ -30,18 +30,35 @@
 
 # BEGIN LOCAL
 
-export LC_ALL="en_GB.UTF-8"             # Use British English...
-export LANG="en_GB.UTF-8"               # ...as default language.
-export TZ="Europe/London"               # Force our time to be at this location.
-export EDITOR="vim"                     # Long live vim (as our editor).
-export PAGER="less --RAW-CONTROL-CHARS --quit-if-one-screen --no-init" # Pager to use.
-export PATH=$HOME/.local/bin:$HOME/bin:$HOME/.cabal/bin:$HOME/.npm/bin:$HOME/dev/ubuntu/ubuntu-dev-tools:$HOME/dev/ubuntu/ubuntu-archive-tools:$HOME/dev/random/flutter/bin:$PATH # Add some dirs to PATH
-if [ -d /opt/homebrew/bin ]; then
-  PATH=${PATH:+$PATH:}/opt/homebrew/bin
-fi
-if [ -d $HOME/go/bin ]; then
-  PATH=$HOME/go/bin${PATH:+:$PATH}
-fi
+export LC_ALL="en_GB.UTF-8"  # Use British English...
+export LANG="en_GB.UTF-8"    # ...as default language.
+export TZ="Europe/London"    # Force our time to be at this location.
+export EDITOR="vim"          # Long live vim (as our editor).
+export PAGER="less"          # Pager to use.
+
+typeset -U PATH path path_if_exists
+
+path_if_exists=(
+  ${HOME}/.local/bin
+  ${HOME}/bin
+  ${HOME}/.cabal/bin
+  ${HOME}/bin/ubuntu-dev-tools
+  ${HOME}/bin/ubuntu-archive-tools
+  ${HOME}/dev/random/flutter/bin
+  /opt/homebrew/opt/gnu-sed/libexec/gnubin
+  /opt/homebrew/bin
+  ${HOME}/go/bin
+)
+
+# Go through path_if_exists in reverse order and add the directories to the
+# front of the PATH if they exist. This is done in reverse order so that the
+# directories are added in the order they are listed in path_if_exists.
+for i in {${#path_if_exists}..1}; do
+  if [ -d $path_if_exists[$i] ]; then
+    path=($path_if_exists[$i] $path)
+  fi
+done
+
 export QUILT_PATCHES=debian/patches
 export BAT_THEME="Solarized (light)"
 
@@ -66,13 +83,24 @@ else
   export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
 fi
 
-export ZPLUG_HOME=~/.cache/zplug
+source ~/dev/random/zplug/init.zsh
 
-if is_mac; then
-  source /opt/homebrew/opt/zplug/init.zsh
-else
-  source /usr/share/zplug/init.zsh
+zplug "marlonrichert/zsh-autocomplete"
+zplug "zsh-users/zsh-completions"
+zplug "zsh-users/zsh-syntax-highlighting"
+
+if ! zplug check; then
+  zplug install
 fi
+
+zplug load
+
+# Create ~/.zsh-functions directory if it doesn't exist
+# This is where we will store our custom functions
+if [ ! -d ~/.zsh-functions ]; then
+    mkdir -p ~/.zsh-functions
+fi
+fpath=(~/.zsh-functions $fpath)
 
 # Ensure that we possess a ~/.zsh/ directory. This is required for the
 # ~/.zsh/history file.
@@ -117,7 +145,6 @@ if [ -f "${DEFAULT_KUBE_CONTEXTS}" ]; then
   export KUBECONFIG="${DEFAULT_KUBE_CONTEXTS}"
 fi
 
-# Additional contexts should be in ~/.kube/custom-contexts/ 
 CUSTOM_KUBE_CONTEXTS="${HOME}/.kube/configs"
 mkdir -p "${CUSTOM_KUBE_CONTEXTS}"
 
@@ -126,58 +153,70 @@ for config in "${CUSTOM_KUBE_CONTEXTS}"/config*(N); do
 done
 unset DEFAULT_KUBE_CONTEXTS CUSTOM_KUBE_CONTEXTS
 
-snap_workaround() {
-    fn="/var/lib/snapd/apparmor/snap-confine/lp1849753"
-    test -e "$fn" && return
+zmodload zsh/datetime
 
-    tmpfn=$(mktemp)
-    cat > "$tmpfn" <<EOM
-# lp1849753
-unix,
-owner /** rw,
-ptrace readby peer=unconfined,
-EOM
-    echo "Moving workaround rules to '$fn'"
-    sudo mv "$tmpfn" "$fn"
-    echo "Reloading snap-confine policy"
-    sudo apparmor_parser -r /etc/apparmor.d/*snap-confine* /var/lib/snapd/apparmor/profiles/snap-confine.*
-    # another mysterious issue where sometimes all the policy isn't loaded (eg, with rustup)
-    echo "Reloading all snap.* policy (work around missing profiles)"
-    sudo apparmor_parser -r /var/lib/snapd/apparmor/profiles/snap.*
+function preexec() {
+  __TIMER=$EPOCHREALTIME
 }
 
-# Prompt theme.
-fpath=(~/.zshfiles $fpath)
-typeset -U fpath
+POWERLINE_MODULES=(
+    venv
+    user
+    host
+    ssh
+    perms
+    git
+    jobs
+    exit
+    duration
+    root
+)
 
+# These modules are shown on the right side of the prompt.
+POWERLINE_MODULES_RIGHT=(
+    cwd
+)
 
-# Set up git prompt
-ZSH_GIT_PS1_NO_ASYNC=1
-ZSH_THEME_GIT_PROMPT_PREFIX=" ["
-ZSH_THEME_GIT_PROMPT_SUFFIX="]"
-zplug "woefe/git-prompt.zsh"
-zplug "zsh-users/zsh-syntax-highlighting", from:github, defer:3
-zplug load
+function powerline_precmd() {
+  local __ERRCODE=$?
+  local __DURATION=0
 
-if ! zplug check; then
-    zplug install
+  if [ -n $__TIMER ]; then
+      local __ERT=$EPOCHREALTIME
+      __DURATION="$(($__ERT - ${__TIMER:-__ERT}))"
+  fi
+
+eval "$($(go env GOPATH)/bin/powerline-go \
+    -eval \
+    -modules ${(j:,:)POWERLINE_MODULES} \
+    -modules-right ${(j:,:)POWERLINE_MODULES_RIGHT} \
+    -duration ${__DURATION} \
+    -git-mode compact \
+    -theme solarized-light16 \
+    -colorize-hostname \
+    -error $? \
+    -jobs ${${(%):%j}:-0})"
+
+  # Uncomment the following line to automatically clear errors after showing
+  # them once. This not only clears the error for powerline-go, but also for
+  # everything else you run in that shell. Don't enable this if you're not
+  # sure this is what you want.
+
+  #set "?"
+}
+
+function install_powerline_precmd() {
+  for s in "${precmd_functions[@]}"; do
+    if [ "$s" = "powerline_precmd" ]; then
+      return
+    fi
+  done
+  precmd_functions+=(powerline_precmd)
+}
+
+if [ "$TERM" != "linux" ] && [ -f "$(go env GOPATH)/bin/powerline-go" ]; then
+    install_powerline_precmd
 fi
-
-autoload -U promptinit; promptinit
-prompt walters
-
-# Colours.
-autoload -U colors; colors
-
-# Give us a prompt along the lines of:
-#
-#  jpds@topr>
-#
-
-# Default username colour
-ZSH_USERNAME_COLOUR=cyan
-
-export PS1='%{$fg[${ZSH_USERNAME_COLOUR}]%}%n%{$reset_color%}@%{$fg[blue]%}%m%{$reset_color%}$(gitprompt)> '
 
 # Change word boundary characters. Nabbed from
 # http://zshwiki.org/KeyBindings.
@@ -199,19 +238,12 @@ zstyle ':completion:*:*:kill:*' list-colors '=%*=01;31'
 
 # Add all colours and have fancy symbols for files, etc.
 if ! is_mac; then
-  alias ls="ls --classify --color=always" 
+  alias ls="ls --classify --color=always"
 else
   alias ls="ls -FG"
 fi
 
 alias grep="grep --colour=always"       # Colour grep too.
-# Load the completion system
-autoload -U compinit; compinit
-
-if command -v kubectl >/dev/null; then
-  source <(kubectl completion zsh)
-fi
-
 
 # Very powerful version of mv implemented in zsh. The main feature I
 # know of it that seperates it from the standard mv is that it saves you
@@ -273,36 +305,6 @@ zle -N self-insert url-quote-magic
 # ^X^W to save, ^C to abort.
 autoload -U zed
 
-# Incremental completion of a word. After starting this, a list of
-# completion choices can be shown after every character you type, which
-# can deleted with ^H or delete. Return will accept the current
-# completion. Hit tab for normal completion, ^G to get back where you
-# came from and ^D to list matches.
-autoload -U incremental-complete-word
-zle -N incremental-complete-word
-bindkey "^Xi" incremental-complete-word
-
-# This function allows you type a file pattern, and see the results of
-# the expansion at each step.  When you hit return, they will be
-# inserted into the command line.
-autoload -U insert-files
-zle -N insert-files
-bindkey "^Xf" insert-files
-
-# This set of functions implements a sort of magic history searching.
-# After predict-on, typing characters causes the editor to look backward
-# in the history for the first line beginning with what you have typed so
-# far.  After predict-off, editing returns to normal for the line found.
-# In fact, you often don't even need to use predict-off, because if the
-# line doesn't match something in the history, adding a key performs
-# standard completion - though editing in the middle is liable to delete
-# the rest of the line.
-autoload -U predict-on
-zle -N predict-on
-zle -N predict-off
-bindkey "^X^Z" predict-on
-bindkey "^Z" predict-off
-
 # run-help is a help finder, bound in ZLE to M-h.  It doesn't need to be
 # autoloaded to work - the non-autoloaded version just looks up a man
 # page for the command under the cursor, then when that process is
@@ -349,6 +351,18 @@ fi
 # execute-named-cmd bound, for example).
 bindkey -e             # Emacs keybindings.
 
+# For zsh-autocomplete: make tab and shift-tab enter and then cycle through the
+# presented options, rather than just select the first one.
+bindkey              '^I' menu-select
+bindkey "$terminfo[kcbt]" menu-select
+
+bindkey -M menuselect              '^I'         menu-complete
+bindkey -M menuselect "$terminfo[kcbt]" reverse-menu-complete
+
+# Keep zsh's partial reverse history search behaviour. zsh-autocomplete's only
+# works on a single word.
+bindkey -M menuselect '^R' history-incremental-search-backward
+
 # Up, down left, right.
 # echotc forms part of the zsh/termcap module. It outputs the termcap value
 # corresponding to the capability it was given as an argument. man zshmodules.
@@ -365,7 +379,7 @@ if [[ "$TERM" == "rxvt-unicode" || "$TERM" == "screen" ]]; then
     bindkey '\e[8~' end-of-line # End
 elif [[ "$TERM" == "linux" ]]; then
     bindkey '\e[1~' beginning-of-line # Home
-    bindkey '\e[4~' end-of-line # End    
+    bindkey '\e[4~' end-of-line # End
 else # At least xterm; probably other terms too
     bindkey '\e[H~' beginning-of-line # Home
     bindkey '\e[F~' end-of-line # End
@@ -380,25 +394,27 @@ bindkey '\e[6~' down-history # PageDown
 # Beware: The two functions below have raw control characters.
 precmd() {
 #    [[ -t 1 ]] || return
-    case $TERM in
-    *xterm*|rxvt*) print -Pn "]2;%n@%m:%~\a"
-    ;;
- 	screen*) print -Pn "\"%n@%m:%~\134"
- 	;;
-    esac
+  case $TERM in
+    *xterm*|rxvt*) 
+        print -Pn "]2;%n@%m:%~\a"
+        ;;
+    screen*)
+        print -Pn "\"%n@%m:%~\134"
+        ;;
+  esac
 }
 
 # This sets the window title to the last run command.
 preexec() {
 #    [[ -t 1 ]] || return
-    case $TERM in
+  case $TERM in
     *xterm*|rxvt*)
-    print -Pn "]2;$1\a"
-    ;;
- 	screen*)
- 	print -Pn "\"$1\134"
- 	;;
-    esac
+        print -Pn "]2;$1\a"
+        ;;
+    screen*)
+        print -Pn "\"$1\134"
+        ;;
+  esac
 }
 
 # Custom commands.
@@ -407,25 +423,25 @@ preexec() {
 # Sponsoring
 #
 sponsoring.applydebdiff() {
-	wget -O- -q $1 | patch -p0
+  wget -O- -q $1 | patch -p0
 }
 
 sponsoring.applydiffgz() {
-	wget -O- -q $1 | gunzip -c | patch -p0
+  wget -O- -q $1 | gunzip -c | patch -p0
 }
 
 sponsoring.uscan() {
-	uscan --verbose --force-download --rename
+  uscan --verbose --force-download --rename
 }
 
 sponsoring.get-orig-source() {
-	fakeroot debian/rules get-orig-source
+  fakeroot debian/rules get-orig-source
 }
 
 sponsoring.unpackorig() {
-	DIR=$(sed "s/\.orig\.tar\.gz//" $1 | sed 's/_/-/')
-	[ -d $DIR ] || mkdir $DIR
-	tar xzvf $1 -C $DIR --strip-components 1
+  DIR=$(sed "s/\.orig\.tar\.gz//" $1 | sed 's/_/-/')
+  [ -d $DIR ] || mkdir $DIR
+  tar xzvf $1 -C $DIR --strip-components 1
 }
 
 who-can-upload() {
@@ -574,7 +590,7 @@ queue.fetch() {
 # 
 
 git_diff() {
-	  git diff --no-ext-diff -w "$@"
+    git diff --no-ext-diff -w "$@"
 }
 
 #
@@ -833,7 +849,7 @@ zstyle ':completion:*:warnings' format '%B%U---- no match for: %d%u%b'
 zstyle ':completion:*:options' description 'yes'
 zstyle ':completion:*:options' auto-description '%d'
 
-# Simulate spider's old abbrev-expand 3.0.5 patch 
+# Simulate spider's old abbrev-expand 3.0.5 patch
 #zstyle ':completion:*:history-words' stop verbose
 #zstyle ':completion:*:history-words' remove-all-dups yes
 #zstyle ':completion:*:history-words' list false
@@ -861,13 +877,9 @@ if [ -f $HOME/.ssh/known_hosts ]; then
     zstyle ':completion:*' hosts $_myhosts
 fi
 
-if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
-        source /etc/profile.d/vte-2.91.sh
-fi
-
 # Use some local config too
 if [ -f $HOME/.zshrc.local ]; then
-	source $HOME/.zshrc.local
+  source $HOME/.zshrc.local
 fi
 
 # Approximate completion. From the wiki.
@@ -878,103 +890,103 @@ zstyle ':completion:*:approximate:*' max-errors 1 numeric
 zstyle ':completion:*:sudo:*' command-path /usr/sbin /usr/bin /sbin /bin \
                                            /usr/X11R6/bin
 
+eval "$(zoxide init zsh)"
+
 # NOTE: Comment this out for now. Breaks preexec and precmd above.
 #if [ -f /etc/zsh_command_not_found ]; then
 #    . /etc/zsh_command_not_found
 #fi
 
 # Options
-setopt			\
-NO_all_export		\
-   always_last_prompt	\
-   always_to_end	\
-   append_history	\
-   auto_cd		\
-   auto_list		\
-   auto_menu		\
-   auto_name_dirs	\
-   auto_param_keys	\
-   auto_param_slash	\
-   auto_pushd		\
-   auto_remove_slash	\
-NO_auto_resume		\
-   bad_pattern		\
-   bang_hist		\
-NO_beep			\
-   brace_ccl		\
-   correct_all		\
-NO_bsd_echo		\
-NO_cdable_vars		\
-NO_chase_links		\
-   clobber		\
-   complete_aliases	\
-   complete_in_word	\
-   correct		\
-NO_correct_all		\
-   csh_junkie_history	\
-NO_csh_junkie_loops	\
-NO_csh_junkie_quotes	\
-NO_csh_null_glob	\
-   equals		\
-   extended_glob	\
-   extended_history	\
-   function_argzero	\
-   glob			\
-NO_glob_assign		\
-   glob_complete	\
-NO_glob_dots		\
-NO_glob_subst		\
-NO_hash_cmds		\
-NO_hash_dirs		\
-   hash_list_all	\
-   hist_allow_clobber	\
-   hist_beep		\
-   hist_ignore_dups	\
-   hist_ignore_space	\
-NO_hist_no_store	\
-   hist_verify		\
-NO_hup			\
-NO_ignore_braces	\
-NO_ignore_eof		\
-   interactive_comments	\
-   inc_append_history	\
-NO_list_ambiguous	\
-NO_list_beep		\
-   list_types		\
-   long_list_jobs	\
-   magic_equal_subst	\
-NO_mail_warning		\
-NO_mark_dirs		\
-   menu_complete	\
-   multios		\
-   nomatch		\
-   notify		\
-NO_null_glob		\
-   numeric_glob_sort	\
-NO_overstrike		\
-   path_dirs		\
-   posix_builtins	\
-NO_print_exit_value 	\
-NO_prompt_cr		\
-   prompt_subst		\
+setopt      \
+NO_all_export   \
+   always_last_prompt \
+   always_to_end  \
+   append_history \
+   auto_cd    \
+   auto_list    \
+   auto_menu    \
+   auto_name_dirs \
+   auto_param_keys  \
+   auto_param_slash \
+   auto_pushd   \
+   auto_remove_slash  \
+NO_auto_resume    \
+   bad_pattern    \
+   bang_hist    \
+NO_beep     \
+   brace_ccl    \
+   correct_all    \
+NO_bsd_echo   \
+NO_cdable_vars    \
+NO_chase_links    \
+   clobber    \
+   complete_aliases \
+   complete_in_word \
+   correct    \
+NO_correct_all    \
+   csh_junkie_history \
+NO_csh_junkie_loops \
+NO_csh_junkie_quotes  \
+NO_csh_null_glob  \
+   equals   \
+   extended_glob  \
+   extended_history \
+   function_argzero \
+   glob     \
+NO_glob_assign    \
+   glob_complete  \
+NO_glob_dots    \
+NO_glob_subst   \
+NO_hash_cmds    \
+NO_hash_dirs    \
+   hash_list_all  \
+   hist_allow_clobber \
+   hist_beep    \
+   hist_ignore_dups \
+   hist_ignore_space  \
+NO_hist_no_store  \
+   hist_verify    \
+NO_hup      \
+NO_ignore_braces  \
+NO_ignore_eof   \
+   interactive_comments \
+   inc_append_history \
+NO_list_ambiguous \
+NO_list_beep    \
+   list_types   \
+   long_list_jobs \
+   magic_equal_subst  \
+NO_mail_warning   \
+NO_mark_dirs    \
+   menu_complete  \
+   multios    \
+   nomatch    \
+   notify   \
+NO_null_glob    \
+   numeric_glob_sort  \
+NO_overstrike   \
+   path_dirs    \
+   posix_builtins \
+NO_print_exit_value   \
+NO_prompt_cr    \
+   prompt_subst   \
    promptsubst      \
-   pushd_ignore_dups	\
-NO_pushd_minus		\
-   pushd_silent		\
-   pushd_to_home	\
-   rc_expand_param	\
-NO_rc_quotes		\
-NO_rm_star_silent	\
-NO_sh_file_expansion	\
-   sh_option_letters	\
+   pushd_ignore_dups  \
+NO_pushd_minus    \
+   pushd_silent   \
+   pushd_to_home  \
+   rc_expand_param  \
+NO_rc_quotes    \
+NO_rm_star_silent \
+NO_sh_file_expansion  \
+   sh_option_letters  \
    share_history        \
-   short_loops		\
-NO_sh_word_split	\
-NO_single_line_zle	\
-NO_sun_keyboard_hack	\
-NO_verbose		\
+   short_loops    \
+NO_sh_word_split  \
+NO_single_line_zle  \
+NO_sun_keyboard_hack  \
+NO_verbose    \
    zle
 
 #autoload -U ~/.zshfiles*(:t)
-
-autoload -U +X bashcompinit && bashcompinit

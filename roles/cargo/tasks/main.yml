@@ -25,13 +25,13 @@
 
 - name: Install Cargo packages
   community.general.cargo:
-    name: "{{ item }}"
     state: latest
-  loop:
-    - bat
-    - du-dust
-    - exa
-    - fd-find
-    - git-delta
-    - ripgrep
-    - tokei
+    name:
+      - bat
+      - du-dust
+      - exa
+      - fd-find
+      - git-delta
+      - ripgrep
+      - tokei
+      - zoxide

@@ -3,6 +3,13 @@
   become: true
   become_user: root
   become_method: sudo
+  when: os_family == "debian"
+
+- name: Install git
+  community.general.homebrew:
+    name: git
+    state: present
+  when: os_family == "macos"
 
 - name: Check if gitconfig exists
   stat: path="{{dotfiles_user_home}}/.gitconfig"
@@ -42,3 +49,10 @@
   become: true
   become_user: root
   become_method: sudo
+  when: os_family == "debian"
+
+- name: Add gh cli
+  community.general.homebrew:
+    name: gh
+    state: present
+  when: os_family == "macos"
