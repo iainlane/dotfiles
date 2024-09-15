@@ -25,7 +25,7 @@ jobs:
       - name: Get Rust binaries to build
         id: yq
         run: |
-          echo "packages=$(yq -r '.[] | select(.name == "Install Cargo packages") | .loop | tojson(0)' roles/cargo/tasks/main.yml)" >> "${GITHUB_OUTPUT}"
+          echo "packages=$(yq -r '.[] | select(.name == "Install Cargo packages") | .["community.general.cargo"].name | tojson(0)' roles/cargo/tasks/main.yml)" >> "${GITHUB_OUTPUT}"
 
   build:
     needs: get-packages
