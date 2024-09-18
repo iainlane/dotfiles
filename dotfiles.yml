@@ -12,7 +12,7 @@
     - name: Map Ubuntu to Debian
       set_fact:
         os_family: "debian"
-      when: ansible_distribution == "ubuntu"
+      when: os_family == "ubuntu"
 
     - name: Map `macosx` to `macos`
       set_fact:
