@@ -4,6 +4,7 @@
   loop:
     - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
     - github.com/junegunn/fzf@latest
+    - github.com/justjanne/powerline-go@latest
     - github.com/mr-karan/doggo/cmd/doggo@latest
     - github.com/muesli/duf@latest
     - github.com/rs/curlie@latest

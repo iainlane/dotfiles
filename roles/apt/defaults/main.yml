@@ -2,6 +2,7 @@ package_upgrade: yes
 packages:
   - ansible
   - black
+  - btop
   - build-essential
   - curl
   - fonts-roboto
@@ -10,6 +11,7 @@ packages:
   - npm
   - podman
   - podman-docker
+  - pre-commit
   - pycodestyle
   - python3-pip
   - vim
@@ -18,7 +20,7 @@ packages:
   - zsh
 
   # GUI
-  - adwaita-icon-theme-full
+  - adwaita-icon-theme
   - gnome-session
   - gnome-tweaks
   - tilix

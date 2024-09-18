@@ -1,13 +1,18 @@
-- name: Gather OS facts
+- name: Set up OS facts
   hosts: all
   gather_facts: yes
-
-- name: Set up os_family fact
-  hosts: all
   tasks:
     - name: Set os_family fact
       set_fact:
         os_family: "{{ ansible_distribution | lower }}"
+
+    - name: Get OS type
+      shell: uname -s
+      register: uname_s
+
+    - name: Set os_type fact
+      set_fact:
+        os_type: "{{ uname_s.stdout | lower }}"
 
     - name: Map Ubuntu to Debian
       set_fact:
@@ -22,17 +27,10 @@
 - name: Add host to OS group
   hosts: all
   tasks:
-    - name: Add host to macos group
+    - name: Add host to OS group
       add_host:
         name: "{{ inventory_hostname }}"
-        groups: macos
-      when: os_family == "macos"
-
-    - name: Add host to debian group
-      add_host:
-        name: "{{ inventory_hostname }}"
-        groups: linux
-      when: os_family == "linux"
+        groups: "{{ os_type }}"
 
 - name: Add host to home group if not a work machine
   hosts: all:!work
@@ -41,6 +39,13 @@
       add_host:
         name: "{{ inventory_hostname }}"
         groups: home
+
+- name: Print groups
+  hosts: all
+  tasks:
+    - name: Print
+      debug:
+        msg: "{{ group_names }}"
 
 - name: Set up local workstation (all)
   hosts: all
@@ -57,6 +62,11 @@
     - role: google-chrome
     - role: snap
     - role: pipewire
+
+- name: Set up local workstation (macos)
+  hosts: macos
+  roles:
+    - role: brew
 
 - name: Install work things
   hosts: work

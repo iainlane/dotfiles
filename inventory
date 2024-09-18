@@ -7,6 +7,7 @@ all:
     full_name: Iain Lane
     git_user: laney
     git_email: iain@orangesquash.org.uk
+    gpg_fingerprint: E352D5C51C5041D4
   children:
     common:
       children:

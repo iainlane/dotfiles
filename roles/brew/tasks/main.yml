@@ -1,0 +1,9 @@
+- name: Install brew packages
+  community.general.homebrew:
+    name: "{{ packages }}"
+    update_homebrew: true
+    update_all: true
+    state: latest
+  become: true
+  become_user: root
+  become_method: sudo

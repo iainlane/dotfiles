@@ -1,5 +1,5 @@
 - name: Install snap packages
-  snap:
+  community.general.snap:
     name: "{{ item }}"
     classic: yes
   become: yes

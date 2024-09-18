@@ -1,0 +1,5 @@
+packages:
+  - btop
+  - pre-commit
+
+remove_packages:

@@ -70,6 +70,7 @@
     dest: "~/dev/random/monaspace"
     update: yes
   become: no
+  register: monaspace_clone
 
 - name: Ensure font directory exists
   file:
@@ -80,8 +81,6 @@
 - name: Install monaspace fonts
   command:
     chdir: "~/dev/random/monaspace"
-    cmd: "util/install_{{ os_family }}.sh"
+    cmd: "util/install_{{ os_type }}.sh"
   become: no
-
-  vars:
-    os_type: "{{ ansible_distribution }}"
+  when: monaspace_clone.changed

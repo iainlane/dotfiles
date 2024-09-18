@@ -4,15 +4,15 @@
     cmd: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
     creates: ~/.cargo/bin/rustup
     chdir: ~
+  register: rustup
 
-- name: Add Cargo to PATH
-  lineinfile:
-    path: ~/.zshenv
-    regexp: '\.cargo/env'
-    line: '[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"'
-    create: yes
-    insertafter: EOF
-    state: present
+- name: Update rust
+  command:
+    cmd: "{{ item }}"
+  loop:
+    - rustup self update
+    - rustup update
+  when: not rustup.changed
 
 - name: Install Rust components
   command:
@@ -22,6 +22,7 @@
     - clippy
     - rust-analysis
     - rust-src
+  when: rustup.changed
 
 - name: Install Cargo packages
   community.general.cargo:
