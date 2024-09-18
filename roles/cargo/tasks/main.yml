@@ -10,8 +10,8 @@
   command:
     cmd: "{{ item }}"
   loop:
-    - rustup self update
-    - rustup update
+    - ~/.cargo/bin/rustup self update
+    - ~/.cargo/bin/rustup update
   when: not rustup.changed
 
 - name: Install Rust components

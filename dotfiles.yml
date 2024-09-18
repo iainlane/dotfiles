@@ -47,14 +47,6 @@
       debug:
         msg: "{{ group_names }}"
 
-- name: Set up local workstation (all)
-  hosts: all
-  roles:
-    - role: user
-    - role: git
-    - role: go
-    - role: cargo
-
 - name: Set up local workstation (debian)
   hosts: linux
   roles:
@@ -64,9 +56,17 @@
     - role: pipewire
 
 - name: Set up local workstation (macos)
-  hosts: macos
+  hosts: darwin
   roles:
     - role: brew
+
+- name: Set up local workstation (all)
+  hosts: all
+  roles:
+    - role: user
+    - role: git
+    - role: go
+    - role: cargo
 
 - name: Install work things
   hosts: work
