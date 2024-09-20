@@ -361,7 +361,8 @@ bindkey -M menuselect "$terminfo[kcbt]" reverse-menu-complete
 
 # Keep zsh's partial reverse history search behaviour. zsh-autocomplete's only
 # works on a single word.
-bindkey -M menuselect '^R' history-incremental-search-backward
+bindkey '^R' history-incremental-pattern-search-backward
+bindkey '^S' history-incremental-pattern-search-forward
 
 # Up, down left, right.
 # echotc forms part of the zsh/termcap module. It outputs the termcap value
@@ -875,6 +876,11 @@ smmsp tinydns vpopmail wasabi zope hplip apt-mirror
 if [ -f $HOME/.ssh/known_hosts ]; then
     _myhosts=( ${${${${(f)"$(<$HOME/.ssh/known_hosts)"}:#[0-9]*}%%\ *}%%,*} )
     zstyle ':completion:*' hosts $_myhosts
+fi
+
+# Set up VTE stuff if needed
+if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
+  source /etc/profile.d/vte-2.91.sh
 fi
 
 # Use some local config too
