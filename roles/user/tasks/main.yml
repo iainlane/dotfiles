@@ -64,23 +64,40 @@
   become: no
   when: os_family == "debian"
 
-- name: Clone monaspace repo
-  git:
-    repo: "https://github.com/githubnext/monaspace.git"
-    dest: "~/dev/random/monaspace"
-    update: yes
-  become: no
-  register: monaspace_clone
+- name: Set var for font directory
+  set_fact:
+    monaspace_font_dir: "{{ vars['dest'][os_family] }}"
+  vars:
+    dest:
+      macos: "~/Library/Fonts"
+      debian: "~/.local/share/fonts"
 
 - name: Ensure font directory exists
   file:
-    path: "~/.local/share/fonts"
+    path: "{{ monaspace_font_dir }}"
     state: directory
   become: no
 
-- name: Install monaspace fonts
+- name: Get latest monaspace nerd-font release
+  uri:
+    url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
+    body_format: json
+  register: nerd_fonts_release
+
+- name: Remove FONT_DIR/Monaspace*
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_fileglob: "{{ monaspace_font_dir }}/Monaspace*"
+
+- name: Download release
+  unarchive:
+    src: "https://github.com/ryanoasis/nerd-fonts/releases/download/{{ nerd_fonts_release.json.tag_name }}/Monaspace.zip"
+    dest: "{{ monaspace_font_dir }}"
+    remote_src: yes
+
+- name: Update font cache
   command:
-    chdir: "~/dev/random/monaspace"
-    cmd: "util/install_{{ os_type }}.sh"
+    cmd: fc-cache -f -v
   become: no
-  when: monaspace_clone.changed
+  when: os_family == "debian"
