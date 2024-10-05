@@ -9,6 +9,7 @@ packages:
   - fonts-roboto
   - htop
   - httpie
+  - neovim
   - npm
   - podman
   - podman-docker

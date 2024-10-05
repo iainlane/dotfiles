@@ -1,5 +1,6 @@
 packages:
   - btop
+  - neovim
   - pre-commit
 
 remove_packages:
