@@ -33,8 +33,10 @@
 export LC_ALL="en_GB.UTF-8"  # Use British English...
 export LANG="en_GB.UTF-8"    # ...as default language.
 export TZ="Europe/London"    # Force our time to be at this location.
-export EDITOR="vim"          # Long live vim (as our editor).
+export EDITOR="nvim"         # Long live vim (as our editor).
 export PAGER="less"          # Pager to use.
+
+alias vim=nvim
 
 typeset -U PATH path path_if_exists
 
@@ -85,6 +87,7 @@ fi
 
 source ~/dev/random/zplug/init.zsh
 
+zplug "dominik-schwabe/zsh-fnm"
 zplug "marlonrichert/zsh-autocomplete"
 zplug "zsh-users/zsh-completions"
 zplug "zsh-users/zsh-syntax-highlighting"

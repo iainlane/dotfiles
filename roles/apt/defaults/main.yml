@@ -16,8 +16,7 @@ packages:
   - pre-commit
   - pycodestyle
   - python3-pip
-  - vim
-  - wget
+  - gget
   - zplug
   - zsh
 
