@@ -64,40 +64,115 @@
   become: no
   when: os_family == "debian"
 
-- name: Set var for font directory
-  set_fact:
-    monaspace_font_dir: "{{ vars['dest'][os_family] }}"
-  vars:
-    dest:
-      macos: "~/Library/Fonts"
-      debian: "~/.local/share/fonts"
+- name: Install Monaspace fonts
+  block:
+    - name: Create temporary directory to unpack font sources into
+      tempfile:
+        state: directory
+        prefix: monaspace_
+      register: temp_dir
 
-- name: Ensure font directory exists
-  file:
-    path: "{{ monaspace_font_dir }}"
-    state: directory
-  become: no
+    - name: Set var for font directory
+      set_fact:
+        monaspace_font_dir: "{{ vars['dest'][os_family] }}"
+      vars:
+        dest:
+          macos: "~/Library/Fonts"
+          debian: "~/.local/share/fonts"
 
-- name: Get latest monaspace nerd-font release
-  uri:
-    url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
-    body_format: json
-  register: nerd_fonts_release
+    - name: Ensure font directory exists
+      file:
+        path: "{{ monaspace_font_dir }}"
+        state: directory
+      become: no
 
-- name: Remove FONT_DIR/Monaspace*
-  file:
-    path: "{{ item }}"
-    state: absent
-  with_fileglob: "{{ monaspace_font_dir }}/Monaspace*"
+    - name: Get latest Monaspace release
+      uri:
+        url: https://api.github.com/repos/githubnext/monaspace/tags
+        body_format: json
+      register: monsapace_release
 
-- name: Download release
-  unarchive:
-    src: "https://github.com/ryanoasis/nerd-fonts/releases/download/{{ nerd_fonts_release.json.tag_name }}/Monaspace.zip"
-    dest: "{{ monaspace_font_dir }}"
-    remote_src: yes
+    - name: Download release
+      unarchive:
+        src: "{{ monsapace_release.json[0].tarball_url }}"
+        dest: "{{ temp_dir.path }}"
+        remote_src: yes
+        extra_opts:
+          - "--strip-components=1"
 
-- name: Update font cache
-  command:
-    cmd: fc-cache -f -v
-  become: no
-  when: os_family == "debian"
+    - name: Run util/install_linux.sh or util/install_macos.sh
+      command: "{{ script[os_family] }}"
+      args:
+        chdir: "{{ temp_dir.path }}"
+      vars:
+        script:
+          macos: ./util/install_macos.sh
+          debian: ./util/install_linux.sh
+
+    - name: Clean up old FONT_DIR/Monaspice*
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_fileglob: "{{ monaspace_font_dir }}/Monaspice*"
+
+  always:
+    - name: Clean up temp directory
+      file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined
+
+- name: Install Cascadia Code font
+  block:
+    - name: Create temporary directory to unpack font sources into
+      tempfile:
+        state: directory
+        prefix: cascadia_
+      register: temp_dir
+
+    - name: Set var for font directory
+      set_fact:
+        cascadia_font_dir: "{{ vars['dest'][os_family] }}"
+      vars:
+        dest:
+          macos: "~/Library/Fonts"
+          debian: "~/.local/share/fonts"
+
+    - name: Ensure font directory exists
+      file:
+        path: "{{ cascadia_font_dir }}"
+        state: directory
+      become: no
+
+    - name: Get latest Cascadia Code release
+      uri:
+        url: https://api.github.com/repos/microsoft/cascadia-code/releases/latest
+        body_format: json
+      register: cascadia_release
+
+    - name: Download release
+      unarchive:
+        src: "{{ cascadia_release.json.assets[0].browser_download_url }}"
+        dest: "{{ temp_dir.path }}"
+        remote_src: yes
+
+    - name: Install font
+      copy:
+        src: "{{ item }}"
+        dest: "{{ cascadia_font_dir }}"
+      with_fileglob:
+      - "{{ temp_dir.path }}/ttf/*.ttf"
+      - "{{ temp_dir.path }}/ttf/static/*.ttf"
+
+    - name: Update font cache
+      command:
+        cmd: fc-cache -f -v
+      become: no
+      when: os_family == "debian"
+
+  always:
+    - name: Clean up temp directory
+      file:
+        path: "{{ temp_dir.path }}"
+        state: absent
+      when: temp_dir.path is defined
