@@ -1,4 +1,17 @@
-dominik-schwabe/zsh-fnm
+# Configure completion - keep at the top
 marlonrichert/zsh-autocomplete
-zsh-users/zsh-completions
+
+# Add particular completions
+aloxaf/fzf-tab
+zsh-users/zsh-completions kind:fpath path:src
+belak/zsh-utils path:completion/functions kind:autoload post:compstyle_zshzoo_setup
+
 zsh-users/zsh-syntax-highlighting
+
+# Keybindings
+belak/zsh-utils path:editor
+
+# History
+belak/zsh-utils path:history
+
+dominik-schwabe/zsh-fnm

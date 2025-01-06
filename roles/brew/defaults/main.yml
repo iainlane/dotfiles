@@ -1,5 +1,6 @@
 packages:
   - btop
+  - eza
   - gnu-tar
   - neovim
   - pre-commit

@@ -25,4 +25,4 @@
 
     - copy:
         content: "{{ doggo_completion.stdout }}"
-        dest: ~/.zsh-functions/_doggo
+        dest: ~/.config/zsh/zsh-functions/doggo.zsh

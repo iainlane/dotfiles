@@ -5,6 +5,7 @@ packages:
   - btop
   - build-essential
   - curl
+  - eza
   - fonts-powerline
   - fonts-roboto
   - htop
