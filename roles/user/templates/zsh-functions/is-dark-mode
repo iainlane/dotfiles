@@ -1,0 +1,35 @@
+#!/bin/zsh
+local os=$(detect-os)
+
+case $os in
+    macos)
+        local theme
+        theme=$(defaults read -g AppleInterfaceStyle 2>/dev/null)
+        [[ $theme == "Dark" ]]
+        ;;
+
+    linux)
+        if (( ! $+commands[dbus-send] )); then
+            print -u2 "Error: dbus-send is not available. Please install it first."
+            return false
+        fi
+
+        local result
+        result=$(dbus-send \
+            --session \
+            --print-reply=literal \
+            --reply-timeout=1000 \
+            --dest=org.freedesktop.portal.Desktop \
+            /org/freedesktop/portal/desktop \
+            org.freedesktop.portal.Settings.Read \
+            string:org.freedesktop.appearance \
+            string:color-scheme)
+
+        [[ $result == *"uint32 1"* ]]
+        ;;
+
+    *)
+        print -u2 "Unsupported operating system: $os"
+        return false
+        ;;
+esac

@@ -1,0 +1,12 @@
+#!/bin/zsh
+case ${OSTYPE} in
+    darwin*)
+        print "macos"
+        ;;
+    linux*)
+        print "linux"
+        ;;
+    *)
+        print "unknown"
+        ;;
+esac

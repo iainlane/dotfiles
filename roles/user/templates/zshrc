@@ -26,58 +26,63 @@
 # • You can obviously only get the most out of this file if you take the
 #   time to read through the comments. Of course, you can still experience
 #   zsh's superiority by simply plugging this file in and using it.
-#
 
 # BEGIN LOCAL
+
+ZDOTDIR="${ZDOTDIR:-${HOME}}"
 
 export LC_ALL="en_GB.UTF-8"  # Use British English...
 export LANG="en_GB.UTF-8"    # ...as default language.
 export TZ="Europe/London"    # Force our time to be at this location.
-export EDITOR="nvim"         # Long live vim (as our editor).
+export EDITOR="nvim"         # Long live neovim (as our editor).
 export PAGER="less"          # Pager to use.
 
 alias vim=nvim
 
-typeset -U PATH path path_if_exists
-
+typeset -U path_if_exists
 path_if_exists=(
   ${HOME}/.local/bin
   ${HOME}/bin
-  ${HOME}/.cabal/bin
   ${HOME}/bin/ubuntu-dev-tools
   ${HOME}/bin/ubuntu-archive-tools
-  ${HOME}/dev/random/flutter/bin
   /opt/homebrew/opt/gnu-sed/libexec/gnubin
   /opt/homebrew/bin
   ${HOME}/go/bin
+  ${HOME}/.cargo/bin
 )
 
 # Go through path_if_exists in reverse order and add the directories to the
-# front of the PATH if they exist. This is done in reverse order so that the
+# front of the path if they exist. This is done in reverse order so that the
 # directories are added in the order they are listed in path_if_exists.
 for i in {${#path_if_exists}..1}; do
-  if [ -d $path_if_exists[$i] ]; then
-    path=($path_if_exists[$i] $path)
+  if [ -d "${path_if_exists[$i]}" ]; then
+    path=("${path_if_exists[$i]}" ${path})
   fi
 done
+
+# This is where we will store our custom functions
+if ! [ -d "${ZDOTDIR}/zsh-functions" ]; then
+    mkdir -p "${ZDOTDIR}/zsh-functions"
+fi
+fpath=("${ZDOTDIR}/zsh-functions" ${fpath})
+autoload -Uz "${ZDOTDIR}/zsh-functions"/*(.:t)
 
 export QUILT_PATCHES=debian/patches
 export BAT_THEME="Solarized (light)"
 
-function is_mac() {
-  if [ "${OSTYPE#darwin*}" != "${OSTYPE}" ]; then
-    return 0
-  else
-    return 1
-  fi
-}
-
-if is_mac; then
+if is-macos; then
   # Configuration for virtualenv
   export WORKON_HOME=$HOME/.virtualenvs
   export VIRTUALENVWRAPPER_PYTHON=/opt/homebrew/bin/python3
   export VIRTUALENVWRAPPER_VIRTUALENV=/opt/homebrew/bin/virtualenv
-  source /opt/homebrew/bin/virtualenvwrapper.sh
+
+  function virtualenvwrapper_init() {
+    unfunction virtualenvwrapper_init
+    source /opt/homebrew/bin/virtualenvwrapper.sh
+  }
+
+  alias workon='virtualenvwrapper_init && workon'
+  alias mkvirtualenv='virtualenvwrapper_init && mkvirtualenv'
 
   export LESSOPEN="|/opt/homebrew/bin/lesspipe.sh %s" LESS_ADVANCED_PREPROCESSOR=1
 else
@@ -85,34 +90,33 @@ else
   export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
 fi
 
-source ~/dev/random/zplug/init.zsh
-
-zplug "dominik-schwabe/zsh-fnm"
-zplug "marlonrichert/zsh-autocomplete"
-zplug "zsh-users/zsh-completions"
-zplug "zsh-users/zsh-syntax-highlighting"
-
-if ! zplug check; then
-  zplug install
+if [[ ! -d "${ZDOTDIR}/.antidote" ]]; then
+  git clone --depth 1 https://github.com/mattmc3/antidote "${ZDOTDIR}/.antidote"
 fi
 
-zplug load
-
-# Create ~/.zsh-functions directory if it doesn't exist
-# This is where we will store our custom functions
-if [ ! -d ~/.zsh-functions ]; then
-    mkdir -p ~/.zsh-functions
-fi
-fpath=(~/.zsh-functions $fpath)
-
-# Ensure that we possess a ~/.zsh/ directory. This is required for the
-# ~/.zsh/history file.
-if [ ! -d $HOME/.zsh/ ]; then
-    mkdir -p $HOME/.zsh/
+zsh_plugins="${ZDOTDIR}/zsh_plugins"
+if ! [[ -f "${zsh_plugins}.txt" ]]; then
+  touch "${zsh_plugins}.txt"
 fi
 
-# Invoke the gpg agent
-# eval $(seahorse-agent --daemon)
+fpath=("${ZDOTDIR}/.antidote/functions" ${fpath})
+autoload -Uz antidote
+
+if [[ ! "${zsh_plugins}.zsh" -nt "${zsh_plugins}.txt" ]]; then
+  antidote bundle <"${zsh_plugins}.txt" >| "${zsh_plugins}.zsh"
+fi
+
+ZSH_FNM_ENV_EXTRA_ARGS=(--use-on-cd --version-file-strategy=recursive --corepack-enabled --resolve-engines --log-level=quiet) \
+  source "${zsh_plugins}.zsh"
+
+# bun completions are strange: running `bun completions` installs ~/.bun/_bun and does not output the completion source code
+# this is a hack until bun fixes their completion setup https://github.com/oven-sh/bun/issues/1272
+if (( $+commands[bun] )); then
+  [ -s ~/.bun/_bun ] || bun completions
+
+  # cannot source directly, must add fpath to completions
+  fpath=(~/.bun/ ${fpath})
+fi
 
 # Alias/custom commands
 #
@@ -125,7 +129,7 @@ alias mkdir="mkdir -v"
 alias mv="mv -iv"
 alias ln="ln -v"
 
-if ! is_mac; then
+if ! is-macos; then
   # Only delete files on the current file system to avoid removing recursively
   # from bind mounts. Only works on linux rm.
   alias rm="rm -v --one-file-system"
@@ -138,12 +142,12 @@ alias chmod="chmod -v"
 # inactivity by default.
 alias encfs="encfs --idle=2"
 
-if command -v bat > /dev/null; then
+if (( ${+commands[bat]} )); then
     alias cat=bat
 fi
 
 # Set the default kube context if present
-DEFAULT_KUBE_CONTEXTS="$HOME/.kube/config"
+DEFAULT_KUBE_CONTEXTS="${HOME}/.kube/config"
 if [ -f "${DEFAULT_KUBE_CONTEXTS}" ]; then
   export KUBECONFIG="${DEFAULT_KUBE_CONTEXTS}"
 fi
@@ -180,6 +184,15 @@ POWERLINE_MODULES_RIGHT=(
     cwd
 )
 
+declare -A PATH_ALIASES=(
+    '~/dev/grafana' '~/d/g'
+    '~/dev/grafana/deployment_tools' '~/d/g/dt'
+    '~/dev/random' '~/d/r'
+)
+
+# Separate each kv with = and items from each other with ,
+PATH_ALISES_ARG="${(*@kj:,:)PATH_ALIASES/(#m)*/${MATCH}=${PATH_ALIASES[$MATCH]}}"
+
 function powerline_precmd() {
   local __ERRCODE=$?
   local __DURATION=0
@@ -189,16 +202,22 @@ function powerline_precmd() {
       __DURATION="$(($__ERT - ${__TIMER:-__ERT}))"
   fi
 
-eval "$($(go env GOPATH)/bin/powerline-go \
-    -eval \
-    -modules ${(j:,:)POWERLINE_MODULES} \
-    -modules-right ${(j:,:)POWERLINE_MODULES_RIGHT} \
-    -duration ${__DURATION} \
-    -git-mode compact \
-    -theme solarized-light16 \
-    -colorize-hostname \
-    -error $? \
-    -jobs ${${(%):%j}:-0})"
+  local THEME="solarized-light16"
+  if is-dark-mode; then
+      THEME="solarized-dark16"
+  fi
+
+  eval "$($(go env GOPATH)/bin/powerline-go \
+      -eval \
+      -modules ${(j:,:)POWERLINE_MODULES} \
+      -modules-right ${(j:,:)POWERLINE_MODULES_RIGHT} \
+      -duration ${__DURATION} \
+      -git-mode compact \
+      -theme "${THEME}" \
+      -colorize-hostname \
+      -path-aliases "${PATH_ALISES_ARG}" \
+      -error $? \
+      -jobs ${${(%):%j}:-0})"
 
   # Uncomment the following line to automatically clear errors after showing
   # them once. This not only clears the error for powerline-go, but also for
@@ -240,7 +259,7 @@ zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
 zstyle ':completion:*:*:kill:*' list-colors '=%*=01;31'
 
 # Add all colours and have fancy symbols for files, etc.
-if ! is_mac; then
+if ! is-macos; then
   alias ls="ls --classify --color=always"
 else
   alias ls="ls -FG"
@@ -275,7 +294,7 @@ autoload -U zcalc
 # line for a shell function that is longer than can be accepted by an external
 # command. This is what's often referred to as the "shitty Linux exec limit" ;)
 # The limitation is on the number of characters or arguments.
-# 
+#
 # slarti@pohl % echo {1..30000}
 # zsh: argument list too long: /bin/echo
 # zsh: exit 127   /bin/echo {1..30000}
@@ -332,14 +351,23 @@ autoload -U run-help
 bindkey '[[A' run-help
 
 # History file name and maximum size.
-HISTFILE="$HOME/.zsh/history"
+HISTFILE="${ZDOTDIR}/history"
 SAVEHIST=15000
 HISTSIZE=15000
 
 # Push History from previous sessions. IF $HISTFILE exists.
-if [ -f $HISTFILE ]; then
-    fc -R $HISTFILE
+if [ -f "${HISTFILE}" ]; then
+    fc -R "${HISTFILE}"
 fi
+
+# This was the previous location of our history file before we started setting
+# `${ZDOTDIR}`.
+OLD_HISTFILE="${HOME}/.zsh/history"
+if [ -f "${OLD_HISTFILE}" ]; then
+    fc -R "${OLD_HISTFILE}"
+    rm -f "${OLD_HISTFILE}"
+fi
+unset OLD_HISTFILE
 
 ## Key bindings
 # You may use:
@@ -458,119 +486,6 @@ who-can-upload() {
     done
 }
 
-#
-# Debian.
-#
-debian.bugs.number() {
-    # Debian Bug Tracker - by number.
-    w3m "http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=$1"
-}
-
-debian.bugs.package() {
-    # Debian Bug Tracker - by package.
-    w3m "http://bugs.debian.org/cgi-bin/pkgreport.cgi?src=$1"
-}
-
-debian.packages() {
-    # Debian Packages.
-    # Add 'src:' in front of the package name to search for source packages.
-    w3m "http://packages.debian.org/$1"
-}
-
-debian.qa.maintainer() {
-    # Debian QA Maintainer search by email address.
-    w3m "http://qa.debian.org/developer.php?login=$1"
-}
-
-debian.qa.package() {
-    # Debian QA Maintainer search by package name.
-    w3m "http://qa.debian.org/developer.php?package=$1"
-}
-
-debian.qa.pts() {
-    # Debian Package Tracking system - developers.
-    w3m "http://packages.qa.debian.org/$1"
-}
-
-debian.qa.task() {
-    # Debian QA - search for task.
-    w3m "http://qa.debian.org/developer.php?task=$1"
-}
-
-debian.wiki() {
-    # Search the Debian Wiki.
-    w3m "http://wiki.debian.org/?action=fullsearch&value=$@"
-}
-
-#
-# Ubuntu.
-#
-
-ubuntu.help() {
-    # Ubuntu Help site.
-    w3m "https://help.ubuntu.com/community/?action=fullsearch&value=$@"
-}
-
-ubuntu.packages() {
-    # Ubuntu packages.
-    # Again; add: "src:" in order to search for source packages.
-    w3m "http://packages.ubuntu.com/$1"
-}
-
-ubuntu.wiki() {
-    # Search the Ubuntu wiki.
-    w3m "https://wiki.ubuntu.com/?action=fullsearch&value=$@"
-}
-
-#
-# Launchpad.
-#
-
-launchpad.answers.number() {
-    # Display a Launchpad answer by number.
-    w3m "https://answers.launchpad.net/questions/$1"
-}
-
-launchpad.answers.package() {
-    # Display list of questions for package in Launchpad.
-    w3m "https://answers.launchpad.net/ubuntu/+source/$1"
-}
-
-launchpad.answers.search() {
-    # Search Launchpad answers.
-    w3m "https://answers.launchpad.net/questions/+questions?field.search_text=$@"
-}
-
-launchpad.blueprints() {
-    # Search Launchpad blueprints.
-    w3m "https://blueprints.launchpad.net/?searchtext=$@"
-}
-
-launchpad.bugs.number() {
-    # Display a Launchpad bug by number.
-    w3m "https://bugs.launchpad.net/bugs/$1"
-}
-
-launchpad.bugs.package() {
-    # Display list of bugs for a package.
-    w3m "https://bugs.launchpad.net/ubuntu/+source/$1"
-}
-
-launchpad.packages() {
-    # Launchpad packages for Ubuntu.
-    w3m "http://launchpad.net/ubuntu/+source/$1"
-}
-
-launchpad.project() {
-    # Display a Launchpad project.
-    w3m "https://launchpad.net/$1"
-}
-
-launchpad.project.search() {
-    # Search Launchpad projects.
-    w3m "https://launchpad.net/projects/+index?text=$@"
-}
-
 queue.diff() {
     RELEASE=$(ubuntu-distro-info --devel)
     DIFF=$(queuediff -s $RELEASE $1 2>/dev/null) || {
@@ -587,86 +502,6 @@ queue.diff() {
 queue.fetch() {
     RELEASE=$(ubuntu-distro-info --devel)
     queue -Q unapproved -s $RELEASE-proposed --source fetch $1 >/dev/null || return 1
-}
-
-#
-# Git
-# 
-
-git_diff() {
-    git diff --no-ext-diff -w "$@"
-}
-
-#
-# Others.
-#
-
-google() {
-    # Google search.
-    w3m "http://www.google.com/search?q=$@"
-}
-
-bbc.search() {
-    # Search the BBC website.
-    w3m "http://search.bbc.co.uk/cgi-bin/search/results.pl?q=$@"
-}
-
-demonoid() {
-    # Search Demonoid.com torrents.
-    w3m "http://www.demonoid.com/files/?query=$@"
-}
-
-freedictonary.acronyms() {
-    # Look up an acronym on the FreeDictonary.
-    w3m "http://acronyms.thefreedictionary.com/$1"
-}
-
-imdb() {
-    # Search IMDb.
-    w3m "http://www.imdb.com/find?q=$@"
-}
-
-lonelyplanet() {
-    # Search Lonely Planet.
-    w3m "http://search.lonelyplanet.com/search.do?Ntt=$@"
-}
-
-urbandictionary() {
-    # Search Urbandictionary.com.
-    w3m "http://www.urbandictionary.com/define.php?term=$@"
-}
-
-wikipedia() {
-    # Wikipedia search. English section.
-    w3m "http://en.wikipedia.org/wiki/Special:Search?search=$@"
-}
-
-wiktionary() {
-    # Search Wiktionary for a term.
-    w3m "http://en.wiktionary.org/wiki/Special:Search?search=$@"
-}
-
-wikitravel() {
-    # Wikitravel search. English section.
-    w3m "http://wikitravel.org/en/Special:Search?search=$@"
-}
-
-forkex() {
-    # Fork program $@ from console.
-    nohup "$@" >/dev/null 2>&1 <&1 & disown %%
-}
-
-deexchangify() {
-    # Get gpg sigs that have been fucked by exchange
-    export GPG_TTY=$(tty)
-    for i in "$@"; do
-        DIR=$(mktemp -d)
-        /usr/lib/git-core/git-mailsplit -o$DIR $i
-        for j in $DIR/*; do
-            awk '/msg.asc/,/--/' $j | sed 1,7d | sed '$d' | base64 -d | gpg --decrypt | gpg --import
-        done
-        rm -rq $DIR
-    done
 }
 
 sd() {
@@ -757,34 +592,6 @@ function chpwd_profiles() {
     # }
     #
     # The initial value for $CHPWD_PROFILE is 'default'.
-    #
-    # Version requirement:
-    #   This feature requires zsh 4.3.3 or newer.
-    #   If you use this feature and need to know whether it is active in your
-    #   current shell, there are several ways to do that. Here are two simple
-    #   ways:
-    #
-    #   a) If knowing if the profiles feature is active when zsh starts is
-    #      good enough for you, you can put the following snippet into your
-    #      .zshrc.local:
-    #
-    #   (( ${+functions[chpwd_profiles]} )) && print "directory profiles active"
-    #
-    #   b) If that is not good enough, and you would prefer to be notified
-    #      whenever a profile changes, you can solve that by making sure you
-    #      start *every* profile function you create like this:
-    #
-    #   function chpwd_profile_myprofilename() {
-    #       [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
-    #       print "chpwd(): Switching to profile: $profile"
-    #     ...
-    #   }
-    #
-    #      That makes sure you only get notified if a profile is *changed*,
-    #      not everytime you change directory, which would probably piss
-    #      you off fairly quickly. :-)
-    #
-    # There you go. Now have fun with that.
     local -x profile
 
     zstyle -s ":chpwd:profiles:${PWD}" profile profile || profile='default'
@@ -797,10 +604,14 @@ function chpwd_profiles() {
 }
 chpwd_functions=( ${chpwd_functions} chpwd_profiles )
 
-# Other aliases.
-alias bbc.radio2="mplayer -playlist http://www.bbc.co.uk/radio2/realmedia/fmg2.ram"
-
-alias run-autopkgtest='ssh snakefruit.canonical.com sudo -i -u ubuntu-archive run-autopkgtest'
+# Source all files in ${ZDOTDIR}/zshrc.d
+for _rc in ${ZDOTDIR}/zshrc.d/*.zsh; do
+  # Ignore tilde files.
+  if [[ $_rc:t != '~'* ]]; then
+    source "$_rc"
+  fi
+done
+unset _rc
 
 # Pretty menu.
 zstyle ':completion:*' menu select=1
@@ -814,7 +625,7 @@ zstyle ':completion:predict:*' completer _complete
 
 # Completion caching.
 zstyle ':completion::complete:*' use-cache 1
-zstyle ':completion::complete:*' cache-path ~/.zsh/cache/$HOST
+zstyle ':completion::complete:*' cache-path "~/.zsh/cache/${HOST}"
 
 # Expand partial paths.
 zstyle ':completion:*' expand 'yes'
@@ -876,19 +687,14 @@ smmsp tinydns vpopmail wasabi zope hplip apt-mirror
 
 # Pull hosts from $HOME/.ssh/known_hosts, also from the wiki
 # local _myhosts. If it exists, that is.
-if [ -f $HOME/.ssh/known_hosts ]; then
-    _myhosts=( ${${${${(f)"$(<$HOME/.ssh/known_hosts)"}:#[0-9]*}%%\ *}%%,*} )
+if [ -f "${HOME}/.ssh/known_hosts" ]; then
+    _myhosts=( ${${${${(f)"$(< "${HOME}/.ssh/known_hosts")"}:#[0-9]*}%%\ *}%%,*} )
     zstyle ':completion:*' hosts $_myhosts
 fi
 
 # Set up VTE stuff if needed
-if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
+if [ ${TILIX_ID} ] || [ ${VTE_VERSION} ]; then
   source /etc/profile.d/vte-2.91.sh
-fi
-
-# Use some local config too
-if [ -f $HOME/.zshrc.local ]; then
-  source $HOME/.zshrc.local
 fi
 
 # Approximate completion. From the wiki.
@@ -900,11 +706,6 @@ zstyle ':completion:*:sudo:*' command-path /usr/sbin /usr/bin /sbin /bin \
                                            /usr/X11R6/bin
 
 eval "$(zoxide init zsh)"
-
-# NOTE: Comment this out for now. Breaks preexec and precmd above.
-#if [ -f /etc/zsh_command_not_found ]; then
-#    . /etc/zsh_command_not_found
-#fi
 
 # Options
 setopt      \
@@ -997,5 +798,3 @@ NO_single_line_zle  \
 NO_sun_keyboard_hack  \
 NO_verbose    \
    zle
-
-#autoload -U ~/.zshfiles*(:t)

@@ -22,31 +22,33 @@
         admin: [sudo, kvm]
         regular: []
 
-- name: Define zplug path
-  set_fact:
-    zplug_zshrc_path: "~/dev/random/zplug"
-
-- name: Install zplug
-  git:
-    repo: https://github.com/zplug/zplug
-    dest: "{{ zplug_zshrc_path }}"
-    update: yes
-
 # Do the copying above in a loop
-- name: Copy zsh files
-  copy:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
-    mode: "0664"
-  loop:
-    - { src: "templates/zshrc", dest: "~/.zshrc" }
-    - { src: "templates/zshrc.local", dest: "~/.zshrc.local" }
-    - { src: "templates/zshenv", dest: "~/.zshenv" }
+- name: zsh files
+  block:
+  - name: Ensure zsh config directory exists
+    file:
+      path: "~/.config/zsh"
+      state: directory
 
-- name: Make empty ~/.zsh-functions directory
-  file:
-    path: ~/.zsh-functions
-    state: directory
+  - name: Copy zsh files
+    copy:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      directory_mode: "0755"
+      mode: "0664"
+    loop:
+      - { src: "templates/zsh-functions/", dest: "~/.config/zsh/zsh-functions/" }
+      - { src: "templates/zshenv", dest: "~/.zshenv" }
+      - { src: "templates/zshrc", dest: "~/.config/zsh/.zshrc" }
+      - { src: "templates/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
+
+# This prevents a "Last login" message from appearing when you open a new terminal
+- name: Create a hushlogin file
+  copy:
+    content: ""
+    dest: "~/.hushlogin"
+    force: false
+    mode: 0644
 
 - name: Set npm path
   command:
@@ -61,7 +63,7 @@
     group: root
     owner: root
     mode: 0644
-  become: no
+  become: yes
   when: os_family == "debian"
 
 - name: Install Monaspace fonts

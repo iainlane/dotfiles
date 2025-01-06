@@ -1,0 +1,4 @@
+dominik-schwabe/zsh-fnm
+marlonrichert/zsh-autocomplete
+zsh-users/zsh-completions
+zsh-users/zsh-syntax-highlighting
