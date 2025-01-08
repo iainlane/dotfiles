@@ -90,10 +90,6 @@ else
   export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
 fi
 
-if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
-  source "${ZDOTDIR}/zstyles.zsh"
-fi
-
 if [[ ! -d "${ZDOTDIR}/.antidote" ]]; then
   git clone --depth 1 https://github.com/mattmc3/antidote "${ZDOTDIR}/.antidote"
 fi
@@ -112,6 +108,10 @@ fi
 
 ZSH_FNM_ENV_EXTRA_ARGS=(--use-on-cd --version-file-strategy=recursive --corepack-enabled --resolve-engines --log-level=quiet) \
   source "${zsh_plugins}.zsh"
+
+if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
+  source "${ZDOTDIR}/zstyles.zsh"
+fi
 
 # bun completions are strange: running `bun completions` installs ~/.bun/_bun and does not output the completion source code
 # this is a hack until bun fixes their completion setup https://github.com/oven-sh/bun/issues/1272
