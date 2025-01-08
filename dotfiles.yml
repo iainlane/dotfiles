@@ -1,20 +1,15 @@
-- name: Set up OS facts
+- name: Set up facts
   hosts: all
   gather_facts: yes
+  run_once: yes
+  tags: ['always']
   tasks:
-    - name: Set os_family fact
+    - name: Set initial facts
       set_fact:
         os_family: "{{ ansible_distribution | lower }}"
+        os_type: "{{ ansible_system | lower }}"
 
-    - name: Get OS type
-      shell: uname -s
-      register: uname_s
-
-    - name: Set os_type fact
-      set_fact:
-        os_type: "{{ uname_s.stdout | lower }}"
-
-    - name: Map Ubuntu to Debian
+    - name: Map `ubuntu` to `debian`
       set_fact:
         os_family: "debian"
       when: os_family == "ubuntu"
@@ -24,57 +19,72 @@
         os_family: "macos"
       when: os_family == "macosx"
 
-- name: Add host to OS group
-  hosts: all
-  tasks:
     - name: Add host to OS group
       add_host:
         name: "{{ inventory_hostname }}"
         groups: "{{ os_type }}"
 
-- name: Add host to home group if not a work machine
-  hosts: all:!work
-  tasks:
-    - name: Add host to home group
+    - name: Add host to home group if not a work machine
       add_host:
         name: "{{ inventory_hostname }}"
         groups: home
+      when: "'work' not in group_names"
 
-- name: Print groups
-  hosts: all
-  tasks:
-    - name: Print
+    - name: Print groups for verification
       debug:
         msg: "{{ group_names }}"
 
+    - name: Print available facts
+      ansible.builtin.debug:
+        var: ansible_facts
+
 - name: Set up local workstation (debian)
   hosts: linux
+  tags: ['debian', 'system']
   roles:
     - role: apt
+      tags: ['apt']
     - role: google-chrome
+      tags: ['browser']
     - role: snap
+      tags: ['snap']
     - role: pipewire
+      tags: ['audio']
 
 - name: Set up local workstation (macos)
   hosts: darwin
+  tags: ['macos', 'system']
   roles:
     - role: brew
+      tags: ['brew']
 
 - name: Set up local workstation (all)
   hosts: all
+  tags: ['common']
   roles:
     - role: user
+      tags: ['user']
+    - role: fonts
+      tags: ['fonts']
     - role: git
+      tags: ['git']
     - role: go
+      tags: ['go']
     - role: cargo
+      tags: ['cargo']
 
 - name: Install work things
   hosts: work
+  tags: ['work']
   roles:
     - role: cloud-sdks
+      tags: ['cloud']
     - role: work-packages
+      tags: ['packages']
 
 - name: Install home things
   hosts: home
+  tags: ['home']
   roles:
     - role: terraform
+      tags: ['terraform']
