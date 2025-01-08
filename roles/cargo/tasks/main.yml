@@ -29,6 +29,7 @@
     state: latest
     name:
       - bat
+      - bottom
       - du-dust
       - exa
       - fd-find
