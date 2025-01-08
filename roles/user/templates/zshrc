@@ -37,8 +37,6 @@ export TZ="Europe/London"    # Force our time to be at this location.
 export EDITOR="nvim"         # Long live neovim (as our editor).
 export PAGER="less"          # Pager to use.
 
-alias vim=nvim
-
 typeset -U path_if_exists
 path_if_exists=(
   ${HOME}/.local/bin
@@ -132,11 +130,16 @@ alias cp="cp -iv"
 alias mkdir="mkdir -v"
 alias mv="mv -iv"
 alias ln="ln -v"
+alias vim=nvim
 
 if ! is-macos; then
   # Only delete files on the current file system to avoid removing recursively
   # from bind mounts. Only works on linux rm.
   alias rm="rm -v --one-file-system"
+fi
+
+if is-macos; then
+  alias diff=gdiff
 fi
 
 alias chown="chown -v"

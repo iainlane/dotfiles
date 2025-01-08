@@ -1,5 +1,6 @@
 packages:
   - btop
+  - diffutils
   - eza
   - gnu-tar
   - neovim
