@@ -1,15 +1,17 @@
+# This resets keybindings so keep at the top in case other plugins set them.
+belak/zsh-utils path:editor
+
 # Configure completion - keep at the top
-marlonrichert/zsh-autocomplete
+mattmc3/ez-compinit
 
 # Add particular completions
-aloxaf/fzf-tab
 zsh-users/zsh-completions kind:fpath path:src
+
 belak/zsh-utils path:completion/functions kind:autoload post:compstyle_zshzoo_setup
 
-zsh-users/zsh-syntax-highlighting
+aloxaf/fzf-tab
 
-# Keybindings
-belak/zsh-utils path:editor
+zsh-users/zsh-syntax-highlighting
 
 # History
 belak/zsh-utils path:history
