@@ -1,5 +1,6 @@
-zstyle -d ':completion:*:corrections' format                                                                                                                                                 ~  Library  Caches  antidote
-zstyle -d ':completion:*:descriptions' format                                                                                                                                                                                                        zstyle -d ':completion:*:messages' format
+zstyle -d ':completion:*:corrections' format
+zstyle -d ':completion:*:descriptions' format
+zstyle -d ':completion:*:messages' format
 zstyle -d ':completion:*:warnings' format
 
 # disable sort when completing `git checkout`
