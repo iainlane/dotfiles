@@ -28,3 +28,4 @@
     - name: Install
       community.general.homebrew:
         name: terraform
+  when: os_family == 'macos'
