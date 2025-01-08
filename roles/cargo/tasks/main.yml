@@ -35,5 +35,6 @@
       - fd-find
       - git-delta
       - ripgrep
+      - starship
       - tokei
       - zoxide
