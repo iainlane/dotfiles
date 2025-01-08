@@ -22,27 +22,51 @@
         admin: [sudo, kvm]
         regular: []
 
-# Do the copying above in a loop
 - name: zsh files
   block:
-  - name: Ensure zsh config directory exists
-    file:
-      path: "~/.config/zsh"
-      state: directory
+    - name: Ensure zsh config directory exists
+      file:
+        path: "~/.config/zsh"
+        state: directory
 
-  - name: Copy zsh files
-    copy:
-      src: "{{ item.src }}"
-      dest: "{{ item.dest }}"
-      directory_mode: "0755"
-      mode: "0664"
-    loop:
-      - { src: "templates/zshenv", dest: "~/.zshenv" }
-      - { src: "templates/zsh-functions/", dest: "~/.config/zsh/zsh-functions/" }
-      - { src: "templates/zsh_plugins.txt", dest: "~/.config/zsh/zsh_plugins.txt" }
-      - { src: "templates/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
-      - { src: "templates/zshrc", dest: "~/.config/zsh/.zshrc" }
-      - { src: "templates/zstyles.zsh", dest: "~/.config/zsh/zstyles.zsh" }
+    - name: Copy zsh files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        directory_mode: "0755"
+        mode: "0664"
+      loop:
+        - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
+        - {
+            src: "templates/zsh/zsh-functions/",
+            dest: "~/.config/zsh/zsh-functions/",
+          }
+        - {
+            src: "templates/zsh/zsh_plugins.txt",
+            dest: "~/.config/zsh/zsh_plugins.txt",
+          }
+        - { src: "templates/zsh/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
+        - { src: "templates/zsh/zshrc", dest: "~/.config/zsh/.zshrc" }
+        - {
+            src: "templates/zsh/zstyles.zsh",
+            dest: "~/.config/zsh/zstyles.zsh",
+          }
+
+- name: neovim files
+  block:
+    - name: Ensure neovim config directory exists
+      file:
+        path: path="~/.config/nvim"
+        state: directory
+
+    - name: Copy neovim files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        directory_mode: "0755"
+        mode: "0664"
+      loop:
+        - { src: "templates/nvim/", dest: "~/.config/nvim/" }
 
 # This prevents a "Last login" message from appearing when you open a new terminal
 - name: Create a hushlogin file
