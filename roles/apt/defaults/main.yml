@@ -4,6 +4,7 @@ packages:
   - black
   - btop
   - build-essential
+  - cmake
   - curl
   - eza
   - fonts-powerline

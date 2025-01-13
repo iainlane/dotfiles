@@ -26,6 +26,7 @@
 
 - name: Install Cargo packages
   community.general.cargo:
+    locked: yes
     state: latest
     name:
       - bat
