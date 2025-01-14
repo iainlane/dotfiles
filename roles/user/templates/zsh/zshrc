@@ -83,6 +83,10 @@ if is-macos; then
   alias mkvirtualenv='virtualenvwrapper_init && mkvirtualenv'
 
   export LESSOPEN="|/opt/homebrew/bin/lesspipe.sh %s" LESS_ADVANCED_PREPROCESSOR=1
+
+  if (( $+commands[brew] )); then
+    eval "$(brew shellenv)"
+  fi
 else
   export LESSOPEN="| lesspipe %s"         # Useful less pipe.
   export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
