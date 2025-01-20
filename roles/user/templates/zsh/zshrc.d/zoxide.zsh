@@ -2,4 +2,4 @@ if ! (( $+commands[zoxide] )); then
   return
 fi
 
-eval $(zoxide init zsh)
+eval "$(zoxide init zsh)"
