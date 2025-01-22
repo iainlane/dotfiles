@@ -142,10 +142,6 @@ if ! is-macos; then
   alias rm="rm -v --one-file-system"
 fi
 
-if is-macos; then
-  alias diff=gdiff
-fi
-
 alias chown="chown -v"
 alias chmod="chmod -v"
 
