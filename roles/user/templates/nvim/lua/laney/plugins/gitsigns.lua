@@ -1,6 +1,14 @@
 return {
 	"lewis6991/gitsigns.nvim",
 	event = { "BufReadPre", "BufNewFile" },
+	config = function()
+		require("gitsigns").setup({
+			current_line_blame = true,
+			current_line_blame_opts = {
+				delay = 500,
+			},
+		})
+	end,
 	opts = {
 		on_attach = function(bufnr)
 			local gs = package.loaded.gitsigns
