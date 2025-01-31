@@ -54,7 +54,7 @@ path_if_exists=(
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
 )
-# ...e
+
 # Go through path_if_exists in reverse order and add the directories to the
 # front of the path if they exist. This is done in reverse order so that the
 # directories are added in the order they are listed in path_if_exists.
