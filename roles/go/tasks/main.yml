@@ -28,4 +28,4 @@
     - name: Install doggo completions
       ansible.builtin.copy:
         content: "{{ doggo_completion.stdout }}"
-        dest: ~/.config/zsh/zsh-functions/doggo.zsh
+        dest: ~/.config/zsh/functions/_doggo

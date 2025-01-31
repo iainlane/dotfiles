@@ -36,12 +36,14 @@
         directory_mode: "0755"
         mode: "0664"
       loop:
-        - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
-        - { src: "templates/zsh/zsh-functions/", dest: "~/.config/zsh/zsh-functions/" }
+        - { src: "templates/zsh/macos.zsh", dest: "~/.config/zsh/macos.zsh" }
+        - { src: "templates/zsh/functions/", dest: "~/.config/zsh/functions/" }
         - { src: "templates/zsh/zsh_plugins.txt", dest: "~/.config/zsh/zsh_plugins.txt" }
-        - { src: "templates/zsh/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
+        - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
         - { src: "templates/zsh/zshrc", dest: "~/.config/zsh/.zshrc" }
+        - { src: "templates/zsh/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
         - { src: "templates/zsh/zstyles.zsh", dest: "~/.config/zsh/zstyles.zsh" }
+        - { src: "templates/zsh/zstyles-post.zsh", dest: "~/.config/zsh/zstyles-post.zsh" }
 
 - name: Neovim files
   block:

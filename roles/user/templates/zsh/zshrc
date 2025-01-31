@@ -29,80 +29,80 @@
 
 # BEGIN LOCAL
 
-ZDOTDIR="${ZDOTDIR:-${HOME}}"
+# Core configuration
 
-export LC_ALL="en_GB.UTF-8"  # Use British English...
-export LANG="en_GB.UTF-8"    # ...as default language.
-export TZ="Europe/London"    # Force our time to be at this location.
-export EDITOR="nvim"         # Long live neovim (as our editor).
-export PAGER="less"          # Pager to use.
+# use emacs keybindings
+bindkey -e
 
+export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+export EDITOR="nvim"
+export VISUAL="nvim"
+export PAGER="less"
+export LC_ALL="en_GB.UTF-8"
+export LANG="en_GB.UTF-8"
+export TZ="Europe/London"
+
+# Path configuration
 typeset -U path_if_exists
 path_if_exists=(
-  ${HOME}/.local/bin
-  ${HOME}/bin
-  ${HOME}/bin/ubuntu-dev-tools
-  ${HOME}/bin/ubuntu-archive-tools
-  /opt/homebrew/opt/ruby/bin
-  /opt/homebrew/opt/gnu-sed/libexec/gnubin
-  /opt/homebrew/bin
-  ${HOME}/go/bin
-  ${HOME}/.cargo/bin
+  "${HOME}/.local/bin"
+  "${HOME}/.bin"
+  "${HOME}/bin/ubuntu-dev-tools"
+  "${HOME}/bin/ubuntu-archive-tools"
+  "/opt/homebrew/opt/ruby/bin"
+  "/opt/homebrew/opt/gnu-sed/libexec/gnubin"
+  "${HOME}/go/bin"
+  "${HOME}/.cargo/bin"
 )
-
+# ...e
 # Go through path_if_exists in reverse order and add the directories to the
 # front of the path if they exist. This is done in reverse order so that the
 # directories are added in the order they are listed in path_if_exists.
-for i in {${#path_if_exists}..1}; do
+for ((i=${#path_if_exists}; i>=1; i--)); do
   if [ -d "${path_if_exists[$i]}" ]; then
     path=("${path_if_exists[$i]}" ${path})
   fi
 done
 
-# This is where we will store our custom functions
-if ! [ -d "${ZDOTDIR}/zsh-functions" ]; then
-    mkdir -p "${ZDOTDIR}/zsh-functions"
-fi
-fpath=("${ZDOTDIR}/zsh-functions" ${fpath})
-autoload -Uz "${ZDOTDIR}/zsh-functions"/*(.:t)
-
 export QUILT_PATCHES=debian/patches
 export BAT_THEME="Solarized (light)"
 
-if is-macos; then
-  # Configuration for virtualenv
-  export WORKON_HOME=$HOME/.virtualenvs
-  export VIRTUALENVWRAPPER_PYTHON=/opt/homebrew/bin/python3
-  export VIRTUALENVWRAPPER_VIRTUALENV=/opt/homebrew/bin/virtualenv
+# Set up Starship prompt
+eval "$(starship init zsh)"
 
-  function virtualenvwrapper_init() {
-    unfunction virtualenvwrapper_init
-    source /opt/homebrew/bin/virtualenvwrapper.sh
-  }
+# Alias/custom commands
+#
+# Some are just in case - for 'rm', 'cp' and 'mv' - ask about overwriting or
+# deleting files.
+# Furthermore, be verbose about what each command is performing to be present of
+# what is occuring every time.
+alias chmod="chmod -v"
+alias chown="chown -v"
+alias cp="cp -iv"
+alias ln="ln -v"
+alias mkdir="mkdir -v"
+alias mv="mv -iv"
+alias rm="rm -v"
+alias vim=nvim
 
-  alias workon='virtualenvwrapper_init && workon'
-  alias mkvirtualenv='virtualenvwrapper_init && mkvirtualenv'
-
-  export LESSOPEN="|/opt/homebrew/bin/lesspipe.sh %s" LESS_ADVANCED_PREPROCESSOR=1
-
-  if (( $+commands[brew] )); then
-    eval "$(brew shellenv)"
-  fi
-else
-  export LESSOPEN="| lesspipe %s"         # Useful less pipe.
-  export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
+if (( ${+commands[bat]} )); then
+    alias cat=bat
 fi
 
+if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
+  source "${ZDOTDIR}/zstyles.zsh"
+fi
+
+# Plugin management with antidote
 if [[ ! -d "${ZDOTDIR}/.antidote" ]]; then
   git clone --depth 1 https://github.com/mattmc3/antidote "${ZDOTDIR}/.antidote"
 fi
 
 zsh_plugins="${ZDOTDIR}/zsh_plugins"
-if ! [[ -f "${zsh_plugins}.txt" ]]; then
+if [[ ! -f "${zsh_plugins}.txt" ]]; then
   touch "${zsh_plugins}.txt"
 fi
-
-fpath=("${ZDOTDIR}/.antidote/functions" ${fpath})
+fpath+=("${ZDOTDIR}/.antidote/functions")
 autoload -Uz antidote
 
 if [[ ! "${zsh_plugins}.zsh" -nt "${zsh_plugins}.txt" ]]; then
@@ -112,46 +112,36 @@ fi
 ZSH_FNM_ENV_EXTRA_ARGS=(--use-on-cd --version-file-strategy=recursive --corepack-enabled --resolve-engines --log-level=quiet) \
   source "${zsh_plugins}.zsh"
 
-if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
-  source "${ZDOTDIR}/zstyles.zsh"
+if [[ -f "${ZDOTDIR}/zstyles-post.zsh" ]]; then
+  source "${ZDOTDIR}/zstyles-post.zsh"
 fi
 
-# bun completions are strange: running `bun completions` installs ~/.bun/_bun and does not output the completion source code
-# this is a hack until bun fixes their completion setup https://github.com/oven-sh/bun/issues/1272
+# Load additional configuration
+for conf in "${ZDOTDIR}"/zshrc.d/*.zsh; do
+  source "${conf}"
+done
+
+if is-macos; then
+  source "${ZDOTDIR}/macos.zsh"
+fi
+
+if is-linux; then
+  # Only delete files on the current file system to avoid removing recursively
+  # from bind mounts. Only works on linux rm.
+  alias rm="rm -v --one-file-system"
+
+  export LESSOPEN="| lesspipe %s"
+  export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
+fi
+
+# bun completions are strange: running `bun completions` installs ~/.bun/_bun
+# and does not output the completion source code this is a hack until bun fixes
+# their completion setup https://github.com/oven-sh/bun/issues/1272
 if (( $+commands[bun] )); then
   [ -s ~/.bun/_bun ] || bun completions
 
   # cannot source directly, must add fpath to completions
   fpath=(~/.bun/ ${fpath})
-fi
-
-# Alias/custom commands
-#
-# Some are just in case - for 'rm', 'cp' and 'mv' - ask about overwriting or
-# deleting files.
-# Furthermore, be verbose about what each command is performing to be present of
-# what is occuring every time.
-alias cp="cp -iv"
-alias mkdir="mkdir -v"
-alias mv="mv -iv"
-alias ln="ln -v"
-alias vim=nvim
-
-if ! is-macos; then
-  # Only delete files on the current file system to avoid removing recursively
-  # from bind mounts. Only works on linux rm.
-  alias rm="rm -v --one-file-system"
-fi
-
-alias chown="chown -v"
-alias chmod="chmod -v"
-
-# Cause encfs unmount a mounted encrypted partition after two minutes of
-# inactivity by default.
-alias encfs="encfs --idle=2"
-
-if (( ${+commands[bat]} )); then
-    alias cat=bat
 fi
 
 # Set the default kube context if present
@@ -170,207 +160,15 @@ unset DEFAULT_KUBE_CONTEXTS CUSTOM_KUBE_CONTEXTS
 
 zmodload zsh/datetime
 
-ZLE_RPROMPT_INDENT=0
-
-# Set up starship as our prompt
-eval "$(starship init zsh)"
-
 # Change word boundary characters. Nabbed from
 # http://zshwiki.org/KeyBindings.
 
-# By default: export WORDCHARS='*?_-.[]~=/&;!#$%^(){}<>'
-# We remove the slash, period, angle brackets, dash here.
-export WORDCHARS='*?_-[]~=&;!#$%^(){}'
-
-# Follow GNU LS_COLORS for completion menus
-zmodload -i zsh/complist
-
-# Should dircolors exist. Fetch LS_COLORS from it.
-if command -v dircolors >/dev/null; then
-    eval "$(dircolors -b)"
-fi
-
-zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
-zstyle ':completion:*:*:kill:*' list-colors '=%*=01;31'
-
 # Add all colours and have fancy symbols for files, etc.
 if ! is-macos; then
-  alias ls="ls --classify --color=always"
+  alias ls="ls --classify"
 else
   alias ls="ls -FG"
 fi
-
-alias grep="grep --colour=always"       # Colour grep too.
-
-# Very powerful version of mv implemented in zsh. The main feature I
-# know of it that seperates it from the standard mv is that it saves you
-# time by being able to use patterns which are expanded into positional
-# parameters. So:
-#
-# slarti@pohl % zmv (*)foo ${1}bar
-#
-# On a series of files like onefoo, twofoo, threefoo, fivefoo would be
-# renamed to onebar twobar threebar fourbar.
-#
-# Although that's nifty enough, I suspect there are other features I
-# don't know about yet...
-#
-# Read $fpath/zmv for some more basic examples of usage, and also use
-# run-help on it :)
-autoload -U zmv
-
-# Command line calculator written in zsh, with a complete history
-# mechanism and other shell features.
-autoload -U zcalc
-
-# Like xargs, but instead of reading lines of arguments from standard input,
-# it takes them from the command line. This is possible/useful because,
-# especially with recursive glob operators, zsh often can construct a command
-# line for a shell function that is longer than can be accepted by an external
-# command. This is what's often referred to as the "shitty Linux exec limit" ;)
-# The limitation is on the number of characters or arguments.
-#
-# slarti@pohl % echo {1..30000}
-# zsh: argument list too long: /bin/echo
-# zsh: exit 127   /bin/echo {1..30000}
-autoload -U zargs
-
-# Yes, we are as bloated as emacs
-autoload -U tetris
-zle -N tetris
-bindkey "^Xt" tetris
-
-# Makes it easy to type URLs as command line arguments. As you type, the
-# input character is analyzed and, if it mayn eed quoting, the current
-# word is checked for a URI scheme. If one is found and the current word
-# is not already quoted, a blackslash is inserted before the input
-# caracter.
-autoload -U url-quote-magic
-zle -N self-insert url-quote-magic
-
-# zed is a tiny command-line editor in pure ZSH; no other shell could do
-# this.  zed itself is simple as anything, but it's killer feature for
-# me is that it can edit functions on the go with zed -f <funcname> (or
-# fned <funcname>. This is useful for me when I'm using and defining
-# functions interactively, for example, when I'm working through the
-# Portage tree in CVS. It allows me to edit a function on the fly,
-# without having to call the last definition back up from the history
-# and re-edit that in ZLE. It also indents the function, even if it was
-# defined on all one line in the line editor, making it easy as anything
-# to edit.
-#
-# ^X^W to save, ^C to abort.
-autoload -U zed
-
-# run-help is a help finder, bound in ZLE to M-h.  It doesn't need to be
-# autoloaded to work - the non-autoloaded version just looks up a man
-# page for the command under the cursor, then when that process is
-# finished it pulls your old command line back up from the buffer stack.
-# However, with the autoloaded function and:
-#
-# mkdir ~/zsh-help; cd ~/zsh-help MANPAGER="less" man zshbuiltins | \
-# colcrt | perl /usr/share/zsh/4.2.1/Util/helpfiles
-#
-# It'll work for zsh builtins too. By the way, I've assumed some things
-# in that command. ~/zsh-help can be wherever you like, MANPAGER needs
-# to be any standard pager (less, pg, more, just not the MANPAGER I have
-# defined in this file), colcrt can be col -bx, and the path to
-# helpfiles may be different for you (Util may not even be installed
-# with your distribution; fair enough, make install doesn't install it.
-# Dig up a source tarball and everything is in there).
-
-# Load the new one
-autoload -U run-help
-
-# Press Alt-H to show help for command we are currently on.
-bindkey '[[A' run-help
-
-# History file name and maximum size.
-HISTFILE="${ZDOTDIR}/history"
-SAVEHIST=15000
-HISTSIZE=15000
-
-# Push History from previous sessions. IF $HISTFILE exists.
-if [ -f "${HISTFILE}" ]; then
-    fc -R "${HISTFILE}"
-fi
-
-# This was the previous location of our history file before we started setting
-# `${ZDOTDIR}`.
-OLD_HISTFILE="${HOME}/.zsh/history"
-if [ -f "${OLD_HISTFILE}" ]; then
-    fc -R "${OLD_HISTFILE}"
-    rm -f "${OLD_HISTFILE}"
-fi
-unset OLD_HISTFILE
-
-## Key bindings
-# You may use:
-# % autoload -U zkbd
-# % zkbd
-# to discover your keys.
-
-#bindkey -v             # Vi keybindings.
-
-# Actually, stick with emacs for the moment. The vi keymap just doesn't
-# seem to be as complete (even if it's nicer for editing, there's no
-# execute-named-cmd bound, for example).
-bindkey -e             # Emacs keybindings.
-
-# Up, down left, right.
-# echotc forms part of the zsh/termcap module. It outputs the termcap value
-# corresponding to the capability it was given as an argument. man zshmodules.
-zmodload -i zsh/termcap
-bindkey "$(echotc kl)" backward-char
-bindkey "$(echotc kr)" forward-char
-bindkey "$(echotc ku)" up-line-or-history
-bindkey "$(echotc kd)" down-line-or-history
-
-bindkey '\e[3~' delete-char # Delete
-
-if [[ "$TERM" == "rxvt-unicode" || "$TERM" == "screen" ]]; then
-    bindkey '\e[7~' beginning-of-line # Home
-    bindkey '\e[8~' end-of-line # End
-elif [[ "$TERM" == "linux" ]]; then
-    bindkey '\e[1~' beginning-of-line # Home
-    bindkey '\e[4~' end-of-line # End
-else # At least xterm; probably other terms too
-    bindkey '\e[H~' beginning-of-line # Home
-    bindkey '\e[F~' end-of-line # End
-fi
-
-bindkey '\e[5~' up-history # PageUp
-bindkey '\e[6~' down-history # PageDown
-
-# This function sets the window tile to user@host:/workingdir before each
-# prompt. If you're using screen, it sets the window title (works
-# wonderfully for 'hardstatus' lines.
-# Beware: The two functions below have raw control characters.
-precmd() {
-#    [[ -t 1 ]] || return
-  case $TERM in
-    *xterm*|rxvt*) 
-        print -Pn "]2;%n@%m:%~\a"
-        ;;
-    screen*)
-        print -Pn "\"%n@%m:%~\134"
-        ;;
-  esac
-}
-
-# This sets the window title to the last run command.
-preexec() {
-  __TIMER=$EPOCHREALTIME
-#    [[ -t 1 ]] || return
-  case $TERM in
-    *xterm*|rxvt*)
-        print -Pn "]2;$1\a"
-        ;;
-    screen*)
-        print -Pn "\"$1\134"
-        ;;
-  esac
-}
 
 # Custom commands.
 
@@ -448,101 +246,6 @@ update-schroots() {
     done
 }
 
-function setup_environment() {
-  export DEBFULLNAME=$NAME                # These are used by Debian packaging...
-  export DEBEMAIL=$EMAIL                  # ...programs.
-  export DEBSIGN_KEYID=$GPGKEY            # Key ID for signing Debian packages.
-  export BZR_EMAIL="$NAME <$EMAIL>"       # Override email for Bazaar.
-  export BRZ_EMAIL="$NAME <$EMAIL>"       # Override email for Bazaar.
-  export GIT_AUTHOR_NAME=$NAME            # Use our real name for Git.
-  export GIT_AUTHOR_EMAIL=$EMAIL          # and our email address
-  export GIT_COMMITTER_EMAIL=$EMAIL       # ...too.
-}
-
-DIRSTACKSIZE=${DIRSTACKSIZE:-20}
-DIRSTACKFILE=${DIRSTACKFILE:-${HOME}/.zdirs}
-
-if [[ -f ${DIRSTACKFILE} ]] && [[ ${#dirstack[*]} -eq 0 ]] ; then
-    dirstack=( ${(f)"$(< $DIRSTACKFILE)"} )
-    # "cd -" won't work after login by just setting $OLDPWD, so
-    [[ -d $dirstack[1] ]] && cd $dirstack[1] && cd $OLDPWD
-fi
-
-chpwd() {
-    local -ax my_stack
-    my_stack=( ${PWD} ${dirstack} )
-    builtin print -l ${(u)my_stack} >! ${DIRSTACKFILE}
-}
-
-CHPWD_PROFILE='default'
-function chpwd_profiles() {
-    # Say you want certain settings to be active in certain directories.
-    # This is what you want.
-    #
-    # zstyle ':chpwd:profiles:/usr/src/grml(|/|/*)'   profile grml
-    # zstyle ':chpwd:profiles:/usr/src/debian(|/|/*)' profile debian
-    #
-    # When that's done and you enter a directory that matches the pattern
-    # in the third part of the context, a function called chpwd_profile_grml,
-    # for example, is called (if it exists).
-    #
-    # If no pattern matches (read: no profile is detected) the profile is
-    # set to 'default', which means chpwd_profile_default is attempted to
-    # be called.
-    #
-    # A word about the context (the ':chpwd:profiles:*' stuff in the zstyle
-    # command) which is used: The third part in the context is matched against
-    # ${PWD}. That's why using a pattern such as /foo/bar(|/|/*) makes sense.
-    # Because that way the profile is detected for all these values of ${PWD}:
-    #   /foo/bar
-    #   /foo/bar/
-    #   /foo/bar/baz
-    # So, if you want to make double damn sure a profile works in /foo/bar
-    # and everywhere deeper in that tree, just use (|/|/*) and be happy.
-    #
-    # The name of the detected profile will be available in a variable called
-    # 'profile' in your functions. You don't need to do anything, it'll just
-    # be there.
-    #
-    # Then there is the parameter $CHPWD_PROFILE is set to the profile, that
-    # was is currently active. That way you can avoid running code for a
-    # profile that is already active, by running code such as the following
-    # at the start of your function:
-    #
-    # function chpwd_profile_grml() {
-    #     [[ ${profile} == ${CHPWD_PROFILE} ]] && return 1
-    #   ...
-    # }
-    #
-    # The initial value for $CHPWD_PROFILE is 'default'.
-    local -x profile
-
-    zstyle -s ":chpwd:profiles:${PWD}" profile profile || profile='default'
-    if (( ${+functions[chpwd_profile_$profile]} )) ; then
-        chpwd_profile_${profile}
-    fi
-
-    CHPWD_PROFILE="${profile}"
-    return 0
-}
-chpwd_functions=( ${chpwd_functions} chpwd_profiles )
-
-# Source all files in ${ZDOTDIR}/zshrc.d
-for _rc in ${ZDOTDIR}/zshrc.d/*.zsh; do
-  # Ignore tilde files.
-  if [[ $_rc:t != '~'* ]]; then
-    source "$_rc"
-  fi
-done
-unset _rc
-
-# Pull hosts from $HOME/.ssh/known_hosts, also from the wiki
-# local _myhosts. If it exists, that is.
-if [ -f "${HOME}/.ssh/known_hosts" ]; then
-    _myhosts=( ${${${${(f)"$(< "${HOME}/.ssh/known_hosts")"}:#[0-9]*}%%\ *}%%,*} )
-    zstyle ':completion:*' hosts $_myhosts
-fi
-
 # Set up VTE stuff if needed
 # Options
 setopt      \
@@ -556,18 +259,19 @@ NO_all_export   \
    auto_name_dirs \
    auto_param_keys  \
    auto_param_slash \
-   auto_pushd   \
    auto_remove_slash  \
 NO_auto_resume    \
    bad_pattern    \
    bang_hist    \
-NO_beep     \
    brace_ccl    \
    correct_all    \
 NO_bsd_echo   \
 NO_cdable_vars    \
 NO_chase_links    \
-   clobber    \
+# Seeing how this goes, but might want to uncomment \
+# https://github.com/mattmc3/zephyr/blob/446ce9f1db12b9b0cff772b116e048a6474735c7/plugins/directory/directory.plugin.zsh#L19 \
+#   clobber    \
+setopt \
    complete_aliases \
    complete_in_word \
    correct    \
@@ -577,13 +281,11 @@ NO_csh_junkie_loops \
 NO_csh_junkie_quotes  \
 NO_csh_null_glob  \
    equals   \
-   extended_glob  \
    extended_history \
    function_argzero \
    glob     \
 NO_glob_assign    \
    glob_complete  \
-NO_glob_dots    \
 NO_glob_subst   \
 NO_hash_cmds    \
 NO_hash_dirs    \
@@ -594,22 +296,16 @@ NO_hash_dirs    \
    hist_ignore_space  \
 NO_hist_no_store  \
    hist_verify    \
-NO_hup      \
 NO_ignore_braces  \
 NO_ignore_eof   \
-   interactive_comments \
    inc_append_history \
 NO_list_ambiguous \
 NO_list_beep    \
    list_types   \
-   long_list_jobs \
    magic_equal_subst  \
-NO_mail_warning   \
 NO_mark_dirs    \
    menu_complete  \
-   multios    \
    nomatch    \
-   notify   \
 NO_null_glob    \
    numeric_glob_sort  \
 NO_overstrike   \
@@ -620,12 +316,7 @@ NO_prompt_cr    \
    prompt_subst   \
    promptsubst      \
    pushd_ignore_dups  \
-NO_pushd_minus    \
-   pushd_silent   \
-   pushd_to_home  \
    rc_expand_param  \
-NO_rc_quotes    \
-NO_rm_star_silent \
 NO_sh_file_expansion  \
    sh_option_letters  \
    share_history        \
