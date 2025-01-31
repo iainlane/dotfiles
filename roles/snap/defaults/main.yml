@@ -1,9 +1,10 @@
-snaps:
-- code
-- go
-- helm
-- kubectl
-- slack
-- spotify
-- telegram-desktop
-- yq
+---
+snap_packages:
+  - code
+  - go
+  - helm
+  - kubectl
+  - slack
+  - spotify
+  - telegram-desktop
+  - yq

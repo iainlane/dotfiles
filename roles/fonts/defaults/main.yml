@@ -1,0 +1,15 @@
+---
+fonts_directories:
+  linux: "{{ lookup('env', 'XDG_DATA_HOME', default='~/.local/share') }}/fonts"
+  macos: "~/Library/Fonts"
+
+fonts_state_dir: "{{ lookup('env', 'XDG_STATE_HOME', default='~/.local/state') }}/ansible"
+
+fonts_state_file: "{{ fonts_state_dir }}/state.json"
+
+fonts_nerd_fonts:
+  - CascadiaCode
+  - CascadiaMono
+  - FiraCode
+  - Hack
+  - Monaspace

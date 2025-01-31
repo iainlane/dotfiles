@@ -1,0 +1,18 @@
+---
+dependencies:
+  - role: apt
+    vars:
+      apt_repositories:
+        github-cli:
+          key_url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+          key_dest: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+          repo: "deb [signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+      apt_packages:
+        - git
+        - gh
+
+  - role: brew
+    vars:
+      brew_packages:
+        - git
+        - gh

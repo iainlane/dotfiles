@@ -1,0 +1,21 @@
+---
+dependencies:
+  - role: apt
+    vars:
+      apt_repositories:
+        google-cloud:
+          key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+          key_dest: /etc/apt/keyrings/google-cloud.asc
+          repo: "deb [signed-by=/etc/apt/keyrings/google-cloud.asc] https://packages.cloud.google.com/apt cloud-sdk main"
+        azure-cli:
+          key_url: https://packages.microsoft.com/keys/microsoft.asc
+          key_dest: /etc/apt/keyrings/microsoft.asc
+          repo: "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/azure-cli/ jammy main"
+
+      apt_packages:
+        - google-cloud-cli
+        - google-cloud-sdk-gke-gcloud-auth-plugin
+        - azure-cli
+
+      apt_remove_packages:
+        - awscli

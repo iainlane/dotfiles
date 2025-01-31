@@ -1,6 +1,15 @@
-- name: Install brew packages
+---
+- name: Skip when not on MacOS
+  ansible.builtin.meta: end_role
+  when: "os_family != 'macos'"
+
+- name: Manage homebrew taps
+  community.general.homebrew_tap:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ brew_taps }}"
+
+- name: Manage homebrew packages
   community.general.homebrew:
-    name: "{{ packages }}"
-    update_homebrew: true
-    upgrade_all: true
-    state: latest
+    name: "{{ brew_packages }}"
+    state: "{{ brew_state }}"

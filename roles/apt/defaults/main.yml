@@ -1,6 +1,9 @@
-package_upgrade: yes
-packages:
+---
+apt_package_upgrade: true
+
+apt_packages:
   - ansible
+  - apt
   - black
   - btop
   - build-essential
@@ -19,6 +22,8 @@ packages:
   - pycodestyle
   - python3-pip
   - python3-venv
+  - ruby
+  - watchman
   - wget
   - zsh
 
@@ -28,4 +33,10 @@ packages:
   - gnome-tweaks
   - tilix
 
-remove_packages:
+apt_remove_packages: []
+
+apt_repositories: {}
+
+apt_state: "{{ 'latest' if apt_pacakge_upgrade else 'present' }}"
+
+apt_update_cache: true

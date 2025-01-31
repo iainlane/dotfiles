@@ -1,5 +1,6 @@
+---
 - name: Install go packages (all)
-  command:
+  ansible.builtin.command:
     cmd: go install '{{ item }}'
   loop:
     - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
@@ -11,7 +12,7 @@
     - github.com/rs/curlie@latest
 
 - name: Install go packages (linux specific)
-  command:
+  ansible.builtin.command:
     cmd: go install '{{ item }}'
   loop:
     - github.com/muesli/deckmaster@latest
@@ -19,10 +20,12 @@
 
 - name: Install `doggo` completions
   block:
-    - command:
+    - name: Generate doggo completions
+      ansible.builtin.command:
         cmd: doggo completions zsh
       register: doggo_completion
 
-    - copy:
+    - name: Install doggo completions
+      ansible.builtin.copy:
         content: "{{ doggo_completion.stdout }}"
         dest: ~/.config/zsh/zsh-functions/doggo.zsh

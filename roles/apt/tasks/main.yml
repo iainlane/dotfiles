@@ -1,28 +1,47 @@
+---
+- name: Skip when not on Debian
+  ansible.builtin.meta: end_role
+  when: "os_family != 'debian'"
+
+- name: Set up third party repositories
+  become: true
+
+  block:
+    - name: Download repository keys
+      ansible.builtin.get_url:
+        url: "{{ item.value.key_url }}"
+        dest: "{{ item.value.key_dest }}"
+        mode: '0644'
+      loop: "{{ apt_repositories | dict2items }}"
+
+    - name: Add repository sources
+      ansible.builtin.apt_repository:
+        filename: "{{ item.key }}"
+        repo: "{{ item.value.repo }}"
+        state: present
+        update_cache: false
+      loop: "{{ apt_repositories | dict2items }}"
+
 - name: Upgrade apt packages
-  apt:
+  ansible.builtin.apt:
     upgrade: full
     update_cache: true
     cache_valid_time: 3600
   become: true
-  become_user: root
-  become_method: sudo
+  when: apt_package_upgrade
 
-- name: Install apt packages
-  apt:
-    name: "{{ packages }}"
-    update_cache: true
-    state: latest
+- name: Manage apt packages
+  ansible.builtin.apt:
+    name: "{{ apt_packages }}"
+    update_cache: "{{ apt_update_cache }}"
+    state: "{{ apt_state }}"
     cache_valid_time: 3600
   become: true
-  become_user: root
-  become_method: sudo
 
 - name: Remove apt packages
-  apt:
+  ansible.builtin.apt:
     name: "{{ item }}"
     update_cache: false
     state: absent
   become: true
-  become_user: root
-  become_method: sudo
-  loop: "{{ remove_packages if remove_packages is iterable else [] }}"
+  loop: "{{ apt_remove_packages }}"

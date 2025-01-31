@@ -1,13 +1,35 @@
-# curl and run rustup
+---
+# Download and run rustup
 - name: Install Rust
-  command:
-    cmd: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-    creates: ~/.cargo/bin/rustup
-    chdir: ~
-  register: rustup
+  block:
+    - name: Create temporary file for rustup installer
+      ansible.builtin.tempfile:
+        state: file
+        prefix: rustup_
+        suffix: .sh
+      register: rustup_tmp
+
+    - name: Download rustup installer
+      ansible.builtin.get_url:
+        url: https://sh.rustup.rs
+        dest: "{{ rustup_tmp.path }}"
+        mode: '0755'
+
+    - name: Install Rust
+      ansible.builtin.command:
+        cmd: "{{ rustup_tmp.path }} -y --no-modify-path"
+        creates: ~/.cargo/bin/rustup
+      register: rustup
+
+  always:
+    - name: Clean up temp file
+      ansible.builtin.file:
+        path: "{{ rustup_tmp.path }}"
+        state: absent
+      when: rustup_tmp.path is defined
 
 - name: Update rust
-  command:
+  ansible.builtin.command:
     cmd: "{{ item }}"
   loop:
     - ~/.cargo/bin/rustup self update
@@ -15,7 +37,7 @@
   when: not rustup.changed
 
 - name: Install Rust components
-  command:
+  ansible.builtin.command:
     cmd: ~/.cargo/bin/rustup component add {{ item }}
   loop:
     - rustfmt
@@ -26,7 +48,7 @@
 
 - name: Install Cargo packages
   community.general.cargo:
-    locked: yes
+    locked: true
     state: latest
     name:
       - bat

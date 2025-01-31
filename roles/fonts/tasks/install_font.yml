@@ -1,0 +1,44 @@
+---
+- name: Install {{ font_name }}
+  block:
+    - name: Ensure font directory exists
+      ansible.builtin.include_tasks: ensure_font_dir.yml
+
+    - name: Download and extract {{ font_name }}
+      ansible.builtin.unarchive:
+        src: "{{ download_url }}"
+        dest: "{{ temp_dir.path }}"
+        remote_src: true
+        extra_opts: "{{ extract_opts | default(omit) }}"
+
+    - name: Install font files for {{ font_name }}
+      when: font_paths is defined
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ font_dir }}"
+        mode: "0644"
+      with_fileglob: "{{ font_paths | map('ansible.builtin.regex_replace', '^', temp_dir.path + '/') | list }}"
+      notify: Update font cache
+
+    - name: Run post install script  # noqa: no-changed-when
+      when: script is defined
+      ansible.builtin.command:
+        chdir: "{{ temp_dir.path }}"
+        cmd: "{{ script }}"
+
+    - name: Update state
+      ansible.builtin.set_fact:
+        state: "{{ state | combine({'fonts': state.fonts | combine({font_name: version})}) }}"
+
+    - name: Record font installation in state file
+      ansible.builtin.copy:
+        content: "{{ state | to_nice_json }}"
+        dest: "{{ fonts_state_file }}"
+        mode: "0644"
+      become: false
+
+  always:
+    - name: Clean up temp directory
+      ansible.builtin.file:
+        path: "{{ temp_dir.path }}"
+        state: absent

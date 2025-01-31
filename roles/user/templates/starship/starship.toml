@@ -1,0 +1,287 @@
+add_newline = false
+command_timeout = 1000
+format = "[](surface1)[${battery}](fg:white bg:surface1)${os}[](bg:surface2 fg:surface1)$sudo$username[](bg:overlay0 fg:surface2)$hostname[](bg:mauve fg:overlay0)[$c$dart$dotnet$elixir$elm$erlang$golang$haskell$haxe$java$julia$kotlin$lua$nim$bun$nodejs$rlang$ruby$rust$perl$php$python$scala$swift$zig$package$git_branch](fg:base bg:mauve)[](fg:mauve bg:peach)[${git_state}${git_status}](fg:base bg:peach)[](fg:peach bg:yellow)[$container$direnv$nix_shell$cmd_duration$jobs$shlvl$status](fg:base bg:yellow)$character"
+right_format = "[](fg:blue)[$directory](fg:base bg:blue)"
+palette = "catppuccin_mocha"
+
+[battery]
+format = "$symbol"
+
+[[battery.display]]
+threshold = 100
+
+[c]
+format = "$symbol"
+symbol = ""
+
+[character]
+disabled = false
+error_symbol = "(fg:red bg:pink)[](fg:pink) "
+format = "$symbol"
+success_symbol = "[](fg:teal) "
+
+[cmd_duration]
+format = "  $duration"
+min_time = 2500
+min_time_to_notify = 60000
+show_notifications = false
+
+[container]
+format = " $symbol $name"
+symbol = "󱋩"
+
+[dart]
+format = "$symbol"
+symbol = ""
+
+[directory]
+fish_style_pwd_dir_length = 1
+read_only = " 󰈈"
+repo_root_style = "$style"
+before_repo_root_style = "fg:dimmed bg:blue"
+style = "fg:base bg:blue"
+truncation_length = 3
+
+[direnv]
+allowed_msg = ""
+denied_msg = ""
+disabled = false
+format = " $loaded"
+loaded_msg = "󰐍"
+not_allowed_msg = ""
+symbol = ""
+unloaded_msg = "󰙧"
+
+[dotnet]
+format = "$symbol"
+symbol = ""
+
+[elixir]
+format = "$symbol"
+symbol = ""
+
+[elm]
+format = "$symbol"
+symbol = ""
+
+[erlang]
+format = "$symbol"
+symbol = ""
+
+[git_branch]
+format = " $symbol $branch"
+symbol = ""
+
+[git_state]
+disabled = false
+format = "$state (${progress_current}/${progress_total}) "
+
+[git_status]
+format = " $all_status$ahead_behind"
+ahead = '⇡${count}'
+diverged = '⇕⇡${ahead_count}⇣${behind_count}'
+behind = '⇣${count}'
+up_to_date = "✔️"
+
+[golang]
+format = "$symbol"
+symbol = ""
+
+[haskell]
+format = "$symbol"
+symbol = "󰲒"
+
+[haxe]
+format = "$symbol"
+symbol = ""
+
+[hostname]
+disabled = false
+format = "[$hostname]($style)[$ssh_symbol](bg:overlay0 fg:maroon)"
+ssh_only = false
+ssh_symbol = " 󰖈"
+style = "bg:overlay0 fg:red"
+
+[java]
+format = "$symbol"
+symbol = "󰬷"
+
+[jobs]
+format = " $symbol $number"
+symbol = "󰣖"
+
+[julia]
+format = "$symbol"
+symbol = ""
+
+[kotlin]
+format = "$symbol"
+symbol = ""
+
+[lua]
+format = "$symbol"
+symbol = ""
+
+[nim]
+format = "$symbol"
+symbol = ""
+
+[nix_shell]
+format = "$symbol"
+symbol = "󱄅"
+
+[bun]
+format = "$symbol"
+detect_files = ['.bun-versoin', 'bun.toml', 'bun.lock', 'bun.lockb']
+symbol = "🥟"
+
+[nodejs]
+format = "$symbol"
+detect_files = ['package.json', '.node-version', '!bunfig.toml', '!bun.lockb', '!bun.lock']
+symbol = ""
+
+[os]
+format = "$symbol[ ](bg:surface1)"
+disabled = false
+
+[os.symbols]
+AlmaLinux = "[](fg:text bg:surface1)"
+Alpine = "[](fg:blue bg:surface1)"
+Amazon = "[](fg:peach bg:surface1)"
+Android = "[](fg:green bg:surface1)"
+Arch = "[󰣇](fg:sapphire bg:surface1)"
+Artix = "[](fg:sapphire bg:surface1)"
+CentOS = "[](fg:mauve bg:surface1)"
+Debian = "[](fg:red bg:surface1)"
+DragonFly = "[](fg:teal bg:surface1)"
+EndeavourOS = "[](fg:mauve bg:surface1)"
+Fedora = "[](fg:blue bg:surface1)"
+FreeBSD = "[](fg:red bg:surface1)"
+Garuda = "[](fg:sapphire bg:surface1)"
+Gentoo = "[](fg:lavender bg:surface1)"
+Illumos = "[](fg:peach bg:surface1)"
+Kali = "[](fg:blue bg:surface1)"
+Linux = "[](fg:yellow bg:surface1)"
+Macos = "[](fg:text bg:surface1)"
+Manjaro = "[](fg:green bg:surface1)"
+Mint = "[󰣭](fg:teal bg:surface1)"
+NixOS = "[](fg:sky bg:surface1)"
+OpenBSD = "[](fg:yellow bg:surface1)"
+Pop = "[](fg:sapphire bg:surface1)"
+Raspbian = "[](fg:maroon bg:surface1)"
+RedHatEnterprise = "[](fg:red bg:surface1)"
+Redhat = "[](fg:red bg:surface1)"
+RockyLinux = "[](fg:green bg:surface1)"
+SUSE = "[](fg:green bg:surface1)"
+Solus = "[](fg:blue bg:surface1)"
+Ubuntu = "[](fg:peach bg:surface1)"
+Unknown = "[](fg:text bg:surface1)"
+Void = "[](fg:green bg:surface1)"
+Windows = "[󰖳](fg:sky bg:surface1)"
+openSUSE = "[](fg:green bg:surface1)"
+
+[package]
+format = " $version"
+version_format = "$raw"
+
+[palettes.catppuccin_mocha]
+base = "#1e1e2e"
+blue = "#89b4fa"
+crust = "#11111b"
+flamingo = "#f2cdcd"
+green = "#a6e3a1"
+lavender = "#b4befe"
+mantle = "#181825"
+maroon = "#eba0ac"
+mauve = "#cba6f7"
+overlay0 = "#6c7086"
+overlay1 = "#7f849c"
+overlay2 = "#9399b2"
+peach = "#fab387"
+pink = "#f5c2e7"
+red = "#f38ba8"
+rosewater = "#f5e0dc"
+sapphire = "#74c7ec"
+sky = "#89dceb"
+subtext0 = "#a6adc8"
+subtext1 = "#bac2de"
+surface0 = "#313244"
+surface1 = "#45475a"
+surface2 = "#585b70"
+teal = "#94e2d5"
+text = "#cdd6f4"
+yellow = "#f9e2af"
+
+[perl]
+format = "$symbol"
+symbol = ""
+
+[php]
+format = "$symbol"
+symbol = "󰌟"
+
+[python]
+format = "$symbol"
+symbol = ""
+
+[rlang]
+format = "$symbol"
+symbol = ""
+
+[ruby]
+format = "$symbol"
+symbol = ""
+
+[rust]
+format = "$symbol"
+symbol = ""
+
+[scala]
+format = "$symbol"
+symbol = ""
+
+[shlvl]
+disabled = false
+format = "[ $symbol]($style)"
+repeat = false
+style = "fg:surface1 bg:yellow"
+symbol = "󱆃"
+threshold = 3
+
+[status]
+disabled = false
+format = "$symbol"
+map_symbol = true
+not_executable_symbol = "[](fg:yellow bg:pink)[  $common_meaning](fg:red bg:pink)"
+not_found_symbol = "[](fg:yellow bg:pink)[ 󰩌 $common_meaning](fg:red bg:pink)"
+sigint_symbol = "[](fg:yellow bg:pink)[  $signal_name](fg:red bg:pink)"
+signal_symbol = "[](fg:yellow bg:pink)[ ⚡ $signal_name](fg:red bg:pink)"
+style = ""
+success_symbol = "[](fg:yellow bg:teal)"
+symbol = "[](fg:yellow bg:pink)[  $status](fg:red bg:pink)"
+
+[sudo]
+disabled = false
+format = "[ $symbol]($style)"
+style = "fg:rosewater bg:surface2"
+symbol = "󰌋"
+
+[swift]
+format = "$symbol"
+symbol = ""
+
+[time]
+disabled = true
+
+[username]
+format = "[$user]($style)"
+show_always = true
+style_root = "fg:red bg:surface2"
+style_user = "fg:green bg:surface2"
+[username.aliases]
+#laney = "󰝴"
+root = "󰱯"
+
+[zig]
+format = "$symbol"
+symbol = ""

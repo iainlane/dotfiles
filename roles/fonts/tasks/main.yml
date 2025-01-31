@@ -1,112 +1,97 @@
+---
+- name: Ensure Ansible state directory exists
+  ansible.builtin.file:
+    path: "{{ fonts_state_dir }}"
+    state: directory
+    mode: "0755"
+  become: false
+  register: state_dir
+
+- name: Load state file
+  ansible.builtin.slurp:
+    path: "{{ fonts_state_file }}"
+  register: state_content
+  ignore_errors: true
+
+- name: Set state fact
+  ansible.builtin.set_fact:
+    state: "{{ (state_content.content | b64decode | from_json) if state_content.content is defined else {'fonts': {}} }}"
+
+- name: Set state fact
+  ansible.builtin.set_fact:
+    fonts_state: "{{ state.fonts }}"
+
 - name: Install Monaspace fonts
   block:
-    - name: Create temporary directory to unpack font sources into
-      tempfile:
-        state: directory
-        prefix: monaspace_
-      register: temp_dir
-
-    - name: Set var for font directory
-      set_fact:
-        monaspace_font_dir: "{{ vars['dest'][os_family] }}"
-      vars:
-        dest:
-          macos: "~/Library/Fonts"
-          debian: "~/.local/share/fonts"
-
-    - name: Ensure font directory exists
-      file:
-        path: "{{ monaspace_font_dir }}"
-        state: directory
-      become: no
-
     - name: Get latest Monaspace release
-      uri:
+      ansible.builtin.uri:
         url: https://api.github.com/repos/githubnext/monaspace/tags
         body_format: json
-      register: monsapace_release
+      register: monaspace_release
 
-    - name: Download release
-      unarchive:
-        src: "{{ monsapace_release.json[0].tarball_url }}"
-        dest: "{{ temp_dir.path }}"
-        remote_src: yes
-        extra_opts:
-          - "--strip-components=1"
+    - name: Set Monaspace release facts
+      ansible.builtin.set_fact:
+        monaspace_tag: "{{ monaspace_release.json[0].name }}"
+        monaspace_url: "{{ monaspace_release.json[0].tarball_url }}"
 
-    - name: Run util/install_linux.sh or util/install_macos.sh
-      command: "{{ script[os_family] }}"
-      args:
-        chdir: "{{ temp_dir.path }}"
-      vars:
-        script:
-          macos: ./util/install_macos.sh
-          debian: ./util/install_linux.sh
+    - name: Install Monaspace if not already installed
+      when: fonts_state.monaspace is not defined or fonts_state.monaspace != monaspace_tag
+      block:
+        - name: Include font installation tasks
+          ansible.builtin.include_tasks: install_font.yml
+          vars:
+            font_name: monaspace
+            version: "{{ monaspace_tag }}"
+            download_url: "{{ monaspace_url }}"
+            extract_opts: ["--strip-components=1"]
+            script: "{{ (os_family == 'linux') | ternary('./util/install_linux.sh', './util/install_macos.sh') }}"
 
-    - name: Clean up old FONT_DIR/Monaspice*
-      file:
-        path: "{{ item }}"
-        state: absent
-      with_fileglob: "{{ monaspace_font_dir }}/Monaspice*"
-
-  always:
-    - name: Clean up temp directory
-      file:
-        path: "{{ temp_dir.path }}"
-        state: absent
-      when: temp_dir.path is defined
-
-- name: Install Cascadia Code font
+- name: Install Cascadia Code font if not already installed
   block:
-    - name: Create temporary directory to unpack font sources into
-      tempfile:
-        state: directory
-        prefix: cascadia_
-      register: temp_dir
-
-    - name: Set var for font directory
-      set_fact:
-        cascadia_font_dir: "{{ vars['dest'][os_family] }}"
-      vars:
-        dest:
-          macos: "~/Library/Fonts"
-          debian: "~/.local/share/fonts"
-
-    - name: Ensure font directory exists
-      file:
-        path: "{{ cascadia_font_dir }}"
-        state: directory
-      become: no
-
     - name: Get latest Cascadia Code release
-      uri:
+      ansible.builtin.uri:
         url: https://api.github.com/repos/microsoft/cascadia-code/releases/latest
         body_format: json
       register: cascadia_release
 
-    - name: Download release
-      unarchive:
-        src: "{{ cascadia_release.json.assets[0].browser_download_url }}"
-        dest: "{{ temp_dir.path }}"
-        remote_src: yes
+    - name: Set Cascadia release facts
+      ansible.builtin.set_fact:
+        cascadia_tag: "{{ cascadia_release.json.tag_name }}"
+        cascadia_url: "{{ cascadia_release.json.assets[0].browser_download_url }}"
 
-    - name: Install font
-      copy:
-        src: "{{ item }}"
-        dest: "{{ cascadia_font_dir }}"
-      with_fileglob:
-      - "{{ temp_dir.path }}/ttf/*.ttf"
-      - "{{ temp_dir.path }}/ttf/static/*.ttf"
+    - name: Install Cascadia Code if not already installed
+      when: fonts_state.cascadia is not defined or fonts_state.cascadia != cascadia_tag
+      ansible.builtin.include_tasks: install_font.yml
+      vars:
+        font_name: cascadia
+        version: "{{ cascadia_tag }}"
+        download_url: "{{ cascadia_url }}"
+        font_paths:
+          - "ttf/*.ttf"
+          - "ttf/static/*.ttf"
 
-    - name: Update font cache
-      command:
-        cmd: fc-cache -f -v
-      become: no
-      when: os_family == "debian"
+- name: Install Nerd Fonts
+  block:
+    - name: Get latest Nerd Fonts release
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
+        body_format: json
+      register: nerdfonts_release
 
-  always:
-    - name: Clean up temp directory
-      file:
-        path: "{{ temp_dir.path }}"
-        state: absent
-      when: temp_dir.path is defined
+    - name: Set Nerd Fonts release facts
+      ansible.builtin.set_fact:
+        nerdfonts_tag: "{{ nerdfonts_release.json.tag_name }}"
+        nerdfonts_assets: "{{ nerdfonts_release.json.assets | map(attribute='browser_download_url') | list }}"
+
+    - name: Install each Nerd Font
+      loop: "{{ fonts_nerd_fonts }}"
+      when: fonts_state[font ~ '_nf'] is not defined or fonts_state[font ~ '_nf'] != nerdfonts_tag
+      ansible.builtin.include_tasks: install_font.yml
+      loop_control:
+        loop_var: font
+      vars:
+        font_name: "{{ font }}_nf"
+        version: "{{ nerdfonts_tag }}"
+        download_url: "{{ nerdfonts_assets | select('search', font + '.tar.xz$') | first }}"
+        font_paths:
+          - "*.ttf"

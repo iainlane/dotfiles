@@ -1,0 +1,12 @@
+---
+dependencies:
+  - role: apt
+    vars:
+      apt_repositories:
+        google-chrome:
+          key_url: https://dl.google.com/linux/linux_signing_key.pub
+          key_dest: /etc/apt/keyrings/google-chrome.asc
+          repo: deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main
+
+      apt_packages:
+        - google-chrome-stable

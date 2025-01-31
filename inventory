@@ -2,8 +2,6 @@ all:
   vars:
     ansible_connection: local
 
-    dotfiles_user_home: "{{ '~' | expanduser }}"
-    dotfiles_home: "{{ dotfiles_user_home }}/.dotfiles"
     full_name: Iain Lane
     git_user: laney
     git_email: iain@orangesquash.org.uk

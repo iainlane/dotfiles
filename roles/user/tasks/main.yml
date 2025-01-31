@@ -1,5 +1,6 @@
+---
 - name: Create users
-  user:
+  ansible.builtin.user:
     append: true
     update_password: on_create
 
@@ -7,11 +8,9 @@
     comment: "{{ item.comment }}"
     groups: "{{ usergroups[os_family][item.user_type] }}"
     name: "{{ item.name }}"
-    shell: "{{ item.shell}}"
-  become: yes
-  become_user: root
-  become_method: sudo
-  loop: "{{ users }}"
+    shell: "{{ item.shell }}"
+  become: true
+  loop: "{{ user_list }}"
 
   vars:
     usergroups:
@@ -22,45 +21,38 @@
         admin: [sudo, kvm]
         regular: []
 
-- name: zsh files
+- name: Create zsh files
   block:
     - name: Ensure zsh config directory exists
-      file:
+      ansible.builtin.file:
         path: "~/.config/zsh"
         state: directory
+        mode: "0755"
 
     - name: Copy zsh files
-      copy:
+      ansible.builtin.copy:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
         directory_mode: "0755"
         mode: "0664"
       loop:
         - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
-        - {
-            src: "templates/zsh/zsh-functions/",
-            dest: "~/.config/zsh/zsh-functions/",
-          }
-        - {
-            src: "templates/zsh/zsh_plugins.txt",
-            dest: "~/.config/zsh/zsh_plugins.txt",
-          }
+        - { src: "templates/zsh/zsh-functions/", dest: "~/.config/zsh/zsh-functions/" }
+        - { src: "templates/zsh/zsh_plugins.txt", dest: "~/.config/zsh/zsh_plugins.txt" }
         - { src: "templates/zsh/zshrc.d/", dest: "~/.config/zsh/zshrc.d/" }
         - { src: "templates/zsh/zshrc", dest: "~/.config/zsh/.zshrc" }
-        - {
-            src: "templates/zsh/zstyles.zsh",
-            dest: "~/.config/zsh/zstyles.zsh",
-          }
+        - { src: "templates/zsh/zstyles.zsh", dest: "~/.config/zsh/zstyles.zsh" }
 
-- name: neovim files
+- name: Neovim files
   block:
     - name: Ensure neovim config directory exists
-      file:
-        path: path="~/.config/nvim"
+      ansible.builtin.file:
+        path: ~/.config/nvim
         state: directory
+        mode: "0755"
 
     - name: Copy neovim files
-      copy:
+      ansible.builtin.copy:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
         directory_mode: "0755"
@@ -68,26 +60,36 @@
       loop:
         - { src: "templates/nvim/", dest: "~/.config/nvim/" }
 
+- name: Starship files
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    directory_mode: "0755"
+    mode: "0664"
+  loop:
+    - { src: "templates/starship/", dest: "~/.config/" }
+
 # This prevents a "Last login" message from appearing when you open a new terminal
 - name: Create a hushlogin file
-  copy:
+  ansible.builtin.copy:
     content: ""
     dest: "~/.hushlogin"
     force: false
-    mode: 0644
+    mode: "0644"
 
 - name: Set npm path
-  command:
+  ansible.builtin.command:
     cmd: npm config set prefix ~/.npm
-  become: no
+    creates: "~/.npmrc"
+  become: false
 
-- name: avoid annoying message when running docker
-  copy:
+- name: Avoid annoying message when running docker
+  ansible.builtin.copy:
     content: ""
     dest: /etc/containers/nodocker
     force: false
     group: root
     owner: root
-    mode: 0644
-  become: yes
+    mode: "0644"
+  become: true
   when: os_family == "debian"

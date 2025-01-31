@@ -1,0 +1,17 @@
+---
+- name: Create temporary directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: "{{ font_name }}_"
+  register: temp_dir
+
+- name: Set var for font directory
+  ansible.builtin.set_fact:
+    font_dir: "{{ fonts_directories[os_family] }}"
+
+- name: Ensure font directory exists
+  ansible.builtin.file:
+    path: "{{ font_dir }}"
+    state: directory
+    mode: "0755"
+  become: false

@@ -1,0 +1,18 @@
+---
+dependencies:
+  - role: apt
+    vars:
+      apt_repositories:
+        hashicorp:
+          key_url: https://apt.releases.hashicorp.com/gpg
+          key_dest: /etc/apt/keyrings/hashicorp.asc
+          repo: "deb [signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+
+      apt_packages:
+        - terraform
+  - role: brew
+    vars:
+      brew_taps:
+        - hashicorp/tap
+      brew_packages:
+        - terraform

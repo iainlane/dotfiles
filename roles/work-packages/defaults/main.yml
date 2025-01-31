@@ -1,8 +1,0 @@
-package_upgrade: yes
-packages:
-  - clamav
-  - jq
-  - jsonnet
-  - shellcheck
-
-remove_packages:

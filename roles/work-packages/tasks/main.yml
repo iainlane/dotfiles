@@ -1,9 +1,8 @@
-- include_tasks:
-    file: roles/apt/tasks/main.yml
-
+---
 - name: Install go packages (work)
-  command:
+  ansible.builtin.command:
     cmd: go install '{{ item }}'
+    creates: "{{ ansible_env.HOME }}/go/bin/{{ item | basename | regex_replace('@.*$', '') }}"
   loop:
     - github.com/derailed/k9s@latest
     - github.com/google/go-containerregistry/cmd/crane@latest

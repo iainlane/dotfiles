@@ -1,9 +1,5 @@
-packages:
-  - btop
-  - diffutils
-  - eza
-  - gnu-tar
-  - neovim
-  - pre-commit
-
-remove_packages:
+---
+# Base packages
+brew_packages: []
+brew_taps: []
+brew_state: latest

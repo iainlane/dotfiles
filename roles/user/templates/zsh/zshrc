@@ -43,6 +43,7 @@ path_if_exists=(
   ${HOME}/bin
   ${HOME}/bin/ubuntu-dev-tools
   ${HOME}/bin/ubuntu-archive-tools
+  /opt/homebrew/opt/ruby/bin
   /opt/homebrew/opt/gnu-sed/libexec/gnubin
   /opt/homebrew/bin
   ${HOME}/go/bin
@@ -169,79 +170,10 @@ unset DEFAULT_KUBE_CONTEXTS CUSTOM_KUBE_CONTEXTS
 
 zmodload zsh/datetime
 
-POWERLINE_MODULES=(
-    venv
-    user
-    host
-    ssh
-    perms
-    git
-    jobs
-    exit
-    duration
-    root
-)
+ZLE_RPROMPT_INDENT=0
 
-# These modules are shown on the right side of the prompt.
-POWERLINE_MODULES_RIGHT=(
-    cwd
-)
-
-declare -A PATH_ALIASES=(
-    '~/dev/grafana' '~/d/g'
-    '~/dev/grafana/deployment_tools' '~/d/g/dt'
-    '~/dev/random' '~/d/r'
-)
-
-# Separate each kv with = and items from each other with ,
-PATH_ALISES_ARG="${(*@kj:,:)PATH_ALIASES/(#m)*/${MATCH}=${PATH_ALIASES[$MATCH]}}"
-
-function powerline_precmd() {
-  local __ERRCODE=$?
-  local __DURATION=0
-
-  if [ -n $__TIMER ]; then
-      local __ERT=$EPOCHREALTIME
-      __DURATION="$(($__ERT - ${__TIMER:-__ERT}))"
-  fi
-
-  local THEME="solarized-light16"
-  if is-dark-mode; then
-      THEME="solarized-dark16"
-  fi
-
-  eval "$($(go env GOPATH)/bin/powerline-go \
-      -eval \
-      -modules ${(j:,:)POWERLINE_MODULES} \
-      -modules-right ${(j:,:)POWERLINE_MODULES_RIGHT} \
-      -duration ${__DURATION} \
-      -git-mode compact \
-      -theme "${THEME}" \
-      -colorize-hostname \
-      -path-aliases "${PATH_ALISES_ARG}" \
-      -error $? \
-      -jobs ${${(%):%j}:-0})"
-
-  # Uncomment the following line to automatically clear errors after showing
-  # them once. This not only clears the error for powerline-go, but also for
-  # everything else you run in that shell. Don't enable this if you're not
-  # sure this is what you want.
-
-  #set "?"
-}
-
-function install_powerline_precmd() {
-  for s in "${precmd_functions[@]}"; do
-    if [ "$s" = "powerline_precmd" ]; then
-      return
-    fi
-  done
-  precmd_functions+=(powerline_precmd)
-}
-
-if [ "$TERM" != "linux" ] && [ -f "$(go env GOPATH)/bin/powerline-go" ]; then
-    install_powerline_precmd
-fi
+# Set up starship as our prompt
+eval "$(starship init zsh)"
 
 # Change word boundary characters. Nabbed from
 # http://zshwiki.org/KeyBindings.
