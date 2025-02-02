@@ -22,3 +22,8 @@ dominik-schwabe/zsh-fnm
 
 # Syntax highlighting (load last)
 zsh-users/zsh-syntax-highlighting
+
+# Local plugins
+plugins
+plugins/os/linux conditional:is-linux
+plugins/os/macos conditional:is-macos

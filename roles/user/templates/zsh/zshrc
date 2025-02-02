@@ -1,40 +1,8 @@
 # vim: set expandtab ts=2 sw=2:
-#                                                                        CREDITS
-# File was first taken from the following location:
-#
-#   http://www.tomaw.net/configs/zshrc
-#
-# Some additions were made by me, Jonathan Davies <jpds@ubuntu.com>.
-# Among these are the Launchpad, Debian, Wikipedia/Wikitravel, BBC search,
-# Demonoid, Lonely Planet, Urbandictionary and other various functions. I also
-# implemented a few "if" statements to stop zsh complaining about any missing
-# objects and placed the dircolors upport.
-#
-# The forkex() function is thanks to Siegfried-Angel Gevatter Pujals
-#   <rainct@ubuntu.com>.
-#
-# Some of this file is thanks to <slarti@gentoo.org>, some is take from
-# spider's <spider@gentoo.org> zshrc, and some from the zshwiki.org.
-# Some bash functions are nicked from ciaranm's <ciaranm@gentoo.org>
-# bashrc.
-#
-# READ ME
-#
-# • Remember to change the stuff specific to me! It's all at the top of
-#   this file.
-#
-# • You can obviously only get the most out of this file if you take the
-#   time to read through the comments. Of course, you can still experience
-#   zsh's superiority by simply plugging this file in and using it.
-
-# BEGIN LOCAL
-
-# Core configuration
-
 # use emacs keybindings
 bindkey -e
 
-export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+# Environment variables
 export EDITOR="nvim"
 export VISUAL="nvim"
 export PAGER="less"
@@ -42,55 +10,15 @@ export LC_ALL="en_GB.UTF-8"
 export LANG="en_GB.UTF-8"
 export TZ="Europe/London"
 
-# Path configuration
-typeset -U path_if_exists
-path_if_exists=(
-  "${HOME}/.local/bin"
-  "${HOME}/.bin"
-  "${HOME}/bin/ubuntu-dev-tools"
-  "${HOME}/bin/ubuntu-archive-tools"
-  "/opt/homebrew/opt/ruby/bin"
-  "/opt/homebrew/opt/gnu-sed/libexec/gnubin"
-  "${HOME}/go/bin"
-  "${HOME}/.cargo/bin"
-)
-
-# Go through path_if_exists in reverse order and add the directories to the
-# front of the path if they exist. This is done in reverse order so that the
-# directories are added in the order they are listed in path_if_exists.
-for ((i=${#path_if_exists}; i>=1; i--)); do
-  if [ -d "${path_if_exists[$i]}" ]; then
-    path=("${path_if_exists[$i]}" ${path})
-  fi
-done
-
 export QUILT_PATCHES=debian/patches
 export BAT_THEME="Solarized (light)"
 
-# Set up Starship prompt
-eval "$(starship init zsh)"
-
-# Alias/custom commands
-#
-# Some are just in case - for 'rm', 'cp' and 'mv' - ask about overwriting or
-# deleting files.
-# Furthermore, be verbose about what each command is performing to be present of
-# what is occuring every time.
-alias chmod="chmod -v"
-alias chown="chown -v"
-alias cp="cp -iv"
-alias ln="ln -v"
-alias mkdir="mkdir -v"
-alias mv="mv -iv"
-alias rm="rm -v"
-alias vim=nvim
-
-if (( ${+commands[bat]} )); then
-    alias cat=bat
-fi
+# zle adds a single space to the right of the right prompt by default, but we
+# don't need it.
+ZLE_RPROMPT_INDENT=0
 
 if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
-  source "${ZDOTDIR}/zstyles.zsh"
+   source "${ZDOTDIR}/zstyles.zsh"
 fi
 
 # Plugin management with antidote
@@ -98,154 +26,31 @@ if [[ ! -d "${ZDOTDIR}/.antidote" ]]; then
   git clone --depth 1 https://github.com/mattmc3/antidote "${ZDOTDIR}/.antidote"
 fi
 
-zsh_plugins="${ZDOTDIR}/zsh_plugins"
-if [[ ! -f "${zsh_plugins}.txt" ]]; then
-  touch "${zsh_plugins}.txt"
-fi
 fpath+=("${ZDOTDIR}/.antidote/functions")
-autoload -Uz antidote
 
-if [[ ! "${zsh_plugins}.zsh" -nt "${zsh_plugins}.txt" ]]; then
-  antidote bundle <"${zsh_plugins}.txt" >| "${zsh_plugins}.zsh"
-fi
+{
+   pushd "${ZDOTDIR}" >/dev/null
+
+   if [[ ! "zsh_plugins.zsh" -nt "zsh_plugins.txt" ]]; then
+         if [[ ! -f "zsh_plugins.txt" ]]; then
+            touch "zsh_plugins.txt"
+         fi
+
+         autoload -Uz antidote
+
+         antidote bundle < "zsh_plugins.txt" >| "zsh_plugins.zsh"
+   fi
+
+   popd >/dev/null
+}
 
 ZSH_FNM_ENV_EXTRA_ARGS=(--use-on-cd --version-file-strategy=recursive --corepack-enabled --resolve-engines --log-level=quiet) \
-  source "${zsh_plugins}.zsh"
+  source "${ZDOTDIR}/zsh_plugins.zsh"
 
 if [[ -f "${ZDOTDIR}/zstyles-post.zsh" ]]; then
-  source "${ZDOTDIR}/zstyles-post.zsh"
+   source "${ZDOTDIR}/zstyles-post.zsh"
 fi
 
-# Load additional configuration
-for conf in "${ZDOTDIR}"/zshrc.d/*.zsh; do
-  source "${conf}"
-done
-
-if is-macos; then
-  source "${ZDOTDIR}/macos.zsh"
-fi
-
-if is-linux; then
-  # Only delete files on the current file system to avoid removing recursively
-  # from bind mounts. Only works on linux rm.
-  alias rm="rm -v --one-file-system"
-
-  export LESSOPEN="| lesspipe %s"
-  export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
-fi
-
-# bun completions are strange: running `bun completions` installs ~/.bun/_bun
-# and does not output the completion source code this is a hack until bun fixes
-# their completion setup https://github.com/oven-sh/bun/issues/1272
-if (( $+commands[bun] )); then
-  [ -s ~/.bun/_bun ] || bun completions
-
-  # cannot source directly, must add fpath to completions
-  fpath=(~/.bun/ ${fpath})
-fi
-
-# Set the default kube context if present
-DEFAULT_KUBE_CONTEXTS="${HOME}/.kube/config"
-if [ -f "${DEFAULT_KUBE_CONTEXTS}" ]; then
-  export KUBECONFIG="${DEFAULT_KUBE_CONTEXTS}"
-fi
-
-CUSTOM_KUBE_CONTEXTS="${HOME}/.kube/configs"
-mkdir -p "${CUSTOM_KUBE_CONTEXTS}"
-
-for config in "${CUSTOM_KUBE_CONTEXTS}"/config*(N); do
-  export KUBECONFIG="${KUBECONFIG:+${KUBECONFIG}:}${config}"
-done
-unset DEFAULT_KUBE_CONTEXTS CUSTOM_KUBE_CONTEXTS
+eval "$(starship init zsh)"
 
 zmodload zsh/datetime
-
-# Change word boundary characters. Nabbed from
-# http://zshwiki.org/KeyBindings.
-
-# Add all colours and have fancy symbols for files, etc.
-if ! is-macos; then
-  alias ls="ls --classify"
-else
-  alias ls="ls -FG"
-fi
-
-# Options
-setopt      \
-NO_all_export   \
-   always_last_prompt \
-   always_to_end  \
-   append_history \
-   auto_cd    \
-   auto_list    \
-   auto_menu    \
-   auto_name_dirs \
-   auto_param_keys  \
-   auto_param_slash \
-   auto_remove_slash  \
-NO_auto_resume    \
-   bad_pattern    \
-   bang_hist    \
-   brace_ccl    \
-   correct_all    \
-NO_bsd_echo   \
-NO_cdable_vars    \
-NO_chase_links    \
-# Seeing how this goes, but might want to uncomment \
-# https://github.com/mattmc3/zephyr/blob/446ce9f1db12b9b0cff772b116e048a6474735c7/plugins/directory/directory.plugin.zsh#L19 \
-#   clobber    \
-setopt \
-   complete_aliases \
-   complete_in_word \
-   correct    \
-NO_correct_all    \
-   csh_junkie_history \
-NO_csh_junkie_loops \
-NO_csh_junkie_quotes  \
-NO_csh_null_glob  \
-   equals   \
-   extended_history \
-   function_argzero \
-   glob     \
-NO_glob_assign    \
-   glob_complete  \
-NO_glob_subst   \
-NO_hash_cmds    \
-NO_hash_dirs    \
-   hash_list_all  \
-   hist_allow_clobber \
-   hist_beep    \
-   hist_ignore_dups \
-   hist_ignore_space  \
-NO_hist_no_store  \
-   hist_verify    \
-NO_ignore_braces  \
-NO_ignore_eof   \
-   inc_append_history \
-NO_list_ambiguous \
-NO_list_beep    \
-   list_types   \
-   magic_equal_subst  \
-NO_mark_dirs    \
-   menu_complete  \
-   nomatch    \
-NO_null_glob    \
-   numeric_glob_sort  \
-NO_overstrike   \
-   path_dirs    \
-   posix_builtins \
-NO_print_exit_value   \
-NO_prompt_cr    \
-   prompt_subst   \
-   promptsubst      \
-   pushd_ignore_dups  \
-   rc_expand_param  \
-NO_sh_file_expansion  \
-   sh_option_letters  \
-   share_history        \
-   short_loops    \
-NO_sh_word_split  \
-NO_single_line_zle  \
-NO_sun_keyboard_hack  \
-NO_verbose    \
-   zle
