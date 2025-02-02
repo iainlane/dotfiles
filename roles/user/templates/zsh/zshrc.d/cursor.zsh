@@ -10,9 +10,26 @@
 # 6  ⇒  steady bar, xterm.
 
 function update-cursor-style {
- local style
- zstyle -s ':laney:editor:emacs:cursor' style style || style=2
- printf '\e[%s q' $style
+  if ! is-term-family xterm && ! is-term-family rxvt && ! is-tmux; then
+    return
+  fi
+
+  local style
+  if ! zstyle -s ':laney:editor:emacs:cursor' style style; then
+    # Our default style is a steady block.
+    style=2
+  fi
+
+  printf '\e[%s q' ${style}
 }
 
 zle -N zle-line-init update-cursor-style
+zle -N zle-keymap-select update-cursor-style
+
+# Reset the cursor to the default style when the shell exits.
+function cleanup-cursor {
+  printf '\e[0 q'
+}
+autoload -Uz add-zsh-hook
+
+add-zsh-hook zshexit cleanup-cursor
