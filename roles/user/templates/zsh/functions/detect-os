@@ -1,5 +1,4 @@
-#!/bin/zsh
-case ${OSTYPE} in
+case "${OSTYPE}" in
     darwin*)
         print "macos"
         ;;
