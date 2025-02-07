@@ -2,7 +2,6 @@
 apt_package_upgrade: true
 
 apt_packages:
-  - ansible
   - apt
   - black
   - btop
@@ -16,6 +15,7 @@ apt_packages:
   - httpie
   - neovim
   - npm
+  - pipx
   - podman
   - podman-docker
   - pre-commit
@@ -37,6 +37,6 @@ apt_remove_packages: []
 
 apt_repositories: {}
 
-apt_state: "{{ 'latest' if apt_pacakge_upgrade else 'present' }}"
+apt_state: "{{ 'latest' if apt_package_upgrade else 'present' }}"
 
 apt_update_cache: true

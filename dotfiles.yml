@@ -55,6 +55,8 @@
       tags: ["snap"]
     - role: pipewire
       tags: ["audio"]
+    - role: pipx
+      tags: ["pipx"]
 
 - name: Set up local workstation (macos)
   hosts: darwin

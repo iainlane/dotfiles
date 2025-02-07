@@ -1,0 +1,10 @@
+---
+- name: Skip when not on Debian
+  ansible.builtin.meta: end_role
+  when: os_family != 'debian'
+
+- name: Install pipx packages
+  community.general.pipx:
+    name: "{{ item }}"
+    state: latest
+  with_items: "{{ pipx_packages }}"
