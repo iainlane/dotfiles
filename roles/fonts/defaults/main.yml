@@ -1,6 +1,6 @@
 ---
 fonts_directories:
-  linux: "{{ lookup('env', 'XDG_DATA_HOME', default='~/.local/share') }}/fonts"
+  debian: "{{ lookup('env', 'XDG_DATA_HOME', default='~/.local/share') }}/fonts"
   macos: "~/Library/Fonts"
 
 fonts_state_dir: "{{ lookup('env', 'XDG_STATE_HOME', default='~/.local/state') }}/ansible"

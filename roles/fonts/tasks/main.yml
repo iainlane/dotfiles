@@ -44,7 +44,7 @@
             version: "{{ monaspace_tag }}"
             download_url: "{{ monaspace_url }}"
             extract_opts: ["--strip-components=1"]
-            script: "{{ (os_family == 'linux') | ternary('./util/install_linux.sh', './util/install_macos.sh') }}"
+            script: "{{ (os_family == 'debian') | ternary('./util/install_linux.sh', './util/install_macos.sh') }}"
 
 - name: Install Cascadia Code font if not already installed
   block:
@@ -95,3 +95,4 @@
         download_url: "{{ nerdfonts_assets | select('search', font + '.tar.xz$') | first }}"
         font_paths:
           - "*.ttf"
+          - "*.otf"
