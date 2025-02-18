@@ -17,13 +17,14 @@ zsh-users/zsh-completions kind:fpath path:src
 aloxaf/fzf-tab
 Freed-Wu/fzf-tab-source
 
-# Node version manager
+# Local plugins
+plugins
+plugins/os/linux conditional:is-linux
+plugins/os/macos conditional:is-macos
+
+# Node version manager. Load after local plugins so the path is prepended correctly.
 dominik-schwabe/zsh-fnm
 
 # Syntax highlighting (load last)
 zsh-users/zsh-syntax-highlighting
 
-# Local plugins
-plugins
-plugins/os/linux conditional:is-linux
-plugins/os/macos conditional:is-macos
