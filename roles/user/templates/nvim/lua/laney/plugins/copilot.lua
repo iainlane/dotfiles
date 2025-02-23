@@ -1,16 +1,9 @@
 return {
   "zbirenbaum/copilot.lua",
-  cmd = "Copilot",
-  event = "InsertEnter",
-  opts = {
-    filetypes = {
+
+  opts = function(_, opts)
+    opts.filetypes = {
       ["*"] = true,
-    },
-    panel = {
-      enabled = false,
-    },
-    suggestion = {
-      enabled = false,
-    },
-  },
+    }
+  end,
 }

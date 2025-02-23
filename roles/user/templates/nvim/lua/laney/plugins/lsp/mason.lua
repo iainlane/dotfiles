@@ -1,60 +1,29 @@
 return {
-	"williamboman/mason.nvim",
-	dependencies = {
-		"williamboman/mason-lspconfig.nvim",
-		"WhoIsSethDaniel/mason-tool-installer.nvim",
-	},
-	config = function()
-		-- import mason
-		local mason = require("mason")
+  "williamboman/mason.nvim",
+  dependencies = {
+    "WhoIsSethDaniel/mason-tool-installer.nvim",
+  },
 
-		-- import mason-lspconfig
-		local mason_lspconfig = require("mason-lspconfig")
-
-		local mason_tool_installer = require("mason-tool-installer")
-
-		-- enable mason and configure icons
-		mason.setup({
-			ui = {
-				icons = {
-					package_installed = "✓",
-					package_pending = "➜",
-					package_uninstalled = "✗",
-				},
-			},
-		})
-
-		mason_lspconfig.setup({
-			automatic_installation = true, -- automatically install servers
-			-- list of servers for mason to install
-			ensure_installed = {
-				"cssls",
-				"emmet_ls",
-				"golangci_lint_ls",
-				"gopls",
-				"graphql",
-				"html",
-				"jsonnet_ls",
-				"lua_ls",
-				"prismals",
-				"pyright",
-				"rust_analyzer",
-				"sorbet", -- ruby
-				"svelte",
-				"tailwindcss",
-				"ts_ls",
-			},
-		})
-
-		mason_tool_installer.setup({
-			ensure_installed = {
-				"black", -- python formatter
-				"eslint_d",
-				"isort", -- python formatter
-				"prettier", -- prettier formatter
-				"pylint",
-				"stylua", -- lua formatter
-			},
-		})
-	end,
+  opts = {
+    ensure_installed = {
+      "css-lsp",
+      "emmet-language-server",
+      "eslint-lsp",
+      "golangci-lint",
+      "gopls",
+      "htmlbeautifier",
+      "jsonnet-language-server",
+      "jsonnetfmt",
+      "lua-language-server",
+      "markdownlint",
+      "prettierd",
+      "prisma-language-server",
+      "pyright",
+      "rust-analyzer",
+      "sorbet", -- ruby
+      "svelte-language-server",
+      "tailwindcss-language-server",
+      "typescript-language-server",
+    },
+  },
 }

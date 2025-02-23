@@ -1,17 +1,51 @@
 return {
   "gbprod/substitute.nvim",
+
   event = { "BufReadPre", "BufNewFile" },
+
+  keys = {
+    {
+      "<leader>is",
+      function()
+        require("substitute").operator()
+      end,
+      desc = "Substitute with motion",
+    },
+    {
+      "<leader>ii",
+      function()
+        require("substitute").line()
+      end,
+      desc = "Substitute line",
+    },
+    {
+      "<leader>iI",
+      function()
+        require("substitute").eol()
+      end,
+      desc = "Substitute to end of line",
+    },
+    {
+      "<leader>i",
+      function()
+        require("substitute").visual()
+      end,
+      mode = { "x" },
+      desc = "Substitute",
+    },
+  },
+
   config = function()
     local substitute = require("substitute")
 
-    substitute.setup()
+    substitute.setup({
+      on_substitute = require("yanky.integration").substitute(),
+    })
 
-    -- set keymaps
-    local keymap = vim.keymap -- for conciseness
+    local whichkey = require("which-key")
 
-    keymap.set("n", "s", substitute.operator, { desc = "Substitute with motion" })
-    keymap.set("n", "ss", substitute.line, { desc = "Substitute line" })
-    keymap.set("n", "S", substitute.eol, { desc = "Substitute to end of line" })
-    keymap.set("x", "s", substitute.visual, { desc = "Substitute in visual mode" })
+    whichkey.add({
+      { "<leader>i", group = "substitute", icon = { icon = "", color = "blue" } },
+    })
   end,
 }
