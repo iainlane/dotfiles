@@ -81,7 +81,7 @@ format = " $all_status$ahead_behind"
 ahead = '⇡${count}'
 diverged = '⇕⇡${ahead_count}⇣${behind_count}'
 behind = '⇣${count}'
-up_to_date = "✔️"
+up_to_date = "✔︎"
 
 [golang]
 format = "$symbol"
@@ -137,7 +137,13 @@ symbol = "🥟"
 
 [nodejs]
 format = "$symbol"
-detect_files = ['package.json', '.node-version', '!bunfig.toml', '!bun.lockb', '!bun.lock']
+detect_files = [
+  'package.json',
+  '.node-version',
+  '!bunfig.toml',
+  '!bun.lockb',
+  '!bun.lock',
+]
 symbol = ""
 
 [os]
