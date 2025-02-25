@@ -1,5 +1,3 @@
-vim.cmd("let g:netrw_liststyle = 3")
-
 local opt = vim.opt
 
 opt.relativenumber = true
@@ -37,3 +35,6 @@ opt.splitbelow = true -- split horizontal window to the bottom
 
 -- turn off swapfile
 opt.swapfile = false
+
+vim.g.netrw_liststyle = 3
+vim.g.root_spec = { { ".git", "lsp" }, "lsp", "lua", "cwd" }

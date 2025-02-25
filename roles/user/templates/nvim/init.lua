@@ -1,2 +1,1 @@
-require("laney.core")
-require("laney.lazy")
+require("config.lazy")
