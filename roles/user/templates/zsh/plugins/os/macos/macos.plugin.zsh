@@ -22,13 +22,3 @@ export LESS_ADVANCED_PREPROCESSOR=1
 
 # macOS specific aliases
 alias ls="ls -FG"
-
-# bun completions
-if (( $+commands[bun] )); then
-  [ -s ~/.bun/_bun ] || bun completions
-  fpath=(~/.bun/ ${fpath})
-fi
-
-if (( $+commands[bat] )); then
-  alias cat=bat
-fi
