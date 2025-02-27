@@ -7,5 +7,6 @@ brew_packages:
   - gnu-tar
   - neovim
   - pre-commit
+  - presenterm
 brew_taps: []
 brew_state: latest
