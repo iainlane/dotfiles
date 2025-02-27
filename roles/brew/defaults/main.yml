@@ -1,5 +1,11 @@
 ---
 # Base packages
-brew_packages: []
+brew_packages:
+  - btop
+  - diffutils
+  - eza
+  - gnu-tar
+  - neovim
+  - pre-commit
 brew_taps: []
 brew_state: latest
