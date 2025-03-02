@@ -10,4 +10,8 @@ alias vim=nvim
 
 if (( $+commands[bat] )); then
   alias cat=bat
+
+  # Colourise manpages with `bat`
+  # From https://github.com/sharkdp/bat?tab=readme-ov-file#man
+  export MANPAGER="sh -c 'sed -u -e \"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\" | bat -p -lman'"
 fi

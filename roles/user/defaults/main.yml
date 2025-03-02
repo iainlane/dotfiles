@@ -1,4 +1,7 @@
 ---
+user_config_dir: "{{ lookup('env', 'XDG_CONFIG_HOME', default='~/.config') }}"
+user_repos_dir: "{{ lookup('env', 'XDG_CACHE_HOME', default='~/.cache') }}"
+
 user_list:
   - name: laney
     comment: Iain Lane

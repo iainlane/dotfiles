@@ -1,11 +1,25 @@
 #!/bin/zsh
-local os=$(detect-os)
 
-case $os in
+set -euo pipefail
+
+case "${OSTYPE}" in
+    darwin*)
+        os="macos"
+        ;;
+    linux*)
+        os="linux"
+        ;;
+    *)
+        os="unknown"
+        ;;
+esac
+
+
+case "${os}" in
     macos)
         local theme
-        theme=$(defaults read -g AppleInterfaceStyle 2>/dev/null)
-        [[ $theme == "Dark" ]]
+        theme="$(defaults read -g AppleInterfaceStyle 2>/dev/null)"
+        [[ "${theme}" == "Dark" ]]
         ;;
 
     linux)
@@ -15,7 +29,7 @@ case $os in
         fi
 
         local result
-        result=$(dbus-send \
+        result="$(dbus-send \
             --session \
             --print-reply=literal \
             --reply-timeout=1000 \
@@ -23,9 +37,9 @@ case $os in
             /org/freedesktop/portal/desktop \
             org.freedesktop.portal.Settings.Read \
             string:org.freedesktop.appearance \
-            string:color-scheme)
+            string:color-scheme)"
 
-        [[ $result == *"uint32 1"* ]]
+        [[ "${result}" == *"uint32 1"* ]]
         ;;
 
     *)

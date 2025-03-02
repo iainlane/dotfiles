@@ -21,28 +21,58 @@
         admin: [sudo, kvm]
         regular: []
 
+- name: Install local scripts
+  block:
+    - name: Ensure local bin directory exists
+      ansible.builtin.file:
+        path: "~/.local/bin"
+        state: directory
+        mode: "0755"
+
+    - name: Sync bin directory
+      ansible.posix.synchronize:
+        src: "templates/bin/"
+        dest: "~/.local/bin/"
+        delete: yes
+
 - name: Create zsh files
   block:
     - name: Ensure zsh config directory exists
       ansible.builtin.file:
-        path: "~/.config/zsh"
+        path: "{{ user_config_dir }}/zsh"
         state: directory
         mode: "0755"
 
     - name: Copy zsh files
-      ansible.builtin.copy:
+      ansible.posix.synchronize:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
-        directory_mode: "0755"
-        mode: "0664"
+        delete: "{{ item.delete | default('no') }}"
       loop:
-        - { src: "templates/zsh/functions/", dest: "~/.config/zsh/functions/" }
-        - { src: "templates/zsh/plugins/", dest: "~/.config/zsh/plugins/" }
-        - { src: "templates/zsh/zsh_plugins.txt", dest: "~/.config/zsh/zsh_plugins.txt" }
+        - {
+            src: "templates/zsh/functions/",
+            dest: "~/.config/zsh/functions/",
+            delete: yes,
+          }
+        - {
+            src: "templates/zsh/plugins/",
+            dest: "~/.config/zsh/plugins/",
+            delete: yes,
+          }
+        - {
+            src: "templates/zsh/zsh_plugins.txt",
+            dest: "~/.config/zsh/zsh_plugins.txt",
+          }
         - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
         - { src: "templates/zsh/zshrc", dest: "~/.config/zsh/.zshrc" }
-        - { src: "templates/zsh/zstyles-post.zsh", dest: "~/.config/zsh/zstyles-post.zsh" }
-        - { src: "templates/zsh/zstyles.zsh", dest: "~/.config/zsh/zstyles.zsh" }
+        - {
+            src: "templates/zsh/zstyles-post.zsh",
+            dest: "~/.config/zsh/zstyles-post.zsh",
+          }
+        - {
+            src: "templates/zsh/zstyles.zsh",
+            dest: "~/.config/zsh/zstyles.zsh",
+          }
 
 - name: Neovim files
   block:
@@ -59,7 +89,7 @@
         directory_mode: "0755"
         mode: "0664"
       loop:
-        - { src: "templates/nvim/", dest: "~/.config/nvim/" }
+        - { src: "templates/nvim/", dest: "{{ user_config_dir }}/nvim/" }
 
 - name: Starship files
   ansible.builtin.copy:
@@ -68,7 +98,34 @@
     directory_mode: "0755"
     mode: "0664"
   loop:
-    - { src: "templates/starship/", dest: "~/.config/" }
+    - { src: "templates/starship/", dest: "{{ user_config_dir }}" }
+
+- name: Catppuccin bat
+  block:
+    - name: Clone Catppuccin bat themes repo to cache dir
+      ansible.builtin.git:
+        repo: "https://github.com/catppuccin/bat.git"
+        dest: "{{ user_repos_dir }}/catppuccin-bat"
+        depth: 1
+        version: main
+
+    # we always need to get the directory to check it exists
+    - name: Get bat config directory # noqa: no-changed-when
+      ansible.builtin.command:
+        cmd: bat --config-dir
+      register: bat_config_dir
+
+    - name: Ensure config directory exists
+      ansible.builtin.file:
+        dest: "{{ bat_config_dir.stdout }}/themes"
+        mode: "0755"
+        state: directory
+
+    - name: Sync bat themes
+      ansible.builtin.synchronize:
+        src: "{{ user_repos_dir }}/catppuccin-bat/themes/"
+        dest: "{{ bat_config_dir.stdout }}/themes/"
+      notify: Update bat theme cache
 
 # This prevents a "Last login" message from appearing when you open a new terminal
 - name: Create a hushlogin file
