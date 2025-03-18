@@ -1,20 +1,3 @@
-GPG_TTY=$(tty)
-export GPG_TTY
-
-HOSTNAME=$(hostname)
-
-if [ -e "~/.keychain/${HOSTNAME}-sh" ]; then 
-  source ~/.keychain/${HOSTNAME}-sh
-fi
-
-if [ -e "~/.keychain/${HOSTNAME}-sh-gpg" ]; then
-  source ~/.keychain/${HOSTNAME}-sh-gpg
-fi
-
-if [ -z "${GPG_AGENT_INFO}" ] || [ -z "${SSH_AUTH_SOCK}" ] && [ -x /usr/bin/keychain ]; then
-    eval $(keychain --eval --quick --quiet --agents gpg,ssh --host ${HOSTNAME})
-fi
-
 function setup_environment() {
   export DEBFULLNAME=$NAME                # These are used by Debian packaging...
   export DEBEMAIL=$EMAIL                  # ...programs.

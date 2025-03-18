@@ -5,7 +5,9 @@ brew_packages:
   - diffutils
   - eza
   - gnu-tar
+  - keychain
   - neovim
+  - openssh
   - pre-commit
   - presenterm
 brew_taps: []
