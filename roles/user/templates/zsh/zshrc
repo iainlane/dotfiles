@@ -11,7 +11,8 @@ export LANG="en_GB.UTF-8"
 export TZ="Europe/London"
 
 export QUILT_PATCHES=debian/patches
-export BAT_THEME="Solarized (light)"
+export BAT_THEME_LIGHT="Catppuccin Latte"
+export BAT_THEME_DARK="Catppuccin Mocha"
 
 # zle adds a single space to the right of the right prompt by default, but we
 # don't need it.

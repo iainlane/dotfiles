@@ -112,7 +112,7 @@
     # we always need to get the directory to check it exists
     - name: Get bat config directory # noqa: no-changed-when
       ansible.builtin.command:
-        cmd: bat --config-dir
+        cmd: ~/.cargo/bin/bat --config-dir
       register: bat_config_dir
 
     - name: Ensure config directory exists
