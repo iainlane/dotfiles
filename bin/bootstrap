@@ -1,7 +1,7 @@
 #!/bin/sh
 # vim: set expandtab ts=2 sw=2:
 
-set -e
+set -eu
 
 is_mac() {
   if [ -z "${OSTYPE}" ]; then
@@ -23,9 +23,39 @@ if ! command -v ansible; then
   fi
 fi
 
+GETOPT="$(command -v getopt)"
+if is_mac; then
+  if ! brew --prefix gnu-getopt >/dev/null 2>&1; then
+    brew install gnu-getopt
+  fi
+
+  GETOPT="$(brew --prefix gnu-getopt)/bin/getopt"
+  export GETOPT
+fi
+
 ROOTDIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)"
 
-ansible-playbook -i "${ROOTDIR}/inventory" "${ROOTDIR}/dotfiles.yml" --limit "$(hostname)" --ask-become-pass "$@"
+LIMIT="$(hostname)"
+TEMP=$("${GETOPT}" -o "l:" --long "limit:" -- "${@}")
+eval set -- "${TEMP}"
+
+while true; do
+  case "${1}" in
+    -l|--limit)
+      LIMIT="${2}"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+ansible-playbook -i "${ROOTDIR}/inventory" "${ROOTDIR}/dotfiles.yml" --limit "$LIMIT" --ask-become-pass "${@:+${@}}"
 
 if command -v terminal-notifier 1>/dev/null 2>&1; then
   terminal-notifier -title "dotfiles: Bootstrap complete" -message "Successfully set up dev environment."
