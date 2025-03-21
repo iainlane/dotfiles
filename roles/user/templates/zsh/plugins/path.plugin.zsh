@@ -8,6 +8,7 @@ path_if_exists=(
   "/opt/homebrew/opt/gnu-sed/libexec/gnubin"
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
+  "/snap/bin"
 )
 
 for ((i=${#path_if_exists}; i>=1; i--)); do
