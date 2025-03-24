@@ -1,6 +1,6 @@
 ---
-user_config_dir: "{{ lookup('env', 'XDG_CONFIG_HOME', default='~/.config') }}"
-user_repos_dir: "{{ lookup('env', 'XDG_CACHE_HOME', default='~/.cache') }}"
+user_config_dir: "{{ ansible_env.XDG_CONFIG_HOME | default('~/.config') }}"
+user_repos_dir: "{{ ansible_env.XDG_DATA_HOME | default('~/.local/share') }}"
 
 user_list:
   - name: laney

@@ -1,7 +1,7 @@
 typeset -U path_if_exists
 path_if_exists=(
   "${HOME}/.local/bin"
-  "${HOME}/.bin"
+  "${HOME}/.local/pipx/bin"
   "${HOME}/bin/ubuntu-dev-tools"
   "${HOME}/bin/ubuntu-archive-tools"
   "/opt/homebrew/opt/ruby/bin"

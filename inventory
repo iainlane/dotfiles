@@ -7,12 +7,19 @@ all:
     git_email: iain@orangesquash.org.uk
     gpg_fingerprint: E352D5C51C5041D4
   children:
-    common:
+    systems:
       children:
-        home:
+        desktop:
+          children:
+            home:
+              hosts:
+                melton.local:
+                sherwood:
+            work:
+              hosts:
+                florence:
+        server:
           hosts:
-            melton.local:
-            sherwood:
-        work:
-          hosts:
-            florence:
+            cripps:
+              ansible_connection: ssh
+              ansible_user: laney

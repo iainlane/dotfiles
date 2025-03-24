@@ -8,9 +8,6 @@ apt_packages:
   - build-essential
   - cmake
   - curl
-  - eza
-  - fonts-powerline
-  - fonts-roboto
   - htop
   - httpie
   - neovim
@@ -22,16 +19,11 @@ apt_packages:
   - pycodestyle
   - python3-pip
   - python3-venv
+  - rsync
   - ruby
   - watchman
   - wget
   - zsh
-
-  # GUI
-  - adwaita-icon-theme
-  - gnome-session
-  - gnome-tweaks
-  - tilix
 
 apt_remove_packages: []
 

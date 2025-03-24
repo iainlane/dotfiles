@@ -7,29 +7,24 @@
   tasks:
     - name: Set initial facts
       ansible.builtin.set_fact:
-        os_family: "{{ ansible_distribution | lower }}"
+        os_distribution: "{{ ansible_distribution | lower }}"
         os_type: "{{ ansible_system | lower }}"
-
-    - name: Map `ubuntu` to `debian`
-      ansible.builtin.set_fact:
-        os_family: "debian"
-      when: os_family == "ubuntu"
-
-    - name: Map `macosx` to `macos`
-      ansible.builtin.set_fact:
-        os_family: "macos"
-      when: os_family == "macosx"
+        os_family: "{{ ansible_os_family | lower }}"
 
     - name: Add host to OS group
       ansible.builtin.add_host:
         name: "{{ inventory_hostname }}"
         groups: "{{ os_type }}"
 
-    - name: Add host to home group if not a work machine
+    - name: Add host to OS distribution group
       ansible.builtin.add_host:
         name: "{{ inventory_hostname }}"
-        groups: home
-      when: "'work' not in group_names"
+        groups: "{{ os_distribution }}"
+
+    - name: Add host to OS family group
+      ansible.builtin.add_host:
+        name: "{{ inventory_hostname }}"
+        groups: "{{ os_family }}-family"
 
 - name: Debug
   hosts: all
@@ -43,20 +38,57 @@
       ansible.builtin.debug:
         msg: "{{ group_names }}"
 
-- name: Set up local workstation (debian)
-  hosts: linux
-  tags: ["debian", "system"]
+- name: Common setup (debian-based)
+  hosts: debian-family
+  tags: ["common", "system"]
   roles:
     - role: apt
       tags: ["apt"]
-    - role: google-chrome
-      tags: ["browser"]
-    - role: snap
-      tags: ["snap"]
-    - role: pipewire
-      tags: ["audio"]
     - role: pipx
       tags: ["pipx"]
+
+- name: Debian setup
+  hosts: debian
+  tags: ["debian", "system"]
+  roles:
+    - role: apt
+      vars:
+        apt_packages: "{{ debian_apt_packages }}"
+        apt_remove_packages: "{{ debian_apt_remove_packages | default([]) }}"
+
+- name: Common setup
+  hosts: all
+  tags: ["common", "system"]
+  roles:
+    - role: git
+      tags: ["git"]
+    - role: go
+      tags: ["go"]
+    - role: cargo
+      tags: ["cargo"]
+    - role: user
+      tags: ["user"]
+
+- name: Set up Linux desktop
+  hosts: debian-family:&desktop
+  tags: ["debian-family", "desktop", "system"]
+  roles:
+    - role: apt
+      vars:
+        apt_packages: "{{ desktop_apt_packages }}"
+        apt_remove_packages: "{{ desktop_apt_remove_packages | default([]) }}"
+      tags: ["apt"]
+    - role: google-chrome
+      tags: ["browser"]
+    - role: pipewire
+      tags: ["audio"]
+
+- name: Set up Ubuntu workstation
+  hosts: ubuntu:&desktop
+  tags: ["ubuntu", "system"]
+  roles:
+    - role: snap
+      tags: ["snap"]
 
 - name: Set up local workstation (macos)
   hosts: darwin
@@ -65,20 +97,12 @@
     - role: brew
       tags: ["brew"]
 
-- name: Set up local workstation (all)
-  hosts: all
-  tags: ["common"]
+- name: Set up common tools (all desktop systems)
+  hosts: desktop
+  tags: ["common", "desktop"]
   roles:
-    - role: user
-      tags: ["user"]
     - role: fonts
       tags: ["fonts"]
-    - role: git
-      tags: ["git"]
-    - role: go
-      tags: ["go"]
-    - role: cargo
-      tags: ["cargo"]
 
 - name: Install work things
   hosts: work

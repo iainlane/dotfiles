@@ -1,0 +1,2 @@
+debian_apt_packages:
+  - golang-go

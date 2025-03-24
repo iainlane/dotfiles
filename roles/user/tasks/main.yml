@@ -14,7 +14,7 @@
 
   vars:
     usergroups:
-      macos:
+      darwin:
         admin: [admin]
         regular: []
       debian:
@@ -122,9 +122,11 @@
         state: directory
 
     - name: Sync bat themes
-      ansible.builtin.synchronize:
+      ansible.posix.synchronize:
         src: "{{ user_repos_dir }}/catppuccin-bat/themes/"
+        delete: true
         dest: "{{ bat_config_dir.stdout }}/themes/"
+      delegate_to: "{{ inventory_hostname }}"
       notify: Update bat theme cache
 
 # This prevents a "Last login" message from appearing when you open a new terminal

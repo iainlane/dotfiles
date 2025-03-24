@@ -8,6 +8,7 @@ brew_packages:
   - keychain
   - neovim
   - openssh
+  - pipx
   - pre-commit
   - presenterm
 brew_taps: []

@@ -1,3 +1,4 @@
 ---
 pipx_packages:
   - ansible
+  - ansible-core

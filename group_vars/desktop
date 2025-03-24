@@ -1,0 +1,7 @@
+desktop_apt_packages:
+  - adwaita-icon-theme
+  - fonts-powerline
+  - fonts-roboto
+  - gnome-session
+  - gnome-tweaks
+  - tilix

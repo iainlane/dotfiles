@@ -18,14 +18,27 @@
     - github.com/muesli/deckmaster@latest
   when: os_family == 'debian'
 
+- name: Get Go binary path
+  shell: go env GOPATH
+  register: gopath
+  changed_when: false
+
 - name: Install `doggo` completions
+  environment:
+    PATH: "{{ gopath.stdout }}/bin:{{ ansible_env.PATH }}"
   block:
     - name: Generate doggo completions
       ansible.builtin.command:
         cmd: doggo completions zsh
       register: doggo_completion
 
+    - name: Ensure .zsh/functions directory exists
+      ansible.builtin.file:
+        path: "{{ go_user_config_dir }}/zsh/functions"
+        state: directory
+        mode: '0755'
+
     - name: Install doggo completions
       ansible.builtin.copy:
         content: "{{ doggo_completion.stdout }}"
-        dest: ~/.config/zsh/functions/_doggo
+        dest: "{{ go_user_config_dir }}/zsh/functions/_doggo"

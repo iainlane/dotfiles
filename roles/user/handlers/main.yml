@@ -1,4 +1,4 @@
 ---
 - name: Update bat theme cache # noqa: no-changed-when
   ansible.builtin.command:
-    cmd: bat cache --build
+    cmd: ~/.cargo/bin/bat cache --build

@@ -4,25 +4,24 @@
   block:
     - name: Create temporary file for rustup installer
       ansible.builtin.tempfile:
-        state: file
-        prefix: rustup_
-        suffix: .sh
+        state: directory
+        prefix: rustup
       register: rustup_tmp
 
     - name: Download rustup installer
       ansible.builtin.get_url:
         url: https://sh.rustup.rs
-        dest: "{{ rustup_tmp.path }}"
+        dest: "{{ rustup_tmp.path }}/rustup-init.sh"
         mode: '0755'
 
     - name: Install Rust
       ansible.builtin.command:
-        cmd: "{{ rustup_tmp.path }} -y --no-modify-path"
+        cmd: "{{ rustup_tmp.path }}/rustup-init.sh -y --no-modify-path"
         creates: ~/.cargo/bin/rustup
       register: rustup
 
   always:
-    - name: Clean up temp file
+    - name: Clean up temp directory
       ansible.builtin.file:
         path: "{{ rustup_tmp.path }}"
         state: absent
@@ -34,6 +33,7 @@
   loop:
     - ~/.cargo/bin/rustup self update
     - ~/.cargo/bin/rustup update
+    - ~/.cargo/bin/rustup default stable
   when: not rustup.changed
 
 - name: Install Rust components
@@ -47,6 +47,8 @@
   when: rustup.changed
 
 - name: Install Cargo packages
+  environment:
+    PATH: "{{ ansible_env.HOME }}/.cargo/bin:{{ ansible_env.PATH }}"
   community.general.cargo:
     locked: true
     state: latest
@@ -54,7 +56,7 @@
       - bat
       - bottom
       - du-dust
-      - exa
+      - eza
       - fd-find
       - git-delta
       - ripgrep
