@@ -37,6 +37,7 @@ symbol = ""
 [directory]
 fish_style_pwd_dir_length = 1
 read_only = " 󰈈"
+read_only_style = "fg:red bg:blue"
 repo_root_style = "$style"
 before_repo_root_style = "fg:dimmed bg:blue"
 style = "fg:base bg:blue"
