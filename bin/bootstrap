@@ -4,7 +4,7 @@
 set -eu
 
 is_mac() {
-	if [ -z "${OSTYPE}" ]; then
+	if [ -z "${OSTYPE:-}" ]; then
 		OSTYPE="$(uname | tr '[:upper:]' '[:lower:]')"
 	fi
 
