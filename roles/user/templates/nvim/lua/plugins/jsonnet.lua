@@ -13,12 +13,13 @@ return {
 
     opts = {
       key_prefix = "<leader>j",
-      keys = {
-        eval = { cmd = "<cmd>vertical JsonnetEval<cr>" },
-      },
 
       load_dap_config = true,
       jsonnet_debugger_bin = vim.fn.exepath("jsonnet-debugger") or "jsonnet-debugger",
+
+      window = {
+        width = 0.4,
+      },
     },
   },
 
@@ -40,5 +41,22 @@ return {
         },
       },
     },
+  },
+
+  {
+    "folke/edgy.nvim",
+
+    optional = true,
+
+    opts = function(_, opts)
+      opts.right = opts.right or {}
+
+      table.insert(opts.right, {
+        ft = "jsonnet-output",
+        title = "Jsonnet",
+
+        size = { width = 50 },
+      })
+    end,
   },
 }
