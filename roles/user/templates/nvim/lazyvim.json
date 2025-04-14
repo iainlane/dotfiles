@@ -1,5 +1,7 @@
 {
-  "install_version": 8,
+  "extras": [
+
+  ],
   "news": {
     "NEWS.md": "10960"
   },
