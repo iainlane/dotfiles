@@ -173,6 +173,10 @@ return {
     event = "VeryLazy",
   },
   {
+    "marilari88/neotest-vitest",
+    event = "VeryLazy",
+  },
+  {
     "nvim-lua/plenary.nvim",
     lazy = true,
   },
@@ -207,6 +211,7 @@ return {
             return nil
           end,
         },
+        ["neotest-vitest"] = {},
       },
     },
   },
