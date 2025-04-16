@@ -4,7 +4,9 @@ brew_packages:
   - btop
   - diffutils
   - eza
+  - gnu-sed
   - gnu-tar
+  - grep
   - keychain
   - neovim
   - openssh

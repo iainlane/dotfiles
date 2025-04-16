@@ -5,6 +5,7 @@ path_if_exists=(
   "${HOME}/bin/ubuntu-dev-tools"
   "${HOME}/bin/ubuntu-archive-tools"
   "/opt/homebrew/opt/ruby/bin"
+  "/opt/homebrew/opt/gnu-grep/libexec/gnubin"
   "/opt/homebrew/opt/gnu-sed/libexec/gnubin"
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
