@@ -11,5 +11,6 @@ brew_packages:
   - pipx
   - pre-commit
   - presenterm
+  - wdiff
 brew_taps: []
 brew_state: latest
