@@ -129,6 +129,26 @@
       delegate_to: "{{ inventory_hostname }}"
       notify: Update bat theme cache
 
+- name: lazygit config
+  block:
+    # we always need to get the directory to check it exists
+    - name: Get lazygit config directory # noqa: no-changed-when
+      ansible.builtin.command:
+        cmd: ~/go/bin/lazygit --print-config-dir
+      register: lazygit_config_dir
+
+    - name: Ensure config directory exists
+      ansible.builtin.file:
+        dest: "{{ lazygit_config_dir.stdout }}"
+        mode: "0755"
+        state: directory
+
+    - name: Ensure config file exists
+      ansible.builtin.file:
+        dest: "{{ lazygit_config_dir.stdout }}/config.yml"
+        mode: "0644"
+        state: file
+
 # This prevents a "Last login" message from appearing when you open a new terminal
 - name: Create a hushlogin file
   ansible.builtin.copy:

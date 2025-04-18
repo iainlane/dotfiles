@@ -15,44 +15,67 @@
 
 [merge "dpkg-mergechangelogs"]
 	name = debian/changelog merge driver
-    driver = dpkg-mergechangelogs -m %O %A %B %A
+  driver = dpkg-mergechangelogs -m %O %A %B %A
+
 [push]
 	default = current
+
 [bz]
 	browser = firefox3
+
 [color]
 	ui = true
+
 [diff]
 	tool = nvimdiff
+
 [difftool]
 	prompt = false
+
 [sendemail]
 	smtpencryption = tls
 	smtpserver = mail.messagingengine.com
 	smtpuser = laney@fastmail.fm
 	smtpserverport = 587
 	suppresscc = self
+
 [url "ssh://git.gnome.org/git/"]
 	insteadOf = gnome:
 	pushInsteadOf = "git://git.gnome.org/git/"
+
 [url "git+ssh://laney@git.launchpad.net/"]
 	insteadof = lp:
+
 [rerere]
 	enabled = true
+
 [alias]
 	mr = !sh -c 'git fetch $0 merge-requests/$1/head'
 	pb = !sh -c 'git fetch origin "$0:$0"'
 	du = diff '@{u}'
+
 [commit]
 	gpgSign = true
+
 [merge]
-	tool = nvimdiff
+	tool = diffview
+
+[mergetool]
+  prompt = false
+	keepBackup = false
+
+[mergetool "diffview"]
+  cmd = nvim -c "DiffviewOpen" "${MERGE}"
+
 [rebase]
 	autosquash = true
+
 [gitubuntu]
 	lpuser = laney
+
 [pull]
 	ff = only
+
 [init]
 	defaultBranch = main
 
