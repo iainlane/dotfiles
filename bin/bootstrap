@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # vim: set expandtab ts=2 sw=2:
 
 set -eu
