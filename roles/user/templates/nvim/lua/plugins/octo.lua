@@ -11,6 +11,10 @@ end
 return {
   "pwntester/octo.nvim",
 
+  opts = {
+    picker = "snacks",
+  },
+
   keys = {
     {
       "<leader>gr",
