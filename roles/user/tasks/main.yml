@@ -143,6 +143,13 @@
         mode: "0755"
         state: directory
 
+    - name: Copy config file
+      ansible.builtin.copy:
+        src: "templates/lazygit/"
+        dest: "{{ lazygit_config_dir.stdout }}"
+        directory_mode: "0755"
+        mode: "0664"
+
     - name: Ensure config file exists
       ansible.builtin.copy:
         dest: "{{ lazygit_config_dir.stdout }}/config.yml"

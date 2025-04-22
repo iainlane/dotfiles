@@ -1,0 +1,20 @@
+customCommands:
+  - key: a
+    context: files
+    command: "git {{if .SelectedFile.HasUnstagedChanges}} add {{else}} reset {{end}} {{.SelectedFile.Name | quote}}"
+    description: Toggle file staged
+  - key: F
+    context: files, remotes
+    command: |
+      git fetch --prune && \
+      git for-each-ref --omit-empty --format="%(if:equals=[gone])%(upstream:track)%(then)%(refname:short)%(end)" refs/heads/ | \
+        xargs git branch --delete --force
+    description: Fetch (prune) and delete "gone" branches
+    stream: true
+  - 
+
+git:
+  paging:
+    colorArg: always
+    pager: delta --paging=never
+
