@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/jesseduffield/lazygit/master/schema/config.json
 customCommands:
   - key: a
     context: files
@@ -14,7 +15,9 @@ customCommands:
   - 
 
 git:
+  overrideGpg: true
   paging:
     colorArg: always
     pager: delta --paging=never
+  parseEmoji: true
 
