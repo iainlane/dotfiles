@@ -92,4 +92,13 @@ require("lazy").setup({
       notify = false,
     },
   },
+
+  dev = {
+    path = "~/dev/random/nvim/",
+  },
+
+  profiling = {
+    loader = true,
+    require = true,
+  },
 })

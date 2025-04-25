@@ -4,10 +4,6 @@ return {
 
     opts = {
       colorscheme = "catppuccin",
-
-      dev = {
-        projects = "~/dev/random/nvim/",
-      },
     },
   },
 }
