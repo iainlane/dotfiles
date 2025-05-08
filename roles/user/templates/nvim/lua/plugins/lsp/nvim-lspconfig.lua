@@ -14,6 +14,8 @@ return {
           },
         },
       },
+
+      gh_actions_ls = {},
     },
 
     -- a copy of LazyVim's setup function with one change (marked inline) to fix
