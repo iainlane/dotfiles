@@ -9,6 +9,7 @@ path_if_exists=(
   "/opt/homebrew/opt/grep/libexec/gnubin"
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
+  "${HOME}/.npm/bin"
   "/snap/bin"
 )
 
