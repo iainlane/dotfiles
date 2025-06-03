@@ -12,6 +12,6 @@ if [ -e "~/.keychain/${HOST}-local-sh-gpg" ]; then
 fi
 
 if [ -z "${GPG_AGENT_INFO}" ] || [ -z "${SSH_AUTH_SOCK}" ] && (( $+commands[keychain] )); then
-    eval $(keychain --eval --quick --quiet --agents gpg,ssh --host ${HOST})
+    eval $(keychain --eval --quick --quiet --ssh-spawn-gpg --host ${HOST})
 fi
 
