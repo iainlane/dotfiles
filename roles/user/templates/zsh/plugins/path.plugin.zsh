@@ -10,6 +10,7 @@ path_if_exists=(
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
   "${HOME}/.npm/bin"
+  "${HOME}/.claude/local"
   "/snap/bin"
 )
 
