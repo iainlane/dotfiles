@@ -12,7 +12,7 @@
       ansible.builtin.get_url:
         url: https://sh.rustup.rs
         dest: "{{ rustup_tmp.path }}/rustup-init.sh"
-        mode: '0755'
+        mode: "0755"
 
     - name: Install Rust
       ansible.builtin.command:
@@ -55,6 +55,7 @@
     name:
       - bat
       - bottom
+      - cargo-generate
       - du-dust
       - eza
       - fd-find
