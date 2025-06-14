@@ -63,4 +63,5 @@
       - ripgrep
       - starship
       - tokei
+      - twiggy
       - zoxide
