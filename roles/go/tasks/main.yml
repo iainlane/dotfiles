@@ -19,7 +19,7 @@
   when: os_family == 'debian'
 
 - name: Get Go binary path
-  shell: go env GOPATH
+  command: go env GOPATH
   register: gopath
   changed_when: false
 
@@ -36,7 +36,7 @@
       ansible.builtin.file:
         path: "{{ go_user_config_dir }}/zsh/functions"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Install doggo completions
       ansible.builtin.copy:
