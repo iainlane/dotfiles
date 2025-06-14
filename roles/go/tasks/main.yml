@@ -9,6 +9,7 @@
     - github.com/justjanne/powerline-go@latest
     - github.com/mr-karan/doggo/cmd/doggo@latest
     - github.com/muesli/duf@latest
+    - github.com/nektos/act@latest
     - github.com/rs/curlie@latest
 
 - name: Install go packages (linux specific)
@@ -16,7 +17,7 @@
     cmd: go install '{{ item }}'
   loop:
     - github.com/muesli/deckmaster@latest
-  when: os_family == 'debian'
+  when: "'debian_family' in group_names"
 
 - name: Get Go binary path
   command: go env GOPATH
@@ -26,11 +27,15 @@
 - name: Install `doggo` completions
   environment:
     PATH: "{{ gopath.stdout }}/bin:{{ ansible_env.PATH }}"
+  vars:
+    doggo_completion_path: "{{ go_user_config_dir }}/zsh/functions/_doggo"
+  when: not ansible_check_mode and not doggo_completion_path is exists
   block:
     - name: Generate doggo completions
       ansible.builtin.command:
         cmd: doggo completions zsh
       register: doggo_completion
+      changed_when: false
 
     - name: Ensure .zsh/functions directory exists
       ansible.builtin.file:
@@ -41,4 +46,5 @@
     - name: Install doggo completions
       ansible.builtin.copy:
         content: "{{ doggo_completion.stdout }}"
-        dest: "{{ go_user_config_dir }}/zsh/functions/_doggo"
+        dest: "{{ doggo_completion_path }}"
+        mode: "0644"

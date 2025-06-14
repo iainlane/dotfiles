@@ -1,7 +1,7 @@
 ---
 - name: Skip when not on Debian
   ansible.builtin.meta: end_role
-  when: os_family != 'debian'
+  when: "'debian_family' not in group_names"
 
 - name: Set up third party repositories
   become: true

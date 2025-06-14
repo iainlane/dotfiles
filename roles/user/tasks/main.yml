@@ -180,4 +180,4 @@
     owner: root
     mode: "0644"
   become: true
-  when: os_family == "debian"
+  when: "'debian_family' in group_names"

@@ -1,7 +1,7 @@
 ---
 - name: Skip when not on MacOS
   ansible.builtin.meta: end_role
-  when: "os_family != 'darwin'"
+  when: "'darwin' not in group_names"
 
 - name: Manage homebrew taps
   community.general.homebrew_tap:

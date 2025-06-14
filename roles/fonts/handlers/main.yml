@@ -3,4 +3,4 @@
   ansible.builtin.command:
     cmd: fc-cache -f -v
   become: false
-  when: os_family == "debian"
+  when: "'debian_family' in group_names"

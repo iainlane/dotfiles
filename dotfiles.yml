@@ -24,7 +24,7 @@
     - name: Add host to OS family group
       ansible.builtin.add_host:
         name: "{{ inventory_hostname }}"
-        groups: "{{ os_family }}-family"
+        groups: "{{ os_family }}_family"
 
 - name: Debug
   hosts: all
@@ -39,7 +39,7 @@
         msg: "{{ group_names }}"
 
 - name: Common setup (debian-based)
-  hosts: debian-family
+  hosts: debian_family
   tags: ["common", "system"]
   roles:
     - role: apt
@@ -70,8 +70,8 @@
       tags: ["user"]
 
 - name: Set up Linux desktop
-  hosts: debian-family:&desktop
-  tags: ["debian-family", "desktop", "system"]
+  hosts: debian_family:&desktop
+  tags: ["debian_family", "desktop", "system"]
   roles:
     - role: apt
       vars:
@@ -110,7 +110,7 @@
   roles:
     - role: cloud_sdks
       tags: ["cloud"]
-    - role: work-packages
+    - role: work_packages
       tags: ["packages"]
 
 - name: Install home things
