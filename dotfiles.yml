@@ -60,14 +60,14 @@
   hosts: all
   tags: ["common", "system"]
   roles:
+    - role: user
+      tags: ["user"]
+    - role: cargo
+      tags: ["cargo"]
     - role: git
       tags: ["git"]
     - role: go
       tags: ["go"]
-    - role: cargo
-      tags: ["cargo"]
-    - role: user
-      tags: ["user"]
 
 - name: Set up Linux desktop
   hosts: debian_family:&desktop
