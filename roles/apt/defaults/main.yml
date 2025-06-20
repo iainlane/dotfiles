@@ -12,6 +12,7 @@ apt_packages:
   - httpie
   - neovim
   - npm
+  - pandoc
   - pipx
   - podman
   - podman-docker

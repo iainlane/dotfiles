@@ -10,6 +10,7 @@ brew_packages:
   - keychain
   - neovim
   - openssh
+  - pandoc
   - pipx
   - pre-commit
   - presenterm
