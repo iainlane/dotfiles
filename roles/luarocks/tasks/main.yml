@@ -1,0 +1,5 @@
+---
+- name: Install luacheck
+  ansible.builtin.command:
+    cmd: luarocks install --local luacheck
+    creates: "{{ ansible_env.HOME }}/.luarocks/bin/luacheck"

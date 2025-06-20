@@ -68,6 +68,8 @@
       tags: ["git"]
     - role: go
       tags: ["go"]
+    - role: luarocks
+      tags: ["luarocks"]
 
 - name: Set up Linux desktop
   hosts: debian_family:&desktop
