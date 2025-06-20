@@ -4,6 +4,7 @@
     cmd: go install '{{ item }}'
   loop:
     - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+    - github.com/hmarr/codeowners/cmd/codeowners@latest
     - github.com/jesseduffield/lazygit@latest
     - github.com/junegunn/fzf@latest
     - github.com/justjanne/powerline-go@latest
