@@ -19,6 +19,3 @@ alias mkvirtualenv='virtualenvwrapper_init && mkvirtualenv'
 # Less configuration
 export LESSOPEN="|/opt/homebrew/bin/lesspipe.sh %s"
 export LESS_ADVANCED_PREPROCESSOR=1
-
-# macOS specific aliases
-alias ls="ls -FG"

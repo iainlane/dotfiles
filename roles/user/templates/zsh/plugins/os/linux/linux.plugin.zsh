@@ -1,4 +1,3 @@
-alias ls="ls --classify"
 alias rm="rm -v --one-file-system"
 
 export LESSOPEN="| lesspipe %s"
