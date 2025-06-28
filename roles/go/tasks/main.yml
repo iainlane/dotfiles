@@ -1,30 +1,20 @@
 ---
-- name: Install go packages (all)
-  ansible.builtin.command:
-    cmd: go install '{{ item }}'
-  loop:
-    - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    - github.com/hmarr/codeowners/cmd/codeowners@latest
-    - github.com/jesseduffield/lazygit@latest
-    - github.com/junegunn/fzf@latest
-    - github.com/justjanne/powerline-go@latest
-    - github.com/mr-karan/doggo/cmd/doggo@latest
-    - github.com/muesli/duf@latest
-    - github.com/nektos/act@latest
-    - github.com/rs/curlie@latest
-
-- name: Install go packages (linux specific)
-  ansible.builtin.command:
-    cmd: go install '{{ item }}'
-  loop:
-    - github.com/muesli/deckmaster@latest
-  when: "'debian_family' in group_names"
-
+# Common setup tasks
 - name: Get Go binary path
-  command: go env GOPATH
+  ansible.builtin.command: go env GOPATH
   register: gopath
   changed_when: false
 
+# Choose build strategy based on connection type
+- name: Build Go packages for local system
+  ansible.builtin.include_tasks: build_local.yml
+  when: not build_locally
+
+- name: Build Go packages for target system (cross-compilation)
+  ansible.builtin.include_tasks: build_target.yml
+  when: build_locally
+
+# Common post-install tasks
 - name: Install `doggo` completions
   environment:
     PATH: "{{ gopath.stdout }}/bin:{{ ansible_env.PATH }}"

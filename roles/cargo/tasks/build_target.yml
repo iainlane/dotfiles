@@ -1,0 +1,43 @@
+---
+# Cross-compile Rust packages locally and transfer to target host
+- name: Fail if unsupported target
+  ansible.builtin.fail:
+    msg: "Unsupported target: {{ ansible_system }}/{{ ansible_architecture }} for Rust cross-compilation"
+  when: rust_os_suffix_map[ansible_system] is not defined
+
+- name: Install Rust cross-compilation target
+  ansible.builtin.command:
+    cmd: ~/.cargo/bin/rustup target add {{ rust_target }}
+  delegate_to: localhost
+  changed_when: false
+
+- name: Setup cross-compilation environment
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common-tasks/setup_cross_compilation.yml"
+  vars:
+    cache_subdir: "{{ cargo_cache_subdir }}"
+
+- name: Cross-compile Rust packages using zigbuild
+  ansible.builtin.command:
+    cmd: ~/.cargo/bin/cargo-zigbuild install --target {{ rust_target }} --root "{{ cross_compile_cache_dir }}" {{ item }}
+  delegate_to: localhost
+  loop: "{{ cargo_packages }}"
+  environment:
+    OPENSSL_DIR: "{% if ansible_facts['os_family'] == 'Darwin' %}/opt/homebrew/opt/openssl@3{% endif %}"
+
+- name: Ensure target .cargo/bin directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.cargo/bin"
+    state: directory
+    mode: "0755"
+
+- name: Transfer compiled binaries to target
+  ansible.builtin.synchronize:
+    src: "{{ cross_compile_cache_dir }}/bin/"
+    dest: "{{ ansible_env.HOME }}/.cargo/bin/"
+    archive: false
+    checksum: true
+    recursive: true
+    delete: false
+    owner: false
+    group: false
+    perms: true

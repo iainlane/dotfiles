@@ -1,68 +1,12 @@
 ---
-# Download and run rustup
-- name: Install Rust
-  block:
-    - name: Create temporary file for rustup installer
-      ansible.builtin.tempfile:
-        state: directory
-        prefix: rustup
-      register: rustup_tmp
+- name: Setup Rust components
+  ansible.builtin.include_tasks: setup_rust.yml
 
-    - name: Download rustup installer
-      ansible.builtin.get_url:
-        url: https://sh.rustup.rs
-        dest: "{{ rustup_tmp.path }}/rustup-init.sh"
-        mode: "0755"
+# Choose build strategy based on connection type
+- name: Build Cargo packages for local system
+  ansible.builtin.include_tasks: build_local.yml
+  when: not build_locally
 
-    - name: Install Rust
-      ansible.builtin.command:
-        cmd: "{{ rustup_tmp.path }}/rustup-init.sh -y --no-modify-path"
-        creates: ~/.cargo/bin/rustup
-      register: rustup
-
-  always:
-    - name: Clean up temp directory
-      ansible.builtin.file:
-        path: "{{ rustup_tmp.path }}"
-        state: absent
-      when: rustup_tmp.path is defined
-
-- name: Update rust
-  ansible.builtin.command:
-    cmd: "{{ item }}"
-  loop:
-    - ~/.cargo/bin/rustup self update
-    - ~/.cargo/bin/rustup update
-    - ~/.cargo/bin/rustup default stable
-  when: not rustup.changed
-
-- name: Install Rust components
-  ansible.builtin.command:
-    cmd: ~/.cargo/bin/rustup component add {{ item }}
-  loop:
-    - rustfmt
-    - clippy
-    - rust-analysis
-    - rust-src
-  when: rustup.changed
-
-- name: Install Cargo packages
-  environment:
-    PATH: "{{ ansible_env.HOME }}/.cargo/bin:{{ ansible_env.PATH }}"
-  community.general.cargo:
-    locked: true
-    state: latest
-    name:
-      - bat
-      - bottom
-      - cargo-generate
-      - du-dust
-      - eza
-      - fd-find
-      - git-delta
-      - ripgrep
-      - starship
-      - stylua
-      - tokei
-      - twiggy
-      - zoxide
+- name: Build Cargo packages for target system (cross-compilation)
+  ansible.builtin.include_tasks: build_target.yml
+  when: build_locally

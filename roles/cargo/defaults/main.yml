@@ -1,0 +1,19 @@
+---
+# Base Cargo packages (installed everywhere)
+cargo_packages_base:
+  - bat
+  - bottom
+  - du-dust
+  - eza
+  - fd-find
+  - git-delta
+  - ripgrep
+  - starship
+  - zoxide
+
+# Group-specific package lists (set in group_vars)
+cargo_packages_desktop: []
+cargo_packages_server: []
+
+# Combined package list based on groups
+cargo_packages: "{{ cargo_packages_base + cargo_packages_desktop + cargo_packages_server }}"

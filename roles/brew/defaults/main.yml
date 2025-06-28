@@ -15,5 +15,6 @@ brew_packages:
   - pre-commit
   - presenterm
   - wdiff
+  - zig
 brew_taps: []
 brew_state: latest

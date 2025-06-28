@@ -1,0 +1,21 @@
+---
+# Shared cross-compilation setup for Go and Cargo roles
+# Variables expected:
+#   - cache_subdir: The subdirectory name under the cache (e.g., "ansible-go-builds")
+
+- name: Gather facts from localhost for cross-compilation
+  ansible.builtin.setup:
+  delegate_to: localhost
+  delegate_facts: true
+  run_once: true
+
+- name: Set cross-compilation cache directory
+  ansible.builtin.set_fact:
+    cross_compile_cache_dir: "{{ hostvars.localhost.ansible_env.XDG_CACHE_HOME | default(hostvars.localhost.ansible_env.HOME + '/.cache') }}/{{ cache_subdir }}"
+
+- name: Create cross-compilation cache directory
+  ansible.builtin.file:
+    path: "{{ cross_compile_cache_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost

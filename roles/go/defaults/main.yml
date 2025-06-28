@@ -1,2 +1,21 @@
 ---
 go_user_config_dir: "{{ ansible.env.XDG_CONFIG_HOME | default('~/.config') }}"
+
+# Base Go packages (installed everywhere)
+go_packages_base:
+  - github.com/jesseduffield/lazygit@latest
+  - github.com/junegunn/fzf@latest
+  - github.com/mr-karan/doggo/cmd/doggo@latest
+  - github.com/muesli/duf@latest
+  - github.com/rs/curlie@latest
+
+# Linux-specific packages
+go_packages_linux:
+  - github.com/muesli/deckmaster@latest
+
+# Group-specific package lists (set in group_vars)
+go_packages_desktop: []
+go_packages_server: []
+
+# Combined package list based on groups and platform
+go_packages: "{{ go_packages_base + go_packages_desktop + go_packages_server + go_packages_linux }}"

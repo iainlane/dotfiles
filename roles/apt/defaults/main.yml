@@ -24,6 +24,7 @@ apt_packages:
   - ruby
   - watchman
   - wget
+  - zig
   - zsh
 
 apt_remove_packages: []

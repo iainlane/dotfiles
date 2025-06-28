@@ -1,0 +1,9 @@
+---
+# Install Rust packages directly on local system
+- name: Install Cargo packages
+  environment:
+    PATH: "{{ ansible_env.HOME }}/.cargo/bin:{{ ansible_env.PATH }}"
+  community.general.cargo:
+    locked: true
+    state: latest
+    name: "{{ cargo_packages }}"

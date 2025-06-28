@@ -1,0 +1,36 @@
+---
+# Cross-compile Go packages locally and transfer to target host
+- name: Fail if unsupported architecture
+  ansible.builtin.fail:
+    msg: "Unsupported architecture: {{ ansible_architecture }} for Go cross-compilation"
+  when: go_cross_env.GOARCH == 'unsupported'
+
+- name: Setup cross-compilation environment
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/common-tasks/setup_cross_compilation.yml"
+  vars:
+    cache_subdir: "{{ go_cache_subdir }}"
+
+- name: Cross-compile Go packages
+  ansible.builtin.command:
+    cmd: go install "{{ item }}"
+  environment: "{{ go_cross_env | combine({'GOPATH': cross_compile_cache_dir}) }}"
+  delegate_to: localhost
+  loop: "{{ go_packages }}"
+
+- name: Ensure target bin directory exists
+  ansible.builtin.file:
+    path: "{{ gopath.stdout }}/bin"
+    state: directory
+    mode: "0755"
+
+- name: Transfer compiled binaries to target
+  ansible.builtin.synchronize:
+    src: "{{ cross_compile_cache_dir }}/bin/{{ go_cross_env.GOOS }}_{{ go_cross_env.GOARCH }}/"
+    dest: "{{ gopath.stdout }}/bin/"
+    archive: false
+    checksum: true
+    recursive: true
+    delete: false
+    owner: false
+    group: false
+    perms: true

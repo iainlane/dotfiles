@@ -1,7 +1,20 @@
-desktop_apt_packages:
+apt_packages_desktop:
   - adwaita-icon-theme
   - fonts-powerline
   - fonts-roboto
   - gnome-session
   - gnome-tweaks
   - tilix
+
+# Development packages for desktop systems
+go_packages_desktop:
+  - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  - github.com/hmarr/codeowners/cmd/codeowners@latest
+  - github.com/nektos/act@latest
+
+cargo_packages_desktop:
+  - cargo-generate
+  - cargo-zigbuild
+  - stylua
+  - tokei
+  - twiggy

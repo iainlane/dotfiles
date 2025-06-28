@@ -77,7 +77,7 @@
   roles:
     - role: apt
       vars:
-        apt_packages: "{{ desktop_apt_packages }}"
+        apt_packages: "{{ apt_packages_desktop }}"
         apt_remove_packages: "{{ desktop_apt_remove_packages | default([]) }}"
       tags: ["apt"]
     - role: google-chrome
