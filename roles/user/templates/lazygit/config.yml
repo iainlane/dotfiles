@@ -12,7 +12,7 @@ customCommands:
         xargs git branch --delete --force
     description: Fetch (prune) and delete "gone" branches
     stream: true
-  - 
+  -
 
 git:
   overrideGpg: true
@@ -20,4 +20,3 @@ git:
     colorArg: always
     pager: delta --paging=never
   parseEmoji: true
-

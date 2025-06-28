@@ -27,4 +27,3 @@ dominik-schwabe/zsh-fnm
 
 # Syntax highlighting (load last)
 zsh-users/zsh-syntax-highlighting
-

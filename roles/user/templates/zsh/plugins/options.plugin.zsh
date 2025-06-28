@@ -38,4 +38,4 @@ setopt check_jobs     # Check for running jobs before exiting
 setopt notify        # Report status of background jobs immediately
 
 # Prompting
-setopt prompt_subst  # Allow parameter/command substitution in prompt 
+setopt prompt_subst  # Allow parameter/command substitution in prompt

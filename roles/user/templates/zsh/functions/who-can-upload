@@ -13,4 +13,4 @@ DIST="$(ubuntu-distro-info -d)"
 while (( $# > 0 )); do
     edit-acl -s "${1}" -S "${DIST}" query
     shift
-done 
+done
