@@ -14,10 +14,6 @@ export QUILT_PATCHES=debian/patches
 export BAT_THEME_LIGHT="Catppuccin Latte"
 export BAT_THEME_DARK="Catppuccin Mocha"
 
-# zle adds a single space to the right of the right prompt by default, but we
-# don't need it.
-ZLE_RPROMPT_INDENT=0
-
 if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
    source "${ZDOTDIR}/zstyles.zsh"
 fi
