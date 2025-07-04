@@ -33,7 +33,6 @@
       ansible.posix.synchronize:
         src: "templates/bin/"
         dest: "~/.local/bin/"
-        delete: yes
 
 - name: Create zsh files
   block:
