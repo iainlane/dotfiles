@@ -2,16 +2,6 @@
 	name = {{ full_name }}
 	email = {{ git_email }}
 	signingkey = {{ gpg_fingerprint }}
-[giggle]
-	main-window-maximized = true
-	main-window-geometry = 0x0+0+0
-	file-view-vpane-position = 399
-	history-view-vpane-position = 194
-	main-window-view = HistoryView
-
-
-[core]
-	excludesfile = ~/.gitignore
 
 [merge "dpkg-mergechangelogs"]
 	name = debian/changelog merge driver
@@ -19,9 +9,6 @@
 
 [push]
 	default = current
-
-[bz]
-	browser = firefox3
 
 [color]
 	ui = true
@@ -70,9 +57,6 @@
 [rebase]
 	autosquash = true
 
-[gitubuntu]
-	lpuser = laney
-
 [pull]
 	ff = only
 
@@ -84,7 +68,6 @@
 	log = delta
 	reflog = delta
 	show = delta
-
 
 [delta]
 	#plus-style = "syntax #012800"

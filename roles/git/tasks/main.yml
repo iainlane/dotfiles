@@ -1,6 +1,18 @@
 ---
-- name: Make sure gitconfig is up to date
+- name: Add global git ignore file
+  ansible.builtin.copy:
+    src: templates/ignore
+    dest: "{{ user_config_dir }}/git/ignore"
+    directory_mode: "0755"
+    mode: "0664"
+
+- name: Add global git config
   ansible.builtin.template:
     src: gitconfig.j2
-    dest: ~/.gitconfig
+    dest: "{{ user_config_dir }}/git/config"
     mode: "0644"
+
+- name: Remove old gitconfig
+  ansible.builtin.file:
+    path: "~/.gitconfig"
+    state: absent
