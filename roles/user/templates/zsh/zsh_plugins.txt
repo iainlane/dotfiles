@@ -18,6 +18,7 @@ aloxaf/fzf-tab
 Freed-Wu/fzf-tab-source
 
 # Local plugins
+plugins/early
 plugins/os/linux conditional:is-linux
 plugins/os/macos conditional:is-macos
 plugins
