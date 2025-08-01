@@ -9,12 +9,13 @@ go_packages_base:
   - github.com/muesli/duf@latest
   - github.com/rs/curlie@latest
 
-# Linux-specific packages
-go_packages_linux:
-  - github.com/muesli/deckmaster@latest
+# Linux-specific packages (set in group_vars/linux)
+go_packages_linux: []
 
-# Group-specific package lists (set in group_vars)
+# Desktop-specific packages (set in group_vars/desktop)
 go_packages_desktop: []
+
+# Server-specific packages (set in group_vars/server)
 go_packages_server: []
 
 # Combined package list based on groups and platform
