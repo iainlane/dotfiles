@@ -8,6 +8,7 @@ apt_packages_desktop:
 
 # Development packages for desktop systems
 go_packages_desktop:
+  - github.com/charmbracelet/crush@latest
   - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
   - github.com/hmarr/codeowners/cmd/codeowners@latest
   - github.com/nektos/act@latest
