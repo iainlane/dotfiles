@@ -15,4 +15,4 @@ dependencies:
       brew_taps:
         - hashicorp/tap
       brew_packages:
-        - terraform
+        - hashicorp/tap/terraform
