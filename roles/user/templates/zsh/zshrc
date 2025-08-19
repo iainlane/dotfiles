@@ -14,6 +14,11 @@ export QUILT_PATCHES=debian/patches
 export BAT_THEME_LIGHT="Catppuccin Latte"
 export BAT_THEME_DARK="Catppuccin Mocha"
 
+# This is where the `pipx` Ansible role installs binaries. The default
+# `~/.local/bin/` is owned by Ansible and will be cleared out on each run, so
+# `pipx` needs to install elsewhere.
+export PIPX_BIN_DIR="${HOME}/.local/pipx/bin"
+
 if [[ -f "${ZDOTDIR}/zstyles.zsh" ]]; then
    source "${ZDOTDIR}/zstyles.zsh"
 fi
