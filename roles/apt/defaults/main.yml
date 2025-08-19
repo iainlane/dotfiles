@@ -24,6 +24,7 @@ apt_packages_base:
   - python3-venv
   - rsync
   - ruby
+  - systemd-container
   - watchman
   - wget
   - zsh
