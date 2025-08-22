@@ -6,6 +6,7 @@ apt_packages:
   - black
   - btop
   - build-essential
+  - ccache
   - cmake
   - curl
   - htop
