@@ -1,6 +1,7 @@
 ---
 snap_packages:
   - code
+  - ghostty
   - go
   - helm
   - kubectl
