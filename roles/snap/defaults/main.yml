@@ -4,6 +4,7 @@ snap_packages:
   - go
   - helm
   - kubectl
+  - nvim
   - slack
   - spotify
   - telegram-desktop
