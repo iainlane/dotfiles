@@ -1,0 +1,4 @@
+---
+apt_packages_home:
+  - mmdebstrap
+  - sbuild

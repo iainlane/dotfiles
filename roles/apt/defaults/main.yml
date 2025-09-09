@@ -1,7 +1,8 @@
 ---
 apt_package_upgrade: true
 
-apt_packages:
+# Base apt packages (installed everywhere)
+apt_packages_base:
   - apt
   - black
   - btop
@@ -26,6 +27,21 @@ apt_packages:
   - watchman
   - wget
   - zsh
+
+# Linux-specific packages (set in group_vars/linux)
+apt_packages_linux: []
+
+# Desktop-specific packages (set in group_vars/desktop)
+apt_packages_desktop: []
+
+# Server-specific packages (set in group_vars/server)
+apt_packages_server: []
+
+# Home-specific packages (set in group_vars/home)
+apt_packages_home: []
+
+# Combined package list based on groups and platform
+apt_packages: "{{ apt_packages_base + apt_packages_desktop + apt_packages_server + apt_packages_linux + apt_packages_home }}"
 
 apt_remove_packages: []
 

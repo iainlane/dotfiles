@@ -52,9 +52,6 @@
   tags: ["debian", "system"]
   roles:
     - role: apt
-      vars:
-        apt_packages: "{{ debian_apt_packages }}"
-        apt_remove_packages: "{{ debian_apt_remove_packages | default([]) }}"
 
 - name: Common setup
   hosts: all
@@ -76,9 +73,6 @@
   tags: ["debian_family", "desktop", "system"]
   roles:
     - role: apt
-      vars:
-        apt_packages: "{{ apt_packages_desktop }}"
-        apt_remove_packages: "{{ desktop_apt_remove_packages | default([]) }}"
       tags: ["apt"]
     - role: google-chrome
       tags: ["browser"]
