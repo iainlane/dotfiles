@@ -1,6 +1,7 @@
 # Common aliases
 alias chmod="chmod -v"
 alias chown="chown -v"
+alias claude="~/.claude/local/claude"
 alias cp="cp -iv"
 alias ln="ln -v"
 alias ls="eza --git --git-repos --group-directories-first"
