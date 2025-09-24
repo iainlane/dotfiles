@@ -3,6 +3,11 @@
 
 return {
   {
+    "nvim-treesitter/nvim-treesitter",
+    opts = { ensure_installed = { "jsonnet" } },
+  },
+
+  {
     "iainlane/nvim-jsonnet",
 
     branch = "iainlane/fixes",
