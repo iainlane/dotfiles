@@ -2,7 +2,6 @@
 snap_packages:
   - code
   - ghostty
-  - go
   - helm
   - kubectl
   - nvim
@@ -11,3 +10,6 @@ snap_packages:
   - telegram-desktop
   - yq
   - zig
+
+snap_remove_packages:
+  - go

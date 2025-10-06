@@ -1,9 +1,13 @@
 ---
-# Common setup tasks
-- name: Get Go binary path
-  ansible.builtin.command: go env GOPATH
-  register: gopath
-  changed_when: false
+# Install Go binary from upstream
+- name: Install Go binary
+  ansible.builtin.include_tasks: install_binary.yml
+
+# Set up environment
+- name: Set GOPATH
+  set_fact:
+    gopath:
+      stdout: "{{ go_install_dir }}"
 
 # Choose build strategy based on connection type
 - name: Build Go packages for local system

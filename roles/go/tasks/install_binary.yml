@@ -1,0 +1,80 @@
+---
+- name: Determine OS and architecture
+  set_fact:
+    go_os: "{{ 'darwin' if ansible_system == 'Darwin' else 'linux' }}"
+    go_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' if ansible_architecture == 'aarch64' else ansible_architecture }}"
+
+- name: Set Go binary download URL and filename
+  set_fact:
+    go_filename: "go{{ go_version }}.{{ go_os }}-{{ go_arch }}.tar.gz"
+    go_download_url: "https://go.dev/dl/go{{ go_version }}.{{ go_os }}-{{ go_arch }}.tar.gz"
+
+- name: Check if Go is already installed with correct version
+  stat:
+    path: "{{ go_install_dir }}/bin/go"
+  register: go_binary
+
+- name: Check installed Go version
+  command: "{{ go_install_dir }}/bin/go version"
+  register: go_version_check
+  failed_when: false
+  changed_when: false
+  when: go_binary.stat.exists
+
+- name: Determine if Go needs to be installed or updated
+  set_fact:
+    go_needs_install: >-
+      {{
+        not go_binary.stat.exists or
+        (go_version_check.stdout is defined and go_version not in go_version_check.stdout)
+      }}
+
+- name: Install Go binary
+  when: go_needs_install
+  block:
+    - name: Create temporary directory for download
+      tempfile:
+        state: directory
+        suffix: go_install
+      register: go_temp_dir
+
+    - name: Download Go binary
+      get_url:
+        url: "{{ go_download_url }}"
+        dest: "{{ go_temp_dir.path }}/{{ go_filename }}"
+        mode: '0644'
+
+    - name: Remove existing Go installation
+      file:
+        path: "{{ go_install_dir }}"
+        state: absent
+      when: go_binary.stat.exists
+
+    - name: Create Go installation directory
+      file:
+        path: "{{ go_install_dir | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Extract Go binary
+      unarchive:
+        src: "{{ go_temp_dir.path }}/{{ go_filename }}"
+        dest: "{{ go_install_dir | dirname }}"
+        remote_src: true
+        creates: "{{ go_install_dir }}/bin/go"
+
+  always:
+    - name: Clean up temporary directory
+      file:
+        path: "{{ go_temp_dir.path }}"
+        state: absent
+      when: go_temp_dir is defined
+
+- name: Verify Go installation
+  command: "{{ go_install_dir }}/bin/go version"
+  register: go_final_version
+  changed_when: false
+
+- name: Display Go version
+  debug:
+    msg: "Go installed: {{ go_final_version.stdout }}"

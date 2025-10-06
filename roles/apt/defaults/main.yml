@@ -44,7 +44,18 @@ apt_packages_home: []
 # Combined package list based on groups and platform
 apt_packages: "{{ apt_packages_base + apt_packages_desktop + apt_packages_server + apt_packages_linux + apt_packages_home }}"
 
-apt_remove_packages: []
+# Base packages to remove
+apt_remove_packages_base: []
+
+# Group-specific packages to remove (set in group_vars)
+debian_apt_remove_packages: []
+linux_apt_remove_packages: []
+desktop_apt_remove_packages: []
+server_apt_remove_packages: []
+home_apt_remove_packages: []
+
+# Combined removal list based on groups
+apt_remove_packages: "{{ apt_remove_packages_base + debian_apt_remove_packages + linux_apt_remove_packages + desktop_apt_remove_packages + server_apt_remove_packages + home_apt_remove_packages }}"
 
 apt_repositories: {}
 

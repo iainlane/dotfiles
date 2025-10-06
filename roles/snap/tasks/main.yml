@@ -1,4 +1,11 @@
 ---
+- name: Remove snap packages
+  community.general.snap:
+    name: "{{ item }}"
+    state: absent
+  become: true
+  loop: "{{ snap_remove_packages }}"
+
 - name: Install snap packages
   community.general.snap:
     name: "{{ item }}"

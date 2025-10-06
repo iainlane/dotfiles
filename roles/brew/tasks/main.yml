@@ -9,6 +9,12 @@
     state: present
   loop: "{{ brew_taps }}"
 
+- name: Remove homebrew packages
+  community.general.homebrew:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ brew_remove_packages }}"
+
 - name: Manage homebrew packages
   community.general.homebrew:
     name: "{{ brew_packages }}"

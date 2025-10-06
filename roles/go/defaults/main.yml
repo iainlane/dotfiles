@@ -1,4 +1,7 @@
 ---
+# renovate: datasource=golang-version depName=golang
+go_version: "1.23.5"
+go_install_dir: "{{ ansible_env.HOME }}/go"
 go_user_config_dir: "{{ ansible.env.XDG_CONFIG_HOME | default('~/.config') }}"
 
 # Base Go packages (installed everywhere)
