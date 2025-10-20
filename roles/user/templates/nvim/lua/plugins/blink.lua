@@ -1,17 +1,30 @@
 return {
   "saghen/blink.cmp",
+
+  dependencies = { "fang2hou/blink-copilot" },
+
   opts = {
     completion = {
-      list = {
-        selection = {
-          preselect = true,
-        },
+      trigger = {
+        show_in_snippet = false,
       },
     },
     keymap = {
-      preset = "enter",
-      ["<Tab>"] = { "select_next", "fallback" },
-      ["<S-Tab>"] = { "select_prev", "fallback" },
+      preset = "super-tab",
+    },
+    signature = {
+      enabled = true,
+    },
+    sources = {
+      default = { "copilot" },
+      providers = {
+        copilot = {
+          name = "copilot",
+          module = "blink-copilot",
+          score_offset = 100,
+          async = true,
+        },
+      },
     },
   },
 }
