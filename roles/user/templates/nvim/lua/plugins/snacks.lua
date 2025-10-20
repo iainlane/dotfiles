@@ -1,24 +1,25 @@
 return {
-  "snacks.nvim",
+  {
+    "snacks.nvim",
 
-  opts = {
-    indent = {
+    opts = {
       indent = {
-        hl = {
-          "SnacksIndent1",
-          "SnacksIndent2",
-          "SnacksIndent3",
-          "SnacksIndent4",
-          "SnacksIndent5",
-          "SnacksIndent6",
-          "SnacksIndent7",
-          "SnacksIndent8",
+        indent = {
+          hl = {
+            "SnacksIndent1",
+            "SnacksIndent2",
+            "SnacksIndent3",
+            "SnacksIndent4",
+            "SnacksIndent5",
+            "SnacksIndent6",
+            "SnacksIndent7",
+            "SnacksIndent8",
+          },
         },
       },
     },
-  },
 
-  keys = {
+    keys = {
     { "<leader>n", false },
     {
       "<leader>N",
@@ -38,5 +39,31 @@ return {
       end,
       desc = "Dismiss All Notifications",
     },
+    {
+      "<leader>sB",
+      function()
+        local buffer_dir = vim.fn.expand("%:p:h")
+        Snacks.picker.grep({
+          dirs = { buffer_dir },
+          title = "Grep (" .. vim.fn.fnamemodify(buffer_dir, ":~") .. ")"
+        })
+      end,
+      desc = "Grep (Buffer directory)",
+    },
+  },
+  },
+
+  {
+    "folke/which-key.nvim",
+    optional = true,
+    opts = function(_, opts)
+      opts.spec = opts.spec or {}
+      table.insert(opts.spec, {
+        { "<leader>sB", icon = {
+          hl = "MiniIconsAzure",
+          icon = "󱡠 ",
+        } },
+      })
+    end,
   },
 }
