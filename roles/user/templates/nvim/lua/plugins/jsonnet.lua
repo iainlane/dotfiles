@@ -29,47 +29,46 @@ return {
   },
 
   {
-    "neovim/nvim-lspconfig",
+    name = "jsonnet_ls-config",
+    dir = vim.fn.stdpath("config"),
+    config = function()
+      ---Run a command and return true if it exits with success
+      ---@param args string[] Command and arguments to execute
+      ---@param cwd string|nil Working directory for the command
+      ---@return boolean ok True if command exits with code 0, false otherwise
+      local function cmd_ok(args, cwd)
+        local res = vim.system(args, { cwd = cwd }):wait()
+        return res and res.code == 0
+      end
 
-    opts = {
-      ---@type table<string, vim.lsp.Config>
-      servers = {
-        ---@type lsp.ConfigurationItem
-        jsonnet_ls = {
-          flags = { debounce_text_changes = 150 },
-          cmd = { "jsonnet-language-server", "--lint" },
-          settings = { formatting = { UseImplicitPlus = true } },
-        },
-      },
+      vim.lsp.config("jsonnet_ls", {
+        ---@param dispatchers vim.lsp.rpc.Dispatchers
+        ---@param config vim.lsp.ClientConfig
+        ---@return vim.lsp.rpc.PublicClient
+        cmd = function(dispatchers, config)
+          ---@type string[]
+          local cmd_args = { "jsonnet-language-server", "--lint" }
 
-      ---@type table<string, fun(server:string, config: vim.lsp.Config):boolean?>
-      setup = {
-        jsonnet_ls = function(server, config)
-          ---Run a command and return true if it exits with success
-          ---@param args string[]  e.g. { "tk", "tool", "jpath", "/abs/file.jsonnet" }
-          ---@param cwd  string|nil
-          ---@return boolean ok
-          local function cmd_ok(args, cwd)
-            local res = vim.system(args, { cwd = cwd }):wait()
-            if not res then
-              return false
+          if config.root_dir then
+            local bufnr = vim.api.nvim_get_current_buf()
+            local fname = vim.api.nvim_buf_get_name(bufnr)
+
+            if fname ~= "" and cmd_ok({ "tk", "tool", "jpath", fname }, config.root_dir) then
+              table.insert(cmd_args, "--tanka")
             end
-            return res.code == 0
           end
 
-          local bufnr = vim.api.nvim_get_current_buf()
-          local file = vim.api.nvim_buf_get_name(bufnr)
-          local cwd = vim.fn.getcwd()
-
-          if file ~= "" and cmd_ok({ "tk", "tool", "jpath", file }, cwd) then
-            config.cmd = { "jsonnet-language-server", "--lint", "--tanka" }
-          end
-
-          -- We want LazyVim to handle the actual lsp setup for us
-          return false
+          return vim.lsp.rpc.start(cmd_args, dispatchers, {})
         end,
-      },
-    },
+
+        filetypes = { "jsonnet", "libsonnet" },
+        flags = { debounce_text_changes = 150 },
+        settings = { formatting = { UseImplicitPlus = true } },
+        root_markers = { "jsonnetfile.json", ".git" },
+      })
+
+      vim.lsp.enable("jsonnet_ls")
+    end,
   },
 
   {
