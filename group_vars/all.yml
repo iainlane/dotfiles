@@ -1,0 +1,3 @@
+---
+user_config_dir: "{{ ansible_env.XDG_CONFIG_HOME | default('~/.config') }}"
+user_repos_dir: "{{ ansible_env.XDG_DATA_HOME | default('~/.local/share') }}"

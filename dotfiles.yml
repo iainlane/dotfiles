@@ -59,6 +59,10 @@
   roles:
     - role: user
       tags: ["user"]
+    - role: zsh
+      tags: ["zsh"]
+    - role: neovim
+      tags: ["neovim"]
     - role: cargo
       tags: ["cargo"]
     - role: git

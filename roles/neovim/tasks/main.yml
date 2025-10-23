@@ -1,0 +1,12 @@
+---
+- name: Ensure neovim config directory exists
+  ansible.builtin.file:
+    path: "{{ user_config_dir }}/nvim"
+    state: directory
+    mode: "0755"
+
+- name: Sync neovim files
+  ansible.posix.synchronize:
+    src: "templates/nvim/"
+    dest: "{{ user_config_dir }}/nvim/"
+    delete: yes

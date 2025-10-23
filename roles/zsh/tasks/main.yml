@@ -1,0 +1,37 @@
+---
+- name: Ensure zsh config directory exists
+  ansible.builtin.file:
+    path: "{{ user_config_dir }}/zsh"
+    state: directory
+    mode: "0755"
+
+- name: Copy zsh files
+  ansible.posix.synchronize:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    delete: "{{ item.delete | default('no') }}"
+  loop:
+    - {
+        src: "templates/zsh/functions/",
+        dest: "{{ user_config_dir }}/zsh/functions/",
+        delete: yes,
+      }
+    - {
+        src: "templates/zsh/plugins/",
+        dest: "{{ user_config_dir }}/zsh/plugins/",
+        delete: yes,
+      }
+    - {
+        src: "templates/zsh/zsh_plugins.txt",
+        dest: "{{ user_config_dir }}/zsh/zsh_plugins.txt",
+      }
+    - { src: "templates/zsh/zshenv", dest: "~/.zshenv" }
+    - { src: "templates/zsh/zshrc", dest: "{{ user_config_dir }}/zsh/.zshrc" }
+    - {
+        src: "templates/zsh/zstyles-post.zsh",
+        dest: "{{ user_config_dir }}/zsh/zstyles-post.zsh",
+      }
+    - {
+        src: "templates/zsh/zstyles.zsh",
+        dest: "{{ user_config_dir }}/zsh/zstyles.zsh",
+      }
