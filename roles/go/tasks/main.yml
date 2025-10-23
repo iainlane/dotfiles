@@ -23,7 +23,7 @@
   environment:
     PATH: "{{ gopath.stdout }}/bin:{{ ansible_env.PATH }}"
   vars:
-    doggo_completion_path: "{{ go_user_config_dir }}/zsh/functions/_doggo"
+    doggo_completion_path: "{{ user_config_dir }}/zsh/functions/_doggo"
   when: not ansible_check_mode and not doggo_completion_path is exists
   block:
     - name: Generate doggo completions
@@ -34,7 +34,7 @@
 
     - name: Ensure .zsh/functions directory exists
       ansible.builtin.file:
-        path: "{{ go_user_config_dir }}/zsh/functions"
+        path: "{{ user_config_dir }}/zsh/functions"
         state: directory
         mode: "0755"
 

@@ -48,7 +48,7 @@
     - name: Clone Catppuccin bat themes repo to cache dir
       ansible.builtin.git:
         repo: "https://github.com/catppuccin/bat.git"
-        dest: "{{ user_repos_dir }}/catppuccin-bat"
+        dest: "{{ user_data_dir }}/catppuccin-bat"
         depth: 1
         version: main
 
@@ -66,7 +66,7 @@
 
     - name: Sync bat themes
       ansible.posix.synchronize:
-        src: "{{ user_repos_dir }}/catppuccin-bat/themes/"
+        src: "{{ user_data_dir }}/catppuccin-bat/themes/"
         delete: true
         dest: "{{ bat_config_dir.stdout }}/themes/"
       delegate_to: "{{ inventory_hostname }}"

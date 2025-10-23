@@ -1,9 +1,9 @@
 ---
 fonts_directories:
-  debian: "{{ ansible_env.XDG_DATA_HOME | default('~/.local/share') }}/fonts"
+  debian: "{{ user_data_dir }}/fonts"
   darwin: "~/Library/Fonts"
 
-fonts_state_dir: "{{ ansible_env.XDG_STATE_HOME | default('~/.local/state') }}/ansible"
+fonts_state_dir: "{{ user_state_dir }}/ansible"
 
 fonts_state_file: "{{ fonts_state_dir }}/state.json"
 

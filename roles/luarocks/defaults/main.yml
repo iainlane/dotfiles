@@ -1,2 +1,0 @@
----
-luarocks_user_config_dir: "{{ ansible.env.XDG_CONFIG_HOME | default('~/.config') }}"
