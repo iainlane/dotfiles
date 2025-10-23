@@ -2,6 +2,9 @@
 # renovate: datasource=golang-version depName=golang
 go_version: "1.23.5"
 
+# Go toolchain installation directory
+go_toolchain_dir: "{{ user_data_dir }}/go"
+
 # Base Go packages (installed everywhere)
 go_packages_base:
   - github.com/jesseduffield/lazygit@latest

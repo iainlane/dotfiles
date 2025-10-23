@@ -7,6 +7,7 @@ path_if_exists=(
   "/opt/homebrew/opt/ruby/bin"
   "/opt/homebrew/opt/gnu-sed/libexec/gnubin"
   "/opt/homebrew/opt/grep/libexec/gnubin"
+  "${XDG_DATA_HOME:-${HOME}/.local/share}/go/bin"
   "${HOME}/go/bin"
   "${HOME}/.cargo/bin"
   "${HOME}/.luarocks/bin"

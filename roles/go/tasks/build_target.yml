@@ -12,7 +12,7 @@
 
 - name: Cross-compile Go packages
   ansible.builtin.command:
-    cmd: go install "{{ item }}"
+    cmd: "{{ go_toolchain_dir }}/bin/go install {{ item }}"
   environment: "{{ go_cross_env | combine({'GOPATH': cross_compile_cache_dir}) }}"
   delegate_to: localhost
   loop: "{{ go_packages }}"
