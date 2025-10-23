@@ -1,6 +1,15 @@
 return {
-  "CopilotC-Nvim/CopilotChat.nvim",
-  opts = {
-    model = "claude-3.7-sonnet-thought",
+  {
+    "vhyrro/luarocks.nvim",
+    priority = 1000,
+    opts = {
+      rocks = { "tiktoken_core" },
+    },
+  },
+
+  {
+    "CopilotC-Nvim/CopilotChat.nvim",
+
+    build = "make tiktoken",
   },
 }
