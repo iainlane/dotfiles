@@ -1,12 +1,13 @@
 ---
-- name: Setup Rust components
-  ansible.builtin.include_tasks: setup_rust.yml
+# Build the mise tools dictionary from cargo packages
+- name: Build mise tools dictionary for Cargo
+  ansible.builtin.set_fact:
+    cargo_mise_tools: "{{ dict(['cargo:'] | product(cargo_packages) | map('join') | zip_longest([], fillvalue='latest')) }}"
 
-# Choose build strategy based on connection type
-- name: Build Cargo packages for local system
-  ansible.builtin.include_tasks: build_local.yml
-  when: not build_locally
-
-- name: Build Cargo packages for target system (cross-compilation)
-  ansible.builtin.include_tasks: build_target.yml
-  when: build_locally
+- name: Configure mise for Cargo tools
+  ansible.builtin.include_role:
+    name: mise_config
+  vars:
+    mise_config_name: cargo
+    mise_priority: "15"
+    mise_tools: "{{ cargo_mise_tools }}"

@@ -1,0 +1,9 @@
+---
+- name: Configure mise for Python
+  ansible.builtin.include_role:
+    name: mise_config
+  vars:
+    mise_config_name: python
+    mise_priority: "25"
+    mise_tools:
+      python: "{{ python_version }}"

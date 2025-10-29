@@ -1,32 +1,44 @@
 ---
-# Install Go binary from upstream
-- name: Install Go binary
-  ansible.builtin.include_tasks: install_binary.yml
+- name: Remove old Go installation directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ user_data_dir }}/go"
 
-# Set up environment
-- name: Set GOPATH
-  set_fact:
-    gopath:
-      stdout: "{{ go_install_dir }}"
+- name: Build mise tools dictionary for Go
+  ansible.builtin.set_fact:
+    go_mise_tools: "{{ {'go': go_version} | combine(dict(['go:'] | product(go_packages) | map('join') | zip_longest([], fillvalue='latest'))) }}"
 
-# Choose build strategy based on connection type
-- name: Build Go packages for local system
-  ansible.builtin.include_tasks: build_local.yml
-  when: not build_locally
-
-- name: Build Go packages for target system (cross-compilation)
-  ansible.builtin.include_tasks: build_target.yml
-  when: build_locally
+- name: Configure mise for Go tools
+  ansible.builtin.include_role:
+    name: mise_config
+  vars:
+    mise_config_name: go
+    mise_priority: "10"
+    mise_tools: "{{ go_mise_tools }}"
 
 # Common post-install tasks
 - name: Install `doggo` completions
-  environment:
-    PATH: "{{ gopath.stdout }}/bin:{{ ansible_env.PATH }}"
   vars:
     doggo_completion_path: "{{ user_config_dir }}/zsh/functions/_doggo"
   when: not ansible_check_mode and not doggo_completion_path is exists
   block:
+    - name: Get mise environment
+      environment:
+        PATH: "{{ ansible_env.HOME }}/.cargo/bin:{{ ansible_env.PATH }}"
+      ansible.builtin.command:
+        cmd: mise env --json
+      register: mise_env_json
+      changed_when: false
+
+    - name: Parse mise environment
+      ansible.builtin.set_fact:
+        mise_env: "{{ mise_env_json.stdout | from_json }}"
+
     - name: Generate doggo completions
+      environment:
+        PATH: "{{ mise_env.PATH }}"
       ansible.builtin.command:
         cmd: doggo completions zsh
       register: doggo_completion

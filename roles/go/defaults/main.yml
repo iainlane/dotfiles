@@ -2,16 +2,13 @@
 # renovate: datasource=golang-version depName=golang
 go_version: "1.23.5"
 
-# Go toolchain installation directory
-go_toolchain_dir: "{{ user_data_dir }}/go"
-
 # Base Go packages (installed everywhere)
 go_packages_base:
-  - github.com/jesseduffield/lazygit@latest
-  - github.com/junegunn/fzf@latest
-  - github.com/mr-karan/doggo/cmd/doggo@latest
-  - github.com/muesli/duf@latest
-  - github.com/rs/curlie@latest
+  - github.com/jesseduffield/lazygit
+  - github.com/junegunn/fzf
+  - github.com/mr-karan/doggo/cmd/doggo
+  - github.com/muesli/duf
+  - github.com/rs/curlie
 
 # Linux-specific packages (set in group_vars/linux)
 go_packages_linux: []

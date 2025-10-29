@@ -46,8 +46,7 @@ fpath+=("${ZDOTDIR}/.antidote/functions")
    popd >/dev/null
 }
 
-ZSH_FNM_ENV_EXTRA_ARGS=(--use-on-cd --version-file-strategy=recursive --corepack-enabled --resolve-engines --log-level=quiet) \
-  source "${ZDOTDIR}/zsh_plugins.zsh"
+source "${ZDOTDIR}/zsh_plugins.zsh"
 
 if [[ -f "${ZDOTDIR}/zstyles-post.zsh" ]]; then
    source "${ZDOTDIR}/zstyles-post.zsh"

@@ -1,4 +1,4 @@
 ---
 # Linux-specific Go packages
 go_packages_linux:
-  - github.com/muesli/deckmaster@latest
+  - github.com/muesli/deckmaster

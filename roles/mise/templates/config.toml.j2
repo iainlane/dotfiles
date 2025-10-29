@@ -1,0 +1,16 @@
+# Base mise configuration
+# Additional tools are configured in conf.d/*.toml files
+
+[settings]
+{% for key, value in (mise_settings | default({}, true)).items() %}
+{% if value is boolean %}
+{{ key }} = {{ value | lower }}
+{% elif value is number %}
+{{ key }} = {{ value }}
+{% else %}
+{{ key }} = "{{ value }}"
+{% endif %}
+{% endfor %}
+
+# Enable idiomatic version files (.node-version, .nvmrc, etc.)
+idiomatic_version_file_enable_tools = ["node", "python"]

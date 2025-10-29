@@ -1,6 +1,0 @@
----
-# Install Go packages directly on local system
-- name: Install Go packages
-  ansible.builtin.command:
-    cmd: "{{ go_toolchain_dir }}/bin/go install {{ item }}"
-  loop: "{{ go_packages }}"

@@ -25,14 +25,14 @@
   block:
     - name: Get latest Monaspace release
       ansible.builtin.uri:
-        url: https://api.github.com/repos/githubnext/monaspace/tags
+        url: https://api.github.com/repos/githubnext/monaspace/releases/latest
         body_format: json
       register: monaspace_release
 
     - name: Set Monaspace release facts
       ansible.builtin.set_fact:
-        monaspace_tag: "{{ monaspace_release.json[0].name }}"
-        monaspace_url: "{{ monaspace_release.json[0].tarball_url }}"
+        monaspace_tag: "{{ monaspace_release.json.tag_name }}"
+        monaspace_url: "{{ monaspace_release.json.assets | selectattr('name', 'match', '^monaspace-nerdfonts-.*\\.zip$') | map(attribute='browser_download_url') | first }}"
 
     - name: Install Monaspace if not already installed
       when: fonts_state.monaspace is not defined or fonts_state.monaspace != monaspace_tag
@@ -43,8 +43,8 @@
             font_name: monaspace
             version: "{{ monaspace_tag }}"
             download_url: "{{ monaspace_url }}"
-            extract_opts: ["--strip-components=1"]
-            script: "{{ (os_family == 'debian') | ternary('./util/install_linux.sh', './util/install_macos.sh') }}"
+            font_paths:
+              - "*.ttf"
 
 - name: Install Cascadia Code font if not already installed
   block:

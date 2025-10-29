@@ -23,8 +23,7 @@ plugins/os/linux conditional:is-linux
 plugins/os/macos conditional:is-macos
 plugins
 
-# Node version manager. Load after local plugins so the path is prepended correctly.
-dominik-schwabe/zsh-fnm
+wintermi/zsh-mise
 
 # Syntax highlighting (load last)
 zsh-users/zsh-syntax-highlighting

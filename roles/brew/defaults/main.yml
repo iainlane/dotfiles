@@ -19,5 +19,4 @@ brew_packages:
 brew_taps: []
 brew_state: latest
 
-brew_remove_packages:
-  - go
+brew_remove_packages: []

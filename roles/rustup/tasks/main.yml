@@ -1,0 +1,51 @@
+---
+- name: Check if rustup is already installed
+  ansible.builtin.stat:
+    path: ~/.cargo/bin/rustup
+  register: rustup_installed
+
+- name: Install Rust
+  block:
+    - name: Create temporary file for rustup installer
+      when: not rustup_installed.stat.exists
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: rustup
+      register: rustup_tmp
+
+    - name: Download rustup installer
+      when: not rustup_installed.stat.exists
+      ansible.builtin.get_url:
+        url: https://sh.rustup.rs
+        dest: "{{ rustup_tmp.path }}/rustup-init.sh"
+        mode: "0755"
+
+    - name: Install Rust
+      when: not rustup_installed.stat.exists
+      ansible.builtin.command:
+        cmd: "{{ rustup_tmp.path }}/rustup-init.sh -y --no-modify-path"
+      register: rustup
+
+    - name: Update rust
+      when: rustup_installed.stat.exists
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+      loop:
+        - ~/.cargo/bin/rustup self update
+        - ~/.cargo/bin/rustup update
+        - ~/.cargo/bin/rustup default stable
+
+    - name: Install Rust components
+      ansible.builtin.command:
+        cmd: ~/.cargo/bin/rustup component add {{ item }}
+      loop: "{{ rustup_components }}"
+
+  delegate_to: localhost
+
+  always:
+    - name: Clean up temp directory
+      ansible.builtin.file:
+        path: "{{ rustup_tmp.path }}"
+        state: absent
+      when: rustup_tmp.path is defined
+      delegate_to: localhost

@@ -4,7 +4,6 @@ apt_package_upgrade: true
 # Base apt packages (installed everywhere)
 apt_packages_base:
   - apt
-  - black
   - btop
   - build-essential
   - ccache
@@ -13,15 +12,11 @@ apt_packages_base:
   - htop
   - httpie
   - neovim
-  - npm
   - pandoc
   - pipx
   - podman
   - podman-docker
   - pre-commit
-  - pycodestyle
-  - python3-pip
-  - python3-venv
   - rsync
   - ruby
   - systemd-container

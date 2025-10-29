@@ -3,5 +3,3 @@ user_config_dir: "{{ ansible_env.XDG_CONFIG_HOME | default('~/.config') }}"
 user_data_dir: "{{ ansible_env.XDG_DATA_HOME | default('~/.local/share') }}"
 user_state_dir: "{{ ansible_env.XDG_STATE_HOME | default('~/.local/state') }}"
 user_cache_dir: "{{ ansible_env.XDG_CACHE_HOME | default('~/.cache') }}"
-
-go_install_dir: "{{ ansible_env.HOME }}/go"

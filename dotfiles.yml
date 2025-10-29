@@ -63,12 +63,20 @@
       tags: ["zsh"]
     - role: neovim
       tags: ["neovim"]
+    - role: rustup
+      tags: ["rustup", "rust"]
+    - role: mise
+      tags: ["mise"]
     - role: cargo
       tags: ["cargo"]
     - role: git
       tags: ["git"]
     - role: go
       tags: ["go"]
+    - role: nodejs
+      tags: ["nodejs", "node"]
+    - role: python
+      tags: ["python"]
     - role: luarocks
       tags: ["luarocks"]
 

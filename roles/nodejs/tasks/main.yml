@@ -1,0 +1,9 @@
+---
+- name: Configure mise for Node.js
+  ansible.builtin.include_role:
+    name: mise_config
+  vars:
+    mise_config_name: nodejs
+    mise_priority: "20"
+    mise_tools:
+      node: "{{ nodejs_version }}"

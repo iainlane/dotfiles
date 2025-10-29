@@ -1,0 +1,31 @@
+---
+# This is a helper role that can be included by other roles to add
+# configuration to mise's conf.d directory.
+#
+# Required variables:
+#   - mise_config_name: Name for the config file (e.g., "go", "python")
+#   - mise_tools: Dictionary of tools to install (e.g., {"go": "1.23.5", "lazygit": "latest"})
+#
+# Optional variables:
+#   - mise_priority: Number prefix for conf.d file (default: 50)
+#   - mise_env: Dictionary of environment variables to set
+
+- name: Ensure mise conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ user_config_dir }}/mise/conf.d"
+    state: directory
+    mode: "0755"
+
+- name: Template mise config for {{ mise_config_name }}
+  ansible.builtin.template:
+    src: conf.d.toml.j2
+    dest: "{{ user_config_dir }}/mise/conf.d/{{ mise_priority | default('50') }}-{{ mise_config_name }}.toml"
+    mode: "0644"
+
+- name: Install mise tools for {{ mise_config_name }}
+  environment:
+    PATH: "{{ ansible_env.HOME }}/.cargo/bin:{{ ansible_env.PATH }}"
+  ansible.builtin.command:
+    cmd: mise install
+  register: mise_install_result
+  changed_when: "'installed' in mise_install_result.stderr or 'installed' in mise_install_result.stdout"

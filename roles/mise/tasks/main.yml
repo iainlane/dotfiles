@@ -1,0 +1,66 @@
+---
+# Clean fnm up before installing mise
+- name: Check if fnm is installed via Homebrew
+  when: ansible_system == "Darwin"
+  ansible.builtin.command:
+    cmd: brew list fnm
+  register: fnm_brew_check
+  failed_when: false
+  changed_when: false
+
+- name: Uninstall fnm via Homebrew
+  when: ansible_system == "Darwin" and fnm_brew_check.rc == 0
+  ansible.builtin.command:
+    cmd: brew uninstall fnm
+  register: fnm_brew_uninstall
+  changed_when: fnm_brew_uninstall.rc == 0
+
+- name: Check if fnm is installed via cargo
+  ansible.builtin.stat:
+    path: ~/.cargo/bin/fnm
+  register: fnm_cargo_check
+
+- name: Uninstall fnm via cargo
+  when: fnm_cargo_check.stat.exists
+  ansible.builtin.command:
+    cmd: ~/.cargo/bin/cargo uninstall fnm
+  register: fnm_cargo_uninstall
+  changed_when: "'Removing' in fnm_cargo_uninstall.stderr"
+
+- name: Remove fnm data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - ~/.local/share/fnm
+    - ~/.fnm
+
+- name: Check if mise is already installed
+  ansible.builtin.stat:
+    path: ~/.cargo/bin/mise
+  register: mise_installed
+
+- name: Install mise via cargo
+  when: not mise_installed.stat.exists
+  community.general.cargo:
+    name: mise
+    state: present
+  delegate_to: localhost
+
+- name: Ensure mise config directory exists
+  ansible.builtin.file:
+    path: "{{ user_config_dir }}/mise"
+    state: directory
+    mode: "0755"
+
+- name: Ensure mise conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ user_config_dir }}/mise/conf.d"
+    state: directory
+    mode: "0755"
+
+- name: Template base mise config
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ user_config_dir }}/mise/config.toml"
+    mode: "0644"

@@ -1,0 +1,7 @@
+---
+# Rust components to install via rustup
+rustup_components:
+  - rustfmt
+  - clippy
+  - rust-analysis
+  - rust-src

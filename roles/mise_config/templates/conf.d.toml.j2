@@ -1,0 +1,14 @@
+# Configuration for {{ mise_config_name }}
+# Managed by Ansible - DO NOT EDIT MANUALLY
+
+{% if mise_env is defined and mise_env | length > 0 %}
+[env]
+{% for key, value in mise_env.items() %}
+{{ key }} = "{{ value }}"
+{% endfor %}
+
+{% endif %}
+[tools]
+{% for tool, version in mise_tools.items() %}
+"{{ tool }}" = "{{ version }}"
+{% endfor %}
