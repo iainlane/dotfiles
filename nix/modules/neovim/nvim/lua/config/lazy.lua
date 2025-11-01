@@ -63,6 +63,7 @@ require("lazy").setup({
     { import = "lazyvim.plugins.extras.lang.helm" },
     { import = "lazyvim.plugins.extras.lang.json" },
     { import = "lazyvim.plugins.extras.lang.markdown" },
+    { import = "lazyvim.plugins.extras.lang.prisma" },
     { import = "lazyvim.plugins.extras.lang.python" },
     { import = "lazyvim.plugins.extras.lang.rego" },
     { import = "lazyvim.plugins.extras.lang.rust" },
@@ -83,7 +84,6 @@ require("lazy").setup({
     { import = "lazyvim.plugins.extras.util.mini-hipatterns" },
     { import = "lazyvim.plugins.extras.vscode" },
     { import = "plugins" },
-    { import = "plugins.lsp" },
   },
 
   defaults = {
@@ -99,6 +99,8 @@ require("lazy").setup({
   dev = {
     path = "~/dev/random/nvim/",
   },
+
+  lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
 
   profiling = {
     loader = true,

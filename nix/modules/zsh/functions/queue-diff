@@ -1,0 +1,14 @@
+RELEASE="$(ubuntu-distro-info --devel)"
+
+DIFF=$(queuediff -s $RELEASE "${1}" 2>/dev/null) || {
+  DIR=$(mktemp -d)
+  cd "${DIR}" || return 1
+
+  trap 'popd; rm -rf $DIR >/dev/null' EXIT INT QUIT HUP
+
+  pull-lp-source "${1}" "${RELEASE}" -d >/dev/null || return 1
+  queue -Q unapproved -s "${RELEASE}-proposed" --source fetch "${1}" >/dev/null || return 1
+  debdiff --auto-ver-sort ./*.dsc
+}
+
+echo "${DIFF}"

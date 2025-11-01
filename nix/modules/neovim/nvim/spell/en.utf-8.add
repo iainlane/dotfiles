@@ -1,0 +1,14 @@
+config
+rebase
+DAP
+Treesitter
+jsonnet
+LSP
+Tanka
+JPATH
+TODO
+nvim-jsonnet
+nvim-cmp
+nvim-lspconfig
+nvim-dap-ui
+nvim-treesitter

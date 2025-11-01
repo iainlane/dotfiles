@@ -1,0 +1,16 @@
+if [ $# -lt 1 ]; then
+    echo "ERROR: who-can-upload: Must give a package" > /dev/stderr
+    return 1
+fi
+
+if (( ! $+commands[edit-acl] )); then
+    echo "ERROR: edit-acl not in \$PATH. bzr branch lp:ubuntu-archive-tools" > /dev/stderr
+    return 1
+fi
+
+DIST="$(ubuntu-distro-info -d)"
+
+while (( $# > 0 )); do
+    edit-acl -s "${1}" -S "${DIST}" query
+    shift
+done

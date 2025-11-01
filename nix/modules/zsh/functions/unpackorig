@@ -1,0 +1,6 @@
+DIR=$(sed "s/\.orig\.tar\.gz//" "${1}" | sed 's/_/-/')
+if ! [ -d "${DIR}" ]; then
+  mkdir "${DIR}"
+fi
+
+tar xzvf "${1}" -C "${DIR}" --strip-components 1
