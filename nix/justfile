@@ -1,0 +1,121 @@
+#!/usr/bin/env just --justfile
+# Nix dotfiles management commands
+
+set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; eval \"$1\"", "-"]
+
+# GitHub token for private repo access (appended to NIX_CONFIG for all recipes)
+
+gh-token := `gh auth token 2>/dev/null || true`
+nix-config-base := env('NIX_CONFIG', '')
+nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
+export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token
+
+# Platform-specific system rebuild command
+
+system-profile := if os() == "macos" { "/nix/var/nix/profiles/system" } else { "/nix/var/nix/profiles/system" }
+
+# Default recipe: list available commands
+default:
+    @just --list
+
+# Update flake inputs (all, or specific ones if provided)
+update-flake *inputs:
+    nix flake update {{ inputs }}
+
+# Rebuild and switch to the new system configuration
+[macos]
+update-system *args:
+    nh darwin switch . {{ args }}
+
+[linux]
+update-system *args:
+    # system-manager (nh doesn't support system-manager yet)
+    sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run 'github:numtide/system-manager' -- switch --flake . {{ args }}
+
+# Rebuild and switch to the new home-manager configuration. Linux only. On mac,
+
+# home-manager is integrated into darwin-rebuild.
+[linux]
+update-home *args:
+    nh home switch . {{ args }}
+
+[linux]
+update: update-flake update-system update-home build-direnvs
+
+[macos]
+update: update-flake update-system build-direnvs
+
+# Pre-build all direnv development shells for faster directory changes
+build-direnvs:
+    nix build .#direnv-shells --no-link
+
+# Search for a package in nixpkgs
+search query *args:
+    nh search {{ query }} {{ args }}
+
+# Show detailed info about a package
+info package:
+    nix eval nixpkgs#{{ package }}.meta --json | nix run nixpkgs#jq -- -r '.'
+
+# Show the build log for a package
+log package *args:
+    nix log {{ args }} nixpkgs#{{ package }}
+
+# Show why a package is in the system closure
+why package *args:
+    nix why-depends {{ args }} {{ system-profile }} nixpkgs#{{ package }}
+
+# Show the dependency tree for a package
+deps package *args:
+    nix path-info -rsSh {{ args }} nixpkgs#{{ package }}
+
+# List system generations
+generations:
+    nix profile history --profile {{ system-profile }}
+
+# Show flake inputs and their revisions
+inputs *args:
+    nix flake metadata {{ args }}
+
+# Delete old generations and garbage collect
+gc days="30":
+    nh clean all --keep-since {{ days }}d
+
+# Open a nix repl with the flake loaded
+repl *args:
+    nix repl {{ args }} .
+
+# Format nix files
+fmt *args:
+    nix fmt {{ args }}
+
+# Check the flake for errors
+check *args:
+    nix flake check --all-systems {{ args }}
+
+# Lint: format and check the flake
+lint: fmt check
+
+# Show closure size of current system
+size:
+    nix path-info -sSh {{ system-profile }}
+
+# Show closure size of all system generations
+sizes:
+    @for gen in /nix/var/nix/profiles/system-*-link; do \
+        printf "%s\t" "$(basename "$gen")"; \
+        nix path-info -sSh "$gen" | awk -F'\t' '{print $3}'; \
+    done | sort -t- -k2 -n
+
+# Show what changed between two generations (e.g. just diff 161 162)
+diff gen1 gen2:
+    nvd diff /nix/var/nix/profiles/system-{{ gen1 }}-link /nix/var/nix/profiles/system-{{ gen2 }}-link
+
+# Show history of last n system generations
+history n="1" *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    current=$(basename "$(readlink {{ system-profile }})" | grep -oE '[0-9]+')
+    min=$((current - {{ n }}))
+    nvd history -p {{ system-profile }} -m "$min" {{ args }}

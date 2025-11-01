@@ -1,0 +1,85 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":automergeDigest",
+    ":automergeBranch"
+  ],
+  "timezone": "Europe/London",
+  "schedule": ["before 6am"],
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps): ",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{#if isMajor}}v{{{newMajor}}}{{else}}{{#if isSingleVersion}}v{{{newVersion}}}{{else}}{{{newValue}}}{{/if}}{{/if}}",
+  "separateMinorPatch": true,
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "branchConcurrentLimit": 20,
+
+  // GitHub Actions
+  "github-actions": {
+    "enabled": true,
+    "pinDigests": true
+  },
+
+  // Package Rules
+  "packageRules": [
+    // Group all non-major updates and auto-merge them
+    {
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    },
+
+    // Major updates get individual PRs with approval required
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "schedule": ["at any time"],
+      "automerge": false
+    }
+  ],
+
+  // Custom Managers for comment-based versioning
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update Go version in YAML files using renovate comments",
+      "fileMatch": ["\\.ya?ml$", "\\.yml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_]+?[:|=]\\s*[\"']?(?<currentValue>.+?)[\"']?\\s*$"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    },
+
+    // Specific Go version matcher
+    {
+      "customType": "regex",
+      "description": "Update Go version variables",
+      "fileMatch": ["^roles/go/defaults/main\\.yml$"],
+      "matchStrings": [
+        "go_version:\\s*[\"'](?<currentValue>[^\"']+)[\"']"
+      ],
+      "datasourceTemplate": "golang-version",
+      "depNameTemplate": "golang"
+    }
+  ],
+
+  // Vulnerability alerts
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  },
+
+  // Lockfile maintenance
+  "lockfileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["before 6am on Monday"]
+  }
+}
