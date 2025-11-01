@@ -98,10 +98,10 @@ symbol = ""
 
 [hostname]
 disabled = false
-format = "[$hostname]($style)[$ssh_symbol](bg:overlay0 fg:maroon)"
+format = "[$hostname]($style)[$ssh_symbol](fg:maroon)"
 ssh_only = false
 ssh_symbol = " 󰖈"
-style = "bg:overlay0 fg:red"
+style = "fg:red"
 
 [java]
 format = "$symbol"
