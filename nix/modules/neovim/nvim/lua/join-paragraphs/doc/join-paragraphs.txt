@@ -1,0 +1,181 @@
+*join-paragraphs.txt*   Plugin for joining paragraphs intelligently
+
+==============================================================================
+CONTENTS                                               *join-paragraphs*
+
+1. Introduction.......................................|join-paragraphs-intro|
+2. Usage..............................................|join-paragraphs-usage|
+   - Base Command.....................................|JoinParagraphs|
+   - Read and Join Command............................|Rj|
+   - Mappings.........................................|join-paragraphs-mappings|
+     - Base Join Mapping..............................|join-paragraphs-base-map|
+     - Paste and Join Mapping.........................|join-paragraphs-paste-map|
+3. Configuration......................................|join-paragraphs-config|
+   - Setup............................................|join-paragraphs-setup|
+   - Options..........................................|join-paragraphs-options|
+4. License............................................|join-paragraphs-license|
+
+==============================================================================
+INTRODUCTION                                       *join-paragraphs-intro*
+
+This plugin provides commands and mappings to join lines within paragraphs,
+handling edge cases like the last paragraph in a file or selection. It defines
+a paragraph as a block of text separated by one or more blank lines (lines
+containing only whitespace are considered blank).
+
+In visual mode, the default `<Leader>jj` mapping intelligently expands the
+selection to encompass the full paragraphs that intersect the selection before
+performing the join.
+
+New features include:
+- A "paste and join" mapping (`<Leader>jp` by default) that performs a paste
+  operation and then joins paragraphs within the pasted text.
+- A "read and join" command (`:Rj`) that reads a file and then joins
+  paragraphs within the newly read text.
+
+==============================================================================
+USAGE                                               *join-paragraphs-usage*
+
+------------------------------------------------------------------------------
+BASE COMMAND                                                  *JoinParagraphs*
+
+:JoinParagraphs
+
+When executed without a range, joins all paragraphs in the current buffer.
+
+:[range]JoinParagraphs
+
+When executed with a |:command-range|, joins paragraphs only within the
+specified line range. For example:
+  :'<,'>JoinParagraphs      " Join paragraphs within the visual selection
+  :10,20JoinParagraphs     " Join paragraphs between lines 10 and 20
+
+Note: When using the command with a range, the range is *not* automatically
+expanded to full paragraphs like the visual mode mapping does. It operates
+strictly on the lines provided in the range.
+
+------------------------------------------------------------------------------
+READ AND JOIN COMMAND                                                   *Rj*
+
+:[N]Rj <filename>
+
+Reads the content of `<filename>` into the buffer below the current line (or
+line N if specified) and then joins paragraphs *only within the newly read
+lines*. It determines the range based on the marks (`'[`, `']`) set by the
+`:read` command.
+
+Example: >
+  :Rj chapter2.txt
+<
+Requires exactly one argument, the filename. File completion is available. The
+command name is fixed as `Rj`.
+
+------------------------------------------------------------------------------
+MAPPINGS                                          *join-paragraphs-mappings*
+
+If the |join-paragraphs-options| `keymaps` table is provided during setup (it is
+by default), the following mappings are created based on the values in that
+table:
+
+Base Join Mapping                               *join-paragraphs-base-map*
+
+Default: `<Leader>jj` (Normal Mode)
+    Key sequence defined by `opts.keymaps.join_paragraphs`.
+    Joins all paragraphs in the current buffer. Equivalent to running
+    `:JoinParagraphs` without a range.
+
+Default: `<Leader>jj` (Visual Mode)
+    Key sequence defined by `opts.keymaps.join_paragraphs`.
+    Joins the paragraph(s) that intersect the current visual selection. Before
+    joining, the visual selection is automatically expanded outwards to
+    include the full lines of any paragraph that the selection touches.
+
+Paste and Join Mapping                          *join-paragraphs-paste-map*
+
+Default: `<Leader>jp` (Normal Mode)
+    Key sequence defined by `opts.keymaps.paste_join`.
+    Performs a normal mode paste operation (using the register specified by
+    |vim.v.register|, usually the unnamed register `"` unless preceded by
+    `"x` etc.) after the cursor or below the current line (depending on
+    register type), and then joins paragraphs *only within the newly pasted
+    lines*. The range is determined by the marks (`'[`, `']`) set by the paste
+    command.
+
+Default: `<Leader>jp` (Visual Mode)
+    Key sequence defined by `opts.keymaps.paste_join`.
+    Performs a visual mode paste operation, replacing the current selection
+    with the content of the register specified by |vim.v.register|. It then
+    joins paragraphs *only within the newly pasted lines*. The range is
+    determined by the marks (`'[`, `']`) set by the paste command.
+
+You can customize these key sequences via the |join-paragraphs-options| or
+disable all default mappings entirely.
+
+==============================================================================
+CONFIGURATION                                       *join-paragraphs-config*
+
+------------------------------------------------------------------------------
+SETUP                                               *join-paragraphs-setup*
+
+This plugin is intended to be configured using its `setup` function, typically
+via a plugin manager like |lazy.nvim|.
+
+Example using `lazy.nvim` (in your lazy setup): >
+  {
+    -- This plugin isn't published separately, so needs to be loaded from a
+    -- clone of the dotfiles repo.
+    dir = vim.fn.stdpath("config") .. "/lua/join-paragraphs/",
+
+    -- Optional: Define cmd if you want lazy loading on command execution
+    -- cmd = { "JoinParagraphs", "Rj" },
+
+    -- Optional: Define keys if you want lazy loading on keypress
+    -- keys = { "<Leader>jj", "<Leader>jp" },
+
+    opts = {
+      -- Customize keymaps (or omit this 'keymaps' table to use defaults)
+      keymaps = {
+        join_paragraphs = "<Leader>J",  -- Example: Change base join mapping
+        paste_join = "<Leader>P",       -- Example: Change paste-join mapping
+      },
+      -- To disable all default keymap creation:
+      -- keymaps = nil,
+    },
+
+    config = function(_, opts)
+      require('join-paragraphs').setup(opts)
+    end,
+  }
+<
+The `require(...).setup(opts)` call initializes the plugin, creates the
+commands, and sets up mappings based on the provided options. Make sure the
+`require` path matches the filename where you saved the Lua code (e.g.,
+`join-paragraphs-enhanced` if you used that name).
+
+------------------------------------------------------------------------------
+OPTIONS                                           *join-paragraphs-options*
+
+The `setup` function accepts an optional options table.
+
+`keymaps`              *(table | nil)*
+                        Default: `{ join_paragraphs = "<Leader>jj", paste_join = "<Leader>jp" }`
+                        A table configuring the keymaps created by the plugin.
+                        If this option is set to `nil`, no keymaps will be created
+                        by this plugin, allowing you to define them manually.
+                        If the table is provided (or the default is used), it
+                        should contain the following string keys:
+
+                        `keymaps.join_paragraphs` *(string)*
+                            The key sequence for the base join action
+                            (|join-paragraphs-base-map|) in Normal and Visual modes.
+
+                        `keymaps.paste_join` *(string)*
+                            The key sequence for the paste-and-join action
+                            (|join-paragraphs-paste-map|) in Normal and Visual modes.
+
+==============================================================================
+LICENSE                                           *join-paragraphs-license*
+
+GPL-3.0+
+
+vim: set ft=help tw=78 ts=8 sw=4 sts=4 et :

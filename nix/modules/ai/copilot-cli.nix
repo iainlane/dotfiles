@@ -1,0 +1,22 @@
+# Configure GitHub Copilot CLI with the shared MCP servers.
+{
+  pkgs,
+  inputs,
+  lib,
+  system,
+  ...
+}: let
+  mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+
+  # Copilot CLI reads servers from a JSON file; generate it from the shared set.
+  copilotMcpConfig = pkgs.writeText "mcp-config.json" (
+    builtins.toJSON {
+      inherit (mcp) servers;
+    }
+  );
+in {
+  home.packages = [inputs.nix-ai-tools.packages.${system}.copilot-cli];
+
+  # Point Copilot CLI at the generated config file.
+  xdg.configFile."mcp-config.json".source = copilotMcpConfig;
+}
