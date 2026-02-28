@@ -71,5 +71,5 @@
   };
 in {
   imports = [projectShells.flakeModule];
-  flake.homeManagerModules.home-linux = projectShells.homeManagerModule;
+  flake.profiles.home.os.linux.homeManagerModule = projectShells.homeManagerModule;
 }

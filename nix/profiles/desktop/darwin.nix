@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.desktop-darwin = {
+  flake.profiles.desktop.os.darwin.homeManagerModule = {
     pkgs,
     lib,
     ...

@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.base-linux = {
+  flake.profiles.base.os.linux.homeManagerModule = {
     lib,
     pkgs,
     ...

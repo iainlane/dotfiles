@@ -1,43 +1,76 @@
 {inputs}: let
   inherit (inputs.nixpkgs) lib;
 
-  # Construct the list of modules for a home-manager configuration. We combine
-  # the host's profile modules (resolved from homeManagerModules), an optional
-  # host-specific homeModule, and the base home configuration (username, homeDirectory).
-  # Used by both standalone home-manager and the embedded home-manager modules.
-  #
-  # For each profile, we also check for an OS-specific module named {profile}-{os}
-  # (e.g., "home-linux") and include it if present. This allows profiles to have
-  # OS-specific configuration without any boilerplate in the profile itself.
+  # Extract name and args from a profile list entry.
+  # String entries ("base") → { name, args = null }
+  # Attrset entries ({ adsb = {}; }) → { name, args }
+  parseProfileEntry = entry:
+    if builtins.isString entry
+    then {
+      name = entry;
+      args = null;
+    }
+    else let
+      names = builtins.attrNames entry;
+    in {
+      name = builtins.head names;
+      args = entry.${builtins.head names};
+    };
+
+  # Unified module resolver parameterised by module type. For each profile
+  # entry, looks up the base and OS-specific module values. If the entry was
+  # an attrset (args != null), calls the module value as a function with args.
+  mkModules = {
+    moduleType,
+    hostConfig,
+    profiles,
+  }: let
+    inherit (hostConfig) os;
+
+    resolveEntry = entry: let
+      parsed = parseProfileEntry entry;
+      profile = profiles.${parsed.name} or (throw "Profile '${parsed.name}' not found in flake.profiles");
+      baseVal = profile.${moduleType};
+      osVal = (profile.os.${os} or {}).${moduleType} or null;
+      resolve = val:
+        if val == null
+        then []
+        else if parsed.args != null
+        then [(val parsed.args)]
+        else [val];
+    in
+      resolve baseVal ++ resolve osVal;
+  in
+    lib.concatMap resolveEntry hostConfig.profiles;
+
   mkHomeModules = {
     hostConfig,
     username,
-    homeManagerModules,
-  }: let
-    inherit (hostConfig) homeDirectory os;
-
-    # For each profile, include the base module and optionally the OS-specific one
-    resolveProfile = profileName: let
-      baseModule =
-        homeManagerModules.${profileName}
-        or (throw "Profile '${profileName}' not found in homeManagerModules");
-      osModuleName = "${profileName}-${os}";
-      osModule = homeManagerModules.${osModuleName} or null;
-    in
-      [baseModule] ++ lib.optional (osModule != null) osModule;
-
-    resolvedModules = lib.concatMap resolveProfile hostConfig.profiles;
-  in
-    resolvedModules
+    profiles,
+  }:
+    mkModules {
+      moduleType = "homeManagerModule";
+      inherit hostConfig profiles;
+    }
     ++ lib.optional (hostConfig ? homeModule) hostConfig.homeModule
     ++ [
       {
         home = {
           inherit username;
-          inherit homeDirectory;
+          inherit (hostConfig) homeDirectory;
         };
       }
     ];
+
+  mkSystemModules = {
+    hostConfig,
+    profiles,
+  }:
+    mkModules {
+      moduleType = "systemManagerModule";
+      inherit hostConfig profiles;
+    }
+    ++ lib.optional (hostConfig ? systemModule) hostConfig.systemModule;
 
   # Construct the specialArgs attrset passed to home-manager modules. Provides
   # access to flake inputs, host metadata, and path helpers. This allows modules
@@ -223,5 +256,6 @@ in {
     mkHomeModules
     mkHomeSpecialArgs
     mkProjectShells
+    mkSystemModules
     ;
 }

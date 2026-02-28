@@ -53,7 +53,7 @@
 in {
   imports = [projectShells.flakeModule];
 
-  flake.homeManagerModules.work = {
+  flake.profiles.work.homeManagerModule = {
     pkgs,
     system,
     ...

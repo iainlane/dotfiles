@@ -33,7 +33,7 @@ in {
                     hostConfig
                     username
                     ;
-                  inherit (config.flake) homeManagerModules;
+                  inherit (config.flake) profiles;
                 };
                 extraSpecialArgs = helpers.mkHomeSpecialArgs {
                   inherit

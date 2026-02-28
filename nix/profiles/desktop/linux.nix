@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.desktop-linux = {pkgs, ...}: {
+  flake.profiles.desktop.os.linux.homeManagerModule = {pkgs, ...}: {
     home.packages = with pkgs; [
       code-cursor-fhs
       google-chrome
