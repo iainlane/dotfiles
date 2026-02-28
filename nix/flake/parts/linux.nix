@@ -1,5 +1,6 @@
 {
   inputs,
+  config,
   context,
   withSystem,
   ...
@@ -25,9 +26,14 @@ in {
           _:
             inputs.system-manager.lib.makeSystemConfig {
               inherit overlays;
-              modules = [
-                ../../os/linux
-              ];
+              modules =
+                [
+                  ../../os/linux
+                ]
+                ++ helpers.mkSystemModules {
+                  inherit hostConfig;
+                  inherit (config.flake) profiles;
+                };
               extraSpecialArgs = {
                 inherit
                   inputs

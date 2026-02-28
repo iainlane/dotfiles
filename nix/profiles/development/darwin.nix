@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.development-darwin = {pkgs, ...}: {
+  flake.profiles.development.os.darwin.homeManagerModule = {pkgs, ...}: {
     home.packages = with pkgs; [
       docker
     ];

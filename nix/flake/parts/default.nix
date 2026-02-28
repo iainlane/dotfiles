@@ -29,7 +29,7 @@ in {
       ./darwin.nix
       ./deploy.nix
       ./direnvs.nix
-      ./home-manager-modules.nix
+      ./profiles.nix
       ./home.nix
       ./linux.nix
     ]

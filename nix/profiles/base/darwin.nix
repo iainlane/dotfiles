@@ -1,6 +1,6 @@
 # Darwin-specific base configuration
 _: {
-  flake.homeManagerModules.base-darwin = {pkgs, ...}: {
+  flake.profiles.base.os.darwin.homeManagerModule = {pkgs, ...}: {
     home.packages = with pkgs; [
       ghostty-bin.terminfo
     ];

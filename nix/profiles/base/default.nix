@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.base = {
+  flake.profiles.base.homeManagerModule = {
     pkgs,
     lib,
     inputs,

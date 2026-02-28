@@ -1,5 +1,5 @@
 _: {
-  flake.homeManagerModules.desktop = {
+  flake.profiles.desktop.homeManagerModule = {
     pkgs,
     modulesPath,
     ...

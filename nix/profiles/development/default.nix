@@ -91,7 +91,7 @@
 in {
   imports = [projectShells.flakeModule];
 
-  flake.homeManagerModules.development = {pkgs, ...} @ args:
+  flake.profiles.development.homeManagerModule = {pkgs, ...} @ args:
     lib.recursiveUpdate
     (projectShells.homeManagerModule args)
     {
