@@ -1,47 +1,118 @@
 {inputs}: let
   inherit (inputs.nixpkgs) lib;
 
-  # Extract name and args from a profile list entry.
-  # String entries ("base") → { name, args = null }
-  # Attrset entries ({ adsb = {}; }) → { name, args }
-  parseProfileEntry = entry:
-    if builtins.isString entry
-    then {
-      name = entry;
-      args = null;
-    }
-    else let
-      names = builtins.attrNames entry;
-    in {
-      name = builtins.head names;
-      args = entry.${builtins.head names};
-    };
+  # Normalise host profile entries into a flat list of
+  # `{ name, profileOptions }`.
+  #
+  # Supported forms:
+  # - "base"
+  # - { adsb = { ... }; }                 # single-key attrset
+  # - { base = {}; adsb = { ... }; }      # multi-key attrset
+  #
+  # Duplicate profile names are rejected to avoid ambiguous merge behaviour.
+  normaliseProfileEntries = profileEntries: let
+    parseOne = entry:
+      if builtins.isString entry
+      then [
+        {
+          name = entry;
+          profileOptions = null;
+        }
+      ]
+      else if builtins.isAttrs entry
+      then
+        map
+        (
+          name: let
+            raw = entry.${name};
+          in {
+            inherit name;
+            profileOptions =
+              if raw == null
+              then {}
+              else raw;
+          }
+        )
+        (builtins.attrNames entry)
+      else throw "Profile entry must be a string or an attrset";
 
-  # Unified module resolver parameterised by module type. For each profile
-  # entry, looks up the base and OS-specific module values. If the entry was
-  # an attrset (args != null), calls the module value as a function with args.
+    expanded = lib.concatMap parseOne profileEntries;
+    deduped =
+      lib.foldl' (
+        state: entry:
+          if builtins.hasAttr entry.name state.seen
+          then throw "Profile '${entry.name}' is declared multiple times in host profiles"
+          else {
+            seen = state.seen // {"${entry.name}" = true;};
+            entries = state.entries ++ [entry];
+          }
+      ) {
+        seen = {};
+        entries = [];
+      }
+      expanded;
+  in
+    deduped.entries;
+
+  # Build the list of modules for one module type ("homeManagerModule" or
+  # "systemManagerModule").
+  #
+  # For each host profile entry:
+  # - read the base profile module,
+  # - read an optional OS-specific profile module (e.g. `linux.nix`),
+  # - apply profile options when the profile is declared as
+  #   `{ name = { ... }; }`.
+  #
+  # Errors:
+  # - profile name not found -> error
+  # - profile declared twice -> handled earlier by `normaliseProfileEntries`
+  # - options passed to a profile that does not take options -> error
+  # - options missing for a profile that requires options -> error
   mkModules = {
     moduleType,
     hostConfig,
     profiles,
   }: let
     inherit (hostConfig) os;
+    entries = normaliseProfileEntries hostConfig.profiles;
 
+    # Some profile entries are functions that must be called with profile
+    # options. This returns true for that function shape.
+    moduleNeedsProfileOptions = moduleValue:
+      builtins.isFunction moduleValue
+      && builtins.functionArgs moduleValue == {};
+
+    # Apply one module value for one profile entry.
+    # Returns [] when moduleValue is null, otherwise returns a one-element list.
+    applyProfileModule = entry: moduleValue:
+      if moduleValue == null
+      then []
+      else let
+        needsProfileOptions = moduleNeedsProfileOptions moduleValue;
+        hasOptions = entry.profileOptions != null;
+        emptyOptions = entry.profileOptions == {};
+      in
+        if needsProfileOptions
+        then
+          if !hasOptions
+          then throw "Profile '${entry.name}' requires profile options, e.g. { ${entry.name} = { ... }; }"
+          else [(moduleValue entry.profileOptions)]
+        else if !hasOptions || emptyOptions
+        then [moduleValue]
+        else throw "Profile '${entry.name}' does not accept profile options; use a string entry.";
+
+    # Resolve and apply both base and OS-specific module values for one entry.
     resolveEntry = entry: let
-      parsed = parseProfileEntry entry;
-      profile = profiles.${parsed.name} or (throw "Profile '${parsed.name}' not found in flake.profiles");
+      profile = profiles.${entry.name} or (throw "Profile '${entry.name}' not found in flake.profiles");
       baseVal = profile.${moduleType};
       osVal = (profile.os.${os} or {}).${moduleType} or null;
-      resolve = val:
-        if val == null
-        then []
-        else if parsed.args != null
-        then [(val parsed.args)]
-        else [val];
     in
-      resolve baseVal ++ resolve osVal;
+      lib.concatMap (applyProfileModule entry) [
+        baseVal
+        osVal
+      ];
   in
-    lib.concatMap resolveEntry hostConfig.profiles;
+    lib.concatMap resolveEntry entries;
 
   mkHomeModules = {
     hostConfig,

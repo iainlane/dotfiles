@@ -62,6 +62,16 @@
       flake = false;
     };
 
+    secrets = {
+      url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
+      flake = false;
+    };
+
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     system-manager.url = "github:numtide/system-manager";
 
     treefmt-nix.url = "github:numtide/treefmt-nix";

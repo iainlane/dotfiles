@@ -893,6 +893,8 @@
         "nixpkgs": "nixpkgs_15",
         "nixpkgs-stable": "nixpkgs-stable",
         "rustanka": "rustanka",
+        "secrets": "secrets",
+        "sops-nix": "sops-nix",
         "starship-custom": "starship-custom",
         "system-manager": "system-manager",
         "treefmt-nix": "treefmt-nix_3"
@@ -961,6 +963,22 @@
         "type": "github"
       }
     },
+    "secrets": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1772490972,
+        "narHash": "sha256-uPwOR2wB4aRwbE9DX5sLdYvUHBg5LcEDqka5ufh9R44=",
+        "ref": "refs/heads/main",
+        "rev": "46574dd1a266eef60ee3dca37ad0a782f7f3f920",
+        "revCount": 3,
+        "type": "git",
+        "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
+      }
+    },
     "shelly": {
       "locked": {
         "lastModified": 1756323923,
@@ -973,6 +991,26 @@
       "original": {
         "owner": "CertainLach",
         "repo": "shelly",
+        "type": "github"
+      }
+    },
+    "sops-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772340640,
+        "narHash": "sha256-1nq7+Kt5IUBD8Hu3nptVPbMf+22rNJoHT0t9L1X+GKA=",
+        "owner": "Mic92",
+        "repo": "sops-nix",
+        "rev": "dec4d8eac700dcd2fe3c020857d3ee220ec147f1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Mic92",
+        "repo": "sops-nix",
         "type": "github"
       }
     },
