@@ -63,6 +63,8 @@
   "pyright" = null;
   # Rego (Open Policy Agent).
   "regols" = null;
+  # Python.
+  "ruff" = null;
   "rust-analyzer" = "rust_analyzer";
   "svelte-language-server" = "svelte";
   "tailwindcss-language-server" = "tailwindcss";

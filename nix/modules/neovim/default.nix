@@ -57,7 +57,6 @@ in {
         lua5_1
         luarocks
         nodejs
-        ruff
         tree-sitter
       ])
       ++ map (entry: builtins.getAttr entry.packageName pkgs) lspEntries

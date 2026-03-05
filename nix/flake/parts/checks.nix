@@ -5,7 +5,8 @@
 {
   imports = [inputs.treefmt-nix.flakeModule];
 
-  perSystem = {pkgs, ...}: let
+  perSystem = {config, ...}: let
+    inherit (config._module.args) pkgs;
     inherit (pkgs) lib;
 
     statixIgnoreArgs =

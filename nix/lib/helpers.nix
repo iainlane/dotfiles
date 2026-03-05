@@ -1,6 +1,92 @@
 {inputs}: let
   inherit (inputs.nixpkgs) lib;
 
+  # Sorted names for one `builtins.readDir` entry type. Examples of entry types
+  # are `"regular"` and `"directory"`. Pass `""` for `suffix` to disable suffix
+  # filtering.
+  entryNames = dir: entryType: suffix:
+    builtins.attrNames (
+      lib.filterAttrs (
+        name: entryType':
+          entryType'
+          == entryType
+          && lib.hasSuffix suffix name
+      )
+      (builtins.readDir dir)
+    );
+
+  # Sorted regular file names from a directory. Pass `""` for `suffix` to
+  # include all regular files.
+  fileNames = dir: suffix: entryNames dir "regular" suffix;
+
+  # Sorted directory names from a directory.
+  directoryNames = dir: entryNames dir "directory" "";
+
+  # Import all `.nix` files from a directory as a list. Each file may either be
+  # a plain value or a function that accepts `args`.
+  importNixFiles = dir: args:
+    map
+    (filename: let
+      loaded = import (dir + "/${filename}");
+    in
+      if builtins.isFunction loaded
+      then loaded args
+      else loaded)
+    (fileNames dir ".nix");
+
+  # Compute the canonical home directory for a user on supported host OSes.
+  # Throws if `os` is not one of "darwin" or "linux".
+  mkHomeDirectory = {
+    os,
+    username,
+  }: let
+    baseDir =
+      {
+        darwin = "/Users";
+        linux = "/home";
+      }
+      .${
+        os
+      }
+      or (throw "Unsupported OS: ${os}");
+  in "${baseDir}/${username}";
+
+  # Hosts from `hosts/*.nix`, keyed by filename (without the `.nix` suffix).
+  hosts = lib.listToAttrs (
+    map
+    (filename: {
+      name = lib.removeSuffix ".nix" filename;
+      value = import (../hosts + "/${filename}");
+    })
+    (fileNames ../hosts ".nix")
+  );
+
+  # Add a computed `homeDirectory` field to each host config.
+  addHostHomeDirectories = {
+    hosts,
+    username,
+  }:
+    lib.mapAttrs (
+      _: hostConfig:
+        hostConfig
+        // {
+          homeDirectory = mkHomeDirectory {
+            inherit (hostConfig) os;
+            inherit username;
+          };
+        }
+    )
+    hosts;
+
+  # The operating systems in use by our hosts.
+  hostOsNames = hosts:
+    builtins.attrNames (
+      lib.foldl'
+      (acc: hostConfig: acc // {"${hostConfig.os}" = true;})
+      {}
+      (builtins.attrValues hosts)
+    );
+
   # Normalise host profile entries into a flat list of
   # `{ name, profileOptions }`.
   #
@@ -11,48 +97,44 @@
   #
   # Duplicate profile names are rejected to avoid ambiguous merge behaviour.
   normaliseProfileEntries = profileEntries: let
-    parseOne = entry:
+    addEntry = state: name: profileOptions:
+      if builtins.hasAttr name state.seen
+      then throw "Profile '${name}' is declared multiple times in host profiles"
+      else {
+        seen = state.seen // {"${name}" = true;};
+        entries = [{inherit name profileOptions;}] ++ state.entries;
+      };
+
+    parseAndAdd = state: entry:
       if builtins.isString entry
-      then [
-        {
-          name = entry;
-          profileOptions = null;
-        }
-      ]
+      then addEntry state entry null
       else if builtins.isAttrs entry
       then
-        map
-        (
-          name: let
+        lib.foldl' (
+          innerState: name: let
             raw = entry.${name};
-          in {
-            inherit name;
-            profileOptions =
+          in
+            addEntry
+            innerState
+            name
+            (
               if raw == null
               then {}
-              else raw;
-          }
+              else raw
+            )
         )
+        state
         (builtins.attrNames entry)
       else throw "Profile entry must be a string or an attrset";
 
-    expanded = lib.concatMap parseOne profileEntries;
     deduped =
-      lib.foldl' (
-        state: entry:
-          if builtins.hasAttr entry.name state.seen
-          then throw "Profile '${entry.name}' is declared multiple times in host profiles"
-          else {
-            seen = state.seen // {"${entry.name}" = true;};
-            entries = state.entries ++ [entry];
-          }
-      ) {
+      lib.foldl' parseAndAdd {
         seen = {};
         entries = [];
       }
-      expanded;
+      profileEntries;
   in
-    deduped.entries;
+    lib.reverseList deduped.entries;
 
   # Build the list of modules for one module type ("homeManagerModule" or
   # "systemManagerModule").
@@ -155,10 +237,10 @@
     username,
     extraArgs ? {},
   }: let
-    homeDir =
-      if hostConfig.os == "darwin"
-      then "/Users/${username}"
-      else "/home/${username}";
+    homeDir = mkHomeDirectory {
+      inherit (hostConfig) os;
+      inherit username;
+    };
     defaultFlakePath = "${homeDir}/dev/random/dotfiles/nix";
     flakePath = hostConfig.flakePath or defaultFlakePath;
   in
@@ -211,12 +293,14 @@
       ++ ["shell"];
   in
     lib.foldl'
-    lib.recursiveUpdate
+    (
+      acc: def:
+        lib.recursiveUpdate
+        acc
+        (lib.setAttrByPath (mkShellPath def.attrSegments) (mkShell pkgs def))
+    )
     {}
-    (lib.mapAttrsToList (
-        _: def: lib.setAttrByPath (mkShellPath def.attrSegments) (mkShell pkgs def)
-      )
-      projectDefinitions);
+    (builtins.attrValues projectDefinitions);
 
   # Create flat devShells with "direnvs-" prefix for `nix develop` usage.
   # For example, "dev/debian" becomes devShells.direnvs-dev-debian.
@@ -297,15 +381,25 @@
       flake.direnvs = lib.genAttrs config.systems (
         system:
           withSystem system (
-            {pkgs, ...}:
-              mkNestedShells {inherit pkgs mkShell projectDefinitions;}
+            {config, ...}: let
+              projectPkgs = config._module.args.pkgs;
+            in
+              mkNestedShells {
+                pkgs = projectPkgs;
+                inherit mkShell projectDefinitions;
+              }
           )
       );
 
       # Export flat devShells for manual `nix develop` usage. Useful for testing
       # or entering a project environment without direnv.
-      perSystem = {pkgs, ...}: {
-        devShells = mkFlatShells {inherit pkgs mkShell projectDefinitions;};
+      perSystem = {config, ...}: let
+        projectPkgs = config._module.args.pkgs;
+      in {
+        devShells = mkFlatShells {
+          pkgs = projectPkgs;
+          inherit mkShell projectDefinitions;
+        };
       };
     };
   };
@@ -324,6 +418,12 @@ in {
     }";
 
   inherit
+    addHostHomeDirectories
+    directoryNames
+    fileNames
+    hostOsNames
+    hosts
+    importNixFiles
     mkHomeModules
     mkHomeSpecialArgs
     mkProjectShells
