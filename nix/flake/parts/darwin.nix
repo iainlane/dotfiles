@@ -33,13 +33,15 @@ in {
                   home-manager = {
                     useGlobalPkgs = true;
                     useUserPackages = true;
-                    users.${username}.imports = helpers.mkHomeModules {
-                      inherit
-                        hostConfig
-                        username
-                        ;
-                      inherit (config.flake) profiles;
-                    };
+                    users.${username}.imports =
+                      helpers.mkHomeModules {
+                        inherit
+                          hostConfig
+                          username
+                          ;
+                        inherit (config.flake) profiles;
+                      }
+                      ++ [inputs.sops-nix.homeManagerModules.sops];
                     extraSpecialArgs = helpers.mkHomeSpecialArgs {
                       inherit
                         hostConfig

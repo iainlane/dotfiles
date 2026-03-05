@@ -113,6 +113,25 @@
       '';
     };
 
+    # Rootless podman needs newuidmap/newgidmap with setuid privileges.
+    # system-manager does not expose security.wrappers, so install helpers
+    # into /usr/local/libexec/podman at boot.
+    systemd.services.install-rootless-uidmap-wrappers = {
+      description = "Install setuid uidmap helpers for rootless containers";
+      wantedBy = ["sysinit.target"];
+      after = ["local-fs.target"];
+      before = ["systemd-user-sessions.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        install -d -m 0755 /usr/local/libexec/podman
+        install -m 4755 -o root -g root ${pkgs.shadow}/bin/newuidmap /usr/local/libexec/podman/newuidmap
+        install -m 4755 -o root -g root ${pkgs.shadow}/bin/newgidmap /usr/local/libexec/podman/newgidmap
+      '';
+    };
+
     # `system-manager` requires `nixpkgs.hostPlatform` to be set.
     nixpkgs.hostPlatform = lib.mkDefault "${hostConfig.arch}-linux";
     nixpkgs.config = lib.mkDefault nixpkgsConfig;

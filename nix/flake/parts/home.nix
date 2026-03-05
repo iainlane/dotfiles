@@ -28,13 +28,15 @@ in {
             {pkgs, ...}:
               inputs.home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
-                modules = helpers.mkHomeModules {
-                  inherit
-                    hostConfig
-                    username
-                    ;
-                  inherit (config.flake) profiles;
-                };
+                modules =
+                  helpers.mkHomeModules {
+                    inherit
+                      hostConfig
+                      username
+                      ;
+                    inherit (config.flake) profiles;
+                  }
+                  ++ [inputs.sops-nix.homeManagerModules.sops];
                 extraSpecialArgs = helpers.mkHomeSpecialArgs {
                   inherit
                     hostConfig

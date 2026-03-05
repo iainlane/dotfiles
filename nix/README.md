@@ -169,3 +169,30 @@ Create `hosts/HOSTNAME.nix` to add a new host:
   profiles = [ "base" ];
 }
 ```
+
+## Secrets
+
+Secrets are managed with [sops-nix], which decrypts them at activation time
+using an [age] key derived from an SSH private key.
+
+### Generating the age key
+
+On each host that needs to decrypt secrets, generate a dedicated SSH key for
+sops:
+
+```sh
+ssh-keygen -t ed25519 -f ~/.ssh/age-sops -C "sops-nix age key" -N ""
+```
+
+Then derive the age public key and add it to `.sops.yaml` in the
+[dotfiles-secrets] repo so that secrets can be encrypted for this host:
+
+```sh
+nix shell nixpkgs#ssh-to-age -c ssh-to-age < ~/.ssh/age-sops.pub
+```
+
+The private key must never be committed or added to the Nix store.
+
+[age]: https://github.com/FiloSottile/age
+[dotfiles-secrets]: https://github.com/iainlane/dotfiles-secrets
+[sops-nix]: https://github.com/Mic92/sops-nix
