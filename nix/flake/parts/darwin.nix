@@ -21,7 +21,9 @@ in {
         system = helpers.mkSystem hostConfig;
       in
         withSystem system (
-          {pkgs, ...}:
+          args: let
+            inherit (args.config._module.args) pkgs;
+          in
             inputs.nix-darwin.lib.darwinSystem {
               inherit system pkgs;
               modules = [

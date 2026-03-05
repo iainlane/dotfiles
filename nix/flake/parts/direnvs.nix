@@ -26,11 +26,9 @@ in {
     '';
   };
 
-  config.perSystem = {
-    pkgs,
-    config,
-    ...
-  }: {
+  config.perSystem = {config, ...}: let
+    inherit (config._module.args) pkgs;
+  in {
     packages.direnv-shells = pkgs.linkFarm "direnv-shells" (
       lib.mapAttrsToList (name: drv: {
         inherit name;

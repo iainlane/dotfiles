@@ -1,16 +1,17 @@
 {
   config,
+  inputs,
   pkgs,
   lib,
   ...
 }: let
+  helpers = import ../../lib/helpers.nix {inherit inputs;};
   pluginSpecs = import ./plugins.nix;
   zstylesPre = builtins.readFile ./zstyles-before.zsh;
   zstylesPost = builtins.readFile ./zstyles-after.zsh;
 
   pluginsDir = ./plugins;
-  localPluginFiles = builtins.attrNames (builtins.readDir pluginsDir);
-  localPlugins = builtins.filter (name: lib.strings.hasSuffix ".plugin.zsh" name) localPluginFiles;
+  localPlugins = helpers.fileNames pluginsDir ".plugin.zsh";
 in {
   home.sessionPath =
     [

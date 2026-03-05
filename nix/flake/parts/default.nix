@@ -3,9 +3,11 @@
   lib,
   ...
 }: let
+  helpers = import ../../lib/helpers.nix {inherit inputs;};
+
   # What OS names do our hosts have?
-  hostFiles = lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".nix" n) (builtins.readDir ../../hosts);
-  validOsNames = lib.unique (lib.mapAttrsToList (name: _: (import (../../hosts + "/${name}")).os) hostFiles);
+  inherit (helpers) hosts;
+  validOsNames = helpers.hostOsNames hosts;
 
   # Auto-discover profile flake-parts modules:
   #   default.nix - base profile module
@@ -19,7 +21,7 @@
         lib.optional (builtins.pathExists filePath) filePath;
     in
       probe "default.nix" ++ lib.concatMap (os: probe "${os}.nix") validOsNames
-  ) (lib.attrNames (lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../profiles)));
+  ) (helpers.directoryNames ../../profiles);
 in {
   imports =
     [

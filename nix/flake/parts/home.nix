@@ -25,7 +25,9 @@ in {
       in
         lib.nameValuePair configName (
           withSystem system (
-            {pkgs, ...}:
+            args: let
+              inherit (args.config._module.args) pkgs;
+            in
               inputs.home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
                 modules =
