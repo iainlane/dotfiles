@@ -12,4 +12,24 @@ _: {
       linkApps.enable = false;
     };
   };
+
+  flake.profiles.base.os.darwin.systemManagerModule = {
+    lib,
+    ...
+  }: {
+    imports = [
+      ./system-defaults.nix
+    ];
+
+    homebrew = {
+      enable = true;
+
+      enableZshIntegration = true;
+
+      onActivation = {
+        cleanup = "uninstall";
+        upgrade = true;
+      };
+    };
+  };
 }

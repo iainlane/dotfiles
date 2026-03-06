@@ -1,27 +1,11 @@
-{
-  inputs,
-  lib,
-  ...
-}: let
+{inputs, ...}: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
 
-  # What OS names do our hosts have?
-  inherit (helpers) hosts;
-  validOsNames = helpers.hostOsNames hosts;
-
-  # Auto-discover profile flake-parts modules:
-  #   default.nix - base profile module
-  #   {os}.nix    - OS-specific module (e.g., linux.nix, darwin.nix)
-  profileModules = lib.concatMap (
-    profileName: let
-      dir = ../../profiles + "/${profileName}";
-      probe = filename: let
-        filePath = dir + "/${filename}";
-      in
-        lib.optional (builtins.pathExists filePath) filePath;
-    in
-      probe "default.nix" ++ lib.concatMap (os: probe "${os}.nix") validOsNames
-  ) (helpers.directoryNames ../../profiles);
+  # Auto-discover profile flake-parts modules.
+  profileModules =
+    map
+    (profileName: ../../profiles + "/${profileName}/default.nix")
+    (helpers.directoryNames ../../profiles);
 in {
   imports =
     [

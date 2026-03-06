@@ -6,6 +6,8 @@
     "base"
     "desktop"
     "development"
+    "containers"
+    "builder"
     "cloud"
     "work"
   ];

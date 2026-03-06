@@ -27,27 +27,20 @@ in {
           withSystem system (
             args: let
               inherit (args.config._module.args) pkgs;
+              homeConfig = helpers.mkHomeConfiguration {
+                inherit
+                  hostConfig
+                  hostname
+                  system
+                  username
+                  ;
+                inherit (config.flake) profiles;
+              };
             in
               inputs.home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
-                modules =
-                  helpers.mkHomeModules {
-                    inherit
-                      hostConfig
-                      username
-                      ;
-                    inherit (config.flake) profiles;
-                  }
-                  ++ [inputs.sops-nix.homeManagerModules.sops];
-                extraSpecialArgs = helpers.mkHomeSpecialArgs {
-                  inherit
-                    hostConfig
-                    hostname
-                    system
-                    inputs
-                    username
-                    ;
-                };
+                modules = homeConfig.modules;
+                extraSpecialArgs = homeConfig.extraSpecialArgs;
               }
           )
         )

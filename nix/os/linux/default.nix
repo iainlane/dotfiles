@@ -8,7 +8,6 @@
   ...
 }: {
   imports = [
-    ./binfmt.nix
     inputs.nix-system-graphics.systemModules.default
     ../../modules/nix/substituters.nix
   ];
@@ -61,33 +60,11 @@
           }
         '';
 
-        # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
-        # container tools check for this to avoid trying to use the Docker socket.
-        "containers/nodocker".text = "";
-
         # Redirect nix.conf to nix.custom.conf. system-manager will generate nix.conf
         # from nix.settings, but the symlink redirects it to nix.custom.conf which
         # Determinate Nix's managed nix.conf includes via !include directive
         "nix/nix.conf".target = "nix/nix.custom.conf";
-
-        # zsh on non-NixOS sources /etc/zshenv for all shells (including SSH
-        # logins) before user-level .zshenv. Set TERMINFO_DIRS here so
-        # Home Manager's TERM reset does not error for xterm-ghostty.
-        "zshenv".text = ''
-          export TERMINFO_DIRS="/run/system-manager/sw/share/terminfo:''${TERMINFO_DIRS:-/usr/share/terminfo}"
-        '';
-
-        # Keep TERMINFO_DIRS across sudo boundaries.
-        "sudoers.d/terminfo" = {
-          source = pkgs.writeText "sudoers-terminfo" ''
-            Defaults env_keep += "TERMINFO_DIRS"
-          '';
-          mode = "0440";
-        };
       };
-
-      pathsToLink = lib.mkAfter ["/share/terminfo"];
-      systemPackages = [pkgs.ghostty.terminfo];
     };
 
     # Systemd service to set capabilities on network monitoring tools
@@ -110,25 +87,6 @@
         if [ -f "${pkgs.netdiscover}/bin/netdiscover" ]; then
           ${pkgs.libcap}/bin/setcap cap_net_raw,cap_net_admin+ep "${pkgs.netdiscover}/bin/netdiscover" || true
         fi
-      '';
-    };
-
-    # Rootless podman needs newuidmap/newgidmap with setuid privileges.
-    # system-manager does not expose security.wrappers, so install helpers
-    # into /usr/local/libexec/podman at boot.
-    systemd.services.install-rootless-uidmap-wrappers = {
-      description = "Install setuid uidmap helpers for rootless containers";
-      wantedBy = ["sysinit.target"];
-      after = ["local-fs.target"];
-      before = ["systemd-user-sessions.service"];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      script = ''
-        install -d -m 0755 /usr/local/libexec/podman
-        install -m 4755 -o root -g root ${pkgs.shadow}/bin/newuidmap /usr/local/libexec/podman/newuidmap
-        install -m 4755 -o root -g root ${pkgs.shadow}/bin/newgidmap /usr/local/libexec/podman/newgidmap
       '';
     };
 

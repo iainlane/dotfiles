@@ -257,6 +257,39 @@
     }
     // extraArgs;
 
+  # Assemble home-manager modules and special args for a host in one place so
+  # standalone home-manager and nix-darwin embedding stay in sync.
+  mkHomeConfiguration = {
+    hostConfig,
+    hostname,
+    system,
+    username,
+    profiles,
+    extraModules ? [],
+    extraSpecialArgs ? {},
+  }: {
+    modules =
+      mkHomeModules {
+        inherit
+          hostConfig
+          username
+          profiles
+          ;
+      }
+      ++ [inputs.sops-nix.homeManagerModules.sops]
+      ++ extraModules;
+    extraSpecialArgs = mkHomeSpecialArgs {
+      inherit
+        hostConfig
+        hostname
+        system
+        username
+        ;
+      inputs = inputs;
+      extraArgs = extraSpecialArgs;
+    };
+  };
+
   # Normalise project definitions by computing derived path fields.
   # Each project gets:
   #   - attrSegments: directory path split into segments (e.g., "dev/debian" → ["dev" "debian"])
@@ -424,8 +457,7 @@ in {
     hostOsNames
     hosts
     importNixFiles
-    mkHomeModules
-    mkHomeSpecialArgs
+    mkHomeConfiguration
     mkProjectShells
     mkSystemModules
     ;
