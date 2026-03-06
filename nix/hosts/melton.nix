@@ -6,6 +6,7 @@
     "base"
     "development"
     "desktop"
+    "builder"
     "home"
   ];
 

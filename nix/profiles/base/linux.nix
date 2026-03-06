@@ -21,4 +21,34 @@ _: {
 
     targets.genericLinux.enable = true;
   };
+
+  flake.profiles.base.os.linux.systemManagerModule = {
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = {
+      environment = {
+        etc = {
+          # zsh on non-NixOS sources /etc/zshenv for all shells (including SSH
+          # logins) before user-level .zshenv. Set TERMINFO_DIRS here so
+          # Home Manager's TERM reset does not error for xterm-ghostty.
+          "zshenv".text = ''
+            export TERMINFO_DIRS="/run/system-manager/sw/share/terminfo:''${TERMINFO_DIRS:-/usr/share/terminfo}"
+          '';
+
+          # Keep TERMINFO_DIRS across sudo boundaries.
+          "sudoers.d/terminfo" = {
+            source = pkgs.writeText "sudoers-terminfo" ''
+              Defaults env_keep += "TERMINFO_DIRS"
+            '';
+            mode = "0440";
+          };
+        };
+
+        pathsToLink = lib.mkAfter ["/share/terminfo"];
+        systemPackages = [pkgs.ghostty.terminfo];
+      };
+    };
+  };
 }

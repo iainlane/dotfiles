@@ -8,7 +8,7 @@
   withSystem,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
 
   projects = let

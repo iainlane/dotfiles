@@ -4,7 +4,7 @@
   withSystem,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
 
   # Base dev directory with common tools
@@ -89,7 +89,10 @@
     inherit config withSystem mkShell projects;
   };
 in {
-  imports = [projectShells.flakeModule];
+  imports = [
+    projectShells.flakeModule
+    ./darwin.nix
+  ];
 
   flake.profiles.development.homeManagerModule = {pkgs, ...} @ args:
     lib.recursiveUpdate

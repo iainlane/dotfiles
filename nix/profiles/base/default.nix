@@ -1,4 +1,9 @@
 _: {
+  imports = [
+    ./linux.nix
+    ./darwin.nix
+  ];
+
   flake.profiles.base.homeManagerModule = {
     pkgs,
     lib,

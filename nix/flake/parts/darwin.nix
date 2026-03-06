@@ -23,39 +23,39 @@ in {
         withSystem system (
           args: let
             inherit (args.config._module.args) pkgs;
+            homeConfig = helpers.mkHomeConfiguration {
+              inherit
+                hostConfig
+                hostname
+                system
+                username
+                ;
+              inherit (config.flake) profiles;
+            };
           in
             inputs.nix-darwin.lib.darwinSystem {
               inherit system pkgs;
-              modules = [
-                ../../os/darwin
-                inputs.home-manager.darwinModules.home-manager
-                # Embed home-manager in the darwin config so `darwin-rebuild switch`
-                # handles both system and user config in one go.
-                {
-                  home-manager = {
-                    useGlobalPkgs = true;
-                    useUserPackages = true;
-                    users.${username}.imports =
-                      helpers.mkHomeModules {
-                        inherit
-                          hostConfig
-                          username
-                          ;
-                        inherit (config.flake) profiles;
-                      }
-                      ++ [inputs.sops-nix.homeManagerModules.sops];
-                    extraSpecialArgs = helpers.mkHomeSpecialArgs {
-                      inherit
-                        hostConfig
-                        hostname
-                        system
-                        inputs
-                        username
-                        ;
-                    };
-                  };
+              modules =
+                [
+                  ../../os/darwin
+                ]
+                ++ helpers.mkSystemModules {
+                  inherit hostConfig;
+                  inherit (config.flake) profiles;
                 }
-              ];
+                ++ [
+                  inputs.home-manager.darwinModules.home-manager
+                  # Embed home-manager in the darwin config so `darwin-rebuild switch`
+                  # handles both system and user config in one go.
+                  {
+                    home-manager = {
+                      useGlobalPkgs = true;
+                      useUserPackages = true;
+                      users.${username}.imports = homeConfig.modules;
+                      extraSpecialArgs = homeConfig.extraSpecialArgs;
+                    };
+                  }
+                ];
               specialArgs = {
                 inherit
                   inputs

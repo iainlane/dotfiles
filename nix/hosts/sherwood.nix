@@ -5,6 +5,8 @@
   profiles = [
     "base"
     "development"
+    "containers"
+    "builder"
     "desktop"
     "home"
   ];

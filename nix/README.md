@@ -31,7 +31,9 @@ shells, and work-specific settings) so hosts can opt into them selectively.
 Profile definitions are kept in `profiles/*/default.nix`.
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
+- `builder`: Cross-platform build helpers (Linux binfmt/QEMU and Darwin Linux builder VM opt-in).
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
+- `containers`: Linux rootless container prerequisites (`newuidmap`/`newgidmap` wrappers and nodocker marker).
 - `desktop`: GUI and desktop tooling, including terminals, editor integration,
   and fonts.
 - `development`: Personal development project shells and language toolchains.

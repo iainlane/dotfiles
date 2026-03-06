@@ -4,4 +4,13 @@ _: {
       docker
     ];
   };
+
+  flake.profiles.development.os.darwin.systemManagerModule = {
+    lib,
+    ...
+  }: {
+    homebrew.casks = [
+      "orbstack"
+    ];
+  };
 }

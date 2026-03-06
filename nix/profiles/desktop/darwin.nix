@@ -13,4 +13,15 @@ _: {
       ${pkgs.defaultbrowser}/bin/defaultbrowser chrome
     '';
   };
+
+  flake.profiles.desktop.os.darwin.systemManagerModule = {
+    lib,
+    ...
+  }: {
+    homebrew.casks = [
+      "google-chrome"
+      "warp"
+      "wine-stable"
+    ];
+  };
 }

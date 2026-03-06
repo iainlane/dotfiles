@@ -4,6 +4,7 @@
   arch = "aarch64";
   profiles = [
     "base"
+    "containers"
     {
       adsb = {
         secretsFile = "adsb.yaml";
