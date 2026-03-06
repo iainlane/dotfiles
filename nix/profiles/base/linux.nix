@@ -9,6 +9,10 @@ _: {
         lurk
       ];
 
+      # deploy-rs activate-rs invokes `nix-env` by name on remote hosts.
+      # Ensure non-interactive SSH sessions can resolve Nix CLI binaries.
+      sessionPath = ["/nix/var/nix/profiles/default/bin"];
+
       # Home Manager's generic Linux target sources `nix.sh`, which may omit
       # daemon-profile paths on multi-user installs. Prefer `nix-daemon.sh` when
       # available so non-interactive shells get the same Nix PATH setup.
