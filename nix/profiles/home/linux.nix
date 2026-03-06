@@ -71,5 +71,19 @@
   };
 in {
   imports = [projectShells.flakeModule];
-  flake.profiles.home.os.linux.homeManagerModule = projectShells.homeManagerModule;
+  flake.profiles.home.os.linux.homeManagerModule = {config, ...} @ args:
+    lib.recursiveUpdate
+    (projectShells.homeManagerModule args)
+    {
+      home.sessionPath = [
+        "${config.home.homeDirectory}/bin/ubuntu-dev-tools"
+        "${config.home.homeDirectory}/bin/ubuntu-archive-tools"
+      ];
+
+      programs.zsh.sessionVariables = {
+        QUILT_PATCHES = "debian/patches";
+      };
+
+      xdg.configFile."zsh/functions".source = ../../modules/zsh/functions;
+    };
 }

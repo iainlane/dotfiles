@@ -20,11 +20,6 @@ in {
       "${config.home.homeDirectory}/bin"
     ]
     ++ lib.optionals pkgs.stdenv.isLinux [
-      # deploy-rs activate-rs invokes `nix-env` by name on remote hosts.
-      # Ensure non-interactive SSH sessions can resolve Nix CLI binaries.
-      "/nix/var/nix/profiles/default/bin"
-      "${config.home.homeDirectory}/bin/ubuntu-dev-tools"
-      "${config.home.homeDirectory}/bin/ubuntu-archive-tools"
       "/snap/bin"
     ];
 
@@ -88,19 +83,14 @@ in {
       })
       localPlugins;
 
-    sessionVariables =
-      {
-        VISUAL = "nvim";
-        QUILT_PATCHES = "debian/patches";
-        # Colourise manpages with `bat`
-        # From https://github.com/sharkdp/bat?tab=readme-ov-file#man
-        MANPAGER = ''
-          sh -c 'sed -u -e \"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\" | bat -p -lman'
-        '';
-      }
-      // lib.optionalAttrs pkgs.stdenv.isLinux {
-        DOCKER_HOST = "unix://\${XDG_RUNTIME_DIR}/podman/podman.sock";
-      };
+    sessionVariables = {
+      VISUAL = "nvim";
+      # Colourise manpages with `bat`
+      # From https://github.com/sharkdp/bat?tab=readme-ov-file#man
+      MANPAGER = ''
+        sh -c 'sed -u -e \"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\" | bat -p -lman'
+      '';
+    };
 
     setOptions = [
       # Directory navigation
@@ -178,10 +168,6 @@ in {
       };
 
     syntaxHighlighting.enable = true;
-  };
-
-  xdg.configFile = {
-    "zsh/functions".source = ./functions;
   };
 
   home.activation.zshCompletionDump = lib.hm.dag.entryAfter ["writeBoundary"] ''
