@@ -1,6 +1,9 @@
-# Load every AI tool module so they all see the same MCP server set.
 _: {
   imports = [
+    ./claude-desktop.nix
+  ];
+
+  flake.modules.ai.homeManagerModules = [
     ./mcp.nix
     ./claude-code.nix
     ./codex.nix

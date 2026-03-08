@@ -1,14 +1,11 @@
-_: {
+{
   flake.profiles.containers.os.linux.homeManagerModule = {
     home.sessionVariables = {
       DOCKER_HOST = "unix://\${XDG_RUNTIME_DIR}/podman/podman.sock";
     };
   };
 
-  flake.profiles.containers.os.linux.systemManagerModule = {
-    pkgs,
-    ...
-  }: {
+  flake.profiles.containers.os.linux.systemManagerModule = {pkgs, ...}: {
     config = {
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some

@@ -1,4 +1,4 @@
-_: {
+{
   flake.profiles.adsb = {
     homeManagerModule = args: {
       config,

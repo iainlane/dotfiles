@@ -39,8 +39,8 @@ in {
             in
               inputs.home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
-                modules = homeConfig.modules;
-                extraSpecialArgs = homeConfig.extraSpecialArgs;
+                inherit (homeConfig) modules;
+                inherit (homeConfig) extraSpecialArgs;
               }
           )
         )

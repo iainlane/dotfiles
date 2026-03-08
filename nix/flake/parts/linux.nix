@@ -29,6 +29,7 @@ in {
               modules =
                 [
                   ../../os/linux
+                  config.flake.nix.substitutersModule
                 ]
                 ++ helpers.mkSystemModules {
                   inherit hostConfig;

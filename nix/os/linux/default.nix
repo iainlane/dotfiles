@@ -9,7 +9,6 @@
 }: {
   imports = [
     inputs.nix-system-graphics.systemModules.default
-    ../../modules/nix/substituters.nix
   ];
 
   # Define NixOS-specific options for home-manager compatibility with system-manager

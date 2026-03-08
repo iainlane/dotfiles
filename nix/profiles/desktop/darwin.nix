@@ -1,4 +1,4 @@
-_: {
+{
   flake.profiles.desktop.os.darwin.homeManagerModule = {
     pkgs,
     lib,
@@ -8,6 +8,11 @@ _: {
       code-cursor
     ];
 
+    services.gpg-agent.pinentry = {
+      package = pkgs.pinentry_mac;
+      program = "pinentry-mac";
+    };
+
     # macOS has no declarative API for default browser, so we use an activation script.
     home.activation.setDefaultBrowser = lib.hm.dag.entryAfter ["writeBoundary"] ''
       ${pkgs.defaultbrowser}/bin/defaultbrowser chrome
@@ -15,11 +20,7 @@ _: {
   };
 
   flake.profiles.desktop.os.darwin.systemManagerModule = {
-    lib,
-    ...
-  }: {
     homebrew.casks = [
-      "claude"
       "google-chrome"
       "warp"
       "wine-stable"

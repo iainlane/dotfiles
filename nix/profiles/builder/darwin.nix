@@ -1,7 +1,7 @@
 # Run a Linux builder VM so nix can build aarch64-linux derivations on Darwin.
 # This replicates the essential parts of nix-darwin's nix.linux-builder module
 # without requiring nix.enable (which conflicts with Determinate Nix).
-_: {
+{
   flake.profiles.builder.os.darwin.systemManagerModule = {
     lib,
     pkgs,

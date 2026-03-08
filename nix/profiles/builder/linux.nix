@@ -1,6 +1,6 @@
 # Register QEMU as a binfmt_misc interpreter for aarch64-linux on x86_64 hosts,
 # allowing nix to build aarch64-linux derivations locally.
-_: {
+{
   flake.profiles.builder.os.linux.systemManagerModule = {
     lib,
     pkgs,

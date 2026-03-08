@@ -1,4 +1,4 @@
-_: {
+{
   flake.profiles.cloud.homeManagerModule = {pkgs, ...}: {
     home.packages = with pkgs; [
       google-cloud-sdk

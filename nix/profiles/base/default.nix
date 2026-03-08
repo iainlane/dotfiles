@@ -1,27 +1,40 @@
-_: {
+{config, ...}: let
+  inherit
+    (config.flake.modules)
+    git
+    neovim
+    scripts
+    starship
+    zsh
+    ;
+  cliTools = config.flake.modules."cli-tools";
+  commonModules = [
+    git
+    scripts
+    zsh
+    neovim
+    starship
+    cliTools
+  ];
+in {
   imports = [
     ./linux.nix
     ./darwin.nix
   ];
+
+  flake.profiles.base.modules = commonModules;
 
   flake.profiles.base.homeManagerModule = {
     pkgs,
     lib,
     inputs,
     system,
-    modulesPath,
     flakePath,
     ...
   }: {
     imports = [
       inputs.nix-index-database.homeModules.nix-index
       ./colours.nix
-      (modulesPath + /git)
-      (modulesPath + /scripts)
-      (modulesPath + /zsh)
-      (modulesPath + /neovim)
-      (modulesPath + /starship)
-      (modulesPath + /cli-tools)
     ];
 
     home = {
@@ -34,51 +47,49 @@ _: {
       # Suppress "Last login" message at terminal startup.
       file.".hushlogin".text = "";
 
-      packages = with pkgs;
-        [
-          # Build tools and networking basics.
-          curl
-          httpie
-          pre-commit
-          rsync
-          wget
+      packages = with pkgs; [
+        # Build tools and networking basics.
+        curl
+        httpie
+        pre-commit
+        rsync
+        wget
 
-          # GNU versions of core utilities. macOS ships BSD variants which have
-          # incompatible flags; these provide consistent behaviour across platforms.
-          diffutils
-          getopt
-          gnugrep
-          gnused
-          gnutar
-          openssh
-          presenterm
-          wdiff
+        # GNU versions of core utilities. macOS ships BSD variants which have
+        # incompatible flags; these provide consistent behaviour across platforms.
+        diffutils
+        getopt
+        gnugrep
+        gnused
+        gnutar
+        openssh
+        presenterm
+        wdiff
 
-          # CLI quality-of-life utilities.
-          asciinema
-          delta
-          dotacat
-          dust
-          fastfetch
-          fd
-          curlie
-          doggo
-          duf
-          moreutils
-          procs
-          rename
-          sd
+        # CLI quality-of-life utilities.
+        asciinema
+        delta
+        dotacat
+        dust
+        fastfetch
+        fd
+        curlie
+        doggo
+        duf
+        moreutils
+        procs
+        rename
+        sd
 
-          # Networking and system monitoring tools.
-          bandwhich
-          cyme
-          gping
-          mtr
-          subnetcalc
+        # Networking and system monitoring tools.
+        bandwhich
+        cyme
+        gping
+        mtr
+        subnetcalc
 
-          lua.pkgs.luacheck
-        ]
-        ++ lib.optionals pkgs.stdenv.isLinux [deckmaster];
+        lua.pkgs.luacheck
+      ];
     };
 
     programs = {
