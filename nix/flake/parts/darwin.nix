@@ -38,6 +38,7 @@ in {
               modules =
                 [
                   ../../os/darwin
+                  config.flake.nix.substitutersModule
                 ]
                 ++ helpers.mkSystemModules {
                   inherit hostConfig;
@@ -52,7 +53,7 @@ in {
                       useGlobalPkgs = true;
                       useUserPackages = true;
                       users.${username}.imports = homeConfig.modules;
-                      extraSpecialArgs = homeConfig.extraSpecialArgs;
+                      inherit (homeConfig) extraSpecialArgs;
                     };
                   }
                 ];

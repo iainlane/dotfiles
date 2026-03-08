@@ -1,21 +1,26 @@
-_: {
+{config, ...}: let
+  inherit
+    (config.flake.modules)
+    ai
+    ghostty
+    kitty
+    ;
+  zedEditor = config.flake.modules."zed-editor";
+  commonModules = [
+    ai
+    ghostty
+    kitty
+    zedEditor
+  ];
+in {
   imports = [
     ./linux.nix
     ./darwin.nix
   ];
 
-  flake.profiles.desktop.homeManagerModule = {
-    pkgs,
-    modulesPath,
-    ...
-  }: {
-    imports = [
-      (modulesPath + /ai)
-      (modulesPath + /ghostty)
-      (modulesPath + /kitty)
-      (modulesPath + /zed-editor)
-    ];
+  flake.profiles.desktop.modules = commonModules;
 
+  flake.profiles.desktop.homeManagerModule = {pkgs, ...}: {
     fonts.fontconfig.enable = true;
 
     home.packages = with pkgs; [
@@ -32,7 +37,7 @@ _: {
       powerline-fonts
       roboto
 
-      # uvx is used by Claude Code etc for MCPs
+      # Keep uv handy for ad-hoc Python tooling.
       uv
     ];
 
@@ -46,16 +51,6 @@ _: {
       enable = true;
 
       enableSshSupport = false;
-      pinentry =
-        if pkgs.stdenv.isDarwin
-        then {
-          package = pkgs.pinentry_mac;
-          program = "pinentry-mac";
-        }
-        else {
-          package = pkgs.pinentry-gnome3;
-          program = "pinentry-gnome3";
-        };
     };
 
     services.ssh-agent = {

@@ -1,9 +1,14 @@
-_: {
+{
   flake.profiles.desktop.os.linux.homeManagerModule = {pkgs, ...}: {
     home.packages = with pkgs; [
       code-cursor-fhs
       google-chrome
     ];
+
+    services.gpg-agent.pinentry = {
+      package = pkgs.pinentry-gnome3;
+      program = "pinentry-gnome3";
+    };
 
     xdg.mimeApps = {
       enable = true;

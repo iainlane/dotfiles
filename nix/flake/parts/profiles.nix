@@ -8,6 +8,10 @@
       type = lib.types.nullOr lib.types.unspecified;
       default = null;
     };
+    modules = lib.mkOption {
+      type = with lib.types; listOf unspecified;
+      default = [];
+    };
   };
 in {
   options.flake.profiles = lib.mkOption {

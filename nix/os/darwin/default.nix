@@ -4,9 +4,6 @@
   substitutersCustomConf,
   ...
 }: {
-  imports = [
-    ../../modules/nix/substituters.nix
-  ];
   # Disable nix-darwin's daemon management; Determinate Nix handles this.
   nix.enable = false;
 

@@ -27,6 +27,7 @@ These are the simplest integrations - no config file generation needed.
 Other tools expect a configuration file on disk. For these, we use
 `mcp.mkConfigFile` which generates the file in the appropriate format:
 
+- `claude-desktop.nix` - Generates JSON for Claude Desktop on Darwin
 - `crush.nix` - Generates JSON for the crush config directory
 - `copilot-cli.nix` - Generates JSON for GitHub Copilot CLI
 - `opencode.nix` - Generates JSON for OpenCode

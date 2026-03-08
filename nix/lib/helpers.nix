@@ -34,6 +34,22 @@
       else loaded)
     (fileNames dir ".nix");
 
+  # Collect module lists exported by selected feature modules.
+  # `moduleType` should be one of `homeManagerModules` or `systemManagerModules`.
+  collectFeatureModules = {
+    modules,
+    moduleType,
+    os ? null,
+  }:
+    builtins.concatLists (
+      map
+      (module:
+        if os == null
+        then module.${moduleType}
+        else lib.attrByPath ["os" os moduleType] [] module)
+      modules
+    );
+
   # Compute the canonical home directory for a user on supported host OSes.
   # Throws if `os` is not one of "darwin" or "linux".
   mkHomeDirectory = {
@@ -157,12 +173,10 @@
   }: let
     inherit (hostConfig) os;
     entries = normaliseProfileEntries hostConfig.profiles;
-
-    # Some profile entries are functions that must be called with profile
-    # options. This returns true for that function shape.
-    moduleNeedsProfileOptions = moduleValue:
-      builtins.isFunction moduleValue
-      && builtins.functionArgs moduleValue == {};
+    featureModuleType =
+      if moduleType == "homeManagerModule"
+      then "homeManagerModules"
+      else "systemManagerModules";
 
     # Apply one module value for one profile entry.
     # Returns [] when moduleValue is null, otherwise returns a one-element list.
@@ -170,27 +184,64 @@
       if moduleValue == null
       then []
       else let
-        needsProfileOptions = moduleNeedsProfileOptions moduleValue;
         hasOptions = entry.profileOptions != null;
         emptyOptions = entry.profileOptions == {};
       in
-        if needsProfileOptions
-        then
-          if !hasOptions
-          then throw "Profile '${entry.name}' requires profile options, e.g. { ${entry.name} = { ... }; }"
-          else [(moduleValue entry.profileOptions)]
-        else if !hasOptions || emptyOptions
+        if !hasOptions || emptyOptions
         then [moduleValue]
+        else if builtins.isFunction moduleValue
+        then [(moduleValue entry.profileOptions)]
         else throw "Profile '${entry.name}' does not accept profile options; use a string entry.";
+
+    featureModule = imports:
+      if imports == []
+      then null
+      else {inherit imports;};
 
     # Resolve and apply both base and OS-specific module values for one entry.
     resolveEntry = entry: let
       profile = profiles.${entry.name} or (throw "Profile '${entry.name}' not found in flake.profiles");
       baseVal = profile.${moduleType};
       osVal = (profile.os.${os} or {}).${moduleType} or null;
+      profileModules = lib.attrByPath ["modules"] [] profile;
+      osFeatureModules = lib.attrByPath ["os" os "modules"] [] profile;
+
+      # Merge order is:
+      #
+      # 1. base feature modules
+      # 2. base profile module
+      # 3. OS-specific feature modules
+      # 4. OS-specific profile module
+      #
+      # This gives "profile overrides module" and "OS overrides base", in case
+      # multiple places set the same thing.
+      baseFeatureVal = featureModule (
+        collectFeatureModules {
+          modules = profileModules;
+          moduleType = featureModuleType;
+        }
+      );
+      osFeatureVal = featureModule (
+        (collectFeatureModules {
+          modules = profileModules;
+          moduleType = featureModuleType;
+          inherit os;
+        })
+        ++ (collectFeatureModules {
+          modules = osFeatureModules;
+          moduleType = featureModuleType;
+        })
+        ++ (collectFeatureModules {
+          modules = osFeatureModules;
+          moduleType = featureModuleType;
+          inherit os;
+        })
+      );
     in
       lib.concatMap (applyProfileModule entry) [
+        baseFeatureVal
         baseVal
+        osFeatureVal
         osVal
       ];
   in
@@ -226,9 +277,7 @@
     ++ lib.optional (hostConfig ? systemModule) hostConfig.systemModule;
 
   # Construct the specialArgs attrset passed to home-manager modules. Provides
-  # access to flake inputs, host metadata, and path helpers. This allows modules
-  # to reference inputs, check the current hostname/system, and locate other
-  # modules or profiles.
+  # access to flake inputs, host metadata, and the canonical flake path.
   mkHomeSpecialArgs = {
     hostConfig,
     hostname,
@@ -252,8 +301,6 @@
         hostConfig
         flakePath
         ;
-      modulesPath = ../modules;
-      profilesPath = ../profiles;
     }
     // extraArgs;
 
@@ -285,7 +332,7 @@
         system
         username
         ;
-      inputs = inputs;
+      inherit inputs;
       extraArgs = extraSpecialArgs;
     };
   };
@@ -398,8 +445,8 @@
   in {
     # A home-manager module fragment that profiles can import to configure
     # project-directories. This reduces boilerplate.
-    homeManagerModule = {modulesPath, ...}: {
-      imports = [(modulesPath + /project-directories)];
+    homeManagerModule = _: {
+      imports = [config.flake.projectDirectories.homeManagerModule];
 
       programs.projectDirectories = {
         enable = true;

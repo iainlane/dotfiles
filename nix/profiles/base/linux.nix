@@ -1,4 +1,4 @@
-_: {
+{
   flake.profiles.base.os.linux.homeManagerModule = {
     lib,
     pkgs,
@@ -6,6 +6,7 @@ _: {
   }: {
     home = {
       packages = with pkgs; [
+        deckmaster
         lurk
       ];
 

@@ -6,6 +6,14 @@
     map
     (profileName: ../../profiles + "/${profileName}/default.nix")
     (helpers.directoryNames ../../profiles);
+
+  # Auto-discover feature flake-parts modules.
+  featureModules =
+    map
+    (moduleName: ../../modules + "/${moduleName}/default.nix")
+    (builtins.filter
+      (moduleName: builtins.pathExists (../../modules + "/${moduleName}/default.nix"))
+      (helpers.directoryNames ../../modules));
 in {
   imports =
     [
@@ -15,11 +23,15 @@ in {
       ./darwin.nix
       ./deploy.nix
       ./direnvs.nix
+      ./nix.nix
+      ./modules.nix
       ./profiles.nix
+      ./project-directories.nix
       ./home.nix
       ./linux.nix
     ]
-    ++ profileModules;
+    ++ profileModules
+    ++ featureModules;
 
   # Make flake-parts aware of all our systems
   flake = {
