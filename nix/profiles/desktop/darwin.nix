@@ -19,6 +19,7 @@ _: {
     ...
   }: {
     homebrew.casks = [
+      "claude"
       "google-chrome"
       "warp"
       "wine-stable"
