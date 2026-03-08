@@ -18,5 +18,9 @@ in {
     enable = true;
     package = wrappedClaudeCode;
     mcpServers = mcp.servers;
+    settings.env = {
+      # https://code.claude.com/docs/en/agent-teams
+      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+    };
   };
 }
