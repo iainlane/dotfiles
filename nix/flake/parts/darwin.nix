@@ -31,6 +31,9 @@ in {
                 username
                 ;
               inherit (config.flake) profiles;
+              extraSpecialArgs = {
+                pkgs-unstable = pkgs;
+              };
             };
           in
             inputs.nix-darwin.lib.darwinSystem {

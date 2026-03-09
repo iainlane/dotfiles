@@ -1,4 +1,4 @@
-{
+{pkgs-unstable}: {
   # This file keeps Neovim's Nix-managed LSP mapping in one place. It lets us
   # install language tools via Nix. From this we generate a JSON file which we
   # load into Neovim to disable Mason installs for these tools.
@@ -37,7 +37,13 @@
   #
   # Set `masonPackages = []` when no Mason package exclusion is needed for that
   # entry (for example when there is no matching Mason package name).
-  "ansible-language-server" = "ansiblels";
+  #
+  # Set `pkg` to provide the package directly, for packages removed from or
+  # unavailable in the host's primary nixpkgs channel.
+  "ansible-language-server" = {
+    lsp = "ansiblels";
+    pkg = pkgs-unstable.ansible-language-server;
+  };
   "bash-language-server" = "bashls";
   # C/C++/Objective-C.
   "clang-tools" = {
