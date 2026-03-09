@@ -11,4 +11,4 @@ cd "$(dirname "$0")"
 
 nh_package=".#hostPrograms.$(hostname -s).nh.package"
 
-exec nix shell nixpkgs#just nixpkgs#nvd "$nh_package" --command just "$@"
+exec nix shell nixpkgs#just nixpkgs#nvd nixpkgs#age nixpkgs#ssh-to-age nixpkgs#sops nixpkgs#yq-go "$nh_package" --command just "$@"
