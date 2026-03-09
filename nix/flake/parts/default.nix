@@ -29,6 +29,7 @@ in {
       ./project-directories.nix
       ./home.nix
       ./linux.nix
+      ./nixos.nix
     ]
     ++ profileModules
     ++ featureModules;
