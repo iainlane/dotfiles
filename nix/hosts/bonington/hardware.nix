@@ -49,10 +49,10 @@
     power-profiles-daemon.enable = lib.mkForce false;
   };
 
-  services.logind = {
-    lidSwitch = "suspend";
-    lidSwitchExternalPower = "suspend";
-    lidSwitchDocked = "suspend";
+  services.logind.settings.Login = {
+    HandleLidSwitch = "suspend";
+    HandleLidSwitchExternalPower = "suspend";
+    HandleLidSwitchDocked = "suspend";
   };
 
   environment.systemPackages = with pkgs; [
