@@ -2,6 +2,7 @@
   pkgs,
   inputs,
   lib,
+  options,
   system,
   ...
 }: let
@@ -12,10 +13,19 @@
     package = inputs.llm-agents.packages.${system}.opencode;
     binName = "opencode";
   };
+
+  hasOpencodeModule = options ? programs && options.programs ? opencode;
 in {
-  programs.opencode = {
-    enable = true;
-    package = wrappedOpencode;
-    enableMcpIntegration = true;
-  };
+  config =
+    if hasOpencodeModule
+    then {
+      programs.opencode = {
+        enable = true;
+        package = wrappedOpencode;
+        enableMcpIntegration = true;
+      };
+    }
+    else {
+      home.packages = [wrappedOpencode];
+    };
 }
