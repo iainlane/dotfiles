@@ -24,12 +24,14 @@
       secondary = pkgs;
       nixpkgs = inputs.nixpkgs-stable;
       home-manager = inputs.home-manager-stable;
+      catppuccin = inputs.catppuccin-stable;
     }
     else {
       primary = pkgs;
       secondary = pkgs-stable;
       nixpkgs = inputs.nixpkgs;
       home-manager = inputs.home-manager;
+      catppuccin = inputs.catppuccin;
     };
 in {
   flake.nixosConfigurations =
@@ -56,6 +58,9 @@ in {
               inherit (config.flake) profiles;
               extraSpecialArgs = {
                 inherit (channel) secondary;
+                inputs = inputs // {
+                  catppuccin = channel.catppuccin;
+                };
                 pkgs-stable =
                   if (hostConfig.channel or "unstable") == "stable"
                   then channel.primary
