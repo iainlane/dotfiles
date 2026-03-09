@@ -1,9 +1,11 @@
 {
   flake.profiles.desktop.os.linux.homeManagerModule = {pkgs, ...}: {
-    home.packages = with pkgs; [
-      code-cursor-fhs
-      google-chrome
-    ];
+    home.packages =
+      (with pkgs; [
+        code-cursor-fhs
+        google-chrome
+      ])
+      ++ import ./fonts.nix pkgs;
 
     services.gpg-agent.pinentry = {
       package = pkgs.pinentry-gnome3;

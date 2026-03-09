@@ -1,5 +1,6 @@
 {
   inputs,
+}: {
   context,
   config,
 }: let

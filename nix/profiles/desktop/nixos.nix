@@ -9,17 +9,7 @@ in {
     homeManagerModule = config.flake.profiles.desktop.os.linux.homeManagerModule;
 
     nixosModule = {pkgs, ...}: {
-      fonts.packages = with pkgs; [
-        cascadia-code
-        monaspace
-        nerd-fonts.caskaydia-cove
-        nerd-fonts.caskaydia-mono
-        nerd-fonts.fira-code
-        nerd-fonts.hack
-        nerd-fonts.monaspace
-        powerline-fonts
-        roboto
-      ];
+      fonts.packages = import ./fonts.nix pkgs;
     };
   };
 }

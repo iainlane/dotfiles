@@ -4,9 +4,8 @@
   config,
   ...
 }: let
-  netboot = import ../../lib/netboot.nix {
+  netboot = config.flake.lib.netboot {
     inherit
-      inputs
       context
       config
       ;
