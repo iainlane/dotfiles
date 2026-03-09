@@ -151,5 +151,6 @@ in {
   flake.modules."cli-tools" = {
     homeManagerModules = [homeManagerModule];
     os.linux.homeManagerModules = [linuxHomeManagerModule];
+    os.nixos.homeManagerModules = [linuxHomeManagerModule];
   };
 }

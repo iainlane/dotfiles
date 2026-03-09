@@ -4,12 +4,11 @@ in {
   flake.profiles.base.os.nixos = {
     modules = [borgmatic];
 
-    homeManagerModule = {
-      lib,
-      ...
-    }: {
-      home.sessionPath = lib.mkForce [];
-      targets.genericLinux.enable = lib.mkForce false;
+    homeManagerModule = {pkgs, ...}: {
+      home.packages = with pkgs; [
+        deckmaster
+        lurk
+      ];
     };
   };
 }

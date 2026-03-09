@@ -196,12 +196,7 @@
       then "nixosModules"
       else "systemManagerModules";
 
-    # NixOS hosts also inherit os.linux home-manager modules, since the
-    # user-level environment is the same across all Linux-like systems.
-    osNames =
-      if os == "nixos" && moduleType == "homeManagerModule"
-      then ["linux" "nixos"]
-      else [os];
+    osNames = [os];
 
     # Apply one module value for one profile entry.
     # Returns [] when moduleValue is null, otherwise returns a one-element list.
@@ -229,9 +224,6 @@
       baseVal = profile.${moduleType};
       profileModules = lib.attrByPath ["modules"] [] profile;
 
-      # Collect OS-specific values for each relevant OS name. For NixOS
-      # home-manager modules this includes both "linux" and "nixos", giving
-      # merge order: base -> os.linux -> os.nixos (most specific wins).
       osVals = lib.concatMap (osName: let
         osVal = (profile.os.${osName} or {}).${moduleType} or null;
         osFeatureModules = lib.attrByPath ["os" osName "modules"] [] profile;
