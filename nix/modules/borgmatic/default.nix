@@ -1,9 +1,5 @@
 _: let
   nixosModule = {
-    config,
-    lib,
-    ...
-  }: {
     services.borgmatic = {
       enable = true;
       settings = {
