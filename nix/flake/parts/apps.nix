@@ -1,8 +1,22 @@
-{inputs, ...}: {
+{
+  inputs,
+  context,
+  config,
+  ...
+}: let
+  netboot = import ../../lib/netboot.nix {
+    inherit
+      inputs
+      context
+      config
+      ;
+  };
+in {
   # Re-export tools from flake inputs so the justfile can reference pinned
   # versions via `nix run .#<app>`.
   perSystem = {
     lib,
+    pkgs,
     system,
     ...
   }: {
@@ -21,6 +35,7 @@
           meta.description = "Install NixOS on remote targets";
         };
       }
+      // netboot.appsForSystem pkgs
       // lib.optionalAttrs (inputs.system-manager.packages ? ${system}) {
         system-manager = {
           type = "app";
@@ -28,5 +43,7 @@
           meta.description = "Non-NixOS system configuration manager";
         };
       };
+
+    packages = netboot.packagesForSystem system;
   };
 }

@@ -131,6 +131,37 @@ install host target:
       --flake .#{{ host }} \
       --target-host root@{{ target }}
 
+# Serve a PXE/netboot installer for a host using keys from ssh-agent
+netboot host *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    tmpdir=$(mktemp -d)
+    cleanup() {
+        rm -rf "$tmpdir"
+    }
+    trap cleanup EXIT
+
+    agent_keys=()
+    while IFS= read -r key; do
+        [[ -n "$key" ]] || continue
+        agent_keys+=("$key")
+    done < <(ssh-add -L 2>/dev/null || true)
+    if [[ ${#agent_keys[@]} -eq 0 ]]; then
+        echo "ssh-add -L returned no keys. Load a key into ssh-agent first or run nix run .#{{ host }}-netboot manually." >&2
+        exit 1
+    fi
+
+    netboot_args=()
+    for i in "${!agent_keys[@]}"; do
+        key_file="$tmpdir/key-$i.pub"
+        printf '%s\n' "${agent_keys[$i]}" > "$key_file"
+        netboot_args+=(--authorized-keys-file "$key_file")
+    done
+
+    echo "Serving netboot for {{ host }} with ${#agent_keys[@]} SSH key(s)"
+    nix run .#{{ host }}-netboot -- "${netboot_args[@]}" {{ args }}
+
 # Install NixOS onto a locally-connected drive
 install-local host device:
     @echo "Installing NixOS on {{ host }} to {{ device }}"

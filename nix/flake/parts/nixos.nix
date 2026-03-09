@@ -22,6 +22,8 @@
     then {
       primary = pkgs-stable;
       secondary = pkgs;
+      stable = pkgs-stable;
+      unstable = pkgs;
       nixpkgs = inputs.nixpkgs-stable;
       home-manager = inputs.home-manager-stable;
       catppuccin = inputs.catppuccin-stable;
@@ -29,6 +31,8 @@
     else {
       primary = pkgs;
       secondary = pkgs-stable;
+      stable = pkgs-stable;
+      unstable = pkgs;
       nixpkgs = inputs.nixpkgs;
       home-manager = inputs.home-manager;
       catppuccin = inputs.catppuccin;
@@ -61,14 +65,8 @@ in {
                 inputs = inputs // {
                   catppuccin = channel.catppuccin;
                 };
-                pkgs-stable =
-                  if (hostConfig.channel or "unstable") == "stable"
-                  then channel.primary
-                  else channel.secondary;
-                pkgs-unstable =
-                  if (hostConfig.channel or "unstable") == "stable"
-                  then channel.secondary
-                  else channel.primary;
+                pkgs-stable = channel.stable;
+                pkgs-unstable = channel.unstable;
               };
             };
           in
@@ -107,14 +105,8 @@ in {
                   hostConfig
                   username
                   ;
-                pkgs-stable =
-                  if (hostConfig.channel or "unstable") == "stable"
-                  then channel.primary
-                  else channel.secondary;
-                pkgs-unstable =
-                  if (hostConfig.channel or "unstable") == "stable"
-                  then channel.secondary
-                  else channel.primary;
+                pkgs-stable = channel.stable;
+                pkgs-unstable = channel.unstable;
               };
             }
         )
