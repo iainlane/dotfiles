@@ -27,6 +27,11 @@
 
     home-manager.url = "github:nix-community/home-manager";
 
+    home-manager-stable = {
+      url = "github:nix-community/home-manager/release-25.05";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
+
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
 
     lanzaboote = {

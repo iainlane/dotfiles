@@ -23,11 +23,13 @@
       primary = pkgs-stable;
       secondary = pkgs;
       nixpkgs = inputs.nixpkgs-stable;
+      home-manager = inputs.home-manager-stable;
     }
     else {
       primary = pkgs;
       secondary = pkgs-stable;
       nixpkgs = inputs.nixpkgs;
+      home-manager = inputs.home-manager;
     };
 in {
   flake.nixosConfigurations =
@@ -83,7 +85,7 @@ in {
                   inherit (config.flake) profiles;
                 }
                 ++ [
-                  inputs.home-manager.nixosModules.home-manager
+                  channel.home-manager.nixosModules.home-manager
                   {
                     home-manager = {
                       useGlobalPkgs = true;
