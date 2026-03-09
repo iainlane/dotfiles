@@ -21,6 +21,7 @@ let
 
   darwinHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "darwin") hosts;
   linuxHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "linux") hosts;
+  nixosHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "nixos") hosts;
 
   # Common overlays used across all systems.
   # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
@@ -41,6 +42,7 @@ in {
         hosts
         darwinHosts
         linuxHosts
+        nixosHosts
         overlays
         nixpkgsConfig
         ;
@@ -57,17 +59,21 @@ in {
         hostname: _:
           if config.flake.darwinConfigurations ? ${hostname}
           then config.flake.darwinConfigurations.${hostname}.config.home-manager.users.${username}.programs
+          else if config.flake.nixosConfigurations ? ${hostname}
+          then config.flake.nixosConfigurations.${hostname}.config.home-manager.users.${username}.programs
           else config.flake.homeConfigurations."${username}@${hostname}".config.programs
       )
       hosts;
 
     perSystem = {system, ...}: let
-      pkgs = import inputs.nixpkgs {
+      mkPkgs = nixpkgs: import nixpkgs {
         inherit system overlays;
         config = nixpkgsConfig;
       };
+      pkgs = mkPkgs inputs.nixpkgs;
+      pkgs-stable = mkPkgs inputs.nixpkgs-stable;
     in {
-      _module.args.pkgs = pkgs;
+      _module.args = {inherit pkgs pkgs-stable;};
     };
   };
 }
