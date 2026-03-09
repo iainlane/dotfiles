@@ -66,5 +66,6 @@ in {
     homeManagerModules = [homeManagerModule];
     os.darwin.homeManagerModules = [darwinHomeManagerModule];
     os.linux.homeManagerModules = [linuxHomeManagerModule];
+    os.nixos.homeManagerModules = [linuxHomeManagerModule];
   };
 }
