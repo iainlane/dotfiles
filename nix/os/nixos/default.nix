@@ -1,4 +1,5 @@
 {
+  pkgs,
   username,
   hostConfig,
   ...
@@ -23,7 +24,7 @@
     isNormalUser = true;
     home = hostConfig.homeDirectory;
     extraGroups = ["wheel" "networkmanager"];
-    shell = "/run/current-system/sw/bin/zsh";
+    shell = pkgs.zsh;
   };
 
   programs.zsh.enable = true;
