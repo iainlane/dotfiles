@@ -52,7 +52,7 @@
 
         # Custom markdownlint formatter
         formatter.markdownlint = {
-          command = lib.getExe pkgs.markdownlint-cli;
+          command = lib.getExe pkgs.markdownlint-cli2;
           options = ["--fix" "--"];
           includes = ["*.md"];
         };
