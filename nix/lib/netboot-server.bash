@@ -6,6 +6,7 @@ listen_addr="0.0.0.0"
 extra_cmdline=""
 password="${LIVE_NIXOS_PASSWORD-}"
 password_hash="${LIVE_NIXOS_PASSWORD_HASH-}"
+authorized_keys_files=()
 
 usage() {
   cat <<EOF
@@ -16,6 +17,8 @@ Serve a NixOS netboot installer for ${NETBOOT_DISPLAY_NAME} via pixiecore.
 Options:
   --password PASSWORD        Temporary root password for the live installer
   --password-hash HASH       Hashed temporary root password
+  --authorized-keys-file FILE
+                             Public key file to fetch into the live installer
   --append-cmdline TEXT      Extra kernel cmdline to append
   --listen-addr ADDR         Address for pixiecore to listen on (default: 0.0.0.0)
   --http-port PORT           HTTP/status port for pixiecore (default: 80)
@@ -29,8 +32,8 @@ Environment:
 Notes:
   - By default pixiecore runs with --dhcp-no-bind so it can coexist with your
     existing DHCP server on the LAN.
-  - The live installer enables sshd, and the temporary root password is applied
-    through the live.nixos.password or live.nixos.passwordHash kernel parameter.
+  - The live installer enables sshd. Authentication can be provided with a
+    temporary root password or one or more authorized key files.
   - pixiecore needs root privileges, so this command escalates only for the final
     pixiecore step via sudo.
 EOF
@@ -44,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --password-hash)
       password_hash="$2"
+      shift 2
+      ;;
+    --authorized-keys-file)
+      authorized_keys_files+=("$2")
       shift 2
       ;;
     --append-cmdline)
@@ -79,7 +86,7 @@ if [[ -n "$password" && -n "$password_hash" ]]; then
   exit 1
 fi
 
-if [[ -z "$password" && -z "$password_hash" ]]; then
+if [[ -z "$password" && -z "$password_hash" && "${#authorized_keys_files[@]}" -eq 0 ]]; then
   if [[ -t 0 && -t 1 ]]; then
     read -r -s -p "Temporary root password for the live installer: " password
     echo
@@ -90,7 +97,7 @@ if [[ -z "$password" && -z "$password_hash" ]]; then
       exit 1
     fi
   else
-    echo "Provide --password, --password-hash, LIVE_NIXOS_PASSWORD, or LIVE_NIXOS_PASSWORD_HASH." >&2
+    echo "Provide --password, --password-hash, LIVE_NIXOS_PASSWORD, LIVE_NIXOS_PASSWORD_HASH, or --authorized-keys-file." >&2
     exit 1
   fi
 fi
@@ -99,6 +106,13 @@ if [[ -n "$password" && "$password" =~ [[:space:]] ]]; then
   echo "Passwords passed on the kernel command line must not contain whitespace." >&2
   exit 1
 fi
+
+for key_file in "${authorized_keys_files[@]}"; do
+  if [[ ! -f "$key_file" ]]; then
+    echo "Authorized key file not found: $key_file" >&2
+    exit 1
+  fi
+done
 
 if ! command -v sudo >/dev/null 2>&1; then
   echo "sudo is required to start pixiecore." >&2
@@ -120,9 +134,13 @@ cmdline=$(<"$artifacts/cmdline")
 cmdline+="${extra_cmdline}"
 if [[ -n "$password_hash" ]]; then
   cmdline+=" live.nixos.passwordHash=$password_hash"
-else
+elif [[ -n "$password" ]]; then
   cmdline+=" live.nixos.password=$password"
 fi
+
+for key_file in "${authorized_keys_files[@]}"; do
+  cmdline+=" live.nixos.authorizedKeysUrl={{ ID \"$key_file\" }}"
+done
 
 pixiecore_args=(
   boot

@@ -36,7 +36,7 @@ _: let
 
     config = {
       boot = {
-        loader.systemd-boot.enable = lib.mkForce false;
+        loader.systemd-boot.enable = false;
 
         lanzaboote = {
           enable = true;

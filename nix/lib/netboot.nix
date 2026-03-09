@@ -2,7 +2,6 @@
   inputs,
   context,
   config,
-  ...
 }: let
   inherit
     (context)
@@ -33,6 +32,7 @@
         pkgs = hostPkgs;
         modules = [
           "${hostNixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
+          ./netboot-installer.nix
           config.flake.nix.substitutersModule
           {
             networking.hostName = "${hostname}-installer";
@@ -92,28 +92,19 @@
     meta.description = "Serve a PXE/netboot installer for ${hostname} via pixiecore";
   };
 in {
-  perSystem = {
-    pkgs,
-    system,
-    ...
-  }: let
-    hostInstallers =
-      lib.mapAttrs
-      mkNetbootInstaller
-      (lib.filterAttrs (_: hostConfig: helpers.mkSystem hostConfig == system) nixosHosts);
-  in {
-    packages =
-      lib.mapAttrs' (
-        hostname: installer:
-          lib.nameValuePair "${hostname}-netboot-installer" installer
-      )
-      hostInstallers;
+  packagesForSystem = system:
+    lib.mapAttrs'
+    (
+      hostname: hostConfig:
+        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller hostname hostConfig)
+    )
+    (lib.filterAttrs (_: hostConfig: helpers.mkSystem hostConfig == system) nixosHosts);
 
-    apps =
-      lib.mapAttrs' (
-        hostname: hostConfig:
-          lib.nameValuePair "${hostname}-netboot" (mkNetbootApp pkgs hostname hostConfig)
-      )
-      nixosHosts;
-  };
+  appsForSystem = pkgs:
+    lib.mapAttrs'
+    (
+      hostname: hostConfig:
+        lib.nameValuePair "${hostname}-netboot" (mkNetbootApp pkgs hostname hostConfig)
+    )
+    nixosHosts;
 }
