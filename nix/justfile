@@ -123,3 +123,23 @@ history n="1" *args:
     current=$(basename "$(readlink {{ system-profile }})" | grep -oE '[0-9]+')
     min=$((current - {{ n }}))
     nvd history -p {{ system-profile }} -m "$min" {{ args }}
+
+# Install NixOS on a remote target via nixos-anywhere
+install host target:
+    @echo "Installing NixOS on {{ host }} via {{ target }}"
+    nix run .#nixos-anywhere -- \
+      --flake .#{{ host }} \
+      --target-host root@{{ target }}
+
+# Install NixOS onto a locally-connected drive
+install-local host device:
+    @echo "Installing NixOS on {{ host }} to {{ device }}"
+    sudo nix run github:nix-community/disko -- \
+      --mode disko hosts/{{ host }}/disks.nix \
+      --arg device '"{{ device }}"'
+    sudo nixos-install --flake .#{{ host }} --root /mnt
+
+# Build and run a NixOS VM for testing
+vm host:
+    nixos-rebuild build-vm --flake .#{{ host }}
+    result/bin/run-*-vm
