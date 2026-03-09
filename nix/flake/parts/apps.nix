@@ -28,9 +28,9 @@ in {
         };
         nixos-anywhere = {
           type = "app";
-          program =
-            lib.getExe
-            inputs.nixos-anywhere.packages.${system}.nixos-anywhere;
+          program = lib.getExe'
+          inputs.nixos-anywhere.packages.${system}.nixos-anywhere
+          "nixos-anywhere";
           meta.description = "Install NixOS on remote targets";
         };
       }
