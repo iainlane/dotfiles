@@ -1,11 +1,9 @@
 _: let
   nixosModule = {pkgs, ...}: {
-    services.xserver = {
-      desktopManager.gnome.enable = true;
-      displayManager.gdm = {
-        enable = true;
-        wayland = true;
-      };
+    services.desktopManager.gnome.enable = true;
+    services.displayManager.gdm = {
+      enable = true;
+      wayland = true;
     };
 
     programs.dconf.enable = true;
