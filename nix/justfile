@@ -222,8 +222,9 @@ build-iso host:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "${_green}==> Building ISO for {{ host }}${_reset}"
-    nix build ".#{{ host }}-iso" --out-link "{{ host }}-iso"
+    host_system=$(nix eval ".#nixosConfigurations.{{ host }}.config.nixpkgs.system" --raw)
+    echo "${_green}==> Building ISO for {{ host }} (${host_system})${_reset}"
+    nix build ".#packages.${host_system}.{{ host }}-iso" --out-link "{{ host }}-iso"
     iso=$(echo {{ host }}-iso/iso/*.iso)
     echo "${_green}==> ISO built: ${iso}${_reset}"
     echo "    Write to USB with: dd if=${iso} of=/dev/sdX bs=4M status=progress oflag=sync"
