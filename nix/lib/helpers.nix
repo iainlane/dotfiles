@@ -110,15 +110,6 @@
     )
     hosts;
 
-  # The operating systems in use by our hosts.
-  hostOsNames = hosts:
-    builtins.attrNames (
-      lib.foldl'
-      (acc: hostConfig: acc // {"${hostConfig.os}" = true;})
-      {}
-      (builtins.attrValues hosts)
-    );
-
   # Normalise host profile entries into a flat list of
   # `{ name, profileOptions }`.
   #
@@ -533,7 +524,6 @@ in {
     addHostHomeDirectories
     directoryNames
     fileNames
-    hostOsNames
     hosts
     importNixFiles
     mkHomeConfiguration
