@@ -5,10 +5,7 @@ in {
     modules = [borgmatic];
 
     homeManagerModule = {pkgs, ...}: {
-      home.packages = with pkgs; [
-        deckmaster
-        lurk
-      ];
+      home.packages = import ./linux-packages.nix pkgs;
     };
   };
 }
