@@ -6,7 +6,7 @@ in {
   flake.profiles.desktop.os.nixos = {
     modules = [gnome vmHost secureBoot];
 
-    homeManagerModule = import ./linux-home.nix;
+    homeManagerModule = config.flake.profiles.desktop.os.linux.homeManagerModule;
 
     nixosModule = {pkgs, ...}: {
       fonts.packages = with pkgs; [

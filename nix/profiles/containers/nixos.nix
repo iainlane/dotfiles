@@ -1,6 +1,6 @@
-{
+{config, ...}: {
   flake.profiles.containers.os.nixos = {
-    homeManagerModule = import ./linux-home.nix;
+    homeManagerModule = config.flake.profiles.containers.os.linux.homeManagerModule;
 
     nixosModule = {
       virtualisation.podman = {
