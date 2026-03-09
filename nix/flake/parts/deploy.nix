@@ -11,6 +11,7 @@
     hosts
     darwinHosts
     linuxHosts
+    nixosHosts
     username
     ;
 
@@ -53,10 +54,29 @@
     )
     linuxHosts;
 
-  # Merge all nodes from both OSes
-  allNodes = darwinNodes // linuxNodes;
+  # Build NixOS deploy nodes
+  nixosNodes =
+    lib.mapAttrs (
+      hostname: hostConfig: let
+        system = helpers.mkSystem hostConfig;
+        deployLib = inputs.deploy-rs.lib.${system};
+      in {
+        inherit (hostConfig) hostname;
+        sshUser = username;
+        profiles.system = {
+          user = "root";
+          path =
+            deployLib.activate.nixos
+            config.flake.nixosConfigurations.${hostname};
+        };
+      }
+    )
+    nixosHosts;
 
-  # Add home-manager profile to each node
+  # Merge all nodes from all OSes
+  allNodes = darwinNodes // linuxNodes // nixosNodes;
+
+  # Add home-manager profile to each node (skip NixOS hosts which have it embedded)
   nodes =
     lib.mapAttrs (
       hostname: node: let
@@ -65,17 +85,22 @@
         deployLib = inputs.deploy-rs.lib.${system};
         homeConfigName = "${username}@${hostname}";
       in
-        node
-        // {
-          profiles =
-            node.profiles
-            // {
-              ${username} = {
-                user = username;
-                path = deployLib.activate.home-manager config.flake.homeConfigurations.${homeConfigName};
+        if hostConfig.os == "nixos"
+        then node
+        else
+          node
+          // {
+            profiles =
+              node.profiles
+              // {
+                ${username} = {
+                  user = username;
+                  path =
+                    deployLib.activate.home-manager
+                    config.flake.homeConfigurations.${homeConfigName};
+                };
               };
-            };
-        }
+          }
     )
     allNodes;
 
