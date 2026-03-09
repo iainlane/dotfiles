@@ -22,10 +22,12 @@
     then {
       primary = pkgs-stable;
       secondary = pkgs;
+      nixpkgs = inputs.nixpkgs-stable;
     }
     else {
       primary = pkgs;
       secondary = pkgs-stable;
+      nixpkgs = inputs.nixpkgs;
     };
 in {
   flake.nixosConfigurations =
@@ -63,7 +65,7 @@ in {
               };
             };
           in
-            channel.primary.lib.nixosSystem {
+            channel.nixpkgs.lib.nixosSystem {
               inherit system;
               pkgs = channel.primary;
               modules =
