@@ -1,20 +1,11 @@
 _: let
   nixosModule = {
     username,
-    pkgs,
     ...
   }: {
     virtualisation.libvirtd = {
       enable = true;
-      qemu = {
-        swtpm.enable = true;
-        ovmf.packages = [
-          (pkgs.OVMF.override {
-            secureBoot = true;
-            tpmSupport = true;
-          }).fd
-        ];
-      };
+      qemu.swtpm.enable = true;
     };
 
     programs.virt-manager.enable = true;
