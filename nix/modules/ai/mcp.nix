@@ -2,12 +2,13 @@
   pkgs,
   inputs,
   lib,
+  options,
   ...
-}: let
-  mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
-in {
-  programs.mcp = {
-    enable = true;
-    inherit (mcp) servers;
+}: {
+  config = lib.optionalAttrs (options ? programs && options.programs ? mcp) {
+    programs.mcp = {
+      enable = true;
+      inherit (import ./mcp-servers.nix {inherit pkgs inputs lib;}) servers;
+    };
   };
 }

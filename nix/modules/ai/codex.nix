@@ -3,6 +3,7 @@
   pkgs,
   inputs,
   lib,
+  options,
   system,
   ...
 }: let
@@ -26,9 +27,18 @@
         --prefix PATH : ${lib.makeBinPath mcp.packages}
     '';
   };
+
+  hasCodexModule = options ? programs && options.programs ? codex;
 in {
-  programs.codex = {
-    enable = true;
-    package = codexWrapped;
-  };
+  config =
+    if hasCodexModule
+    then {
+      programs.codex = {
+        enable = true;
+        package = codexWrapped;
+      };
+    }
+    else {
+      home.packages = [codexWrapped];
+    };
 }

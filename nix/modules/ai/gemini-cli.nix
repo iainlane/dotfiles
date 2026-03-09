@@ -3,6 +3,7 @@
   pkgs,
   inputs,
   lib,
+  options,
   system,
   ...
 }: let
@@ -13,11 +14,19 @@
     package = inputs.llm-agents.packages.${system}.gemini-cli;
     binName = "gemini";
   };
+
+  hasGeminiModule = options ? programs && options.programs ? gemini-cli;
 in {
-  programs.gemini-cli = {
-    enable = true;
-    package = wrappedGemini;
-    # The module exposes settings.mcpServers; feed in the shared list.
-    settings.mcpServers = mcp.servers;
-  };
+  config =
+    if hasGeminiModule
+    then {
+      programs.gemini-cli = {
+        enable = true;
+        package = wrappedGemini;
+        settings.mcpServers = mcp.servers;
+      };
+    }
+    else {
+      home.packages = [wrappedGemini];
+    };
 }
