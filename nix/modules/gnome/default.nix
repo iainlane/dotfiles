@@ -1,9 +1,5 @@
 _: let
-  nixosModule = {
-    lib,
-    pkgs,
-    ...
-  }: {
+  nixosModule = {pkgs, ...}: {
     services.xserver = {
       desktopManager.gnome.enable = true;
       displayManager.gdm = {
