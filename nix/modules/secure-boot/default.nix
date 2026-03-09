@@ -1,4 +1,4 @@
-{config, inputs, ...}: let
+_: let
   secureBoot = {
     lib,
     config,
@@ -8,6 +8,10 @@
   }: let
     cfg = config.dotfiles.secureBoot;
   in {
+    imports = [
+      "${inputs.nixpkgs-measured-boot}/nixos/modules/system/boot/systemd/tpm2.nix"
+    ];
+
     options.dotfiles.secureBoot = {
       luksDevice = lib.mkOption {
         type = lib.types.str;
@@ -27,10 +31,6 @@
     };
 
     config = {
-      imports = [
-        "${inputs.nixpkgs-measured-boot}/nixos/modules/system/boot/systemd/tpm2.nix"
-      ];
-
       boot = {
         loader.systemd-boot.enable = lib.mkForce false;
 

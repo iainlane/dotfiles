@@ -1,4 +1,4 @@
-{config, ...}: let
+_: let
   nixosModule = {
     username,
     pkgs,
