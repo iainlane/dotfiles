@@ -1,0 +1,42 @@
+{
+  username,
+  hostConfig,
+  ...
+}: {
+  boot = {
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+    };
+    initrd.systemd.enable = true;
+  };
+
+  networking = {
+    hostName = hostConfig.hostname;
+    networkmanager.enable = true;
+  };
+
+  time.timeZone = hostConfig.timezone or "Europe/London";
+  i18n.defaultLocale = hostConfig.locale or "en_GB.UTF-8";
+
+  users.users.${username} = {
+    isNormalUser = true;
+    home = hostConfig.homeDirectory;
+    extraGroups = ["wheel" "networkmanager"];
+    shell = "/run/current-system/sw/bin/zsh";
+  };
+
+  programs.zsh.enable = true;
+
+  security = {
+    sudo-rs.enable = true;
+    polkit.enable = true;
+  };
+
+  nix.settings = {
+    experimental-features = ["nix-command" "flakes"];
+    keep-outputs = true;
+  };
+
+  system.stateVersion = "25.05";
+}
