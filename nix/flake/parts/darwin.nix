@@ -22,7 +22,7 @@ in {
       in
         withSystem system (
           args: let
-            inherit (args.config._module.args) pkgs;
+            inherit (args.config._module.args) pkgs pkgs-stable;
             homeConfig = helpers.mkHomeConfiguration {
               inherit
                 hostConfig
@@ -65,6 +65,7 @@ in {
                   inputs
                   hostname
                   hostConfig
+                  pkgs-stable
                   username
                   ;
               };

@@ -1,6 +1,4 @@
-{
-  inputs,
-}: {
+{inputs}: {
   context,
   config,
 }: let
@@ -27,23 +25,22 @@
       config = nixpkgsConfig;
     };
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
-    installer =
-      hostNixpkgs.lib.nixosSystem {
-        system = hostSystem;
-        pkgs = hostPkgs;
-        modules = [
-          "${hostNixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
-          ./netboot-installer.nix
-          config.flake.nix.substitutersModule
-          {
-            networking.hostName = "${hostname}-installer";
-            system.stateVersion = stateVersion;
-          }
-        ];
-        specialArgs = {
-          inherit inputs;
-        };
+    installer = hostNixpkgs.lib.nixosSystem {
+      system = hostSystem;
+      pkgs = hostPkgs;
+      modules = [
+        "${hostNixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
+        ./netboot-installer.nix
+        config.flake.nix.substitutersModule
+        {
+          networking.hostName = "${hostname}-installer";
+          system.stateVersion = stateVersion;
+        }
+      ];
+      specialArgs = {
+        inherit inputs;
       };
+    };
   in
     hostPkgs.linkFarm "${hostname}-netboot-installer" [
       {
@@ -86,7 +83,7 @@
         export NETBOOT_ARTIFACT_ATTR=${lib.escapeShellArg artifactAttr}
         export NETBOOT_BOOT_MESSAGE=${lib.escapeShellArg "Booting ${hostname} NixOS installer"}
         export NETBOOT_DISPLAY_NAME=${lib.escapeShellArg hostname}
-        export NETBOOT_FLAKE_REF=${lib.escapeShellArg (toString inputs.self)}
+        export NETBOOT_FLAKE_REF=${lib.escapeShellArg "path:${toString inputs.self}"}
         ${builtins.readFile ./netboot-server.bash}
       '';
     });

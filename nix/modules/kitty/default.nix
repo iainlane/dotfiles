@@ -64,8 +64,10 @@ _: let
 in {
   flake.modules.kitty = {
     homeManagerModules = [homeManagerModule];
-    os.darwin.homeManagerModules = [darwinHomeManagerModule];
-    os.linux.homeManagerModules = [linuxHomeManagerModule];
-    os.nixos.homeManagerModules = [linuxHomeManagerModule];
+    os = {
+      darwin.homeManagerModules = [darwinHomeManagerModule];
+      linux.homeManagerModules = [linuxHomeManagerModule];
+      nixos.homeManagerModules = [linuxHomeManagerModule];
+    };
   };
 }

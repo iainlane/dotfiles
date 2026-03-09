@@ -14,6 +14,10 @@
   linuxBuilder = {
     cores = 6;
     memoryMiB = 8192;
+    systems = [
+      "aarch64-linux"
+      "x86_64-linux"
+    ];
   };
 
   homeModule = _: {

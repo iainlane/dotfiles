@@ -1,8 +1,5 @@
 _: let
-  nixosModule = {
-    username,
-    ...
-  }: {
+  nixosModule = {username, ...}: {
     virtualisation.libvirtd = {
       enable = true;
       qemu.swtpm.enable = true;
