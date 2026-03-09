@@ -5,10 +5,7 @@
     ...
   }: {
     home = {
-      packages = with pkgs; [
-        deckmaster
-        lurk
-      ];
+      packages = import ./linux-packages.nix pkgs;
 
       # deploy-rs activate-rs invokes `nix-env` by name on remote hosts.
       # Ensure non-interactive SSH sessions can resolve Nix CLI binaries.
