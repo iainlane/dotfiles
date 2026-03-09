@@ -8,7 +8,7 @@
     bacon-ls.url = "github:iainlane/bacon-ls/22ab710c6bf76602272b5dc6e0c17fdd169dc1a0";
 
     catppuccin.url = "github:catppuccin/nix";
-    catppuccin-stable.url = "github:catppuccin/nix/release-25.05";
+    catppuccin-stable.url = "github:catppuccin/nix/release-25.11";
 
     catppuccin-bat = {
       url = "github:catppuccin/bat";
@@ -29,7 +29,7 @@
     home-manager.url = "github:nix-community/home-manager";
 
     home-manager-stable = {
-      url = "github:nix-community/home-manager/release-25.05";
+      url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
