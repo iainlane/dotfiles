@@ -7,7 +7,7 @@ _: let
     ...
   }: let
     cfg = config.dotfiles.secureBoot;
-    secretsFile = inputs.secrets + "/${config.networking.hostName}/secure-boot.yaml";
+    secretsFile = inputs.secrets + "/${config.networking.hostName}/host-secure-boot.yaml";
   in {
     disabledModules = [
       "system/boot/systemd/tpm2.nix"
