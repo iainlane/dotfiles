@@ -5,7 +5,7 @@
   ...
 }: {
   imports = [
-    inputs.nixos-hardware.nixosModules.framework-13-ai-300
+    inputs.nixos-hardware.nixosModules.framework-amd-ai-300-series
   ];
 
   boot = {
