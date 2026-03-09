@@ -158,4 +158,4 @@ if ((dhcp_no_bind)); then
 fi
 
 echo "Starting pixiecore for ${NETBOOT_DISPLAY_NAME} on ${listen_addr}:${http_port}"
-exec sudo pixiecore "${pixiecore_args[@]}"
+exec sudo "$(command -v pixiecore)" "${pixiecore_args[@]}"
