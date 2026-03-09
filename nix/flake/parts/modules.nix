@@ -9,11 +9,13 @@ in {
       options = {
         homeManagerModules = moduleListOption;
         systemManagerModules = moduleListOption;
+        nixosModules = moduleListOption;
         os = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
               homeManagerModules = moduleListOption;
               systemManagerModules = moduleListOption;
+              nixosModules = moduleListOption;
             };
           });
           default = {};
