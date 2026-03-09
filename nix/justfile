@@ -217,6 +217,17 @@ netboot host *args:
     echo "${_green}==> Serving netboot for {{ host }} with ${#agent_keys[@]} SSH key(s)${_reset}"
     nix run .#{{ host }}-netboot -- "${netboot_args[@]}" {{ args }}
 
+# Build an ISO installer image for a host
+build-iso host:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "${_green}==> Building ISO for {{ host }}${_reset}"
+    nix build ".#{{ host }}-iso" --out-link "{{ host }}-iso"
+    iso=$(echo {{ host }}-iso/iso/*.iso)
+    echo "${_green}==> ISO built: ${iso}${_reset}"
+    echo "    Write to USB with: dd if=${iso} of=/dev/sdX bs=4M status=progress oflag=sync"
+
 # Install NixOS onto a locally-connected drive
 install-local host device:
     @echo "Installing NixOS on {{ host }} to {{ device }}"
