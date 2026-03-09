@@ -9,7 +9,7 @@ in {
       ...
     }: {
       home.sessionPath = lib.mkForce [];
-      targets.genericLinux.enable = false;
+      targets.genericLinux.enable = lib.mkForce false;
     };
   };
 }
