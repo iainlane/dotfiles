@@ -10,6 +10,9 @@ nix-config-base := env('NIX_CONFIG', '')
 nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
 export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token
 
+# Secrets repository URL (cloned for key management)
+secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
+
 # Platform-specific system rebuild command
 
 system-profile := if os() == "macos" { "/nix/var/nix/profiles/system" } else { "/nix/var/nix/profiles/system" }
@@ -126,10 +129,47 @@ history n="1" *args:
 
 # Install NixOS on a remote target via nixos-anywhere
 install host target:
-    @echo "Installing NixOS on {{ host }} via {{ target }}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    keys_dir="${TMPDIR:-/tmp}/nixos-keys-{{ host }}"
+    extra_files_args=()
+
+    if [[ -d "$keys_dir" ]]; then
+        echo "==> Found pre-generated keys in $keys_dir"
+
+        extra_files_dir=$(mktemp -d)
+        trap 'rm -rf "$extra_files_dir"' EXIT
+
+        # SSH host key → /etc/ssh/
+        install -d -m 0755 "$extra_files_dir/etc/ssh"
+        install -m 0600 "$keys_dir/ssh_host_ed25519_key" "$extra_files_dir/etc/ssh/ssh_host_ed25519_key"
+        install -m 0644 "$keys_dir/ssh_host_ed25519_key.pub" "$extra_files_dir/etc/ssh/ssh_host_ed25519_key.pub"
+
+        # User age key → /home/$USER/.ssh/
+        user_ssh_dir="$extra_files_dir/home/$USER/.ssh"
+        install -d -m 0700 "$user_ssh_dir"
+        install -m 0600 "$keys_dir/age-sops" "$user_ssh_dir/age-sops"
+
+        extra_files_args=(--extra-files "$extra_files_dir")
+        echo "    SSH host key and user age key will be injected"
+    else
+        echo "==> No pre-generated keys found in $keys_dir"
+        echo "    Run 'just generate-host-keys {{ host }}' first to set up keys"
+        echo "    Proceeding without key injection..."
+    fi
+
+    echo "==> Installing NixOS on {{ host }} via {{ target }}"
     nix run .#nixos-anywhere -- \
       --flake .#{{ host }} \
-      --target-host root@{{ target }}
+      --target-host root@{{ target }} \
+      "${extra_files_args[@]}"
+
+    if [[ -d "$keys_dir" ]]; then
+        echo "==> Cleaning up ephemeral keys"
+        rm -rf "$keys_dir"
+        echo "    Keys removed from $keys_dir"
+    fi
 
 # Serve a PXE/netboot installer for a host using keys from ssh-agent
 netboot host *args:
@@ -174,3 +214,105 @@ install-local host device:
 vm host:
     nixos-rebuild build-vm --flake .#{{ host }}
     result/bin/run-*-vm
+
+# Generate SSH host key and age keys for a new NixOS host, update secrets repo
+generate-host-keys host:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    keys_dir="${TMPDIR:-/tmp}/nixos-keys-{{ host }}"
+    if [[ -d "$keys_dir" ]]; then
+        echo "Keys directory $keys_dir already exists."
+        echo "If you want to regenerate, remove it first: rm -rf $keys_dir"
+        exit 1
+    fi
+    mkdir -p "$keys_dir"
+
+    echo "==> Generating SSH host key for {{ host }}"
+    ssh-keygen -t ed25519 -N "" -C "root@{{ host }}" -f "$keys_dir/ssh_host_ed25519_key"
+
+    echo "==> Deriving age public key from SSH host key"
+    host_age_pub=$(ssh-to-age < "$keys_dir/ssh_host_ed25519_key.pub")
+    echo "    Host age public key: $host_age_pub"
+
+    echo "==> Generating user age key for $USER"
+    age-keygen -o "$keys_dir/age-sops" 2>"$keys_dir/age-sops.pub.tmp"
+    user_age_pub=$(grep 'public key' "$keys_dir/age-sops.pub.tmp" | sed 's/.*: //')
+    rm "$keys_dir/age-sops.pub.tmp"
+    echo "    User age public key: $user_age_pub"
+
+    echo "==> Cloning secrets repo"
+    secrets_dir=$(mktemp -d)
+    # git+ssh:// isn't valid for git clone; strip the prefix
+    clone_url="{{ secrets_repo }}"
+    clone_url="${clone_url#git+}"
+    git clone "$clone_url" "$secrets_dir"
+
+    echo "==> Updating .sops.yaml with new keys for {{ host }}"
+    cd "$secrets_dir"
+
+    # Add the new host's keys as a creation rule. We use yq to append to the
+    # creation_rules array, adding entries for both system-level (host key) and
+    # user-level (age key) secrets.
+    if command -v yq &>/dev/null; then
+        yq -i '
+            .keys += [
+                {"&{{ host }}_host": "'"$host_age_pub"'"},
+                {"&{{ host }}_user": "'"$user_age_pub"'"}
+            ] |
+            .creation_rules += [{
+                "path_regex": "^{{ host }}/.*$",
+                "key_groups": [{"age": ["*{{ host }}_host", "*{{ host }}_user"]}]
+            }]
+        ' .sops.yaml
+    else
+        cat <<SOPS_EOF
+
+    !! yq is not available. Please add the following to .sops.yaml manually:
+
+    keys:
+      - &{{ host }}_host $host_age_pub
+      - &{{ host }}_user $user_age_pub
+
+    creation_rules:
+      - path_regex: ^{{ host }}/.*$
+        key_groups:
+          - age:
+              - *{{ host }}_host
+              - *{{ host }}_user
+
+SOPS_EOF
+        echo "Opening .sops.yaml for manual editing..."
+        ${EDITOR:-vi} .sops.yaml
+    fi
+
+    echo ""
+    echo "==> Secrets to create for {{ host }}:"
+    echo "    - Borgmatic SSH key (if using borgmatic backups)"
+    echo "    - Any other host-specific secrets"
+    echo ""
+    read -rp "Press Enter to open sops for {{ host }} secrets (or Ctrl-C to skip)..."
+
+    mkdir -p "{{ host }}"
+    if [[ ! -f "{{ host }}/secrets.yaml" ]]; then
+        sops "{{ host }}/secrets.yaml"
+    else
+        sops "{{ host }}/secrets.yaml"
+    fi
+
+    echo "==> Committing and pushing secrets repo"
+    git add -A
+    git commit -m "feat: add keys and secrets for {{ host }}"
+    git push
+
+    cd - >/dev/null
+    rm -rf "$secrets_dir"
+
+    echo ""
+    echo "==> Keys generated successfully"
+    echo "    Keys directory: $keys_dir"
+    echo "    SSH host key:   $keys_dir/ssh_host_ed25519_key"
+    echo "    User age key:   $keys_dir/age-sops"
+    echo ""
+    echo "    Use 'just install {{ host }} <target>' to deploy with these keys."
+    echo "    Keys will be injected via --extra-files and cleaned up after deployment."

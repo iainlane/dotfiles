@@ -7,6 +7,7 @@ _: let
     ...
   }: let
     cfg = config.dotfiles.secureBoot;
+    secretsFile = inputs.secrets + "/${config.networking.hostName}/secure-boot.yaml";
   in {
     disabledModules = [
       "system/boot/systemd/tpm2.nix"
@@ -35,6 +36,17 @@ _: let
     };
 
     config = {
+      sops.secrets = {
+        "pcr-signing-private.pem" = {
+          sopsFile = secretsFile;
+          path = "${cfg.pcrSigningKeyDir}/pcr-signing-private.pem";
+        };
+        "pcr-signing-public.pem" = {
+          sopsFile = secretsFile;
+          path = "${cfg.pcrSigningKeyDir}/pcr-signing-public.pem";
+        };
+      };
+
       boot = {
         loader.systemd-boot.enable = false;
 
@@ -43,8 +55,8 @@ _: let
           pkiBundle = "/etc/secureboot";
           pcrSigning = {
             enable = true;
-            privateKeyFile = "${cfg.pcrSigningKeyDir}/pcr-signing-private.pem";
-            publicKeyFile = "${cfg.pcrSigningKeyDir}/pcr-signing-public.pem";
+            privateKeyFile = config.sops.secrets."pcr-signing-private.pem".path;
+            publicKeyFile = config.sops.secrets."pcr-signing-public.pem".path;
           };
         };
 
