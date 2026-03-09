@@ -66,10 +66,11 @@ in {
       hosts;
 
     perSystem = {system, ...}: let
-      mkPkgs = nixpkgs: import nixpkgs {
-        inherit system overlays;
-        config = nixpkgsConfig;
-      };
+      mkPkgs = nixpkgs:
+        import nixpkgs {
+          inherit system overlays;
+          config = nixpkgsConfig;
+        };
       pkgs = mkPkgs inputs.nixpkgs;
       pkgs-stable = mkPkgs inputs.nixpkgs-stable;
     in {

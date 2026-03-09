@@ -215,29 +215,32 @@
       baseVal = profile.${moduleType};
       profileModules = lib.attrByPath ["modules"] [] profile;
 
-      osVals = lib.concatMap (osName: let
-        osVal = (profile.os.${osName} or {}).${moduleType} or null;
-        osFeatureModules = lib.attrByPath ["os" osName "modules"] [] profile;
-        osFeatureVal = featureModule (
-          (collectFeatureModules {
-            modules = profileModules;
-            moduleType = featureModuleType;
-            os = osName;
-          })
-          ++ (collectFeatureModules {
-            modules = osFeatureModules;
-            moduleType = featureModuleType;
-          })
-          ++ (collectFeatureModules {
-            modules = osFeatureModules;
-            moduleType = featureModuleType;
-            os = osName;
-          })
-        );
-      in
-        applyProfileModule entry osFeatureVal
-        ++ applyProfileModule entry osVal
-      ) osNames;
+      osVals =
+        lib.concatMap (
+          osName: let
+            osVal = (profile.os.${osName} or {}).${moduleType} or null;
+            osFeatureModules = lib.attrByPath ["os" osName "modules"] [] profile;
+            osFeatureVal = featureModule (
+              (collectFeatureModules {
+                modules = profileModules;
+                moduleType = featureModuleType;
+                os = osName;
+              })
+              ++ (collectFeatureModules {
+                modules = osFeatureModules;
+                moduleType = featureModuleType;
+              })
+              ++ (collectFeatureModules {
+                modules = osFeatureModules;
+                moduleType = featureModuleType;
+                os = osName;
+              })
+            );
+          in
+            applyProfileModule entry osFeatureVal
+            ++ applyProfileModule entry osVal
+        )
+        osNames;
 
       # Merge order is:
       #

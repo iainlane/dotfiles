@@ -1,6 +1,6 @@
 {config, ...}: {
   flake.profiles.containers.os.nixos = {
-    homeManagerModule = config.flake.profiles.containers.os.linux.homeManagerModule;
+    inherit (config.flake.profiles.containers.os.linux) homeManagerModule;
 
     nixosModule = {
       virtualisation.podman = {

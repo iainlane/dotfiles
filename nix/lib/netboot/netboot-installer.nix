@@ -1,4 +1,8 @@
-{lib, pkgs, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   boot.postBootCommands = lib.mkAfter ''
     root_ssh_dir=/root/.ssh
     nixos_ssh_dir=/home/nixos/.ssh
