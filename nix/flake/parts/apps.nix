@@ -13,6 +13,13 @@
           program = lib.getExe inputs.deploy-rs.packages.${system}.deploy-rs;
           meta.description = "Multi-profile Nix deployment tool";
         };
+        nixos-anywhere = {
+          type = "app";
+          program =
+            lib.getExe
+            inputs.nixos-anywhere.packages.${system}.nixos-anywhere;
+          meta.description = "Install NixOS on remote targets";
+        };
       }
       // lib.optionalAttrs (inputs.system-manager.packages ? ${system}) {
         system-manager = {
