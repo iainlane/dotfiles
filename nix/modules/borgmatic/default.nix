@@ -1,8 +1,19 @@
 _: let
   nixosModule = {
+    config,
+    inputs,
+    ...
+  }: let
+    secretsFile = inputs.secrets + "/${config.networking.hostName}/host-borgmatic.yaml";
+  in {
+    sops.secrets."encryption_passphrase" = {
+      sopsFile = secretsFile;
+    };
+
     services.borgmatic = {
       enable = true;
       settings = {
+        encryption_passcommand = "cat ${config.sops.secrets."encryption_passphrase".path}";
         source_directories = [
           "/home"
           "/etc"
