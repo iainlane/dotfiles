@@ -196,6 +196,13 @@
       then "nixosModules"
       else "systemManagerModules";
 
+    # NixOS hosts also inherit os.linux home-manager modules, since the
+    # user-level environment is the same across all Linux-like systems.
+    osNames =
+      if os == "nixos" && moduleType == "homeManagerModule"
+      then ["linux" "nixos"]
+      else [os];
+
     # Apply one module value for one profile entry.
     # Returns [] when moduleValue is null, otherwise returns a one-element list.
     applyProfileModule = entry: moduleValue:
@@ -220,16 +227,40 @@
     resolveEntry = entry: let
       profile = profiles.${entry.name} or (throw "Profile '${entry.name}' not found in flake.profiles");
       baseVal = profile.${moduleType};
-      osVal = (profile.os.${os} or {}).${moduleType} or null;
       profileModules = lib.attrByPath ["modules"] [] profile;
-      osFeatureModules = lib.attrByPath ["os" os "modules"] [] profile;
+
+      # Collect OS-specific values for each relevant OS name. For NixOS
+      # home-manager modules this includes both "linux" and "nixos", giving
+      # merge order: base -> os.linux -> os.nixos (most specific wins).
+      osVals = lib.concatMap (osName: let
+        osVal = (profile.os.${osName} or {}).${moduleType} or null;
+        osFeatureModules = lib.attrByPath ["os" osName "modules"] [] profile;
+        osFeatureVal = featureModule (
+          (collectFeatureModules {
+            modules = profileModules;
+            moduleType = featureModuleType;
+            os = osName;
+          })
+          ++ (collectFeatureModules {
+            modules = osFeatureModules;
+            moduleType = featureModuleType;
+          })
+          ++ (collectFeatureModules {
+            modules = osFeatureModules;
+            moduleType = featureModuleType;
+            os = osName;
+          })
+        );
+      in
+        applyProfileModule entry osFeatureVal
+        ++ applyProfileModule entry osVal
+      ) osNames;
 
       # Merge order is:
       #
       # 1. base feature modules
       # 2. base profile module
-      # 3. OS-specific feature modules
-      # 4. OS-specific profile module
+      # 3. OS-specific feature modules + profile module (per osName)
       #
       # This gives "profile overrides module" and "OS overrides base", in case
       # multiple places set the same thing.
@@ -239,29 +270,10 @@
           moduleType = featureModuleType;
         }
       );
-      osFeatureVal = featureModule (
-        (collectFeatureModules {
-          modules = profileModules;
-          moduleType = featureModuleType;
-          inherit os;
-        })
-        ++ (collectFeatureModules {
-          modules = osFeatureModules;
-          moduleType = featureModuleType;
-        })
-        ++ (collectFeatureModules {
-          modules = osFeatureModules;
-          moduleType = featureModuleType;
-          inherit os;
-        })
-      );
     in
-      lib.concatMap (applyProfileModule entry) [
-        baseFeatureVal
-        baseVal
-        osFeatureVal
-        osVal
-      ];
+      applyProfileModule entry baseFeatureVal
+      ++ applyProfileModule entry baseVal
+      ++ osVals;
   in
     lib.concatMap resolveEntry entries;
 
