@@ -1,12 +1,13 @@
 _: let
   homeManagerModule = {
     pkgs,
+    pkgs-unstable,
     config,
     inputs,
     system,
     ...
   }: let
-    lspSpec = import ./lsp.nix;
+    lspSpec = import ./lsp.nix {inherit pkgs-unstable;};
     toolsSpec = import ./tools.nix {
       inherit pkgs inputs system;
     };
@@ -25,6 +26,7 @@ _: let
         else spec;
     in {
       inherit packageName;
+      pkg = entry.pkg or (builtins.getAttr packageName pkgs);
       lspServers = normaliseList (
         entry.lsp or packageName
       );
@@ -60,7 +62,7 @@ _: let
           nodejs
           tree-sitter
         ])
-        ++ map (entry: builtins.getAttr entry.packageName pkgs) lspEntries
+        ++ map (entry: entry.pkg) lspEntries
         ++ builtins.attrValues toolsSpec
       );
     };
