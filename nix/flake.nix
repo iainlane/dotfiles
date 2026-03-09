@@ -16,11 +16,23 @@
 
     deploy-rs.url = "github:serokell/deploy-rs";
 
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     fenix.url = "github:nix-community/fenix";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
     home-manager.url = "github:nix-community/home-manager";
+
+    nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
+
+    lanzaboote = {
+      url = "github:iainlane/lanzaboote/measured-boot";
+      inputs.nixpkgs.follows = "nixpkgs-measured-boot";
+    };
 
     just-sublime = {
       url = "github:nk9/just_sublime";
@@ -38,6 +50,13 @@
     nh.url = "github:nix-community/nh/v4.3.0-beta1";
 
     nix-darwin.url = "github:LnL7/nix-darwin";
+
+    nixos-anywhere = {
+      url = "github:nix-community/nixos-anywhere";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     # Pre-built nix-index database for faster `nix-locate` queries
     nix-index-database = {
