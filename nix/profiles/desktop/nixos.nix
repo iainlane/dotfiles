@@ -1,9 +1,10 @@
 {config, ...}: let
   inherit (config.flake.modules) gnome;
   vmHost = config.flake.modules."vm-host";
+  secureBoot = config.flake.modules."secure-boot";
 in {
   flake.profiles.desktop.os.nixos = {
-    modules = [gnome vmHost];
+    modules = [gnome vmHost secureBoot];
 
     nixosModule = {pkgs, ...}: {
       fonts.packages = with pkgs; [
