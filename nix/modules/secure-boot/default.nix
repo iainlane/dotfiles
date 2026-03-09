@@ -8,6 +8,10 @@ _: let
   }: let
     cfg = config.dotfiles.secureBoot;
   in {
+    disabledModules = [
+      "system/boot/systemd/tpm2.nix"
+    ];
+
     imports = [
       "${inputs.nixpkgs-measured-boot}/nixos/modules/system/boot/systemd/tpm2.nix"
     ];
