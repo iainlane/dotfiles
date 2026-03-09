@@ -16,6 +16,12 @@ let
     hosts
     username
     ;
+
+  # NixOS hosts have home-manager embedded — no standalone config needed.
+  nonNixosHosts =
+    lib.filterAttrs
+    (_: hostConfig: hostConfig.os != "nixos")
+    hosts;
 in {
   flake.homeConfigurations =
     lib.mapAttrs' (
@@ -45,5 +51,5 @@ in {
           )
         )
     )
-    hosts;
+    nonNixosHosts;
 }
