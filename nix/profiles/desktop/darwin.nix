@@ -4,9 +4,11 @@
     lib,
     ...
   }: {
-    home.packages = with pkgs; [
-      code-cursor
-    ];
+    home.packages =
+      (with pkgs; [
+        code-cursor
+      ])
+      ++ import ./fonts.nix pkgs;
 
     services.gpg-agent.pinentry = {
       package = pkgs.pinentry_mac;
