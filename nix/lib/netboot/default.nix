@@ -68,6 +68,36 @@
       }
     ];
 
+  mkIsoInstaller = hostname: hostConfig: let
+    hostSystem = helpers.mkSystem hostConfig;
+    hostNixpkgs = mkHostNixpkgs hostConfig;
+    hostPkgs = import hostNixpkgs {
+      inherit overlays;
+      system = hostSystem;
+      config = nixpkgsConfig;
+    };
+    stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
+    hostToplevel = config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel;
+    installer = hostNixpkgs.lib.nixosSystem {
+      system = hostSystem;
+      pkgs = hostPkgs;
+      modules = [
+        "${hostNixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+        ./netboot-installer.nix
+        config.flake.nix.substitutersModule
+        {
+          networking.hostName = "${hostname}-installer";
+          system.stateVersion = stateVersion;
+          isoImage.storeContents = [hostToplevel];
+        }
+      ];
+      specialArgs = {
+        inherit inputs;
+      };
+    };
+  in
+    installer.config.system.build.isoImage;
+
   mkNetbootApp = pkgs: hostname: hostConfig: let
     hostSystem = helpers.mkSystem hostConfig;
     artifactAttr = "packages.${hostSystem}.${hostname}-netboot-installer";
@@ -90,13 +120,21 @@
     meta.description = "Serve a PXE/netboot installer for ${hostname} via pixiecore";
   };
 in {
-  packagesForSystem = system:
+  packagesForSystem = system: let
+    systemHosts = lib.filterAttrs (_: hostConfig: helpers.mkSystem hostConfig == system) nixosHosts;
+  in
     lib.mapAttrs'
     (
       hostname: hostConfig:
         lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller hostname hostConfig)
     )
-    (lib.filterAttrs (_: hostConfig: helpers.mkSystem hostConfig == system) nixosHosts);
+    systemHosts
+    // lib.mapAttrs'
+    (
+      hostname: hostConfig:
+        lib.nameValuePair "${hostname}-iso" (mkIsoInstaller hostname hostConfig)
+    )
+    systemHosts;
 
   appsForSystem = pkgs:
     lib.mapAttrs'
