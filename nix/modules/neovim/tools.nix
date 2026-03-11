@@ -5,6 +5,8 @@
 }: {
   # Formatter used by conform for Nix files.
   inherit (pkgs) alejandra;
+  inherit (pkgs) deadnix;
+  inherit (pkgs) statix;
 
   # LazyVim ansible extra adds this Mason tool. We provide it via Nix.
   ansible-lint = builtins.getAttr "ansible-lint" pkgs;
