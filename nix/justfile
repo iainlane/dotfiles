@@ -9,6 +9,7 @@ gh-token := `gh auth token 2>/dev/null || true`
 nix-config-base := env('NIX_CONFIG', '')
 nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
 export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token
+xdg_state_home := env('XDG_STATE_HOME', '~/.local/state/')
 
 # Secrets repository URL (cloned for key management)
 
@@ -66,7 +67,7 @@ update-host hostname *args:
 
 # Pre-build all direnv development shells for faster directory changes
 build-direnvs:
-    nix build .#direnv-shells --no-link
+    nix build .#direnv-shells --profile "{{ xdg_state_home }}/nix/profiles/direnv-shells"
 
 # Search for a package in nixpkgs
 search query *args:
@@ -98,7 +99,38 @@ inputs *args:
 
 # Delete old generations and garbage collect
 gc days="30":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    flake_path=$(pwd -P)
+    direnv_bin="/etc/profiles/per-user/${USER}/bin/direnv"
+    if [[ ! -x "${direnv_bin}" ]]; then
+        direnv_bin="$(command -v direnv)"
+    fi
+
     nh clean all --keep-since {{ days }}d
+    nix build .#direnv-shells --profile "{{ xdg_state_home }}/nix/profiles/direnv-shells"
+
+    while IFS= read -r -d '' envrc; do
+        if ! grep -Fq "use flake \"${flake_path}#direnvs." "${envrc}"; then
+            continue
+        fi
+
+        project_dir=${envrc%/.envrc}
+        rm -rf "${project_dir}/.direnv"
+        "${direnv_bin}" allow "${project_dir}"
+
+        if ! "${direnv_bin}" exec "${project_dir}" true >/dev/null; then
+            echo "${_yellow}warn${_reset} failed to refresh direnv cache for ${project_dir}" >&2
+        fi
+    done < <(
+        find "${HOME}" \
+            \( -path "${HOME}/.cache" -o -path "${HOME}/.local/share/Trash" -o -name .direnv -o -name .git -o -name node_modules \) -prune \
+            -o -name .envrc -print0 2>/dev/null
+    )
+
+    echo "${_yellow}note${_reset} shells started from older Home Manager generations can keep in-memory hooks to GC'd store paths"
+    echo "     Re-open existing terminals or run 'exec zsh -l' after cleanup if prompt hooks start failing"
 
 # Open a nix repl with the flake loaded
 repl *args:
