@@ -5,6 +5,7 @@ return {
 
   opts = {
     linters_by_ft = {
+      nix = { "statix", "deadnix" },
       yaml = { "zizmor" },
     },
   },
