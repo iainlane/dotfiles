@@ -4,43 +4,35 @@ _: let
     lib,
     ...
   }: {
-    options.dotfiles.ssh.matchBlocks = lib.mkOption {
-      type = lib.types.attrsOf lib.types.unspecified;
-      default = {};
+    options.dotfiles.ssh = {
+      includes = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+      };
+      matchBlocks = lib.mkOption {
+        type = lib.types.attrsOf lib.types.unspecified;
+        default = {};
+      };
     };
 
     config = {
-      home.file.".ssh/config".force = true;
-
-      # This fragment was created manually while bootstrapping nixbuild admin
-      # access. Remove it once Home Manager owns the equivalent match block.
-      home.activation.removeLegacyNixbuildAdmin = lib.hm.dag.entryBefore ["checkLinkTargets"] ''
-        rm -f "$HOME/.ssh/config.d/nixbuild-admin.conf"
-      '';
-
       programs.ssh = {
         enable = true;
-        includes = [
-          "~/.orbstack/ssh/config"
-          "~/.ssh/config.d/*"
-        ];
+        enableDefaultConfig = false;
+        inherit (config.dotfiles.ssh) includes;
         matchBlocks =
           {
-            "*.debian.org syklone.ubuntuwire.org".serverAliveInterval = 240;
-
-            cripps = {
-              hostname = "cripps.orangesquash.org.uk";
-              user = "laney";
-            };
-
-            os = {
-              hostname = "cripps.orangesquash.org.uk";
-              user = "laney";
-            };
-
-            "ha.home.orangesquash.org.uk" = {
-              hostname = "ha.home.orangesquash.org.uk";
-              user = "root";
+            "*" = {
+              forwardAgent = false;
+              addKeysToAgent = "no";
+              compression = false;
+              serverAliveInterval = 0;
+              serverAliveCountMax = 3;
+              hashKnownHosts = false;
+              userKnownHostsFile = "~/.ssh/known_hosts";
+              controlMaster = "no";
+              controlPath = "~/.ssh/master-%r@%n:%p";
+              controlPersist = "no";
             };
           }
           // config.dotfiles.ssh.matchBlocks;
