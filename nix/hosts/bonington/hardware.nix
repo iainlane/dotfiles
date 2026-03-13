@@ -19,19 +19,26 @@
     kernelModules = ["kvm-amd"];
     kernelParams = [
       "mem_sleep_default=s2idle"
+      "amdgpu.ppfeaturemask=0xfff7ffff"
+      "threadirqs"
     ];
   };
 
   hardware = {
     enableRedistributableFirmware = true;
     sensor.iio.enable = false;
-    bluetooth.enable = true;
-    bluetooth.powerOnBoot = true;
+    bluetooth = {
+      enable = true;
+      powerOnBoot = true;
+      settings.General.Experimental = true;
+    };
   };
 
   services = {
     fwupd.enable = true;
     fprintd.enable = true;
+    hardware.bolt.enable = true;
+    smartd.enable = true;
     auto-cpufreq = {
       enable = true;
       settings = {
