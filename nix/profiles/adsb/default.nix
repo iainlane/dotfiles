@@ -19,7 +19,7 @@
       piawareContainer = import ./piaware-container.nix {envFile = feederEnvFile;};
       fr24Container = import ./fr24-container.nix {envFile = feederEnvFile;};
       planewatchContainer = import ./planewatch-container.nix {envFile = feederEnvFile;};
-      normaliseSshKeyPath = path:
+      normalisePath = path:
         if lib.hasPrefix "/" path
         then path
         else "${config.home.homeDirectory}/${path}";
@@ -30,8 +30,6 @@
         {services.adsb = args;}
         {
           sops = {
-            age.sshKeyPaths = map normaliseSshKeyPath cfg.ageSshKeyPaths;
-
             secrets = {
               latitude.sopsFile = secretsFile;
               longitude.sopsFile = secretsFile;

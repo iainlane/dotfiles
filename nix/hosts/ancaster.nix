@@ -8,7 +8,6 @@
     {
       adsb = {
         secretsFile = "adsb.yaml";
-        ageSshKeyPaths = [".ssh/age-sops"];
       };
     }
   ];

@@ -156,6 +156,68 @@ If an update goes wrong, inspect history with `./just generations`, review
 recent generations with `./just history 5`, and compare two known generations
 with `./just diff <gen1> <gen2>`.
 
+## NixOS
+
+Some hosts in this repo are full [NixOS] hosts rather than `nix-darwin` or
+`system-manager` machines. You can find them in `hosts/` by looking for host
+records with `os = "nixos"`.
+
+Like everything else in this repo, these systems are declarative. Since we're
+talking about a full OS install, we need a way to provision the system. The
+steps below walk through this.
+
+### Generating keys
+
+A new NixOS host needs cryptographic keys before it can decrypt secrets. Run:
+
+```bash
+./just generate-host-keys <host>
+```
+
+This creates an SSH host key, derives an age key from it, generates a user age
+key, and updates `.sops.yaml` in the secrets repo. You will be prompted to
+create any host-specific secrets (e.g. borgmatic SSH keys) via `sops`. The
+recipe commits and pushes the secrets repo when done.
+
+### Netboot / PXE
+
+If the target machine has no OS on disk yet, netboot a minimal NixOS installer
+using [`pixiecore`][pixiecore]:
+
+```bash
+./just netboot <host>
+```
+
+PXE-boot the target on the same network segment and find its IP. If the machine
+already has a live environment reachable over SSH, skip this step.
+
+[pixiecore]: https://github.com/danderson/netboot/tree/main/pixiecore
+
+### Installing
+
+Once the target is reachable over SSH, install with
+[`nixos-anywhere`][nixos-anywhere]. Pass the keys directory printed by
+`generate-host-keys` to inject them into the installed system:
+
+```bash
+./just install <host> <ip-or-hostname> /path/to/keys-dir
+```
+
+The keys are cleaned up locally after a successful install. The SSH host key
+lands at `/etc/ssh/ssh_host_ed25519_key` and the user age key at
+`~/.config/sops/age/keys.txt`. Without a keys directory the install proceeds but
+the host won't be able to decrypt secrets until keys are provided manually.
+
+[nixos-anywhere]: https://github.com/nix-community/nixos-anywhere
+
+### Updating
+
+After the initial install, push configuration changes with:
+
+```bash
+./just update-host <host>
+```
+
 ### Cleanup
 
 Track disk usage growth with `./just size` and `./just sizes`, prune older
@@ -181,21 +243,42 @@ using an [age] key derived from an SSH private key.
 
 ### Generating the age key
 
-On each host that needs to decrypt secrets, generate a dedicated SSH key for
-sops:
+Key generation is handled by `./just generate-host-keys <host>` as part of the
+[installation process](#generating-keys). Both the SSH host key (system-level
+decryption) and a dedicated user age key are generated and injected during
+install. The user key is written in standard age format at
+`~/.config/sops/age/keys.txt`.
+
+### Other hosts
+
+On Darwin and Linux (system-manager) hosts, the simplest option is to generate a
+standard age identity for `sops`:
 
 ```sh
-ssh-keygen -t ed25519 -f ~/.ssh/age-sops -C "sops-nix age key" -N ""
+mkdir -p ~/.config/sops/age
+chmod 700 ~/.config/sops ~/.config/sops/age
+age-keygen -o ~/.config/sops/age/keys.txt
+chmod 600 ~/.config/sops/age/keys.txt
 ```
 
 Then derive the age public key and add it to `.sops.yaml` in the
 [dotfiles-secrets] repo so that secrets can be encrypted for this host:
 
 ```sh
-nix shell nixpkgs#ssh-to-age -c ssh-to-age < ~/.ssh/age-sops.pub
+nix shell nixpkgs#age -c age-keygen -y ~/.config/sops/age/keys.txt
 ```
 
-The private key must never be committed or added to the Nix store.
+If you already have an SSH private key you want to reuse, convert it into
+`keys.txt` instead of generating a fresh age key:
+
+```sh
+mkdir -p ~/.config/sops/age
+chmod 700 ~/.config/sops ~/.config/sops/age
+nix shell nixpkgs#ssh-to-age -c sh -c 'ssh-to-age -private-key -i ~/.ssh/your_key >> ~/.config/sops/age/keys.txt'
+chmod 600 ~/.config/sops/age/keys.txt
+```
+
+The private key material must never be committed or added to the Nix store.
 
 [age]: https://github.com/FiloSottile/age
 [dotfiles-secrets]: https://github.com/iainlane/dotfiles-secrets
