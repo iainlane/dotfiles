@@ -263,9 +263,20 @@ build-iso host:
     #!/usr/bin/env bash
     set -euo pipefail
 
+    build_system=$(nix eval --impure --expr 'builtins.currentSystem' --raw)
     host_system=$(nix eval ".#nixosConfigurations.{{ host }}.config.nixpkgs.system" --raw)
-    echo "${_green}==> Building ISO for {{ host }} (${host_system})${_reset}"
-    nix build ".#packages.${host_system}.{{ host }}-iso" --out-link "{{ host }}-iso"
+    remote_store="ssh-ng://nixbuild-store"
+    contents_drv=".#packages.${host_system}.{{ host }}-iso-contents"
+
+    echo "${_green}==> Building ISO contents for {{ host }} (${host_system}) via ${remote_store}${_reset}"
+    build_json=$(nix build --eval-store auto --store "${remote_store}" --json --no-link "${contents_drv}")
+    out_path=$(printf '%s' "${build_json}" | nix run nixpkgs#jq -- -r '.[0].outputs.out')
+
+    echo "${_green}==> Copying ISO contents to the local store${_reset}"
+    nix copy --from "${remote_store}?trusted=1" "${out_path}"
+
+    echo "${_green}==> Assembling ISO locally on ${build_system}${_reset}"
+    nix build ".#packages.${build_system}.{{ host }}-iso" --out-link "{{ host }}-iso"
     iso=$(echo {{ host }}-iso/iso/*.iso)
     echo "${_green}==> ISO built: ${iso}${_reset}"
     echo "    Write to USB with: dd if=${iso} of=/dev/sdX bs=4M status=progress oflag=sync"

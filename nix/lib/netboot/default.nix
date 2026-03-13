@@ -68,7 +68,7 @@
       }
     ];
 
-  mkIsoInstaller = hostname: hostConfig: let
+  mkIsoInstallerConfig = hostname: hostConfig: let
     hostSystem = helpers.mkSystem hostConfig;
     hostNixpkgs = mkHostNixpkgs hostConfig;
     hostPkgs = import hostNixpkgs {
@@ -78,6 +78,8 @@
     };
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
     hostToplevel = config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel;
+  in {
+    inherit hostNixpkgs hostPkgs;
     installer = hostNixpkgs.lib.nixosSystem {
       system = hostSystem;
       pkgs = hostPkgs;
@@ -89,14 +91,57 @@
           networking.hostName = "${hostname}-installer";
           system.stateVersion = stateVersion;
           isoImage.storeContents = [hostToplevel];
+          isoImage.makeBiosBootable = false;
         }
       ];
       specialArgs = {
         inherit inputs;
       };
     };
+  };
+
+  # All x86_64-linux inputs needed by the ISO assembly. Building this
+  # derivation ensures the entire closure is materialised in the store.
+  mkIsoContents = hostname: hostConfig: let
+    evaluated = mkIsoInstallerConfig hostname hostConfig;
+    installerConfig = evaluated.installer.config;
+    contentSources =
+      lib.imap0 (i: x: {
+        name = "content-${toString i}";
+        path = x.source;
+      })
+      installerConfig.isoImage.contents;
+    storePaths =
+      lib.imap0 (i: p: {
+        name = "store-${toString i}";
+        path = p;
+      })
+      installerConfig.isoImage.storeContents;
   in
-    installer.config.system.build.isoImage;
+    evaluated.hostPkgs.linkFarm "${hostname}-iso-contents"
+    (contentSources ++ storePaths);
+
+  mkLocalIso = buildSystem: hostname: hostConfig: let
+    evaluated = mkIsoInstallerConfig hostname hostConfig;
+    installerConfig = evaluated.installer.config;
+    buildPkgs = import evaluated.hostNixpkgs {
+      inherit overlays;
+      system = buildSystem;
+      config = nixpkgsConfig;
+    };
+  in
+    buildPkgs.callPackage "${evaluated.hostNixpkgs}/nixos/lib/make-iso9660-image.nix" {
+      inherit (installerConfig.isoImage) compressImage volumeID contents;
+      bootable = false;
+      efiBootImage = "boot/efi.img";
+      efiBootable = true;
+      inherit (installerConfig.isoImage) squashfsCompression;
+      isoName = "${installerConfig.image.baseName}.iso";
+      isohybridMbrImage = "${evaluated.hostPkgs.syslinux}/share/syslinux/isohdpfx.bin";
+      squashfsContents = installerConfig.isoImage.storeContents;
+      syslinux = null;
+      usbBootable = true;
+    };
 
   mkNetbootApp = pkgs: hostname: hostConfig: let
     hostSystem = helpers.mkSystem hostConfig;
@@ -132,9 +177,15 @@ in {
     // lib.mapAttrs'
     (
       hostname: hostConfig:
-        lib.nameValuePair "${hostname}-iso" (mkIsoInstaller hostname hostConfig)
+        lib.nameValuePair "${hostname}-iso-contents" (mkIsoContents hostname hostConfig)
     )
-    systemHosts;
+    systemHosts
+    // lib.mapAttrs'
+    (
+      hostname: hostConfig:
+        lib.nameValuePair "${hostname}-iso" (mkLocalIso system hostname hostConfig)
+    )
+    nixosHosts;
 
   appsForSystem = pkgs:
     lib.mapAttrs'
