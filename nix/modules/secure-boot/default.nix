@@ -53,6 +53,8 @@ _: let
         lanzaboote = {
           enable = true;
           pkiBundle = "/etc/secureboot";
+          autoGenerateKeys.enable = true;
+          autoEnrollKeys.enable = true;
           pcrSigning = {
             enable = true;
             privateKeyFile = config.sops.secrets."pcr-signing-private.pem".path;

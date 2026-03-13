@@ -181,7 +181,7 @@ history n="1" *args:
     nvd history -p {{ system-profile }} -m "${min}" {{ args }}
 
 # Install NixOS on a remote target via nixos-anywhere
-install host target keys_dir="":
+install host target keys_dir="" phases="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -199,13 +199,27 @@ install host target keys_dir="":
         install -m 0600 "${keys_dir}/ssh_host_ed25519_key" "${extra_files_dir}/etc/ssh/ssh_host_ed25519_key"
         install -m 0644 "${keys_dir}/ssh_host_ed25519_key.pub" "${extra_files_dir}/etc/ssh/ssh_host_ed25519_key.pub"
 
-        # User age key → /home/${USER}/.ssh/
-        user_ssh_dir="${extra_files_dir}/home/${USER}/.ssh"
-        install -d -m 0700 "${user_ssh_dir}"
-        install -m 0600 "${keys_dir}/age-sops" "${user_ssh_dir}/age-sops"
+        # User age key → /home/${USER}/.config/sops/age/
+        user_age_dir="${extra_files_dir}/home/${USER}/.config/sops/age"
+        install -d -m 0700 "${user_age_dir}"
+        install -m 0600 "${keys_dir}/keys.txt" "${user_age_dir}/keys.txt"
+
+        # Secure boot platform keys → /etc/secureboot/keys/
+        # Lanzaboote needs these at install time to sign boot entries.
+        # autoGenerateKeys will skip generation since they already exist.
+        echo "${_green}==> Generating secure boot platform keys${_reset}"
+        for subdir in PK KEK db; do
+            install -d -m 0700 "${extra_files_dir}/etc/secureboot/keys/${subdir}"
+            openssl req -new -x509 -newkey rsa:2048 -nodes \
+                -keyout "${extra_files_dir}/etc/secureboot/keys/${subdir}/${subdir}.key" \
+                -out "${extra_files_dir}/etc/secureboot/keys/${subdir}/${subdir}.pem" \
+                -subj "/CN={{ host }} ${subdir}/" -days 3650 2>/dev/null
+            chmod 0600 "${extra_files_dir}/etc/secureboot/keys/${subdir}/${subdir}.key"
+        done
+        printf '%s' "$(uuidgen)" > "${extra_files_dir}/etc/secureboot/GUID"
 
         extra_files_args=(--extra-files "${extra_files_dir}")
-        echo "    SSH host key and user age key will be injected"
+        echo "    SSH host key, user age key, and secure boot keys will be injected"
     elif [[ -n "${keys_dir}" ]]; then
         echo "${_red}==> Keys directory ${keys_dir} does not exist${_reset}" >&2
         exit 1
@@ -214,10 +228,17 @@ install host target keys_dir="":
         echo "    Run 'just generate-host-keys {{ host }}' first to set up keys"
     fi
 
+    phases_args=()
+    if [[ -n "{{ phases }}" ]]; then
+        phases_args=(--phases "{{ phases }}")
+    fi
+
     echo "${_green}==> Installing NixOS on {{ host }} via {{ target }}${_reset}"
     nix run .#nixos-anywhere -- \
       --flake .#{{ host }} \
       --target-host root@{{ target }} \
+      --chown "/home/${USER}/.config" 1000:100 \
+      "${phases_args[@]}" \
       "${extra_files_args[@]}"
 
     if [[ -n "${keys_dir}" && -d "${keys_dir}" ]]; then
@@ -365,6 +386,7 @@ generate-secureboot-secrets host secrets_dir:
     pcr_public=$(echo "${pcr_private}" | openssl pkey -pubout 2>/dev/null)
 
     plaintext=$(mktemp)
+    trap 'rm -f "${plaintext}"' EXIT
     {
         echo "pcr-signing-private.pem: |"
         echo "${pcr_private}" | sed 's/^/    /'
