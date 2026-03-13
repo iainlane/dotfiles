@@ -45,8 +45,14 @@ update-system *args:
 
 [linux]
 update-system *args:
-    # system-manager (nh doesn't support system-manager yet)
-    sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run .#system-manager -- switch --flake . {{ args }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -f /etc/NIXOS ]]; then
+        nh os switch . {{ args }}
+    else
+        # system-manager (nh doesn't support system-manager yet)
+        sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run .#system-manager -- switch --flake . {{ args }}
+    fi
 
 # Rebuild and switch to the new home-manager configuration. Linux only. On mac,
 
