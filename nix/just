@@ -12,12 +12,13 @@ cd "$(dirname "$0")"
 nh_package=".#hostPrograms.$(hostname -s).nh.package"
 
 exec nix shell \
-  nixpkgs#just \
-  nixpkgs#nvd \
   nixpkgs#age \
-  nixpkgs#ssh-to-age \
-  nixpkgs#sops \
-  nixpkgs#yq-go \
+  nixpkgs#just \
+  nixpkgs#mkpasswd \
+  nixpkgs#nvd \
   nixpkgs#openssl \
+  nixpkgs#sops \
+  nixpkgs#ssh-to-age \
+  nixpkgs#yq-go \
   "$nh_package" \
   --command just "$@"

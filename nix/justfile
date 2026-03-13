@@ -367,11 +367,38 @@ generate-keys host keys_dir:
 
     echo "${_green}==> Generating user age key for ${USER}${_reset}"
     age_out=$(age-keygen 2>&1)
-    echo "${age_out}" | grep '^AGE-SECRET-KEY' > "{{ keys_dir }}/age-sops"
-    chmod 0600 "{{ keys_dir }}/age-sops"
+    echo "${age_out}" | grep '^AGE-SECRET-KEY' > "{{ keys_dir }}/keys.txt"
+    chmod 0600 "{{ keys_dir }}/keys.txt"
     user_age_pub=$(echo "${age_out}" | grep 'public key' | sed 's/.*: //')
     echo "${user_age_pub}" > "{{ keys_dir }}/user_age_pub"
     echo "    User age public key: ${user_age_pub}"
+
+# Prompt for a user passphrase, hash it, and encrypt with sops
+[private]
+generate-user-secrets host secrets_dir:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd "{{ secrets_dir }}"
+
+    echo "${_green}==> Setting login password for {{ host }}${_reset}"
+    while true; do
+        IFS= read -r -s -p "Enter passphrase for ${USER}@{{ host }}: " pass; echo
+        IFS= read -r -s -p "Confirm passphrase: " pass2; echo
+        if [[ "${pass}" == "${pass2}" ]]; then
+            break
+        fi
+        echo "${_red}    Passphrases do not match, try again${_reset}"
+    done
+
+    hashed=$(mkpasswd -m sha-512 "${pass}")
+
+    plaintext=$(mktemp)
+    trap 'rm -f "${plaintext}"' EXIT
+    echo "user-password-hash: ${hashed}" > "${plaintext}"
+    sops --encrypt --input-type yaml --output-type yaml --filename-override "{{ host }}/host-user-password.yaml" "${plaintext}" > "{{ host }}/host-user-password.yaml"
+    rm -f "${plaintext}"
+    echo "    Created {{ host }}/host-user-password.yaml"
 
 # Generate secure boot PCR signing keys and encrypt with sops
 [private]
@@ -437,10 +464,12 @@ generate-host-keys host:
     clone_url="${clone_url#git+}"
     git clone "${clone_url}" "${secrets_dir}"
 
-    echo "${_green}==> Updating .sops.yaml with new keys for {{ host }}${_reset}"
+    echo "${_green}==> Updating .sops.yaml with keys for {{ host }}${_reset}"
     cd "${secrets_dir}"
-    # Add age keys with anchors, then create per-scope creation rules
+    # Remove any existing entries for this host, then add fresh ones
     yq -i '
+        .keys = [.keys[] | select(anchor != "{{ host }}_host" and anchor != "{{ host }}_user")] |
+        .creation_rules = [.creation_rules[] | select(.path_regex != "^{{ host }}/host-.*\\.yaml$" and .path_regex != "^{{ host }}/user-.*\\.yaml$")] |
         .keys += ["'"${host_age_pub}"'"] |
         .keys[-1] anchor = "{{ host }}_host" |
         .keys += ["'"${user_age_pub}"'"] |
@@ -454,7 +483,9 @@ generate-host-keys host:
             "path_regex": "^{{ host }}/user-.*\\.yaml$",
             "key_groups": [{"age": []}]
         }] |
-        .creation_rules[-1].key_groups[0].age[0] alias = "{{ host }}_user"
+        .creation_rules[-1].key_groups[0].age[0] alias = "{{ host }}_user" |
+        .keys |= sort_by(anchor) |
+        .creation_rules |= sort_by(.path_regex)
     ' .sops.yaml
 
     mkdir -p "{{ host }}"
@@ -462,11 +493,13 @@ generate-host-keys host:
 
     just generate-secureboot-secrets "{{ host }}" "${secrets_dir}"
     just generate-borgmatic-secrets "{{ host }}" "${secrets_dir}"
+    just generate-user-secrets "{{ host }}" "${secrets_dir}"
 
     cd "${secrets_dir}"
     echo "${_green}==> Committing and pushing secrets repo${_reset}"
     git add -A
-    git commit -m "feat: add keys and secrets for {{ host }}"
+    git diff --cached --quiet && { echo "    No changes to secrets repo"; } || \
+        git commit -m "feat: update keys and secrets for {{ host }}"
     git push
     cd - >/dev/null
 
@@ -476,7 +509,7 @@ generate-host-keys host:
     echo "${_green}==> Keys generated successfully${_reset}"
     echo "    Keys directory: ${keys_dir}"
     echo "    SSH host key:   ${keys_dir}/ssh_host_ed25519_key"
-    echo "    User age key:   ${keys_dir}/age-sops"
+    echo "    User age key:   ${keys_dir}/keys.txt"
     echo ""
     echo "    Use 'just install {{ host }} <target> ${keys_dir}' to deploy with these keys."
     echo "    Keys will be injected via --extra-files and cleaned up after deployment."

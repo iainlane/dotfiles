@@ -1,10 +1,14 @@
 {
+  config,
+  inputs,
   lib,
   pkgs,
   username,
   hostConfig,
   ...
-}: {
+}: let
+  secretsFile = inputs.secrets + "/${config.networking.hostName}/host-user-password.yaml";
+in {
   boot = {
     loader = {
       systemd-boot.enable = lib.mkDefault true;
@@ -21,11 +25,17 @@
   time.timeZone = hostConfig.timezone or "Europe/London";
   i18n.defaultLocale = hostConfig.locale or "en_GB.UTF-8";
 
+  sops.secrets.user-password-hash = {
+    sopsFile = secretsFile;
+    neededForUsers = true;
+  };
+
   users.users.${username} = {
     isNormalUser = true;
     home = hostConfig.homeDirectory;
     extraGroups = ["wheel" "networkmanager"];
     shell = pkgs.zsh;
+    hashedPasswordFile = config.sops.secrets.user-password-hash.path;
   };
 
   programs.zsh.enable = true;
