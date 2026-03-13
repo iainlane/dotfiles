@@ -1,14 +1,15 @@
 let
   btrfsMountOptions = ["compress=zstd" "discard=async" "noatime" "space_cache=v2" "ssd"];
-  dataSubvolumes = builtins.mapAttrs (_: mountpoint: {
-    inherit mountpoint;
-    mountOptions = btrfsMountOptions;
-  }) {
-    "@root" = "/";
-    "@home" = "/home";
-    "@nix" = "/nix";
-    "@log" = "/var/log";
-  };
+  dataSubvolumes =
+    builtins.mapAttrs (_: mountpoint: {
+      inherit mountpoint;
+      mountOptions = btrfsMountOptions;
+    }) {
+      "@root" = "/";
+      "@home" = "/home";
+      "@nix" = "/nix";
+      "@log" = "/var/log";
+    };
 in {
   disko.devices = {
     disk.main = {
@@ -36,12 +37,14 @@ in {
               content = {
                 type = "btrfs";
                 extraArgs = ["-f"];
-                subvolumes = dataSubvolumes // {
-                  "@swap" = {
-                    mountpoint = "/.swapvol";
-                    swap.swapfile.size = "8G";
+                subvolumes =
+                  dataSubvolumes
+                  // {
+                    "@swap" = {
+                      mountpoint = "/.swapvol";
+                      swap.swapfile.size = "8G";
+                    };
                   };
-                };
               };
             };
           };

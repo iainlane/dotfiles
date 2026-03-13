@@ -58,7 +58,6 @@ in {
     username,
     ...
   }: let
-    xdgConfigHome = hostConfig.xdgConfigHome or "${hostConfig.homeDirectory}/.config";
     remoteStoreKeyPath = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_store";
   in {
     sops = {
