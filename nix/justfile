@@ -243,6 +243,7 @@ install host target keys_dir="" phases="":
 
     if [[ -n "${keys_dir}" && -d "${keys_dir}" ]]; then
         echo "${_green}==> Cleaning up ephemeral keys${_reset}"
+        find "${keys_dir}" -type f -exec shred -u {} +
         rm -rf "${keys_dir}"
         echo "    Keys removed from ${keys_dir}"
     fi
@@ -365,6 +366,10 @@ generate-keys host keys_dir:
     echo "${host_age_pub}" > "{{ keys_dir }}/host_age_pub"
     echo "    Host age public key: ${host_age_pub}"
 
+    echo "${_green}==> Generating user SSH key for ${USER}@{{ host }}${_reset}"
+    ssh-keygen -t ed25519 -N "" -C "${USER}@{{ host }}" -f "{{ keys_dir }}/id_ed25519"
+    echo "    User SSH public key: $(cat "{{ keys_dir }}/id_ed25519.pub")"
+
     echo "${_green}==> Generating user age key for ${USER}${_reset}"
     age_out=$(age-keygen 2>&1)
     echo "${age_out}" | grep '^AGE-SECRET-KEY' > "{{ keys_dir }}/keys.txt"
@@ -375,7 +380,7 @@ generate-keys host keys_dir:
 
 # Prompt for a user passphrase, hash it, and encrypt with sops
 [private]
-generate-user-secrets host secrets_dir:
+generate-user-secrets host secrets_dir keys_dir:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -399,6 +404,18 @@ generate-user-secrets host secrets_dir:
     sops --encrypt --input-type yaml --output-type yaml --filename-override "{{ host }}/host-user-password.yaml" "${plaintext}" > "{{ host }}/host-user-password.yaml"
     rm -f "${plaintext}"
     echo "    Created {{ host }}/host-user-password.yaml"
+
+    echo "${_green}==> Encrypting user SSH private key${_reset}"
+    plaintext=$(mktemp)
+    echo "ssh-private-key: |" > "${plaintext}"
+    sed 's/^/    /' "{{ keys_dir }}/id_ed25519" >> "${plaintext}"
+    sops --encrypt --input-type yaml --output-type yaml --filename-override "{{ host }}/user-ssh-key.yaml" "${plaintext}" > "{{ host }}/user-ssh-key.yaml"
+    rm -f "${plaintext}"
+    echo "    Created {{ host }}/user-ssh-key.yaml"
+
+    echo "${_green}==> Adding user SSH key to GitHub${_reset}"
+    gh ssh-key add "{{ keys_dir }}/id_ed25519.pub" --title "${USER}@{{ host }}"
+    echo "    Added ${USER}@{{ host }} to GitHub SSH keys"
 
 # Generate secure boot PCR signing keys and encrypt with sops
 [private]
@@ -448,6 +465,7 @@ generate-host-keys host:
     keys_dir=$(mktemp -d)
     cleanup() {
         if [[ $? -ne 0 ]]; then
+            find "${keys_dir}" -type f -exec shred -u {} +
             rm -rf "${keys_dir}"
         fi
     }
@@ -493,7 +511,7 @@ generate-host-keys host:
 
     just generate-secureboot-secrets "{{ host }}" "${secrets_dir}"
     just generate-borgmatic-secrets "{{ host }}" "${secrets_dir}"
-    just generate-user-secrets "{{ host }}" "${secrets_dir}"
+    just generate-user-secrets "{{ host }}" "${secrets_dir}" "${keys_dir}"
 
     cd "${secrets_dir}"
     echo "${_green}==> Committing and pushing secrets repo${_reset}"
@@ -509,6 +527,7 @@ generate-host-keys host:
     echo "${_green}==> Keys generated successfully${_reset}"
     echo "    Keys directory: ${keys_dir}"
     echo "    SSH host key:   ${keys_dir}/ssh_host_ed25519_key"
+    echo "    User SSH key:   ${keys_dir}/id_ed25519"
     echo "    User age key:   ${keys_dir}/keys.txt"
     echo ""
     echo "    Use 'just install {{ host }} <target> ${keys_dir}' to deploy with these keys."
