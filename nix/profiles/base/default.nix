@@ -1,6 +1,7 @@
 {config, ...}: let
   inherit
     (config.flake.modules)
+    catppuccin
     git
     motd
     neovim
@@ -11,6 +12,7 @@
     ;
   cliTools = config.flake.modules."cli-tools";
   commonModules = [
+    catppuccin
     git
     motd
     scripts
@@ -39,7 +41,6 @@ in {
   }: {
     imports = [
       inputs.nix-index-database.homeModules.nix-index
-      ./colours.nix
     ];
 
     home = {

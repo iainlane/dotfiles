@@ -26,7 +26,6 @@
       unstable = pkgs;
       nixpkgs = inputs.nixpkgs-stable;
       home-manager = inputs.home-manager-stable;
-      catppuccin = inputs.catppuccin-stable;
     }
     else {
       primary = pkgs;
@@ -35,7 +34,6 @@
       unstable = pkgs;
       inherit (inputs) nixpkgs;
       inherit (inputs) home-manager;
-      inherit (inputs) catppuccin;
     };
 in {
   flake.nixosConfigurations =
@@ -62,11 +60,7 @@ in {
               inherit (config.flake) profiles;
               extraSpecialArgs = {
                 inherit (channel) secondary;
-                inputs =
-                  inputs
-                  // {
-                    inherit (channel) catppuccin;
-                  };
+                inherit inputs;
                 pkgs-stable = channel.stable;
                 pkgs-unstable = channel.unstable;
               };
