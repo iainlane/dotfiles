@@ -19,10 +19,6 @@
       piawareContainer = import ./piaware-container.nix {envFile = feederEnvFile;};
       fr24Container = import ./fr24-container.nix {envFile = feederEnvFile;};
       planewatchContainer = import ./planewatch-container.nix {envFile = feederEnvFile;};
-      normalisePath = path:
-        if lib.hasPrefix "/" path
-        then path
-        else "${config.home.homeDirectory}/${path}";
     in {
       imports = [./options.nix];
 
