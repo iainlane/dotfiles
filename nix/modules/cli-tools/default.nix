@@ -29,6 +29,11 @@ _: let
     ];
 
     catppuccin = {
+      bottom.enable = true;
+      btop.enable = true;
+      eza.enable = true;
+      fzf.enable = true;
+      k9s.enable = true;
       lazygit.enable = true;
     };
 
