@@ -2,6 +2,7 @@
   inherit
     (config.flake.modules)
     git
+    motd
     neovim
     scripts
     ssh
@@ -11,6 +12,7 @@
   cliTools = config.flake.modules."cli-tools";
   commonModules = [
     git
+    motd
     scripts
     ssh
     zsh
