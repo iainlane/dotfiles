@@ -43,7 +43,8 @@ in {
             "pr-review-toolkit@claude-plugins-official" = true;
             "ralph-loop@claude-plugins-official" = true;
             "security-guidance@claude-plugins-official" = true;
-            "superpowers@claude-plugins-official" = true;
+            # It seems to aggressively replace default behaviours.
+            # "superpowers@claude-plugins-official" = true;
             "typescript-lsp@claude-plugins-official" = true;
           };
           env = {
