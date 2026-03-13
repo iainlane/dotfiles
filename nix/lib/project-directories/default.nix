@@ -90,7 +90,7 @@ in {
         treePath = [cfg.attrNamespace system] ++ toTreePath dirConfig.attrPath;
         flakeAttr = lib.concatStringsSep "." treePath;
         shellAttr = lib.attrByPath treePath null inputs.self.outputs;
-        derivationComment = "# ${builtins.unsafeDiscardOutputDependency shellAttr.drvPath}\n";
+        derivationComment = "# ${builtins.unsafeDiscardStringContext shellAttr.drvPath}\n";
         absoluteDir = toAbsolute dirPath;
       in {
         name = "${dirPath}/.envrc";

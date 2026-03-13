@@ -26,7 +26,6 @@ in {
       ./nix.nix
       ./modules.nix
       ./profiles.nix
-      ./project-directories.nix
       ./home.nix
       ./linux.nix
       ./nixos.nix
