@@ -16,16 +16,21 @@
   };
 
   hasGeminiModule = options ? programs && options.programs ? gemini-cli;
+  hasCatppuccinGeminiModule = options ? catppuccin && options.catppuccin ? gemini-cli;
 in {
   config =
     if hasGeminiModule
-    then {
-      programs.gemini-cli = {
-        enable = true;
-        package = wrappedGemini;
-        settings.mcpServers = mcp.servers;
-      };
-    }
+    then
+      {
+        programs.gemini-cli = {
+          enable = true;
+          package = wrappedGemini;
+          settings.mcpServers = mcp.servers;
+        };
+      }
+      // lib.optionalAttrs hasCatppuccinGeminiModule {
+        catppuccin.gemini-cli.enable = true;
+      }
     else {
       home.packages = [wrappedGemini];
     };

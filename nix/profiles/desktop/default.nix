@@ -35,7 +35,21 @@ in {
     programs.vscode = {
       enable = true;
 
-      profiles.default.enableMcpIntegration = true;
+      profiles.default = {
+        enableMcpIntegration = true;
+        extensions = with pkgs.vscode-extensions; [
+          catppuccin.catppuccin-vsc
+        ];
+        userSettings = {
+          "catppuccin.accentColor" = "mauve";
+          "editor.semanticHighlighting.enabled" = true;
+          "terminal.integrated.minimumContrastRatio" = 1;
+          "window.autoDetectColorScheme" = true;
+          "window.titleBarStyle" = "custom";
+          "workbench.preferredDarkColorTheme" = "Catppuccin Mocha";
+          "workbench.preferredLightColorTheme" = "Catppuccin Latte";
+        };
+      };
     };
 
     services.gpg-agent = {

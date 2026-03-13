@@ -20,6 +20,8 @@ _: let
       "${config.home.homeDirectory}/bin"
     ];
 
+    catppuccin.zsh-syntax-highlighting.enable = true;
+
     programs.zsh = {
       antidote = {
         enable = true;
