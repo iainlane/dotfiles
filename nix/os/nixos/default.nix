@@ -32,13 +32,16 @@ in {
         sopsFile = secretsFile;
         neededForUsers = true;
       };
-      ssh-private-key = {
-        sopsFile = sshKeyFile;
-        owner = username;
-        path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
-      };
     };
     age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
+
+  home-manager.users.${username}.sops = {
+    age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
+    secrets.ssh-private-key = {
+      sopsFile = sshKeyFile;
+      path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
+    };
   };
 
   users.users.${username} = {
