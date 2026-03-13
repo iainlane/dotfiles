@@ -1,8 +1,19 @@
-{
+let
+  btrfsMountOptions = ["compress=zstd" "discard=async" "noatime" "space_cache=v2" "ssd"];
+  dataSubvolumes = builtins.mapAttrs (_: mountpoint: {
+    inherit mountpoint;
+    mountOptions = btrfsMountOptions;
+  }) {
+    "@root" = "/";
+    "@home" = "/home";
+    "@nix" = "/nix";
+    "@log" = "/var/log";
+  };
+in {
   disko.devices = {
     disk.main = {
       type = "disk";
-      device = "/dev/nvme0n1";
+      device = "/dev/disk/by-id/nvme-WD_BLACK_SN7100_1TB_25435D803157";
       content = {
         type = "gpt";
         partitions = {
@@ -25,23 +36,7 @@
               content = {
                 type = "btrfs";
                 extraArgs = ["-f"];
-                subvolumes = {
-                  "@root" = {
-                    mountpoint = "/";
-                    mountOptions = ["compress=zstd" "noatime"];
-                  };
-                  "@home" = {
-                    mountpoint = "/home";
-                    mountOptions = ["compress=zstd" "noatime"];
-                  };
-                  "@nix" = {
-                    mountpoint = "/nix";
-                    mountOptions = ["compress=zstd" "noatime"];
-                  };
-                  "@log" = {
-                    mountpoint = "/var/log";
-                    mountOptions = ["compress=zstd" "noatime"];
-                  };
+                subvolumes = dataSubvolumes // {
                   "@swap" = {
                     mountpoint = "/.swapvol";
                     swap.swapfile.size = "8G";
