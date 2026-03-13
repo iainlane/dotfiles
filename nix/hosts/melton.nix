@@ -1,7 +1,10 @@
-{
+let
+  halls = import ../lib/halls.nix;
+in {
   hostname = "melton.local";
   os = "darwin";
   arch = "aarch64";
+  motd = halls.melton;
   profiles = [
     "base"
     "development"
