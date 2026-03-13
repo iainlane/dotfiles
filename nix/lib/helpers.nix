@@ -472,7 +472,7 @@
     # A home-manager module fragment that profiles can import to configure
     # project-directories. This reduces boilerplate.
     homeManagerModule = _: {
-      imports = [config.flake.projectDirectories.homeManagerModule];
+      imports = [./project-directories];
 
       programs.projectDirectories = {
         enable = true;
