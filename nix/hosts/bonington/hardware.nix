@@ -18,7 +18,6 @@
     ];
     kernelModules = ["kvm-amd"];
     kernelParams = [
-      "mem_sleep_default=s2idle"
       "amdgpu.ppfeaturemask=0xfff7ffff"
       "threadirqs"
     ];
