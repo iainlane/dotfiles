@@ -5,5 +5,17 @@
     ./linux.nix
   ];
 
-  flake.profiles.home.homeManagerModule = {};
+  flake.profiles.home.homeManagerModule = {
+    dotfiles.ssh.matchBlocks = {
+      cripps = {
+        hostname = "cripps.orangesquash.org.uk";
+        user = "laney";
+      };
+
+      os = {
+        hostname = "cripps.orangesquash.org.uk";
+        user = "laney";
+      };
+    };
+  };
 }

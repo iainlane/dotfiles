@@ -270,6 +270,42 @@ build-iso host:
     echo "${_green}==> ISO built: ${iso}${_reset}"
     echo "    Write to USB with: dd if=${iso} of=/dev/sdX bs=4M status=progress oflag=sync"
 
+# Sync nixbuild.net's substituters and trusted public keys with this repo's shared cache configuration.
+sync-nixbuild-substituters:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    tmp=$(mktemp)
+    trap 'rm -f "${tmp}"' EXIT
+
+    mapfile -t substituters < <(
+      nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches \
+        | nix run nixpkgs#jq -- -r 'to_entries[] | (.value.substituter // ("https://" + .key))'
+    )
+    mapfile -t trusted_public_keys < <(
+      nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches \
+        | nix run nixpkgs#jq -- -r 'to_entries[] | ((.value.publicKeyName // .key) + "-1:" + .value.key)'
+    )
+
+    {
+      echo "settings substituters --reset"
+      for substituter in "${substituters[@]}"; do
+        printf 'settings substituters --add %q\n' "${substituter}"
+      done
+
+      echo "settings trusted-public-keys --reset"
+      for trusted_public_key in "${trusted_public_keys[@]}"; do
+        printf 'settings trusted-public-keys --add %q\n' "${trusted_public_key}"
+      done
+
+      echo "settings substituters --show"
+      echo "settings trusted-public-keys --show"
+      echo "exit"
+    } > "${tmp}"
+
+    echo "${_green}==> Syncing nixbuild.net account cache settings${_reset}"
+    ssh -T nixbuild-admin < "${tmp}"
+
 # Install NixOS onto a locally-connected drive
 install-local host device:
     @echo "Installing NixOS on {{ host }} to {{ device }}"

@@ -4,6 +4,7 @@
     git
     neovim
     scripts
+    ssh
     starship
     zsh
     ;
@@ -11,6 +12,7 @@
   commonModules = [
     git
     scripts
+    ssh
     zsh
     neovim
     starship
