@@ -27,7 +27,7 @@ _: let
       };
       "org/gnome/desktop/peripherals/touchpad" = {
         tap-to-click = true;
-        natural-scroll = true;
+        natural-scroll = false;
       };
       "org/gnome/mutter" = {
         edge-tiling = true;
