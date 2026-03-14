@@ -36,7 +36,10 @@ in {
         };
       };
 
-      catppuccin.plymouth.enable = config.boot.plymouth.enable;
+      catppuccin.plymouth = {
+        enable = config.boot.plymouth.enable;
+        flavor = "mocha";
+      };
     };
   };
 }
