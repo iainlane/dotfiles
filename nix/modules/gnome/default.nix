@@ -1,9 +1,15 @@
 _: let
   nixosModule = {pkgs, ...}: {
-    services.desktopManager.gnome.enable = true;
-    services.displayManager.gdm = {
-      enable = true;
-      wayland = true;
+    services = {
+      desktopManager.gnome.enable = true;
+      displayManager.gdm = {
+        enable = true;
+        wayland = true;
+      };
+      gnome = {
+        core-developer-tools.enable = true;
+        games.enable = true;
+      };
     };
 
     programs.dconf.enable = true;
