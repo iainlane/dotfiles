@@ -55,6 +55,10 @@ in {
 
   programs.zsh.enable = true;
 
+  # Enable envfs and nix-ld to support non-nixos scripts better.
+  services.envfs.enable = true;
+  programs.nix-ld.enable = true;
+
   security = {
     sudo-rs.enable = true;
     polkit.enable = true;
