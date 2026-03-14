@@ -59,24 +59,6 @@
       modules
     );
 
-  # Compute the canonical home directory for a user on supported host OSes.
-  # Throws if `os` is not one of "darwin" or "linux".
-  mkHomeDirectory = {
-    os,
-    username,
-  }: let
-    baseDir =
-      {
-        darwin = "/Users";
-        linux = "/home";
-        nixos = "/home";
-      }
-      .${
-        os
-      }
-      or (throw "Unsupported OS: ${os}");
-  in "${baseDir}/${username}";
-
   # Hosts from `hosts/*.nix` and `hosts/*/default.nix`, keyed by name.
   hosts = let
     # File-based hosts: hosts/foo.nix -> { name = "foo"; value = ...; }
@@ -101,23 +83,6 @@
         (directoryNames ../hosts));
   in
     lib.listToAttrs (fileHosts ++ dirHosts);
-
-  # Add a computed `homeDirectory` field to each host config.
-  addHostHomeDirectories = {
-    hosts,
-    username,
-  }:
-    lib.mapAttrs (
-      _: hostConfig:
-        hostConfig
-        // {
-          homeDirectory = mkHomeDirectory {
-            inherit (hostConfig) os;
-            inherit username;
-          };
-        }
-    )
-    hosts;
 
   # Normalise host profile entries into a flat list of
   # `{ name, profileOptions }`.
@@ -281,7 +246,7 @@
       moduleType = "homeManagerModule";
       inherit hostConfig profiles;
     }
-    ++ lib.optional (hostConfig ? homeModule) hostConfig.homeModule
+    ++ lib.optional (hostConfig.homeModule or null != null) hostConfig.homeModule
     ++ [
       {
         home = {
@@ -291,26 +256,6 @@
       }
     ];
 
-  mkSystemModules = {
-    hostConfig,
-    profiles,
-  }:
-    mkModules {
-      moduleType = "systemManagerModule";
-      inherit hostConfig profiles;
-    }
-    ++ lib.optional (hostConfig ? systemModule) hostConfig.systemModule;
-
-  mkNixosModules = {
-    hostConfig,
-    profiles,
-  }:
-    mkModules {
-      moduleType = "nixosModule";
-      inherit hostConfig profiles;
-    }
-    ++ lib.optional (hostConfig ? nixosModule) hostConfig.nixosModule;
-
   # Construct the specialArgs attrset passed to home-manager modules. Provides
   # access to flake inputs, host metadata, and the canonical flake path.
   mkHomeSpecialArgs = {
@@ -318,15 +263,13 @@
     hostname,
     system,
     inputs,
-    username,
     extraArgs ? {},
   }: let
-    homeDir = mkHomeDirectory {
-      inherit (hostConfig) os;
-      inherit username;
-    };
-    defaultFlakePath = "${homeDir}/dev/random/dotfiles/nix";
-    flakePath = hostConfig.flakePath or defaultFlakePath;
+    defaultFlakePath = "${hostConfig.homeDirectory}/dev/random/dotfiles/nix";
+    flakePath =
+      if (hostConfig.flakePath or null) != null
+      then hostConfig.flakePath
+      else defaultFlakePath;
   in
     {
       inherit
@@ -365,7 +308,6 @@
         hostConfig
         hostname
         system
-        username
         ;
       inherit inputs;
       extraArgs = extraSpecialArgs;
@@ -519,28 +461,13 @@
     };
   };
 in {
-  # Map host metadata onto canonical Nix system strings ("x86_64-linux",
-  # "aarch64-darwin", etc). This lets host definitions use simple "os" and
-  # "arch" fields instead of repeating the full system string.
-  mkSystem = config:
-    assert lib.assertMsg (builtins.elem config.os ["darwin" "linux" "nixos"])
-    "mkSystem: config.os must be 'darwin', 'linux', or 'nixos', got '${config.os}'";
-    assert lib.assertMsg (builtins.elem config.arch ["x86_64" "aarch64"])
-    "mkSystem: config.arch must be 'x86_64' or 'aarch64', got '${config.arch}'"; "${config.arch}-${
-      if config.os == "darwin"
-      then "darwin"
-      else "linux"
-    }";
-
   inherit
-    addHostHomeDirectories
     discoverModules
     fileNames
     hosts
     importNixFiles
     mkHomeConfiguration
-    mkNixosModules
+    mkModules
     mkProjectShells
-    mkSystemModules
     ;
 }

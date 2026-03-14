@@ -14,7 +14,9 @@ in {
       config,
       ...
     }: {
-      fonts.packages = import ./fonts.nix pkgs;
+      imports = [./console.nix];
+
+      fonts.packages = import ../fonts.nix pkgs;
 
       boot = {
         consoleLogLevel = lib.mkDefault 0;
@@ -37,7 +39,7 @@ in {
       };
 
       catppuccin.plymouth = {
-        enable = config.boot.plymouth.enable;
+        inherit (config.boot.plymouth) enable;
         flavor = "mocha";
       };
     };

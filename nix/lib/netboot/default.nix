@@ -1,23 +1,18 @@
 {inputs}: {
-  context,
   config,
+  nixosHosts,
+  overlays,
+  nixpkgsConfig,
 }: let
-  inherit
-    (context)
-    lib
-    helpers
-    nixosHosts
-    overlays
-    nixpkgsConfig
-    ;
+  inherit (inputs.nixpkgs) lib;
 
   mkHostNixpkgs = hostConfig:
-    if (hostConfig.channel or "unstable") == "stable"
+    if hostConfig.channel == "stable"
     then inputs.nixpkgs-stable
     else inputs.nixpkgs;
 
   mkNetbootInstaller = hostname: hostConfig: let
-    hostSystem = helpers.mkSystem hostConfig;
+    hostSystem = hostConfig.system;
     hostNixpkgs = mkHostNixpkgs hostConfig;
     hostPkgs = import hostNixpkgs {
       inherit overlays;
@@ -69,7 +64,7 @@
     ];
 
   mkIsoInstallerConfig = hostname: hostConfig: let
-    hostSystem = helpers.mkSystem hostConfig;
+    hostSystem = hostConfig.system;
     hostNixpkgs = mkHostNixpkgs hostConfig;
     hostPkgs = import hostNixpkgs {
       inherit overlays;
@@ -144,7 +139,7 @@
     };
 
   mkNetbootApp = pkgs: hostname: hostConfig: let
-    hostSystem = helpers.mkSystem hostConfig;
+    hostSystem = hostConfig.system;
     artifactAttr = "packages.${hostSystem}.${hostname}-netboot-installer";
   in {
     type = "app";
@@ -166,7 +161,7 @@
   };
 in {
   packagesForSystem = system: let
-    systemHosts = lib.filterAttrs (_: hostConfig: helpers.mkSystem hostConfig == system) nixosHosts;
+    systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
   in
     lib.mapAttrs'
     (
