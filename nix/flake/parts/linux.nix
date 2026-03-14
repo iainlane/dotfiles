@@ -28,7 +28,7 @@ in {
               inherit overlays;
               modules =
                 [
-                  ../../os/linux
+                  config.flake.os.linux.systemManagerModule
                   config.flake.nix.substitutersModule
                 ]
                 ++ helpers.mkSystemModules {

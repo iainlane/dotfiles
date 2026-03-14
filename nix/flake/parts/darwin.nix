@@ -40,7 +40,7 @@ in {
               inherit system pkgs;
               modules =
                 [
-                  ../../os/darwin
+                  config.flake.os.darwin.darwinModule
                   config.flake.nix.substitutersModule
                 ]
                 ++ helpers.mkSystemModules {
