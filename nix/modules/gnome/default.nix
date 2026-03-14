@@ -10,6 +10,12 @@ _: let
         core-developer-tools.enable = true;
         games.enable = true;
       };
+      usbguard = {
+        enable = true;
+        dbus.enable = true;
+        IPCAllowedGroups = ["wheel"];
+        presentDevicePolicy = "allow";
+      };
     };
 
     programs.dconf.enable = true;
