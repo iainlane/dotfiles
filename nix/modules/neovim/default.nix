@@ -55,6 +55,7 @@ _: let
 
       extraPackages = pkgs.lib.unique (
         (with pkgs; [
+          clang
           go-jsonnet
           gnumake
           lua5_1
