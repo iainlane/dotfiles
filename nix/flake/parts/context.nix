@@ -3,25 +3,10 @@
   lib,
   config,
   ...
-}:
-# This module provides shared context and configuration used across all flake
-# outputs. It's the single source of truth for host inventory, helper utilities,
-# and pkgs configuration.
-let
+}: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
 
   username = "laney";
-
-  # Discover `hosts/*.nix` files automatically and annotate each host with a
-  # computed `homeDirectory`.
-  hosts = helpers.addHostHomeDirectories {
-    inherit (helpers) hosts;
-    inherit username;
-  };
-
-  darwinHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "darwin") hosts;
-  linuxHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "linux") hosts;
-  nixosHosts = lib.filterAttrs (_: hostConfig: hostConfig.os == "nixos") hosts;
 
   # Common overlays used across all systems.
   # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
@@ -37,12 +22,7 @@ in {
     _module.args.context = {
       inherit
         lib
-        helpers
         username
-        hosts
-        darwinHosts
-        linuxHosts
-        nixosHosts
         overlays
         nixpkgsConfig
         ;
@@ -57,13 +37,9 @@ in {
     flake.hostPrograms =
       lib.mapAttrs (
         hostname: _:
-          if config.flake.darwinConfigurations ? ${hostname}
-          then config.flake.darwinConfigurations.${hostname}.config.home-manager.users.${username}.programs
-          else if config.flake.nixosConfigurations ? ${hostname}
-          then config.flake.nixosConfigurations.${hostname}.config.home-manager.users.${username}.programs
-          else config.flake.homeConfigurations."${username}@${hostname}".config.programs
+          config.flake.homeConfigurations."${username}@${hostname}".config.programs
       )
-      hosts;
+      config.flake.hosts;
 
     perSystem = {system, ...}: let
       mkPkgs = nixpkgs:

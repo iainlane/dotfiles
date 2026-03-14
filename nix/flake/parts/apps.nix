@@ -1,14 +1,16 @@
 {
   inputs,
-  context,
   config,
+  lib,
   ...
 }: let
-  netboot = config.flake.lib.netboot {
+  nixosHosts = lib.filterAttrs (_: h: h.os == "nixos") config.flake.hosts;
+  netboot = import ../../lib/netboot {inherit inputs;} {
     inherit
-      context
       config
+      nixosHosts
       ;
+    inherit (config._module.args.context) overlays nixpkgsConfig;
   };
 in {
   # Re-export tools from flake inputs so the justfile can reference pinned

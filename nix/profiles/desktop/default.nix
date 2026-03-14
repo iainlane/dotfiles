@@ -16,7 +16,7 @@ in {
   imports = [
     ./linux.nix
     ./darwin.nix
-    ./nixos.nix
+    ./nixos
   ];
 
   flake.profiles.desktop.modules = commonModules;
