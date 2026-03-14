@@ -34,6 +34,9 @@ _: let
         dynamic-workspaces = true;
         workspaces-only-on-primary = true;
       };
+      "org/gnome/desktop/input-sources" = {
+        xkb-options = ["compose:caps"];
+      };
       "org/gnome/desktop/wm/preferences" = {
         button-layout = "appmenu:minimize,maximize,close";
       };
