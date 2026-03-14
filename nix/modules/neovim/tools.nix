@@ -3,18 +3,33 @@
   inputs,
   system,
 }: {
-  # Formatter used by conform for Nix files.
-  inherit (pkgs) alejandra;
-  inherit (pkgs) deadnix;
-  inherit (pkgs) statix;
+  inherit
+    (pkgs)
+    alejandra
+    ansible-lint
+    biome
+    deadnix
+    delve
+    gofumpt
+    golangci-lint
+    hadolint
+    markdown-toc
+    markdownlint-cli2
+    prettier
+    regal
+    shellcheck
+    shfmt
+    statix
+    stylua
+    tflint
+    ;
 
-  # LazyVim ansible extra adds this Mason tool. We provide it via Nix.
-  ansible-lint = builtins.getAttr "ansible-lint" pkgs;
+  inherit (pkgs.rubyPackages) htmlbeautifier;
 
-  # Rust diagnostics tooling (used by rustaceanvim configuration).
+  codelldb = pkgs.vscode-extensions.vadimcn.vscode-lldb;
+  goimports = pkgs.gotools;
+  js-debug-adapter = pkgs.vscode-js-debug;
+
   bacon = inputs.bacon.defaultPackage.${system};
   bacon-ls = inputs.bacon-ls.defaultPackage.${system};
-
-  # HTML formatter used by Mason tooling integration.
-  inherit (pkgs.rubyPackages) htmlbeautifier;
 }
