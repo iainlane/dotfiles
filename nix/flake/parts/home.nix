@@ -33,6 +33,7 @@ in {
           withSystem system (
             args: let
               inherit (args.config._module.args) pkgs;
+              osHomeModule = (config.flake.os.${hostConfig.os} or {}).homeManagerModule or null;
               homeConfig = helpers.mkHomeConfiguration {
                 inherit
                   hostConfig
@@ -41,6 +42,7 @@ in {
                   username
                   ;
                 inherit (config.flake) profiles;
+                extraModules = lib.optional (osHomeModule != null) osHomeModule;
                 extraSpecialArgs = {
                   pkgs-unstable = pkgs;
                 };

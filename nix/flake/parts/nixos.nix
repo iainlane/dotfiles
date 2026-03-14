@@ -73,7 +73,7 @@ in {
                 [
                   ../../hosts/${hostname}/hardware.nix
                   ../../hosts/${hostname}/disks.nix
-                  ../../os/nixos
+                  config.flake.os.nixos.nixosModule
                   inputs.disko.nixosModules.disko
                   inputs.sops-nix.nixosModules.sops
                   inputs.lanzaboote.nixosModules.lanzaboote

@@ -22,6 +22,15 @@
   # Sorted directory names from a directory.
   directoryNames = dir: entryNames dir "directory" "";
 
+  # Discover flake-parts modules: list subdirectories of `dir` that contain a
+  # `default.nix` and return paths to those files.
+  discoverModules = dir:
+    map
+    (name: dir + "/${name}/default.nix")
+    (builtins.filter
+      (name: builtins.pathExists (dir + "/${name}/default.nix"))
+      (directoryNames dir));
+
   # Import all `.nix` files from a directory as a list. Each file may either be
   # a plain value or a function that accepts `args`.
   importNixFiles = dir: args:
@@ -525,7 +534,7 @@ in {
 
   inherit
     addHostHomeDirectories
-    directoryNames
+    discoverModules
     fileNames
     hosts
     importNixFiles
