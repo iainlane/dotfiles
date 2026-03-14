@@ -19,8 +19,21 @@ _: let
     ];
   };
 
-  homeManagerModule = {
+  extensions = pkgs:
+    with pkgs.gnomeExtensions; [
+      bing-wallpaper-changer
+      night-theme-switcher
+    ];
+
+  homeManagerModule = {pkgs, ...}: let
+    exts = extensions pkgs;
+  in {
+    home.packages = exts;
+
     dconf.settings = {
+      "org/gnome/desktop/background" = {
+        picture-options = "zoom";
+      };
       "org/gnome/desktop/interface" = {
         clock-format = "24h";
         color-scheme = "prefer-dark";
@@ -44,6 +57,20 @@ _: let
       "org/gnome/desktop/wm/keybindings" = {
         switch-to-workspace-left = ["<Control>Left"];
         switch-to-workspace-right = ["<Control>Right"];
+      };
+      "org/gnome/settings-daemon/plugins/color" = {
+        night-light-enabled = true;
+        night-light-schedule-automatic = true;
+      };
+      "org/gnome/shell" = {
+        enabled-extensions = map (e: e.extensionUuid) exts;
+      };
+      "org/gnome/shell/extensions/bingwallpaper" = {
+        hide = true;
+      };
+      "org/gnome/shell/keybindings" = {
+        shift-overview-up = [""];
+        shift-overview-down = [""];
       };
     };
   };
