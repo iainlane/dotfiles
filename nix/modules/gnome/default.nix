@@ -9,12 +9,7 @@ _: let
     programs.dconf.enable = true;
 
     environment.gnome.excludePackages = with pkgs; [
-      epiphany
-      geary
-      gnome-maps
-      gnome-music
       gnome-tour
-      totem
     ];
   };
 
