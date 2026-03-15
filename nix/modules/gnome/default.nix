@@ -31,7 +31,11 @@ _: let
       night-theme-switcher
     ];
 
-  homeManagerModule = {pkgs, ...}: let
+  homeManagerModule = {
+    lib,
+    pkgs,
+    ...
+  }: let
     exts = extensions pkgs;
   in {
     home.packages = exts;
@@ -56,6 +60,7 @@ _: let
         workspaces-only-on-primary = true;
       };
       "org/gnome/desktop/input-sources" = {
+        sources = [(lib.hm.gvariant.mkTuple ["xkb" "gb"])];
         xkb-options = ["compose:caps"];
       };
       "org/gnome/desktop/wm/preferences" = {
