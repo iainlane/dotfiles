@@ -1,10 +1,27 @@
 _: let
   homeManagerModule = {
+    config,
     pkgs,
     lib,
     ...
-  }: {
-    programs.git = {
+  }: let
+    cfg = config.dotfiles.git.signing;
+    signingEnabled = cfg.key != null;
+  in {
+    options.dotfiles.git.signing = {
+      format = lib.mkOption {
+        type = lib.types.enum ["openpgp" "ssh"];
+        default = "openpgp";
+        description = "The signing format to use (openpgp or ssh).";
+      };
+      key = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "The signing key. Set to null to disable signing.";
+      };
+    };
+
+    config.programs.git = {
       enable = true;
 
       package = pkgs.gitFull;
@@ -26,8 +43,8 @@ _: let
         "flake.lock"
       ];
 
-      signing = {
-        key = lib.mkDefault "E352D5C51C5041D4";
+      signing = lib.mkIf signingEnabled {
+        inherit (cfg) key format;
         signByDefault = true;
       };
 
