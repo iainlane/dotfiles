@@ -600,11 +600,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1773158214,
-        "narHash": "sha256-lDQjOdG0zes6iQWQAeD8mh3IG/HJocb0amWjLS8fV3c=",
+        "lastModified": 1773569400,
+        "narHash": "sha256-Lb5J73q7rfJ4x1UIWsFlcpg0/SOa+qgnexwgq2a9i3M=",
         "owner": "iainlane",
         "repo": "lanzaboote",
-        "rev": "6cc631d6877ebac0e74db58c5ad223409d9695c8",
+        "rev": "1c00e024802e6fc5cb81107475371e6bd3a57671",
         "type": "github"
       },
       "original": {
@@ -985,11 +985,11 @@
     },
     "nixpkgs-stable": {
       "locked": {
-        "lastModified": 1772598333,
-        "narHash": "sha256-YaHht/C35INEX3DeJQNWjNaTcPjYmBwwjFJ2jdtr+5U=",
+        "lastModified": 1773375660,
+        "narHash": "sha256-SEzUWw2Rf5Ki3bcM26nSKgbeoqi2uYy8IHVBqOKjX3w=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "fabb8c9deee281e50b1065002c9828f2cf7b2239",
+        "rev": "3e20095fe3c6cbb1ddcef89b26969a69a1570776",
         "type": "github"
       },
       "original": {
@@ -1429,11 +1429,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1773421610,
-        "narHash": "sha256-rmuMg5r1TOr5S0CfRCWUmgyBVv+HFRC/pLg9stc6y3c=",
+        "lastModified": 1773574778,
+        "narHash": "sha256-JDynyJNv1TiHvp/lnpfMurOTLCO453X381T2TNec6NA=",
         "ref": "refs/heads/main",
-        "rev": "71928dd385bc5cfd4aec05b9c7dce26c9f295eac",
-        "revCount": 12,
+        "rev": "993c87b6ef493f47329b27f4421fcffea8647736",
+        "revCount": 13,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },
