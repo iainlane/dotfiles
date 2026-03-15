@@ -13,4 +13,8 @@ in {
     "desktop"
     "home"
   ];
+
+  homeModule = _: {
+    dotfiles.git.signing.key = "E352D5C51C5041D4";
+  };
 }
