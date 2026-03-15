@@ -24,6 +24,7 @@ in {
   networking = {
     hostName = hostConfig.hostname;
     networkmanager.enable = true;
+    nftables.enable = true;
   };
 
   time.timeZone = hostConfig.timezone;
