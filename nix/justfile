@@ -432,7 +432,7 @@ generate-secureboot-secrets host secrets_dir:
     cd "{{ secrets_dir }}"
 
     echo "${_green}==> Generating PCR signing keypair for secure boot${_reset}"
-    pcr_private=$(openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 2>/dev/null)
+    pcr_private=$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)
     pcr_public=$(echo "${pcr_private}" | openssl pkey -pubout 2>/dev/null)
 
     plaintext=$(mktemp)
