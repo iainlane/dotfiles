@@ -64,7 +64,13 @@ in {
   programs.nix-ld.enable = true;
 
   security = {
-    sudo-rs.enable = true;
+    sudo-rs = {
+      enable = true;
+      extraConfig = ''
+        # Don't echo asterisks while typing passwords.
+        Defaults !pwfeedback
+      '';
+    };
     polkit.enable = true;
   };
 
