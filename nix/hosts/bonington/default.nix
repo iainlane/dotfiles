@@ -12,6 +12,7 @@ in {
     "desktop"
     "development"
     "containers"
+    "work"
   ];
 
   homeModule = _: {
@@ -19,5 +20,7 @@ in {
       key = "~/.ssh/id_ed25519";
       format = "ssh";
     };
+
+    programs.git.settings.user.email = "iain.lane@chainguard.dev";
   };
 }

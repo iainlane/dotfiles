@@ -6,24 +6,27 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
+  langPackages = config.flake.direnvPackages;
 
   projects = let
     defaults = {
       name = "Iain Lane";
+      email = "iain.lane@chainguard.dev";
+      zshColour = "magenta";
     };
   in {
-    dev-grafana =
+    dev-chainguard-go =
       defaults
       // {
-        directory = "dev/grafana";
-        email = "iain@grafana.com";
-        gpgKey = "0xAB2F5FB2C0B9FCE22B9D773B3B590AA273354714";
-        zshColour = "cyan";
-        packages = pkgs: [
-          pkgs.go
-          pkgs.go-jsonnet
-          pkgs.tanka
-        ];
+        directory = "dev/chainguard/go";
+        packages = langPackages.go;
+      };
+
+    dev-chainguard-rust =
+      defaults
+      // {
+        directory = "dev/chainguard/rust";
+        packages = langPackages.rust;
       };
   };
 
@@ -39,9 +42,6 @@
         GIT_AUTHOR_EMAIL = def.email;
         GIT_COMMITTER_EMAIL = def.email;
       }
-      // lib.optionalAttrs (def ? gpgKey && def.gpgKey != null) {
-        GPGKEY = def.gpgKey;
-      }
       // lib.optionalAttrs (def ? zshColour && def.zshColour != null) {
         ZSH_USERNAME_COLOUR = def.zshColour;
       }
@@ -53,23 +53,57 @@
 in {
   imports = [projectShells.flakeModule];
 
-  flake.profiles.work.homeManagerModule = {
-    pkgs,
-    system,
-    ...
-  } @ args:
-    lib.recursiveUpdate
-    (projectShells.homeManagerModule args)
-    {
-      home.packages =
-        [
-          (inputs.rustanka.packages.${system}.rtk.overrideAttrs {doCheck = false;})
-        ]
-        ++ (with pkgs; [
-          conftest
-          jsonnet-bundler
-          regal
+  flake.profiles.work = {
+    homeManagerModule = {pkgs, ...} @ args:
+      lib.recursiveUpdate
+      (projectShells.homeManagerModule args)
+      {
+        imports = [./gitsign.nix];
+
+        home.packages = with pkgs; [
+          slack
           vale
-        ]);
+        ];
+
+        programs.git.includes = lib.mkAfter [
+          {
+            condition = "gitdir:~/dev/chainguard/";
+            contents = {
+              commit.gpgsign = true;
+              tag.gpgsign = true;
+              gpg.format = "x509";
+              gpg.x509.program = "${pkgs.gitsign}/bin/gitsign";
+              gitsign.connectorID = "https://accounts.google.com";
+            };
+          }
+        ];
+      };
+
+    os.nixos = {
+      modules = [config.flake.modules.falcon];
+
+      nixosModule = {
+        inputs,
+        config,
+        ...
+      }: let
+        secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
+        falconRelease = import (inputs.secrets + "/crowdstrike/falcon.nix");
+      in {
+        services.falcon-sensor = {
+          enable = true;
+          cidFile = config.sops.secrets.falcon-cid.path;
+          release = falconRelease;
+          traceLevel = "err";
+        };
+
+        sops.secrets = {
+          falcon-cid = {
+            mode = "0600";
+            sopsFile = secretsFile;
+          };
+        };
+      };
     };
+  };
 }

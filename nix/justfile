@@ -6,9 +6,10 @@ set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; eval \"$1\"", "-
 # GitHub token for private repo access (appended to NIX_CONFIG for all recipes)
 
 gh-token := `gh auth token 2>/dev/null || true`
+export GITHUB_TOKEN := gh-token
 nix-config-base := env('NIX_CONFIG', '')
 nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
-export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token
+export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token + "\nimpure-env = GITHUB_TOKEN=" + gh-token
 xdg_state_home := env('XDG_STATE_HOME', env('HOME') + "/.local/state")
 
 # Secrets repository URL (cloned for key management)
@@ -48,7 +49,7 @@ update-system *args:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -f /etc/NIXOS ]]; then
-        nh os switch . {{ args }}
+        nh os switch {{ args }} .
     else
         # system-manager (nh doesn't support system-manager yet)
         sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run .#system-manager -- switch --flake . {{ args }}

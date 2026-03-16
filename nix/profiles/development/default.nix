@@ -6,6 +6,7 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
+  langPackages = config.flake.direnvPackages;
 
   # Base dev directory with common tools
   projects = {
@@ -19,64 +20,27 @@
 
     dev-random-rust = {
       directory = "dev/random/rust";
-      packages = pkgs: let
-        inherit (pkgs) fenix;
-        stableToolchain = fenix.stable.withComponents [
-          "cargo"
-          "clippy"
-          "rust-src"
-          "rustc"
-          "rustfmt"
-        ];
-        nightlyRustfmt = fenix.complete.withComponents ["rustfmt"];
-      in [
-        stableToolchain
-        nightlyRustfmt
-        fenix.rust-analyzer
-      ];
+      packages = langPackages.rust;
     };
 
     dev-random-go = {
       directory = "dev/random/go";
-      packages = pkgs:
-        with pkgs; [
-          go
-          gopls
-          golangci-lint
-          delve
-        ];
+      packages = langPackages.go;
     };
 
     dev-random-python = {
       directory = "dev/random/python";
-      packages = pkgs:
-        with pkgs; [
-          python3
-          ruff
-          pyright
-        ];
+      packages = langPackages.python;
     };
 
     dev-random-typescript = {
       directory = "dev/random/typescript";
-      packages = pkgs:
-        with pkgs; [
-          corepack
-          nodejs
-          pnpm
-          typescript
-          nodePackages.typescript-language-server
-        ];
+      packages = langPackages.typescript;
     };
 
     dev-random-lua = {
       directory = "dev/random/lua";
-      packages = pkgs:
-        with pkgs; [
-          lua
-          luarocks
-          lua-language-server
-        ];
+      packages = langPackages.lua;
     };
   };
 

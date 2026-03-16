@@ -44,7 +44,8 @@
 
   trustedUsers = [
     "root"
-    "@sudo"
     "@admin"
+    "@sudo"
+    "@wheel"
   ];
 }
