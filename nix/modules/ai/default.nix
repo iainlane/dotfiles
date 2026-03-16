@@ -4,6 +4,7 @@ _: {
   ];
 
   flake.modules.ai.homeManagerModules = [
+    ./unstable-hm-modules.nix
     ./mcp.nix
     ./claude-code.nix
     ./codex.nix

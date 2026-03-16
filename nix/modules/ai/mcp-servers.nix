@@ -28,12 +28,10 @@ let
   };
 
   # Evaluate the mcp-servers-nix module to get a computed attrset of MCP server
-  # definitions. By evaluating once here and extracting `servers`, we avoid
-  # repeating the server configuration in every AI tool module. Each tool then
-  # imports this file and either:
-  # 1. Uses `servers` directly (if the tool's home-manager module supports it)
-  # 2. Calls `mkConfigFile` to generate a config file in the format the tool
-  #    expects
+  # definitions. Each tool module uses `enableMcpIntegration` to pull servers
+  # from the shared `programs.mcp` config (set in mcp.nix) rather than
+  # consuming this attrset directly. This evaluation is still needed so that
+  # mcp.nix can populate `programs.mcp.servers`.
   mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs {
     inherit programs;
   };
@@ -53,21 +51,6 @@ let
   ];
 in {
   inherit packages servers;
-
-  # Build a config file for tools that can't consume `servers` directly.
-  # `flavor` selects the tool's schema (e.g. "claude", "codex"), `format` picks
-  # the serialisation ("json", "toml-inline"), and `fileName` is the output
-  # path. This is necessary because some tools expect a path to a config file
-  # rather than accepting configuration programmatically.
-  mkConfigFile = flavor: format: fileName:
-    inputs.mcp-servers-nix.lib.mkConfig pkgs {
-      inherit
-        flavor
-        format
-        fileName
-        ;
-      inherit programs;
-    };
 
   # Helper function to wrap an AI tool with the shared tools in PATH
   wrapWithTools = {

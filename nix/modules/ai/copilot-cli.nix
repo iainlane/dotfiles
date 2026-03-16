@@ -1,6 +1,7 @@
 # Configure GitHub Copilot CLI with the shared MCP servers.
 {
   pkgs,
+  config,
   inputs,
   lib,
   system,
@@ -11,7 +12,7 @@
   # Copilot CLI reads servers from a JSON file; generate it from the shared set.
   copilotMcpConfig = pkgs.writeText "mcp-config.json" (
     builtins.toJSON {
-      inherit (mcp) servers;
+      inherit (config.programs.mcp) servers;
     }
   );
 
