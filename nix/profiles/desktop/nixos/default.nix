@@ -42,6 +42,8 @@ in {
         inherit (config.boot.plymouth) enable;
         flavor = "mocha";
       };
+
+      services.pcscd.enable = true;
     };
   };
 }
