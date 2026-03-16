@@ -36,16 +36,19 @@
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
+    just-sublime = {
+      url = "github:nk9/just_sublime";
+      flake = false;
+    };
+
+    kolide-launcher = {
+      url = "github:kolide/nix-agent/main";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     lanzaboote = {
       url = "github:iainlane/lanzaboote/measured-boot";
       inputs.nixpkgs.follows = "nixpkgs-measured-boot";
-    };
-
-    just-sublime = {
-      url = "github:nk9/just_sublime";
-      flake = false;
     };
 
     llm-agents.url = "github:numtide/llm-agents.nix";
@@ -60,13 +63,6 @@
 
     nix-darwin.url = "github:LnL7/nix-darwin";
 
-    nixos-anywhere = {
-      url = "github:nix-community/nixos-anywhere";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nixos-hardware.url = "github:NixOS/nixos-hardware";
-
     # Pre-built nix-index database for faster `nix-locate` queries
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
@@ -75,15 +71,18 @@
 
     nix-system-graphics.url = "github:soupglasses/nix-system-graphics";
 
+    nixos-anywhere = {
+      url = "github:nix-community/nixos-anywhere";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    nixos-hardware.url = "github:NixOS/nixos-hardware";
+
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     # Temporary corepack pin until nixpkgs-unstable includes #496015.
     nixpkgs-corepack.url = "github:nixos/nixpkgs/d34b8b62c5b7333869593f2a2023a15c2725be54";
+    nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.11";
-
-    rustanka = {
-      url = "github:grafana/rustanka";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
 
     secrets = {
       url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
