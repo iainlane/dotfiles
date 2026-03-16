@@ -40,6 +40,10 @@ _: let
           "super+alt+right=goto_split:right"
           "super+alt+up=goto_split:up"
           "super+alt+down=goto_split:down"
+          "super+n=new_window"
+          "super+t=new_tab"
+          "super+w=close_tab:this"
+          "super+enter=toggle_split_zoom"
         ];
 
         clipboard-read = "allow";
