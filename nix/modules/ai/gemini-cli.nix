@@ -1,6 +1,10 @@
 # Configure the Gemini CLI home-manager module with the shared MCP servers.
+#
+# The gemini-cli home-manager module does not have an `enableMcpIntegration`
+# option, so we pass the shared MCP servers via `settings.mcpServers` directly.
 {
   pkgs,
+  config,
   inputs,
   lib,
   options,
@@ -15,23 +19,17 @@
     binName = "gemini";
   };
 
-  hasGeminiModule = options ? programs && options.programs ? gemini-cli;
   hasCatppuccinGeminiModule = options ? catppuccin && options.catppuccin ? gemini-cli;
 in {
   config =
-    if hasGeminiModule
-    then
-      {
-        programs.gemini-cli = {
-          enable = true;
-          package = wrappedGemini;
-          settings.mcpServers = mcp.servers;
-        };
-      }
-      // lib.optionalAttrs hasCatppuccinGeminiModule {
-        catppuccin.gemini-cli.enable = true;
-      }
-    else {
-      home.packages = [wrappedGemini];
+    {
+      programs.gemini-cli = {
+        enable = true;
+        package = wrappedGemini;
+        settings.mcpServers = config.programs.mcp.servers;
+      };
+    }
+    // lib.optionalAttrs hasCatppuccinGeminiModule {
+      catppuccin.gemini-cli.enable = true;
     };
 }

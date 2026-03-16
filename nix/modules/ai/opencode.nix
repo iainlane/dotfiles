@@ -1,3 +1,4 @@
+# Configure OpenCode with the shared MCP servers.
 {
   pkgs,
   inputs,
@@ -14,23 +15,17 @@
     binName = "opencode";
   };
 
-  hasOpencodeModule = options ? programs && options.programs ? opencode;
   hasCatppuccinOpencodeModule = options ? catppuccin && options.catppuccin ? opencode;
 in {
   config =
-    if hasOpencodeModule
-    then
-      {
-        programs.opencode = {
-          enable = true;
-          package = wrappedOpencode;
-          enableMcpIntegration = true;
-        };
-      }
-      // lib.optionalAttrs hasCatppuccinOpencodeModule {
-        catppuccin.opencode.enable = true;
-      }
-    else {
-      home.packages = [wrappedOpencode];
+    {
+      programs.opencode = {
+        enable = true;
+        package = wrappedOpencode;
+        enableMcpIntegration = true;
+      };
+    }
+    // lib.optionalAttrs hasCatppuccinOpencodeModule {
+      catppuccin.opencode.enable = true;
     };
 }

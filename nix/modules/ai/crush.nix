@@ -1,6 +1,7 @@
 # Configure Crush CLI with the shared MCP servers and LSP.
 {
   pkgs,
+  config,
   inputs,
   lib,
   system,
@@ -12,7 +13,7 @@
   crushConfig = pkgs.writeText "crush.json" (
     builtins.toJSON {
       "$schema" = "https://charm.land/crush.json";
-      mcp = mcp.servers;
+      mcp = config.programs.mcp.servers;
     }
   );
 
