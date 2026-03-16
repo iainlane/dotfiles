@@ -63,6 +63,7 @@ in {
 
         # GNU versions of core utilities. macOS ships BSD variants which have
         # incompatible flags; these provide consistent behaviour across platforms.
+        bc
         diffutils
         getopt
         gnugrep
@@ -70,10 +71,18 @@ in {
         gnutar
         openssh
         presenterm
+        python3
+        units
         wdiff
+
+        # Archive and compression tools.
+        p7zip
+        unzip
+        zip
 
         # CLI quality-of-life utilities.
         asciinema
+        colordiff
         delta
         dotacat
         dust
@@ -82,10 +91,13 @@ in {
         curlie
         doggo
         duf
+        lsof
         moreutils
         procs
+        pv
         rename
         sd
+        tree
 
         # Networking and system monitoring tools.
         bandwhich
