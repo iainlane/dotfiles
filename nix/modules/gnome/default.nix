@@ -48,6 +48,9 @@ _: let
         "org/gnome/desktop/background" = {
           picture-options = "zoom";
         };
+        "org/gnome/desktop/sound" = {
+          event-sounds = false;
+        };
         "org/gnome/desktop/interface" = {
           clock-format = "24h";
           color-scheme = "prefer-dark";
