@@ -73,6 +73,8 @@ _: let
         "org/gnome/desktop/wm/keybindings" = {
           switch-to-workspace-left = ["<Control>Left"];
           switch-to-workspace-right = ["<Control>Right"];
+          move-to-workspace-left = ["<Control><Shift>Left"];
+          move-to-workspace-right = ["<Control><Shift>Right"];
         };
         "org/gnome/settings-daemon/plugins/color" = {
           night-light-enabled = true;
