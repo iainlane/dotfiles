@@ -12,6 +12,7 @@ in {
     "desktop"
     "development"
     "containers"
+    "inference"
     "work"
   ];
 
