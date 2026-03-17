@@ -53,9 +53,7 @@ _: let
         };
         "org/gnome/desktop/interface" = {
           clock-format = "24h";
-          color-scheme = "prefer-dark";
           font-antialiasing = "rgba";
-          gtk-theme = "adw-gtk3-dark";
         };
         "org/gnome/desktop/peripherals/touchpad" = {
           tap-to-click = true;
