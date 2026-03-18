@@ -3,7 +3,21 @@
   config,
   ...
 }: let
-  secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
+  # This module sets up Kolide via upstream's flake, and puts the secret in the
+  # right place for the launcher to pick up.
+  #
+  # Put the enrollment secret in:
+  #
+  #   <dotfiles-secrets>/${config.networking.hostName}/host-kolide.yaml
+  #
+  # under the `kolide` key.
+  #
+  # See upstream's README for details on how to extract the secrets from an
+  # `.rpm` or `.deb`:
+  #
+  # - https://github.com/kolide/nix-agent#running-kolide-launcher
+  # - https://github.com/kolide/nix-agent#setting-up-your-enrollment-secret
+  secretsFile = inputs.secrets + "/${config.networking.hostName}/host-kolide.yaml";
 in {
   imports = [
     inputs.kolide-launcher.nixosModules.kolide-launcher

@@ -93,6 +93,8 @@ in {
         secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
         falconRelease = import (inputs.secrets + "/crowdstrike/falcon.nix");
       in {
+        imports = [./kolide.nix];
+
         services.falcon-sensor = {
           enable = true;
           cidFile = config.sops.secrets.falcon-cid.path;
