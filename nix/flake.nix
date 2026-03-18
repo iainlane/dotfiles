@@ -79,8 +79,6 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    # Temporary corepack pin until nixpkgs-unstable includes #496015.
-    nixpkgs-corepack.url = "github:nixos/nixpkgs/d34b8b62c5b7333869593f2a2023a15c2725be54";
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.11";
 
