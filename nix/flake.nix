@@ -57,9 +57,7 @@
 
     neovim-nightly.url = "github:nix-community/neovim-nightly-overlay";
 
-    # nh v4.3.0-beta1 fixes path quoting bug with spaces in PATH
-    # https://github.com/nix-community/nh/commit/4ae85ee
-    nh.url = "github:nix-community/nh/v4.3.0-beta1";
+    nh.url = "github:nix-community/nh";
 
     nix-darwin.url = "github:LnL7/nix-darwin";
 
