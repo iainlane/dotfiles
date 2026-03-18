@@ -6,7 +6,7 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
-  inherit (config.flake.modules) chainctl;
+  inherit (config.flake.modules) chainctl wolfictl;
   langPackages = config.flake.direnvPackages;
 
   projects = let
@@ -55,7 +55,7 @@ in {
   imports = [projectShells.flakeModule];
 
   flake.profiles.work = {
-    modules = [chainctl];
+    modules = [chainctl wolfictl];
 
     homeManagerModule = {pkgs, ...} @ args:
       lib.recursiveUpdate
