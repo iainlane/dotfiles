@@ -33,7 +33,7 @@ _: let
         };
       };
     };
-    model = "opus";
+    model = "opus[1m]";
     skipDangerousModePermissionPrompt = true;
     voiceEnabled = true;
   };
