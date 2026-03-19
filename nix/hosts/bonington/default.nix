@@ -11,6 +11,7 @@ in {
     "base"
     "desktop"
     "development"
+    "cloud"
     "containers"
     "inference"
     "work"
