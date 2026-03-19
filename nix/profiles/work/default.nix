@@ -19,7 +19,7 @@
     dev-chainguard-go =
       defaults
       // {
-        directory = "dev/chainguard/go";
+        directory = "dev/chainguard";
         packages = langPackages.go;
       };
 
