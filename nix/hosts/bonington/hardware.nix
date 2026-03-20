@@ -8,6 +8,11 @@
     inputs.nixos-hardware.nixosModules.framework-amd-ai-300-series
   ];
 
+  # Pin to 6.18 until CrowdStrike Falcon sensor supports kernel 6.19's
+  # sockaddr_unsized BPF type change (sensor 7.33 fails to load BPF probes
+  # due to BTF type mismatch: struct sockaddr * vs struct sockaddr_unsized *).
+  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_6_18;
+
   boot = {
     initrd.availableKernelModules = [
       "nvme"
