@@ -53,6 +53,13 @@ in {
               description = ''Attribute path (relative to the namespace) for this directory's dev shell'';
               example = "dev.debian";
             };
+
+            extraPaths = mkOption {
+              type = types.listOf types.str;
+              default = [];
+              description = "Extra directories to prepend to PATH via direnv PATH_add.";
+              example = lib.literalExpression ''["$HOME/go/bin"]'';
+            };
           };
         })
       );
@@ -98,7 +105,8 @@ in {
           text =
             derivationComment
             + "source_up_if_exists\n"
-            + "use flake \"${flakePath}#${flakeAttr}\"\n";
+            + "use flake \"${flakePath}#${flakeAttr}\"\n"
+            + lib.concatMapStrings (p: "PATH_add ${p}\n") dirConfig.extraPaths;
           onChange = ''
             rm -rf ${lib.escapeShellArg "${absoluteDir}/.direnv"}
             ${pkgs.direnv}/bin/direnv allow ${lib.escapeShellArg absoluteDir}

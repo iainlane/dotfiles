@@ -26,6 +26,7 @@
             stdenv.cc
             pkg-config
           ]);
+        extraPaths = ["$HOME/go/bin"];
       };
 
     dev-chainguard-rust =
