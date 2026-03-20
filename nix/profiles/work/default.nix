@@ -20,7 +20,12 @@
       defaults
       // {
         directory = "dev/chainguard";
-        packages = langPackages.go;
+        packages = pkgs:
+          (langPackages.go pkgs)
+          ++ (with pkgs; [
+            stdenv.cc
+            pkg-config
+          ]);
       };
 
     dev-chainguard-rust =
