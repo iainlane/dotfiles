@@ -382,7 +382,9 @@
     lib.listToAttrs (
       lib.mapAttrsToList (_: def: {
         name = def.directory;
-        value = {inherit (def) attrPath;};
+        value =
+          {inherit (def) attrPath;}
+          // lib.optionalAttrs (def ? extraPaths) {inherit (def) extraPaths;};
       })
       projectDefinitions
     );
