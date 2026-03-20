@@ -17,6 +17,8 @@
 
     deploy-rs.url = "github:serokell/deploy-rs";
 
+    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/3";
+
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
