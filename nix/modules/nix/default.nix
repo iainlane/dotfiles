@@ -50,25 +50,22 @@ _: let
       };
     };
 
-    config = {
-      # On Darwin, we write `nix.custom.conf` directly since `nix-darwin` doesn't
-      # support `nix.settings.substituters` yet.
-      _module.args.substitutersCustomConf = ''
-        substituters = ${lib.concatStringsSep " " substituters}
-        trusted-public-keys = ${lib.concatStringsSep " " trustedPublicKeys}
-        trusted-users = ${lib.concatStringsSep " " cacheSettings.trustedUsers}
-        builders-use-substitutes = true
-      '';
-
-      # On Linux we can use nix.settings via system-manager. Normally this would
-      # update `/etc/nix/nix.conf`, but on Determinate Nix this is owned by the
-      # system itself, so a few lines below here we redirect this to
-      # `/etc/nix/nix.custom.conf`.
-      nix.settings = {
+    config = let
+      sharedSettings = {
         inherit substituters;
         trusted-public-keys = trustedPublicKeys;
         trusted-users = cacheSettings.trustedUsers;
+        builders-use-substitutes = true;
+        extra-experimental-features = ["configurable-impure-env"];
       };
+    in {
+      _module.args.nixCacheSettings = sharedSettings;
+
+      # On Linux, system-manager writes nix.settings to `/etc/nix/nix.conf`,
+      # which is redirected to `/etc/nix/nix.custom.conf` for Determinate Nix.
+      # On Darwin, the Determinate nix-darwin module handles this via
+      # `determinateNix.customSettings` instead.
+      nix.settings = sharedSettings;
     };
   };
 in {

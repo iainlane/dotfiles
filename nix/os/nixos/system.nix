@@ -76,7 +76,7 @@ in {
 
   nix = {
     settings = {
-      experimental-features = ["nix-command" "flakes" "configurable-impure-env"];
+      experimental-features = ["nix-command" "flakes"];
       keep-outputs = true;
       auto-optimise-store = true;
     };

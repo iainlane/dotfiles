@@ -1,15 +1,10 @@
 {
   username,
   hostConfig,
-  substitutersCustomConf,
+  nixCacheSettings,
   ...
 }: {
-  # Disable nix-darwin's daemon management; Determinate Nix handles this.
-  nix.enable = false;
-
-  environment.etc = {
-    "nix/nix.custom.conf".text = substitutersCustomConf;
-  };
+  determinateNix.customSettings = nixCacheSettings;
 
   system.primaryUser = username;
   system.stateVersion = 5;
