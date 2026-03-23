@@ -8,6 +8,8 @@
   overlays,
   nixpkgsConfig,
 }: hostname: hostConfig: let
+  sshKeyFile = inputs.secrets + "/${hostConfig.hostname}/user-ssh-key.yaml";
+  hasSshKey = builtins.pathExists sshKeyFile;
   result = withSystem hostConfig.system (
     {pkgs, ...}: {
       homeSpecialArgs = {
@@ -49,6 +51,15 @@ in {
         options = "--delete-older-than 30d";
       };
     }
+    {
+      sops.age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
+    }
+    (lib.mkIf hasSshKey {
+      sops.secrets.ssh-private-key = {
+        sopsFile = sshKeyFile;
+        path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
+      };
+    })
   ];
   inherit (result) homeSpecialArgs systemConfig;
 }

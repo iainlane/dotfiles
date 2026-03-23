@@ -11,6 +11,7 @@
     zsh
     ;
   cliTools = config.flake.modules."cli-tools";
+
   commonModules = [
     catppuccin
     git
@@ -29,131 +30,134 @@ in {
     ./nixos.nix
   ];
 
-  flake.profiles.base.modules = commonModules;
+  flake.profiles.base = {
+    modules = commonModules;
+    nixosModule.security.sudo.extraRules = import ./sudo-rules.nix;
 
-  flake.profiles.base.homeManagerModule = {
-    pkgs,
-    lib,
-    inputs,
-    system,
-    flakePath,
-    ...
-  }: {
-    imports = [
-      inputs.nix-index-database.homeModules.nix-index
-    ];
-
-    home = {
-      stateVersion = "24.05";
-
-      language = {
-        base = "en_GB.UTF-8";
-      };
-
-      # Suppress "Last login" message at terminal startup.
-      file.".hushlogin".text = "";
-
-      packages = with pkgs; [
-        # Build tools and networking basics.
-        curl
-        httpie
-        pre-commit
-        rsync
-        wget
-
-        # GNU versions of core utilities. macOS ships BSD variants which have
-        # incompatible flags; these provide consistent behaviour across platforms.
-        bc
-        diffutils
-        getopt
-        gnugrep
-        gnused
-        gnutar
-        openssh
-        presenterm
-        python3
-        units
-        wdiff
-
-        # Archive and compression tools.
-        p7zip
-        unzip
-        zip
-
-        # CLI quality-of-life utilities.
-        asciinema
-        colordiff
-        delta
-        dotacat
-        dust
-        fastfetch
-        fd
-        curlie
-        doggo
-        duf
-        lsof
-        moreutils
-        procs
-        pv
-        rename
-        sd
-        tree
-
-        # Networking and system monitoring tools.
-        bandwhich
-        cyme
-        gping
-        mtr
-        subnetcalc
-
-        lua.pkgs.luacheck
+    homeManagerModule = {
+      pkgs,
+      lib,
+      inputs,
+      system,
+      flakePath,
+      ...
+    }: {
+      imports = [
+        inputs.nix-index-database.homeModules.nix-index
       ];
-    };
 
-    programs = {
-      gh = {
-        enable = true;
-        gitCredentialHelper.enable = true;
-        settings.gitProtocol = "https";
+      home = {
+        stateVersion = "24.05";
+
+        language = {
+          base = "en_GB.UTF-8";
+        };
+
+        # Suppress "Last login" message at terminal startup.
+        file.".hushlogin".text = "";
+
+        packages = with pkgs; [
+          # Build tools and networking basics.
+          curl
+          httpie
+          pre-commit
+          rsync
+          wget
+
+          # GNU versions of core utilities. macOS ships BSD variants which have
+          # incompatible flags; these provide consistent behaviour across platforms.
+          bc
+          diffutils
+          getopt
+          gnugrep
+          gnused
+          gnutar
+          openssh
+          presenterm
+          python3
+          units
+          wdiff
+
+          # Archive and compression tools.
+          p7zip
+          unzip
+          zip
+
+          # CLI quality-of-life utilities.
+          asciinema
+          colordiff
+          delta
+          dotacat
+          dust
+          fastfetch
+          fd
+          curlie
+          doggo
+          duf
+          lsof
+          moreutils
+          procs
+          pv
+          rename
+          sd
+          tree
+
+          # Networking and system monitoring tools.
+          bandwhich
+          cyme
+          gping
+          mtr
+          subnetcalc
+
+          lua.pkgs.luacheck
+        ];
       };
 
-      home-manager.enable = true;
+      programs = {
+        gh = {
+          enable = true;
+          gitCredentialHelper.enable = true;
+          settings.gitProtocol = "https";
+        };
 
-      nh = {
-        enable = true;
-        flake = flakePath;
-        # v4.3.0-beta1 fixes path quoting bug with spaces in PATH
-        # https://github.com/nix-community/nh/commit/4ae85ee
-        package = inputs.nh.packages.${system}.default;
+        home-manager.enable = true;
+
+        nh = {
+          enable = true;
+          flake = flakePath;
+          # v4.3.0-beta1 fixes path quoting bug with spaces in PATH
+          # https://github.com/nix-community/nh/commit/4ae85ee
+          package = inputs.nh.packages.${system}.default;
+        };
+
+        # nix-index provides `nix-locate` for finding which package provides a file.
+        # The database is pre-built by nix-index-database, so no local indexing needed.
+        nix-index = {
+          enable = true;
+          # Use comma (`,`) to run packages without installing them instead of
+          # the command-not-found handler which can be slow.
+          enableZshIntegration = false;
+        };
+
+        # Comma lets you run programs from nixpkgs without installing them:
+        # `, cowsay hello` runs cowsay from nixpkgs
+        nix-index-database.comma.enable = true;
       };
 
-      # nix-index provides `nix-locate` for finding which package provides a file.
-      # The database is pre-built by nix-index-database, so no local indexing needed.
-      nix-index = {
+      xdg = {
         enable = true;
-        # Use comma (`,`) to run packages without installing them instead of
-        # the command-not-found handler which can be slow.
-        enableZshIntegration = false;
+
+        # Ensure standalone nix commands (e.g. `nix shell`) see the same nixpkgs
+        # config as our flakes, so we can use unfree packages. The `pkgs.config`
+        # object contains functions and their metadata which can't be
+        # serialised, so we filter those out.
+        configFile."nixpkgs/config.nix".text = let
+          isPlainValue = v:
+            !builtins.isFunction v
+            && !(builtins.isAttrs v && v ? __functionArgs);
+        in
+          lib.generators.toPretty {} (lib.filterAttrsRecursive (_: isPlainValue) pkgs.config);
       };
-
-      # Comma lets you run programs from nixpkgs without installing them:
-      # `, cowsay hello` runs cowsay from nixpkgs
-      nix-index-database.comma.enable = true;
-    };
-
-    xdg = {
-      enable = true;
-
-      # Ensure standalone nix commands (e.g. `nix shell`) see the same nixpkgs
-      # config as our flakes, so we can use unfree packages. The `pkgs.config`
-      # object contains functions and their metadata which can't be
-      # serialised, so we filter those out.
-      configFile."nixpkgs/config.nix".text = let
-        isPlainValue = v:
-          !builtins.isFunction v
-          && !(builtins.isAttrs v && v ? __functionArgs);
-      in
-        lib.generators.toPretty {} (lib.filterAttrsRecursive (_: isPlainValue) pkgs.config);
     };
   };
 }

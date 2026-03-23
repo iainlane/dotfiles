@@ -30,6 +30,8 @@
     ...
   }: {
     config = {
+      security.sudo.extraRules = import ./sudo-rules.nix;
+
       environment = {
         etc = {
           # zsh on non-NixOS sources /etc/zshenv for all shells (including SSH
