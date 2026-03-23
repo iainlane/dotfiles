@@ -33,6 +33,7 @@
             ./system.nix
             config.flake.nix.substitutersModule
             inputs.determinate.darwinModules.default
+            inputs.sops-nix.darwinModules.sops
           ]
           ++ helpers.mkModules {
             moduleType = "systemManagerModule";

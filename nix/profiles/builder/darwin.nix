@@ -3,7 +3,6 @@
 in {
   flake.profiles.builder.os.darwin.systemManagerModule = {config, ...}: {
     imports = [
-      inputs.sops-nix.darwinModules.sops
       nixbuild.module
     ];
 
