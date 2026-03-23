@@ -82,6 +82,8 @@ in {
           ControlPersist 10m
           HostKeyAlias ${hostName}
           HostName ${hostName}
+          IdentityFile /run/secrets/nixbuild-private-key
+          IdentityFile ~/.ssh/id_ed25519_nixbuild
           IPQoS le
           IdentitiesOnly yes
           PubkeyAcceptedKeyTypes ssh-ed25519
