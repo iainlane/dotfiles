@@ -1,6 +1,6 @@
 # melange — build APKs from source code.
 # To update: ./modules/melange/update.sh
-{inputs, ...}: let
+_: let
   homeManagerModule = {pkgs-unstable, ...}: {
     home.packages = [
       (pkgs-unstable.callPackage ./package.nix {})

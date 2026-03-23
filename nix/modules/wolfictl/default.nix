@@ -5,7 +5,8 @@
   sources = lib.importJSON ./sources.json;
 
   homeManagerModule = {pkgs, ...}: let
-    system = pkgs.stdenv.hostPlatform.system;
+    inherit (pkgs.stdenv.hostPlatform) system;
+
     platform =
       sources.platforms.${system}
         or (throw "wolfictl: unsupported system ${system}");
