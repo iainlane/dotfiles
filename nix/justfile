@@ -70,7 +70,7 @@ update: update-flake update-system build-direnvs
 
 # Deploy to a remote host via deploy-rs (all profiles by default)
 update-host hostname *args:
-    nix run .#deploy-rs -- --interactive-sudo true .#{{ hostname }} {{ args }}
+    nix run .#deploy-rs -- --interactive-sudo true --hostname '{{ hostname }}.home.orangesquash.org.uk' .#{{ hostname }} {{ args }}
 
 # Pre-build all direnv development shells for faster directory changes
 build-direnvs:

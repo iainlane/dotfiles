@@ -1,7 +1,7 @@
 let
   halls = import ../lib/halls.nix;
 in {
-  hostname = "ancaster.home.orangesquash.org.uk";
+  hostname = "ancaster";
   os = "linux";
   arch = "aarch64";
   motd = halls.ancaster;
