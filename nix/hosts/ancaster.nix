@@ -13,5 +13,6 @@ in {
         secretsFile = "adsb.yaml";
       };
     }
+    "unifi"
   ];
 }

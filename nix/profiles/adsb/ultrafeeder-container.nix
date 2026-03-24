@@ -6,7 +6,7 @@
 }: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
   image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
-  httpPort = 8080;
+  httpPort = 8082;
   rtlSerial = "00000001";
   timezone = "UTC";
 
