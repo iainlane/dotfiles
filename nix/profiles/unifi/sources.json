@@ -1,0 +1,14 @@
+{
+  "imageTag": "uosserver:0.0.54",
+  "version": "5.0.6",
+  "platforms": {
+    "aarch64-linux": {
+      "url": "https://fw-download.ubnt.com/data/unifi-os-server/df5b-linux-arm64-5.0.6-f35e944c-f4b6-4190-93a8-be61b96c58f4.6-arm64",
+      "hash": "sha256-aKCig6g1tSj+QHkarf1czVGOBRkHVmkjdX9sWy/rzQg="
+    },
+    "x86_64-linux": {
+      "url": "https://fw-download.ubnt.com/data/unifi-os-server/1856-linux-x64-5.0.6-33f4990f-6c68-4e72-9d9c-477496c22450.6-x64",
+      "hash": "sha256-IPoWR5GTiy7J1WgMEYdTxGo26qM2nO+U1c742pRo354="
+    }
+  }
+}
