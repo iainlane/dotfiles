@@ -9,6 +9,7 @@ in {
   motd = halls.bonington;
   profiles = [
     "base"
+    "builder"
     "desktop"
     "development"
     "cloud"

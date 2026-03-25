@@ -9,48 +9,34 @@ in {
     pkgs,
     hostConfig,
     ...
-  }: {
-    imports = [
-      nixbuild.module
-    ];
+  }: let
+    x86Config = let
+      targetSystem = "aarch64-linux";
+      binfmtMagics = import (pkgs.path + "/nixos/lib/binfmt-magics.nix");
+      targetMagic = binfmtMagics.${targetSystem};
+      targetPlatform = lib.systems.elaborate {system = targetSystem;};
+      interpreter = targetPlatform.emulator pkgs.pkgsStatic;
+    in
+      lib.mkIf (hostConfig.arch == "x86_64") {
+        environment.etc."binfmt.d/aarch64-linux.conf".text =
+          ":${targetSystem}:M::${targetMagic.magicOrExtension}:${targetMagic.mask}:${interpreter}:FPC";
 
-    dotfiles.nix.binaryCaches."${nixbuild.builderAlias}" = nixbuild.binaryCaches."${nixbuild.builderAlias}";
+        environment.systemPackages = [pkgs.pkgsStatic.qemu-user];
 
-    environment.etc = lib.mkMerge [
+        nix.settings.extra-platforms = ["aarch64-linux"];
+      };
+  in
+    lib.mkMerge [
       {
-        "nix/machines".text =
-          nixbuild.machineLines [
-            "x86_64-linux"
-            "aarch64-linux"
-            "armv7l-linux"
-          ]
+        environment.etc."nix/machines".text =
+          nixbuild.machineLines nixbuild.systems
           config.sops.secrets.nixbuild-private-key.path;
       }
-      (lib.mkIf (hostConfig.arch == "x86_64") {
-        "binfmt.d/aarch64-linux.conf".text = let
-          targetSystem = "aarch64-linux";
-          binfmtMagics = import (pkgs.path + "/nixos/lib/binfmt-magics.nix");
-          targetMagic = binfmtMagics.${targetSystem};
-          targetPlatform = lib.systems.elaborate {system = targetSystem;};
-          interpreter = targetPlatform.emulator pkgs.pkgsStatic;
-        in ":${targetSystem}:M::${targetMagic.magicOrExtension}:${targetMagic.mask}:${interpreter}:FPC";
-      })
-    ];
-
-    environment.systemPackages = lib.optionals (hostConfig.arch == "x86_64") [pkgs.pkgsStatic.qemu-user];
-
-    nix.settings = lib.mkMerge [
-      {
-        builders-use-substitutes = true;
-      }
-      (lib.mkIf (hostConfig.arch == "x86_64") {
-        extra-platforms = ["aarch64-linux"];
-      })
-    ];
-
-    systemd.services.sops-install-secrets = {
-      before = ["sysinit-reactivation.target"];
-      requiredBy = ["sysinit-reactivation.target"];
+      x86Config
+    ]
+    // {
+      imports = [
+        nixbuild.module
+      ];
     };
-  };
 }

@@ -3,6 +3,7 @@
 in {
   imports = [
     ./linux.nix
+    ./nixos.nix
     ./darwin.nix
   ];
 
