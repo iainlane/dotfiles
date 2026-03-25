@@ -12,6 +12,12 @@ _: let
     mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
 
     managedConfig = {
+      features = {
+        apps = true;
+        shell_zsh_fork = true;
+        smart_approvals = true;
+        undo = true;
+      };
       mcp_servers =
         lib.mapAttrs (
           _name: server: let
@@ -36,6 +42,12 @@ _: let
             }
         )
         mcp.servers;
+      model = "gpt-5.4";
+      model_reasoning_effort = "high";
+      personality = "pragmatic";
+      service_tier = "fast";
+      suppress_unstable_features_warning = true;
+      web_search = "live";
     };
 
     managedConfigFile = (pkgs.formats.toml {}).generate "codex-managed-config.toml" managedConfig;
