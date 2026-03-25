@@ -70,6 +70,8 @@ in {
         imports = [./gitsign.nix];
 
         home.packages = with pkgs; [
+          openssl
+
           slack
           vale
         ];
