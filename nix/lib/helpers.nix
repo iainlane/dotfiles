@@ -165,18 +165,32 @@
 
     # Apply one module value for one profile entry.
     # Returns [] when moduleValue is null, otherwise returns a one-element list.
+    #
+    # When moduleValue is a function whose formal parameters all carry
+    # defaults (e.g. `{ admin ? false }: …`), it is treated as a
+    # profile-options function and called with the supplied options — or
+    # `{}` when the host lists the profile as a bare string, so that the
+    # defaults take effect.
     applyProfileModule = entry: moduleValue:
       if moduleValue == null
       then []
       else let
-        hasOptions = entry.profileOptions != null;
-        emptyOptions = entry.profileOptions == {};
+        options =
+          if entry.profileOptions == null
+          then {}
+          else entry.profileOptions;
+        allDefaults =
+          builtins.isFunction moduleValue
+          && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue));
+        callWithOptions =
+          builtins.isFunction moduleValue
+          && (options != {} || allDefaults);
       in
-        if !hasOptions || emptyOptions
-        then [moduleValue]
-        else if builtins.isFunction moduleValue
-        then [(moduleValue entry.profileOptions)]
-        else throw "Profile '${entry.name}' does not accept profile options; use a string entry.";
+        if callWithOptions
+        then [(moduleValue options)]
+        else if options != {}
+        then throw "Profile '${entry.name}' does not accept profile options; use a string entry."
+        else [moduleValue];
 
     featureModule = imports:
       if imports == []

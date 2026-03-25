@@ -9,7 +9,8 @@ in {
     "base"
     "development"
     "desktop"
-    "builder"
+    {"builder" = {admin = true;};}
+
     "home"
   ];
 

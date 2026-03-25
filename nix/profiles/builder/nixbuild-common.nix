@@ -37,13 +37,15 @@
     ];
 in {
   inherit binaryCaches builderAlias hostName maxJobs speedFactor supportedFeatures systems;
-  adminMatchBlocks = {
-    "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild" {
+  adminMatchBlock = {
+    "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_admin" {
       ControlMaster = "no";
       IPQoS = "le";
       PubkeyAcceptedKeyTypes = "ssh-ed25519";
       RemoteCommand = "shell";
     };
+  };
+  storeMatchBlock = {
     "nixbuild-store" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_store" {
       ControlMaster = "auto";
       ControlPath = "~/.ssh/ssh-nixbuild-store-%C";
@@ -63,9 +65,7 @@ in {
     inputs,
     username,
     ...
-  }: let
-    remoteStoreKeyPath = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_store";
-  in {
+  }: {
     dotfiles.nix.binaryCaches."${builderAlias}" = binaryCaches."${builderAlias}";
 
     nix.settings = {
@@ -74,15 +74,23 @@ in {
 
     sops = {
       defaultSopsFile = inputs.secrets + "/nixbuild.yaml";
-      secrets.nixbuild-private-key = {
-        key = "nixbuild_private_key";
-        mode = "0400";
-      };
-      secrets.nixbuild-remote-store-private-key = {
-        key = "nixbuild_remote_store_private_key";
-        path = remoteStoreKeyPath;
-        owner = username;
-        mode = "0400";
+      secrets = {
+        nixbuild-builder-private-key = {
+          key = "nixbuild_private_key";
+          owner = username;
+          path = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild";
+          mode = "0400";
+        };
+        nixbuild-private-key = {
+          key = "nixbuild_private_key";
+          mode = "0400";
+        };
+        nixbuild-remote-store-private-key = {
+          key = "nixbuild_remote_store_private_key";
+          path = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_store";
+          owner = username;
+          mode = "0400";
+        };
       };
     };
 
