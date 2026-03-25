@@ -20,6 +20,7 @@
         modules =
           [
             ./system.nix
+            inputs.sops-nix.nixosModules.sops
             config.flake.nix.substitutersModule
           ]
           ++ helpers.mkModules {
