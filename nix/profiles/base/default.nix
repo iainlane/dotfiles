@@ -48,6 +48,7 @@ in {
 
       home = {
         stateVersion = "24.05";
+        preferXdgDirectories = true;
 
         language = {
           base = "en_GB.UTF-8";
