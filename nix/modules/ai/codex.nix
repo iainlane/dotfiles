@@ -48,6 +48,7 @@ _: let
       service_tier = "fast";
       suppress_unstable_features_warning = true;
       web_search = "live";
+      zsh_path = "${pkgs.zsh}/bin/zsh";
     };
 
     managedConfigFile = (pkgs.formats.toml {}).generate "codex-managed-config.toml" managedConfig;
