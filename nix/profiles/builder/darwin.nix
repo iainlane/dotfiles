@@ -13,6 +13,14 @@ in {
       chmod 700 ~/.ssh
     '';
 
+    programs.ssh = {
+      extraConfig = nixbuild.sshConfigText;
+      knownHosts.nixbuild = {
+        hostNames = [nixbuild.hostName];
+        publicKey = nixbuild.hostKey;
+      };
+    };
+
     environment.etc = {
       # Determinate Nix reads builders = @/etc/nix/machines by default.
       "nix/machines".text =

@@ -35,8 +35,22 @@
       "-"
       "-"
     ];
+  sshConfigText = ''
+    Host ${builderAlias}
+      ControlMaster auto
+      ControlPath ~/.ssh/ssh-nixbuild-builder-%C
+      ControlPersist 10m
+      HostKeyAlias ${hostName}
+      HostName ${hostName}
+      IdentityFile /run/secrets/nixbuild-private-key
+      IdentityFile ~/.ssh/id_ed25519_nixbuild
+      IPQoS le
+      IdentitiesOnly yes
+      PubkeyAcceptedKeyTypes ssh-ed25519
+      ServerAliveInterval 60
+  '';
 in {
-  inherit binaryCaches builderAlias hostName maxJobs speedFactor supportedFeatures systems;
+  inherit binaryCaches builderAlias hostKey hostName maxJobs speedFactor sshConfigText supportedFeatures systems;
   adminMatchBlock = {
     "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_admin" {
       ControlMaster = "no";
@@ -94,25 +108,5 @@ in {
       };
     };
 
-    environment.etc = {
-      "ssh/ssh_config.d/100-nixbuild.conf".text = ''
-        Host ${builderAlias}
-          ControlMaster auto
-          ControlPath ~/.ssh/ssh-nixbuild-builder-%C
-          ControlPersist 10m
-          HostKeyAlias ${hostName}
-          HostName ${hostName}
-          IdentityFile /run/secrets/nixbuild-private-key
-          IdentityFile ~/.ssh/id_ed25519_nixbuild
-          IPQoS le
-          IdentitiesOnly yes
-          PubkeyAcceptedKeyTypes ssh-ed25519
-          ServerAliveInterval 60
-      '';
-
-      "ssh/ssh_known_hosts".text = ''
-        ${hostName} ${hostKey}
-      '';
-    };
   };
 }

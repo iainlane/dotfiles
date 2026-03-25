@@ -22,6 +22,14 @@ in {
       })
       nixbuild.systems;
 
+    programs.ssh = {
+      extraConfig = nixbuild.sshConfigText;
+      knownHosts.nixbuild = {
+        hostNames = [nixbuild.hostName];
+        publicKey = nixbuild.hostKey;
+      };
+    };
+
     boot.binfmt.emulatedSystems = lib.mkIf (hostConfig.arch == "x86_64") ["aarch64-linux"];
   };
 }
