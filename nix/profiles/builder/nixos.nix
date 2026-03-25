@@ -13,6 +13,7 @@ in {
       nixbuild.module
     ];
 
+    nix.distributedBuilds = true;
     nix.buildMachines =
       map (system: {
         hostName = nixbuild.builderAlias;
