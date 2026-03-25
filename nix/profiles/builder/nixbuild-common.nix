@@ -11,19 +11,11 @@
     serverAliveInterval = 60;
     inherit extraOptions;
   };
-  mkMachineLine = system: sshKeyPath:
-    lib.concatStringsSep " " [
-      builderAlias
-      system
-      sshKeyPath
-      "100"
-      "1"
-      "benchmark,big-parallel,kvm,nixos-test"
-      "-"
-      "-"
-    ];
-in {
-  inherit builderAlias hostName;
+  systems = ["x86_64-linux" "aarch64-linux" "armv7l-linux"];
+  maxJobs = 100;
+  speedFactor = 1;
+  supportedFeatures = ["benchmark" "big-parallel" "kvm" "nixos-test"];
+
   binaryCaches = {
     "${builderAlias}" = {
       substituter = "ssh://${builderAlias}";
@@ -31,6 +23,20 @@ in {
       key = signingKey;
     };
   };
+
+  mkMachineLine = system: sshKeyPath:
+    lib.concatStringsSep " " [
+      builderAlias
+      system
+      sshKeyPath
+      (toString maxJobs)
+      (toString speedFactor)
+      (lib.concatStringsSep "," supportedFeatures)
+      "-"
+      "-"
+    ];
+in {
+  inherit binaryCaches builderAlias hostName maxJobs speedFactor supportedFeatures systems;
   adminMatchBlocks = {
     "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild" {
       ControlMaster = "no";
@@ -60,6 +66,12 @@ in {
   }: let
     remoteStoreKeyPath = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_store";
   in {
+    dotfiles.nix.binaryCaches."${builderAlias}" = binaryCaches."${builderAlias}";
+
+    nix.settings = {
+      builders-use-substitutes = true;
+    };
+
     sops = {
       defaultSopsFile = inputs.secrets + "/nixbuild.yaml";
       secrets.nixbuild-private-key = {

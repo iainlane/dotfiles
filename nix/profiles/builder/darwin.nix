@@ -16,11 +16,7 @@ in {
     environment.etc = {
       # Determinate Nix reads builders = @/etc/nix/machines by default.
       "nix/machines".text =
-        nixbuild.machineLines [
-          "x86_64-linux"
-          "aarch64-linux"
-          "armv7l-linux"
-        ]
+        nixbuild.machineLines nixbuild.systems
         config.sops.secrets.nixbuild-private-key.path;
     };
   };
