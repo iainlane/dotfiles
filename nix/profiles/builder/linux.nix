@@ -28,9 +28,13 @@ in {
   in
     lib.mkMerge [
       {
-        environment.etc."nix/machines".text =
-          nixbuild.machineLines nixbuild.systems
-          config.sops.secrets.nixbuild-private-key.path;
+        environment.etc = {
+          "nix/machines".text =
+            nixbuild.machineLines nixbuild.systems
+            config.sops.secrets.nixbuild-private-key.path;
+          "ssh/ssh_config.d/100-nixbuild.conf".text = nixbuild.sshConfigText;
+          "ssh/ssh_known_hosts".text = "${nixbuild.hostName} ${nixbuild.hostKey}";
+        };
       }
       x86Config
     ]
