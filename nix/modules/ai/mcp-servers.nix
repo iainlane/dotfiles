@@ -56,14 +56,22 @@ in {
   wrapWithTools = {
     package,
     binName,
-  }:
-    pkgs.symlinkJoin {
-      name = "${binName}-with-tools";
-      paths = [package];
-      nativeBuildInputs = [pkgs.makeWrapper];
-      postBuild = ''
-        wrapProgram $out/bin/${binName} \
+  }: let
+    wrapped =
+      pkgs.runCommand "${binName}-with-tools" {
+        nativeBuildInputs = [pkgs.makeWrapper];
+      } ''
+        makeWrapper ${package}/bin/${binName} $out/bin/${binName} \
           --prefix PATH : ${lib.makeBinPath packages}
       '';
+  in
+    wrapped
+    // {
+      inherit (package) meta name pname version;
+      passthru =
+        (package.passthru or {})
+        // {
+          unwrapped = package;
+        };
     };
 }
