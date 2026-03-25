@@ -13,6 +13,7 @@ in {
     "development"
     "cloud"
     "containers"
+    "builder"
     "inference"
     "work"
   ];
