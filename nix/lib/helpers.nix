@@ -270,6 +270,24 @@
       }
     ];
 
+  mkHomeSopsModule = {hostConfig}: let
+    sshKeyFile = inputs.secrets + "/${hostConfig.hostname}/user-ssh-key.yaml";
+  in
+    lib.recursiveUpdate
+    {
+      sops.age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
+    }
+    (lib.optionalAttrs (builtins.pathExists sshKeyFile) {
+      sops.secrets.ssh-private-key = {
+        sopsFile = sshKeyFile;
+        path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
+      };
+    });
+
+  mkSystemSopsModule = {
+    sops.age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
+
   # Construct the specialArgs attrset passed to home-manager modules. Provides
   # access to flake inputs, host metadata, and the canonical flake path.
   mkHomeSpecialArgs = {
@@ -315,7 +333,10 @@
           profiles
           ;
       }
-      ++ [inputs.sops-nix.homeManagerModules.sops]
+      ++ [
+        inputs.sops-nix.homeManagerModules.sops
+        (mkHomeSopsModule {inherit hostConfig;})
+      ]
       ++ extraModules;
     extraSpecialArgs = mkHomeSpecialArgs {
       inherit
@@ -485,5 +506,6 @@ in {
     mkHomeConfiguration
     mkModules
     mkProjectShells
+    mkSystemSopsModule
     ;
 }
