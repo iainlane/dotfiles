@@ -10,6 +10,7 @@
       with pkgs; [
         go
         gopls
+        gotools
         golangci-lint
         delve
       ];
