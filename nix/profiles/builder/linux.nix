@@ -18,8 +18,7 @@ in {
       interpreter = targetPlatform.emulator pkgs.pkgsStatic;
     in
       lib.mkIf (hostConfig.arch == "x86_64") {
-        environment.etc."binfmt.d/aarch64-linux.conf".text =
-          ":${targetSystem}:M::${targetMagic.magicOrExtension}:${targetMagic.mask}:${interpreter}:FPC";
+        environment.etc."binfmt.d/aarch64-linux.conf".text = ":${targetSystem}:M::${targetMagic.magicOrExtension}:${targetMagic.mask}:${interpreter}:FPC";
 
         environment.systemPackages = [pkgs.pkgsStatic.qemu-user];
 
