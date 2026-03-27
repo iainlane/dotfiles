@@ -8,13 +8,18 @@ in {
 
     inherit (config.flake.profiles.desktop.os.linux) homeManagerModule;
 
-    nixosModule = {
+    nixosModule = {usbguardStaticRules ? {}}: {
       pkgs,
       lib,
       config,
       ...
     }: {
-      imports = [./console.nix];
+      imports = [
+        ./console.nix
+        ./options.nix
+      ];
+
+      dotfiles.desktop.usbguard.staticRules = usbguardStaticRules;
 
       fonts.packages = import ../fonts.nix pkgs;
 

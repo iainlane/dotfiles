@@ -162,35 +162,58 @@
       else "systemManagerModules";
 
     osNames = [os];
+    moduleTypes = [
+      "homeManagerModule"
+      "systemManagerModule"
+      "nixosModule"
+    ];
 
     # Apply one module value for one profile entry.
-    # Returns [] when moduleValue is null, otherwise returns a one-element list.
     #
-    # When moduleValue is a function whose formal parameters all carry
-    # defaults (e.g. `{ admin ? false }: …`), it is treated as a
-    # profile-options function and called with the supplied options — or
-    # `{}` when the host lists the profile as a bare string, so that the
-    # defaults take effect.
-    applyProfileModule = entry: moduleValue:
+    # Profiles may include both plain modules (for example `{ imports = [...] ; }`)
+    # and option-taking wrapper functions (for example `{ admin ? false }: ...`).
+    # Host-supplied profile options are only applied to the wrapper functions.
+    # Plain modules are still included unchanged so bundle-style profiles can
+    # accept options without turning every imported feature module into a
+    # wrapper function.
+    applyProfileModule = entry: moduleValue: let
+      options =
+        if entry.profileOptions == null
+        then {}
+        else entry.profileOptions;
+      acceptsProfileOptions =
+        builtins.isFunction moduleValue
+        && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue));
+    in
       if moduleValue == null
-      then []
-      else let
-        options =
-          if entry.profileOptions == null
-          then {}
-          else entry.profileOptions;
-        allDefaults =
-          builtins.isFunction moduleValue
-          && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue));
-        callWithOptions =
-          builtins.isFunction moduleValue
-          && (options != {} || allDefaults);
+      then {
+        consumedOptions = false;
+        modules = [];
+      }
+      else if acceptsProfileOptions
+      then {
+        consumedOptions = options != {};
+        modules = [(moduleValue options)];
+      }
+      else {
+        consumedOptions = false;
+        modules = [moduleValue];
+      };
+
+    profileAcceptsOptions = profile:
+      let
+        baseVals = map (type: profile.${type}) moduleTypes;
+        osVals = lib.concatMap (
+          osName:
+            map (type: (profile.os.${osName} or {}).${type} or null) moduleTypes
+        ) osNames;
       in
-        if callWithOptions
-        then [(moduleValue options)]
-        else if options != {}
-        then throw "Profile '${entry.name}' does not accept profile options; use a string entry."
-        else [moduleValue];
+        lib.any (
+          moduleValue:
+            builtins.isFunction moduleValue
+            && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue))
+        )
+        (baseVals ++ osVals);
 
     featureModule = imports:
       if imports == []
@@ -203,7 +226,12 @@
       baseVal = profile.${moduleType};
       profileModules = lib.attrByPath ["modules"] [] profile;
 
-      osVals =
+      options =
+        if entry.profileOptions == null
+        then {}
+        else entry.profileOptions;
+
+      osResults =
         lib.concatMap (
           osName: let
             osVal = (profile.os.${osName} or {}).${moduleType} or null;
@@ -225,8 +253,10 @@
               })
             );
           in
-            applyProfileModule entry osFeatureVal
-            ++ applyProfileModule entry osVal
+            [
+              (applyProfileModule entry osFeatureVal)
+              (applyProfileModule entry osVal)
+            ]
         )
         osNames;
 
@@ -244,10 +274,17 @@
           moduleType = featureModuleType;
         }
       );
+      baseResults = [
+        (applyProfileModule entry baseFeatureVal)
+        (applyProfileModule entry baseVal)
+      ];
+      allResults = baseResults ++ osResults;
+      consumedOptions = lib.any (result: result.consumedOptions) allResults;
+      acceptsOptions = profileAcceptsOptions profile;
     in
-      applyProfileModule entry baseFeatureVal
-      ++ applyProfileModule entry baseVal
-      ++ osVals;
+      if options != {} && !consumedOptions && !acceptsOptions
+      then throw "Profile '${entry.name}' does not accept profile options; use a string entry."
+      else lib.concatMap (result: result.modules) allResults;
   in
     lib.concatMap resolveEntry entries;
 
