@@ -8,8 +8,15 @@
   overlays,
   nixpkgsConfig,
 }: hostname: hostConfig: let
-  sshKeyFile = inputs.secrets + "/${hostConfig.hostname}/user-ssh-key.yaml";
-  hasSshKey = builtins.pathExists sshKeyFile;
+  homeExtraModules = [
+    {
+      nix.gc = {
+        automatic = true;
+        dates = "weekly";
+        options = "--delete-older-than 30d";
+      };
+    }
+  ];
   result = withSystem hostConfig.system (
     {pkgs, ...}: {
       homeSpecialArgs = {
@@ -19,6 +26,7 @@
         inherit overlays;
         modules =
           [
+            helpers.mkSystemSopsModule
             ./system.nix
             inputs.sops-nix.nixosModules.sops
             config.flake.nix.substitutersModule
@@ -44,23 +52,6 @@
 in {
   homeBaseDir = "/home";
   systemSuffix = "linux";
-  extraHomeModules = [
-    {
-      nix.gc = {
-        automatic = true;
-        dates = "weekly";
-        options = "--delete-older-than 30d";
-      };
-    }
-    {
-      sops.age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
-    }
-    (lib.mkIf hasSshKey {
-      sops.secrets.ssh-private-key = {
-        sopsFile = sshKeyFile;
-        path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
-      };
-    })
-  ];
+  extraHomeModules = homeExtraModules;
   inherit (result) homeSpecialArgs systemConfig;
 }

@@ -61,6 +61,7 @@
         pkgs = channel.primary;
         modules =
           [
+            helpers.mkSystemSopsModule
             ../../hosts/${hostname}/hardware.nix
             ../../hosts/${hostname}/disks.nix
             ./system.nix

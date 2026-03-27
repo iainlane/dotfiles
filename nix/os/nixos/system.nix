@@ -8,7 +8,6 @@
   ...
 }: let
   secretsFile = inputs.secrets + "/${config.networking.hostName}/host-user-password.yaml";
-  sshKeyFile = inputs.secrets + "/${config.networking.hostName}/user-ssh-key.yaml";
 in {
   boot = {
     loader = {
@@ -36,15 +35,6 @@ in {
         sopsFile = secretsFile;
         neededForUsers = true;
       };
-    };
-    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
-  };
-
-  home-manager.users.${username}.sops = {
-    age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
-    secrets.ssh-private-key = {
-      sopsFile = sshKeyFile;
-      path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
     };
   };
 
