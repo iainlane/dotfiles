@@ -10,7 +10,11 @@ in {
   profiles = [
     "base"
     "builder"
-    "desktop"
+    {
+      desktop.usbguardStaticRules."10-scarlett.conf" = ''
+        allow id 1235:8219 serial "S2AR8Q3350C05D"
+      '';
+    }
     "development"
     "cloud"
     "containers"

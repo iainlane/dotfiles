@@ -93,7 +93,10 @@ _: let
   };
 in {
   flake.modules.gnome = {
-    nixosModules = [nixosModule];
+    nixosModules = [
+      nixosModule
+      (import ./usbguard.nix)
+    ];
     os.nixos.homeManagerModules = [homeManagerModule];
   };
 }
