@@ -1,7 +1,7 @@
 {inputs, ...}: let
   nixbuild = import ./nixbuild-common.nix {inherit (inputs.nixpkgs) lib;};
 in {
-  flake.profiles.builder.os.darwin.systemManagerModule = {config, ...}: {
+  flake.profiles.builder.os.darwin.systemManagerModule = _: {config, ...}: {
     imports = [
       nixbuild.module
     ];
