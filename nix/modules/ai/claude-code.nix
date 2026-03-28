@@ -61,6 +61,7 @@ _: let
     ...
   }: let
     mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+    instructions = import ./agent-instructions.nix {inherit lib;};
 
     wrappedClaudeCode = mcp.wrapWithTools {
       package = inputs.llm-agents.packages.${system}.claude-code;
@@ -73,6 +74,9 @@ _: let
 
       # Pull MCP servers from the shared programs.mcp config.
       enableMcpIntegration = true;
+
+      # Shared instructions as auto-loaded rule files.
+      rules = instructions.files;
     };
   };
 in {

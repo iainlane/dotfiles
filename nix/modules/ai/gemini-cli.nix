@@ -12,6 +12,7 @@
   ...
 }: let
   mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+  instructions = import ./agent-instructions.nix {inherit lib;};
 
   # Wrap Gemini CLI to add shared tools to PATH
   wrappedGemini = mcp.wrapWithTools {
@@ -26,7 +27,14 @@ in {
       programs.gemini-cli = {
         enable = true;
         package = wrappedGemini;
-        settings.mcpServers = config.programs.mcp.servers;
+
+        # Shared instructions as separate context files.
+        context = instructions.files;
+
+        settings = {
+          mcpServers = config.programs.mcp.servers;
+          context.fileName = map (n: "${n}.md") (lib.attrNames instructions.files);
+        };
       };
     }
     // lib.optionalAttrs hasCatppuccinGeminiModule {
