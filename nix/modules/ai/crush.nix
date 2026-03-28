@@ -1,4 +1,4 @@
-# Configure Crush CLI with the shared MCP servers and LSP.
+# Configure Crush CLI with the shared MCP servers, LSP and instructions.
 {
   pkgs,
   config,
@@ -8,12 +8,15 @@
   ...
 }: let
   mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+  instructions = import ./agent-instructions.nix {inherit lib;};
 
-  # Crush expects its MCP servers and LSP config inside crush.json
+  # Crush expects its MCP servers and LSP config inside crush.json.
+  # Global instructions are loaded via options.context_paths.
   crushConfig = pkgs.writeText "crush.json" (
     builtins.toJSON {
       "$schema" = "https://charm.land/crush.json";
       mcp = config.programs.mcp.servers;
+      options.context_paths = ["~/.config/crush/AGENTS.md"];
     }
   );
 
@@ -25,6 +28,11 @@
 in {
   home.packages = [wrappedCrush];
 
-  # Point Crush at the generated config file.
-  xdg.configFile."crush/crush.json".source = crushConfig;
+  xdg.configFile = {
+    # Point Crush at the generated config file.
+    "crush/crush.json".source = crushConfig;
+
+    # Shared instructions for Crush to load via context_paths.
+    "crush/AGENTS.md".text = instructions.concatenated;
+  };
 }

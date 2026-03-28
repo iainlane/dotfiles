@@ -64,6 +64,7 @@ _: let
     ...
   }: let
     mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+    instructions = import ./agent-instructions.nix {inherit lib;};
 
     # Wrap Codex to add shared tools to PATH.
     wrappedCodex = mcp.wrapWithTools {
@@ -74,6 +75,7 @@ _: let
     programs.codex = {
       enable = true;
       package = wrappedCodex;
+      custom-instructions = instructions.concatenated;
     };
   };
 in {
