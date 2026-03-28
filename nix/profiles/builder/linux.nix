@@ -3,7 +3,7 @@
 {inputs, ...}: let
   nixbuild = import ./nixbuild-common.nix {inherit (inputs.nixpkgs) lib;};
 in {
-  flake.profiles.builder.os.linux.systemManagerModule = {
+  flake.profiles.builder.os.linux.systemManagerModule = _: {
     config,
     lib,
     pkgs,
