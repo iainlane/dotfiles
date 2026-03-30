@@ -1,5 +1,5 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash -p curl jq nix
+#!/usr/bin/env nix
+#! nix shell nixpkgs#bash nixpkgs#curl nixpkgs#jq nixpkgs#nix --command bash
 # shellcheck shell=bash
 
 # Update wolfictl to the latest version.
