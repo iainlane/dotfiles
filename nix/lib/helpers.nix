@@ -200,20 +200,21 @@
         modules = [moduleValue];
       };
 
-    profileAcceptsOptions = profile:
-      let
-        baseVals = map (type: profile.${type}) moduleTypes;
-        osVals = lib.concatMap (
+    profileAcceptsOptions = profile: let
+      baseVals = map (type: profile.${type}) moduleTypes;
+      osVals =
+        lib.concatMap (
           osName:
             map (type: (profile.os.${osName} or {}).${type} or null) moduleTypes
-        ) osNames;
-      in
-        lib.any (
-          moduleValue:
-            builtins.isFunction moduleValue
-            && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue))
         )
-        (baseVals ++ osVals);
+        osNames;
+    in
+      lib.any (
+        moduleValue:
+          builtins.isFunction moduleValue
+          && builtins.all lib.id (builtins.attrValues (builtins.functionArgs moduleValue))
+      )
+      (baseVals ++ osVals);
 
     featureModule = imports:
       if imports == []
@@ -252,11 +253,10 @@
                 os = osName;
               })
             );
-          in
-            [
-              (applyProfileModule entry osFeatureVal)
-              (applyProfileModule entry osVal)
-            ]
+          in [
+            (applyProfileModule entry osFeatureVal)
+            (applyProfileModule entry osVal)
+          ]
         )
         osNames;
 
