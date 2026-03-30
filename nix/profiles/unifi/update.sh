@@ -1,5 +1,5 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash -p binwalk curl jq openssl unzip
+#!/usr/bin/env nix
+#! nix shell nixpkgs#bash nixpkgs#binwalk nixpkgs#curl nixpkgs#jq nixpkgs#openssl nixpkgs#unzip --command bash
 # shellcheck shell=bash
 
 # Update UniFi OS Server to the latest Linux release published by Ubiquiti.

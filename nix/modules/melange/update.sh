@@ -1,5 +1,5 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash -p nix-update
+#!/usr/bin/env nix
+#! nix shell nixpkgs#bash nixpkgs#nix-update --command bash
 # shellcheck shell=bash
 
 # Update melange to the latest version.
