@@ -25,6 +25,8 @@
           ++ (with pkgs; [
             stdenv.cc
             pkg-config
+
+            apko
           ]);
         extraPaths = ["$HOME/go/bin"];
       };
