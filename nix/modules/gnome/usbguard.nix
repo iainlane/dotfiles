@@ -5,7 +5,7 @@
   ...
 }: let
   cfg = config.services.usbguard;
-  staticRules = config.dotfiles.desktop.usbguard.staticRules;
+  inherit (config.dotfiles.desktop.usbguard) staticRules;
 
   ruleFolder = "/etc/usbguard/rules.d/";
 
@@ -40,10 +40,12 @@ in {
     }
 
     (lib.mkIf cfg.enable {
-      environment.etc = lib.mapAttrs' (
-        name: text:
-          lib.nameValuePair "usbguard/rules.d/${name}" {inherit text;}
-      ) staticRules;
+      environment.etc =
+        lib.mapAttrs' (
+          name: text:
+            lib.nameValuePair "usbguard/rules.d/${name}" {inherit text;}
+        )
+        staticRules;
 
       systemd.services.usbguard.serviceConfig.ExecStart =
         lib.mkForce "${cfg.package}/bin/usbguard-daemon -P -k -c ${daemonConf}";
