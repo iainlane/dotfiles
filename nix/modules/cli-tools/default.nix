@@ -1,8 +1,6 @@
 _: let
   homeManagerModule = {
-    config,
     inputs,
-    lib,
     pkgs,
     system,
     ...
@@ -73,22 +71,7 @@ _: let
 
       direnv = {
         enable = true;
-        package =
-          if pkgs.stdenv.hostPlatform.isDarwin
-          then
-            pkgs.direnv.overrideAttrs (old: {
-              # Match upstream direnv: keep the Darwin linker workaround only
-              # when cgo is enabled.
-              # https://github.com/direnv/direnv/pull/1567
-              postPatch =
-                (old.postPatch or "")
-                + ''
-                  substituteInPlace GNUmakefile \
-                    --replace-fail 'ifeq ($(shell uname), Darwin)' $'ifeq ($(shell uname), Darwin)\n  ifneq ($(CGO_ENABLED), 0)' \
-                    --replace-fail $'\tGO_LDFLAGS += -linkmode=external\nendif' $'\tGO_LDFLAGS += -linkmode=external\n  endif\nendif'
-                '';
-            })
-          else inputs.nixpkgs-stable.legacyPackages.${system}.direnv;
+        package = inputs.nixpkgs-stable.legacyPackages.${system}.direnv;
 
         enableZshIntegration = true;
         nix-direnv.enable = true;
@@ -147,13 +130,6 @@ _: let
       };
 
       lesspipe.enable = true;
-
-      # nixpkgs wires mise to a concrete direnv executable at build time.
-      # Keep it aligned with the package selected above so Darwin does not
-      # pull in the unpatched direnv build via mise.
-      mise.package = lib.mkDefault (pkgs.mise.override {
-        direnv = config.programs.direnv.package;
-      });
 
       pandoc.enable = true;
 
