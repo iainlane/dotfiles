@@ -44,7 +44,7 @@
         nodejs
         pnpm
         typescript
-        nodePackages.typescript-language-server
+        pkgs."typescript-language-server"
       ];
 
     lua = pkgs:

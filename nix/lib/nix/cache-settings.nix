@@ -22,9 +22,6 @@
     "hyprland.cachix.org" = {
       key = "a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=";
     };
-    "neovim-nightly.cachix.org" = {
-      key = "fLrV5fy41LFKwyLAxJ0H13o6FOVGc4k6gXB5Y1dqtWw=";
-    };
     "nix-community.cachix.org" = {
       key = "mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=";
     };

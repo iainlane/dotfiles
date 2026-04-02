@@ -45,7 +45,7 @@ let
     deno
     gopls
     lua-language-server
-    nodePackages.typescript-language-server
+    pkgs."typescript-language-server"
     pyright
     rust-analyzer
   ];

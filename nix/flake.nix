@@ -57,8 +57,6 @@
 
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
 
-    neovim-nightly.url = "github:nix-community/neovim-nightly-overlay";
-
     nh.url = "github:nix-community/nh";
 
     nix-darwin.url = "github:LnL7/nix-darwin";
