@@ -51,7 +51,7 @@ _: let
       defaultEditor = true;
       viAlias = true;
       vimAlias = true;
-      package = inputs.neovim-nightly.packages.${system}.neovim;
+      package = pkgs-unstable.neovim-unwrapped;
 
       extraPackages = pkgs.lib.unique (
         (with pkgs; [
