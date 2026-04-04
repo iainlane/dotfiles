@@ -2,7 +2,7 @@
 # integration, plus system-level managed settings so that
 # ~/.claude/settings.json can be written using `/config` etc.
 _: let
-  managedSettings = {
+  managedSettings = {ccstatuslineBin}: {
     "$schema" = "https://json.schemastore.org/claude-code-settings.json";
     alwaysThinkingEnabled = true;
     attribution = {
@@ -35,23 +35,49 @@ _: let
     };
     model = "opus[1m]";
     skipDangerousModePermissionPrompt = true;
+    statusLine = {
+      type = "command";
+      command = ccstatuslineBin;
+      padding = 0;
+    };
     voiceEnabled = true;
   };
 
   # Claude Code looks for managed settings at OS-specific paths:
   #   Linux: /etc/claude-code/managed-settings.json
   #   macOS: /Library/Application Support/ClaudeCode/managed-settings.json
-  managedSettingsModule = {pkgs, ...}: let
-    settingsFile = pkgs.writeText "claude-code-managed-settings.json" (
-      builtins.toJSON managedSettings
-    );
-    etcPath =
-      if pkgs.stdenv.hostPlatform.isDarwin
-      then "Library/Application Support/ClaudeCode/managed-settings.json"
-      else "claude-code/managed-settings.json";
-  in {
-    environment.etc.${etcPath}.source = settingsFile;
-  };
+  #
+  # On Linux, `environment.etc` maps directly to /etc which is the right
+  # location. On macOS the target is /Library (not /etc), so we symlink the
+  # store path into place via an activation script — the same mechanism that
+  # `environment.etc` itself uses under the hood.
+  managedSettingsModule = {
+    lib,
+    pkgs,
+    inputs,
+    ...
+  }: let
+    inherit (pkgs.stdenv.hostPlatform) system isDarwin;
+    inherit (inputs.llm-agents.packages.${system}) ccstatusline;
+    settings = managedSettings {
+      ccstatuslineBin = "${ccstatusline}/bin/ccstatusline";
+    };
+    settingsFile =
+      (pkgs.formats.json {}).generate "managed-settings.json" settings;
+
+    darwinPath = "/Library/Application Support/ClaudeCode";
+  in
+    lib.mkMerge [
+      (lib.mkIf (!isDarwin) {
+        environment.etc."claude-code/managed-settings.json".source = settingsFile;
+      })
+      (lib.mkIf isDarwin {
+        system.activationScripts.postActivation.text = ''
+          mkdir -p '${darwinPath}'
+          ln -sf '${settingsFile}' '${darwinPath}/managed-settings.json'
+        '';
+      })
+    ];
 
   homeManagerModule = {
     pkgs,
@@ -78,6 +104,10 @@ _: let
       # Shared instructions as auto-loaded rule files.
       rules = instructions.files;
     };
+
+    xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (
+      import ./ccstatusline.nix
+    ));
   };
 in {
   flake.modules.ai = {
