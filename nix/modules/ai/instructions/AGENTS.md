@@ -25,6 +25,10 @@
 - Avoid overly hyperbolic praise of the user. You don't need to tell them
   they're absolutely right every time they correct you. A simple acknowledgment
   will do.
+- If a `.envrc` file is present in the project root and has already been
+  allowed, activate it if it isn't already active.
+- If system tools (e.g. compilers, runtimes, utilities) are not in `PATH`, try
+  `nix run`.
 
 ## Code Style
 
