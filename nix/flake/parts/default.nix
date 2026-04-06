@@ -8,6 +8,7 @@ in {
       ./context.nix
       ./deploy.nix
       ./direnvs.nix
+      ./git-hooks.nix
       ./hosts.nix
       ./nix.nix
       ./modules.nix
