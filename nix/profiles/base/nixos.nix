@@ -7,6 +7,8 @@ in {
     nixosModule = {
       users.groups.ssh = {};
 
+      services.nixseparatedebuginfod2.enable = true;
+
       services.openssh = {
         enable = true;
         hostKeys = [

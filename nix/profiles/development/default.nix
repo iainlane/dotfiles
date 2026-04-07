@@ -56,6 +56,8 @@ in {
   imports = [
     projectShells.flakeModule
     ./darwin.nix
+    ./linux.nix
+    ./nixos.nix
   ];
 
   flake.profiles.development.homeManagerModule = {pkgs, ...} @ args:
