@@ -3,19 +3,35 @@
 
   inputs = {
     # Bacon and bacon-ls for Rust development in neovim
-    bacon.url = "github:Canop/bacon";
+    bacon = {
+      url = "github:Canop/bacon";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # https://github.com/crisidev/bacon-ls/pull/101
-    bacon-ls.url = "github:iainlane/bacon-ls/22ab710c6bf76602272b5dc6e0c17fdd169dc1a0";
+    bacon-ls = {
+      url = "github:iainlane/bacon-ls/22ab710c6bf76602272b5dc6e0c17fdd169dc1a0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.naersk.inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    catppuccin.url = "github:catppuccin/nix";
-    catppuccin-stable.url = "github:catppuccin/nix/release-25.11";
+    catppuccin = {
+      url = "github:catppuccin/nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    catppuccin-stable = {
+      url = "github:catppuccin/nix/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs-stable";
+    };
 
     catppuccin-bat = {
       url = "github:catppuccin/bat";
       flake = false;
     };
 
-    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/3";
 
@@ -24,7 +40,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    fenix.url = "github:nix-community/fenix";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
@@ -58,13 +77,25 @@
       inputs.nixpkgs.follows = "nixpkgs-measured-boot";
     };
 
-    llm-agents.url = "github:numtide/llm-agents.nix";
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
+    mcp-servers-nix = {
+      url = "github:natsukium/mcp-servers-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    nh.url = "github:nix-community/nh";
+    nh = {
+      url = "github:nix-community/nh";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    nix-darwin.url = "github:LnL7/nix-darwin";
+    nix-darwin = {
+      url = "github:LnL7/nix-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Pre-built nix-index database for faster `nix-locate` queries
     nix-index-database = {
@@ -72,7 +103,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    nix-system-graphics.url = "github:soupglasses/nix-system-graphics";
+    nix-system-graphics = {
+      url = "github:soupglasses/nix-system-graphics";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     nixos-anywhere = {
       url = "github:nix-community/nixos-anywhere";
@@ -102,9 +136,15 @@
       flake = false;
     };
 
-    system-manager.url = "github:numtide/system-manager";
+    system-manager = {
+      url = "github:numtide/system-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs @ {flake-parts, ...}:
