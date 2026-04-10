@@ -11,17 +11,17 @@
     then inputs.nixpkgs-stable
     else inputs.nixpkgs;
 
-  mkNetbootInstaller = hostname: hostConfig: let
-    hostSystem = hostConfig.system;
+  # Select the pre-computed pkgs matching a host's channel.
+  pkgsForHost = pkgs: pkgs-stable: hostConfig:
+    if hostConfig.channel == "stable"
+    then pkgs-stable
+    else pkgs;
+
+  mkNetbootInstaller = hostPkgs: hostname: hostConfig: let
     hostNixpkgs = mkHostNixpkgs hostConfig;
-    hostPkgs = import hostNixpkgs {
-      inherit overlays;
-      system = hostSystem;
-      config = nixpkgsConfig;
-    };
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
     installer = hostNixpkgs.lib.nixosSystem {
-      system = hostSystem;
+      inherit (hostConfig) system;
       pkgs = hostPkgs;
       modules = [
         "${hostNixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
@@ -63,20 +63,14 @@
       }
     ];
 
-  mkIsoInstallerConfig = hostname: hostConfig: let
-    hostSystem = hostConfig.system;
+  mkIsoInstallerConfig = hostPkgs: hostname: hostConfig: let
     hostNixpkgs = mkHostNixpkgs hostConfig;
-    hostPkgs = import hostNixpkgs {
-      inherit overlays;
-      system = hostSystem;
-      config = nixpkgsConfig;
-    };
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
     hostToplevel = config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel;
   in {
     inherit hostNixpkgs hostPkgs;
     installer = hostNixpkgs.lib.nixosSystem {
-      system = hostSystem;
+      inherit (hostConfig) system;
       pkgs = hostPkgs;
       modules = [
         "${hostNixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
@@ -97,8 +91,8 @@
 
   # All x86_64-linux inputs needed by the ISO assembly. Building this
   # derivation ensures the entire closure is materialised in the store.
-  mkIsoContents = hostname: hostConfig: let
-    evaluated = mkIsoInstallerConfig hostname hostConfig;
+  mkIsoContents = hostPkgs: hostname: hostConfig: let
+    evaluated = mkIsoInstallerConfig hostPkgs hostname hostConfig;
     installerConfig = evaluated.installer.config;
     contentSources =
       lib.imap0 (i: x: {
@@ -116,14 +110,16 @@
     evaluated.hostPkgs.linkFarm "${hostname}-iso-contents"
     (contentSources ++ storePaths);
 
-  mkLocalIso = buildSystem: hostname: hostConfig: let
-    evaluated = mkIsoInstallerConfig hostname hostConfig;
+  # Build an ISO on `buildSystem` for the target host. The host and build
+  # systems may differ (e.g. building on aarch64-darwin for x86_64-linux),
+  # so hostPkgs is instantiated for the target while buildPkgs is for the
+  # local machine.
+  mkLocalIso = {
+    buildPkgs,
+    hostPkgs,
+  }: hostname: hostConfig: let
+    evaluated = mkIsoInstallerConfig hostPkgs hostname hostConfig;
     installerConfig = evaluated.installer.config;
-    buildPkgs = import evaluated.hostNixpkgs {
-      inherit overlays;
-      system = buildSystem;
-      config = nixpkgsConfig;
-    };
   in
     buildPkgs.callPackage "${evaluated.hostNixpkgs}/nixos/lib/make-iso9660-image.nix" {
       inherit (installerConfig.isoImage) compressImage volumeID contents;
@@ -139,8 +135,7 @@
     };
 
   mkNetbootApp = pkgs: hostname: hostConfig: let
-    hostSystem = hostConfig.system;
-    artifactAttr = "packages.${hostSystem}.${hostname}-netboot-installer";
+    artifactAttr = "packages.${hostConfig.system}.${hostname}-netboot-installer";
   in {
     type = "app";
     program = lib.getExe (pkgs.writeShellApplication {
@@ -159,26 +154,46 @@
     });
     meta.description = "Serve a PXE/netboot installer for ${hostname} via pixiecore";
   };
+
+  # Create host pkgs for a potentially different system than the current
+  # one (needed for cross-system ISO builds).
+  mkHostPkgs = hostConfig:
+    import (mkHostNixpkgs hostConfig) {
+      inherit overlays;
+      inherit (hostConfig) system;
+      config = nixpkgsConfig;
+    };
 in {
-  packagesForSystem = system: let
+  packagesForSystem = {
+    pkgs,
+    pkgs-stable,
+  }: let
+    inherit (pkgs.stdenv.hostPlatform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
+    getHostPkgs = pkgsForHost pkgs pkgs-stable;
   in
     lib.mapAttrs'
     (
       hostname: hostConfig:
-        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller hostname hostConfig)
+        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller (getHostPkgs hostConfig) hostname hostConfig)
     )
     systemHosts
     // lib.mapAttrs'
     (
       hostname: hostConfig:
-        lib.nameValuePair "${hostname}-iso-contents" (mkIsoContents hostname hostConfig)
+        lib.nameValuePair "${hostname}-iso-contents" (mkIsoContents (getHostPkgs hostConfig) hostname hostConfig)
     )
     systemHosts
     // lib.mapAttrs'
     (
-      hostname: hostConfig:
-        lib.nameValuePair "${hostname}-iso" (mkLocalIso system hostname hostConfig)
+      hostname: hostConfig: let
+        hostPkgs =
+          if hostConfig.system == system
+          then getHostPkgs hostConfig
+          else mkHostPkgs hostConfig;
+        buildPkgs = pkgsForHost pkgs pkgs-stable hostConfig;
+      in
+        lib.nameValuePair "${hostname}-iso" (mkLocalIso {inherit buildPkgs hostPkgs;} hostname hostConfig)
     )
     nixosHosts;
 

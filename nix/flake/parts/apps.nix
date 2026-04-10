@@ -18,6 +18,7 @@ in {
   perSystem = {
     lib,
     pkgs,
+    pkgs-stable,
     system,
     ...
   }: {
@@ -45,6 +46,6 @@ in {
         };
       };
 
-    packages = netboot.packagesForSystem system;
+    packages = netboot.packagesForSystem {inherit pkgs pkgs-stable;};
   };
 }
