@@ -14,10 +14,10 @@ BASE_URL="https://dl.enforce.dev/chainctl"
 
 # chainctl_suffix for each Nix system.
 declare -A PLATFORMS=(
-	[x86_64-linux]=linux_x86_64
-	[aarch64-linux]=linux_arm64
-	[x86_64-darwin]=darwin_x86_64
-	[aarch64-darwin]=darwin_arm64
+	["x86_64-linux"]=linux_x86_64
+	["aarch64-linux"]=linux_arm64
+	["x86_64-darwin"]=darwin_x86_64
+	["aarch64-darwin"]=darwin_arm64
 )
 
 # Discover the latest version.

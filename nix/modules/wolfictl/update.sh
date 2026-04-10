@@ -14,10 +14,10 @@ REPO="wolfi-dev/wolfictl"
 
 # Nix system → goreleaser os_arch suffix.
 declare -A PLATFORMS=(
-	[x86_64-linux]=linux_amd64
-	[aarch64-linux]=linux_arm64
-	[x86_64-darwin]=darwin_amd64
-	[aarch64-darwin]=darwin_arm64
+	["x86_64-linux"]=linux_amd64
+	["aarch64-linux"]=linux_arm64
+	["x86_64-darwin"]=darwin_amd64
+	["aarch64-darwin"]=darwin_arm64
 )
 
 # Get the latest version from GitHub.
