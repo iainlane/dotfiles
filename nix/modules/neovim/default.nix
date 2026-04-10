@@ -66,6 +66,9 @@ _: let
         ++ map (entry: entry.pkg) lspEntries
         ++ builtins.attrValues toolsSpec
       );
+
+      withPython3 = false;
+      withRuby = false;
     };
 
     xdg = {
