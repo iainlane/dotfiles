@@ -3,7 +3,6 @@
   pkgs,
   inputs,
   lib,
-  options,
   system,
   ...
 }: let
@@ -15,19 +14,14 @@
     package = inputs.llm-agents.packages.${system}.opencode;
     binName = "opencode";
   };
-
-  hasCatppuccinOpencodeModule = options ? catppuccin && options.catppuccin ? opencode;
 in {
-  config =
-    {
-      programs.opencode = {
-        enable = true;
-        package = wrappedOpencode;
-        enableMcpIntegration = true;
-        rules = instructions.concatenated;
-      };
-    }
-    // lib.optionalAttrs hasCatppuccinOpencodeModule {
-      catppuccin.opencode.enable = true;
+  config = {
+    programs.opencode = {
+      enable = true;
+      package = wrappedOpencode;
+      enableMcpIntegration = true;
+      rules = instructions.concatenated;
+      tui.theme = "system";
     };
+  };
 }
