@@ -30,7 +30,7 @@
         entry = toString script;
         language = "system";
         pass_filenames = false;
-        files = "\\.(nix)$|^flake\\.lock$";
+        files = "\\.(nix)$|/flake\\.lock$";
       };
     };
 
