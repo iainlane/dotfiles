@@ -88,6 +88,7 @@ _: let
   }: let
     mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
     instructions = import ./agent-instructions.nix {inherit lib;};
+    skills = import ./skills.nix {inherit lib;};
 
     wrappedClaudeCode = mcp.wrapWithTools {
       package = inputs.llm-agents.packages.${system}.claude-code;
@@ -103,6 +104,9 @@ _: let
 
       # Shared instructions as auto-loaded rule files.
       rules = instructions.files;
+
+      # Shared skills from ./skills/.
+      inherit skills;
     };
 
     xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (

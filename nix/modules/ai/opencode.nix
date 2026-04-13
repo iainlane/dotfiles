@@ -8,6 +8,7 @@
 }: let
   mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
+  skills = import ./skills.nix {inherit lib;};
 
   # Wrap OpenCode to add shared tools to PATH
   wrappedOpencode = mcp.wrapWithTools {
@@ -22,6 +23,9 @@ in {
       enableMcpIntegration = true;
       rules = instructions.concatenated;
       tui.theme = "system";
+
+      # Shared skills from ./skills/.
+      inherit skills;
     };
   };
 }
