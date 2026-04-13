@@ -91,8 +91,7 @@
 
   # All x86_64-linux inputs needed by the ISO assembly. Building this
   # derivation ensures the entire closure is materialised in the store.
-  mkIsoContents = hostPkgs: hostname: hostConfig: let
-    evaluated = mkIsoInstallerConfig hostPkgs hostname hostConfig;
+  mkIsoContents = evaluated: hostname: let
     installerConfig = evaluated.installer.config;
     contentSources =
       lib.imap0 (i: x: {
@@ -114,11 +113,7 @@
   # systems may differ (e.g. building on aarch64-darwin for x86_64-linux),
   # so hostPkgs is instantiated for the target while buildPkgs is for the
   # local machine.
-  mkLocalIso = {
-    buildPkgs,
-    hostPkgs,
-  }: hostname: hostConfig: let
-    evaluated = mkIsoInstallerConfig hostPkgs hostname hostConfig;
+  mkLocalIso = buildPkgs: evaluated: _hostname: let
     installerConfig = evaluated.installer.config;
   in
     buildPkgs.callPackage "${evaluated.hostNixpkgs}/nixos/lib/make-iso9660-image.nix" {
@@ -171,6 +166,20 @@ in {
     inherit (pkgs.stdenv.hostPlatform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
     getHostPkgs = pkgsForHost pkgs pkgs-stable;
+
+    # Pre-compute the ISO installer config once per host so that
+    # iso-contents and iso reuse the same NixOS module evaluation.
+    isoConfigs =
+      lib.mapAttrs (
+        hostname: hostConfig: let
+          hostPkgs =
+            if hostConfig.system == system
+            then getHostPkgs hostConfig
+            else mkHostPkgs hostConfig;
+        in
+          mkIsoInstallerConfig hostPkgs hostname hostConfig
+      )
+      nixosHosts;
   in
     lib.mapAttrs'
     (
@@ -180,20 +189,16 @@ in {
     systemHosts
     // lib.mapAttrs'
     (
-      hostname: hostConfig:
-        lib.nameValuePair "${hostname}-iso-contents" (mkIsoContents (getHostPkgs hostConfig) hostname hostConfig)
+      hostname: _:
+        lib.nameValuePair "${hostname}-iso-contents" (mkIsoContents isoConfigs.${hostname} hostname)
     )
     systemHosts
     // lib.mapAttrs'
     (
       hostname: hostConfig: let
-        hostPkgs =
-          if hostConfig.system == system
-          then getHostPkgs hostConfig
-          else mkHostPkgs hostConfig;
         buildPkgs = pkgsForHost pkgs pkgs-stable hostConfig;
       in
-        lib.nameValuePair "${hostname}-iso" (mkLocalIso {inherit buildPkgs hostPkgs;} hostname hostConfig)
+        lib.nameValuePair "${hostname}-iso" (mkLocalIso buildPkgs isoConfigs.${hostname} hostname)
     )
     nixosHosts;
 

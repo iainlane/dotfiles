@@ -45,7 +45,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
 
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";
@@ -111,6 +114,7 @@
     nixos-anywhere = {
       url = "github:nix-community/nixos-anywhere";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixos-stable.follows = "nixpkgs-stable";
     };
 
     nixos-hardware.url = "github:NixOS/nixos-hardware";
