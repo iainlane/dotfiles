@@ -2,7 +2,6 @@ _: let
   homeManagerModule = {
     inputs,
     pkgs,
-    system,
     ...
   }: let
     # Pin less for bat until nixpkgs carries 692.
@@ -71,8 +70,6 @@ _: let
 
       direnv = {
         enable = true;
-        package = inputs.nixpkgs-stable.legacyPackages.${system}.direnv;
-
         enableZshIntegration = true;
         nix-direnv.enable = true;
         silent = true;
