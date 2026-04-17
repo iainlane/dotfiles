@@ -67,7 +67,6 @@ in {
       home.packages = with pkgs; [
         terraform
 
-        kubectl
         kubernetes-helm
         jq
         yq-go
