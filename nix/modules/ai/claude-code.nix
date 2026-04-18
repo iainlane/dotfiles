@@ -40,6 +40,7 @@ _: let
       command = ccstatuslineBin;
       padding = 0;
     };
+    tui = "fullscreen";
     voiceEnabled = true;
   };
 
