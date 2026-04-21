@@ -31,6 +31,15 @@
       (name: builtins.pathExists (dir + "/${name}/default.nix"))
       (directoryNames dir));
 
+  # Discover local packages: list subdirectory names of `dir` that contain a
+  # `package.nix`. Used by the `pkgs/` layout to surface packages both as an
+  # overlay and as flake outputs without repeating the file layout in each
+  # consumer.
+  discoverPackages = dir:
+    builtins.filter
+    (name: builtins.pathExists (dir + "/${name}/package.nix"))
+    (directoryNames dir);
+
   # Import all `.nix` files from a directory as a list. Each file may either be
   # a plain value or a function that accepts `args`.
   importNixFiles = dir: args:
@@ -537,6 +546,7 @@
 in {
   inherit
     discoverModules
+    discoverPackages
     fileNames
     hosts
     importNixFiles

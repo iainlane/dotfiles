@@ -6,7 +6,7 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
-  inherit (config.flake.modules) chainctl melange wolfictl;
+  inherit (config.flake.modules) melange wolfictl;
   langPackages = config.flake.direnvPackages;
 
   projects = let
@@ -63,7 +63,7 @@ in {
   imports = [projectShells.flakeModule];
 
   flake.profiles.work = {
-    modules = [chainctl melange wolfictl];
+    modules = [melange wolfictl];
 
     homeManagerModule = {pkgs, ...} @ args:
       lib.recursiveUpdate
@@ -72,6 +72,8 @@ in {
         imports = [./gitsign.nix];
 
         home.packages = with pkgs; [
+          chainctl
+
           openssl
 
           slack

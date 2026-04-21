@@ -12,6 +12,7 @@ in {
       ./hosts.nix
       ./nix.nix
       ./modules.nix
+      ./pkgs.nix
       ./profiles.nix
     ]
     ++ helpers.discoverModules ../../profiles
