@@ -142,6 +142,16 @@
   in
     lib.reverseList deduped.entries;
 
+  # Names of the profiles active on `hostConfig`, normalised so that both
+  # string entries (`"desktop"`) and option-bearing entries
+  # (`{ desktop = { ... }; }`) collapse to a flat list of names.
+  activeProfileNames = hostConfig:
+    map (entry: entry.name) (normaliseProfileEntries hostConfig.profiles);
+
+  # Predicate: is `name` one of the profiles selected by this host?
+  hasProfile = hostConfig: name:
+    builtins.elem name (activeProfileNames hostConfig);
+
   # Build the list of modules for one module type ("homeManagerModule" or
   # "systemManagerModule").
   #
@@ -545,9 +555,11 @@
   };
 in {
   inherit
+    activeProfileNames
     discoverModules
     discoverPackages
     fileNames
+    hasProfile
     hosts
     importNixFiles
     mkHomeConfiguration

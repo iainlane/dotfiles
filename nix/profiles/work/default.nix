@@ -107,12 +107,16 @@ in {
       nixosModule = {
         inputs,
         config,
+        hostConfig,
         ...
       }: let
         secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
         falconRelease = import (inputs.secrets + "/crowdstrike/falcon.nix");
       in {
-        imports = [./kolide.nix];
+        imports =
+          [./kolide.nix]
+          ++ lib.optional (helpers.hasProfile hostConfig "desktop")
+          ./claude-managed-settings.nix;
 
         services.falcon-sensor = {
           enable = true;

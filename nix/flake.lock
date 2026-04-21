@@ -162,6 +162,30 @@
         "type": "github"
       }
     },
+    "claude-managed-settings": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": [
+          "treefmt-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1776775893,
+        "narHash": "sha256-9eNnx3ajFHqCUzHDzVRsW7nSZ8/vFB3wmdgi7HXqmpw=",
+        "ref": "iainlane/nix-flake",
+        "rev": "bee5b92c9cc9e71ec8de63f9217f3edd3e7877bf",
+        "revCount": 25,
+        "type": "git",
+        "url": "https://github.com/iainlane/claude-managed-settings"
+      },
+      "original": {
+        "ref": "iainlane/nix-flake",
+        "type": "git",
+        "url": "https://github.com/iainlane/claude-managed-settings"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1771796463,
@@ -1259,6 +1283,7 @@
         "catppuccin": "catppuccin",
         "catppuccin-bat": "catppuccin-bat",
         "catppuccin-stable": "catppuccin-stable",
+        "claude-managed-settings": "claude-managed-settings",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",
         "disko": "disko",
