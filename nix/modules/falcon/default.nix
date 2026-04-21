@@ -44,7 +44,7 @@ _: let
           releaseTag = "v${cfg.release.version}";
         };
 
-    fetchGitHubReleaseAsset = pkgs.callPackage ./fetch-github-release-asset.nix {};
+    fetchGitHubReleaseAsset = pkgs.callPackage ../../lib/fetch-github-release-asset.nix {};
 
     falconSensorPackage =
       if falconRelease == null
