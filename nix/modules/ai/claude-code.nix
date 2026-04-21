@@ -52,33 +52,47 @@ _: let
   # location. On macOS the target is /Library (not /etc), so we symlink the
   # store path into place via an activation script — the same mechanism that
   # `environment.etc` itself uses under the hood.
-  managedSettingsModule = {
-    lib,
+
+  # Build the generated JSON derivation from the current `pkgs`/`inputs`.
+  mkSettingsFile = {
     pkgs,
     inputs,
-    ...
   }: let
-    inherit (pkgs.stdenv.hostPlatform) system isDarwin;
+    inherit (pkgs.stdenv.hostPlatform) system;
     inherit (inputs.llm-agents.packages.${system}) ccstatusline;
     settings = managedSettings {
       ccstatuslineBin = "${ccstatusline}/bin/ccstatusline";
     };
-    settingsFile =
-      (pkgs.formats.json {}).generate "managed-settings.json" settings;
-
-    darwinPath = "/Library/Application Support/ClaudeCode";
   in
-    lib.mkMerge [
-      (lib.mkIf (!isDarwin) {
-        environment.etc."claude-code/managed-settings.json".source = settingsFile;
-      })
-      (lib.mkIf isDarwin {
-        system.activationScripts.postActivation.text = ''
-          mkdir -p '${darwinPath}'
-          ln -sf '${settingsFile}' '${darwinPath}/managed-settings.json'
-        '';
-      })
-    ];
+    (pkgs.formats.json {}).generate "managed-settings.json" settings;
+
+  # Linux/NixOS: write via environment.etc. Both NixOS and
+  # system-manager-linux expose environment.etc.
+  linuxManagedSettingsModule = {
+    pkgs,
+    inputs,
+    ...
+  }: {
+    environment.etc."claude-code/managed-settings.json".source =
+      mkSettingsFile {inherit pkgs inputs;};
+  };
+
+  # Darwin: symlink the generated file from /Library. nix-darwin exposes
+  # `system.activationScripts.postActivation` for this; system-manager
+  # (linux) does not, which is why this module is gated to darwin only.
+  darwinManagedSettingsModule = {
+    pkgs,
+    inputs,
+    ...
+  }: let
+    settingsFile = mkSettingsFile {inherit pkgs inputs;};
+    darwinPath = "/Library/Application Support/ClaudeCode";
+  in {
+    system.activationScripts.postActivation.text = ''
+      mkdir -p '${darwinPath}'
+      ln -sf '${settingsFile}' '${darwinPath}/managed-settings.json'
+    '';
+  };
 
   homeManagerModule = {
     pkgs,
@@ -117,9 +131,14 @@ _: let
 in {
   flake.modules.ai = {
     homeManagerModules = [homeManagerModule];
-    # Managed settings are picked up by both nix-darwin / system-manager
-    # (systemManagerModules) and NixOS (nixosModules).
-    systemManagerModules = [managedSettingsModule];
-    nixosModules = [managedSettingsModule];
+    # Managed settings file is placed per-OS. Linux (both NixOS and
+    # system-manager) uses environment.etc; darwin uses an activation-script
+    # symlink into /Library. Splitting the two avoids feeding the darwin
+    # branch to system-manager-linux, whose `system.activationScripts` is
+    # narrower than nix-darwin's and rejects the definition even under
+    # `lib.mkIf false`.
+    nixosModules = [linuxManagedSettingsModule];
+    os.linux.systemManagerModules = [linuxManagedSettingsModule];
+    os.darwin.systemManagerModules = [darwinManagedSettingsModule];
   };
 }
