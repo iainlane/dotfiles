@@ -78,21 +78,25 @@ in {
           vale
         ];
 
-        programs.git.includes = lib.mkAfter [
-          {
-            condition = "gitdir:~/dev/chainguard/";
-            contents = {
-              commit.gpgsign = true;
-              tag.gpgsign = true;
-              gpg.format = "x509";
-              gpg.x509.program = "${pkgs.gitsign}/bin/gitsign";
-              gitsign.connectorID = "https://accounts.google.com";
-            };
-          }
-        ];
+        programs = {
+          git.includes = lib.mkAfter [
+            {
+              condition = "gitdir:~/dev/chainguard/";
+              contents = {
+                commit.gpgsign = true;
+                tag.gpgsign = true;
+                gpg.format = "x509";
+                gpg.x509.program = "${pkgs.gitsign}/bin/gitsign";
+                gitsign.connectorID = "https://accounts.google.com";
+              };
+            }
+          ];
 
-        programs.mcp.servers.linear = {
-          url = "https://mcp.linear.app/mcp";
+          mcp.servers.linear.url = "https://mcp.linear.app/mcp";
+
+          # Block the `/share` command so work sessions can't be uploaded to
+          # opencode's public share service.
+          opencode.settings.share = "disabled";
         };
       };
 

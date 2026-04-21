@@ -12,6 +12,8 @@ _: let
     mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
 
     managedConfig = {
+      # Updates come from Nix, not codex's self-check.
+      check_for_update_on_startup = false;
       features = {
         apps = true;
         shell_zsh_fork = true;

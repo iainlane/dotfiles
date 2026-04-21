@@ -24,6 +24,11 @@ in {
       rules = instructions.concatenated;
       tui.theme = "system";
 
+      settings = {
+        # Updates come from Nix, not opencode's self-updater.
+        autoupdate = false;
+      };
+
       # Shared skills from ./skills/.
       inherit skills;
     };
