@@ -48,7 +48,17 @@ in {
         flavor = "mocha";
       };
 
+      networking.firewall.trustedInterfaces = ["tailscale0"];
+
       services.pcscd.enable = true;
+      services.tailscale = {
+        enable = true;
+        useRoutingFeatures = "client";
+      };
+
+      systemd.services.tailscaled.serviceConfig.Environment = [
+        "TS_DEBUG_FIREWALL_MODE=nftables"
+      ];
     };
   };
 }
