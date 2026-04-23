@@ -15,12 +15,13 @@
       zshColour = "magenta";
     };
   in {
-    dev-chainguard-go =
+    dev-chainguard =
       defaults
       // {
         directory = "dev/chainguard";
         packages = pkgs:
           (langPackages.go pkgs)
+          ++ (langPackages.typescript pkgs)
           ++ (with pkgs; [
             stdenv.cc
             pkg-config
