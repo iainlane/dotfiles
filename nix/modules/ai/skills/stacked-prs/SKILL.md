@@ -5,7 +5,7 @@ description: >-
   the previous, to create a chain.
 
 allowed-tools: Bash(gh pr create --draft *) Bash(gh pr edit *) Bash(gh pr view *) Bash(git add *) Bash(git checkout *) Bash(git commit *) Bash(git fetch *) Bash(git log *) Bash(git push *) Bash(git rebase *) Bash(git status *) Grep Read
-argument-hint: [--prefix=prefix] [--rebase] <from=branch point> <to=head>
+argument-hint: "[--prefix=prefix] [--rebase] <from=branch point> <to=head>"
 ---
 
 # `stacked-prs`
