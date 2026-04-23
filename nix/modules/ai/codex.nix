@@ -16,6 +16,7 @@ _: let
       check_for_update_on_startup = false;
       features = {
         apps = true;
+        memories = true;
         shell_zsh_fork = true;
         smart_approvals = true;
         undo = true;
