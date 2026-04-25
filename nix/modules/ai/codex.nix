@@ -45,7 +45,7 @@ _: let
             }
         )
         mcp.servers;
-      model = "gpt-5.4";
+      model = "gpt-5.5";
       model_reasoning_effort = "high";
       personality = "pragmatic";
       service_tier = "fast";
