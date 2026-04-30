@@ -421,6 +421,11 @@
       attrPath = attrs.attrPath or (lib.concatStringsSep "." attrSegments);
     };
 
+  # Derive the kernel/OS name (e.g. "linux", "darwin") from a flake system
+  # string so callers can pick `os.<name>` overlays without inspecting `pkgs`
+  # at evaluation time.
+  osFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
+
   # Create nested attribute structure for the direnvs output. Each node can have:
   #   - shell: the devShell for this directory (optional)
   #   - subdirectories: nested directory nodes (default {})
@@ -429,6 +434,7 @@
   # direnvs.dev.subdirectories.debian.shell.
   mkNestedShells = {
     pkgs,
+    os,
     mkShell,
     projectDefinitions,
   }: let
@@ -445,7 +451,7 @@
       acc: def:
         lib.recursiveUpdate
         acc
-        (lib.setAttrByPath (mkShellPath def.attrSegments) (mkShell pkgs def))
+        (lib.setAttrByPath (mkShellPath def.attrSegments) (mkShell pkgs os def))
     )
     {}
     (builtins.attrValues projectDefinitions);
@@ -454,6 +460,7 @@
   # For example, "dev/debian" becomes devShells.direnvs-dev-debian.
   mkFlatShells = {
     pkgs,
+    os,
     mkShell,
     projectDefinitions,
   }:
@@ -461,7 +468,7 @@
       lib.mapAttrsToList (
         _: def: {
           name = "direnvs-" + lib.concatStringsSep "-" def.attrSegments;
-          value = mkShell pkgs def;
+          value = mkShell pkgs os def;
         }
       )
       projectDefinitions
@@ -497,9 +504,12 @@
   #   withSystem:  flake-parts' withSystem function for per-system evaluation
   #   projects:    Attrset of project directories with their configurations
   #                Each project should define at minimum: directory
-  #   mkShell:     Function (pkgs -> projectDef -> derivation) that builds a shell
-  #                for a project. This is where you set environment variables and
-  #                add packages specific to your projects.
+  #   mkShell:     Function (pkgs -> os -> projectDef -> derivation) that builds
+  #                a shell for a project. `os` is the kernel name (e.g. "linux",
+  #                "darwin") derived from the build system, so callers can pick
+  #                the matching `os.<name>` overlay without runtime conditionals.
+  #                This is where you set environment variables and add packages
+  #                specific to your projects.
   #
   # Returns: An attrset with:
   #   - homeManagerModule: A home-manager module fragment for project-directories config
@@ -536,6 +546,7 @@
             in
               mkNestedShells {
                 pkgs = projectPkgs;
+                os = osFromSystem system;
                 inherit mkShell projectDefinitions;
               }
           )
@@ -543,11 +554,16 @@
 
       # Export flat devShells for manual `nix develop` usage. Useful for testing
       # or entering a project environment without direnv.
-      perSystem = {config, ...}: let
+      perSystem = {
+        config,
+        system,
+        ...
+      }: let
         projectPkgs = config._module.args.pkgs;
       in {
         devShells = mkFlatShells {
           pkgs = projectPkgs;
+          os = osFromSystem system;
           inherit mkShell projectDefinitions;
         };
       };

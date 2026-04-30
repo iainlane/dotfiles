@@ -45,7 +45,7 @@
       };
   };
 
-  mkShell = pkgs: def:
+  mkShell = pkgs: _os: def:
     pkgs.mkShell (
       {
         packages = def.packages or (_: []) pkgs;

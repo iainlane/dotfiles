@@ -6,7 +6,7 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
-  langPackages = config.flake.direnvPackages;
+  inherit (config.flake) mkLanguageShell;
 
   projects = let
     defaults = {
@@ -19,15 +19,14 @@
       defaults
       // {
         directory = "dev/chainguard";
-        packages = pkgs:
-          (langPackages.go pkgs)
-          ++ (langPackages.typescript pkgs)
-          ++ (with pkgs; [
+        languages = ["go" "typescript"];
+        extraPackages = pkgs:
+          with pkgs; [
             stdenv.cc
             pkg-config
 
             apko
-          ]);
+          ];
         extraPaths = ["$HOME/go/bin"];
       };
 
@@ -35,16 +34,18 @@
       defaults
       // {
         directory = "dev/chainguard/rust";
-        packages = langPackages.rust;
+        languages = ["rust"];
       };
   };
 
-  mkShell = pkgs: def:
+  mkShell = pkgs: os: def: let
+    langShell = mkLanguageShell pkgs os (def.languages or []);
+    extra = (def.extraPackages or (_: [])) pkgs;
+  in
     pkgs.mkShellNoCC (
-      {
-        packages = def.packages or (_: []) pkgs;
-      }
+      langShell
       // {
+        packages = (langShell.packages or []) ++ extra;
         NAME = def.name;
         EMAIL = def.email;
         GIT_AUTHOR_NAME = def.name;

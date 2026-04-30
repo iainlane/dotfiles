@@ -6,48 +6,49 @@
 }: let
   helpers = import ../helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
-  langPackages = config.flake.direnvPackages;
+  inherit (config.flake) mkLanguageShell;
 
   # Base dev directory with common tools
   projects = {
     dev = {
       directory = "dev";
-      packages = pkgs:
-        with pkgs; [
-          just
-        ];
+      extraPackages = pkgs: with pkgs; [just];
     };
 
     dev-random-rust = {
       directory = "dev/random/rust";
-      packages = langPackages.rust;
+      languages = ["rust"];
     };
 
     dev-random-go = {
       directory = "dev/random/go";
-      packages = langPackages.go;
+      languages = ["go"];
     };
 
     dev-random-python = {
       directory = "dev/random/python";
-      packages = langPackages.python;
+      languages = ["python"];
     };
 
     dev-random-typescript = {
       directory = "dev/random/typescript";
-      packages = langPackages.typescript;
+      languages = ["typescript"];
     };
 
     dev-random-lua = {
       directory = "dev/random/lua";
-      packages = langPackages.lua;
+      languages = ["lua"];
     };
   };
 
-  mkShell = pkgs: def:
-    pkgs.mkShellNoCC {
-      packages = (def.packages or (_: [])) pkgs;
-    };
+  mkShell = pkgs: os: def: let
+    langShell = mkLanguageShell pkgs os (def.languages or []);
+    extra = (def.extraPackages or (_: [])) pkgs;
+  in
+    pkgs.mkShellNoCC (langShell
+      // {
+        packages = (langShell.packages or []) ++ extra;
+      });
 
   projectShells = helpers.mkProjectShells {
     inherit config withSystem mkShell projects;
