@@ -2,11 +2,12 @@
 _: let
   homeManagerModule = {
     pkgs,
+    pkgs-unstable,
     inputs,
     lib,
     ...
   }: let
-    mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+    mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
 
     claudeDesktopConfig = pkgs.writeText "claude_desktop_config.json" (
       builtins.toJSON {

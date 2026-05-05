@@ -45,6 +45,7 @@
             username
             nixpkgsConfig
             ;
+          pkgs-unstable = pkgs;
         };
       };
     }

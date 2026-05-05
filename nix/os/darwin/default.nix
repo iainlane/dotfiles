@@ -61,6 +61,7 @@
             pkgs-stable
             username
             ;
+          pkgs-unstable = pkgs;
         };
       };
     }

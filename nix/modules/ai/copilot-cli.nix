@@ -5,13 +5,14 @@
 # file anyway as best-effort.
 {
   pkgs,
+  pkgs-unstable,
   config,
   inputs,
   lib,
   system,
   ...
 }: let
-  mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+  mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
 
   # Copilot CLI reads servers from a JSON file; generate it from the shared set.

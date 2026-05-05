@@ -1,5 +1,6 @@
 {
   pkgs,
+  pkgs-unstable,
   inputs,
   lib,
 }:
@@ -32,7 +33,7 @@ let
   # from the shared `programs.mcp` config (set in mcp.nix) rather than
   # consuming this attrset directly. This evaluation is still needed so that
   # mcp.nix can populate `programs.mcp.servers`.
-  mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs {
+  mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs-unstable {
     inherit programs;
   };
 

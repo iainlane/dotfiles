@@ -4,6 +4,7 @@
 # option, so we pass the shared MCP servers via `settings.mcpServers` directly.
 {
   pkgs,
+  pkgs-unstable,
   config,
   inputs,
   lib,
@@ -11,7 +12,7 @@
   system,
   ...
 }: let
-  mcp = import ./mcp-servers.nix {inherit pkgs inputs lib;};
+  mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
   skills = import ./skills.nix {inherit lib;};
 
