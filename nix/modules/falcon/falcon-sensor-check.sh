@@ -30,7 +30,7 @@ if [[ -x "${FALCONCTL}" ]]; then
 else
 	echo "  ${FAIL}: falconctl not found at ${FALCONCTL}"
 	echo ""
-	echo "Run falcon-sensor-install to bootstrap the sensor binaries."
+	echo "Enable services.falcon-sensor and run nixos-rebuild switch."
 	exit 1
 fi
 
