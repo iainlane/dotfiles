@@ -39,4 +39,20 @@ opt.swapfile = false
 vim.g.maplocalleader = ","
 
 vim.g.netrw_liststyle = 3
-vim.g.root_spec = { { ".git", "lsp" }, "lsp", "lua", "cwd" }
+-- In monorepos, prefer the nearest language-module root over the outer
+-- `.git` so pickers, grep and project tools scope to the submodule you are
+-- editing rather than the whole repository. LazyVim treats an inner array
+-- as "any of these markers, equal priority", so no further nesting is
+-- needed here (unlike `vim.fs.root`).
+vim.g.root_spec = {
+  "lsp",
+  {
+    "go.work",
+    "go.mod",
+    "Cargo.toml",
+    "pyproject.toml",
+    "package.json",
+  },
+  { ".git", "lua" },
+  "cwd",
+}
