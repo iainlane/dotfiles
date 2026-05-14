@@ -7,6 +7,53 @@
   necessary for clarity or if requested by the user. Do not edit comments that
   are separate from the code you are changing. NEVER talk to the user or
   describe your changes through comments.
+  - Do not leave defensive comments that anticipate objections, justify the
+    code's existence.
+
+    Bad:
+
+    ```python
+    # This is intentional - we really do want to swallow the error here
+    # because the caller handles retries.
+    try:
+        publish(event)
+    except TransientError:
+        pass
+    ```
+
+    Good (lets the type or structure speak, or names the invariant):
+
+    ```python
+    # Publication is best-effort. Callers can handle retries if they need it.
+    try:
+        publish(event)
+    except TransientError:
+        pass
+    ```
+
+  - Do not write comments that refer to past states of the code or to the change
+    you are making. Phrases like "previously", "no longer", "now does X",
+    "renamed from", "removed Y", or "used to" belong in the commit message or PR
+    description, not in the source. Comments describe the code as it is, not its
+    history.
+
+    Bad:
+
+    ```typescript
+    // Previously this used a Map, but we switched to a plain object
+    // because the keys are always strings.
+    const cache: Record<string, User> = {};
+
+    // No longer needed after the auth refactor.
+    // function legacyLogin() { ... }
+    ```
+
+    Good (just the current code, with history in `git log`):
+
+    ```typescript
+    const cache: Record<string, User> = {};
+    ```
+
 - Mimic the style (formatting, naming), structure, framework choices, typing,
   and architectural patterns of existing code in the project.
 - Write idiomatic code for the language, libraries and frameworks used.
