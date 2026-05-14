@@ -95,8 +95,9 @@ in {
           default = null;
         };
         timezone = lib.mkOption {
-          type = lib.types.str;
-          default = "Europe/London";
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Timezone in TZ format, e.g. 'Europe/London'. Set to null to skip timezone configuration and let `systemd-timedated` manage.";
         };
         locale = lib.mkOption {
           type = lib.types.str;
