@@ -7,7 +7,9 @@ _: let
     system,
     ...
   }: let
-    lspSpec = import ./lsp.nix {inherit pkgs-unstable;};
+    lspSpec = import ./lsp.nix {
+      inherit pkgs-unstable inputs system;
+    };
     toolsSpec = import ./tools.nix {
       inherit pkgs inputs system;
     };

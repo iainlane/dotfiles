@@ -31,5 +31,4 @@
   js-debug-adapter = pkgs.vscode-js-debug;
 
   bacon = inputs.bacon.defaultPackage.${system};
-  bacon-ls = inputs.bacon-ls.defaultPackage.${system};
 }

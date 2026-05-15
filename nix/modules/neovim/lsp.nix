@@ -1,4 +1,8 @@
-{pkgs-unstable}: {
+{
+  pkgs-unstable,
+  inputs,
+  system,
+}: {
   # This file keeps Neovim's Nix-managed LSP mapping in one place. It lets us
   # install language tools via Nix. From this we generate a JSON file which we
   # load into Neovim to disable Mason installs for these tools.
@@ -43,6 +47,15 @@
   "ansible-language-server" = {
     lsp = "ansiblels";
     pkg = pkgs-unstable.ansible-language-server;
+  };
+  # `bacon-ls` is selected as the Rust diagnostics provider via
+  # `lazyvim_rust_diagnostics` in `nvim/lua/config/options.lua`. LazyVim's rust
+  # extra registers `bacon_ls` with lspconfig when that flag is set; we need
+  # the LSP server name here so `nix-managed-mason.lua` can disable Mason for
+  # it. The runner binary `bacon` itself lives in `tools.nix`.
+  "bacon-ls" = {
+    lsp = "bacon_ls";
+    pkg = inputs.bacon-ls.defaultPackage.${system};
   };
   "bash-language-server" = "bashls";
   # C/C++/Objective-C.
