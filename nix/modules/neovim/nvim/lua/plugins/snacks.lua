@@ -17,6 +17,22 @@ return {
           },
         },
       },
+
+      -- Smooth scrolling.
+      scroll = { enabled = true },
+
+      -- Inline images via the Kitty graphics protocol.
+      image = { enabled = true },
+
+      -- Dim inactive scopes; pairs nicely with `mini.indentscope` and treesitter
+      -- context. Off by default; toggle with `<leader>uD`.
+      dim = {},
+
+      -- Distraction-free writing mode (`<leader>z`).
+      zen = {},
+
+      -- Project-scoped scratch buffers (`<leader>.` toggles, `<leader>S` lists).
+      scratch = {},
     },
 
     keys = {
@@ -49,6 +65,46 @@ return {
           })
         end,
         desc = "Grep (Buffer directory)",
+      },
+      {
+        "<leader>.",
+        function()
+          Snacks.scratch()
+        end,
+        desc = "Toggle Scratch Buffer",
+      },
+      {
+        "<leader>S",
+        function()
+          Snacks.scratch.select()
+        end,
+        desc = "Select Scratch Buffer",
+      },
+      {
+        "<leader>z",
+        function()
+          Snacks.zen()
+        end,
+        desc = "Toggle Zen Mode",
+      },
+      {
+        "<leader>Z",
+        function()
+          Snacks.zen.zoom()
+        end,
+        desc = "Toggle Zoom",
+      },
+      {
+        "<leader>uD",
+        function()
+          vim.g.snacks_dim = not vim.g.snacks_dim
+          if vim.g.snacks_dim then
+            Snacks.dim.enable()
+          else
+            Snacks.dim.disable()
+          end
+        end,
+        desc = "Toggle Dim",
       },
     },
   },
