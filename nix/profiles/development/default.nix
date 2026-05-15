@@ -106,7 +106,7 @@ in {
           settings = {
             experimental = true;
 
-            idiomatic_version_file_enable_tools = ["node" "python"];
+            idiomatic_version_file_enable_tools = ["go" "node" "python"];
 
             not_found_auto_install = true;
           };
