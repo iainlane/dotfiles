@@ -55,16 +55,6 @@
       ],
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },
-
-    // Specific Go version matcher
-    {
-      customType: "regex",
-      description: "Update Go version variables",
-      fileMatch: ["^roles/go/defaults/main\\.yml$"],
-      matchStrings: ["go_version:\\s*[\"'](?<currentValue>[^\"']+)[\"']"],
-      datasourceTemplate: "golang-version",
-      depNameTemplate: "golang",
-    },
   ],
 
   // Vulnerability alerts

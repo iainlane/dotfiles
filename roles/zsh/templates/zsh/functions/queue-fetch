@@ -1,3 +1,0 @@
-RELEASE="$(ubuntu-distro-info --devel)"
-
-queue -Q unapproved -s "${RELEASE}-proposed" --source fetch "${1}" >/dev/null || return 1

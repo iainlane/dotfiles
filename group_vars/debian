@@ -1,4 +1,0 @@
-debian_apt_packages: []
-
-debian_apt_remove_packages:
-  - golang-go

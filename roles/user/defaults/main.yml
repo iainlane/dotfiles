@@ -1,6 +1,0 @@
----
-user_list:
-  - name: laney
-    comment: Iain Lane
-    user_type: admin
-    shell: /bin/zsh

@@ -1,6 +1,0 @@
----
-pipx_packages:
-  - ansible
-  - ansible-core
-  - uv
-  - zizmor

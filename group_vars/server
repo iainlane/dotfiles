@@ -1,5 +1,0 @@
----
-# Minimal packages for server systems
-go_packages_server: []
-
-cargo_packages_server: []

@@ -1,9 +1,0 @@
----
-dependencies:
-  - role: apt
-    vars:
-      apt_packages:
-        - clamav
-        - jq
-        - jsonnet
-        - shellcheck

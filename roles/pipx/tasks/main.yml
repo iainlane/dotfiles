@@ -1,9 +1,0 @@
----
-- name: Install pipx packages
-  environment:
-    PIPX_BIN_DIR: "{{ ansible_env.HOME }}/.local/pipx/bin"
-  community.general.pipx:
-    name: "{{ item }}"
-    force: true
-    state: latest
-  with_items: "{{ pipx_packages }}"
