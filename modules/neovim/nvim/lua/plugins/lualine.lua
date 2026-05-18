@@ -1,5 +1,3 @@
-local icons = require("lazyvim.config").icons
-
 return {
   "nvim-lualine/lualine.nvim",
 
@@ -11,33 +9,31 @@ return {
       },
     }
 
-    -- Rebuild `lualine_c` rather than removing entries by index. The filename
-    -- (`pretty_path`) is omitted on purpose because `incline.nvim` renders the
-    -- path in the window header. Extras like `aerial` and `trouble` append to
-    -- this list later, which is unaffected.
-    opts.sections.lualine_c = {
-      LazyVim.lualine.root_dir(),
-      {
-        "diagnostics",
-        symbols = {
-          error = icons.diagnostics.Error,
-          warn = icons.diagnostics.Warn,
-          info = icons.diagnostics.Info,
-          hint = icons.diagnostics.Hint,
-        },
-      },
-      {
-        "fileformat",
-        colored = true,
-        separator = "",
-        symbols = {
-          unix = "", -- e712
-          dos = "", -- e70f
-          mac = "", -- e711
-        },
-      },
-      { "filetype", icon_only = true, separator = "", padding = { left = 1, right = 0 } },
-    }
+    -- Drop the filename component: `incline.nvim` renders the path in the
+    -- window header. `pretty_path` is the bare `{ <function> }` entry;
+    -- `root_dir` and the trouble symbols breadcrumb also use a function at
+    -- `[1]`, but they carry extra keys (`cond`, `color`).
+    opts.sections.lualine_c = vim.tbl_filter(function(entry)
+      return type(entry[1]) ~= "function" or vim.tbl_count(entry) > 1
+    end, opts.sections.lualine_c)
+
+    -- Slot `fileformat` in just before `filetype`, preserving any entries
+    -- appended by extras (e.g. `aerial`).
+    for i, entry in ipairs(opts.sections.lualine_c) do
+      if entry[1] == "filetype" then
+        table.insert(opts.sections.lualine_c, i, {
+          "fileformat",
+          colored = true,
+          separator = "",
+          symbols = {
+            unix = "", -- e712
+            dos = "", -- e70f
+            mac = "", -- e711
+          },
+        })
+        break
+      end
+    end
 
     opts.sections.lualine_z = {}
 
