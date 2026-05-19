@@ -4,13 +4,14 @@
   hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPIQCZc54poJ8vqawd8TraNryQeJnvH1eLpIDgbiqymM";
   signingKeyName = "nixbuild.net/CGKA3W";
   signingKey = "nL2pa46FhLsOxVxHP+TBmMnUz+cuW6pZEreV/MGVaJ4=";
-  userMatchBlock = identityFile: extraOptions: {
-    hostname = hostName;
-    inherit identityFile;
-    identitiesOnly = true;
-    serverAliveInterval = 60;
-    inherit extraOptions;
-  };
+  userMatchBlock = identityFile: extraSettings:
+    {
+      HostName = hostName;
+      IdentityFile = identityFile;
+      IdentitiesOnly = true;
+      ServerAliveInterval = 60;
+    }
+    // extraSettings;
   systems = ["x86_64-linux" "aarch64-linux" "armv7l-linux"];
   maxJobs = 100;
   speedFactor = 1;

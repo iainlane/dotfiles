@@ -6,15 +6,15 @@
   ];
 
   flake.profiles.home.homeManagerModule = {
-    dotfiles.ssh.matchBlocks = {
+    dotfiles.ssh.settings = {
       cripps = {
-        hostname = "cripps.orangesquash.org.uk";
-        user = "laney";
+        HostName = "cripps.orangesquash.org.uk";
+        User = "laney";
       };
 
       os = {
-        hostname = "cripps.orangesquash.org.uk";
-        user = "laney";
+        HostName = "cripps.orangesquash.org.uk";
+        User = "laney";
       };
     };
   };
