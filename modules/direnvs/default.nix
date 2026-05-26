@@ -93,13 +93,18 @@ in {
 
   config.flake = {
     direnvLanguages = {
-      go.shell = pkgs: {
-        packages = with pkgs; [
+      go.shell = pkgs: let
+        # Pin the shell's Go to the one nixpkgs used to build golangci-lint, so
+        # the linter's bundled `golang.org/x/tools` never lags behind the
+        # toolchain that runs `go list`.
+        inherit (pkgs.golangci-lint) go;
+      in {
+        packages = [
           go
-          gopls
-          gotools
-          golangci-lint
-          delve
+          pkgs.gopls
+          pkgs.gotools
+          pkgs.golangci-lint
+          pkgs.delve
         ];
       };
 
