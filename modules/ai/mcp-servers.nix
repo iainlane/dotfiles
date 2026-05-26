@@ -45,15 +45,28 @@ let
   # Pull out the computed server definitions for reuse.
   inherit (mcpServersNix.config.settings) servers;
 
-  # These LSPs are made privately available to the AI tools that support LSP.
+  # These language servers, formatters, and linters are made privately
+  # available to the AI tools that can use project diagnostics.
   packages = with pkgs; [
+    alejandra
+    bash-language-server
     clang-tools # provides clangd
+    deadnix
     deno
+    ffmpeg
     gopls
     lua-language-server
+    marksman
+    nil
     pkgs."typescript-language-server"
     pyright
     rust-analyzer
+    shellcheck
+    shfmt
+    statix
+    taplo
+    yaml-language-server
+    yt-dlp
   ];
 in {
   inherit packages servers;
@@ -62,13 +75,14 @@ in {
   wrapWithTools = {
     package,
     binName,
+    extraWrapperArgs ? [],
   }: let
     wrapped =
       pkgs.runCommand "${binName}-with-tools" {
         nativeBuildInputs = [pkgs.makeWrapper];
       } ''
         makeWrapper ${package}/bin/${binName} $out/bin/${binName} \
-          --prefix PATH : ${lib.makeBinPath packages}
+          --prefix PATH : ${lib.makeBinPath packages}${lib.optionalString (extraWrapperArgs != []) " \\\n          ${lib.escapeShellArgs extraWrapperArgs}"}
       '';
   in
     wrapped

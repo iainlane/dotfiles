@@ -12,5 +12,6 @@ _: {
     ./crush.nix
     ./gemini-cli.nix
     ./opencode.nix
+    ./pi
   ];
 }

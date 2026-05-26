@@ -32,6 +32,13 @@ Other tools expect a configuration file on disk. For these, we use
 - `copilot-cli.nix` - Generates JSON for GitHub Copilot CLI
 - `opencode.nix` - Generates JSON for OpenCode
 
+Pi (`pi/`) writes its configuration directly into `~/.pi/agent/` via
+`home.file`, since Pi is configured through that directory rather than an
+upstream home-manager module. Pinned Pi extensions are built as fixed-output Nix
+derivations in `pi/extensions.nix` and surfaced as local-path packages, so
+runtime package updates are not needed. `pi-mcp-adapter` reads the shared
+`~/.config/mcp/mcp.json`, and auth stays interactive through `pi /login`.
+
 The `mkConfigFile` function takes three parameters:
 
 - `flavor` - Tool-specific schema ("claude", "codex", etc.)
@@ -64,6 +71,7 @@ Most tools still need a wrapped binary so their private tool dependencies are on
 - `crush.nix`
 - `gemini-cli.nix`
 - `opencode.nix`
+- `pi.nix`
 
 ## Adding a new tool
 

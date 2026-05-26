@@ -28,6 +28,14 @@
       flake = false;
     };
 
+    # Canonical Catppuccin palette JSON. Read directly via
+    # `inputs.catppuccin-palette + "/palette.json"` so we don't have to
+    # vendor or duplicate the colour data.
+    catppuccin-palette = {
+      url = "github:catppuccin/palette/v1.8.0";
+      flake = false;
+    };
+
     claude-managed-settings = {
       url = "git+https://github.com/iainlane/claude-managed-settings?ref=iainlane/nix-flake";
       inputs.nixpkgs.follows = "nixpkgs";
