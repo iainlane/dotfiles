@@ -45,7 +45,8 @@ _: let
               enabled = !(server.disabled or false);
             }
         )
-        mcp.servers;
+        # Codex shouldn't run itself as an MCP server.
+        (lib.removeAttrs mcp.servers ["codex"]);
       model = "gpt-5.5";
       model_reasoning_effort = "high";
       personality = "pragmatic";
