@@ -94,5 +94,6 @@
   "vim-sleuth": { "branch": "master", "commit": "be69bff86754b1aa5adcbb527d7fcd1635a84080" },
   "vim-suda": { "branch": "master", "commit": "c492741b4679b3cdd4d9e34138209784e061d916" },
   "which-key.nvim": { "branch": "main", "commit": "3aab2147e74890957785941f0c1ad87d0a44c15a" },
+  "wrapping.nvim": { "branch": "master", "commit": "3ecfb37cdc189a4e32d646e1c2ae0f46b9d62740" },
   "yanky.nvim": { "branch": "main", "commit": "b13d318dc7c816e2eee626dde61fa0a7237bc77e" }
 }
