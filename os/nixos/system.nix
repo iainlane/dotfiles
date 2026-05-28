@@ -22,9 +22,14 @@ in {
 
   networking = {
     hostName = hostConfig.hostname;
-    networkmanager.enable = true;
+    networkmanager = {
+      enable = true;
+      dns = "systemd-resolved";
+    };
     nftables.enable = true;
   };
+
+  services.resolved.enable = true;
 
   time.timeZone = hostConfig.timezone;
   i18n.defaultLocale = hostConfig.locale;
