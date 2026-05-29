@@ -41,7 +41,7 @@
 
   piSettings = {
     defaultProvider = "anthropic";
-    defaultModel = "claude-opus-4-7";
+    defaultModel = "claude-opus-4-8";
     defaultThinkingLevel = "high";
     thinkingBudgets = {
       minimal = 1024;
@@ -52,9 +52,9 @@
     };
     hideThinkingBlock = true;
     enabledModels = [
-      "claude-opus-4-7"
-      "claude-sonnet-4-6"
-      "claude-haiku-4-5"
+      "claude-opus-*"
+      "claude-sonnet-*"
+      "claude-haiku-*"
       "gpt-5.5"
       "gpt-5.3-codex-spark"
       "gpt-5.4-mini"
