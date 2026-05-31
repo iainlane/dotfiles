@@ -47,7 +47,9 @@ in {
   ports = defaultPorts ++ cfg.extraPorts;
 
   environment = {
-    UOS_SERVER_VERSION = serverVersion;
+    APP_MODEL = "UOSSERVER";
+    APP_VERSION = serverVersion;
+    PRODUCT_NAME = "uosserver";
     FIRMWARE_PLATFORM =
       if pkgs.stdenv.hostPlatform.isAarch64
       then "linux-arm64"
