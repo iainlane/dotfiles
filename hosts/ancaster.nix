@@ -8,6 +8,7 @@ in {
   profiles = [
     "base"
     "containers"
+    "hermes"
     {
       adsb = {
         secretsFile = "adsb.yaml";

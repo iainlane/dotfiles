@@ -79,6 +79,11 @@
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent/v2026.5.29.2";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     just-sublime = {
       url = "github:nk9/just_sublime";
       flake = false;
