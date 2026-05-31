@@ -1,4 +1,22 @@
-{lib, ...}: let
+{
+  config,
+  lib,
+  ...
+}: let
+  profileRequirementType = with lib.types;
+    either str (submodule {
+      options = {
+        profile = lib.mkOption {
+          type = str;
+        };
+
+        os = lib.mkOption {
+          type = nullOr (listOf (enum config.dotfiles.operatingSystems));
+          default = null;
+        };
+      };
+    });
+
   moduleOptions = {
     homeManagerModule = lib.mkOption {
       type = lib.types.nullOr lib.types.unspecified;
@@ -14,6 +32,10 @@
     };
     modules = lib.mkOption {
       type = with lib.types; listOf unspecified;
+      default = [];
+    };
+    requires = lib.mkOption {
+      type = with lib.types; listOf profileRequirementType;
       default = [];
     };
   };

@@ -152,6 +152,65 @@
   hasProfile = hostConfig: name:
     builtins.elem name (activeProfileNames hostConfig);
 
+  # Normalise profile requirements from either the shorthand string form:
+  #
+  #   requires = [ "containers" ];
+  #
+  # or the attrset form:
+  #
+  #   requires = [{ profile = "containers"; os = [ "linux" "nixos" ]; }];
+  normaliseProfileRequirement = requirement:
+    if builtins.isString requirement
+    then {
+      profile = requirement;
+      os = null;
+    }
+    else requirement;
+
+  profileRequirementApplies = hostConfig: requirement:
+    requirement.os == null || builtins.elem hostConfig.os requirement.os;
+
+  validateProfileRequirements = {
+    hostConfig,
+    profiles,
+  }: let
+    entries = normaliseProfileEntries hostConfig.profiles;
+    activeNames = activeProfileNames hostConfig;
+    hostLabel = hostConfig.hostname;
+
+    mkRequirementError = entry: requirement:
+      if requirement.profile == entry.name
+      then "Host '${hostLabel}' profile '${entry.name}' cannot require itself"
+      else if !(builtins.hasAttr requirement.profile profiles)
+      then "Host '${hostLabel}' profile '${entry.name}' requires unknown profile '${requirement.profile}'"
+      else if !(builtins.elem requirement.profile activeNames)
+      then "Host '${hostLabel}' profile '${entry.name}' requires profile '${requirement.profile}'"
+      else null;
+
+    mkOsRequirementError = entry: requirement:
+      if requirement.os == null
+      then null
+      else "Host '${hostLabel}' profile '${entry.name}' has an OS-scoped requirement with a nested os filter";
+
+    profileRequirementErrors = entry: let
+      profile = profiles.${entry.name} or (throw "Profile '${entry.name}' not found in flake.profiles");
+      baseRequirements =
+        builtins.filter
+        (profileRequirementApplies hostConfig)
+        (map normaliseProfileRequirement (profile.requires or []));
+      osRequirements = map normaliseProfileRequirement ((profile.os.${hostConfig.os} or {}).requires or []);
+      osRequirementErrors = builtins.filter (error: error != null) (map (mkOsRequirementError entry) osRequirements);
+      scopedRequirements = builtins.filter (requirement: requirement.os == null) osRequirements;
+      requirementErrors = builtins.filter (error: error != null) (map (mkRequirementError entry) (baseRequirements ++ scopedRequirements));
+    in
+      osRequirementErrors ++ requirementErrors;
+
+    errors = lib.concatMap profileRequirementErrors entries;
+  in
+    if errors == []
+    then true
+    else throw (lib.concatStringsSep "\n" errors);
+
   # Build the list of modules for one module type ("homeManagerModule" or
   # "systemManagerModule").
   #
@@ -582,5 +641,6 @@ in {
     mkModules
     mkProjectShells
     mkSystemSopsModule
+    validateProfileRequirements
     ;
 }
