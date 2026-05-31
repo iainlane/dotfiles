@@ -15,7 +15,7 @@
       imageRef = "docker.io/library/${sources.imageTag}";
       imagePath = import ./image.nix {
         inherit pkgs;
-        inherit (platform) url hash;
+        src = pkgs.fetchurl {inherit (platform) url hash;};
         inherit (sources) version;
       };
       unifiContainer = import ./container.nix {

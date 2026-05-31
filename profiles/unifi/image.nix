@@ -1,19 +1,16 @@
 {
   pkgs,
-  url,
-  hash,
+  src,
   version ? "5.0.6",
 }:
 pkgs.stdenvNoCC.mkDerivation {
   pname = "unifi-os-server-image";
-  inherit version;
-
-  src = pkgs.fetchurl {
-    inherit url hash;
-  };
+  inherit version src;
 
   nativeBuildInputs = with pkgs; [
     binwalk
+    gnutar
+    jq
     unzip
   ];
 
@@ -22,15 +19,7 @@ pkgs.stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    binwalk --extract --directory=extracted "$src" >/dev/null
-
-    image_tar="$(find extracted -type f -name image.tar | head -n1)"
-    if [ -z "$image_tar" ]; then
-      echo "Could not find embedded image.tar in UniFi OS installer" >&2
-      exit 1
-    fi
-
-    cp "$image_tar" image.tar
+    bash ${./extract-image.sh} "$src" extracted
 
     runHook postBuild
   '';
@@ -39,7 +28,8 @@ pkgs.stdenvNoCC.mkDerivation {
     runHook preInstall
 
     mkdir -p "$out"
-    cp image.tar "$out/image.tar"
+    cp extracted/image.tar "$out/image.tar"
+    cp extracted/image-tag "$out/image-tag"
 
     runHook postInstall
   '';

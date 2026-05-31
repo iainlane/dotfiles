@@ -29,6 +29,8 @@
         shellcheck = {
           enable = true;
           severity = "style";
+          external-sources = true;
+          source-path = "SCRIPTDIR";
         };
         shfmt = {
           enable = true;

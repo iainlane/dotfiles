@@ -1,5 +1,5 @@
 #!/usr/bin/env nix
-#! nix shell nixpkgs#bash nixpkgs#binwalk nixpkgs#curl nixpkgs#jq nixpkgs#openssl nixpkgs#unzip --command bash
+#! nix shell nixpkgs#bash nixpkgs#binwalk nixpkgs#curl nixpkgs#gnutar nixpkgs#jq nixpkgs#nix nixpkgs#unzip nixpkgs#wget --command bash
 # shellcheck shell=bash
 
 # Update UniFi OS Server to the latest Linux release published by Ubiquiti.
@@ -57,43 +57,23 @@ if [[ -z "${x64_url}" || "${x64_url}" == "null" || -z "${arm64_url}" || "${arm64
 	exit 1
 fi
 
-prefetch_sri() {
-	local path="${1}"
-	local base64_hash
-
-	base64_hash="$(openssl dgst -sha256 -binary "${path}" | openssl base64 -A)"
-	printf 'sha256-%s\n' "${base64_hash}"
-}
-
 echo "Downloading Linux arm64 installer..." >&2
 arm64_installer="${tmpdir}/unifi-os-server-arm64.bin"
-curl -fsSL "${arm64_url}" -o "${arm64_installer}"
+wget --show-progress -qO "${arm64_installer}" "${arm64_url}"
 
 echo "Downloading Linux x64 installer..." >&2
 x64_installer="${tmpdir}/unifi-os-server-x64.bin"
-curl -fsSL "${x64_url}" -o "${x64_installer}"
+wget --show-progress -qO "${x64_installer}" "${x64_url}"
 
 echo "Extracting embedded image tag..." >&2
-binwalk --extract --directory "${tmpdir}/extract" "${arm64_installer}" >/dev/null
-image_tar="$(find "${tmpdir}/extract" -type f -name image.tar | head -n1)"
+bash ./extract-image.sh "${arm64_installer}" "${tmpdir}/extract"
+image_tag="$(cat "${tmpdir}/extract/image-tag")"
 
-if [[ -z "${image_tar}" ]]; then
-	echo "Could not find embedded image.tar in UniFi installer." >&2
-	exit 1
-fi
+echo "Hashing Linux x64..." >&2
+x64_hash="$(nix hash file --sri --type sha256 "${x64_installer}")"
 
-image_tag="$(tar -xOf "${image_tar}" manifest.json | jq -r '.[0].RepoTags[0] // empty')"
-
-if [[ -z "${image_tag}" ]]; then
-	echo "Could not determine embedded image tag from image.tar." >&2
-	exit 1
-fi
-
-echo "Prefetching Linux x64..." >&2
-x64_hash="$(prefetch_sri "${x64_installer}")"
-
-echo "Prefetching Linux arm64..." >&2
-arm64_hash="$(prefetch_sri "${arm64_installer}")"
+echo "Hashing Linux arm64..." >&2
+arm64_hash="$(nix hash file --sri --type sha256 "${arm64_installer}")"
 
 jq -n \
 	--arg image_tag "${image_tag}" \

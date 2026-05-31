@@ -1,14 +1,17 @@
 #!/usr/bin/env nix
-#! nix shell nixpkgs#bash nixpkgs#curl nixpkgs#jq nixpkgs#nix --command bash
+#! nix shell nixpkgs#bash nixpkgs#curl nixpkgs#jq nixpkgs#nix nixpkgs#wget --command bash
 # shellcheck shell=bash
 
 # Update wolfictl to the latest version.
-# Fetches the latest GitHub release, then uses nix-prefetch-url to compute
-# hashes for all platform binaries.
+# Reads the latest GitHub release tag, then downloads and hashes the release
+# binary for every platform.
 
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# shellcheck source-path=SCRIPTDIR source=../_lib/prefetch.sh
+source ../_lib/prefetch.sh
 
 REPO="wolfi-dev/wolfictl"
 
@@ -20,28 +23,17 @@ declare -A PLATFORMS=(
 	["aarch64-darwin"]=darwin_arm64
 )
 
-# Get the latest version from GitHub.
 echo "Fetching latest version..." >&2
 tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | jq -r .tag_name)"
 version="${tag#v}"
 echo "Latest version: ${version}" >&2
 
-# Build sources.json by prefetching each platform binary.
-sources='{"version":"'"${version}"'","platforms":{}}'
-
+pairs=()
 for system in "${!PLATFORMS[@]}"; do
-	suffix="${PLATFORMS[$system]}"
-	url="https://github.com/${REPO}/releases/download/${tag}/wolfictl_${suffix}_${version}_${suffix}"
-	echo "Prefetching ${suffix}..." >&2
-	hex="$(nix-prefetch-url --type sha256 "$url" 2>/dev/null)"
-	sri="$(nix hash convert --hash-algo sha256 --to sri "$hex")"
-	sources="$(echo "$sources" | jq \
-		--arg sys "$system" \
-		--arg url "$url" \
-		--arg hash "$sri" \
-		'.platforms[$sys] = {url: $url, hash: $hash}')"
+	suffix="${PLATFORMS[${system}]}"
+	pairs+=("${system}=https://github.com/${REPO}/releases/download/${tag}/wolfictl_${suffix}_${version}_${suffix}")
 done
 
-echo "$sources" | jq --sort-keys . >sources.json
+write_sources "${version}" "${pairs[@]}" >sources.json
 
 echo "Updated sources.json to wolfictl ${version}." >&2
