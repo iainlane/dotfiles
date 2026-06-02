@@ -8,6 +8,14 @@
   inherit (inputs.nixpkgs) lib;
   inherit (config.flake) mkLanguageShell;
 
+  # Claude Code gets these via the enterprise subscription. Other harnesses can
+  # still use them, but we need to add them manually.
+  workMcp = {
+    linear.url = "https://mcp.linear.app/mcp";
+    slack.url = "https://mcp.slack.com/mcp";
+    glean.url = "https://chainguard-be.glean.com/mcp/default";
+  };
+
   projects = let
     defaults = {
       name = "Iain Lane";
@@ -81,6 +89,11 @@ in {
           vale
         ];
 
+        # Home Manager tools get the enterprise connectors here.
+        dotfiles.ai.mcpServers = workMcp;
+        # Claude Code receives these from the organisation, so don't dupe.
+        dotfiles.claudeCode.excludeMcpServers = builtins.attrNames workMcp;
+
         programs = {
           git.includes = lib.mkAfter [
             {
@@ -94,8 +107,6 @@ in {
               };
             }
           ];
-
-          mcp.servers.linear.url = "https://mcp.linear.app/mcp";
 
           # Block the `/share` command so work sessions can't be uploaded to
           # opencode's public share service.
@@ -119,6 +130,9 @@ in {
           [./kolide.nix]
           ++ lib.optional (helpers.hasProfile hostConfig "desktop")
           ./claude-managed-settings.nix;
+
+        dotfiles.ai.mcpServers =
+          lib.mkIf (helpers.hasProfile hostConfig "desktop") workMcp;
 
         services.falcon-sensor = {
           enable = true;

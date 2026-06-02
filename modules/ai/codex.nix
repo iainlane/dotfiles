@@ -8,6 +8,7 @@ _: let
     pkgs-unstable,
     inputs,
     lib,
+    config,
     ...
   }: let
     mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
@@ -44,8 +45,7 @@ _: let
               enabled = !(server.disabled or false);
             }
         )
-        # Codex shouldn't run itself as an MCP server.
-        (lib.removeAttrs mcp.servers ["codex"]);
+        config.dotfiles.ai.mcpServers;
       model = "gpt-5.5";
       model_reasoning_effort = "high";
       personality = "pragmatic";
@@ -57,7 +57,18 @@ _: let
 
     managedConfigFile = (pkgs.formats.toml {}).generate "codex-managed-config.toml" managedConfig;
   in {
-    environment.etc."codex/managed_config.toml".source = managedConfigFile;
+    # This is the system/NixOS copy of the shared MCP option. The Home Manager
+    # copy is declared in mcp.nix for the interactive tools; Codex's managed
+    # config lives under /etc, so it needs the same option surface here.
+    options.dotfiles.ai.mcpServers = mcp.mcpServersOption;
+
+    config = {
+      # Base shared servers. Codex never runs itself as an MCP server, so drop
+      # the `codex` entry.
+      dotfiles.ai.mcpServers = lib.removeAttrs mcp.servers ["codex"];
+
+      environment.etc."codex/managed_config.toml".source = managedConfigFile;
+    };
   };
 
   homeManagerModule = {

@@ -34,16 +34,31 @@ let
   };
 
   # Evaluate the mcp-servers-nix module to get a computed attrset of MCP server
-  # definitions. Each tool module uses `enableMcpIntegration` to pull servers
-  # from the shared `programs.mcp` config (set in mcp.nix) rather than
-  # consuming this attrset directly. This evaluation is still needed so that
-  # mcp.nix can populate `programs.mcp.servers`.
+  # definitions. This gives us the shared server shape; each harness can then
+  # either consume it directly or mirror it through `programs.mcp`.
   mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs-unstable {
     inherit programs;
   };
 
   # Pull out the computed server definitions for reuse.
   inherit (mcpServersNix.config.settings) servers;
+
+  jsonFormat = pkgs.formats.json {};
+
+  # Declaration for the MCP server set offered to the AI harnesses. Servers are
+  # held in the common shape (`url` for remote, `command`/`args` for local); a
+  # base module seeds the set and profiles contribute more, with the module
+  # system merging the definitions. Each harness applies its own transform to
+  # output in the format it needs.
+  mcpServersOption = lib.mkOption {
+    type = with lib.types; attrsOf (attrsOf jsonFormat.type);
+    default = {};
+    description = "MCP servers offered to the AI harnesses.";
+  };
+
+  # Remove named servers from a set. A harness uses this to drop servers a
+  # profile has excluded for it.
+  excludeServers = names: serverSet: lib.removeAttrs serverSet names;
 
   # These language servers, formatters, and linters are made privately
   # available to the AI tools that can use project diagnostics.
@@ -69,7 +84,7 @@ let
     yt-dlp
   ];
 in {
-  inherit packages servers;
+  inherit packages servers mcpServersOption excludeServers;
 
   # Helper function to wrap an AI tool with the shared tools in PATH
   wrapWithTools = {

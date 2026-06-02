@@ -37,7 +37,7 @@ in {
         inherit skills;
 
         settings = {
-          mcpServers = config.programs.mcp.servers;
+          inherit (config.dotfiles.ai) mcpServers;
           context.fileName = map (n: "${n}.md") (lib.attrNames instructions.files);
         };
       };

@@ -18,7 +18,7 @@
   # Copilot CLI reads servers from a JSON file; generate it from the shared set.
   copilotMcpConfig = pkgs.writeText "mcp-config.json" (
     builtins.toJSON {
-      inherit (config.programs.mcp) servers;
+      servers = config.dotfiles.ai.mcpServers;
     }
   );
 

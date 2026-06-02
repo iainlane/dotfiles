@@ -11,12 +11,12 @@
   mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
 
-  # Crush expects its MCP servers and LSP config inside crush.json.
-  # Global instructions are loaded via options.context_paths.
+  # Crush expects its MCP servers and LSP config inside crush.json. Global
+  # instructions are loaded via options.context_paths.
   crushConfig = pkgs.writeText "crush.json" (
     builtins.toJSON {
       "$schema" = "https://charm.land/crush.json";
-      mcp = config.programs.mcp.servers;
+      mcp = config.dotfiles.ai.mcpServers;
       options.context_paths = ["~/.config/crush/AGENTS.md"];
     }
   );
