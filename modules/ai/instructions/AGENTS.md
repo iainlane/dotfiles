@@ -31,11 +31,13 @@
         pass
     ```
 
-  - Do not write comments that refer to past states of the code or to the change
-    you are making. Phrases like "previously", "no longer", "now does X",
-    "renamed from", "removed Y", or "used to" belong in the commit message or PR
-    description, not in the source. Comments describe the code as it is, not its
-    history.
+  - Do not write comments that refer to past states of the code, or to an
+    alternative you tried and rejected while working. Phrases like "previously",
+    "no longer", "now does X", "renamed from", "removed Y", or "used to" belong
+    in the commit message or PR description, not in the source. So does
+    justifying the code against a discarded approach ("we do X rather than Y
+    because Y ..."): a dead end that never reached the code is not part of its
+    history either. Comments describe the code as it is.
 
     Bad:
 
@@ -44,14 +46,29 @@
     // because the keys are always strings.
     const cache: Record<string, User> = {};
 
-    // No longer needed after the auth refactor.
-    // function legacyLogin() { ... }
+    // We build the index up front rather than lazily, because lazy
+    // construction deadlocked during init.
+    buildIndex();
     ```
 
     Good (just the current code, with history in `git log`):
 
     ```typescript
     const cache: Record<string, User> = {};
+
+    buildIndex();
+    ```
+
+    A comment still earns its place when the reason holds for the code as it
+    stands -- an external constraint a future reader could not infer and might
+    "tidy away":
+
+    ```python
+    # `boto3` reads the credentials file at import time, so the environment
+    # must be set up before this import.
+    os.environ["AWS_PROFILE"] = profile
+
+    import boto3
     ```
 
 - Mimic the style (formatting, naming), structure, framework choices, typing,
