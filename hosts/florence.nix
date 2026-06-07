@@ -10,7 +10,7 @@ in {
     "desktop"
     "development"
     "containers"
-    "builder"
+    "nixbuild-builder"
     "cloud"
   ];
 }

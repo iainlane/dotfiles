@@ -9,7 +9,7 @@ in {
     "base"
     "development"
     "desktop"
-    {"builder" = {admin = true;};}
+    {"nixbuild-builder" = {admin = true;};}
 
     "home"
   ];

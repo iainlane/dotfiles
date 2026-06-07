@@ -31,8 +31,6 @@ shells, and work-specific settings) so hosts can opt into them selectively.
 Profile definitions are kept in `profiles/*/default.nix`.
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
-- `builder`: Cross-platform build helpers (Linux binfmt/QEMU and Darwin Linux
-  builder VM opt-in).
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
 - `containers`: Linux rootless container prerequisites (`newuidmap`/`newgidmap`
   wrappers and nodocker marker).
@@ -41,6 +39,10 @@ Profile definitions are kept in `profiles/*/default.nix`.
 - `development`: Personal development project shells and language toolchains.
 - `home`: Linux-focused personal project-directory shells (Debian/Ubuntu/GNOME
   workflows).
+- `nixbuild-builder`: nixbuild.net remote build configuration, including
+  build-machine registration and cross-architecture build support.
+- `nixbuild-substituter`: nixbuild.net SSH substituter configuration without
+  registering the host as a remote-build client.
 - `work`: Work-specific project shells, identity defaults, and tooling.
 
 ### Modules

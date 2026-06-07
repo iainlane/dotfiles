@@ -9,7 +9,7 @@ in {
   motd = halls.bonington;
   profiles = [
     "base"
-    "builder"
+    "nixbuild-builder"
     {
       desktop.usbguardStaticRules."10-scarlett.conf" = ''
         allow id 1235:8219 serial "S2AR8Q3350C05D"

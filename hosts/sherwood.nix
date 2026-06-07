@@ -9,7 +9,7 @@ in {
     "base"
     "development"
     "containers"
-    "builder"
+    "nixbuild-builder"
     "desktop"
     "home"
   ];

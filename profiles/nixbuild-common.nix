@@ -4,6 +4,7 @@
   hostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPIQCZc54poJ8vqawd8TraNryQeJnvH1eLpIDgbiqymM";
   signingKeyName = "nixbuild.net/CGKA3W";
   signingKey = "nL2pa46FhLsOxVxHP+TBmMnUz+cuW6pZEreV/MGVaJ4=";
+
   userMatchBlock = identityFile: extraSettings:
     {
       HostName = hostName;
@@ -12,6 +13,7 @@
       ServerAliveInterval = 60;
     }
     // extraSettings;
+
   systems = ["x86_64-linux" "aarch64-linux" "armv7l-linux"];
   maxJobs = 100;
   speedFactor = 1;
@@ -36,6 +38,7 @@
       "-"
       "-"
     ];
+
   sshConfigText = ''
     Host ${builderAlias}
       ControlMaster auto
@@ -50,32 +53,23 @@
       PubkeyAcceptedKeyTypes ssh-ed25519
       ServerAliveInterval 60
   '';
-in {
-  inherit binaryCaches builderAlias hostKey hostName maxJobs speedFactor sshConfigText supportedFeatures systems;
-  adminMatchBlock = {
-    "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_admin" {
-      ControlMaster = "no";
-      IPQoS = "le";
-      PubkeyAcceptedKeyTypes = "ssh-ed25519";
-      RemoteCommand = "shell";
-    };
-  };
-  storeMatchBlock = {
-    "nixbuild-store" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_store" {
-      ControlMaster = "auto";
-      ControlPath = "~/.ssh/ssh-nixbuild-store-%C";
-      ControlPersist = "10m";
-      IPQoS = "le";
-      PubkeyAcceptedKeyTypes = "ssh-ed25519";
+
+  sshKnownHost = "${hostName} ${hostKey}";
+
+  sshProgramConfig = {
+    extraConfig = sshConfigText;
+    knownHosts.nixbuild = {
+      hostNames = [hostName];
+      publicKey = hostKey;
     };
   };
 
-  machineLine = mkMachineLine;
+  systemManagerSshConfig = {
+    "ssh/ssh_config.d/100-nixbuild.conf".text = sshConfigText;
+    "ssh/ssh_known_hosts".text = sshKnownHost;
+  };
 
-  machineLines = systems: sshKeyPath:
-    lib.concatMapStringsSep "\n" (system: mkMachineLine system sshKeyPath) systems;
-
-  module = {
+  substituterModule = {
     hostConfig,
     inputs,
     username,
@@ -109,4 +103,90 @@ in {
       };
     };
   };
+
+  homeManagerModule = {admin ? false}: {
+    inputs,
+    lib,
+    ...
+  }:
+    lib.mkMerge [
+      {
+        dotfiles.ssh.settings = storeMatchBlock;
+      }
+      (lib.mkIf admin {
+        sops.secrets.nixbuild-admin-private-key = {
+          sopsFile = inputs.secrets + "/nixbuild-admin.yaml";
+          key = "nixbuild_admin_public_key";
+          path = "~/.ssh/id_ed25519_nixbuild_admin";
+        };
+
+        dotfiles.ssh.settings = adminMatchBlock;
+      })
+    ];
+
+  linuxSystemManagerModule = {
+    imports = [substituterModule];
+
+    environment.etc = systemManagerSshConfig;
+  };
+
+  nixosModule = {
+    imports = [substituterModule];
+
+    programs.ssh = sshProgramConfig;
+  };
+
+  darwinSystemManagerModule = {
+    imports = [substituterModule];
+
+    system.activationScripts.postActivation.text = ''
+      mkdir -p ~/.ssh
+      chmod 700 ~/.ssh
+    '';
+
+    programs.ssh = sshProgramConfig;
+  };
+
+  adminMatchBlock = {
+    "nixbuild-admin" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_admin" {
+      ControlMaster = "no";
+      IPQoS = "le";
+      PubkeyAcceptedKeyTypes = "ssh-ed25519";
+      RemoteCommand = "shell";
+    };
+  };
+
+  storeMatchBlock = {
+    "nixbuild-store" = userMatchBlock "~/.ssh/id_ed25519_nixbuild_store" {
+      ControlMaster = "auto";
+      ControlPath = "~/.ssh/ssh-nixbuild-store-%C";
+      ControlPersist = "10m";
+      IPQoS = "le";
+      PubkeyAcceptedKeyTypes = "ssh-ed25519";
+    };
+  };
+in {
+  inherit
+    adminMatchBlock
+    binaryCaches
+    builderAlias
+    darwinSystemManagerModule
+    homeManagerModule
+    hostKey
+    hostName
+    linuxSystemManagerModule
+    maxJobs
+    nixosModule
+    speedFactor
+    sshConfigText
+    storeMatchBlock
+    substituterModule
+    supportedFeatures
+    systems
+    ;
+
+  machineLine = mkMachineLine;
+
+  machineLines = systems: sshKeyPath:
+    lib.concatMapStringsSep "\n" (system: mkMachineLine system sshKeyPath) systems;
 }

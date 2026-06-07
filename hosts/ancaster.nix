@@ -9,6 +9,7 @@ in {
     "base"
     "containers"
     "hermes"
+    "nixbuild-substituter"
     {
       adsb = {
         secretsFile = "adsb.yaml";
