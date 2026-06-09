@@ -25,6 +25,7 @@ in {
           secretsFile = "ancaster/user-hermes.yaml";
         };
         soul.enable = true;
+        agents.enable = true;
         mcp.enable = true;
         context-engine = "lcm";
         backup = {

@@ -281,6 +281,7 @@
             "${generatedConfigFile}:/data/.hermes/config.yaml:ro"
           ]
           ++ lib.optional cfg.soul.enable "${cfg.soul.file}:/data/.hermes/SOUL.md:ro"
+          ++ lib.optional cfg.agents.enable "${cfg.agents.file}:/data/workspace/AGENTS.md:ro"
           ++ cfg.container.extraVolumes;
         environment =
           {

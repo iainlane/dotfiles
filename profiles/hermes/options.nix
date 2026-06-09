@@ -235,6 +235,19 @@
       };
     };
 
+    agents = {
+      enable = lib.mkEnableOption "installing a read-only AGENTS.md operating-instructions file";
+
+      file = lib.mkOption {
+        type = lib.types.path;
+        default = ./agents.md;
+        description = ''
+          Markdown file installed as AGENTS.md in the agent's working
+          directory, loaded as workspace context alongside SOUL.md.
+        '';
+      };
+    };
+
     mcp = {
       enable = lib.mkEnableOption "the default MCP server set (exa, context7, nixos, cloudflare)";
     };
