@@ -80,8 +80,13 @@
     };
 
     hermes-agent = {
-      url = "github:NousResearch/hermes-agent/v2026.5.29.2";
+      url = "github:NousResearch/hermes-agent/v2026.6.5";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    hermes-lcm = {
+      url = "github:stephenschoettler/hermes-lcm/v0.16.1";
+      flake = false;
     };
 
     just-sublime = {

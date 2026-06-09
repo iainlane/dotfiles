@@ -112,7 +112,9 @@ This will refresh flake inputs (update to the latest packaged versions of
 things), deploy the current system, and pre-build `direnv` shells (see
 [above](#terms)).
 
-To deploy to a managed remote system, run `./just update-host <hostname>`.
+To deploy to a managed remote system, run `./just update-host <hostname>`. To
+deploy only the system or home deploy-rs profile, run
+`./just update-host-system <hostname>` or `./just update-host-home <hostname>`.
 
 Or, the individual steps can be run separately.
 

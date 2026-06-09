@@ -721,17 +721,34 @@
         "uv2nix": "uv2nix_2"
       },
       "locked": {
-        "lastModified": 1780061757,
-        "narHash": "sha256-0CmNH879jnsAAszo1nkkFm8RNE49xtwUditYdFIYBCM=",
+        "lastModified": 1780707343,
+        "narHash": "sha256-ngpkopVczNrT0bfCXHm38QjgrZT96Bm/rO89NA/ls3Y=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "77a1650c78a4cb1813d8a81fa1da40a15b6a3ec5",
+        "rev": "3c231eb3979ab9c57d5cd6d02f1d577a3b718b43",
         "type": "github"
       },
       "original": {
         "owner": "NousResearch",
-        "ref": "v2026.5.29.2",
+        "ref": "v2026.6.5",
         "repo": "hermes-agent",
+        "type": "github"
+      }
+    },
+    "hermes-lcm": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780896363,
+        "narHash": "sha256-Pks7Mf3d90lHEYwNq7dA3BGR9YgZawTav6nHpHgH9nk=",
+        "owner": "stephenschoettler",
+        "repo": "hermes-lcm",
+        "rev": "9597603a119a2b715818aee9e35f4fe1c9af3187",
+        "type": "github"
+      },
+      "original": {
+        "owner": "stephenschoettler",
+        "ref": "v0.16.1",
+        "repo": "hermes-lcm",
         "type": "github"
       }
     },
@@ -1251,11 +1268,11 @@
     },
     "nixpkgs_5": {
       "locked": {
-        "lastModified": 1780030872,
-        "narHash": "sha256-u6WU/yd/o8iYQrHX3RAwO1hYa3LkoSL+WNQD0rJfJZQ=",
+        "lastModified": 1780747962,
+        "narHash": "sha256-IX7G1dlKrOqPOImfbo7ADDfV5yU1+j+MRChI3TL4tAA=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "e9a7635a57597d9754eccebdfc7045e6c8600e6b",
+        "rev": "cbb5cf358f50aa6acc9efd6113b7bcfbc352cd73",
         "type": "github"
       },
       "original": {
@@ -1441,6 +1458,7 @@
         "flake-parts": "flake-parts_2",
         "git-hooks-nix": "git-hooks-nix_2",
         "hermes-agent": "hermes-agent",
+        "hermes-lcm": "hermes-lcm",
         "home-manager": "home-manager",
         "home-manager-stable": "home-manager-stable",
         "just-sublime": "just-sublime",
@@ -1505,11 +1523,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1774441891,
-        "narHash": "sha256-rQUisXQumQ11ODrMf2H4u8keNwh0Ao1AkzR33pp45x4=",
+        "lastModified": 1780958985,
+        "narHash": "sha256-SmUBjRRlqAZ3sNp4IgRt+EmSMskm96f++VsAISBTpvw=",
         "ref": "refs/heads/main",
-        "rev": "1a7f9d56cb129e1f0f022bedf6d39af7e3e46c7c",
-        "revCount": 20,
+        "rev": "e410fa04fffb1c58b7e1df20012b425092799f60",
+        "revCount": 25,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },
@@ -1564,11 +1582,11 @@
         "userborn": "userborn"
       },
       "locked": {
-        "lastModified": 1778508009,
-        "narHash": "sha256-mp63mt+EwfKiVZX+4BC/59g5oTbsXNtSYESVci3opso=",
+        "lastModified": 1780677567,
+        "narHash": "sha256-8u1EEEtbJtMDxlEiG47FuNv0oM8RioNDs00SWnlqIAM=",
         "owner": "numtide",
         "repo": "system-manager",
-        "rev": "dc1baae12eed1758755e73f8aff7fca5502c6e9f",
+        "rev": "96f724be6f1411286e8ad0202e3e624c10116a6d",
         "type": "github"
       },
       "original": {

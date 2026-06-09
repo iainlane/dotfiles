@@ -59,7 +59,19 @@ update: update-flake update-system build-direnvs
 
 # Deploy to a remote host via deploy-rs (all profiles by default)
 update-host hostname *args:
-    nix run .#deploy-rs -- --interactive-sudo true --hostname '{{ hostname }}.home.orangesquash.org.uk' .#{{ hostname }} {{ args }}
+    just deploy-host {{ hostname }} {{ hostname }} {{ args }}
+
+# Deploy the system profile to a remote host via deploy-rs
+update-host-system hostname *args:
+    just deploy-host {{ hostname }} {{ hostname }}.system {{ args }}
+
+# Deploy the home profile to a remote host via deploy-rs
+update-host-home hostname *args:
+    just deploy-host {{ hostname }} {{ hostname }}.laney {{ args }}
+
+[private]
+deploy-host hostname target *args:
+    nix run .#deploy-rs -- --skip-checks --interactive-sudo true --hostname '{{ hostname }}.home.orangesquash.org.uk' .#{{ target }} {{ args }}
 
 # Pre-build all direnv development shells for faster directory changes
 build-direnvs:
