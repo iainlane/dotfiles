@@ -14,6 +14,20 @@ _: let
     catppuccin.flavor = lib.mkDefault "latte";
   };
 
+  # `catppuccin.sources.<port>` is the built port package; the per-app modules
+  # read their themes from it, which is IFD. Point the ports we theme at
+  # native-fetched inputs that mirror the installed layout (themes flattened to
+  # the package root), so those reads happen against an evaluation-time path.
+  # The `sources` option applies `recursiveUpdate` over the defaults, so a
+  # string value replaces just that port and leaves the rest untouched.
+  sourceOverrides = {inputs, ...}: {
+    catppuccin.sources = {
+      bottom = "${inputs.catppuccin-bottom}/themes";
+      palette = "${inputs.catppuccin-palette}";
+      gemini-cli = "${inputs.catppuccin-gemini-cli}/themes";
+    };
+  };
+
   # The unstable channel is moving to `catppuccin.autoEnable` for port
   # enrolment, with `catppuccin.enable` becoming a global on/off toggle. Set
   # both explicitly to silence the deprecation warning. Theming is configured
@@ -35,6 +49,7 @@ _: let
     imports =
       [
         defaults
+        (sourceOverrides args)
         (selectedCatppuccin args).homeModules.catppuccin
       ]
       ++ channelDefaults args;

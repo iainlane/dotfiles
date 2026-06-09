@@ -28,6 +28,22 @@
       flake = false;
     };
 
+    # Per-app theme repos consumed directly so the corresponding
+    # `catppuccin/nix` modules can read their themes without IFD. Upstream
+    # builds each port's `catppuccin.sources.<port>` from a `fetchFromGitHub`
+    # derivation, so the modules' `importTOML`/`importJSON` reads force a build
+    # during evaluation. Pointing `catppuccin.sources.<port>` at these
+    # native-fetched inputs instead keeps upstream's file-placement code but
+    # reads from a path that exists at evaluation time.
+    catppuccin-bottom = {
+      url = "github:catppuccin/bottom";
+      flake = false;
+    };
+    catppuccin-gemini-cli = {
+      url = "github:catppuccin/gemini-cli";
+      flake = false;
+    };
+
     # Canonical Catppuccin palette JSON. Read directly via
     # `inputs.catppuccin-palette + "/palette.json"` so we don't have to
     # vendor or duplicate the colour data.

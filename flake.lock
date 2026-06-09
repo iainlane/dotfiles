@@ -139,6 +139,38 @@
         "type": "github"
       }
     },
+    "catppuccin-bottom": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1745016081,
+        "narHash": "sha256-dfukdk70ug1lRGADKBnvMhkl+3tsY7F+UAwTS2Qyapk=",
+        "owner": "catppuccin",
+        "repo": "bottom",
+        "rev": "eadd75acd0ecad4a58ade9a1d6daa3b97ccec07c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "catppuccin",
+        "repo": "bottom",
+        "type": "github"
+      }
+    },
+    "catppuccin-gemini-cli": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1768488510,
+        "narHash": "sha256-ISUr8Gnknb+8nnlsGbP2aVXAxQtBPbiaTc7MqsecBk4=",
+        "owner": "catppuccin",
+        "repo": "gemini-cli",
+        "rev": "6b78ab52a0569cac80158c643e7699d0a116aebc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "catppuccin",
+        "repo": "gemini-cli",
+        "type": "github"
+      }
+    },
     "catppuccin-palette": {
       "flake": false,
       "locked": {
@@ -1448,6 +1480,8 @@
         "bacon-ls": "bacon-ls",
         "catppuccin": "catppuccin",
         "catppuccin-bat": "catppuccin-bat",
+        "catppuccin-bottom": "catppuccin-bottom",
+        "catppuccin-gemini-cli": "catppuccin-gemini-cli",
         "catppuccin-palette": "catppuccin-palette",
         "catppuccin-stable": "catppuccin-stable",
         "claude-managed-settings": "claude-managed-settings",
