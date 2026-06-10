@@ -31,8 +31,14 @@ mkdir -p "${snap}/.hermes"
 
 # Copy everything except the live SQLite databases. Those are captured
 # consistently below with the SQLite online backup API.
+# config.yaml, SOUL.md, and AGENTS.md are read-only Nix-store mounts:
+# reproducible, so not worth backing up, and their host-side mountpoint stubs
+# can be owned by a container subuid and unreadable to this user.
 rsync -a --numeric-ids \
 	--exclude=/current-package \
+	--exclude='/.hermes/config.yaml' \
+	--exclude='/.hermes/SOUL.md' \
+	--exclude='/workspace/AGENTS.md' \
 	--exclude='/.hermes/state.db*' \
 	--exclude='/.hermes/memory_store.db*' \
 	--exclude='/.hermes/kanban.db-wal' \

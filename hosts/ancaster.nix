@@ -28,6 +28,8 @@ in {
         agents.enable = true;
         mcp.enable = true;
         context-engine = "lcm";
+        # Pull in exa-py so the native web_search Exa backend has its client.
+        extraDependencyGroups = ["messaging" "exa"];
         backup = {
           enable = true;
           secretsFile = "ancaster/user-hermes.yaml";
@@ -37,6 +39,9 @@ in {
         secretEnv = {
           GROQ_API_KEY = "groq_api_key";
           OPENROUTER_API_KEY = "openrouter_api_key";
+          # Exa powers web_search (native backend) and authenticates the Exa
+          # MCP server, lifting it off the unauthenticated free tier.
+          EXA_API_KEY = "exa_api_key";
           # Hermes' OpenAI-compatible TTS backend looks for its key under this
           # name; reuse the OpenRouter key so speech routes through OpenRouter.
           VOICE_TOOLS_OPENAI_KEY = "openrouter_api_key";
@@ -68,6 +73,8 @@ in {
           # Image generation through the existing Codex/ChatGPT subscription
           # (gpt-image-2), so it needs no separate key.
           image_gen.provider = "openai-codex";
+          # Web search via Exa's neural search API.
+          web.backend = "exa";
           # Text-to-speech through OpenRouter's OpenAI-compatible speech
           # endpoint, using xAI's Grok Voice TTS with the Leo voice.
           tts = {
