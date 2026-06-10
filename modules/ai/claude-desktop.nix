@@ -21,7 +21,11 @@ _: let
       }
     );
   in {
-    home.file."Library/Application Support/Claude/claude_desktop_config.json".source = claudeDesktopConfig;
+    home.file."Library/Application Support/Claude/claude_desktop_config.json" = {
+      # The app itself seems to manage to clobber this file.
+      force = true;
+      source = claudeDesktopConfig;
+    };
   };
 
   systemManagerModule = {
