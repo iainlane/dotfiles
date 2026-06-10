@@ -54,6 +54,25 @@
         inherit (config.flake) profiles;
         extraSpecialArgs = homeSpecialArgs;
       };
+
+      # The shared AI modules import program modules from unstable home-manager,
+      # which rely on `lib.hm` helpers (`mcp`, `strings.isPathLike`, ...) the
+      # stable release does not ship. Hand the embedded home-manager unstable's
+      # whole `lib.hm`, the same set the standalone `homeConfigurations` already
+      # evaluate against; `extraSpecialArgs` takes precedence over
+      # home-manager's own `lib`. The throw makes this fail loudly once stable
+      # provides the helpers, so it is removed rather than left as dead code.
+      hmLibShim = lib.optionalAttrs (hostConfig.channel == "stable") {
+        lib = let
+          extended = import "${channel.home-manager}/modules/lib/stdlib-extended.nix" channel.nixpkgs.lib;
+        in
+          extended.extend (final: prev:
+            if (prev.hm ? mcp) && (prev.hm.strings ? isPathLike)
+            then throw "home-manager-stable now ships the lib.hm helpers; drop the hmLibShim in os/nixos/default.nix"
+            else {
+              hm = import "${inputs.home-manager}/modules/lib" {lib = final;};
+            });
+      };
     in {
       inherit homeSpecialArgs;
       systemConfig = channel.nixpkgs.lib.nixosSystem {
@@ -83,7 +102,7 @@
                 useGlobalPkgs = true;
                 useUserPackages = true;
                 users.${username}.imports = homeConfig.modules;
-                inherit (homeConfig) extraSpecialArgs;
+                extraSpecialArgs = homeConfig.extraSpecialArgs // hmLibShim;
               };
             }
           ];

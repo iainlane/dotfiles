@@ -24,7 +24,6 @@ _: let
     catppuccin.sources = {
       bottom = "${inputs.catppuccin-bottom}/themes";
       palette = "${inputs.catppuccin-palette}";
-      gemini-cli = "${inputs.catppuccin-gemini-cli}/themes";
     };
   };
 

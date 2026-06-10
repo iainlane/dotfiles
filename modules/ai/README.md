@@ -18,7 +18,7 @@ Different tools need different approaches:
 
 Some tools' home-manager modules accept an `mcpServers` attribute directly:
 
-- `gemini-cli.nix` - Uses `programs.gemini.mcp.servers`
+- `antigravity-cli.nix` - Uses `programs.antigravity-cli.mcpServers`
 
 These are the simplest integrations - no config file generation needed.
 
@@ -65,11 +65,11 @@ defaults rather than injecting `-c` flags on every launch.
 Most tools still need a wrapped binary so their private tool dependencies are on
 `PATH`:
 
+- `antigravity-cli.nix`
 - `claude-code.nix`
 - `codex.nix`
 - `copilot-cli.nix`
 - `crush.nix`
-- `gemini-cli.nix`
 - `opencode.nix`
 - `pi.nix`
 

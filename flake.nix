@@ -39,11 +39,6 @@
       url = "github:catppuccin/bottom";
       flake = false;
     };
-    catppuccin-gemini-cli = {
-      url = "github:catppuccin/gemini-cli";
-      flake = false;
-    };
-
     # Canonical Catppuccin palette JSON. Read directly via
     # `inputs.catppuccin-palette + "/palette.json"` so we don't have to
     # vendor or duplicate the colour data.
