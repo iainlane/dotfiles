@@ -1,16 +1,4 @@
-{inputs, ...}: let
-  # Use the unstable home-manager ghostty module even on the stable channel.
-  # The stable branch has the systemd service integration (PR #8130) but is
-  # missing the X-SwitchMethod=keep-old drop-in (PR #8490) that prevents
-  # home-manager activation from restarting the service and killing all open
-  # terminal sessions.
-  unstableGhosttyModule = {
-    disabledModules = ["programs/ghostty.nix"];
-    imports = [
-      (import "${inputs.home-manager}/modules/programs/ghostty.nix")
-    ];
-  };
-
+_: let
   homeManagerModule = {
     programs.ghostty = {
       enable = true;
@@ -82,7 +70,7 @@
   };
 in {
   flake.modules.ghostty = {
-    homeManagerModules = [unstableGhosttyModule homeManagerModule];
+    homeManagerModules = [homeManagerModule];
     os = {
       darwin.homeManagerModules = [darwinHomeManagerModule];
       linux.homeManagerModules = [linuxHomeManagerModule];
