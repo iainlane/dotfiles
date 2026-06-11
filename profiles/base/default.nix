@@ -38,7 +38,6 @@ in {
       pkgs,
       lib,
       inputs,
-      system,
       flakePath,
       ...
     }: {
@@ -126,9 +125,6 @@ in {
         nh = {
           enable = true;
           flake = flakePath;
-          # v4.3.0-beta1 fixes path quoting bug with spaces in PATH
-          # https://github.com/nix-community/nh/commit/4ae85ee
-          package = inputs.nh.packages.${system}.default;
         };
 
         # nix-index provides `nix-locate` for finding which package provides a file.
