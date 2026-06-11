@@ -2,14 +2,9 @@
   description = "Nix-based dotfiles for multiple machines";
 
   inputs = {
-    # Bacon and bacon-ls for Rust development in neovim
-    bacon = {
-      url = "github:Canop/bacon";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # https://github.com/crisidev/bacon-ls/pull/101
+    # bacon-ls for Rust development in neovim
     bacon-ls = {
-      url = "github:iainlane/bacon-ls/22ab710c6bf76602272b5dc6e0c17fdd169dc1a0";
+      url = "github:crisidev/bacon-ls";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.naersk.inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -19,7 +14,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     catppuccin-stable = {
-      url = "github:catppuccin/nix/release-25.11";
+      url = "github:catppuccin/nix/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
@@ -80,7 +75,7 @@
     };
 
     home-manager-stable = {
-      url = "github:nix-community/home-manager/release-25.11";
+      url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
@@ -90,7 +85,7 @@
     };
 
     hermes-lcm = {
-      url = "github:stephenschoettler/hermes-lcm/v0.16.1";
+      url = "github:stephenschoettler/hermes-lcm/v0.16.2";
       flake = false;
     };
 
@@ -100,7 +95,7 @@
     };
 
     kolide-launcher = {
-      url = "github:kolide/nix-agent/main";
+      url = "github:kolide/nix-agent";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -145,7 +140,7 @@
 
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
-    nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.11";
+    nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
 
     secrets = {
       url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";

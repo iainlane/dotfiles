@@ -23,9 +23,9 @@ in {
     };
   };
 
-  # Override the upstream kmsconvt@ template to add boot ordering and a
-  # getty fallback. This drop-in applies to all instances (including those
-  # spawned reactively by logind via the autovt@ alias).
+  # Override the upstream kmsconvt@ template to add boot ordering. This
+  # drop-in applies to all instances (including those spawned reactively by
+  # logind via the autovt@ alias).
   systemd.services."kmsconvt@" = {
     after = [
       "systemd-user-sessions.service"
@@ -35,8 +35,6 @@ in {
       "systemd-localed.service"
     ];
     before = ["getty.target"];
-    conflicts = ["getty@%i.service"];
-    onFailure = ["getty@%i.service"];
     unitConfig = {
       IgnoreOnIsolate = true;
       ConditionPathExists = "/dev/tty0";

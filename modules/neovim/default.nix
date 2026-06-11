@@ -11,7 +11,7 @@ _: let
       inherit pkgs-unstable inputs system;
     };
     toolsSpec = import ./tools.nix {
-      inherit pkgs inputs system;
+      inherit pkgs;
     };
 
     normaliseList = value:

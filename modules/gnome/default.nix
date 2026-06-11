@@ -2,10 +2,7 @@ _: let
   nixosModule = {pkgs, ...}: {
     services = {
       desktopManager.gnome.enable = true;
-      displayManager.gdm = {
-        enable = true;
-        wayland = true;
-      };
+      displayManager.gdm.enable = true;
       gnome = {
         core-developer-tools.enable = true;
         games.enable = true;

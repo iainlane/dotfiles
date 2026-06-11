@@ -1,12 +1,9 @@
-{
-  pkgs,
-  inputs,
-  system,
-}: {
+{pkgs}: {
   inherit
     (pkgs)
     alejandra
     ansible-lint
+    bacon
     biome
     deadnix
     delve
@@ -29,6 +26,4 @@
   codelldb = pkgs.vscode-extensions.vadimcn.vscode-lldb;
   goimports = pkgs.gotools;
   js-debug-adapter = pkgs.vscode-js-debug;
-
-  bacon = inputs.bacon.defaultPackage.${system};
 }
