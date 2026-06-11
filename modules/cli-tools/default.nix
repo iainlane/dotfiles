@@ -3,22 +3,7 @@ _: let
     inputs,
     pkgs,
     ...
-  }: let
-    # Pin less for bat until nixpkgs carries 692.
-    #
-    # less 691 regressed support for negative values in `-z`/`--window`
-    # (for example `-z-4`), which breaks current LESS defaults.
-    #
-    # Keep this scoped to bat only so we do not force global rebuilds of packages
-    # that happen to depend on `less` in their build graph.
-    less692 = pkgs.less.overrideAttrs (_: {
-      version = "692";
-      src = pkgs.fetchurl {
-        url = "https://greenwoodsoftware.com/less/less-692.tar.gz";
-        hash = "sha256-YTAPYDeY7PHXeGVweJ8P8/WhrPB1pvufdWg30WbjfRQ=";
-      };
-    });
-  in {
+  }: {
     imports = [
       ./fzf.nix
     ];
@@ -39,7 +24,6 @@ _: let
     programs = {
       bat = {
         enable = true;
-        package = pkgs.bat.override {less = less692;};
         config = {
           style = "auto";
           theme = "auto";
