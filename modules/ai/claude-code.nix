@@ -101,7 +101,7 @@ _: let
           };
         };
       };
-      model = "opus[1m]";
+      model = "claude-fable-5[1m]";
       skipDangerousModePermissionPrompt = true;
       statusLine = {
         type = "command";
