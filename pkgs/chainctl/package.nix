@@ -53,6 +53,8 @@ in
       "$out/bin/chainctl" completion fish > "$out/share/fish/vendor_completions.d/chainctl.fish"
     '';
 
+    passthru.updateScript = ./update.sh;
+
     meta = {
       description = "CLI for the Chainguard platform";
       homepage = "https://edu.chainguard.dev/chainguard/chainctl-usage/";

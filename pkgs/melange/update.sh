@@ -7,12 +7,10 @@
 
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
-
-nixpkgs_path="$(nix eval --raw nixpkgs#path)"
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 nix-update \
-	-f "$nixpkgs_path" \
-	--override-filename package.nix \
+	--flake \
+	--override-filename pkgs/melange/package.nix \
 	--use-github-releases \
 	melange

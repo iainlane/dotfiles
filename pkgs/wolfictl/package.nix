@@ -39,6 +39,8 @@ in
       "$out/bin/wolfictl" completion fish > "$out/share/fish/vendor_completions.d/wolfictl.fish"
     '';
 
+    passthru.updateScript = ./update.sh;
+
     meta = {
       description = "CLI for working with the Wolfi OSS project";
       homepage = "https://github.com/wolfi-dev/wolfictl";
