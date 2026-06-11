@@ -47,12 +47,6 @@
       flake = false;
     };
 
-    claude-managed-settings = {
-      url = "git+https://github.com/iainlane/claude-managed-settings?ref=iainlane/nix-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.treefmt-nix.follows = "treefmt-nix";
-    };
-
     deploy-rs = {
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";

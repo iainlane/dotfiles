@@ -13,10 +13,9 @@ _: let
   #
   # The policy itself is exposed as the option
   # `dotfiles.claudeCode.managedSettings`. Other modules may contribute
-  # additional keys (e.g. `permissions.deny` lists) and definitions are
-  # merged using the claude-managed-settings flake's `mergeSettingsList`,
-  # which concatenates and dedupes the `permissions.{deny,ask,allow}` lists
-  # and recursively updates everything else.
+  # additional keys (e.g. `permissions.deny` lists); definitions are merged by
+  # concatenating and deduplicating the `permissions.{deny,ask,allow}` lists
+  # and recursively updating everything else.
   # Shared option declaration and base value. Keeps the policy data in one
   # place; OS-specific modules below import this and add the file-placement
   # step appropriate to the target (environment.etc vs. /Library symlink).
@@ -28,6 +27,29 @@ _: let
   }: let
     inherit (pkgs.stdenv.hostPlatform) system;
     inherit (inputs.llm-agents.packages.${system}) ccstatusline;
+
+    # Fields named here are merged as sets — their lists are concatenated and
+    # deduplicated, first occurrence winning for ordering. Every other field
+    # follows recursive update: objects deep-merge, scalar leaves are replaced.
+    setMergedPaths.permissions = lib.genAttrs ["deny" "ask" "allow"] (_: true);
+
+    mergeSettings = let
+      walk = paths: l: r: let
+        setMerged =
+          lib.mapAttrs (
+            key: sub:
+              if builtins.isAttrs sub
+              then walk sub (l.${key} or {}) (r.${key} or {})
+              else lib.unique ((l.${key} or []) ++ (r.${key} or []))
+          )
+          paths;
+      in
+        lib.filterAttrs (_: v: v != [] && v != {})
+        (lib.recursiveUpdate l r // setMerged);
+    in
+      walk setMergedPaths;
+
+    mergeSettingsList = builtins.foldl' mergeSettings {};
   in {
     options.dotfiles.claudeCode.managedSettings = lib.mkOption {
       type = lib.mkOptionType {
@@ -35,16 +57,14 @@ _: let
         description = "Claude Code managed-settings.json policy";
         check = builtins.isAttrs;
         merge = _loc: defs:
-          inputs.claude-managed-settings.lib.mergeSettingsList
-          (map (d: d.value) defs);
+          mergeSettingsList (map (d: d.value) defs);
       };
       default = {};
       description = ''
         Contents of Claude Code's system-wide managed-settings.json policy.
         Other modules may contribute to this attrset; definitions are merged
-        with the claude-managed-settings flake's algorithm, which concats
-        and dedupes the `permissions.{deny,ask,allow}` lists and recursively
-        updates everything else.
+        by concatenating and deduplicating the `permissions.{deny,ask,allow}`
+        lists and recursively updating everything else.
       '';
     };
 
