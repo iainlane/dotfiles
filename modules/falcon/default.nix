@@ -1,7 +1,7 @@
 # CrowdStrike Falcon sensor NixOS module.
 # Falcon is fetched from a private GitHub release as a fixed-output derivation,
-# then staged into /opt/CrowdStrike during activation so the upstream layout
-# continues to work with the existing service wiring.
+# then staged into /opt/CrowdStrike when the service starts so the upstream
+# layout continues to work with the existing service wiring.
 _: let
   nixosModule = {
     config,
@@ -16,7 +16,6 @@ _: let
       mkIf
       mkOption
       optionalString
-      stringAfter
       types
       ;
     cfg = config.services.falcon-sensor;
@@ -83,6 +82,23 @@ _: let
             runHook postInstall
           '';
         };
+
+    # The sensor writes registration state into its install directory, so it
+    # must run from a mutable copy rather than the store. Staging in
+    # ExecStartPre ties the copy to a service restart: the store path embedded
+    # in the unit changes with the package, so NixOS restarts the service and
+    # the binaries are only ever replaced underneath a stopped daemon.
+    falconInstall = pkgs.writeShellScript "falcon-install" ''
+      set -euo pipefail
+
+      echo "staging CrowdStrike Falcon into ${installDir}..."
+      mkdir -p ${installDir}
+      ${pkgs.rsync}/bin/rsync -a --delete \
+        ${falconSensorPackage}/opt/CrowdStrike/ \
+        ${installDir}/
+      chown -R root:root ${installDir}
+      chmod -R 0750 ${installDir}
+    '';
 
     falconStartPre = pkgs.writeShellScript "falcon-start-pre" ''
       set -euo pipefail
@@ -214,16 +230,6 @@ _: let
         "d ${installDir} 0750 root root - -"
       ];
 
-      system.activationScripts.falcon-sensor-install = stringAfter ["users"] ''
-        echo "staging CrowdStrike Falcon into ${installDir}..."
-        mkdir -p ${installDir}
-        ${pkgs.rsync}/bin/rsync -a --delete \
-          ${falconSensorPackage}/opt/CrowdStrike/ \
-          ${installDir}/
-        chown -R root:root ${installDir}
-        chmod -R 0750 ${installDir}
-      '';
-
       systemd.services.falcon-sensor = {
         description = "CrowdStrike Falcon Sensor";
         after = ["local-fs.target" "network.target" "sops-nix.service"];
@@ -231,10 +237,8 @@ _: let
         conflicts = ["shutdown.target"];
         before = ["shutdown.target"];
 
-        unitConfig.ConditionPathExists = "${installDir}/falcond";
-
         serviceConfig = {
-          ExecStartPre = [falconStartPre];
+          ExecStartPre = [falconInstall falconStartPre];
           ExecStart = "${installDir}/falcond";
           Type = "forking";
           PIDFile = "/run/falcond.pid";
