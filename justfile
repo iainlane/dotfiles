@@ -16,9 +16,9 @@ xdg_state_home := env('XDG_STATE_HOME', env('HOME') + "/.local/state")
 
 secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
 
-# Platform-specific system rebuild command
+# Path to the system profile
 
-system-profile := if os() == "macos" { "/nix/var/nix/profiles/system" } else { "/nix/var/nix/profiles/system" }
+system-profile := "/nix/var/nix/profiles/system"
 
 # Default recipe: list available commands
 default:

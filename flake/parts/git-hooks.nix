@@ -10,10 +10,7 @@
       check-added-large-files.enable = true;
       check-yaml.enable = true;
       end-of-file-fixer.enable = true;
-      trim-trailing-whitespace = {
-        enable = true;
-        excludes = ["doc/rust-target-picker\\.txt"];
-      };
+      trim-trailing-whitespace.enable = true;
 
       flake-check = {
         enable = true;

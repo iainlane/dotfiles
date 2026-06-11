@@ -8,5 +8,6 @@
 .vscode/
 
 # Nix build outputs
+build/
 result
 result-*
