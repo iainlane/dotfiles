@@ -60,6 +60,10 @@ _: let
             privateKeyFile = config.sops.secrets."pcr-signing-private.pem".path;
             publicKeyFile = config.sops.secrets."pcr-signing-public.pem".path;
           };
+          measuredBoot.autoCryptenroll = {
+            enable = true;
+            volume = cfg.luksDevice;
+          };
         };
 
         initrd = {
