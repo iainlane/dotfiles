@@ -72,12 +72,12 @@ in {
   imports = [projectShells.flakeModule];
 
   flake.profiles.work = {
+    modules = [config.flake.modules.git];
+
     homeManagerModule = {pkgs, ...} @ args:
       lib.recursiveUpdate
       (projectShells.homeManagerModule args)
       {
-        imports = [./gitsign.nix];
-
         home.packages = with pkgs; [
           chainctl
           melange
@@ -89,29 +89,18 @@ in {
           vale
         ];
 
-        # Home Manager tools get the enterprise connectors here.
-        dotfiles.ai.mcpServers = workMcp;
-        # Claude Code receives these from the organisation, so don't dupe.
-        dotfiles.claudeCode.excludeMcpServers = builtins.attrNames workMcp;
+        dotfiles = {
+          # Home Manager tools get the enterprise connectors here.
+          ai.mcpServers = workMcp;
+          # Claude Code receives these from the organisation, so don't dupe.
+          claudeCode.excludeMcpServers = builtins.attrNames workMcp;
 
-        programs = {
-          git.includes = lib.mkAfter [
-            {
-              condition = "gitdir:~/dev/chainguard/";
-              contents = {
-                commit.gpgsign = true;
-                tag.gpgsign = true;
-                gpg.format = "x509";
-                gpg.x509.program = "${pkgs.gitsign}/bin/gitsign";
-                gitsign.connectorID = "https://accounts.google.com";
-              };
-            }
-          ];
-
-          # Block the `/share` command so work sessions can't be uploaded to
-          # opencode's public share service.
-          opencode.settings.share = "disabled";
+          git.signing.directories."~/dev/chainguard/".ssh.key = "~/.ssh/id_ed25519";
         };
+
+        # Block the `/share` command so work sessions can't be uploaded to
+        # opencode's public share service.
+        programs.opencode.settings.share = "disabled";
       };
 
     os.nixos = {

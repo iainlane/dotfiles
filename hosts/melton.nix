@@ -15,7 +15,7 @@ in {
   ];
 
   homeModule = _: {
-    dotfiles.git.signing.key = "E352D5C51C5041D4";
+    dotfiles.git.signing.global.openpgp.key = "E352D5C51C5041D4";
 
     targets.darwin.defaults = {
       NSGlobalDomain = {

@@ -23,10 +23,7 @@ in {
   ];
 
   homeModule = _: {
-    dotfiles.git.signing = {
-      key = "~/.ssh/id_ed25519";
-      format = "ssh";
-    };
+    dotfiles.git.signing.global.ssh.key = "~/.ssh/id_ed25519";
 
     programs.git.settings.user.email = "iain.lane@chainguard.dev";
   };
