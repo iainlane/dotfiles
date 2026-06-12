@@ -1,7 +1,8 @@
 # Discover and expose shared agent instruction files from ./instructions/.
 #
 # Each harness can also carry its own extra instructions: any .md files in
-# the subdirectory matching the importing module's name (claude-code.nix ->
+# the subdirectory matching the importing module's name (crush.nix ->
+# ./instructions/crush/, claude-code/home-manager.nix ->
 # ./instructions/claude-code/, pi/default.nix -> ./instructions/pi/) are
 # discovered and merged over the shared set, so a harness gains instructions
 # -- or overrides a shared file by reusing its stem -- just by dropping files
@@ -26,7 +27,7 @@ args @ {lib}: let
     else let
       stem = lib.removeSuffix ".nix" (baseNameOf callerPos.file);
     in
-      if stem == "default"
+      if stem == "default" || stem == "home-manager"
       then baseNameOf (dirOf callerPos.file)
       else stem;
 

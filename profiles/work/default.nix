@@ -72,7 +72,7 @@ in {
   imports = [projectShells.flakeModule];
 
   flake.profiles.work = {
-    modules = [config.flake.modules.git];
+    modules = [config.flake.modules.ai config.flake.modules.git];
 
     homeManagerModule = {pkgs, ...} @ args:
       lib.recursiveUpdate

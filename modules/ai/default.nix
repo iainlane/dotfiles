@@ -1,8 +1,8 @@
 _: {
   imports = [
-    ./claude-code.nix
-    ./claude-desktop.nix
-    ./codex.nix
+    ./claude-code
+    ./claude-desktop
+    ./codex
   ];
 
   flake.modules.ai.homeManagerModules = [
