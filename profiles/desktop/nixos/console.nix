@@ -41,9 +41,4 @@ in {
     };
     serviceConfig.Type = "idle";
   };
-
-  # Explicitly start kmscon on VT1 at boot. NixOS's wantedBy on a bare
-  # template (kmsconvt@) produces a symlink without an instance name which
-  # systemd ignores. An explicit instance ensures kmscon runs on tty1.
-  systemd.services."kmsconvt@tty1".wantedBy = ["getty.target"];
 }
