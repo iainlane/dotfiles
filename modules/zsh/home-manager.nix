@@ -12,6 +12,15 @@
 
   pluginsDir = ./plugins;
   localPlugins = helpers.fileNames pluginsDir ".plugin.zsh";
+
+  # Colourise manpages with `bat`. man renders bold/underline as backspace
+  # overstrikes and may emit ANSI colour codes; strip both so `bat` can
+  # re-highlight from clean text.
+  # https://github.com/sharkdp/bat?tab=readme-ov-file#man
+  batManPager = pkgs.writeShellScript "bat-manpager" ''
+    ${lib.getExe pkgs.gnused} -u -e 's/\x1B\[[0-9;]*m//g; s/.\x08//g' \
+      | ${lib.getExe pkgs.bat} -p -lman
+  '';
 in {
   home.sessionPath = [
     "${config.home.homeDirectory}/.local/bin"
@@ -81,11 +90,7 @@ in {
 
     sessionVariables = {
       VISUAL = "nvim";
-      # Colourise manpages with `bat`
-      # From https://github.com/sharkdp/bat?tab=readme-ov-file#man
-      MANPAGER = ''
-        sh -c 'sed -u -e \"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\" | bat -p -lman'
-      '';
+      MANPAGER = "${batManPager}";
     };
 
     setOptions = [
