@@ -861,11 +861,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781058357,
-        "narHash": "sha256-LbAmFdWcxkbsB0xU2fNZIBb8IMqOETROOremXMnQrv8=",
+        "lastModified": 1781193142,
+        "narHash": "sha256-/uL1aNJcTCWXOTIwy7QzGsj6fgcVamMR4hyYpGz1Fvc=",
         "owner": "natsukium",
         "repo": "mcp-servers-nix",
-        "rev": "1d8fd913199e8c71598e82af4d4dd65d864a9db0",
+        "rev": "b19cc1389e21a2aa26bfb75148f7d68c8fb82c8c",
         "type": "github"
       },
       "original": {
@@ -1460,11 +1460,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1781020367,
-        "narHash": "sha256-NgMJ1IADjT8rrm9ehmoQS0ERIY4MaJKwGhw488YmwWo=",
+        "lastModified": 1781302183,
+        "narHash": "sha256-Z1COT51e74FBdD0FFUA7T5Wpyvpsa/L52CPpzsy++MA=",
         "ref": "refs/heads/main",
-        "rev": "764df13968557863336ab37612e9679528f17a2c",
-        "revCount": 26,
+        "rev": "651937b3643fb998ebb84bb695e24c790d319d37",
+        "revCount": 29,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },

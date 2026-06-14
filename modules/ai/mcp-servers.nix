@@ -6,6 +6,8 @@
 }:
 # Define the shared MCP server set once and let each tool consume it.
 let
+  mcpRemote = import ./mcp-remote.nix {inherit lib pkgs;};
+
   # The servers every tool should talk to.
   programs = {
     codex = {
@@ -42,6 +44,45 @@ let
 
   # Pull out the computed server definitions for reuse.
   inherit (mcpServersNix.config.settings) servers;
+
+  exaServer = {apiKeyFile}:
+    mcpRemote.mkServer {
+      name = "exa";
+      url = "https://mcp.exa.ai/mcp";
+      envFiles.EXA_API_KEY = apiKeyFile;
+      headerEnv."x-api-key" = "EXA_API_KEY";
+    };
+
+  hostSecretServerDefinitions = {
+    exa = {
+      file = "user-exa.yaml";
+      key = "exa_api_key";
+      server = apiKeyFile: exaServer {inherit apiKeyFile;};
+    };
+  };
+
+  hostSecretServers = {
+    hostname,
+    secretPath,
+    declareSopsSecrets ? true,
+  }: let
+    availableServers =
+      lib.filterAttrs
+      (_name: definition: builtins.pathExists (inputs.secrets + "/${hostname}/${definition.file}"))
+      hostSecretServerDefinitions;
+  in {
+    servers = lib.mapAttrs (_name: definition: definition.server (secretPath definition.key)) availableServers;
+
+    sopsSecrets =
+      lib.optionalAttrs declareSopsSecrets
+      (lib.mapAttrs' (
+          _name: definition:
+            lib.nameValuePair definition.key {
+              sopsFile = inputs.secrets + "/${hostname}/${definition.file}";
+            }
+        )
+        availableServers);
+  };
 
   jsonFormat = pkgs.formats.json {};
 
@@ -84,7 +125,7 @@ let
     yt-dlp
   ];
 in {
-  inherit packages servers mcpServersOption excludeServers;
+  inherit packages servers mcpServersOption excludeServers mcpRemote hostSecretServers;
 
   # Helper function to wrap an AI tool with the shared tools in PATH
   wrapWithTools = {

@@ -5,10 +5,9 @@
   inputs,
   lib,
   config,
+  hostConfig,
   ...
 }: let
-  mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
-
   managedConfig = {
     # Updates come from Nix, not codex's self-check.
     check_for_update_on_startup = false;
@@ -53,16 +52,16 @@
 
   managedConfigFile = (pkgs.formats.toml {}).generate "codex-managed-config.toml" managedConfig;
 in {
-  # This is the system/NixOS copy of the shared MCP option. The Home Manager
-  # copy is declared in mcp.nix for the interactive tools; Codex's managed
-  # config lives under /etc, so it needs the same option surface here.
-  options.dotfiles.ai.mcpServers = mcp.mcpServersOption;
+  imports = [
+    (import ../mcp-server-set.nix {
+      inherit inputs lib pkgs pkgs-unstable;
+      declareSopsSecrets = false;
+      excludedServers = ["codex"];
+      secretPath = name: "${hostConfig.homeDirectory}/.config/sops-nix/secrets/${name}";
+    })
+  ];
 
   config = {
-    # Base shared servers. Codex never runs itself as an MCP server, so drop
-    # the `codex` entry.
-    dotfiles.ai.mcpServers = lib.removeAttrs mcp.servers ["codex"];
-
     environment.etc."codex/managed_config.toml".source = managedConfigFile;
   };
 }
