@@ -3,6 +3,17 @@
   pkgs,
   ...
 }: {
+  # `system.installer.channel.enable` bundles the nixpkgs channel by running
+  # `lib.cleanSource pkgs.path`, whose per-file filter walk over the whole
+  # nixpkgs tree dominates evaluation of the installer and ISO. `pkgs.path` is
+  # already a realised, normalised store path, so the registry references it
+  # directly to keep nixpkgs available on the image.
+  system.installer.channel.enable = false;
+  nix.registry.nixpkgs.to = {
+    type = "path";
+    inherit (pkgs) path;
+  };
+
   boot.postBootCommands = lib.mkAfter ''
     root_ssh_dir=/root/.ssh
     nixos_ssh_dir=/home/nixos/.ssh
