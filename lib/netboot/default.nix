@@ -1,8 +1,7 @@
 {inputs}: {
   config,
   nixosHosts,
-  overlays,
-  nixpkgsConfig,
+  withSystem,
 }: let
   inherit (inputs.nixpkgs) lib;
 
@@ -150,14 +149,20 @@
     meta.description = "Serve a PXE/netboot installer for ${hostname} via pixiecore";
   };
 
-  # Create host pkgs for a potentially different system than the current
-  # one (needed for cross-system ISO builds).
+  # Reuse the package set flake-parts already instantiated for the host's
+  # system. The host's own configuration reaches the same set through
+  # `withSystem`, so the installer and the host share a single nixpkgs
+  # instantiation. This matters most when building cross, e.g. an
+  # x86_64-linux installer from aarch64-darwin.
   mkHostPkgs = hostConfig:
-    import (mkHostNixpkgs hostConfig) {
-      inherit overlays;
-      inherit (hostConfig) system;
-      config = nixpkgsConfig;
-    };
+    withSystem hostConfig.system (
+      {
+        pkgs,
+        pkgs-stable,
+        ...
+      }:
+        pkgsForHost pkgs pkgs-stable hostConfig
+    );
 in {
   packagesForSystem = {
     pkgs,
@@ -165,26 +170,20 @@ in {
   }: let
     inherit (pkgs.stdenv.hostPlatform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
-    getHostPkgs = pkgsForHost pkgs pkgs-stable;
 
     # Pre-compute the ISO installer config once per host so that
     # iso-contents and iso reuse the same NixOS module evaluation.
     isoConfigs =
       lib.mapAttrs (
-        hostname: hostConfig: let
-          hostPkgs =
-            if hostConfig.system == system
-            then getHostPkgs hostConfig
-            else mkHostPkgs hostConfig;
-        in
-          mkIsoInstallerConfig hostPkgs hostname hostConfig
+        hostname: hostConfig:
+          mkIsoInstallerConfig (mkHostPkgs hostConfig) hostname hostConfig
       )
       nixosHosts;
   in
     lib.mapAttrs'
     (
       hostname: hostConfig:
-        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller (getHostPkgs hostConfig) hostname hostConfig)
+        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller (mkHostPkgs hostConfig) hostname hostConfig)
     )
     systemHosts
     // lib.mapAttrs'

@@ -2,6 +2,7 @@
   inputs,
   config,
   lib,
+  withSystem,
   ...
 }: let
   nixosHosts = lib.filterAttrs (_: h: h.os == "nixos") config.flake.hosts;
@@ -9,8 +10,8 @@
     inherit
       config
       nixosHosts
+      withSystem
       ;
-    inherit (config._module.args.context) overlays nixpkgsConfig;
   };
 in {
   # Re-export tools from flake inputs so the justfile can reference pinned
