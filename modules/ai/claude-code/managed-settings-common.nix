@@ -17,6 +17,11 @@
   inherit (pkgs.stdenv.hostPlatform) system;
   inherit (inputs.llm-agents.packages.${system}) ccstatusline;
 
+  # Replace Claude Code's built-in `@` file picker with `fd | fzf --filter` so
+  # queries get real fuzzy scoring and untracked files appear. See
+  # ./file-suggestion for the rationale.
+  fileSuggestionCommand = pkgs.callPackage ./file-suggestion {};
+
   # Fields named here are merged as sets — their lists are concatenated and
   # deduplicated, first occurrence winning for ordering. Every other field
   # follows recursive update: objects deep-merge, scalar leaves are replaced.
@@ -89,6 +94,10 @@ in {
           repo = "anthropics/skills";
         };
       };
+    };
+    fileSuggestion = {
+      type = "command";
+      command = lib.getExe fileSuggestionCommand;
     };
     model = "claude-fable-5[1m]";
     skipDangerousModePermissionPrompt = true;
