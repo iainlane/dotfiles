@@ -51,6 +51,7 @@ in {
 
       lanzaboote = {
         enable = true;
+        configurationLimit = 5;
         pkiBundle = "/etc/secureboot";
         autoGenerateKeys.enable = true;
         autoEnrollKeys.enable = true;
