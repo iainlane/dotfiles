@@ -29,6 +29,13 @@ let
       };
     };
 
+    nixos = {
+      enable = true;
+      # mcp-nixos checks for updates on startup, which is slow and noisy; turn
+      # it off so the server comes up quickly.
+      env.FASTMCP_CHECK_FOR_UPDATES = "off";
+    };
+
     playwright = {
       enable = true;
       env.PLAYWRIGHT_HTML_OPEN = "false";
