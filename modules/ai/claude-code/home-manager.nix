@@ -53,7 +53,9 @@ in {
     };
 
     xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (
-      import ../ccstatusline.nix
+      import ../ccstatusline.nix {
+        extraUsageCommand = lib.getExe (pkgs.callPackage ../ccstatusline-extra-usage {});
+      }
     ));
   };
 }
