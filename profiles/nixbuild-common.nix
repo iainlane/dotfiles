@@ -105,6 +105,7 @@
   };
 
   homeManagerModule = {admin ? false}: {
+    hostConfig,
     inputs,
     lib,
     ...
@@ -116,8 +117,8 @@
       (lib.mkIf admin {
         sops.secrets.nixbuild-admin-private-key = {
           sopsFile = inputs.secrets + "/nixbuild-admin.yaml";
-          key = "nixbuild_admin_public_key";
-          path = "~/.ssh/id_ed25519_nixbuild_admin";
+          key = "nixbuild_admin_private_key";
+          path = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_admin";
         };
 
         dotfiles.ssh.settings = adminMatchBlock;
