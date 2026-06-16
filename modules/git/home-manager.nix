@@ -73,8 +73,9 @@
         }
       );
 
-  usesGitsign =
-    (cfg.global ? gitsign)
+  wantsGitsign =
+    cfg.gitsign.enable
+    || (cfg.global ? gitsign)
     || lib.any (scfg: scfg ? gitsign) (lib.attrValues cfg.directories);
 in {
   options.dotfiles.git.signing = {
@@ -93,10 +94,20 @@ in {
         "~/dev/chainguard/".
       '';
     };
+
+    gitsign.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Install gitsign and run its credential cache even when no signing
+        configuration selects it. Useful where individual repositories opt
+        into gitsign through their own git configuration.
+      '';
+    };
   };
 
   config = {
-    home.packages = lib.mkIf usesGitsign [pkgs.gitsign];
+    home.packages = lib.mkIf wantsGitsign [pkgs.gitsign];
 
     programs.git = {
       enable = true;

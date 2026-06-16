@@ -95,7 +95,12 @@ in {
           # Claude Code receives these from the organisation, so don't dupe.
           claudeCode.excludeMcpServers = builtins.attrNames workMcp;
 
-          git.signing.directories."~/dev/chainguard/".ssh.key = "~/.ssh/id_ed25519";
+          git.signing = {
+            directories."~/dev/chainguard/".ssh.key = "~/.ssh/id_ed25519";
+            # Some individual work repositories still require gitsign, so
+            # install it even though it is not the default signer.
+            gitsign.enable = true;
+          };
         };
 
         # Block the `/share` command so work sessions can't be uploaded to

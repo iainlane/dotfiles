@@ -17,7 +17,7 @@
 
   gitsignCredentialCache = "${config.xdg.cacheHome}/sigstore/gitsign/cache.sock";
 in {
-  config = lib.mkIf (gitsignConfigs != []) {
+  config = lib.mkIf (cfg.gitsign.enable || gitsignConfigs != []) {
     home.sessionVariables =
       {
         GITSIGN_CREDENTIAL_CACHE = gitsignCredentialCache;
