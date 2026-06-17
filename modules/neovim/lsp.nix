@@ -64,6 +64,7 @@
     masonPackages = "clangd";
   };
   "copilot-language-server" = "copilot";
+  "deno" = "denols";
   "docker-compose-language-service" = "docker_compose_language_service";
   "dockerfile-language-server" = "dockerls";
   # Emmet abbreviation expansion (HTML/CSS and related templates).
