@@ -136,7 +136,9 @@ in {
 
       typescript.shell = pkgs: {
         packages = with pkgs; [
+          bun
           corepack
+          deno
           nodejs
           pnpm
           typescript
