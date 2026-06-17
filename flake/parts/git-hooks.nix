@@ -15,7 +15,7 @@
       flake-check = {
         enable = true;
         name = "nix flake check";
-        entry = "${pkgs.lib.getExe pkgs.nix} flake check --all-systems";
+        entry = "nix flake check --all-systems";
         language = "system";
         pass_filenames = false;
         files = "\\.(nix)$|/flake\\.lock$";

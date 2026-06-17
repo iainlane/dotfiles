@@ -18,6 +18,9 @@ in {
       efi.canTouchEfiVariables = true;
     };
     initrd.systemd.enable = true;
+
+    # We don't use zfs, but this now warns
+    zfs.forceImportRoot = false;
   };
 
   networking = {

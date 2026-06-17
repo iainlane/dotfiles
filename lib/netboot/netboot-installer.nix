@@ -14,6 +14,11 @@
     inherit (pkgs) path;
   };
 
+  # The installer images enable ZFS support, which warns unless
+  # `forceImportRoot` is set explicitly. These images never force-import a
+  # root pool, matching the host configurations.
+  boot.zfs.forceImportRoot = false;
+
   boot.postBootCommands = lib.mkAfter ''
     root_ssh_dir=/root/.ssh
     nixos_ssh_dir=/home/nixos/.ssh
