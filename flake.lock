@@ -815,11 +815,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1781271490,
-        "narHash": "sha256-OXSTRMnB5aP/xqnqIE1Bim7JIXtCvHqehMAf5Eiroeg=",
+        "lastModified": 1781904395,
+        "narHash": "sha256-/ao1IY5rRCwZ2xYdpaRT9kUcaR+dSwm5tILmBVSH/xI=",
         "owner": "iainlane",
         "repo": "lanzaboote",
-        "rev": "21fee4a7885bad92d15d70d0d7620f7242c1fafb",
+        "rev": "8a350dc56a4dc8c00a9a0293f9a7ac295f364b59",
         "type": "github"
       },
       "original": {
