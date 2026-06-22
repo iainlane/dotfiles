@@ -1,5 +1,8 @@
 let
   halls = import ../lib/halls.nix;
+
+  # Toolsets every platform gets on top of its own preset.
+  sharedToolsets = ["kanban" "context_engine"];
 in {
   hostname = "ancaster";
   os = "linux";
@@ -15,9 +18,22 @@ in {
     "containers"
     {
       hermes = {
+        profilePicture = ./ancaster/godfrey;
         signal = {
           enable = true;
           secretsFile = "ancaster/user-hermes.yaml";
+        };
+        matrix = {
+          enable = true;
+          serverName = "matrix.orangesquash.org.uk";
+          username = "godfrey";
+          displayName = "Godfrey";
+          secretsFile = "ancaster/user-hermes.yaml";
+          settings.admins_list = ["@iain:matrix.orangesquash.org.uk"];
+          encryption = {
+            enable = true;
+            recoveryKeyKey = "matrix_recovery_key";
+          };
         };
         dashboard.enable = true;
         homeassistant = {
@@ -85,9 +101,10 @@ in {
               voice = "leo";
             };
           };
-          # Add the kanban toolset on top of the signal platform preset, so the
-          # agent can read and write its task board.
-          platform_toolsets.signal = ["hermes-signal" "kanban" "context_engine"];
+          # Each platform gets its own preset plus the shared toolsets, so the
+          # agent can read and write its task board from either platform.
+          platform_toolsets.signal = ["hermes-signal"] ++ sharedToolsets;
+          platform_toolsets.matrix = ["hermes-matrix"] ++ sharedToolsets;
         };
       };
     }
