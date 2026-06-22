@@ -28,6 +28,7 @@ in {
           serverName = "matrix.orangesquash.org.uk";
           username = "godfrey";
           displayName = "Godfrey";
+          homeRoom = "!g6bq75R53WYYH1QJp7DUHO5wlMwYEt6TfR9tKnVRMzA";
           secretsFile = "ancaster/user-hermes.yaml";
           settings.admins_list = ["@iain:matrix.orangesquash.org.uk"];
           encryption = {
@@ -99,12 +100,28 @@ in {
               base_url = "https://openrouter.ai/api/v1";
               model = "x-ai/grok-voice-tts-1.0";
               voice = "leo";
+              speed = 1.2;
             };
           };
           # Each platform gets its own preset plus the shared toolsets, so the
           # agent can read and write its task board from either platform.
           platform_toolsets.signal = ["hermes-signal"] ++ sharedToolsets;
           platform_toolsets.matrix = ["hermes-matrix"] ++ sharedToolsets;
+
+          cron.wrap_response = false;
+          timezone = "Europe/London";
+          privacy.redact_pii = true;
+          security.allow_lazy_installs = false;
+          approvals.mode = "smart";
+
+          gateway = {
+            strict = true;
+            # The workspace is the only non-default root; Hermes already allows
+            # its typed media caches (image_cache, audio_cache, ...) by default.
+            media_delivery_allow_dirs = ["/data/workspace"];
+            trust_recent_files = true;
+            trust_recent_files_seconds = 600;
+          };
         };
       };
     }
