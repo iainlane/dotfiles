@@ -18,10 +18,8 @@ in {
         pkgs.python312Packages.tiktoken
         pkgs.python312Packages.regex
       ];
-      settings = {
-        plugins.enabled = ["hermes-lcm"];
-        context.engine = "lcm";
-      };
+      enabledPlugins = ["hermes-lcm"];
+      settings.context.engine = "lcm";
     };
   };
 }

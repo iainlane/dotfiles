@@ -81,6 +81,28 @@
       '';
     };
 
+    enabledPlugins = lib.mkOption {
+      type = with lib.types; listOf str;
+      default = [];
+      example = ["hermes-lcm"];
+      description = ''
+        Plugin names to add to the agent's `plugins.enabled` allow-list.
+        Plugins are opt-in: a plugin must appear here before the agent loads
+        it.
+      '';
+    };
+
+    disabledPlugins = lib.mkOption {
+      type = with lib.types; listOf str;
+      default = [];
+      example = ["raft-platform"];
+      description = ''
+        Plugin names to add to the agent's `plugins.disabled` list. A disabled
+        plugin is skipped during discovery, which also suppresses any
+        startup probing it would otherwise perform.
+      '';
+    };
+
     extraPythonPackages = lib.mkOption {
       type = with lib.types; listOf package;
       default = [];

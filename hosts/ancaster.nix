@@ -47,6 +47,9 @@ in {
         context-engine = "lcm";
         # Pull in exa-py so the native web_search Exa backend has its client.
         extraDependencyGroups = ["messaging" "exa"];
+        # `raft-platform` is a bundled gateway adapter we do not use; without it
+        # disabled the agent probes for the absent `raft` CLI on startup.
+        disabledPlugins = ["raft-platform"];
         backup = {
           enable = true;
           secretsFile = "ancaster/user-hermes.yaml";
@@ -113,6 +116,18 @@ in {
           privacy.redact_pii = true;
           security.allow_lazy_installs = false;
           approvals.mode = "smart";
+
+          # The home room is named, so 0.17's stricter DM detection treats it
+          # as a group room where the agent would otherwise stay silent until
+          # @mentioned. Respond to every message instead.
+          matrix.require_mention = false;
+
+          # Codex caps gpt-5.5 at a 272K window, so compacting at the 50%
+          # default wastes half of it. Set the trigger to 85% to match what
+          # the agent's gpt-5.5 auto-raise would pick; once the global
+          # threshold already meets that, the auto-raise is a no-op and stops
+          # announcing itself each turn.
+          compression.threshold = 0.85;
 
           gateway = {
             strict = true;
