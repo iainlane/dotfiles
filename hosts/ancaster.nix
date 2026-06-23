@@ -129,6 +129,9 @@ in {
           # announcing itself each turn.
           compression.threshold = 0.85;
 
+          # Keep memory updates silent in chat; the background review still runs.
+          display.memory_notifications = "off";
+
           gateway = {
             strict = true;
             # The workspace is the only non-default root; Hermes already allows

@@ -90,7 +90,7 @@ in {
           MATRIX_HOME_ROOM = cfg.matrix.homeRoom;
         }
         // lib.optionalAttrs cfg.matrix.encryption.enable {
-          MATRIX_ENCRYPTION = "true";
+          MATRIX_E2EE_MODE = "required";
           MATRIX_DEVICE_ID = cfg.matrix.encryption.deviceId;
         };
       environmentFiles = [config.sops.templates."hermes-matrix.env".path];
