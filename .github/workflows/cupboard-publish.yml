@@ -57,7 +57,7 @@ jobs:
       # skips prereleases, and cupboard has only prerelease tags so far, so the
       # CLI version is pinned explicitly until a stable release exists.
       # renovate: datasource=github-releases depName=underwhelmingperformance/cupboard
-      CUPBOARD_VERSION: v0.0.1
+      CUPBOARD_VERSION: v0.0.2
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -125,12 +125,12 @@ jobs:
 
       - name: Attest the built paths
         id: attest
-        uses: underwhelmingperformance/cupboard/actions/attest@c64a02004d36299dbf97fa07a22b5883b16abb4d # v0.0.1
+        uses: underwhelmingperformance/cupboard/actions/attest@7be0446fe47f2b187537364198d6b398f009f380 # v0.0.2
         with:
           paths: ${{ steps.build.outputs.paths }}
 
       - name: Push to cupboard
-        uses: underwhelmingperformance/cupboard/actions/push@c64a02004d36299dbf97fa07a22b5883b16abb4d # v0.0.1
+        uses: underwhelmingperformance/cupboard/actions/push@7be0446fe47f2b187537364198d6b398f009f380 # v0.0.2
         with:
           url: ${{ env.CACHE_URL }}
           cupboard-version: ${{ env.CUPBOARD_VERSION }}
