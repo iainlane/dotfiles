@@ -1,0 +1,32 @@
+# Publish secrets-free build outputs to the personal cupboard cache. Pushes to
+# main publish to the default cache with permanent retention; pull requests
+# publish to a short-lived per-PR cache so changes can be tested without
+# touching the default cache. The work lives in the reusable cupboard-publish
+# workflow, pinned here to main: the laney tenant trusts that workflow's
+# `job_workflow_ref` to issue a push token, so only this path can write to the
+# cache.
+name: cupboard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: cupboard-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  publish:
+    permissions:
+      attestations: write # write build provenance attestations for the outputs
+      contents: read
+      id-token: write # issue the OIDC token the cupboard cache trusts for push
+    # The laney tenant trusts this workflow's job_workflow_ref pinned to main to
+    # issue a push token, so it must stay on main.
+    uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main # zizmor: ignore[unpinned-uses]
+    secrets:
+      nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}

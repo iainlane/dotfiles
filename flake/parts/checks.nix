@@ -52,26 +52,30 @@
       settings = {
         global.excludes = ["**/lazy-lock.json"];
 
-        # Custom markdownlint formatter
-        formatter.markdownlint = {
-          command = lib.getExe pkgs.markdownlint-cli2;
-          options = ["--fix" "--"];
-          includes = ["*.md"];
-        };
+        formatter = {
+          zizmor.options = ["--persona" "pedantic"];
 
-        # Strict Lua linting. Globals are limited to known Neovim/LazyVim runtime
-        # symbols that are intentionally available at runtime.
-        formatter.luacheck = {
-          command = lib.getExe pkgs.luaPackages.luacheck;
-          options = [
-            "--globals"
-            "vim"
-            "LazyVim"
-            "Snacks"
-            "--no-max-line-length"
-            "--"
-          ];
-          includes = ["*.lua"];
+          # Custom markdownlint formatter
+          markdownlint = {
+            command = lib.getExe pkgs.markdownlint-cli2;
+            options = ["--fix" "--"];
+            includes = ["*.md"];
+          };
+
+          # Strict Lua linting. Globals are limited to known Neovim/LazyVim runtime
+          # symbols that are intentionally available at runtime.
+          luacheck = {
+            command = lib.getExe pkgs.luaPackages.luacheck;
+            options = [
+              "--globals"
+              "vim"
+              "LazyVim"
+              "Snacks"
+              "--no-max-line-length"
+              "--"
+            ];
+            includes = ["*.lua"];
+          };
         };
       };
     };

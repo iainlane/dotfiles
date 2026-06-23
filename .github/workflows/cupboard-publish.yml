@@ -1,0 +1,136 @@
+# Reusable workflow: build the secrets-free flake outputs (the `pkgs/` packages
+# and the pre-built direnv shells) and publish them to the personal cupboard
+# cache with build provenance. Host system and home closures are deliberately
+# excluded: they read from the private dotfiles-secrets input at evaluation time
+# and some pull token-only fixed-output derivations, so they are built locally.
+#
+# The push target is chosen here from the triggering event, never from a caller
+# input, so a caller cannot redirect a build to the default cache:
+#   - push          -> the default cache, permanent retention.
+#   - pull_request  -> a per-PR cache (pr-<number>), short retention.
+#
+# This is the only workflow the laney tenant trusts to push. The cupboard
+# oidc_trust rule pins the GitHub Actions OIDC `job_workflow_ref` claim to this
+# file at refs/heads/main, so a push token is issued only for jobs that run
+# through it, scoped to the github:iainlane/dotfiles/ retention roots.
+#
+# A pull_request caller pushes to its own pr-<number> cache. The boundary is
+# GitHub's own: pull_request from a fork receives no secrets and no
+# id-token: write, so a fork build cannot obtain a push token or reach
+# nixbuild.net and simply fails before the push. Only same-repo branches (the
+# owner's own pushes and dependabot) carry the credentials needed to publish,
+# and those run trusted code. The per-PR cache and short TTL keep PR builds off
+# the default cache's retention roots.
+#
+# Prerequisites (not satisfiable from this repository):
+#   - cupboard publishes a release so actions/push can install the CLI.
+#   - the oidc_trust rule above exists (cupboard oidc-trust add).
+#   - the caller passes a nixbuild.net token with build and store read/write
+#     permissions as the nixbuild_token secret.
+name: cupboard publish
+
+on:
+  workflow_call:
+    secrets:
+      nixbuild_token:
+        description: nixbuild.net token used to realise derivations remotely.
+        required: true
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Build and publish to cupboard
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write # write build provenance attestations for the outputs
+      contents: read
+      id-token: write # issue the OIDC token the cupboard cache trusts for push
+    strategy:
+      fail-fast: false
+      matrix:
+        system:
+          - x86_64-linux
+          - aarch64-linux
+    env:
+      CACHE_URL: https://cupboard.supply/t/laney
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Select push target
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.number }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ]; then
+            cache="pr-${PR_NUMBER}"
+            ttl=14d
+            root_prefix="github:iainlane/dotfiles/pr-${PR_NUMBER}"
+          else
+            cache=""
+            ttl=""
+            root_prefix="github:iainlane/dotfiles/${REF_NAME}"
+          fi
+          {
+            echo "cache=${cache}"
+            echo "ttl=${ttl}"
+            echo "root_prefix=${root_prefix}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          # nixbuild.net realises every derivation, so the runner builds
+          # nothing locally. Reads come from the public caches and from the
+          # default cupboard cache, so promoted builds make later runs
+          # incremental.
+          extra-conf: |
+            max-jobs = 0
+            extra-substituters = https://cupboard.supply/t/laney
+            extra-trusted-public-keys = cupboard-1:rupCzv0DJn5yLpuqAZl9IrzjadNvD2d+BQxIqNoFZKQ=
+
+      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
+        with:
+          nixbuild_token: ${{ secrets.nixbuild_token }}
+
+      - name: Build secrets-free outputs
+        id: build
+        env:
+          SYSTEM: ${{ matrix.system }}
+          ROOT_PREFIX: ${{ steps.target.outputs.root_prefix }}
+        run: |
+          set -euo pipefail
+          names=$(nix eval --json ".#packages.${SYSTEM}" --apply builtins.attrNames | jq -r '.[]')
+          paths="$RUNNER_TEMP/paths.txt"
+          : > "$paths"
+          for name in $names; do
+            echo "::group::packages.${SYSTEM}.${name}"
+            nix build ".#packages.${SYSTEM}.${name}" --no-link --print-out-paths >> "$paths"
+            echo '::endgroup::'
+          done
+          {
+            echo "root=${ROOT_PREFIX}/${SYSTEM}"
+            echo 'paths<<EOF'
+            cat "$paths"
+            echo EOF
+          } | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Attest the built paths
+        id: attest
+        uses: underwhelmingperformance/cupboard/actions/attest@a6d5deb0f11bc3e938265decc7c174eec43f5220 # main, 2026-06-22
+        with:
+          paths: ${{ steps.build.outputs.paths }}
+
+      - name: Push to cupboard
+        uses: underwhelmingperformance/cupboard/actions/push@a6d5deb0f11bc3e938265decc7c174eec43f5220 # main, 2026-06-22
+        with:
+          url: ${{ env.CACHE_URL }}
+          cache: ${{ steps.target.outputs.cache }}
+          ttl: ${{ steps.target.outputs.ttl }}
+          root: ${{ steps.build.outputs.root }}
+          paths: ${{ steps.build.outputs.paths }}
+          attestations: ${{ steps.attest.outputs.bundle-path }}
