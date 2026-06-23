@@ -23,7 +23,6 @@
 # the default cache's retention roots.
 #
 # Prerequisites (not satisfiable from this repository):
-#   - cupboard publishes a release so actions/push can install the CLI.
 #   - the oidc_trust rule above exists (cupboard oidc-trust add).
 #   - the caller passes a nixbuild.net token with build and store read/write
 #     permissions as the nixbuild_token secret.
@@ -54,6 +53,11 @@ jobs:
           - aarch64-linux
     env:
       CACHE_URL: https://cupboard.supply/t/laney
+      # The push action's "latest" resolves the GitHub latest-release API, which
+      # skips prereleases, and cupboard has only prerelease tags so far, so the
+      # CLI version is pinned explicitly until a stable release exists.
+      # renovate: datasource=github-releases depName=underwhelmingperformance/cupboard
+      CUPBOARD_VERSION: v0.0.1
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -121,14 +125,15 @@ jobs:
 
       - name: Attest the built paths
         id: attest
-        uses: underwhelmingperformance/cupboard/actions/attest@a6d5deb0f11bc3e938265decc7c174eec43f5220 # main, 2026-06-22
+        uses: underwhelmingperformance/cupboard/actions/attest@c64a02004d36299dbf97fa07a22b5883b16abb4d # v0.0.1
         with:
           paths: ${{ steps.build.outputs.paths }}
 
       - name: Push to cupboard
-        uses: underwhelmingperformance/cupboard/actions/push@a6d5deb0f11bc3e938265decc7c174eec43f5220 # main, 2026-06-22
+        uses: underwhelmingperformance/cupboard/actions/push@c64a02004d36299dbf97fa07a22b5883b16abb4d # v0.0.1
         with:
           url: ${{ env.CACHE_URL }}
+          cupboard-version: ${{ env.CUPBOARD_VERSION }}
           cache: ${{ steps.target.outputs.cache }}
           ttl: ${{ steps.target.outputs.ttl }}
           root: ${{ steps.build.outputs.root }}

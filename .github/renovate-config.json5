@@ -42,6 +42,15 @@
       schedule: ["at any time"],
       automerge: false,
     },
+
+    // cupboard only ships prerelease 0.x tags for now. Without this, Renovate
+    // treats them as unstable and never proposes an update. The package name
+    // covers both the pinned actions and the CUPBOARD_VERSION custom manager,
+    // since both resolve to the same repository.
+    {
+      matchPackageNames: ["underwhelmingperformance/cupboard"],
+      ignoreUnstable: false,
+    },
   ],
 
   // Custom Managers for comment-based versioning
