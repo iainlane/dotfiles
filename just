@@ -14,6 +14,7 @@ nh_package=".#hostPrograms.$(hostname -s).nh.package"
 exec nix shell \
   nixpkgs#age \
   nixpkgs#coreutils \
+  nixpkgs#gh \
   nixpkgs#just \
   nixpkgs#mkpasswd \
   nixpkgs#nvd \

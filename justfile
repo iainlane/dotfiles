@@ -24,9 +24,24 @@ system-profile := "/nix/var/nix/profiles/system"
 default:
     @just --list
 
-# Update flake inputs (all, or specific ones if provided)
+# Update flake inputs (all, or specific ones if provided). hermes-agent is
+
+# pinned to a release tag that plain `nix flake update` can't move, so bump it
+
+# to the latest release whenever it would be affected.
 update-flake *inputs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -z "{{ inputs }}" || " {{ inputs }} " == *" hermes-agent "* ]]; then
+        just update-hermes-agent
+    fi
+
     nix flake update {{ inputs }}
+
+# Bump hermes-agent to the latest upstream release tag and re-lock
+update-hermes-agent:
+    ./scripts/update-hermes-agent.bash
 
 # Rebuild and switch to the new system configuration
 [macos]
