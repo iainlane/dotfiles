@@ -1,9 +1,15 @@
-# Reusable workflow: build the secrets-free flake outputs (the `pkgs/` packages
-# and the pre-built direnv shells) and publish them to the personal cupboard
-# cache with build provenance. Host system, home, and installer-image closures
-# are deliberately excluded: they read from the private dotfiles-secrets input at
-# evaluation time and some pull token-only fixed-output derivations, so they are
-# built locally.
+# Reusable workflow: build flake outputs and publish them to the personal
+# cupboard cache with build provenance.
+#
+# The secrets-free outputs (the `pkgs/` packages and the pre-built direnv shells)
+# are always built. The host (NixOS) and home closures are built too when a
+# read-only deploy key for the private dotfiles-secrets repo is passed, since
+# they read that input at evaluation time; without it (fork pull requests) they
+# are skipped. Darwin closures are never built here because nixbuild.net is
+# Linux-only, and a closure that pulls a token-gated fixed-output derivation
+# (such as the Falcon sensor) cannot realise on nixbuild, so it is reported and
+# skipped rather than failing the whole publish. The host installer images stay
+# excluded: they embed a host closure and are too large to be worth caching.
 #
 # The push target is chosen here from the triggering event, never from a caller
 # input, so a caller cannot redirect a build to the default cache:
@@ -27,6 +33,8 @@
 #   - the oidc_trust rule above exists (cupboard oidc-trust add).
 #   - the caller passes a nixbuild.net token with build and store read/write
 #     permissions as the nixbuild_token secret.
+#   - to build the host and home closures, the caller passes a read-only deploy
+#     key for dotfiles-secrets as the secrets_deploy_key secret.
 name: cupboard publish
 
 on:
@@ -35,6 +43,12 @@ on:
       nixbuild_token:
         description: nixbuild.net token used to realise derivations remotely.
         required: true
+      secrets_deploy_key:
+        description: >-
+          Read-only SSH deploy key for the private dotfiles-secrets repo, letting
+          the host and home closures evaluate. Absent on fork pull requests,
+          where those closures are skipped.
+        required: false
 
 permissions: {}
 
@@ -101,32 +115,88 @@ jobs:
         with:
           nixbuild_token: ${{ secrets.nixbuild_token }}
 
-      - name: Build secrets-free outputs
+      - name: Set up secrets access
+        id: secrets
+        env:
+          DEPLOY_KEY: ${{ secrets.secrets_deploy_key }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_KEY}" ]; then
+            echo "No secrets deploy key; host and home closures will be skipped."
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
+          echo "available=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Build outputs
         id: build
         env:
           SYSTEM: ${{ matrix.system }}
           ROOT_PREFIX: ${{ steps.target.outputs.root_prefix }}
+          SECRETS_AVAILABLE: ${{ steps.secrets.outputs.available }}
         run: |
           set -euo pipefail
 
-          # The host installer images (`<host>-iso`, `<host>-iso-contents`,
-          # `<host>-netboot-installer`) embed a NixOS closure that reads the
-          # private dotfiles-secrets input when forced, so they cannot be built
-          # here. Listing the attribute names stays lazy and is safe; skip those
-          # images before building. Everything else under `packages` is
-          # secrets-free.
+          paths="$RUNNER_TEMP/paths.txt"
+          : > "$paths"
+
+          # Secrets-free outputs: the pkgs/ packages and the pre-built direnv
+          # shells. The host installer images (`<host>-iso`,
+          # `<host>-iso-contents`, `<host>-netboot-installer`) embed a host
+          # closure and are skipped; listing the attribute names stays lazy and
+          # is safe.
           names=$(
             nix eval --json ".#packages.${SYSTEM}" --apply builtins.attrNames \
               | jq -r '.[]' \
               | grep -vE -- '-(iso|iso-contents|netboot-installer)$'
           )
-          paths="$RUNNER_TEMP/paths.txt"
-          : > "$paths"
           for name in $names; do
             echo "::group::packages.${SYSTEM}.${name}"
             nix build ".#packages.${SYSTEM}.${name}" --max-jobs 0 --no-link --print-out-paths >> "$paths"
             echo '::endgroup::'
           done
+
+          # Host and home closures, when the deploy key configured GIT_SSH_COMMAND
+          # so dotfiles-secrets can be fetched. Each is filtered to this runner's
+          # system (which drops the Darwin closures) and built best-effort: a
+          # closure needing a token-gated fixed-output derivation is reported and
+          # skipped rather than failing the publish.
+          if [ "${SECRETS_AVAILABLE}" = "true" ]; then
+            failed=()
+
+            build_closure() {
+              local drv="$1" sys
+              sys=$(nix eval --raw "${drv}.system" 2>/dev/null) || { failed+=("${drv} (eval)"); return; }
+              if [ "${sys}" != "${SYSTEM}" ]; then
+                return
+              fi
+              echo "::group::${drv}"
+              if nix build "${drv}" --max-jobs 0 --no-link --print-out-paths >> "$paths"; then
+                echo "built ${drv}"
+              else
+                echo "::warning::failed to build ${drv}; not cached this run"
+                failed+=("${drv}")
+              fi
+              echo '::endgroup::'
+            }
+
+            for host in $(nix eval --json .#nixosConfigurations --apply builtins.attrNames | jq -r '.[]'); do
+              build_closure ".#nixosConfigurations.${host}.config.system.build.toplevel"
+            done
+            for home in $(nix eval --json .#homeConfigurations --apply builtins.attrNames | jq -r '.[]'); do
+              build_closure ".#homeConfigurations.\"${home}\".activationPackage"
+            done
+
+            if [ "${#failed[@]}" -gt 0 ]; then
+              printf 'Not cached this run:\n'
+              printf '  - %s\n' "${failed[@]}"
+            fi
+          fi
+
           {
             echo "root=${ROOT_PREFIX}/${SYSTEM}"
             echo 'paths<<EOF'

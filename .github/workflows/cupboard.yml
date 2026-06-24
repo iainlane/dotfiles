@@ -1,10 +1,14 @@
-# Publish secrets-free build outputs to the personal cupboard cache. Pushes to
-# main publish to the default cache with permanent retention; pull requests
-# publish to a short-lived per-PR cache so changes can be tested without
-# touching the default cache. The work lives in the reusable cupboard-publish
-# workflow, pinned here to main: the laney tenant trusts that workflow's
-# `job_workflow_ref` to issue a push token, so only this path can write to the
-# cache.
+# Publish build outputs to the personal cupboard cache. Pushes to main publish
+# to the default cache with permanent retention; pull requests publish to a
+# short-lived per-PR cache so changes can be tested without touching the default
+# cache. The work lives in the reusable cupboard-publish workflow, pinned here to
+# main: the laney tenant trusts that workflow's `job_workflow_ref` to issue a
+# push token, so only this path can write to the cache.
+#
+# The deploy key is passed on pull requests too, so the host and home closures
+# build there as well. GitHub withholds secrets from fork pull requests, so a
+# fork build receives an empty key and skips those closures; only same-repo
+# branches (own pushes and the flake-update PR) carry it.
 name: cupboard
 
 on:
@@ -30,3 +34,4 @@ jobs:
     uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main # zizmor: ignore[unpinned-uses]
     secrets:
       nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+      secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}
