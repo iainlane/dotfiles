@@ -1,8 +1,9 @@
 # Reusable workflow: build the secrets-free flake outputs (the `pkgs/` packages
 # and the pre-built direnv shells) and publish them to the personal cupboard
-# cache with build provenance. Host system and home closures are deliberately
-# excluded: they read from the private dotfiles-secrets input at evaluation time
-# and some pull token-only fixed-output derivations, so they are built locally.
+# cache with build provenance. Host system, home, and installer-image closures
+# are deliberately excluded: they read from the private dotfiles-secrets input at
+# evaluation time and some pull token-only fixed-output derivations, so they are
+# built locally.
 #
 # The push target is chosen here from the triggering event, never from a caller
 # input, so a caller cannot redirect a build to the default cache:
@@ -107,7 +108,18 @@ jobs:
           ROOT_PREFIX: ${{ steps.target.outputs.root_prefix }}
         run: |
           set -euo pipefail
-          names=$(nix eval --json ".#packages.${SYSTEM}" --apply builtins.attrNames | jq -r '.[]')
+
+          # The host installer images (`<host>-iso`, `<host>-iso-contents`,
+          # `<host>-netboot-installer`) embed a NixOS closure that reads the
+          # private dotfiles-secrets input when forced, so they cannot be built
+          # here. Listing the attribute names stays lazy and is safe; skip those
+          # images before building. Everything else under `packages` is
+          # secrets-free.
+          names=$(
+            nix eval --json ".#packages.${SYSTEM}" --apply builtins.attrNames \
+              | jq -r '.[]' \
+              | grep -vE -- '-(iso|iso-contents|netboot-installer)$'
+          )
           paths="$RUNNER_TEMP/paths.txt"
           : > "$paths"
           for name in $names; do
