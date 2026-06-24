@@ -87,12 +87,12 @@ jobs:
 
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
-          # nixbuild.net realises every derivation, so the runner builds
-          # nothing locally. Reads come from the public caches and from the
-          # default cupboard cache, so promoted builds make later runs
-          # incremental.
+          # Read from the public caches and the default cupboard cache, so
+          # promoted builds make later runs incremental. The build step forces
+          # every derivation onto nixbuild.net with `--max-jobs 0`; it is not set
+          # here because the installer builds a profile locally while setting Nix
+          # up, which `max-jobs = 0` would block.
           extra-conf: |
-            max-jobs = 0
             extra-substituters = https://cupboard.supply/t/laney
             extra-trusted-public-keys = cupboard-1:rupCzv0DJn5yLpuqAZl9IrzjadNvD2d+BQxIqNoFZKQ=
 
@@ -112,7 +112,7 @@ jobs:
           : > "$paths"
           for name in $names; do
             echo "::group::packages.${SYSTEM}.${name}"
-            nix build ".#packages.${SYSTEM}.${name}" --no-link --print-out-paths >> "$paths"
+            nix build ".#packages.${SYSTEM}.${name}" --max-jobs 0 --no-link --print-out-paths >> "$paths"
             echo '::endgroup::'
           done
           {
