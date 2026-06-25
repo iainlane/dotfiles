@@ -71,7 +71,7 @@ jobs:
       # Pin the CLI to the same release as the cupboard actions below so the
       # client and the actions move together; Renovate keeps both in step.
       # renovate: datasource=github-releases depName=underwhelmingperformance/cupboard
-      CUPBOARD_VERSION: v0.0.5
+      CUPBOARD_VERSION: v0.0.6
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -207,12 +207,12 @@ jobs:
 
       - name: Attest the built paths
         id: attest
-        uses: underwhelmingperformance/cupboard/actions/attest@a3ed761882bd232f3095408e2644e08b2a2ea90e # v0.0.5
+        uses: underwhelmingperformance/cupboard/actions/attest@be26de00730475941180719356f808938f6198b4 # v0.0.6
         with:
           paths: ${{ steps.build.outputs.paths }}
 
       - name: Push to cupboard
-        uses: underwhelmingperformance/cupboard/actions/push@a3ed761882bd232f3095408e2644e08b2a2ea90e # v0.0.5
+        uses: underwhelmingperformance/cupboard/actions/push@be26de00730475941180719356f808938f6198b4 # v0.0.6
         with:
           url: ${{ env.CACHE_URL }}
           cupboard-version: ${{ env.CUPBOARD_VERSION }}
