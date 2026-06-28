@@ -15,7 +15,7 @@ name: flake update
 
 on:
   schedule:
-    - cron: "0 5 * * 1" # Mondays, 05:00 UTC, alongside the weekly lockfile maintenance
+    - cron: "0 5 * * *" # Daily, 05:00 UTC
   workflow_dispatch:
 
 permissions: {}
@@ -37,6 +37,21 @@ jobs:
           persist-credentials: false
 
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      # The `secrets` input lives in the private dotfiles-secrets repo, reachable
+      # only over SSH. Configure the read-only deploy key so `nix flake update`
+      # can relock it, the same key the cupboard workflow uses to build the host
+      # and home closures.
+      - name: Set up secrets access
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
       - name: Relock flake inputs
         env:
@@ -62,25 +77,48 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git switch -C flake-update
-          git commit -am "chore(flake): update inputs"
-          git push --force origin HEAD:refs/heads/flake-update
+          summary="$(./scripts/flake-lock-summary.bash <(git show HEAD:flake.lock) flake.lock)"
 
-          if gh pr view flake-update --json state >/dev/null 2>&1; then
-            echo "Existing pull request updated by the push."
+          branch="flake-update/$(date -u +%Y-%m-%d)"
+          export branch
+
+          # Keep a single relock in flight: close any earlier flake-update PRs and
+          # delete their branches, then sweep up any branches left without a PR.
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("flake-update/")) | select(.headRefName != env.branch) | .number' \
+            | while read -r number; do
+                gh pr close "${number}" --delete-branch
+              done
+
+          git ls-remote --heads origin "refs/heads/flake-update/*" \
+            | sed 's#.*refs/heads/##' \
+            | while read -r stale; do
+                [ "${stale}" = "${branch}" ] && continue
+                git push origin --delete "${stale}"
+              done
+
+          git switch -C "${branch}"
+          git commit -am "chore(flake): update inputs"
+          git push --force origin "HEAD:refs/heads/${branch}"
+
+          body="$(printf '%s\n' \
+            "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow: the hermes-agent release bump followed by \`nix flake update\`." \
+            "" \
+            "Updated inputs:" \
+            "" \
+            "${summary}" \
+            "" \
+            "Merging this publishes the rebuilt closure to the cupboard cache through the \`cupboard\` workflow's push-to-main build.")"
+
+          if gh pr view "${branch}" --json state >/dev/null 2>&1; then
+            gh pr edit "${branch}" --body "${body}"
+            echo "Existing pull request updated."
             exit 0
           fi
 
-          body="$(printf '%s\n' \
-            "Automated relock of the flake inputs from the scheduled \`flake-update\`" \
-            "workflow: the hermes-agent release bump followed by \`nix flake update\`." \
-            "" \
-            "Merging this publishes the rebuilt closure to the cupboard cache through" \
-            "the \`cupboard\` workflow's push-to-main build.")"
-
           gh pr create \
             --base main \
-            --head flake-update \
+            --head "${branch}" \
             --title "chore(flake): update inputs" \
             --label dependencies \
-            --body "$body"
+            --body "${body}"
