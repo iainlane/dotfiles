@@ -15,7 +15,7 @@ name: flake update
 
 on:
   schedule:
-    - cron: "0 5 * * 1" # Mondays, 05:00 UTC, alongside the weekly lockfile maintenance
+    - cron: "0 5 * * *" # Daily, 05:00 UTC
   workflow_dispatch:
 
 permissions: {}
@@ -37,6 +37,21 @@ jobs:
           persist-credentials: false
 
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      # The `secrets` input lives in the private dotfiles-secrets repo, reachable
+      # only over SSH. Configure the read-only deploy key so `nix flake update`
+      # can relock it, the same key the cupboard workflow uses to build the host
+      # and home closures.
+      - name: Set up secrets access
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
       - name: Relock flake inputs
         env:
