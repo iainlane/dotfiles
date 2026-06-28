@@ -77,25 +77,48 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git switch -C flake-update
-          git commit -am "chore(flake): update inputs"
-          git push --force origin HEAD:refs/heads/flake-update
+          summary="$(./scripts/flake-lock-summary.bash <(git show HEAD:flake.lock) flake.lock)"
 
-          if gh pr view flake-update --json state >/dev/null 2>&1; then
-            echo "Existing pull request updated by the push."
+          branch="flake-update/$(date -u +%Y-%m-%d)"
+          export branch
+
+          # Keep a single relock in flight: close any earlier flake-update PRs and
+          # delete their branches, then sweep up any branches left without a PR.
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("flake-update/")) | select(.headRefName != env.branch) | .number' \
+            | while read -r number; do
+                gh pr close "${number}" --delete-branch
+              done
+
+          git ls-remote --heads origin "refs/heads/flake-update/*" \
+            | sed 's#.*refs/heads/##' \
+            | while read -r stale; do
+                [ "${stale}" = "${branch}" ] && continue
+                git push origin --delete "${stale}"
+              done
+
+          git switch -C "${branch}"
+          git commit -am "chore(flake): update inputs"
+          git push --force origin "HEAD:refs/heads/${branch}"
+
+          body="$(printf '%s\n' \
+            "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow: the hermes-agent release bump followed by \`nix flake update\`." \
+            "" \
+            "Updated inputs:" \
+            "" \
+            "${summary}" \
+            "" \
+            "Merging this publishes the rebuilt closure to the cupboard cache through the \`cupboard\` workflow's push-to-main build.")"
+
+          if gh pr view "${branch}" --json state >/dev/null 2>&1; then
+            gh pr edit "${branch}" --body "${body}"
+            echo "Existing pull request updated."
             exit 0
           fi
 
-          body="$(printf '%s\n' \
-            "Automated relock of the flake inputs from the scheduled \`flake-update\`" \
-            "workflow: the hermes-agent release bump followed by \`nix flake update\`." \
-            "" \
-            "Merging this publishes the rebuilt closure to the cupboard cache through" \
-            "the \`cupboard\` workflow's push-to-main build.")"
-
           gh pr create \
             --base main \
-            --head flake-update \
+            --head "${branch}" \
             --title "chore(flake): update inputs" \
             --label dependencies \
-            --body "$body"
+            --body "${body}"
