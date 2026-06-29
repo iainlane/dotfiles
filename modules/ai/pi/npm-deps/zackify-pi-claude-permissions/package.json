@@ -1,0 +1,28 @@
+{
+  "name": "@zackify/pi-claude-permissions",
+  "version": "1.0.6",
+  "description": "Claude-style permissions for pi with an opinionated small mode set and built-in plan mode.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "permissions",
+    "plan-mode"
+  ],
+  "license": "MIT",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE",
+    "gallery.png"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/zackify/pi-claude-permissions.git"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ],
+    "image": "https://raw.githubusercontent.com/zackify/pi-claude-permissions/master/gallery.png"
+  }
+}

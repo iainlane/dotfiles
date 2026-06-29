@@ -1,0 +1,27 @@
+{
+  "name": "@marckrenn/pi-sub-core",
+  "version": "1.5.0",
+  "description": "Shared usage data core for pi extensions",
+  "keywords": [
+    "pi-package"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "check:watch": "tsc --noEmit --watch",
+    "test": "tsx test/all.test.ts"
+  },
+  "dependencies": {
+    "@marckrenn/pi-sub-shared": "^1.5.0"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "checkpoint-pi",
+  "version": "1.0.5",
+  "description": "Git-based checkpoint extension for pi-coding-agent - creates checkpoints at each turn for code state restoration",
+  "type": "module",
+  "scripts": {
+    "test": "npx tsx tests/checkpoint.test.ts"
+  },
+  "keywords": [
+    "git",
+    "checkpoint",
+    "pi-coding-agent",
+    "extension",
+    "pi-package"
+  ],
+  "author": "",
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./checkpoint.ts"
+    ]
+  }
+}
