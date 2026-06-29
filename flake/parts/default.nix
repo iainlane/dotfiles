@@ -6,6 +6,7 @@ in {
       ./apps.nix
       ./checks.nix
       ./context.nix
+      ./cupboard.nix
       ./deploy.nix
       ./direnvs.nix
       ./git-hooks.nix
