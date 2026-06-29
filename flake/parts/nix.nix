@@ -6,6 +6,10 @@
           type = lib.types.nullOr lib.types.unspecified;
           default = null;
         };
+        substituterConfig = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
       };
     };
     default = {};
