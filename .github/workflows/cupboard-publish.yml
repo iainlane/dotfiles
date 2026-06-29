@@ -100,6 +100,17 @@ jobs:
             echo "root_prefix=${root_prefix}"
           } >> "$GITHUB_OUTPUT"
 
+      # The remote builds run on nixbuild.net, but every realised path is copied
+      # back into this runner's local store. A full sweep of the host and home
+      # closures across both systems outgrows the runner's stock ~20GB on /,
+      # truncating a NAR mid-copy ("unexpected end-of-file"). Reclaim space into
+      # /nix before Nix is installed. The holster protocol leaves the runner's
+      # own tooling (node, jq, tar) intact for the cupboard actions below.
+      # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
+      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+        with:
+          hatchet-protocol: holster
+
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:
           # Single-user Nix: the build process itself evaluates and connects to
