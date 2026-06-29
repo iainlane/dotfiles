@@ -1,0 +1,38 @@
+# Validate changes to the cupboard publish workflow on the pull request that
+# makes them. The main `cupboard` workflow pins the reusable workflow to @main,
+# so a PR editing it never runs the edited version; this one calls the branch's
+# own copy by local path, which a pull_request event resolves to the PR head.
+#
+# The run builds every output but does not push: a run reached through a local
+# (non-main) path cannot get a push token, since the cupboard oidc_trust rule
+# pins the OIDC job_workflow_ref to cupboard-publish.yml@main. Pushing on the PR
+# stays with the `cupboard` workflow (to the per-PR cache, through @main).
+name: cupboard test
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/cupboard-publish.yml
+      - .github/workflows/cupboard-test.yml
+
+concurrency:
+  group: cupboard-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  publish-local:
+    # The called workflow's job statically requests these, and a caller cannot
+    # grant a nested job less than it requests. The build does not push, so the
+    # attestations and id-token scopes go unused here.
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/cupboard-publish.yml
+    with:
+      push: false
+    secrets:
+      nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+      secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}
