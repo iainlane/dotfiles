@@ -106,10 +106,13 @@ jobs:
       # truncating a NAR mid-copy ("unexpected end-of-file"). Reclaim space into
       # /nix before Nix is installed. The holster protocol leaves the runner's
       # own tooling (node, jq, tar) intact for the cupboard actions below.
+      # nix-quick-install-action is single-user Nix and refuses a /nix it cannot
+      # write to, so hand it ownership of the volume this action mounts.
       # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
       - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
         with:
           hatchet-protocol: holster
+          nix-permission-edict: true
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
         with:
