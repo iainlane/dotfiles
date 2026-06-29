@@ -2,17 +2,23 @@
 #
 # Pi's local-path package source loads a directory containing `package.json`
 # plus the files listed in the package's `files` field, optionally with a
-# populated `node_modules/`. Each extension here is a fixed-output derivation:
-# `fetchurl` pulls the registry tarball deterministically, `npm install`
-# materialises the runtime dependency tree (peers are skipped because Pi
-# bundles `@earendil-works/*`), and `outputHash` pins the result so the FOD
-# stays reproducible even though `npm` is allowed network access during the
-# build.
+# populated `node_modules/`. Each extension here pulls the registry tarball with
+# `fetchurl` and grafts on a `node_modules/` built from a committed lockfile.
 #
-# Refreshing a hash after a version bump:
-#   - update the version field on the extension below
-#   - set `tarballHash` to `lib.fakeHash` and rebuild to learn the new value
-#   - set `outputHash` to `lib.fakeHash` and rebuild again to learn that one
+# `node_modules` is built with `importNpmLock` from the peer/dev-stripped
+# `package-lock.json` under `npm-deps/<safeName>/`. Resolution is therefore
+# pinned by the lockfile's per-dependency integrity hashes and cannot drift with
+# the registry, unlike a build-time `npm install`. Optional dependencies are
+# omitted, which keeps platform-specific native binaries (koffi, esbuild, ...)
+# out of the closure so the result is identical on every system.
+#
+# Refreshing after a version bump:
+#   - update `version` and `tarballHash` (set `tarballHash` to `lib.fakeHash`
+#     and rebuild to learn the new value)
+#   - regenerate `npm-deps/<safeName>/` from the new tarball: extract its
+#     `package.json`, drop `devDependencies`, `peerDependencies` and
+#     `optionalDependencies`, run `npm install --package-lock-only`, and commit
+#     the resulting `package.json` and `package-lock.json`
 {
   pkgs,
   lib,
@@ -21,21 +27,24 @@
     name,
     version,
     tarballHash,
-    outputHash,
   }: let
     basename = lib.last (lib.splitString "/" name);
     safeName = lib.replaceStrings ["@" "/"] ["" "-"] name;
+
+    src = pkgs.fetchurl {
+      url = "https://registry.npmjs.org/${name}/-/${basename}-${version}.tgz";
+      hash = tarballHash;
+    };
+
+    nodeModules = pkgs.importNpmLock.buildNodeModules {
+      npmRoot = ./npm-deps + "/${safeName}";
+      inherit (pkgs) nodejs;
+      derivationArgs.npmFlags = ["--omit=optional"];
+    };
   in
     pkgs.stdenvNoCC.mkDerivation {
       pname = "pi-extension-${safeName}";
-      inherit version;
-
-      src = pkgs.fetchurl {
-        url = "https://registry.npmjs.org/${name}/-/${basename}-${version}.tgz";
-        hash = tarballHash;
-      };
-
-      nativeBuildInputs = [pkgs.nodejs pkgs.cacert];
+      inherit version src;
 
       # The npm tarball layout puts everything under `package/`.
       sourceRoot = "package";
@@ -43,13 +52,8 @@
       dontConfigure = true;
       dontBuild = true;
 
-      # Skip Nix's fixup pass. Pi loads these files through Node, which
-      # ignores shebangs and RPATHs. The fixup phase would rewrite, say,
-      # `node_modules/open/xdg-open` to point at a Nix-store bash; that's
-      # a store reference, and this is a fixed-output derivation, whose
-      # output hash has to capture content downloaded from the network and
-      # nothing else. Embedding store refs breaks that contract and Nix
-      # refuses the build.
+      # Pi loads these files through Node, which ignores shebangs and RPATHs, so
+      # there is nothing for the fixup phase to usefully rewrite.
       dontFixup = true;
 
       installPhase = ''
@@ -58,29 +62,13 @@
         mkdir -p $out
         cp -r . $out/
 
-        cd $out
-        export HOME="$(mktemp -d)"
-        export npm_config_cache="$HOME/.npm"
-        export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-        export NODE_EXTRA_CA_CERTS="$SSL_CERT_FILE"
-
-        # Peer deps are supplied by Pi itself; omit them so the extension
-        # does not carry a duplicate copy of `@earendil-works/*`.
-        npm install \
-          --omit=dev \
-          --omit=peer \
-          --omit=optional \
-          --no-audit \
-          --no-fund \
-          --no-progress \
-          --loglevel=error
+        # Extensions with no runtime dependencies produce no node_modules.
+        if [ -d ${nodeModules}/node_modules ]; then
+          cp -r ${nodeModules}/node_modules $out/node_modules
+        fi
 
         runHook postInstall
       '';
-
-      outputHashMode = "recursive";
-      outputHashAlgo = "sha256";
-      inherit outputHash;
     };
 in {
   inherit mkPiExtension;
@@ -90,7 +78,6 @@ in {
       name = "pi-mcp-adapter";
       version = "2.8.0";
       tarballHash = "sha256-kSjvMGShpuRb+ImdzY9PPbIAZahOTtA+SoOlPLTvg2w=";
-      outputHash = "sha256-cE4nUtGUJP7jJ0oVa72HJPE42eHtgfBKiUmMlVOsRmo=";
     };
 
     # Web search, URL fetching, GitHub repository cloning, PDF extraction,
@@ -100,7 +87,6 @@ in {
       name = "pi-web-access";
       version = "0.10.7";
       tarballHash = "sha256-v0CQxc2TySwdlGYCha3cazQpMgHQCaipjGVpW49H2Pk=";
-      outputHash = "sha256-nSXl26ifMIxO2Sl0fw/NyfDu4FSxM+SwSEas+g17KW0=";
     };
 
     # Claude-style permission modes, including a read-only plan mode and
@@ -109,7 +95,6 @@ in {
       name = "@zackify/pi-claude-permissions";
       version = "1.0.6";
       tarballHash = "sha256-Huyi1yJM0PnhZ4GCvKqPBm8cmuoNojh40qBo4NQt4/0=";
-      outputHash = "sha256-bY7ZS55yQ7lMTcTsPiwMg9Tvz0sWJSU7yLAo6v0Dpe4=";
     };
 
     # Persistent cross-session memory for preferences, corrections,
@@ -119,7 +104,6 @@ in {
       name = "@samfp/pi-memory";
       version = "1.3.2";
       tarballHash = "sha256-RyuzjzuaL0ruHPuskMRBGjZMWjgFeAhXkOgg0nVTQW4=";
-      outputHash = "sha256-qhSVSC0xWI3fvTrHxfO+smNOi1KMSdCJ+I9wCC7+DKg=";
     };
 
     # Reviews changed code for clarity, consistency, and maintainability
@@ -128,28 +112,24 @@ in {
       name = "pi-simplify";
       version = "0.2.2";
       tarballHash = "sha256-2SFjI0hE3eVu76BUtRwnr0Q9owE5WBIVp0uPSEOE89Q=";
-      outputHash = "sha256-Vcm6xn27VUWc4QMpN+H3kCVQ5E+EDKdE/5gTVsFrFGM=";
     };
 
     pi-subagents = mkPiExtension {
       name = "pi-subagents";
       version = "0.25.0";
       tarballHash = "sha256-V/fdxzOrdDJlSaJnMNOeWFihACrxK3LDkMkSgaGBzRY=";
-      outputHash = "sha256-NIvjzv1Nl9GwTFEZZQZkPkziMJTQ5aG41xeTLwj6klg=";
     };
 
     pi-footer = mkPiExtension {
       name = "pi-footer";
       version = "0.3.0";
       tarballHash = "sha256-oUMIPlx+eqIfGolZqcqSS5vSYwniSc1boV8MVt17Np8=";
-      outputHash = "sha256-zGlv3dEZT32VPlR6X89o9Oi1O/FCBQYamLtat6C8ueM=";
     };
 
     pi-sub-core = mkPiExtension {
       name = "@marckrenn/pi-sub-core";
       version = "1.5.0";
       tarballHash = "sha256-duR1dafk4MhRde3VSfU3m8UFAKE9h3Gxj6oXkTgUTTQ=";
-      outputHash = "sha256-Nbl2I/KZIUdt6AHfq0hrW1g0MxhwSImhMtwyy6Bof5E=";
     };
 
     # Cross-platform auto dark/light switcher. On Linux it polls
@@ -162,7 +142,6 @@ in {
       name = "pi-system-theme";
       version = "0.4.0";
       tarballHash = "sha256-8S5EVzEroElZhtEuzr+w5CHYpC5qoTFVWpX+j8eqSlY=";
-      outputHash = "sha256-cz4hBmb69WD/GhMU2aX1hQaYmEpq00kMNbTr8GZ7zjw=";
     };
 
     # Git-ref snapshots of the working tree at every agent turn, with
@@ -172,7 +151,6 @@ in {
       name = "checkpoint-pi";
       version = "1.0.5";
       tarballHash = "sha256-Zg57yjMUEnhq9NbPpwtrMs87IazszhYr6Gnor9ioJR4=";
-      outputHash = "sha256-qmPYH0mcf1bN1FwG+f+yTd+ajbA3p7Q828Su7EBPh6M=";
     };
 
     # Runs LSP diagnostics on touched files after agent runs end, and
@@ -182,7 +160,6 @@ in {
       name = "lsp-pi";
       version = "1.0.5";
       tarballHash = "sha256-6xtaXAseK9d/zowUlOvUjIV2v+KOWFtolLJNn8MaAjg=";
-      outputHash = "sha256-9OkIb6W19XzN19Ad8RlBMfyUImRcuU11rykJVGlCtkM=";
     };
 
     # Desktop notification on agent_end via terminal escape sequences
@@ -191,7 +168,6 @@ in {
       name = "pi-notify";
       version = "1.3.0";
       tarballHash = "sha256-sX2/fI2QGUsrGnDZvljBJ4BZO403B0vqFcPJSF0hAKI=";
-      outputHash = "sha256-snd50ttijD2YCiDizmjRq8E0dxtT4ot9uPYdDeIaWhk=";
     };
 
     # Lets a prompt template's frontmatter declare `model`, `skill`, and
@@ -200,7 +176,6 @@ in {
       name = "pi-prompt-template-model";
       version = "0.9.3";
       tarballHash = "sha256-dVtmBT2zjJEQy1f/rt2+yNbW0TufQbl9sbMq3zX42Ac=";
-      outputHash = "sha256-zoLZuF8wAnH38CF7jkCeagG4Kc62tu1C3DNtsC/lA58=";
     };
   };
 }
