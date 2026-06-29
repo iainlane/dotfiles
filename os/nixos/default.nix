@@ -54,6 +54,23 @@
         inherit (config.flake) profiles;
         extraSpecialArgs = homeSpecialArgs;
       };
+
+      # The unstable home-manager program modules grafted on by
+      # modules/ai/unstable-hm-modules.nix are written against unstable's
+      # `lib.hm`, which carries helpers (such as
+      # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
+      # does not yet have. Build an extended lib whose `lib.hm` comes from
+      # unstable and hand it to the home-manager modules on stable hosts.
+      # `extraSpecialArgs` takes precedence over the home-manager module's own
+      # `lib`, so this overrides it without rebuilding the stable source.
+      unstableHmLib = channel.stable.lib.extend (
+        self: super: let
+          hmLib = import "${inputs.home-manager}/modules/lib" {lib = self;};
+        in {
+          hm = hmLib;
+          maintainers = super.maintainers // hmLib.maintainers;
+        }
+      );
     in {
       inherit homeSpecialArgs;
       systemConfig = channel.nixpkgs.lib.nixosSystem {
@@ -83,7 +100,9 @@
                 useGlobalPkgs = true;
                 useUserPackages = true;
                 users.${username}.imports = homeConfig.modules;
-                inherit (homeConfig) extraSpecialArgs;
+                extraSpecialArgs =
+                  homeConfig.extraSpecialArgs
+                  // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
               };
             }
           ];

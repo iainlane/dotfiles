@@ -4,10 +4,14 @@
 {inputs, ...}: let
   hmPrograms = "${inputs.home-manager}/modules/programs";
 in {
+  # Stable still ships codex as a single `codex.nix`; unstable has moved it to a
+  # `codex/` directory. Disable both so the host's own module is dropped on
+  # either channel. Unmatched entries are ignored.
   disabledModules = [
     "programs/antigravity-cli.nix"
     "programs/claude-code.nix"
     "programs/codex.nix"
+    "programs/codex"
     "programs/mcp.nix"
     "programs/opencode.nix"
   ];
@@ -15,7 +19,7 @@ in {
   imports = map (f: import "${hmPrograms}/${f}") [
     "antigravity-cli.nix"
     "claude-code.nix"
-    "codex.nix"
+    "codex"
     "mcp.nix"
     "opencode.nix"
   ];
