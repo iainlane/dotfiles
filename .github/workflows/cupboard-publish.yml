@@ -227,9 +227,30 @@ jobs:
             build_flags+=(--max-jobs "${MAX_JOBS}")
           fi
 
-          echo "::group::${ATTR}"
-          nix build "${ATTR}" "${build_flags[@]}" | tee "${RUNNER_TEMP}/paths.txt"
-          echo '::endgroup::'
+          # A remote closure copies every realised path back from nixbuild over
+          # one SSH connection, and a large one streams hundreds of them; an
+          # occasional stream truncates ("unexpected end-of-file") and aborts
+          # the build. Paths copied before that point stay in the local store,
+          # so a retry resumes and fetches only what is left.
+          attempts=3
+          for attempt in $(seq 1 "${attempts}"); do
+            echo "::group::${ATTR} (attempt ${attempt}/${attempts})"
+            if nix build "${ATTR}" "${build_flags[@]}" > "${RUNNER_TEMP}/paths.txt"; then
+              echo '::endgroup::'
+              break
+            fi
+            echo '::endgroup::'
+
+            if [ "${attempt}" -eq "${attempts}" ]; then
+              echo "::error::${ATTR} failed after ${attempts} attempts"
+              exit 1
+            fi
+
+            echo "::warning::${ATTR} attempt ${attempt} failed; retrying"
+            sleep "$((attempt * 15))"
+          done
+
+          cat "${RUNNER_TEMP}/paths.txt"
 
           {
             echo 'paths<<EOF'
