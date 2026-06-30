@@ -45,9 +45,9 @@ on:
         required: true
       secrets_deploy_key:
         description: >-
-          Read-only SSH deploy key for the private dotfiles-secrets repo, letting
-          the host and home closures evaluate. Absent on fork pull requests,
-          where those closures are skipped.
+          Read-only SSH deploy key for the private dotfiles-secrets repo,
+          letting the host and home closures evaluate. Absent on fork pull
+          requests, where those closures are skipped.
         required: false
 
 permissions: {}
@@ -71,7 +71,7 @@ jobs:
       # Pin the CLI to the same release as the cupboard actions below so the
       # client and the actions move together; Renovate keeps both in step.
       # renovate: datasource=github-releases depName=underwhelmingperformance/cupboard
-      CUPBOARD_VERSION: v0.0.9
+      CUPBOARD_VERSION: v0.0.10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -221,12 +221,12 @@ jobs:
 
       - name: Attest the built paths
         id: attest
-        uses: underwhelmingperformance/cupboard/actions/attest@45e2cf69060859331cea1156bcab173c3f03bbe9 # v0.0.9
+        uses: underwhelmingperformance/cupboard/actions/attest@c7d4e8c90572efb946d6711a9c005e567d8e74e6 # v0.0.10
         with:
           paths: ${{ steps.build.outputs.paths }}
 
       - name: Push to cupboard
-        uses: underwhelmingperformance/cupboard/actions/push@45e2cf69060859331cea1156bcab173c3f03bbe9 # v0.0.9
+        uses: underwhelmingperformance/cupboard/actions/push@c7d4e8c90572efb946d6711a9c005e567d8e74e6 # v0.0.10
         with:
           url: ${{ env.CACHE_URL }}
           cupboard-version: ${{ env.CUPBOARD_VERSION }}
