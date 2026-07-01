@@ -156,6 +156,28 @@ jobs:
         with:
           persist-credentials: false
 
+      # macOS runners ship tens of GB of Xcode versions and simulator runtimes a
+      # Nix build never touches, and the stock free space does not fit a large
+      # from-source build (an uncached zed-editor fills the disk mid-compile).
+      # This is the Darwin counterpart to nothing-but-nix below, which is Linux
+      # only. Nix's Darwin stdenv brings its own SDK and toolchain, so the full
+      # Xcode apps are not needed; point xcode-select at the Command Line Tools
+      # first so anything shelling out to xcrun still resolves.
+      - name: Free disk space
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          set -euo pipefail
+
+          df -h /
+
+          sudo xcode-select --switch /Library/Developer/CommandLineTools || true
+          sudo rm -rf /Applications/Xcode_*.app
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
+          xcrun simctl delete unavailable || true
+
+          df -h /
+
       # The remote build runs on nixbuild.net, but every realised path is copied
       # back into this runner's local store, and a large closure can outgrow the
       # runner's stock ~20GB on / and truncate a NAR mid-copy ("unexpected
