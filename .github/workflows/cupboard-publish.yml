@@ -61,8 +61,8 @@ on:
       push:
         description: >-
           Attest the built outputs and push them to the cupboard cache. Turned
-          off for the local CI run that only validates a change to this workflow,
-          which cannot obtain a push token.
+          off for the local CI run that only validates a change to this
+          workflow, which cannot obtain a push token.
         type: boolean
         default: true
         required: false
@@ -72,9 +72,9 @@ on:
         required: true
       secrets_deploy_key:
         description: >-
-          Read-only SSH deploy key for the private dotfiles-secrets repo, letting
-          the host and home closures evaluate. Absent on fork pull requests,
-          where those closures are skipped.
+          Read-only SSH deploy key for the private dotfiles-secrets repo,
+          letting the host and home closures evaluate. Absent on fork pull
+          requests, where those closures are skipped.
         required: false
 
 permissions: {}
@@ -295,6 +295,7 @@ jobs:
           cupboard-version: ${{ env.CUPBOARD_VERSION }}
           cache: ${{ needs.discover.outputs.cache }}
           ttl: ${{ needs.discover.outputs.ttl }}
-          root: ${{ needs.discover.outputs.root_prefix }}/${{ matrix.rootSuffix }}
+          root:
+            ${{ needs.discover.outputs.root_prefix }}/${{ matrix.rootSuffix }}
           paths: ${{ steps.build.outputs.paths }}
           attestations: ${{ steps.attest.outputs.bundle-path }}
