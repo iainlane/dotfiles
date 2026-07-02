@@ -23,13 +23,13 @@ permissions: {}
 
 jobs:
   publish-local:
-    # The called workflow's job statically requests these, and a caller cannot
-    # grant a nested job less than it requests. The build does not push, so the
-    # attestations and id-token scopes go unused here.
+    # The called workflow's job statically requests the write scopes, and a
+    # caller cannot grant a nested job less than it requests. The build does
+    # not push, so both go unused here.
     permissions:
-      attestations: write
+      attestations: write # required by the called workflow; unused without push
       contents: read
-      id-token: write
+      id-token: write # required by the called workflow; unused without push
     uses: ./.github/workflows/cupboard-publish.yml
     with:
       push: false
