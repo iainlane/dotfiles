@@ -42,6 +42,8 @@
       flake = false;
     };
 
+    cupboard.url = "https://flakehub.com/f/underwhelmingperformance/cupboard/0.0";
+
     deploy-rs = {
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
