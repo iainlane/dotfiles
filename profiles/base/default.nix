@@ -58,6 +58,7 @@ in {
 
         packages = with pkgs; [
           # Build tools and networking basics.
+          cupboard
           curl
           httpie
           pre-commit
