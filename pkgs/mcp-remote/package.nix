@@ -48,6 +48,13 @@ in
 
       pnpm prune --prod
 
+      # pnpm writes metadata files containing timestamps and the build
+      # directory, and its .bin shims hard-code NODE_PATH under the build
+      # directory. None of it works or is needed at runtime, and it makes
+      # the output unreproducible.
+      rm node_modules/.modules.yaml node_modules/.pnpm-workspace-state-v1.json
+      find node_modules -type d -name .bin -exec rm -r {} +
+
       mkdir -p "$out/lib/mcp-remote"
       cp -r dist node_modules package.json "$out/lib/mcp-remote/"
 
