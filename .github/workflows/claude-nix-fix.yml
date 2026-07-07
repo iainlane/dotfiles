@@ -1,0 +1,199 @@
+# When a nix build fails on a pull request, hand the failure to Claude: it reads
+# the failed run's logs, reproduces the build, attempts a fix on the PR branch,
+# and reports what it did (or why it couldn't) in a PR comment.
+#
+# The "nix build" in this repo is the `cupboard` workflow, which fans out
+# `nix build` across every flake output. This workflow keys off that run
+# completing (`workflow_run`) rather than re-listing the build here, so it fires
+# for exactly the same failures a normal PR build would surface, without
+# duplicating the build matrix.
+#
+# It runs only when:
+#   - `cupboard` concluded `failure` (its closure jobs are continue-on-error, so
+#     a failure means a real, fatal package/derivation build broke, not a
+#     best-effort closure), and
+#   - that run was for a `pull_request`, and
+#   - the PR came from this repo, not a fork. `workflow_run` executes with the
+#     base repo's secrets and write token; restricting to same-repo heads keeps
+#     that power on trusted branches (the owner's own and dependabot/flake-update)
+#     and never lets fork code reach the API token or ANTHROPIC_API_KEY.
+#
+# Claude gets Nix + the nixbuild.net token + the trusted caches (the same build
+# setup the `cupboard` job uses) so it can actually reproduce and verify package
+# builds. It is deliberately NOT given the dotfiles-secrets deploy key: the
+# host/home closures that need it are best-effort in `cupboard` and never fail
+# the run, so there is nothing here for Claude to fix that would require it, and
+# an autonomous run should hold as few secrets as possible. To let Claude fix
+# closure failures too, pass `secrets.SECRETS_DEPLOY_KEY` through the same way
+# the cupboard-publish workflow does and drop the "you do NOT have" caveat from
+# the prompt.
+#
+# Prerequisites (repo/org settings, not satisfiable from this file):
+#   - `ANTHROPIC_API_KEY` secret (or swap `anthropic_api_key` below for
+#     `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`).
+#   - `NIXBUILD_NET_SECRET` secret (already present; used by `cupboard`).
+#   - Optional `CLAUDE_CODE_PR_TOKEN` (a PAT or GitHub App token). Claude's push
+#     uses the default `GITHUB_TOKEN` otherwise, and a push made with that token
+#     does NOT re-trigger `cupboard` (GitHub suppresses it), so the fix is not
+#     re-verified by CI automatically — Claude's local rebuild is the check.
+#     Supplying a PAT makes the push trigger `cupboard` like any other; note that
+#     if the rebuild still fails this workflow will fire again, so a persistently
+#     unfixable failure can loop until the PR changes.
+name: claude nix fix
+
+on:
+  # Intentional and guarded: the job's `if` restricts this to same-repo PR
+  # builds, so fork code never reaches the write token or the API key.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [cupboard]
+    types: [completed]
+
+concurrency:
+  # One Claude run per PR branch; a newer failure supersedes an in-flight fix.
+  group: claude-nix-fix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  fix:
+    name: Diagnose and fix the failed nix build
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.event.workflow_run.repository.full_name
+    permissions:
+      contents: write # commit and push Claude's fix to the PR branch
+      pull-requests: write # post the report comment on the PR
+      actions: read # read the failed run's logs (gh run view --log-failed)
+    steps:
+      # Resolve the PR number for the failed run. `workflow_run` populates
+      # `pull_requests` for same-repo PRs, but fall back to a branch lookup so a
+      # missing entry does not silently drop the fix.
+      - name: Resolve the pull request number
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.event.workflow_run.repository.full_name }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          FROM_EVENT: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          set -euo pipefail
+          number="${FROM_EVENT}"
+          if [ -z "${number}" ]; then
+            number="$(gh pr list --repo "${REPO}" --head "${BRANCH}" --state open \
+              --json number --jq '.[0].number // empty')"
+          fi
+          if [ -z "${number}" ]; then
+            echo "::warning::No open pull request found for ${BRANCH}; nothing to fix."
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "found=true" >> "${GITHUB_OUTPUT}"
+          echo "number=${number}" | tee -a "${GITHUB_OUTPUT}"
+
+      # Everything below only runs once we know which PR to work on.
+      - name: Check out the PR branch
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          # Keep the token on the remote so Claude's `git push` is authenticated.
+          # Swap in CLAUDE_CODE_PR_TOKEN to have the push re-trigger `cupboard`.
+          # Persisted deliberately: Claude already holds this token to drive git,
+          # so the checkout credential adds no exposure beyond that.
+          token: ${{ secrets.CLAUDE_CODE_PR_TOKEN || github.token }}
+          persist-credentials: true # zizmor: ignore[artipacked]
+
+      # Reclaim disk into /nix before Nix is installed, matching the cupboard
+      # build job so large closures copied back from nixbuild do not truncate.
+      # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
+      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        with:
+          hatchet-protocol: holster
+          nix-permission-edict: true
+
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+        if: ${{ steps.pr.outputs.found == 'true' }}
+
+      # Trust the same binary caches the hosts and the build job use, derived
+      # from the flake so this cannot drift. Includes the nixbuild.net store key
+      # so remotely built paths are substituted, not rebuilt on the runner.
+      - name: Trust our binary caches
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+
+      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        with:
+          nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+
+      - name: Let Claude fix the build
+        if: ${{ steps.pr.outputs.found == 'true' }}
+        # renovate: datasource=github-releases depName=anthropics/claude-code-action
+        uses: anthropics/claude-code-action@493279a9d94b7cc5d07a98e5e66cb03313805350 # v1.0.166
+        env:
+          # Authenticates the `gh` and `git` calls Claude makes from Bash.
+          GH_TOKEN: ${{ secrets.CLAUDE_CODE_PR_TOKEN || github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.CLAUDE_CODE_PR_TOKEN || github.token }}
+          # Claude drives git/gh itself, so plain (unsigned) commits are simplest.
+          use_commit_signing: false
+          claude_args: |
+            --allowedTools "Bash,Edit,Write,Read,Glob,Grep"
+            --max-turns 40
+          prompt: |
+            The `cupboard` workflow — which runs `nix build` across every output
+            of this flake — just FAILED on pull request #${{ steps.pr.outputs.number }}.
+            The failed workflow run id is ${{ github.event.workflow_run.id }}.
+
+            Your job: find out why it failed, fix it on this branch, verify the
+            fix, and report what you did on the PR.
+
+            This checkout is already on the PR's head branch. Nix is installed and
+            nixbuild.net is configured, so `nix build .#<attr>` works (Linux
+            builds are offloaded to the remote builder). The binary caches this
+            repo trusts are already set up. `gh` is authenticated.
+
+            Steps:
+            1. Read the failure. Run `gh run view ${{ github.event.workflow_run.id }}`
+               to see which jobs failed, and `gh run view ${{ github.event.workflow_run.id }} --log-failed`
+               for the errors. Each build job is named after the flake attribute
+               it builds. Identify every failed output and the real error.
+               - IMPORTANT: the host/home *closure* jobs are best-effort
+                 (continue-on-error) and cannot fail the run; they also need a
+                 secret deploy key you do NOT have. Ignore closure-only failures.
+                 The failures that matter are package/derivation builds.
+            2. Reproduce locally: `nix build .#<attr> --no-link -L` for each
+               failing attribute. Use `./just` recipes where helpful (e.g.
+               `./just check`, `./just fmt`, `./just log <pkg>`).
+            3. Make the smallest correct fix, scoped tightly to the build failure
+               and matching the surrounding code style. Do NOT touch unrelated
+               files, `flake.lock`, or the CI workflows unless one is genuinely
+               the cause.
+            4. Verify by rebuilding the affected attribute(s) until they succeed.
+               Run `./just fmt` if you edited any Nix so formatting stays clean.
+            5. Commit with a clear conventional-commit message and push:
+               `git add -A && git commit -m "fix: ..." && git push origin HEAD`.
+            6. Post ONE comment on the PR summarising the fix. Write the body to a
+               file and run `gh pr comment ${{ steps.pr.outputs.number }} --body-file <file>`.
+               State: which output(s) failed, the root cause, exactly what you
+               changed, and whether your local rebuild passed.
+
+            If you cannot fix it (environmental failure, needs a secret you lack,
+            or the fix is too risky to make automatically), do NOT push a broken
+            change. Instead comment on the PR with your diagnosis, what you tried,
+            and a concrete suggested fix for a human to apply.
+
+            Keep the PR comment concise — the repo owner reads it.
