@@ -1,0 +1,59 @@
+name: Nix build setup
+description: Install Nix and trust this flake's binary caches, on Linux or macOS.
+
+inputs:
+  nixbuild-token:
+    description: >-
+      nixbuild.net token. On a Linux runner this offloads builds to the remote
+      builder. Leave empty on macOS, which builds natively.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # macOS runners ship tens of GB of Xcode versions and simulator runtimes
+    # that a Nix build never uses, and a large from-source build fills the disk
+    # without this. The Darwin stdenv brings its own SDK, so switch xcode-select
+    # to the Command Line Tools before the full Xcode apps go.
+    - name: Free disk space
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        df -h /
+        sudo xcode-select --switch /Library/Developer/CommandLineTools || true
+        sudo rm -rf /Applications/Xcode_*.app
+        sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
+        sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
+        xcrun simctl delete unavailable || true
+        df -h /
+
+    # Move the runner's free space into /nix so a closure copied back from the
+    # remote builder has room to land.
+    # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
+    - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+      if: runner.os == 'Linux'
+      with:
+        hatchet-protocol: holster
+        nix-permission-edict: true
+
+    - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+    # The cache list comes from the flake, so it stays in step with what the
+    # hosts trust. It includes the nixbuild.net store key, so paths built on the
+    # remote builder are substituted rather than rebuilt here.
+    - name: Trust the flake's binary caches
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "${HOME}/.config/nix"
+        {
+          printf '\n'
+          nix eval --raw .#nix.substituterConfig
+        } >> "${HOME}/.config/nix/nix.conf"
+
+    - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
+      if: runner.os == 'Linux' && inputs.nixbuild-token != ''
+      with:
+        nixbuild_token: ${{ inputs.nixbuild-token }}
