@@ -156,67 +156,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # macOS runners ship tens of GB of Xcode versions and simulator runtimes a
-      # Nix build never touches, and the stock free space does not fit a large
-      # from-source build (an uncached zed-editor fills the disk mid-compile).
-      # This is the Darwin counterpart to nothing-but-nix below, which is Linux
-      # only. Nix's Darwin stdenv brings its own SDK and toolchain, so the full
-      # Xcode apps are not needed; point xcode-select at the Command Line Tools
-      # first so anything shelling out to xcrun still resolves.
-      - name: Free disk space
-        if: ${{ runner.os == 'macOS' }}
-        run: |
-          set -euo pipefail
-
-          df -h /
-
-          sudo xcode-select --switch /Library/Developer/CommandLineTools || true
-          sudo rm -rf /Applications/Xcode_*.app
-          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
-          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
-          xcrun simctl delete unavailable || true
-
-          df -h /
-
-      # The remote build runs on nixbuild.net, but every realised path is copied
-      # back into this runner's local store, and a large closure can outgrow the
-      # runner's stock ~20GB on / and truncate a NAR mid-copy ("unexpected
-      # end-of-file"). Reclaim space into /nix before Nix is installed. The
-      # holster protocol leaves the runner's own tooling (node, jq, tar) intact
-      # for the cupboard actions below. nix-quick-install-action is single-user
-      # Nix and refuses a /nix it cannot write to, so hand it ownership of the
-      # volume this action mounts.
-      # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
-      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
-        if: ${{ runner.os == 'Linux' }} # the action only supports Linux runners
+      # Install Nix, reclaim disk, trust the caches, and set up the remote
+      # builder. Single-user Nix, so the build process itself holds
+      # nixbuild-action's NIX_SSHOPTS and the GIT_SSH_COMMAND set below and can
+      # reach the remote builder and the private secrets input.
+      - uses: ./.github/actions/nix-build-setup
         with:
-          hatchet-protocol: holster
-          nix-permission-edict: true
-
-      # Single-user Nix: on the Linux runners the build process itself evaluates
-      # and connects to the nixbuild.net builder, so it holds both
-      # nixbuild-action's NIX_SSHOPTS and the secrets GIT_SSH_COMMAND. A
-      # multi-user daemon would perform the build without those per-step
-      # variables and fail to reach the builder.
-      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-
-      # Trust the same binary caches the hosts use, derived from the flake so
-      # this list cannot drift from the host configuration. This includes the
-      # nixbuild.net store key, so paths built remotely are substituted instead
-      # of rebuilt on the runner.
-      - name: Trust our binary caches
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/nix"
-          {
-            printf '\n'
-            nix eval --raw .#nix.substituterConfig
-          } >> "${HOME}/.config/nix/nix.conf"
-
-      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
-        if: ${{ matrix.remote }}
-        with:
-          nixbuild_token: ${{ secrets.nixbuild_token }}
+          nixbuild-token: ${{ secrets.nixbuild_token }}
 
       - name: Set up secrets access
         id: secrets

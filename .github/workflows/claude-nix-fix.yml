@@ -151,8 +151,9 @@ jobs:
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
-          # The fix is pushed back over this remote.
-          persist-credentials: true # zizmor: ignore[artipacked]
+          # The action pushes the fix through its own token over the API, so no
+          # git credential is kept on the checkout.
+          persist-credentials: false
 
       - uses: ./.github/actions/nix-build-setup
         with:
@@ -167,7 +168,9 @@ jobs:
           # The Claude GitHub App on the org issues this token. Replace with
           # `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` to use an API key.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Commit through the API so the fix lands as a verified commit.
+          # With github_token left unset, the action commits and pushes with the
+          # app's own token. Signing lands the fix as a verified commit, and the
+          # app token starts a fresh build the way any non-Actions push would.
           use_commit_signing: true
           claude_args: |
             --allowedTools "Bash,Edit,Write,Read,Glob,Grep"
