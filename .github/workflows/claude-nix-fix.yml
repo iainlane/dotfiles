@@ -29,8 +29,10 @@
 # the prompt.
 #
 # Prerequisites (repo/org settings, not satisfiable from this file):
-#   - `ANTHROPIC_API_KEY` secret (or swap `anthropic_api_key` below for
-#     `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`).
+#   - The Claude GitHub App installed on the org and a `CLAUDE_CODE_OAUTH_TOKEN`
+#     secret reachable from this repo — the same auth the rssfilter review
+#     workflow uses. To use a plain API key instead, swap `claude_code_oauth_token`
+#     below for `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}`.
 #   - `NIXBUILD_NET_SECRET` secret (already present; used by `cupboard`).
 #   - Optional `CLAUDE_CODE_PR_TOKEN` (a PAT or GitHub App token). Claude's push
 #     uses the default `GITHUB_TOKEN` otherwise, and a push made with that token
@@ -67,6 +69,7 @@ jobs:
       contents: write # commit and push Claude's fix to the PR branch
       pull-requests: write # post the report comment on the PR
       actions: read # read the failed run's logs (gh run view --log-failed)
+      id-token: write # OIDC token used by the Claude Code OAuth auth flow
     steps:
       # Resolve the PR number for the failed run. `workflow_run` populates
       # `pull_requests` for same-repo PRs, but fall back to a branch lookup so a
@@ -141,12 +144,16 @@ jobs:
       - name: Let Claude fix the build
         if: ${{ steps.pr.outputs.found == 'true' }}
         # renovate: datasource=github-releases depName=anthropics/claude-code-action
-        uses: anthropics/claude-code-action@493279a9d94b7cc5d07a98e5e66cb03313805350 # v1.0.166
+        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
         env:
           # Authenticates the `gh` and `git` calls Claude makes from Bash.
           GH_TOKEN: ${{ secrets.CLAUDE_CODE_PR_TOKEN || github.token }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Authenticate the model with the Claude Code OAuth token: the Claude
+          # GitHub App is installed on the org and this secret is set there, the
+          # same as the rssfilter review workflow. Swap for
+          # `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` to use an API key.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.CLAUDE_CODE_PR_TOKEN || github.token }}
           # Claude drives git/gh itself, so plain (unsigned) commits are simplest.
           use_commit_signing: false
