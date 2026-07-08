@@ -190,12 +190,12 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1783369335,
-        "narHash": "sha256-FsaRzQ4rdORy8HO8zq7ozJ4dKEXSudcLU3H7J8CJxQc=",
-        "rev": "e98ffc92c4bacaadb2f2ccac4a49c60900428f44",
-        "revCount": 592,
+        "lastModified": 1783532770,
+        "narHash": "sha256-Oc91jFoBJ3HY827saejkNUVxbl2jaK4W+nGqiXcLqOQ=",
+        "rev": "2420f520ec09eeea654f96fb529157c14f49faeb",
+        "revCount": 642,
         "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.12/019f3927-1a52-7ff3-9715-72c8166ef528/source.tar.gz"
+        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.13/019f42e6-4c40-7962-8ade-922685d99628/source.tar.gz"
       },
       "original": {
         "type": "tarball",
