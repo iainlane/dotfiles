@@ -147,7 +147,6 @@ in {
         "Bash(kubectl delete:*)"
         "Bash(kubectl exec:*)"
 
-        "Bash(terraform apply:*)"
         "Bash(terraform destroy:*)"
 
         "Bash(helm install:*)"
