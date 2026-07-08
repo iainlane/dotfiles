@@ -1,4 +1,9 @@
-{lib, ...}: let
+{
+  lib,
+  inputs,
+  options,
+  ...
+}: let
   # Keybindings with descriptions
   keybindings = {
     "ctrl-/" = {
@@ -53,7 +58,7 @@
   );
 
   # Other options
-  options = {
+  fzfOptions = {
     # Layout
     height = "--height=40%";
     layout = "--layout=reverse";
@@ -76,19 +81,48 @@
   helpBinding = "--bind=\\\"?:preview:echo '${helpText}'\\\"";
 
   rgSearch = "rg --files --hidden --follow --glob '!.git'";
+  fdSearch = "fd --type d --hidden --follow --exclude .git";
+
+  # home-manager unstable (26.11) renamed `programs.fzf.fileWidgetCommand` and
+  # `changeDirWidgetCommand` to the nested `fileWidget.command` and
+  # `changeDirWidget.command`. Stable (26.05) only knows the flat names, so we
+  # speak whichever form the running home-manager declares.
+  usesNestedWidget = options.programs.fzf ? fileWidget;
+
+  # The flat branch below exists only for stable, which is on 26.05. Read the
+  # stable input's release directly so that bumping `home-manager-stable` past
+  # 26.05 fails the build: at that point stable has the rename too and this whole
+  # shim can go. Keying on the stable input (rather than the release of whichever
+  # channel is being evaluated) means the failure fires the moment stable is
+  # bumped, not a release later.
+  stableRelease = (lib.importJSON (inputs.home-manager-stable + "/release.json")).release;
+
+  widgetCommands = assert lib.assertMsg (stableRelease == "26.05") ''
+    modules/cli-tools/fzf.nix carries a compatibility shim for home-manager
+    stable 26.05, which still uses the flat `programs.fzf.fileWidgetCommand`.
+    The `home-manager-stable` input is now on ${stableRelease}, which has the
+    renamed nested `fileWidget.command`. Drop this shim and set the nested
+    options directly.
+  '';
+    if usesNestedWidget
+    then {
+      fileWidget.command = rgSearch;
+      changeDirWidget.command = fdSearch;
+    }
+    else {
+      fileWidgetCommand = rgSearch;
+      changeDirWidgetCommand = fdSearch;
+    };
 in {
-  programs.fzf = {
-    enable = true;
-    enableZshIntegration = true;
+  programs.fzf =
+    {
+      enable = true;
+      enableZshIntegration = true;
 
-    # Use ripgrep for file search
-    defaultCommand = rgSearch;
-    # and ctrl-t (file selection)
-    fileWidgetCommand = rgSearch;
+      # Use ripgrep for file search and ctrl-t; fd for ALT-C
+      defaultCommand = rgSearch;
 
-    # Use fd for ALT-C (directory selection)
-    changeDirWidgetCommand = "fd --type d --hidden --follow --exclude .git";
-
-    defaultOptions = lib.attrValues options ++ bindOptions ++ [helpBinding];
-  };
+      defaultOptions = lib.attrValues fzfOptions ++ bindOptions ++ [helpBinding];
+    }
+    // widgetCommands;
 }
