@@ -24,6 +24,9 @@
   flake.profiles.desktop.os.darwin.systemManagerModule = {
     homebrew.casks = [
       "google-chrome"
+      # Cask dependency of wine-stable. Declared so cleanup = "uninstall"
+      # does not try to remove it on every activation.
+      "gstreamer-runtime"
       "warp"
       "wine-stable"
     ];
