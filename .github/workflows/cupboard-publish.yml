@@ -200,6 +200,14 @@ jobs:
       # variables and fail to reach the builder.
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
+      # Cache the runner's local Nix store in the GitHub Actions cache. On the
+      # Darwin runners the build runs natively, so an unchanged closure is
+      # restored instead of rebuilt from source. On the Linux runners the build
+      # is offloaded to nixbuild.net, so this instead saves the paths copied
+      # back into the local store, and a re-run substitutes them from the
+      # Actions cache rather than streaming them over SSH again.
+      - uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
       # Trust the same binary caches the hosts use, derived from the flake so
       # this list cannot drift from the host configuration. This includes the
       # nixbuild.net store key, so paths built remotely are substituted instead
