@@ -12,7 +12,7 @@
 
   # Wrap Codex to add shared tools to PATH.
   wrappedCodex = mcp.wrapWithTools {
-    package = inputs.llm-agents.packages.${system}.codex;
+    package = import ./package.nix {inherit inputs system;};
     binName = "codex";
   };
 in {
