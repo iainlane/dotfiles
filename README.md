@@ -21,7 +21,10 @@ These are managed using [Nix].
 ## Structure
 
 The flake is composed of _hosts_. Each host selects a set of _profiles_, and
-those profiles can reference _modules_.
+those profiles compose _features_ (feature modules referenced by name).
+
+For a fuller walk through `host → profiles → features → OS adapter → outputs`,
+see [docs/architecture.md](docs/architecture.md).
 
 ### Profiles
 
@@ -45,10 +48,12 @@ Profile definitions are kept in `profiles/*/default.nix`.
   registering the host as a remote-build client.
 - `work`: Work-specific project shells, identity defaults, and tooling.
 
-### Modules
+### Features
 
-We use _modules_ to break out configuration for specific programs or groups of
-programs and keep it self-contained. They're imported into profiles.
+We use feature _modules_ to break out configuration for specific programs or
+groups of programs and keep it self-contained. Each registers itself under
+`flake.modules.<name>`, and profiles select them by name via `features`. The
+available features are:
 
 - `ai`: AI tooling modules and shared MCP wiring.
 - `cli-tools`: Common CLI programs and terminal utilities, including `direnv`
