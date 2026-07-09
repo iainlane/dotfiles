@@ -73,13 +73,14 @@ jobs:
 
           summary="$(./scripts/flake-lock-summary.bash <(git show HEAD:flake.lock) flake.lock)"
 
-          branch="flake-update/$(date -u +%Y-%m-%d)"
-          export branch
+          # A fresh branch per run, so a rerun opens a new PR instead of
+          # colliding with an earlier (possibly already merged) one.
+          branch="flake-update/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
 
           # Keep a single relock in flight: close any earlier flake-update PRs and
           # delete their branches, then sweep up any branches left without a PR.
           gh pr list --state open --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("flake-update/")) | select(.headRefName != env.branch) | .number' \
+            --jq '.[] | select(.headRefName | startswith("flake-update/")) | .number' \
             | while read -r number; do
                 gh pr close "${number}" --delete-branch
               done
@@ -87,13 +88,12 @@ jobs:
           git ls-remote --heads origin "refs/heads/flake-update/*" \
             | sed 's#.*refs/heads/##' \
             | while read -r stale; do
-                [ "${stale}" = "${branch}" ] && continue
                 git push origin --delete "${stale}"
               done
 
           git switch -C "${branch}"
           git commit -am "chore(flake): update inputs"
-          git push --force origin "HEAD:refs/heads/${branch}"
+          git push origin "HEAD:refs/heads/${branch}"
 
           body="$(printf '%s\n' \
             "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow (\`nix flake update\`)." \
@@ -103,12 +103,6 @@ jobs:
             "${summary}" \
             "" \
             "Merging this publishes the rebuilt closure to the cupboard cache through the \`cupboard\` workflow's push-to-main build.")"
-
-          if gh pr view "${branch}" --json state >/dev/null 2>&1; then
-            gh pr edit "${branch}" --body "${body}"
-            echo "Existing pull request updated."
-            exit 0
-          fi
 
           gh pr create \
             --base main \
