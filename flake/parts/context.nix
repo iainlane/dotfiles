@@ -6,7 +6,7 @@
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
 
-  username = "laney";
+  inherit (config.dotfiles) username;
 
   # Common overlays used across all systems.
   # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
@@ -18,6 +18,12 @@
     allowUnfree = true;
   };
 in {
+  options.dotfiles.username = lib.mkOption {
+    type = lib.types.str;
+    default = "laney";
+    description = "Primary user account managed across all hosts.";
+  };
+
   config = {
     _module.args.context = {
       inherit

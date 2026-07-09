@@ -4,7 +4,7 @@
   lib,
   ...
 }: let
-  username = "laney";
+  inherit (config.dotfiles) username;
   inherit (config.flake) hosts;
 
   nodes =
