@@ -73,9 +73,11 @@ flake.profiles.base = {
 Profiles can also scope both features and inline modules to a specific OS via
 `flake.profiles.<name>.os.<os>`, e.g. `base.os.nixos.features = ["borgmatic"]`.
 
-A host that requires another profile to be present can declare it with
-`requires`; the requirement is validated up front (see
-[Contract checks](#contract-checks)).
+A profile can declare that it needs another profile present with `requires`. The
+requirement is validated while the host set is evaluated (in
+`flake/parts/hosts.nix`, via `validateProfileRequirements`), so a missing or
+self-referential requirement fails before any build; the
+[contract checks](#contract-checks) also exercise this logic directly.
 
 ## Features and modules
 
@@ -160,7 +162,14 @@ flake imports as `helpers`:
 Formatting and linting are covered by the `treefmt`/`statix`/… checks in
 `flake/parts/checks.nix`. The `profile-contracts` check in
 `flake/parts/checks-contracts.nix` guards the _architecture_ instead: it
-evaluates the resolution contract during `nix flake check` and fails if a
-feature name is unknown, a profile is declared twice on one host, or name
-resolution regresses. The assertions are pure evaluation, so they run inside a
-pure flake check.
+evaluates the resolution contract during `nix flake check` and fails if
+
+- name resolution or merge order regresses (base + OS feature exports, OS-scoped
+  profile features, legacy `modules` appended after features, and Home Manager /
+  system-manager / NixOS targets),
+- a feature name is unknown or a profile is declared twice on one host,
+- a profile requirement is missing or self-referential,
+- a profile references a feature that is not in `flake.modules`, or an `os.<os>`
+  scope key is not a known operating system.
+
+The assertions are pure evaluation, so they run inside a pure flake check.
