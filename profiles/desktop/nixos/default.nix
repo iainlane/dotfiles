@@ -1,10 +1,6 @@
-{config, ...}: let
-  inherit (config.flake.modules) gnome;
-  vmHost = config.flake.modules."vm-host";
-  secureBoot = config.flake.modules."secure-boot";
-in {
+{config, ...}: {
   flake.profiles.desktop.os.nixos = {
-    modules = [gnome vmHost secureBoot];
+    features = ["gnome" "vm-host" "secure-boot"];
 
     inherit (config.flake.profiles.desktop.os.linux) homeManagerModule;
 

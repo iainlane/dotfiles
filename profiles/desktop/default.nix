@@ -1,25 +1,16 @@
-{config, ...}: let
-  inherit
-    (config.flake.modules)
-    ai
-    ghostty
-    kitty
-    ;
-  zedEditor = config.flake.modules."zed-editor";
-  commonModules = [
-    ai
-    ghostty
-    kitty
-    zedEditor
-  ];
-in {
+_: {
   imports = [
     ./linux.nix
     ./darwin.nix
     ./nixos
   ];
 
-  flake.profiles.desktop.modules = commonModules;
+  flake.profiles.desktop.features = [
+    "ai"
+    "ghostty"
+    "kitty"
+    "zed-editor"
+  ];
 
   flake.profiles.desktop.homeManagerModule = {pkgs, ...}: {
     fonts.fontconfig.enable = true;

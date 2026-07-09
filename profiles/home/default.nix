@@ -1,12 +1,12 @@
 # The home profile configures Debian/Ubuntu/GNOME project directories. The
 # project directories themselves are Linux-specific, defined in linux.nix.
-{config, ...}: {
+_: {
   imports = [
     ./linux.nix
   ];
 
   flake.profiles.home = {
-    modules = [config.flake.modules.git];
+    features = ["git"];
 
     homeManagerModule = {
       dotfiles.ssh.settings = {

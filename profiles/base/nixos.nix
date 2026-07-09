@@ -1,8 +1,6 @@
-{config, ...}: let
-  inherit (config.flake.modules) borgmatic;
-in {
+_: {
   flake.profiles.base.os.nixos = {
-    modules = [borgmatic];
+    features = ["borgmatic"];
 
     nixosModule = {
       users.groups.ssh = {};

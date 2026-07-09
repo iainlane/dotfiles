@@ -34,7 +34,7 @@
           ++ helpers.mkModules {
             moduleType = "systemManagerModule";
             inherit hostConfig;
-            inherit (config.flake) profiles;
+            inherit (config.flake) profiles modules;
           }
           ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
         extraSpecialArgs = {

@@ -13,10 +13,11 @@
     hostConfig,
     username,
     profiles,
+    modules,
   }:
     mkModules {
       moduleType = "homeManagerModule";
-      inherit hostConfig profiles;
+      inherit hostConfig profiles modules;
     }
     ++ lib.optional (hostConfig.homeModule or null != null) hostConfig.homeModule
     ++ [
@@ -62,6 +63,7 @@
     system,
     username,
     profiles,
+    modules,
     extraModules ? [],
     extraSpecialArgs ? {},
   }: {
@@ -71,6 +73,7 @@
           hostConfig
           username
           profiles
+          modules
           ;
       }
       ++ [

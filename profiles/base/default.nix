@@ -1,29 +1,4 @@
-{config, ...}: let
-  inherit
-    (config.flake.modules)
-    catppuccin
-    git
-    motd
-    neovim
-    scripts
-    ssh
-    starship
-    zsh
-    ;
-  cliTools = config.flake.modules."cli-tools";
-
-  commonModules = [
-    catppuccin
-    git
-    motd
-    scripts
-    ssh
-    zsh
-    neovim
-    starship
-    cliTools
-  ];
-in {
+_: {
   imports = [
     ./linux.nix
     ./darwin.nix
@@ -31,7 +6,17 @@ in {
   ];
 
   flake.profiles.base = {
-    modules = commonModules;
+    features = [
+      "catppuccin"
+      "git"
+      "motd"
+      "scripts"
+      "ssh"
+      "zsh"
+      "neovim"
+      "starship"
+      "cli-tools"
+    ];
     nixosModule.security.sudo.extraRules = import ./sudo-rules.nix;
 
     homeManagerModule = {

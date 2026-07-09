@@ -51,7 +51,7 @@
           username
           ;
         inherit (hostConfig) system;
-        inherit (config.flake) profiles;
+        inherit (config.flake) profiles modules;
         extraSpecialArgs = homeSpecialArgs;
       };
 
@@ -90,7 +90,7 @@
           ++ helpers.mkModules {
             moduleType = "nixosModule";
             inherit hostConfig;
-            inherit (config.flake) profiles;
+            inherit (config.flake) profiles modules;
           }
           ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
           ++ [

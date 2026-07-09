@@ -20,7 +20,7 @@
           username
           ;
         inherit (hostConfig) system;
-        inherit (config.flake) profiles;
+        inherit (config.flake) profiles modules;
         extraSpecialArgs = homeSpecialArgs;
       };
     in {
@@ -39,7 +39,7 @@
           ++ helpers.mkModules {
             moduleType = "systemManagerModule";
             inherit hostConfig;
-            inherit (config.flake) profiles;
+            inherit (config.flake) profiles modules;
           }
           ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
           ++ [
