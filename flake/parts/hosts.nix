@@ -102,10 +102,11 @@ in {
           profiles = lib.mkOption {
             # Each entry is either a bare profile name ("base") or an attrset
             # mapping profile names to their per-host options
-            # ({ adsb = { ... }; }). Option values stay loose (`attrs`), but the
-            # outer shape is validated so typos and malformed entries fail with
-            # a clear message instead of deep inside profile resolution.
-            type = with lib.types; listOf (either str attrs);
+            # ({ adsb = { ... }; }). Each option value is itself an attrset (or
+            # null, normalised to {}); the outer shape is validated so typos
+            # and malformed entries (e.g. { adsb = true; }) fail with a clear
+            # message instead of being passed through into profile resolution.
+            type = with lib.types; listOf (either str (attrsOf (nullOr attrs)));
             default = [];
           };
           channel = lib.mkOption {
