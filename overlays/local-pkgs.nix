@@ -20,6 +20,11 @@ in
       then {inherit (nixpkgsUnstable) melange;}
       else {};
   in
-    lib.genAttrs names (
+    {
+      # Update-script generators shared by the package definitions. Not a
+      # package itself, so it stays out of the flake's `packages` output.
+      updaters = final.callPackage (pkgsDir + "/build-support/updaters.nix") {};
+    }
+    // lib.genAttrs names (
       name: final.callPackage (pkgsDir + "/${name}/package.nix") (extraArgs name)
     )

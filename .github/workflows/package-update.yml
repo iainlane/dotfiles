@@ -1,0 +1,143 @@
+# Bump the locally packaged tools and the tag-pinned flake inputs, opening one
+# pull request per package. Each matrix entry runs that package's updater
+# (`nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
+# surfaced by `flake/parts/updaters.nix`), then proposes the result.
+#
+# `flake-update.yml` handles the mutable inputs that `nix flake update` can move
+# on its own; this workflow owns everything with a pinned version: the `pkgs/`
+# packages and inputs pinned to an immutable release tag, such as hermes-agent.
+#
+# As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
+# not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have these
+# PRs run CI like any other.
+name: package update
+
+on:
+  schedule:
+    - cron: "20 4 * * 2,4" # Tuesdays and Thursdays, 04:20 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: package-update-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Discover updaters
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      - name: Discover updaters
+        id: discover
+        run: |
+          set -euo pipefail
+
+          # The updater list is computed in the flake (flake/parts/updaters.nix);
+          # wrap it as a GitHub matrix. Each entry is one package or tag-pinned
+          # input, run once, since every updater only fetches assets and records
+          # their platform-independent hashes.
+          matrix=$(nix eval --json .#updaterOutputs --apply 'outputs: {include = outputs;}')
+          echo "matrix=${matrix}" | tee -a "${GITHUB_OUTPUT}"
+
+  update:
+    name: Update ${{ matrix.name }}
+    needs: discover
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the package-update branch with the bump
+      pull-requests: write # open or refresh the package's pull request
+    strategy:
+      # Keep going when one package fails so an upstream outage does not block
+      # the others.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+      # The `secrets` input lives in the private dotfiles-secrets repo, reachable
+      # only over SSH. Configure the read-only deploy key so evaluating the flake
+      # (and any re-lock an updater performs) can read it, the same key the
+      # cupboard and flake-update workflows use.
+      - name: Set up secrets access
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
+
+      - name: Run the updater
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          nix run ".#update-${NAME}"
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            echo "${NAME} already current; nothing to propose."
+            exit 0
+          fi
+
+          # Packages expose their version on the flake; a tag-pinned input does
+          # not, so fall back to the tag now written into flake.nix.
+          version="$(nix eval --raw ".#${NAME}.version" 2>/dev/null || true)"
+          if [[ -z "${version}" ]]; then
+            version="$(grep -oE "github:[^\"]*/${NAME}/[^\"]+" flake.nix | head -n1 | sed 's#.*/##' || true)"
+          fi
+
+          title="chore(${NAME}): update"
+          if [[ -n "${version}" ]]; then
+            title="chore(${NAME}): update to ${version}"
+          fi
+
+          gh auth setup-git
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          branch="package-update/${NAME}"
+          git switch -C "${branch}"
+          git commit -am "${title}"
+          git push --force origin "HEAD:refs/heads/${branch}"
+
+          body="Automated ${NAME} update from the \`package-update\` workflow."
+
+          if gh pr view "${branch}" --json state >/dev/null 2>&1; then
+            gh pr edit "${branch}" --title "${title}" --body "${body}"
+            echo "Existing pull request updated."
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "${branch}" \
+            --title "${title}" \
+            --label dependencies \
+            --body "${body}"

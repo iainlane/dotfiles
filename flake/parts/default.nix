@@ -15,6 +15,7 @@ in {
       ./modules.nix
       ./pkgs.nix
       ./profiles.nix
+      ./updaters.nix
     ]
     ++ helpers.discoverModules ../../profiles
     ++ helpers.discoverModules ../../modules;

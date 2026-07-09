@@ -3,14 +3,11 @@
 # cupboard cache: the push to main triggers the `cupboard` workflow, which
 # rebuilds the updated closure and publishes it to the default cache.
 #
-# `nix flake update` cannot move the hermes-agent input on its own (it is pinned
-# to an immutable release tag), so the hermes-agent bump script runs first, the
-# same order `just update-flake` uses locally.
-#
 # A PR opened with the default `GITHUB_TOKEN` does not trigger other workflows,
-# so the per-PR cupboard build will not run on it; merging to main still builds
-# the closure into the default cache. Set a `FLAKE_UPDATE_TOKEN` secret (a PAT or
-# GitHub App token) to have the PR trigger CI like any other.
+# Instead, it presents an approval button so that a maintainer can start the
+# workflows. Merging to main uploads the closure into the default cache. Set a
+# `FLAKE_UPDATE_TOKEN` secret (a PAT or GitHub App token) to have the PR trigger
+# CI like any other.
 name: flake update
 
 on:
@@ -54,11 +51,8 @@ jobs:
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
       - name: Relock flake inputs
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ./scripts/update-hermes-agent.bash
           nix flake update
 
       - name: Open or update the pull request
@@ -102,7 +96,7 @@ jobs:
           git push --force origin "HEAD:refs/heads/${branch}"
 
           body="$(printf '%s\n' \
-            "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow: the hermes-agent release bump followed by \`nix flake update\`." \
+            "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow (\`nix flake update\`)." \
             "" \
             "Updated inputs:" \
             "" \
