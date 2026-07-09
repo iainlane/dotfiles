@@ -62,7 +62,7 @@
             username
             ;
           inherit (hostConfig) system;
-          inherit (outerConfig.flake) profiles;
+          inherit (outerConfig.flake) profiles modules;
           inherit extraModules;
           extraSpecialArgs = result.homeSpecialArgs;
         };
@@ -100,7 +100,12 @@ in {
             default = name;
           };
           profiles = lib.mkOption {
-            type = with lib.types; listOf unspecified;
+            # Each entry is either a bare profile name ("base") or an attrset
+            # mapping profile names to their per-host options
+            # ({ adsb = { ... }; }). Option values stay loose (`attrs`), but the
+            # outer shape is validated so typos and malformed entries fail with
+            # a clear message instead of deep inside profile resolution.
+            type = with lib.types; listOf (either str attrs);
             default = [];
           };
           channel = lib.mkOption {

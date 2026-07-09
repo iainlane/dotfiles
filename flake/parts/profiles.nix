@@ -30,9 +30,24 @@
       type = lib.types.nullOr lib.types.unspecified;
       default = null;
     };
+    features = lib.mkOption {
+      type = with lib.types; listOf str;
+      default = [];
+      description = ''
+        Feature names resolved against `flake.modules`. This is the preferred
+        way for a profile to declare which feature modules it composes: names
+        are validated (unknown names fail with a clear error) and keep
+        `flake.profiles` declarative rather than carrying opaque module values.
+      '';
+    };
     modules = lib.mkOption {
       type = with lib.types; listOf unspecified;
       default = [];
+      description = ''
+        Legacy value-based feature list: raw `flake.modules.<name>` values
+        included directly. Prefer `features` (name-based). Retained as a
+        compatibility path; entries are appended after resolved `features`.
+      '';
     };
     requires = lib.mkOption {
       type = with lib.types; listOf profileRequirementType;

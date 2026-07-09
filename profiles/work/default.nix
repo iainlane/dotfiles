@@ -72,7 +72,7 @@ in {
   imports = [projectShells.flakeModule];
 
   flake.profiles.work = {
-    modules = [config.flake.modules.ai config.flake.modules.git];
+    features = ["ai" "git"];
 
     homeManagerModule = {pkgs, ...} @ args:
       lib.recursiveUpdate
@@ -109,7 +109,7 @@ in {
       };
 
     os.nixos = {
-      modules = [config.flake.modules.falcon];
+      features = ["falcon"];
 
       nixosModule = {
         inputs,
