@@ -6,8 +6,8 @@
 # (attached via `pkgs/build-support/updaters.nix`). Flake inputs pinned to a
 # release tag, which `nix flake update` cannot move, get an updater here.
 #
-# `flake.updaterOutputs` lists the updater names for the package-update
-# workflow's matrix, the same way `flake.cupboardOutputs` feeds cupboard.
+# `flake.updaterNames` lists the updater names for the package-update workflow
+# to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
 {
   config,
   inputs,
@@ -75,5 +75,5 @@ in {
       };
   };
 
-  flake.updaterOutputs = map (name: {inherit name;}) updaterNames;
+  flake.updaterNames = updaterNames;
 }

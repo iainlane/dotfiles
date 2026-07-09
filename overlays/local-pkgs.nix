@@ -21,8 +21,9 @@ in
       else {};
   in
     {
-      # Update-script generators shared by the package definitions. Not a
-      # package itself, so it stays out of the flake's `packages` output.
+      # Update-script generators the package definitions pull in via
+      # callPackage. `flake.packages` is built from `names`, so this helper
+      # stays internal to the package set.
       updaters = final.callPackage (pkgsDir + "/build-support/updaters.nix") {};
     }
     // lib.genAttrs names (

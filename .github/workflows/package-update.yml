@@ -1,15 +1,19 @@
-# Bump the locally packaged tools and the tag-pinned flake inputs, opening one
-# pull request per package. Each matrix entry runs that package's updater
-# (`nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
-# surfaced by `flake/parts/updaters.nix`), then proposes the result.
+# Bump the locally packaged tools and the tag-pinned flake inputs, gathering
+# every bump from one run into a single pull request. Each updater is
+# `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
+# surfaced by `flake/parts/updaters.nix`.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
 # on its own; this workflow owns everything with a pinned version: the `pkgs/`
 # packages and inputs pinned to an immutable release tag, such as hermes-agent.
 #
+# The updaters run in one job: each only fetches assets and records
+# platform-independent hashes, so a single run produces correct results for
+# every system, and an arm64 runner avoids the queue for `ubuntu-latest`.
+#
 # As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
-# not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have these
-# PRs run CI like any other.
+# not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have the PR
+# run CI like any other.
 name: package update
 
 on:
@@ -20,48 +24,16 @@ on:
 permissions: {}
 
 concurrency:
-  group: package-update-${{ github.ref }}
+  group: package-update
   cancel-in-progress: true
 
 jobs:
-  discover:
-    name: Discover updaters
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
-
-      - name: Discover updaters
-        id: discover
-        run: |
-          set -euo pipefail
-
-          # The updater list is computed in the flake (flake/parts/updaters.nix);
-          # wrap it as a GitHub matrix. Each entry is one package or tag-pinned
-          # input, run once, since every updater only fetches assets and records
-          # their platform-independent hashes.
-          matrix=$(nix eval --json .#updaterOutputs --apply 'outputs: {include = outputs;}')
-          echo "matrix=${matrix}" | tee -a "${GITHUB_OUTPUT}"
-
   update:
-    name: Update ${{ matrix.name }}
-    needs: discover
-    runs-on: ubuntu-latest
+    name: Update packages
+    runs-on: ubuntu-24.04-arm
     permissions:
-      contents: write # push the package-update branch with the bump
-      pull-requests: write # open or refresh the package's pull request
-    strategy:
-      # Keep going when one package fails so an upstream outage does not block
-      # the others.
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+      contents: write # push the package-update branch with the bumps
+      pull-requests: write # open or refresh the package-update pull request
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -84,37 +56,61 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
-      - name: Run the updater
+      # Run every updater, keeping going when one fails so an upstream outage
+      # does not block the others. A successful bump is staged; a failed one is
+      # reverted, so a partial write never reaches the commit. Each bump's new
+      # version is recorded for the pull request body.
+      - name: Run the updaters
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
-          nix run ".#update-${NAME}"
+
+          names="$(nix eval --raw .#updaterNames --apply 'names: builtins.concatStringsSep "\n" names')"
+
+          : > "${RUNNER_TEMP}/changed.txt"
+          : > "${RUNNER_TEMP}/failed.txt"
+
+          for name in ${names}; do
+            echo "::group::update-${name}"
+
+            if ! nix run ".#update-${name}"; then
+              echo "::warning::update-${name} failed; leaving it unchanged"
+              printf '%s\n' "${name}" >> "${RUNNER_TEMP}/failed.txt"
+              git checkout -- .
+              echo '::endgroup::'
+              continue
+            fi
+
+            if git diff --quiet; then
+              echo "${name} already current."
+              echo '::endgroup::'
+              continue
+            fi
+
+            # Packages expose their version on the flake; a tag-pinned input does
+            # not, so fall back to the tag now written into flake.nix.
+            version="$(nix eval --raw ".#${name}.version" 2>/dev/null || true)"
+            if [[ -z "${version}" ]]; then
+              version="$(grep -oE "github:[^\"]*/${name}/[^\"]+" flake.nix | head -n1 | sed 's#.*/##' || true)"
+            fi
+
+            printf '%s %s\n' "${name}" "${version}" >> "${RUNNER_TEMP}/changed.txt"
+            git add -A
+
+            echo '::endgroup::'
+          done
 
       - name: Open or update the pull request
         env:
           GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
-          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
 
-          if git diff --quiet; then
-            echo "${NAME} already current; nothing to propose."
+          if git diff --cached --quiet; then
+            echo "All packages current; nothing to propose."
             exit 0
-          fi
-
-          # Packages expose their version on the flake; a tag-pinned input does
-          # not, so fall back to the tag now written into flake.nix.
-          version="$(nix eval --raw ".#${NAME}.version" 2>/dev/null || true)"
-          if [[ -z "${version}" ]]; then
-            version="$(grep -oE "github:[^\"]*/${NAME}/[^\"]+" flake.nix | head -n1 | sed 's#.*/##' || true)"
-          fi
-
-          title="chore(${NAME}): update"
-          if [[ -n "${version}" ]]; then
-            title="chore(${NAME}): update to ${version}"
           fi
 
           gh auth setup-git
@@ -122,15 +118,51 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          branch="package-update/${NAME}"
+          branch="package-update/$(date -u +%Y-%m-%d)"
+          export branch
+
+          # Keep a single update in flight: close any earlier package-update PRs
+          # and delete their branches, then sweep up any branches left without a
+          # PR.
+          gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("package-update/")) | select(.headRefName != env.branch) | .number' \
+            | while read -r number; do
+                gh pr close "${number}" --delete-branch
+              done
+
+          git ls-remote --heads origin "refs/heads/package-update/*" \
+            | sed 's#.*refs/heads/##' \
+            | while read -r stale; do
+                [ "${stale}" = "${branch}" ] && continue
+                git push origin --delete "${stale}"
+              done
+
           git switch -C "${branch}"
-          git commit -am "${title}"
+          git commit -m "chore(pkgs): update packages"
           git push --force origin "HEAD:refs/heads/${branch}"
 
-          body="Automated ${NAME} update from the \`package-update\` workflow."
+          {
+            echo "Automated package bumps from the scheduled \`package-update\` workflow."
+            echo
+            echo "Updated:"
+            while read -r name version; do
+              echo "- ${name} ${version}"
+            done < "${RUNNER_TEMP}/changed.txt"
+
+            if [[ -s "${RUNNER_TEMP}/failed.txt" ]]; then
+              echo
+              echo "Failed to update, left unchanged:"
+              while read -r name; do
+                echo "- ${name}"
+              done < "${RUNNER_TEMP}/failed.txt"
+            fi
+
+            echo
+            echo "Merging this publishes the rebuilt packages to the cupboard cache through the \`cupboard\` workflow's push-to-main build."
+          } > "${RUNNER_TEMP}/body.md"
 
           if gh pr view "${branch}" --json state >/dev/null 2>&1; then
-            gh pr edit "${branch}" --title "${title}" --body "${body}"
+            gh pr edit "${branch}" --body-file "${RUNNER_TEMP}/body.md"
             echo "Existing pull request updated."
             exit 0
           fi
@@ -138,6 +170,6 @@ jobs:
           gh pr create \
             --base main \
             --head "${branch}" \
-            --title "${title}" \
+            --title "chore(pkgs): update packages" \
             --label dependencies \
-            --body "${body}"
+            --body-file "${RUNNER_TEMP}/body.md"
