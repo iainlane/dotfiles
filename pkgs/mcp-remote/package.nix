@@ -1,3 +1,4 @@
+# To update: nix run .#update-mcp-remote
 {
   fetchFromGitHub,
   fetchPnpmDeps,
@@ -7,6 +8,7 @@
   pnpm_10,
   pnpmConfigHook,
   stdenv,
+  updaters,
 }: let
   pnpm = pnpm_10;
 in
@@ -66,6 +68,8 @@ in
 
       runHook postInstall
     '';
+
+    passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "mcp-remote";};
 
     meta = {
       description = "Remote proxy for Model Context Protocol stdio clients";

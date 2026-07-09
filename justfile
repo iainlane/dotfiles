@@ -24,24 +24,19 @@ system-profile := "/nix/var/nix/profiles/system"
 default:
     @just --list
 
-# Update flake inputs (all, or specific ones if provided). hermes-agent is
-
-# pinned to a release tag that plain `nix flake update` can't move, so bump it
-
-# to the latest release whenever it would be affected.
+# Update flake inputs (all, or specific ones if provided). Inputs pinned to a
+# release tag, such as hermes-agent, can't be moved this way; use update-pkg.
 update-flake *inputs:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    if [[ -z "{{ inputs }}" || " {{ inputs }} " == *" hermes-agent "* ]]; then
-        just update-hermes-agent
-    fi
-
     nix flake update {{ inputs }}
 
-# Bump hermes-agent to the latest upstream release tag and re-lock
-update-hermes-agent:
-    ./scripts/update-hermes-agent.bash
+# Update a local package or tag-pinned input to its latest upstream version
+# (e.g. just update-pkg chainctl, just update-pkg hermes-agent)
+update-pkg name:
+    nix run .#update-{{ name }}
+
+# Run every package and tag-pinned-input updater in sequence
+update-pkgs:
+    nix run .#update-all
 
 # Rebuild and switch to the new system configuration
 [macos]
@@ -67,10 +62,10 @@ update-home *args:
     nh home switch . {{ args }}
 
 [linux]
-update: update-flake update-system update-home build-direnvs
+update: update-flake update-pkgs update-system update-home build-direnvs
 
 [macos]
-update: update-flake update-system build-direnvs
+update: update-flake update-pkgs update-system build-direnvs
 
 # Deploy to a remote host via deploy-rs (all profiles by default)
 update-host hostname *args:

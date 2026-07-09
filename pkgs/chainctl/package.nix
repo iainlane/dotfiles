@@ -1,17 +1,30 @@
 # Chainguard chainctl CLI — packaged from dl.enforce.dev binary releases.
-# To update: ./pkgs/chainctl/update.sh
+# To update: nix run .#update-chainctl
 {
   autoPatchelfHook,
   fetchurl,
+  gnugrep,
   lib,
   stdenv,
   stdenvNoCC,
+  updaters,
 }: let
   sources = lib.importJSON ./sources.json;
   inherit (stdenv.hostPlatform) system;
+
+  # Nix system → chainctl artifact suffix.
+  platforms = {
+    "x86_64-linux" = "linux_x86_64";
+    "aarch64-linux" = "linux_arm64";
+    "x86_64-darwin" = "darwin_x86_64";
+    "aarch64-darwin" = "darwin_arm64";
+  };
+
   platform =
     sources.platforms.${system}
     or (throw "chainctl: unsupported system ${system}");
+
+  hostSuffix = platforms.${system};
 in
   stdenvNoCC.mkDerivation {
     pname = "chainctl";
@@ -53,13 +66,30 @@ in
       "$out/bin/chainctl" completion fish > "$out/share/fish/vendor_completions.d/chainctl.fish"
     '';
 
-    passthru.updateScript = ./update.sh;
+    passthru.updateScript = updaters.mkSourcesUpdater {
+      pname = "chainctl";
+      inherit platforms;
+      extraRuntimeInputs = [gnugrep];
+
+      # The vendor exposes no version metadata, so download the latest binary
+      # for the host platform and ask it, keeping the updater runnable on both
+      # Linux and Darwin.
+      discoverVersion = ''
+        echo "Discovering latest version..." >&2
+        tmp="$(mktemp)"
+        trap 'rm -f "''${tmp}"' EXIT
+        download "https://dl.enforce.dev/chainctl/latest/chainctl_${hostSuffix}" "''${tmp}"
+        chmod +x "''${tmp}"
+        version="$("''${tmp}" version 2>&1 | grep -oP 'GitVersion:\s*\K\S+')"
+      '';
+      urlTemplate = "https://dl.enforce.dev/chainctl/\${version}/chainctl_\${suffix}";
+    };
 
     meta = {
       description = "CLI for the Chainguard platform";
       homepage = "https://edu.chainguard.dev/chainguard/chainctl-usage/";
       license = lib.licenses.asl20;
-      platforms = builtins.attrNames sources.platforms;
+      platforms = builtins.attrNames platforms;
       mainProgram = "chainctl";
     };
   }
