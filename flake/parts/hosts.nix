@@ -7,7 +7,7 @@
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
   operatingSystems = ["nixos" "linux" "darwin"];
-  username = "laney";
+  inherit (config.dotfiles) username;
   outerConfig = config;
   inherit (config._module.args.context) overlays nixpkgsConfig;
 
