@@ -55,7 +55,7 @@
       "claude-opus-*"
       "claude-sonnet-*"
       "claude-haiku-*"
-      "gpt-5.5"
+      "gpt-5.6-sol"
       "gpt-5.3-codex-spark"
       "gpt-5.4-mini"
     ];
