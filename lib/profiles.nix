@@ -280,14 +280,16 @@
         )
         osNames;
 
-      # Merge order is:
+      # Composition order is:
       #
       # 1. base feature modules
       # 2. base profile module
-      # 3. OS-specific feature modules + profile module (per osName)
+      # 3. host-OS feature modules
+      # 4. host-OS profile module
       #
-      # This gives "profile overrides module" and "OS overrides base", in case
-      # multiple places set the same thing.
+      # This is the order the modules are handed to the module system. Actual
+      # option precedence is decided by each option's merge function and
+      # priorities (mkDefault, mkForce, ...), not by list position.
       baseFeatureVal = featureModule (
         collectFeatureModules {
           modules = profileModules;
