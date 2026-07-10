@@ -55,6 +55,23 @@
     }
     // extraArgs;
 
+  # The home-manager settings module shared by the NixOS and nix-darwin
+  # embeddings. `extraSpecialArgs` entries are merged over the ones carried by
+  # `homeConfig` (the NixOS adapter uses this to hand stable hosts an unstable
+  # `lib`).
+  mkEmbeddedHomeManager = {
+    username,
+    homeConfig,
+    extraSpecialArgs ? {},
+  }: {
+    home-manager = {
+      useGlobalPkgs = true;
+      useUserPackages = true;
+      users.${username}.imports = homeConfig.modules;
+      extraSpecialArgs = homeConfig.extraSpecialArgs // extraSpecialArgs;
+    };
+  };
+
   # Assemble home-manager modules and special args for a host in one place so
   # standalone home-manager and nix-darwin embedding stay in sync.
   mkHomeConfiguration = {

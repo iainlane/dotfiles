@@ -27,7 +27,7 @@ in {
   inherit (discovery) discoverModules discoverPackages fileNames importNixFiles;
   inherit (hosts) hosts;
   inherit (profiles) activeProfileNames hasProfile mkModules validateProfileRequirements;
-  inherit (home) mkHomeConfiguration;
+  inherit (home) mkEmbeddedHomeManager mkHomeConfiguration;
   inherit (sops) mkSystemSopsModule;
   inherit (projects) mkProjectShells;
 }
