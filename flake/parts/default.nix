@@ -5,6 +5,7 @@ in {
     [
       ./apps.nix
       ./checks.nix
+      ./checks-adapters.nix
       ./checks-contracts.nix
       ./context.nix
       ./cupboard.nix
