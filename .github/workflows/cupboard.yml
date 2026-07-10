@@ -12,7 +12,7 @@
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
 # merge. The architecture job is the strict gate: the profile-contracts check
-# must pass, and one representative output per OS adapter must evaluate.
+# must pass, and every host configuration must evaluate.
 name: cupboard
 
 on:
@@ -91,10 +91,11 @@ jobs:
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
 
-      # Evaluating this check forces the toplevel derivation of one
-      # representative host per adapter (flake/parts/checks-adapters.nix), so a
-      # configuration that no longer instantiates fails it. Nothing is built.
-      - name: Evaluate one output per adapter
+      # Evaluating this check forces the toplevel derivation of every host
+      # configuration (flake/parts/checks-adapters.nix), so a configuration
+      # that no longer instantiates fails it. The host configurations are not
+      # built.
+      - name: Evaluate the host configurations
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         run: |
           set -euo pipefail
