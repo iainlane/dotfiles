@@ -44,14 +44,7 @@
           ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
           ++ [
             inputs.home-manager.darwinModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                users.${username}.imports = homeConfig.modules;
-                inherit (homeConfig) extraSpecialArgs;
-              };
-            }
+            (helpers.mkEmbeddedHomeManager {inherit username homeConfig;})
           ];
         specialArgs = {
           inherit

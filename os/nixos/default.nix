@@ -95,16 +95,10 @@
           ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
           ++ [
             channel.home-manager.nixosModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                users.${username}.imports = homeConfig.modules;
-                extraSpecialArgs =
-                  homeConfig.extraSpecialArgs
-                  // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
-              };
-            }
+            (helpers.mkEmbeddedHomeManager {
+              inherit username homeConfig;
+              extraSpecialArgs = lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
+            })
           ];
         specialArgs = {
           inherit
