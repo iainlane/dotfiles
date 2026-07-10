@@ -172,8 +172,8 @@ The assertions are pure evaluation, so they run inside a pure flake check.
 
 The `adapter-evals` check (`flake/parts/checks-adapters.nix`) complements the
 fixture-based contracts by pointing at the real outputs: it forces the toplevel
-derivation of one representative host per adapter (NixOS, nix-darwin,
-system-manager, and standalone Home Manager), so a configuration that no longer
-evaluates fails `nix flake check` without anything being built. Evaluating the
+derivation of every host configuration (NixOS, nix-darwin, system-manager, and
+standalone Home Manager), so a configuration that no longer evaluates fails
+`nix flake check` without the host configurations being built. Evaluating the
 configurations reads the private secrets input, so this check needs access to
 it.
