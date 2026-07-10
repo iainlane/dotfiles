@@ -172,19 +172,19 @@
           or (throw "Profile '${profileName}' references unknown feature '${featureName}' (no matching flake.modules entry)")
       )
       featureNames;
+    # Feature modules export plural lists per target; profiles carry the
+    # singular field for the same target.
+    featureModuleTypes = {
+      homeManagerModule = "homeManagerModules";
+      systemManagerModule = "systemManagerModules";
+      nixosModule = "nixosModules";
+    };
     featureModuleType =
-      if moduleType == "homeManagerModule"
-      then "homeManagerModules"
-      else if moduleType == "nixosModule"
-      then "nixosModules"
-      else "systemManagerModules";
+      featureModuleTypes.${moduleType}
+      or (throw "Unknown profile module type '${moduleType}'");
 
     osNames = [os];
-    moduleTypes = [
-      "homeManagerModule"
-      "systemManagerModule"
-      "nixosModule"
-    ];
+    moduleTypes = lib.attrNames featureModuleTypes;
 
     # Apply one module value for one profile entry.
     #
