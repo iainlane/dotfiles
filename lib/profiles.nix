@@ -163,18 +163,15 @@
     entries = normaliseProfileEntries hostConfig.profiles;
 
     # Resolve a profile's declared feature names into the corresponding feature
-    # module values from `flake.modules`. Any raw module values (the legacy
-    # value-based `modules` list) are passed through unchanged so profiles can
-    # migrate to `features` incrementally. Unknown names fail loudly, naming the
+    # module values from `flake.modules`. Unknown names fail loudly, naming the
     # profile and the missing feature.
-    resolveFeatures = profileName: featureNames: rawModules:
-      (map (
-          featureName:
-            modules.${featureName}
+    resolveFeatures = profileName: featureNames:
+      map (
+        featureName:
+          modules.${featureName}
           or (throw "Profile '${profileName}' references unknown feature '${featureName}' (no matching flake.modules entry)")
-        )
-        featureNames)
-      ++ rawModules;
+      )
+      featureNames;
     featureModuleType =
       if moduleType == "homeManagerModule"
       then "homeManagerModules"
@@ -246,10 +243,7 @@
     resolveEntry = entry: let
       profile = profiles.${entry.name} or (throw "Profile '${entry.name}' not found in flake.profiles");
       baseVal = profile.${moduleType};
-      profileModules =
-        resolveFeatures entry.name
-        (profile.features or [])
-        (profile.modules or []);
+      profileModules = resolveFeatures entry.name (profile.features or []);
 
       options =
         if entry.profileOptions == null
@@ -262,8 +256,7 @@
             osVal = (profile.os.${osName} or {}).${moduleType} or null;
             osFeatureModules =
               resolveFeatures entry.name
-              ((profile.os.${osName} or {}).features or [])
-              ((profile.os.${osName} or {}).modules or []);
+              ((profile.os.${osName} or {}).features or []);
             osFeatureVal = featureModule (
               (collectFeatureModules {
                 modules = profileModules;

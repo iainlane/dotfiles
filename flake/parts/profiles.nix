@@ -40,15 +40,6 @@
         `flake.profiles` declarative rather than carrying opaque module values.
       '';
     };
-    modules = lib.mkOption {
-      type = with lib.types; listOf unspecified;
-      default = [];
-      description = ''
-        Legacy value-based feature list: raw `flake.modules.<name>` values
-        included directly. Prefer `features` (name-based). Retained as a
-        compatibility path; entries are appended after resolved `features`.
-      '';
-    };
     requires = lib.mkOption {
       type = with lib.types; listOf profileRequirementType;
       default = [];
