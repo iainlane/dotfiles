@@ -113,6 +113,10 @@
       pass = throws (resolve "homeManagerModule" "linux" (mkProfile {features = ["does-not-exist"];}));
     }
     {
+      name = "an unknown module type is rejected";
+      pass = throws (resolve "homeManagerModules" "linux" (mkProfile {features = ["alpha"];}));
+    }
+    {
       name = "a profile declared twice on one host is rejected";
       pass = throws (helpers.mkModules {
         moduleType = "homeManagerModule";
