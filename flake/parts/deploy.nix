@@ -42,7 +42,7 @@
           sshUser = username;
           profilesOrder = ["system" username];
           # Every host gets its own home-manager profile so you can
-          # `deploy .#<host>.laney` to update just your user config without
+          # `deploy .#<host>.<username>` to update just your user config without
           # touching the system. NixOS and darwin embed HM too, but this
           # lets you iterate on dotfiles quickly.
           profiles = {

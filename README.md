@@ -56,17 +56,23 @@ groups of programs and keep it self-contained. Each registers itself under
 available features are:
 
 - `ai`: AI tooling modules and shared MCP wiring.
+- `borgmatic`: Borg backups via borgmatic, with credentials from the secrets
+  repository (NixOS hosts).
+- `catppuccin`: Catppuccin theming for supported programs.
 - `cli-tools`: Common CLI programs and terminal utilities, including `direnv`
   integration.
+- `falcon`: CrowdStrike Falcon sensor (NixOS hosts).
 - `ghostty`: Ghostty terminal configuration.
 - `git`: Git defaults, aliases, signing, and ignore behaviour.
+- `gnome`: GNOME desktop configuration, including USBGuard (NixOS hosts).
 - `kitty`: Kitty terminal configuration and theme integration.
+- `motd`: Message of the day taken from the host record.
 - `neovim`: Neovim runtime, settings, and plugin configuration.
-- `nix`: Shared Nix settings, including binary cache/substituter configuration.
-- `project-directories`: Generated `.envrc` management for configured project
-  directories.
 - `scripts`: Custom shell scripts installed into the environment.
+- `secure-boot`: Secure Boot via lanzaboote (NixOS hosts).
+- `ssh`: SSH client configuration.
 - `starship`: Starship prompt configuration.
+- `vm-host`: libvirt and virt-manager virtualisation support (NixOS hosts).
 - `zed-editor`: Zed editor settings and extensions.
 - `zsh`: Zsh shell configuration, plugins, and functions.
 

@@ -4,12 +4,16 @@
 # the *architecture* honest. They evaluate the profile/feature resolution
 # contract directly so `nix flake check` fails on a broken contract (an unknown
 # feature name, a duplicate profile, a mis-scoped OS key, a regression in name
-# resolution or merge order) rather than only on a bad build much later.
+# resolution or composition order) rather than only on a bad build much later.
+#
+# The resolution assertions compare the constructed module list, so they pin
+# composition order. Option precedence within that list is the module system's
+# business (merge functions and priorities), not part of this contract.
 #
 # Everything here is pure Nix evaluation — no shelling out to `nix eval`, which
 # is unavailable inside a pure `nix flake check`. Each assertion is a
-# `{ name; pass; }` pair; if any fail the derivation throws with a readable
-# report naming them.
+# `{ name; pass; }` pair, optionally carrying a `detail` list naming the
+# offending entries; if any fail the derivation throws with a readable report.
 {
   inputs,
   config,
