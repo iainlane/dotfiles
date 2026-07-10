@@ -48,7 +48,6 @@
       systemManagerModule = null;
       nixosModule = null;
       features = [];
-      modules = [];
       requires = [];
       os = {};
     }
@@ -100,15 +99,6 @@
       pass =
         resolve "homeManagerModule" "linux" (mkProfile {os.linux.features = ["delta"];})
         == [{imports = ["delta-home"];}];
-    }
-    {
-      name = "legacy value-based modules are appended after resolved features";
-      pass =
-        resolve "homeManagerModule" "linux" (mkProfile {
-          features = ["alpha"];
-          modules = [(emptyModule // {homeManagerModules = ["epsilon-home"];})];
-        })
-        == [{imports = ["alpha-home" "epsilon-home"];}];
     }
     {
       name = "nixosModule resolution collects nixos feature exports";
