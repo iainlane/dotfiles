@@ -9,6 +9,10 @@
 # build there as well. GitHub withholds secrets from fork pull requests, so a
 # fork build receives an empty key and skips those closures; only same-repo
 # branches (own pushes and the flake-update PR) carry it.
+#
+# The closure builds in the publish path are best-effort, so they cannot gate a
+# merge. The architecture job is the strict gate: the profile-contracts check
+# must pass, and one representative output per OS adapter must evaluate.
 name: cupboard
 
 on:
@@ -24,6 +28,79 @@ concurrency:
 permissions: {}
 
 jobs:
+  architecture:
+    name: Architecture contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+      # Trust the same binary caches the hosts use, as in the publish path.
+      # Some home configurations import from derivation while evaluating, and
+      # this lets those paths substitute instead of building on the runner.
+      - name: Trust our binary caches
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+
+      # Pure evaluation: fails on a broken profile/feature contract without
+      # needing any secrets.
+      - name: Contract checks
+        run: |
+          set -euo pipefail
+
+          nix build .#checks.x86_64-linux.profile-contracts
+
+      # Evaluating the host and home configurations reads the private secrets
+      # input, so the adapter check needs the deploy key. Fork pull requests do
+      # not receive it and skip the check, like the closure builds in the
+      # publish path.
+      - name: Set up secrets access
+        id: secrets
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DEPLOY_KEY}" ]; then
+            echo "No secrets deploy key; skipping the adapter evaluations."
+            echo "have_key=false" | tee -a "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
+          echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
+
+      # Import-from-derivation during the adapter evaluations substitutes from
+      # the nixbuild.net store rather than building on the runner.
+      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
+        if: ${{ steps.secrets.outputs.have_key == 'true' }}
+        with:
+          nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+
+      # Evaluating this check forces the toplevel derivation of one
+      # representative host per adapter (flake/parts/checks-adapters.nix), so a
+      # configuration that no longer instantiates fails it. Nothing is built.
+      - name: Evaluate one output per adapter
+        if: ${{ steps.secrets.outputs.have_key == 'true' }}
+        run: |
+          set -euo pipefail
+
+          nix build .#checks.x86_64-linux.adapter-evals
+
   publish:
     permissions:
       attestations: write # write build provenance attestations for the outputs
