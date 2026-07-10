@@ -39,6 +39,14 @@
       };
     # base export, reached only via an OS-scoped profile feature.
     delta = emptyModule // {homeManagerModules = ["delta-home"];};
+    # both a base and an OS-specific export, reached via an OS-scoped profile
+    # feature.
+    zeta =
+      emptyModule
+      // {
+        homeManagerModules = ["zeta-home"];
+        os.linux.homeManagerModules = ["zeta-linux"];
+      };
     # system-manager export.
     sysfeat = emptyModule // {systemManagerModules = ["sys-mod"];};
   };
@@ -76,12 +84,15 @@
   unknownFeatures = lib.filter (name: !builtins.elem name knownFeatures) referencedFeatures;
 
   knownOs = config.dotfiles.operatingSystems;
-  badOsKeys = lib.concatLists (lib.mapAttrsToList (
-      profileName: profile:
-        map (osKey: "${profileName}.os.${osKey}")
-        (lib.filter (osKey: !builtins.elem osKey knownOs) (lib.attrNames (profile.os or {})))
-    )
-    config.flake.profiles);
+  badOsKeysIn = registry:
+    lib.concatLists (lib.mapAttrsToList (
+        name: entry:
+          map (osKey: "${name}.os.${osKey}")
+          (lib.filter (osKey: !builtins.elem osKey knownOs) (lib.attrNames (entry.os or {})))
+      )
+      registry);
+  badProfileOsKeys = badOsKeysIn config.flake.profiles;
+  badFeatureOsKeys = badOsKeysIn config.flake.modules;
 
   assertions = [
     {
@@ -99,6 +110,12 @@
       pass =
         resolve "homeManagerModule" "linux" (mkProfile {os.linux.features = ["delta"];})
         == [{imports = ["delta-home"];}];
+    }
+    {
+      name = "an OS-scoped profile feature contributes both its base and OS exports";
+      pass =
+        resolve "homeManagerModule" "linux" (mkProfile {os.linux.features = ["zeta"];})
+        == [{imports = ["zeta-home" "zeta-linux"];}];
     }
     {
       name = "nixosModule resolution collects nixos feature exports";
@@ -157,15 +174,27 @@
     {
       name = "every profile feature name exists in flake.modules";
       pass = unknownFeatures == [];
+      detail = unknownFeatures;
     }
     {
       name = "every profile OS scope key is a known operating system";
-      pass = badOsKeys == [];
+      pass = badProfileOsKeys == [];
+      detail = badProfileOsKeys;
+    }
+    {
+      name = "every feature OS scope key is a known operating system";
+      pass = badFeatureOsKeys == [];
+      detail = badFeatureOsKeys;
     }
   ];
 
   failures = lib.filter (a: !a.pass) assertions;
-  report = lib.concatMapStringsSep "\n" (a: "  ✗ ${a.name}") failures;
+  # One line per failed assertion; assertions over the real config name the
+  # offending entries via `detail`.
+  describeFailure = a:
+    "  ✗ ${a.name}"
+    + lib.concatMapStrings (d: "\n      ${d}") (a.detail or []);
+  report = lib.concatMapStringsSep "\n" describeFailure failures;
 in {
   perSystem = {pkgs, ...}: {
     checks.profile-contracts =
