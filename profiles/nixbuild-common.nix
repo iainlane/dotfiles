@@ -21,7 +21,11 @@
 
   binaryCaches = {
     "${builderAlias}" = {
-      substituter = "ssh://${builderAlias}";
+      # The HTTP caches advertise priority 40-41 and the SSH store defaults to
+      # 0, which would make nixbuild.net the first substituter consulted for
+      # every path. Deprioritise it so it is only a fallback for paths built on
+      # nixbuild.net that never reached cupboard.supply.
+      substituter = "ssh://${builderAlias}?priority=100";
       publicKeyName = signingKeyName;
       key = signingKey;
     };
