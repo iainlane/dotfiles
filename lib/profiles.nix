@@ -6,7 +6,8 @@
 # (Home Manager, system-manager, or NixOS).
 {lib}: rec {
   # Collect module lists exported by selected feature modules.
-  # `moduleType` should be one of `homeManagerModules` or `systemManagerModules`.
+  # `moduleType` should be one of `homeManagerModules`, `systemManagerModules`
+  # or `nixosModules`.
   collectFeatureModules = {
     modules,
     moduleType,
@@ -139,8 +140,8 @@
     then true
     else throw (lib.concatStringsSep "\n" errors);
 
-  # Build the list of modules for one module type ("homeManagerModule" or
-  # "systemManagerModule").
+  # Build the list of modules for one module type ("homeManagerModule",
+  # "systemManagerModule" or "nixosModule").
   #
   # For each host profile entry:
   # - read the base profile module,
@@ -148,11 +149,15 @@
   # - apply profile options when the profile is declared as
   #   `{ name = { ... }; }`.
   #
+  # Option-taking profile modules are wrapper functions whose arguments all
+  # have defaults (`{ admin ? false }: ...`); a required argument is not
+  # recognised as a profile option.
+  #
   # Errors:
   # - profile name not found -> error
+  # - unknown module type -> error
   # - profile declared twice -> handled earlier by `normaliseProfileEntries`
   # - options passed to a profile that does not take options -> error
-  # - options missing for a profile that requires options -> error
   mkModules = {
     moduleType,
     hostConfig,
