@@ -10,6 +10,7 @@ in {
   disabledModules = [
     "programs/antigravity-cli.nix"
     "programs/claude-code.nix"
+    "programs/claude-code"
     "programs/codex.nix"
     "programs/codex"
     "programs/mcp.nix"
@@ -18,7 +19,7 @@ in {
 
   imports = map (f: import "${hmPrograms}/${f}") [
     "antigravity-cli.nix"
-    "claude-code.nix"
+    "claude-code"
     "codex"
     "mcp.nix"
     "opencode.nix"
