@@ -13,17 +13,18 @@ in {
   config = lib.mkIf (cfg.enable && cfg.dashboard.enable) {
     services.podman.containers.${cfg.dashboard.containerName} = mkHermesContainer {
       description = "Hermes Agent Web Dashboard";
+      # Host networking with a loopback bind: Hermes engages its auth gate on
+      # any non-loopback bind and refuses to start without an auth provider.
       exec = lib.concatStringsSep " " [
         "dashboard"
         "--host"
-        "0.0.0.0"
+        cfg.dashboard.address
         "--port"
         (toString cfg.dashboard.port)
         "--no-open"
-        "--insecure"
         "--skip-build"
       ];
-      ports = ["${cfg.dashboard.address}:${toString cfg.dashboard.port}:${toString cfg.dashboard.port}"];
+      network = ["host"];
       after = [
         "podman-${cfg.container.name}.service"
       ];

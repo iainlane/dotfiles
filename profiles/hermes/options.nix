@@ -401,10 +401,11 @@
         type = lib.types.str;
         default = "127.0.0.1";
         description = ''
-          Host address the dashboard is published on. Defaults to localhost so
-          it stays unexposed; put a reverse proxy (for example `tailscale
-          serve`) in front of it to expose it. The dashboard manages
-          credentials, so do not bind it to a routable address directly.
+          Loopback address the dashboard binds to, on the host network
+          namespace. Keep it on loopback: Hermes engages its own auth gate on
+          any non-loopback bind and refuses to start without an auth provider.
+          Put a reverse proxy (for example `tailscale serve`) in front to
+          expose it.
         '';
       };
 
