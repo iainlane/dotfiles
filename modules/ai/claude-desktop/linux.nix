@@ -2,6 +2,7 @@
 # in too), so only install the GUI application where the host also has the
 # desktop profile.
 {
+  config,
   pkgs,
   pkgs-unstable,
   inputs,
@@ -10,8 +11,10 @@
   ...
 }: let
   helpers = import ../../../lib/helpers.nix {inherit inputs;};
-in
-  lib.mkIf (helpers.hasProfile hostConfig "desktop") {
+in {
+  imports = [./options.nix];
+
+  config = lib.mkIf (helpers.hasProfile hostConfig "desktop") {
     home.packages = [
       inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
     ];
@@ -19,6 +22,7 @@ in
     xdg.configFile."Claude/claude_desktop_config.json" = {
       # The app itself seems to manage to clobber this file.
       force = true;
-      source = import ./config-file.nix {inherit pkgs pkgs-unstable inputs lib;};
+      source = import ./config-file.nix {inherit config pkgs pkgs-unstable inputs lib;};
     };
-  }
+  };
+}

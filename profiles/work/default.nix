@@ -92,8 +92,10 @@ in {
         dotfiles = {
           # Home Manager tools get the enterprise connectors here.
           ai.mcpServers = workMcp;
-          # Claude Code receives these from the organisation, so don't dupe.
+          # Claude Code and Claude Desktop receive these from the
+          # organisation, so don't dupe.
           claudeCode.excludeMcpServers = builtins.attrNames workMcp;
+          claudeDesktop.excludeMcpServers = builtins.attrNames workMcp;
 
           git.signing = {
             directories."~/dev/chainguard/".ssh.key = "~/.ssh/id_ed25519";

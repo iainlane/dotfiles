@@ -55,21 +55,6 @@ let
   # Pull out the computed server definitions for reuse.
   inherit (mcpServersNix.config.settings) servers;
 
-  # Remote Cloudflare servers that need no local secret. The documentation
-  # server is open; the overarching server runs an interactive OAuth flow
-  # through mcp-remote and caches the token itself.
-  cloudflareServers = {
-    cloudflare-docs = mcpRemote.mkServer {
-      name = "cloudflare-docs";
-      url = "https://docs.mcp.cloudflare.com/mcp";
-    };
-
-    cloudflare = mcpRemote.mkServer {
-      name = "cloudflare";
-      url = "https://mcp.cloudflare.com/mcp";
-    };
-  };
-
   exaServer = {apiKeyFile}:
     mcpRemote.mkServer {
       name = "exa";
@@ -150,9 +135,7 @@ let
     yt-dlp
   ];
 in {
-  inherit packages mcpServersOption excludeServers mcpRemote hostSecretServers;
-
-  servers = servers // cloudflareServers;
+  inherit packages mcpServersOption excludeServers mcpRemote hostSecretServers servers;
 
   # Helper function to wrap an AI tool with the shared tools in PATH
   wrapWithTools = {

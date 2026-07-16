@@ -2,6 +2,7 @@ _: {
   imports = [
     ./claude-code
     ./claude-desktop
+    ./cloudflare-mcp
     ./codex
   ];
 

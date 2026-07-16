@@ -6,7 +6,7 @@ _: {
   ];
 
   flake.profiles.home = {
-    features = ["git"];
+    features = ["cloudflare-mcp" "git"];
 
     homeManagerModule = {
       dotfiles.ssh.settings = {
