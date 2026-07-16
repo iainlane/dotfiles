@@ -9,7 +9,6 @@
   noAccess = lib.concatMap (path: [
     "Read(${path})"
     "Edit(${path})"
-    "Write(${path})"
   ]);
 
   # Secret-bearing paths denied on every platform.
