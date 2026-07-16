@@ -3,10 +3,9 @@
 - When writing code or documentation, if the project doesn't already have a
   convention, use British English.
 - Add code comments sparingly. Focus on why something is done, especially for
-  complex logic, rather than what is done. Only add high-value comments if
-  necessary for clarity or if requested by the user. Do not edit comments that
-  are separate from the code you are changing. NEVER talk to the user or
-  describe your changes through comments.
+  complex logic, rather than what is done. The "why" must never be expressed in
+  contrast to a discarded alternative or previous state (see the next
+  sub-bullet).
   - Do not leave defensive comments that anticipate objections, justify the
     code's existence.
 
@@ -75,6 +74,11 @@
 
     import boto3
     ```
+
+  - Only add high-value comments if necessary for clarity or if requested by the
+    user.
+  - Do not edit comments that are separate from the code you are changing.
+  - NEVER talk to the user or describe your changes through comments.
 
 - Mimic the style (formatting, naming), structure, framework choices, typing,
   and architectural patterns of existing code in the project.
