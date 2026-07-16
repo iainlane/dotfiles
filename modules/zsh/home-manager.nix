@@ -103,7 +103,7 @@ in {
       "PUSHD_IGNORE_DUPS"
 
       # History
-      ## Append to history instead of overwriting
+      ## Sessions append their history to the history file
       "APPEND_HISTORY"
       ## Show command with history expansion before running it
       "HIST_VERIFY"

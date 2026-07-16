@@ -1,8 +1,7 @@
 local Path = require("plenary.path")
 
---- Construct our preferred colours by modifying some built-in highlight groups,
---- taking selected attributes from them. In particular, we don't want a
---- background as our window has one already.
+--- Construct our preferred colours from some built-in highlight groups, taking
+--- only their foreground attributes: the window supplies the background.
 local function setup_incline_highlights()
   local match_paren_hl = vim.api.nvim_get_hl(0, { name = "MatchParen" })
   local bold_hl = vim.api.nvim_get_hl(0, { name = "Bold" })

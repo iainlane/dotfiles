@@ -42,7 +42,7 @@ jobs:
 
       # Trust the same binary caches the hosts use, as in the publish path.
       # Some home configurations import from derivation while evaluating, and
-      # this lets those paths substitute instead of building on the runner.
+      # this lets those paths substitute from the caches during evaluation.
       - name: Trust our binary caches
         run: |
           set -euo pipefail
@@ -85,7 +85,7 @@ jobs:
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
       # Import-from-derivation during the adapter evaluations substitutes from
-      # the nixbuild.net store rather than building on the runner.
+      # the nixbuild.net store.
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         with:
@@ -93,8 +93,8 @@ jobs:
 
       # Evaluating this check forces the toplevel derivation of every host
       # configuration (flake/parts/checks-adapters.nix), so a configuration
-      # that no longer instantiates fails it. The host configurations are not
-      # built.
+      # that fails to instantiate fails the check. The host configurations are
+      # not built.
       - name: Evaluate the host configurations
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         run: |

@@ -15,13 +15,11 @@
 # matches, and any pipe into `head -N` triggers SIGPIPE (141) on the upstream
 # producer once it has emitted more than N lines. Either failure causes the
 # whole script to abort with no output, leaving the picker empty even when
-# results were ready. The fix is to capture command output into variables
-# rather than streaming through `head`, and to neutralise the expected
-# non-zero exits with `|| true`.
+# results were ready. The fix is to capture command output into variables and
+# to neutralise the expected non-zero exits with `|| true`.
 
-# Avoid jq dependency. Extract the query field with a tolerant sed expression
-# so the script stays usable even when jq is not on the PATH Claude Code
-# inherits.
+# Extract the query field with a tolerant sed expression so the script stays
+# usable even when jq is not on the PATH Claude Code inherits.
 read -r INPUT || INPUT=''
 QUERY=$(printf '%s' "$INPUT" | sed -n 's/.*"query"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 

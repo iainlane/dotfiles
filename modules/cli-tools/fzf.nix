@@ -92,9 +92,8 @@
   # The flat branch below exists only for stable, which is on 26.05. Read the
   # stable input's release directly so that bumping `home-manager-stable` past
   # 26.05 fails the build: at that point stable has the rename too and this whole
-  # shim can go. Keying on the stable input (rather than the release of whichever
-  # channel is being evaluated) means the failure fires the moment stable is
-  # bumped, not a release later.
+  # shim can go. Keying on the stable input makes the failure fire the moment
+  # stable is bumped.
   stableRelease = (lib.importJSON (inputs.home-manager-stable + "/release.json")).release;
 
   widgetCommands = assert lib.assertMsg (stableRelease == "26.05") ''

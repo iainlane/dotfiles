@@ -20,7 +20,7 @@
         actionlint.enable = true;
         alejandra.enable = true;
         deadnix.enable = true;
-        # We use `markdownlint-cli` instead of `mdformat`.
+        # Markdown is linted by the custom `markdownlint` formatter below.
         mdformat.enable = false;
         nixf-diagnose = {
           enable = true;

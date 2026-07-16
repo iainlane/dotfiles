@@ -63,8 +63,7 @@
     # Resting theme that matches the system Catppuccin flavor.
     # `pi-system-theme` still overrides this when GNOME reports an
     # explicit `prefer-dark`/`prefer-light`; when GNOME reports
-    # `default` (no preference), Pi stays on this value rather than
-    # falling back to its built-in `light`/`dark`.
+    # `default` (no preference), Pi stays on this value.
     theme = "catppuccin-${config.catppuccin.flavor}";
 
     quietStartup = true;

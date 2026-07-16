@@ -1,11 +1,9 @@
--- The bespoke jest/vitest adapter helpers we used to keep here have been
--- subsumed by upstream: both adapters walk up the tree from the buffer's path
+-- The upstream jest/vitest adapters walk up the tree from the buffer's path
 -- to find the nearest config file and the local `node_modules/.bin/<binary>`.
 --
--- What upstream does *not* do is wrap the command in the project's package
--- manager (e.g. `pnpm test --`), which we want so that `"test"`-script
--- arguments configured in package.json (TS loaders, setup files, ...) still
--- apply. That's the only logic we keep here.
+-- The logic here wraps the adapter command in the project's package manager
+-- (e.g. `pnpm test --`), so that `"test"`-script arguments configured in
+-- package.json (TS loaders, setup files, ...) apply under neotest too.
 
 ---Find the nearest package manager by walking up from `dir` to the project root.
 ---@param dir string

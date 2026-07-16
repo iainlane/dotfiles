@@ -38,8 +38,8 @@ in {
       enable = true;
       package = wrappedClaudeCode;
 
-      # Source the shared set directly rather than via `enableMcpIntegration`,
-      # dropping any servers a profile has excluded for Claude Code.
+      # Source the shared set directly, dropping any servers a profile has
+      # excluded for Claude Code.
       enableMcpIntegration = false;
       mcpServers =
         lib.mapAttrs (_name: mkMcpServer)

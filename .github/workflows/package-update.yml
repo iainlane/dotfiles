@@ -9,7 +9,7 @@
 #
 # The updaters run in one job: each only fetches assets and records
 # platform-independent hashes, so a single run produces correct results for
-# every system, and an arm64 runner avoids the queue for `ubuntu-latest`.
+# every system, and arm64 runners pick jobs up promptly.
 #
 # As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
 # not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have the PR

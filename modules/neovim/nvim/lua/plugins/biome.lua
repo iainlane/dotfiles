@@ -1,8 +1,8 @@
 --- 1. Don't run `prettier` when we're in a Biome project - they'll conflict.
 --- 2. Only run Biome when we are in a biome project.
---- 3. Use `biome-check` instead of `biome`. LazyVim confgures a `biome` check,
----    which runs formatting only. `biome-check` will additionally run linting,
----    import sorting and rules like Tailwind CSS class sorting.
+--- 3. Use `biome-check`. LazyVim's `biome` check runs formatting only;
+---    `biome-check` additionally runs linting, import sorting and rules like
+---    Tailwind CSS class sorting.
 
 ---@alias condition fun(self: conform.JobFormatterConfig, ctx: conform.Context): boolean
 ---@alias formatters_by_ft table<string, conform.FiletypeFormatter>

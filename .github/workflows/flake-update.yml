@@ -73,8 +73,8 @@ jobs:
 
           summary="$(./scripts/flake-lock-summary.bash <(git show HEAD:flake.lock) flake.lock)"
 
-          # A fresh branch per run, so a rerun opens a new PR instead of
-          # colliding with an earlier (possibly already merged) one.
+          # A fresh branch per run, so a rerun opens its own PR even when an
+          # earlier one is still open or already merged.
           branch="flake-update/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
 
           # Keep a single relock in flight: close any earlier flake-update PRs and

@@ -1,7 +1,6 @@
 -- Monorepo ergonomics: when a real file becomes visible in a window, point the
--- window's local cwd at the nearest language-module root. Without this, `:!`,
--- `:term`, `:grep` and other tools that consult cwd run from wherever Neovim
--- was launched, which is often not the project being edited.
+-- window's local cwd at the nearest language-module root, so `:!`, `:term`,
+-- `:grep` and other tools that consult cwd run from the project being edited.
 --
 -- LSP `root_dir` is decided independently from the buffer's path at attach
 -- time, so this does not change which server attaches; it only aligns shell and

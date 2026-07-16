@@ -105,7 +105,7 @@ in {
             # ({ adsb = { ... }; }). Each option value is itself an attrset (or
             # null, normalised to {}); the outer shape is validated so typos
             # and malformed entries (e.g. { adsb = true; }) fail with a clear
-            # message instead of being passed through into profile resolution.
+            # message before profile resolution runs.
             type = with lib.types; listOf (either str (attrsOf (nullOr attrs)));
             default = [];
           };

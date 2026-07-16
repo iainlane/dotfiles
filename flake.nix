@@ -35,8 +35,8 @@
       flake = false;
     };
     # Canonical Catppuccin palette JSON. Read directly via
-    # `inputs.catppuccin-palette + "/palette.json"` so we don't have to
-    # vendor or duplicate the colour data.
+    # `inputs.catppuccin-palette + "/palette.json"`, keeping upstream as the
+    # single source of the colour data.
     catppuccin-palette = {
       url = "github:catppuccin/palette/v1.8.0";
       flake = false;

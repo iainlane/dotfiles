@@ -38,16 +38,15 @@ opt.swapfile = false
 
 vim.g.maplocalleader = ","
 
--- Use bacon-ls for Rust diagnostics instead of rust-analyzer. `bacon` and
--- `bacon-ls` are provided by Nix `extraPackages`.
+-- Rust diagnostics come from bacon-ls. `bacon` and `bacon-ls` are provided
+-- by Nix `extraPackages`.
 vim.g.lazyvim_rust_diagnostics = "bacon-ls"
 
 vim.g.netrw_liststyle = 3
 -- In monorepos, prefer the nearest language-module root over the outer
--- `.git` so pickers, grep and project tools scope to the submodule you are
--- editing rather than the whole repository. LazyVim treats an inner array
--- as "any of these markers, equal priority", so no further nesting is
--- needed here (unlike `vim.fs.root`).
+-- `.git` so pickers, grep and project tools scope to the submodule being
+-- edited. LazyVim treats an inner array as "any of these markers, equal
+-- priority", so no further nesting is needed here.
 vim.g.root_spec = {
   "lsp",
   {

@@ -83,7 +83,7 @@
       };
 
   # The sensor writes registration state into its install directory, so it
-  # must run from a mutable copy rather than the store. Staging in
+  # must run from a mutable copy of the package. Staging in
   # ExecStartPre ties the copy to a service restart: the store path embedded
   # in the unit changes with the package, so NixOS restarts the service and
   # the binaries are only ever replaced underneath a stopped daemon.

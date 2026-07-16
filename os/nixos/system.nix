@@ -19,7 +19,8 @@ in {
     };
     initrd.systemd.enable = true;
 
-    # We don't use zfs, but this now warns
+    # zfs is unused on these hosts, and the default (`true`) trips an
+    # evaluation warning.
     zfs.forceImportRoot = false;
   };
 

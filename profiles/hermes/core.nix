@@ -32,9 +32,9 @@ in {
         # The agent's terminal working directory, inside the container.
         terminal.cwd = "/data/workspace";
 
-        # Single owner of the `plugins` allow/deny lists so the two sources
-        # (context-engine's enable, host-level disables) merge instead of one
-        # `settings.plugins` definition clobbering the other.
+        # Single owner of the `plugins` allow/deny lists, merging the two
+        # sources (context-engine's enable, host-level disables) into one
+        # `settings.plugins` definition.
         plugins = lib.filterAttrs (_: v: v != []) {
           enabled = cfg.enabledPlugins;
           disabled = cfg.disabledPlugins;

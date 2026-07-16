@@ -97,8 +97,8 @@ in {
 
           git.signing = {
             directories."~/dev/chainguard/".ssh.key = "~/.ssh/id_ed25519";
-            # Some individual work repositories still require gitsign, so
-            # install it even though it is not the default signer.
+            # Some individual work repositories require gitsign, so install
+            # it alongside the default SSH signer.
             gitsign.enable = true;
           };
         };

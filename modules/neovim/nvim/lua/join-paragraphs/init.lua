@@ -142,7 +142,7 @@ local function perform_join_on_range(start_line, end_line)
       error_msg("Join command failed: " .. tostring(err_join))
     end
   else
-    -- No need for a temporary line, run the command on the whole range
+    -- Run the command directly on the whole range
     local range_prefix = string.format("%d,%d", start_line, end_line)
     local cmd = string.format([[ %sglobal /\v^./ .,/\v^\s*$/-1 join ]], range_prefix)
     local ok, err_join = pcall(api.nvim_command, "silent! " .. cmd)

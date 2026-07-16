@@ -3,8 +3,7 @@
 # `flake.cupboardOutputs` enumerates everything that workflow caches: one entry
 # per package (for every system) and one per host or home closure. The workflow
 # evaluates it and fans out a build job per entry, so this list lives here with
-# the flake data rather than as shell and jq in the workflow. Each entry carries
-# enough to run and route its job:
+# the flake data. Each entry carries enough to run and route its job:
 #
 #   - os/remote: the runner, and whether it offloads to nixbuild.net (Linux) or
 #     builds natively (Darwin).

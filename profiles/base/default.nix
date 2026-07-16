@@ -117,8 +117,8 @@ _: {
         # The database is pre-built by nix-index-database, so no local indexing needed.
         nix-index = {
           enable = true;
-          # Use comma (`,`) to run packages without installing them instead of
-          # the command-not-found handler which can be slow.
+          # The command-not-found handler can be slow; comma (`,`, below)
+          # covers running packages without installing them.
           enableZshIntegration = false;
         };
 
