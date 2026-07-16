@@ -31,37 +31,42 @@
         pass
     ```
 
-  - Do not write comments that refer to past states of the code, or to an
-    alternative you tried and rejected while working. Phrases like "previously",
-    "no longer", "now does X", "renamed from", "removed Y", or "used to" belong
-    in the commit message or PR description, not in the source. So does
-    justifying the code against a discarded approach ("we do X rather than Y
-    because Y ..."): a dead end that never reached the code is not part of its
-    history either. Comments describe the code as it is.
+  - Comments describe the code as it is now, in positive terms: what it does and
+    why. Never frame a comment as a contrast with an alternative, whatever kind
+    of alternative it is: a past state of the code ("previously", "no longer",
+    "used to"), an approach you tried and rejected, an option you merely
+    considered, or a default or fallback the reader might expect ("rather than",
+    "instead of", "avoids", "not X"). If it did not end up in the source, it
+    does not belong in the comments; history goes in the commit message. A
+    genuine reason survives the rewrite: "we do X rather than Y, because Z"
+    becomes "X, because Z", where Z is a fact about the code or its environment.
 
-    Bad:
+    Bad (one contrasts with history, one with a considered alternative):
 
     ```typescript
     // Previously this used a Map, but we switched to a plain object
     // because the keys are always strings.
     const cache: Record<string, User> = {};
 
-    // We build the index up front rather than lazily, because lazy
-    // construction deadlocked during init.
+    // Build the index up front rather than lazily, because lazy
+    // construction can deadlock during init.
     buildIndex();
     ```
 
-    Good (just the current code, with history in `git log`):
+    Good (the history is deleted; the real reason is restated as a property of
+    the code as it stands):
 
     ```typescript
     const cache: Record<string, User> = {};
 
+    // Init must complete before anything takes index locks, so the index
+    // is built first.
     buildIndex();
     ```
 
-    A comment still earns its place when the reason holds for the code as it
-    stands -- an external constraint a future reader could not infer and might
-    "tidy away":
+    A comment still earns its place when it records an external constraint a
+    future reader could not infer and might "tidy away" -- but it names the
+    constraint itself, never the rejected alternative:
 
     ```python
     # `boto3` reads the credentials file at import time, so the environment
