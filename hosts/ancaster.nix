@@ -77,6 +77,10 @@ in {
           };
           fallback_providers = [
             {
+              provider = "openrouter";
+              model = "openai/gpt-5.6-sol";
+            }
+            {
               provider = "anthropic";
               model = "claude-opus-4-8";
             }
