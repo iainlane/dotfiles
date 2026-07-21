@@ -1,0 +1,220 @@
+# When a nix build fails on a pull request, run Claude on the failure. It reads
+# the logs, reproduces the build, tries to fix it on the PR branch, and comments
+# on the PR with what it did or, where it could not, what it found.
+#
+# The build is the `cupboard` workflow, which builds every flake output. This
+# workflow starts when that run finishes on a failure. It fans out one job per
+# failing operating system, each on a runner of that system, so a macOS build is
+# reproduced on macOS and a Linux one on Linux.
+#
+# It acts only on pull requests opened from this repository. A `workflow_run`
+# job carries the repository's secrets and write token, and the condition below
+# keeps those away from code pushed to forks.
+#
+# Model access uses the Claude Code OAuth token issued to the Claude GitHub App
+# on the org. Build access uses the nixbuild.net token. The deploy key for the
+# private secrets input is left out: the closures that read it are best effort in
+# the build and do not fail it, so a fix here never turns on it.
+#
+# Required configuration:
+#   - CLAUDE_CODE_OAUTH_TOKEN: model access. To use an API key instead, replace
+#     `claude_code_oauth_token` below with `anthropic_api_key`.
+#   - NIXBUILD_NET_SECRET: the nixbuild.net token.
+name: claude nix fix
+
+on:
+  # Restricted to same-repository pull requests by the job conditions below.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows:
+      - cupboard
+    types:
+      - completed
+
+concurrency:
+  # One run per branch; a newer failure replaces a fix still in flight.
+  group: claude-nix-fix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  discover:
+    name: Find the pull request and failing systems
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.event.workflow_run.repository.full_name
+    permissions:
+      actions: read # list the failed run's jobs
+      contents: read
+      pull-requests: read # match the run's branch to an open PR
+    outputs:
+      found: ${{ steps.find.outputs.found }}
+      pr: ${{ steps.find.outputs.pr }}
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        id: find
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+
+            // Which pull request produced this run? workflow_run carries the PR
+            // for same-repository heads; fall back to a branch lookup otherwise.
+            let pr = run.pull_requests?.[0]?.number;
+            if (!pr) {
+              const { data } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                head: `${run.head_repository.owner.login}:${run.head_branch}`,
+              });
+              pr = data[0]?.number;
+            }
+            if (!pr) {
+              core.warning(`No open pull request for ${run.head_branch}.`);
+              core.setOutput("found", "false");
+              core.setOutput("matrix", JSON.stringify({ include: [] }));
+              return;
+            }
+
+            // Group the failed build jobs by the runner that can reproduce them.
+            // A job is named after the flake attribute it builds, e.g.
+            // ".#packages.aarch64-darwin.mcp-remote", so the system comes from
+            // the attribute. Darwin needs a macOS runner; everything else builds
+            // on Linux (Linux systems build through nixbuild.net regardless of
+            // the runner's own architecture).
+            const jobs = await github.paginate(
+              github.rest.actions.listJobsForWorkflowRun,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+                filter: "latest",
+                per_page: 100,
+              },
+            );
+
+            const groups = new Map();
+            for (const job of jobs) {
+              if (job.conclusion !== "failure") continue;
+              const attr = job.name.split(" / ").pop().trim();
+              const system = attr.match(/(x86_64|aarch64)-(linux|darwin)/)?.[0];
+              const os = system?.endsWith("-darwin")
+                ? "macos-latest"
+                : "ubuntu-latest";
+              if (!groups.has(os)) {
+                groups.set(os, { systems: new Set(), attrs: new Set() });
+              }
+              const group = groups.get(os);
+              if (system) group.systems.add(system);
+              group.attrs.add(attr);
+            }
+
+            if (groups.size === 0) {
+              core.warning("The run failed but no build job did; nothing to reproduce.");
+              core.setOutput("found", "false");
+              core.setOutput("matrix", JSON.stringify({ include: [] }));
+              return;
+            }
+
+            const include = [...groups.entries()].map(([os, group]) => ({
+              os,
+              label: [...group.systems].join(", ") || os,
+              attrs: [...group.attrs].join("\n"),
+            }));
+
+            core.setOutput("found", "true");
+            core.setOutput("pr", String(pr));
+            core.setOutput("matrix", JSON.stringify({ include }));
+
+  fix:
+    name: Fix ${{ matrix.label }}
+    needs: discover
+    if: ${{ needs.discover.outputs.found == 'true' }}
+    runs-on: ${{ matrix.os }}
+    # One runner at a time so a second system's fix builds on the first's commit
+    # rather than racing it on the branch.
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    permissions:
+      contents: write # push the fix to the PR branch
+      pull-requests: write # comment on the PR
+      actions: read # read the failed run's logs
+      id-token: write # OIDC token for the Claude Code OAuth flow
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          # The action pushes the fix through its own token over the API, so no
+          # git credential is kept on the checkout.
+          persist-credentials: false
+
+      - uses: ./.github/actions/nix-build-setup
+        with:
+          nixbuild-token: ${{ secrets.NIXBUILD_NET_SECRET }}
+
+      - name: Fix the build
+        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        env:
+          # Authenticates the gh and git calls Claude makes.
+          GH_TOKEN: ${{ github.token }}
+        with:
+          # The Claude GitHub App on the org issues this token. Replace with
+          # `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` to use an API key.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # With github_token left unset, the action commits and pushes with the
+          # app's own token. Signing lands the fix as a verified commit, and the
+          # app token starts a fresh build the way any non-Actions push would.
+          use_commit_signing: true
+          claude_args: |
+            --allowedTools "Bash,Edit,Write,Read,Glob,Grep"
+            --max-turns 40
+          prompt: |
+            The `cupboard` workflow builds every output of this flake with
+            `nix build`. On pull request #${{ needs.discover.outputs.pr }} it
+            failed building for ${{ matrix.label }}. The failed run id is
+            ${{ github.event.workflow_run.id }}.
+
+            These outputs failed:
+
+            ${{ matrix.attrs }}
+
+            This checkout is on the PR branch, and this runner matches the
+            failing system, so `nix build .#<attr> -L` reproduces a build.
+            ${{ matrix.os == 'macos-latest' && 'Builds run natively on this macOS runner.' || 'Linux builds are offloaded to nixbuild.net.' }}
+            `gh` is authenticated.
+
+            Work through it:
+
+            1. Read the errors with
+               `gh run view ${{ github.event.workflow_run.id }} --log-failed`,
+               and reproduce each failing attribute with `nix build .#<attr> -L`.
+            2. Find the cause. For a package this repo defines (under `pkgs/`),
+               the fix usually lives there. When the cause is a dependency or
+               comes from nixpkgs, check whether it is already handled upstream:
+               look at the package's own repository and at nixpkgs for a newer
+               release, a patch, or an open issue, and prefer taking that fix (a
+               version bump, a backported patch, an updated input) over a local
+               workaround.
+            3. Decide whether the fix belongs here:
+               - If it does, make the smallest change that builds, following the
+                 style of the files you touch. Rebuild the affected attributes
+                 until they pass, and run `./just fmt` if you changed any Nix.
+                 Commit the change and push it to the PR branch. Then comment
+                 once with
+                 `gh pr comment ${{ needs.discover.outputs.pr }} --body-file <file>`,
+                 saying which outputs failed, the cause, what you changed, and
+                 that the rebuild passed.
+               - If it does not (the cause sits upstream with no fix ready to
+                 take, it needs access you do not have, or the change is one a
+                 person should sign off on), leave the branch as it is and
+                 comment once with the cause, what you tried, and the change you
+                 would suggest.
+
+            Keep the comment short. The repo owner reads it.
