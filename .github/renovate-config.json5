@@ -44,12 +44,13 @@
     },
 
     // cupboard only ships prerelease 0.x tags for now. Without this, Renovate
-    // treats them as unstable and never proposes an update. The package name
-    // covers both the pinned actions and the CUPBOARD_VERSION custom manager,
-    // since both resolve to the same repository.
+    // treats them as unstable and never proposes an update. Keep the reusable
+    // workflow on a tag because its job_workflow_ref is matched by the tenant's
+    // refs/tags/v* trust policy.
     {
       matchPackageNames: ["underwhelmingperformance/cupboard"],
       ignoreUnstable: false,
+      pinDigests: false,
     },
   ],
 
@@ -58,9 +59,9 @@
     {
       customType: "regex",
       description: "Update versions in YAML and Nix files using renovate comments",
-      fileMatch: ["\\.ya?ml$", "\\.yml$", "\\.nix$"],
+      managerFilePatterns: ["/\\.ya?ml$/", "/\\.yml$/", "/\\.nix$/"],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_]+?[:|=]\\s*[\"']?(?<currentValue>.+?)[\"']?\\s*$",
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_-]+?[:|=]\\s*[\"']?(?<currentValue>.+?)[\"']?\\s*$",
       ],
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },
@@ -74,7 +75,7 @@
   },
 
   // Lockfile maintenance
-  lockfileMaintenance: {
+  lockFileMaintenance: {
     enabled: true,
     automerge: true,
     schedule: ["before 6am on Monday"],

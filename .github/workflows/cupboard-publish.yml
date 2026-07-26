@@ -1,68 +1,13 @@
-# Reusable workflow: build flake outputs and publish them to the personal
-# cupboard cache with build provenance.
-#
-# The discover job lists everything worth caching and the build job fans out, one
-# job per output, so a slow build never blocks the others and each output's log
-# stands alone. Two kinds of output are listed:
-#
-#   - Packages (the `pkgs/` packages and the pre-built direnv shells), for every
-#     system. They are exposed for all systems, so the host installer images
-#     appear too and are dropped: they embed a host closure and are too large to
-#     be worth caching. A package build is strict; a failure fails the run.
-#   - The host (NixOS, nix-darwin) and home closures, when a read-only deploy key
-#     for the private dotfiles-secrets repo is passed, since they read that input
-#     at evaluation time. Each is best-effort (continue-on-error): one pulling a
-#     token-gated fixed-output derivation (such as the Falcon sensor) cannot
-#     realise here, and that is reported, not fatal. Without the key (fork pull
-#     requests) the closure builds fail before they can push, which is harmless.
-#
-# Each output is assigned to a runner from its system: the Linux systems offload
-# to nixbuild.net (max-jobs 0), and the Darwin ones build natively on a
-# macos-latest runner since nixbuild.net is Linux-only. Closures are routed from
-# the host metadata in `.#hosts`, so no cross-platform configuration is evaluated
-# just to learn its system.
-#
-# Each output pushes to its own retention root, `<prefix>/<system>/<label>`,
-# because cupboard re-sets a root wholesale: outputs sharing one root would evict
-# each other. The prefix is chosen here from the triggering event, never from a
-# caller input, so a caller cannot redirect a build to the default cache:
-#   - push          -> the default cache, permanent retention.
-#   - pull_request  -> a per-PR cache (pr-<number>), short retention.
-#
-# Pushing is gated on the `push` input. It defaults on; the local CI run that
-# validates a change to this workflow turns it off, since a run reached through a
-# local (non-main) path cannot obtain a push token anyway (see below).
-#
-# This is the only workflow the laney tenant trusts to push. The cupboard
-# oidc_trust rule pins the GitHub Actions OIDC `job_workflow_ref` claim to this
-# file at refs/heads/main, so a push token is issued only for jobs that run
-# through it, scoped (by trailing-slash prefix) to the github:iainlane/dotfiles/
-# retention roots, which the per-output roots fall under.
-#
-# A pull_request caller pushes to its own pr-<number> cache. The boundary is
-# GitHub's own: pull_request from a fork receives no secrets and no
-# id-token: write, so a fork build cannot obtain a push token or reach
-# nixbuild.net and simply fails before the push. Only same-repo branches (the
-# owner's own pushes and dependabot) carry the credentials needed to publish,
-# and those run trusted code. The per-PR cache and short TTL keep PR builds off
-# the default cache's retention roots.
-#
-# Prerequisites (not satisfiable from this repository):
-#   - the oidc_trust rule above exists (cupboard oidc-trust add).
-#   - the caller passes a nixbuild.net token with build and store read/write
-#     permissions as the nixbuild_token secret.
-#   - to build the host and home closures, the caller passes a read-only deploy
-#     key for dotfiles-secrets as the secrets_deploy_key secret.
+# Delegate cache-aware target planning, builds, attestations and publication to
+# the released cupboard workflow. Repository-specific builder and flake inputs
+# stay here; the shared workflow derives the destination from the event.
 name: cupboard publish
 
 on:
   workflow_call:
     inputs:
       push:
-        description: >-
-          Attest the built outputs and push them to the cupboard cache. Turned
-          off for the local CI run that only validates a change to this
-          workflow, which cannot obtain a push token.
+        description: Attest and publish results; false only builds each target.
         type: boolean
         default: true
         required: false
@@ -71,231 +16,46 @@ on:
         description: nixbuild.net token used to realise derivations remotely.
         required: true
       secrets_deploy_key:
-        description: >-
-          Read-only SSH deploy key for the private dotfiles-secrets repo,
-          letting the host and home closures evaluate. Absent on fork pull
-          requests, where those closures are skipped.
+        description:
+          Read-only deploy key for the private dotfiles-secrets input.
         required: false
 
 permissions: {}
 
 jobs:
-  discover:
-    name: Discover outputs
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-      cache: ${{ steps.target.outputs.cache }}
-      ttl: ${{ steps.target.outputs.ttl }}
-      root_prefix: ${{ steps.target.outputs.root_prefix }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Select push target
-        id: target
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.number }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = pull_request ]; then
-            cache="pr-${PR_NUMBER}"
-            ttl=14d
-            root_prefix="github:iainlane/dotfiles/pr-${PR_NUMBER}"
-          else
-            cache=""
-            ttl=""
-            root_prefix="github:iainlane/dotfiles/${REF_NAME}"
-          fi
-          {
-            echo "cache=${cache}"
-            echo "ttl=${ttl}"
-            echo "root_prefix=${root_prefix}"
-          } | tee -a "$GITHUB_OUTPUT"
-
-      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-
-      - name: Discover outputs
-        id: discover
-        run: |
-          set -euo pipefail
-
-          # The output list is computed in the flake (flake/parts/cupboard.nix),
-          # where the package and host data lives; wrap it as a GitHub matrix.
-          matrix=$(nix eval --json .#cupboardOutputs --apply 'outputs: { include = outputs; }')
-          echo "matrix=${matrix}" | tee -a "${GITHUB_OUTPUT}"
-
-  build:
-    name: ${{ matrix.attr }}
-    needs: discover
-    runs-on: ${{ matrix.os }}
-    # Closures are best-effort: one pulling a token-gated fixed-output derivation
-    # cannot realise here, and that should not fail the run. Package failures are
-    # fatal.
-    continue-on-error: ${{ matrix.kind == 'closure' }}
+  publish:
     permissions:
       attestations: write # write build provenance attestations for the outputs
       contents: read
       id-token: write # issue the OIDC token the cupboard cache trusts for push
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
-    env:
-      CACHE_URL: https://cupboard.supply/t/laney
-      # Pin the CLI to the same release as the cupboard actions below so the
-      # client and the actions move together; Renovate keeps both in step.
+    # The release tag is part of the tenant's job_workflow_ref trust policy.
+    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.15 # zizmor: ignore[unpinned-uses]
+    with:
+      url: https://cupboard.supply/t/laney
+      targets: .#cupboardOutputs
+      preset: pull-request-and-branch
+      intermediate-retention: grace
+      reuse-view: pull-requests
+      # Keep the installed CLI on the release that supplies this workflow.
       # renovate: datasource=github-releases depName=underwhelmingperformance/cupboard
-      CUPBOARD_VERSION: v0.0.13
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      # macOS runners ship tens of GB of Xcode versions and simulator runtimes a
-      # Nix build never touches, and the stock free space does not fit a large
-      # from-source build (an uncached zed-editor fills the disk mid-compile).
-      # This is the Darwin counterpart to nothing-but-nix below, which is Linux
-      # only. Nix's Darwin stdenv brings its own SDK and toolchain, so the full
-      # Xcode apps are not needed; point xcode-select at the Command Line Tools
-      # first so anything shelling out to xcrun still resolves.
-      - name: Free disk space
-        if: ${{ runner.os == 'macOS' }}
-        run: |
-          set -euo pipefail
-
-          df -h /
-
-          sudo xcode-select --switch /Library/Developer/CommandLineTools || true
-          sudo rm -rf /Applications/Xcode_*.app
-          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
-          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/* || true
-          xcrun simctl delete unavailable || true
-
-          df -h /
-
-      # The remote build runs on nixbuild.net, but every realised path is copied
-      # back into this runner's local store, and a large closure can outgrow the
-      # runner's stock ~20GB on / and truncate a NAR mid-copy ("unexpected
-      # end-of-file"). Reclaim space into /nix before Nix is installed. The
-      # holster protocol leaves the runner's own tooling (node, jq, tar) intact
-      # for the cupboard actions below. nix-quick-install-action is single-user
-      # Nix and refuses a /nix it cannot write to, so hand it ownership of the
-      # volume this action mounts.
-      # renovate: datasource=github-releases depName=wimpysworld/nothing-but-nix
-      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
-        if: ${{ runner.os == 'Linux' }} # the action only supports Linux runners
-        with:
-          hatchet-protocol: holster
-          nix-permission-edict: true
-
-      # Single-user Nix: on the Linux runners the build process itself evaluates
-      # and connects to the nixbuild.net builder, so it holds both
-      # nixbuild-action's NIX_SSHOPTS and the secrets GIT_SSH_COMMAND. A
-      # multi-user daemon would perform the build without those per-step
-      # variables and fail to reach the builder.
-      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-
-      # Trust the same binary caches the hosts use, derived from the flake so
-      # this list cannot drift from the host configuration. This includes the
-      # nixbuild.net store key, so paths built remotely are substituted instead
-      # of rebuilt on the runner.
-      - name: Trust our binary caches
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/nix"
-          {
-            printf '\n'
-            nix eval --raw .#nix.substituterConfig
-          } >> "${HOME}/.config/nix/nix.conf"
-
-      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
-        if: ${{ matrix.remote }}
-        with:
-          nixbuild_token: ${{ secrets.nixbuild_token }}
-
-      - name: Set up secrets access
-        id: secrets
-        if: ${{ matrix.kind == 'closure' }}
-        env:
-          DEPLOY_KEY: ${{ secrets.secrets_deploy_key }}
-        run: |
-          set -euo pipefail
-          if [ -z "${DEPLOY_KEY}" ]; then
-            echo "No secrets deploy key; this closure cannot evaluate."
-            exit 1
-          fi
-
-          key="${RUNNER_TEMP}/secrets_deploy_key"
-          install -m 600 /dev/null "${key}"
-
-          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
-          echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
-
-      - name: Build
-        id: build
-        env:
-          ATTR: ${{ matrix.attr }}
-          MAX_JOBS: ${{ matrix.remote && '0' || '' }}
-        run: |
-          set -euo pipefail
-
-          build_flags=(--no-link --print-out-paths)
-          if [ -n "${MAX_JOBS}" ]; then
-            build_flags+=(--max-jobs "${MAX_JOBS}")
-          fi
-
-          # A remote closure copies every realised path back from nixbuild over
-          # one SSH connection, and a large one streams hundreds of them; an
-          # occasional stream truncates ("unexpected end-of-file") and aborts
-          # the build. Paths copied before that point stay in the local store,
-          # so a retry resumes and fetches only what is left.
-          attempts=3
-          for attempt in $(seq 1 "${attempts}"); do
-            echo "::group::${ATTR} (attempt ${attempt}/${attempts})"
-            if nix build "${ATTR}" "${build_flags[@]}" > "${RUNNER_TEMP}/paths.txt"; then
-              echo '::endgroup::'
-              break
-            fi
-            echo '::endgroup::'
-
-            if [ "${attempt}" -eq "${attempts}" ]; then
-              echo "::error::${ATTR} failed after ${attempts} attempts"
-              exit 1
-            fi
-
-            echo "::warning::${ATTR} attempt ${attempt} failed; retrying"
-            sleep "$((attempt * 15))"
-          done
-
-          cat "${RUNNER_TEMP}/paths.txt"
-
-          {
-            echo 'paths<<EOF'
-            cat "${RUNNER_TEMP}/paths.txt"
-            echo EOF
-          } | tee -a "${GITHUB_OUTPUT}"
-
-      - name: Attest the built paths
-        id: attest
-        if: ${{ inputs.push }}
-        uses: underwhelmingperformance/cupboard/actions/attest@2420f520ec09eeea654f96fb529157c14f49faeb # v0.0.13
-        with:
-          paths: ${{ steps.build.outputs.paths }}
-
-      - name: Push to cupboard
-        if: ${{ inputs.push }}
-        uses: underwhelmingperformance/cupboard/actions/push@2420f520ec09eeea654f96fb529157c14f49faeb # v0.0.13
-        with:
-          url: ${{ env.CACHE_URL }}
-          cupboard-version: ${{ env.CUPBOARD_VERSION }}
-          cache: ${{ needs.discover.outputs.cache }}
-          ttl: ${{ needs.discover.outputs.ttl }}
-          root:
-            ${{ needs.discover.outputs.root_prefix }}/${{ matrix.rootSuffix }}
-          paths: ${{ steps.build.outputs.paths }}
-          attestations: ${{ steps.attest.outputs.bundle-path }}
+      cupboard-version: v0.0.15
+      maximise-space: true
+      nix-config: .#nix.substituterConfig
+      builders:
+        ssh://eu.nixbuild.net x86_64-linux,aarch64-linux - 100 1
+        big-parallel,benchmark
+      builder-known-hosts:
+        eu.nixbuild.net ssh-ed25519
+        AAAAC3NzaC1lZDI1NTE5AAAAIPIQCZc54poJ8vqawd8TraNryQeJnvH1eLpIDgbiqymM
+      push:
+        ${{ inputs.push && (github.event_name != 'pull_request' ||
+        github.event.pull_request.head.repo.full_name == github.repository) }}
+    secrets:
+      # nixbuild.net authenticates with a token carried in the SSH connection
+      # environment.
+      builder_ssh_config: |
+        Host eu.nixbuild.net
+          User authtoken
+          PreferredAuthentications none
+          SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }}
+      input_ssh_key: ${{ secrets.secrets_deploy_key }}

@@ -7,7 +7,9 @@
 #
 #   - os/remote: the runner, and whether it offloads to nixbuild.net (Linux) or
 #     builds natively (Darwin).
-#   - kind: `package` (built strictly) or `closure` (best-effort).
+#   - bestEffort: true for the host and home closures, which can need resources
+#     CI cannot reach (a token-gated fixed-output derivation such as the Falcon
+#     sensor); packages are strict.
 #   - attr: the flake installable to build.
 #   - rootSuffix: appended to the per-event prefix to form the retention root.
 {
@@ -20,7 +22,8 @@
   systems = lib.attrNames packages;
 
   baseFor = kind: system: {
-    inherit system kind;
+    inherit system;
+    bestEffort = kind == "closure";
     os =
       if lib.hasSuffix "-darwin" system
       then "macos-latest"
