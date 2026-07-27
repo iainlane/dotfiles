@@ -91,6 +91,20 @@
         touch $out
       '';
 
+    checks.nix-build-retry =
+      pkgs.runCommandLocal "nix-build-retry-test" {
+        nativeBuildInputs = [
+          pkgs.bash
+          pkgs.coreutils
+        ];
+      }
+      ''
+        bash ${../../scripts/nix-build-retry.test.bash} \
+          ${../../scripts/nix-build-retry.bash}
+
+        touch $out
+      '';
+
     treefmt = treefmtConfig;
   };
 }

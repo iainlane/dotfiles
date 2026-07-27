@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+retry_script="${1}"
+test_dir="$(mktemp -d)"
+trap 'rm -rf "${test_dir}"' EXIT
+
+mkdir "${test_dir}/bin"
+
+cat >"${test_dir}/bin/nix" <<'EOF'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${FAKE_NIX_SCENARIO}" in
+fail-once)
+	if [[ ! -f "${FAKE_NIX_STATE}" ]]; then
+		touch "${FAKE_NIX_STATE}"
+		printf "error: Cannot build '/nix/store/example.drv'.\n" >&2
+		exit 1
+	fi
+
+	printf 'build completed on retry\n'
+	;;
+always-fails)
+	printf "error: Cannot build '/nix/store/example.drv'.\n" >&2
+	exit 42
+	;;
+success)
+	printf 'build completed\n'
+	;;
+*)
+	exit 99
+	;;
+esac
+EOF
+chmod +x "${test_dir}/bin/nix"
+
+cat >"${test_dir}/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "${test_dir}/bin/sleep"
+
+run_retry() {
+	PATH="${test_dir}/bin:${PATH}" \
+		FAKE_NIX_SCENARIO="${1}" \
+		FAKE_NIX_STATE="${test_dir}/state" \
+		"${retry_script}" .#checks.x86_64-linux.adapter-evals
+}
+
+output="$(run_retry fail-once 2>&1)"
+[[ "${output}" == *"Cannot build '/nix/store/example.drv'."* ]]
+[[ "${output}" == *'attempt 1/3'* ]]
+[[ "${output}" == *'build completed on retry'* ]]
+
+rm "${test_dir}/state"
+set +e
+output="$(run_retry always-fails 2>&1)"
+status=$?
+set -e
+
+[[ "${status}" -eq 42 ]]
+[[ "${output}" == *"Cannot build '/nix/store/example.drv'."* ]]
+[[ "${output}" == *'attempt 1/3'* ]]
+[[ "${output}" == *'attempt 2/3'* ]]
+
+output="$(run_retry success 2>&1)"
+[[ "${output}" == *'build completed'* ]]
+[[ "${output}" != *'retrying'* ]]

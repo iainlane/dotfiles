@@ -11,8 +11,10 @@
 # branches (own pushes and the flake-update PR) carry it.
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
-# merge. The architecture job is the strict gate: the profile-contracts check
-# must pass, and every host configuration must evaluate.
+# merge. The configuration validation job is the strict gate: it checks how
+# profiles and features compose, then evaluates every NixOS, nix-darwin,
+# system-manager and standalone Home Manager configuration without building the
+# resulting host closures.
 name: cupboard
 
 on:
@@ -28,8 +30,8 @@ concurrency:
 permissions: {}
 
 jobs:
-  architecture:
-    name: Architecture contracts
+  configuration-validation:
+    name: Validate configurations
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,9 +54,9 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      # Pure evaluation: fails on a broken profile/feature contract without
-      # needing any secrets.
-      - name: Contract checks
+      # Exercise the profile resolver and reject invalid feature names, OS
+      # scopes, requirements and composition order without needing any secrets.
+      - name: Validate profile composition
         run: |
           set -euo pipefail
 
@@ -100,7 +102,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          nix build .#checks.x86_64-linux.adapter-evals
+          ./scripts/nix-build-retry.bash \
+            .#checks.x86_64-linux.adapter-evals
 
   publish:
     permissions:
