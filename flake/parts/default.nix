@@ -7,6 +7,7 @@ in {
       ./checks.nix
       ./checks-adapters.nix
       ./checks-contracts.nix
+      ./checks-cupboard.nix
       ./context.nix
       ./cupboard.nix
       ./deploy.nix
