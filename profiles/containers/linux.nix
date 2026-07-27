@@ -1,5 +1,11 @@
 {
-  flake.profiles.containers.os.linux.homeManagerModule = {
+  flake.profiles.containers.os.linux.homeManagerModule = {inputs, ...}: {
+    imports = [./podman-install-quadlet.nix];
+
+    disabledModules = [
+      "${inputs.home-manager}/modules/services/podman/linux/install-quadlet.nix"
+    ];
+
     home.sessionVariables = {
       DOCKER_HOST = "unix://\${XDG_RUNTIME_DIR}/podman/podman.sock";
     };
