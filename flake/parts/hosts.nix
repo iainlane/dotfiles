@@ -48,13 +48,23 @@
     )
     checkedHosts;
 
+  # The standalone output must build from the same channel as the host's
+  # system configuration, so that applying it directly produces the packages
+  # the system build would.
   mkStandaloneHome = hostname: hostConfig: let
     result = hostResults.${hostname};
     extraModules = result.extraHomeModules or [];
+
+    onStable = hostConfig.channel == "stable";
+
+    home-manager =
+      if onStable
+      then inputs.home-manager-stable
+      else inputs.home-manager;
   in
     withSystem hostConfig.system (
       args: let
-        inherit (args.config._module.args) pkgs;
+        inherit (args.config._module.args) pkgs pkgs-stable;
         homeConfig = helpers.mkHomeConfiguration {
           inherit
             hostConfig
@@ -67,8 +77,11 @@
           extraSpecialArgs = result.homeSpecialArgs;
         };
       in
-        inputs.home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
+        home-manager.lib.homeManagerConfiguration {
+          pkgs =
+            if onStable
+            then pkgs-stable
+            else pkgs;
           inherit (homeConfig) modules extraSpecialArgs;
         }
     );

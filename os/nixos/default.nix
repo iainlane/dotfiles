@@ -38,12 +38,14 @@
       channel = channelPkgs {
         inherit pkgs pkgs-stable;
       };
-      homeSpecialArgs = {
-        inherit (channel) secondary;
-        inherit inputs;
-        pkgs-stable = channel.stable;
-        pkgs-unstable = channel.unstable;
-      };
+      homeSpecialArgs =
+        {
+          inherit (channel) secondary;
+          inherit inputs;
+          pkgs-stable = channel.stable;
+          pkgs-unstable = channel.unstable;
+        }
+        // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
       homeConfig = helpers.mkHomeConfiguration {
         inherit
           hostConfig
@@ -60,9 +62,10 @@
       # `lib.hm`, which carries helpers (such as
       # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
       # does not yet have. Build an extended lib whose `lib.hm` comes from
-      # unstable and hand it to the home-manager modules on stable hosts.
-      # `extraSpecialArgs` takes precedence over the home-manager module's own
-      # `lib`, so this overrides it without rebuilding the stable source.
+      # unstable and hand it to the home-manager modules on stable hosts via
+      # `homeSpecialArgs`, so both the embedded and standalone configurations
+      # receive it. Special args take precedence over the home-manager module's
+      # own `lib`, so this overrides it without rebuilding the stable source.
       unstableHmLib = channel.stable.lib.extend (
         self: super: let
           hmLib = import "${inputs.home-manager}/modules/lib" {lib = self;};
@@ -95,10 +98,7 @@
           ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
           ++ [
             channel.home-manager.nixosModules.home-manager
-            (helpers.mkEmbeddedHomeManager {
-              inherit username homeConfig;
-              extraSpecialArgs = lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
-            })
+            (helpers.mkEmbeddedHomeManager {inherit username homeConfig;})
           ];
         specialArgs = {
           inherit
