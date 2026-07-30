@@ -33,6 +33,19 @@ Other tools expect a configuration file on disk. For these, we use
 - `crush.nix` - Generates JSON for the crush config directory
 - `copilot-cli.nix` - Generates JSON for GitHub Copilot CLI
 - `opencode.nix` - Generates JSON for OpenCode
+- `opencode2.nix` - Generates JSON for OpenCode 2
+
+OpenCode 2 (`opencode2.nix`) ships as a separate `opencode2` binary but reads
+the same `~/.config/opencode` as OpenCode 1, and the two config schemas are not
+interchangeable: OpenCode 2 nests MCP servers under `mcp.servers`, replaces
+`enabled` with `disabled`, and moves the theme and keybindings into a `cli.json`
+of their own. So the wrapper sets `OPENCODE_CONFIG_DIR` to `~/.config/opencode2`
+and the module owns that directory instead. Credentials live under
+`~/.local/share/opencode` either way, so logging in once covers both versions.
+`cli.json` is left unmanaged, because OpenCode 2 rewrites it whenever the theme
+or a setting changes in the TUI. A `tui.json` is written instead: OpenCode 2
+reads that once, while `cli.json` is still absent, and translates it, which is
+enough to pick the theme on a new machine without taking the file over.
 
 Pi (`pi/`) writes its configuration directly into `~/.pi/agent/` via
 `home.file`, since Pi is configured through that directory rather than an
@@ -73,6 +86,7 @@ Most tools still need a wrapped binary so their private tool dependencies are on
 - `copilot-cli.nix`
 - `crush.nix`
 - `opencode.nix`
+- `opencode2.nix`
 - `pi.nix`
 
 ## Adding a new tool

@@ -13,6 +13,7 @@ _: {
     ./copilot-cli.nix
     ./crush.nix
     ./opencode.nix
+    ./opencode2.nix
     ./pi
   ];
 }
