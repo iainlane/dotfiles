@@ -37,7 +37,7 @@
             inherit (config.flake) profiles modules;
           }
           ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
-        extraSpecialArgs = {
+        specialArgs = {
           inherit
             inputs
             hostname
