@@ -1,48 +1,40 @@
-{envFile}: let
+{
+  envFile,
+  network,
+  ultrafeederService,
+}: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-piaware
   image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest";
 in {
   autoStart = true;
-  description = "Feed FlightAware (piaware)";
-  inherit image;
-  network = "adsbnet.network";
-  ports = ["8081:80"];
 
-  environment = {
-    TZ = "UTC";
-    RECEIVER_TYPE = "relay";
-    BEASTHOST = "ultrafeeder";
-    BEASTPORT = "30005";
-    MLAT_RESULTS_BEASTHOST = "ultrafeeder";
-    MLAT_RESULTS_BEASTPORT = "31004";
-    ALLOW_MLAT = "yes";
-    MLAT_RESULTS = "yes";
+  containerConfig = {
+    inherit image;
+    networks = [network];
+    publishPorts = ["8081:80"];
+
+    environments = {
+      TZ = "UTC";
+      RECEIVER_TYPE = "relay";
+      BEASTHOST = "ultrafeeder";
+      BEASTPORT = "30005";
+      MLAT_RESULTS_BEASTHOST = "ultrafeeder";
+      MLAT_RESULTS_BEASTPORT = "31004";
+      ALLOW_MLAT = "yes";
+      MLAT_RESULTS = "yes";
+    };
+
+    environmentFiles = [envFile];
+
+    tmpfses = [
+      "/run:exec,size=64M"
+      "/var/log:size=32M"
+    ];
   };
 
-  extraConfig = {
-    Container = {
-      EnvironmentFile = [envFile];
-      Tmpfs = [
-        "/run:exec,size=64M"
-        "/var/log:size=32M"
-      ];
-    };
-    Service = {
-      Environment = [
-        "PATH=/usr/local/libexec/podman:/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin:/bin"
-      ];
-    };
-    Unit = {
-      After = [
-        "network-online.target"
-        "sops-nix.service"
-        "podman-ultrafeeder.service"
-      ];
-      Wants = [
-        "network-online.target"
-        "sops-nix.service"
-        "podman-ultrafeeder.service"
-      ];
-    };
+  unitConfig = {
+    Description = "Feed FlightAware (piaware)";
+    After = ["network-online.target" "sops-install-secrets.service" ultrafeederService];
+    Wants = ["network-online.target" "sops-install-secrets.service" ultrafeederService];
   };
 }

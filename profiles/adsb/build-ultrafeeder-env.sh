@@ -23,13 +23,14 @@ fi
 # Example:
 #   planewatch,planewatch,30105,beast_in
 
-if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
-	echo "XDG_RUNTIME_DIR environment variable is required" >&2
+# systemd sets RUNTIME_DIRECTORY, and creates the directory, from the unit's
+# `RuntimeDirectory=`.
+if [ -z "${RUNTIME_DIRECTORY:-}" ]; then
+	echo "RUNTIME_DIRECTORY environment variable is required" >&2
 	exit 1
 fi
 
-runtime_env_file="${XDG_RUNTIME_DIR}/adsb/ultrafeeder-runtime.env"
-mkdir -p "$(dirname "${runtime_env_file}")"
+runtime_env_file="${RUNTIME_DIRECTORY}/ultrafeeder-runtime.env"
 machine_id="$(tr -d '\n' </etc/machine-id)"
 
 mk_uuid() {

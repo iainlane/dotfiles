@@ -1,6 +1,19 @@
+# The ADS-B feeder stack: an ultrafeeder decoding from the RTL-SDR, and one
+# container per aggregator relaying from it.
+#
+# These run rootful. The feeders need the reverse proxy to resolve them by
+# container name, and a rootless bridge lives in a network namespace the host
+# cannot route into, so the whole stack sits on a rootful netavark bridge.
 {
   flake.profiles.adsb = {
-    homeManagerModule = args: {
+    requires = [
+      {
+        profile = "containers";
+        os = ["linux"];
+      }
+    ];
+
+    os.linux.systemManagerModule = args: {
       config,
       hostConfig,
       inputs,
@@ -9,22 +22,48 @@
       ...
     }: let
       cfg = config.services.adsb;
+      rtlBlacklist = builtins.readFile ./rtl-blacklist.conf;
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
       ultrafeederEnvFile = config.sops.templates."adsb-ultrafeeder.env".path;
       feederEnvFile = config.sops.templates."adsb-feeders.env".path;
+
+      network = config.virtualisation.quadlet.networks.adsbnet.ref;
+
+      # Quadlet names a container's unit after its quadlet file, with no
+      # prefix, so the relaying feeders order themselves against this.
+      ultrafeederName = "ultrafeeder";
+      ultrafeederService = "${ultrafeederName}.service";
+
       ultrafeederContainer = import ./ultrafeeder-container.nix {
-        inherit hostConfig lib pkgs;
+        inherit hostConfig lib network pkgs;
         envFile = ultrafeederEnvFile;
       };
-      piawareContainer = import ./piaware-container.nix {envFile = feederEnvFile;};
-      fr24Container = import ./fr24-container.nix {envFile = feederEnvFile;};
-      planewatchContainer = import ./planewatch-container.nix {envFile = feederEnvFile;};
+      piawareContainer = import ./piaware-container.nix {
+        inherit network ultrafeederService;
+        envFile = feederEnvFile;
+      };
+      fr24Container = import ./fr24-container.nix {
+        inherit network ultrafeederService;
+        envFile = feederEnvFile;
+      };
+      planewatchContainer = import ./planewatch-container.nix {
+        inherit network ultrafeederService;
+        envFile = feederEnvFile;
+      };
     in {
       imports = [./options.nix];
 
       config = lib.mkMerge [
         {services.adsb = args;}
         {
+          # The DVB kernel drivers claim the SDR unless they are kept away
+          # from it.
+          environment.etc."modprobe.d/exclusions-rtl2832.conf".text = rtlBlacklist;
+
+          # rtl-sdr's own rules give the device node to the `plugdev` group,
+          # and carry the ids of every dongle the library supports.
+          environment.etc."udev/rules.d/60-rtl-sdr.rules".source = "${pkgs.rtl-sdr}/etc/udev/rules.d/rtl-sdr.rules";
+
           sops = {
             secrets = {
               latitude.sopsFile = secretsFile;
@@ -51,21 +90,11 @@
             '';
           };
 
-          home.packages = with pkgs; [
-            fuse-overlayfs
-            slirp4netns
-          ];
+          virtualisation.quadlet = {
+            networks.adsbnet = {};
 
-          services.podman = {
-            enable = true;
-            networks.adsbnet = {
-              description = "ADS-B feeder network";
-              extraConfig.Service.Environment = {
-                PATH = "/usr/local/libexec/podman:/run/wrappers/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-              };
-            };
             containers = {
-              ultrafeeder = ultrafeederContainer;
+              ${ultrafeederName} = ultrafeederContainer;
               piaware = piawareContainer;
               fr24 = fr24Container;
               planewatch = planewatchContainer;
@@ -73,30 +102,6 @@
           };
         }
       ];
-    };
-
-    systemManagerModule = _: {
-      lib,
-      username,
-      ...
-    }: let
-      rtlBlacklist = builtins.readFile ./rtl-blacklist.conf;
-    in {
-      config = {
-        users.groups.rtlsdr = {};
-
-        users.users.${username} = {
-          autoSubUidGidRange = lib.mkDefault true;
-          linger = lib.mkDefault true;
-          extraGroups = lib.mkAfter ["rtlsdr"];
-        };
-
-        environment.etc."modprobe.d/exclusions-rtl2832.conf".text = rtlBlacklist;
-        environment.etc."udev/rules.d/10-rtl-sdr.rules".text = ''
-          # RTL-SDR Blog V4 (Realtek 0bda:2838)
-          SUBSYSTEMS=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", ENV{ID_SOFTWARE_RADIO}="1", MODE:="0660", GROUP:="rtlsdr"
-        '';
-      };
     };
   };
 }
