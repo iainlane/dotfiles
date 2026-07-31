@@ -5,7 +5,9 @@
     };
   };
 
-  flake.profiles.containers.os.linux.systemManagerModule = {pkgs, ...}: {
+  flake.profiles.containers.os.linux.systemManagerModule = _: {pkgs, ...}: {
+    imports = [./quadlet.nix];
+
     config = {
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some

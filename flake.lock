@@ -1311,6 +1311,21 @@
         "type": "github"
       }
     },
+    "quadlet-nix": {
+      "locked": {
+        "lastModified": 1782004439,
+        "narHash": "sha256-OANOcPKJ3JThp2x/ccz4DDrGDY2hIgM5SBLI51swgfI=",
+        "owner": "SEIAROTg",
+        "repo": "quadlet-nix",
+        "rev": "f1652b490b812c4e0b2a36565cdbedf87f35e438",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SEIAROTg",
+        "repo": "quadlet-nix",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "bacon-ls": "bacon-ls",
@@ -1343,6 +1358,7 @@
         "nixpkgs": "nixpkgs_5",
         "nixpkgs-measured-boot": "nixpkgs-measured-boot_2",
         "nixpkgs-stable": "nixpkgs-stable",
+        "quadlet-nix": "quadlet-nix",
         "secrets": "secrets",
         "sops-nix": "sops-nix",
         "starship-custom": "starship-custom",

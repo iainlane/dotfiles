@@ -144,6 +144,10 @@
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
 
+    # Declarative Podman quadlets. Home Manager's `services.podman` only ever
+    # writes user units, so rootful containers need this instead.
+    quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
+
     secrets = {
       url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
       flake = false;
