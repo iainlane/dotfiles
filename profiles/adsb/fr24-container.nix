@@ -21,6 +21,15 @@ in {
 
     environmentFiles = [envFile];
 
+    # The image's own check: a connection to the feed source, the status site
+    # listening, and no service deaths. It empties /var/log/fr24feed.log each
+    # time it runs, so the interval is also how much log is kept; upstream's
+    # ten minutes is what the image is built around.
+    healthCmd = "/scripts/healthcheck.sh";
+    healthInterval = "600s";
+    healthStartPeriod = "600s";
+    healthOnFailure = "restart";
+
     tmpfses = ["/var/log:size=32M"];
   };
 

@@ -26,6 +26,14 @@ in {
 
     environmentFiles = [envFile];
 
+    # The image's own check, reported but never acted on. As well as the
+    # connection to FlightAware it counts messages sent in the last hour and
+    # calls zero a failure, which a quiet sky produces on its own, so a restart
+    # on failure would fire on nothing being overhead.
+    healthCmd = "/scripts/healthcheck.sh";
+    healthInterval = "600s";
+    healthStartPeriod = "7200s";
+
     tmpfses = [
       "/run:exec,size=64M"
       "/var/log:size=32M"

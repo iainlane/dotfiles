@@ -21,6 +21,8 @@
 
   volumePrefix = "adsb-${hostConfig.hostname}";
   feederName = hostConfig.hostname;
+
+  healthCheck = "curl -fsS --max-time 5 http://localhost/data/aircraft.json | jq -e '(now - .now) < 30'";
 in {
   autoStart = true;
 
@@ -34,6 +36,28 @@ in {
     # carries no cgroup device permission, so opening the node is denied until
     # the whole USB major is allowed.
     podmanArgs = ["--device-cgroup-rule=c 189:* rwm"];
+
+    # readsb rewrites aircraft.json every second or so from whatever the SDR
+    # is hearing, and writes it even when the sky is empty, so its age is a
+    # reading of the whole chain: dongle open, decoding, web server serving.
+    # Reported through `notify`, the unit becomes active once that is true,
+    # and the relaying feeders wait for it.
+    healthCmd = healthCheck;
+    healthInterval = "30s";
+    healthTimeout = "10s";
+    healthRetries = 3;
+
+    # Claiming the dongle and serving the first file takes about a second, so
+    # the startup check polls quickly and hands over to the interval above on
+    # its first success. The retry count allows a minute, for a boot where USB
+    # enumeration is slower than a restart.
+    healthStartupCmd = healthCheck;
+    healthStartupInterval = "2s";
+    healthStartupTimeout = "10s";
+    healthStartupRetries = 30;
+    healthStartupSuccess = 1;
+
+    notify = "healthy";
 
     environments = {
       LOGLEVEL = "error";
