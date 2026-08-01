@@ -34,10 +34,15 @@
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
+      # tar1090 is the only part of the feeder worth reaching from outside, so
+      # it is the only container offered to the proxy. The host decides the
+      # public name and whether to require sign-in; the port tar1090 listens on
+      # is ours to know.
       ultrafeederContainer = import ./ultrafeeder-container.nix {
         inherit hostConfig lib network pkgs;
         envFile = ultrafeederEnvFile;
       };
+      exposeUltrafeeder = cfg.expose != null && config.services.edge-proxy.enable;
       piawareContainer = import ./piaware-container.nix {
         inherit network ultrafeederService;
         envFile = feederEnvFile;
@@ -94,7 +99,10 @@
             networks.adsbnet = {};
 
             containers = {
-              ${ultrafeederName} = ultrafeederContainer;
+              ${ultrafeederName} =
+                if exposeUltrafeeder
+                then config.services.edge-proxy.exposePodman ultrafeederContainer (cfg.expose // {port = 80;})
+                else ultrafeederContainer;
               piaware = piawareContainer;
               fr24 = fr24Container;
               planewatch = planewatchContainer;

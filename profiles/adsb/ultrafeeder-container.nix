@@ -7,7 +7,6 @@
 }: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
   image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
-  httpPort = 8082;
   rtlSerial = "00000001";
   timezone = "UTC";
 
@@ -29,7 +28,6 @@ in {
   containerConfig = {
     inherit image;
     networks = [network];
-    publishPorts = ["${toString httpPort}:80"];
 
     # The USB bus is bind-mounted so the container keeps seeing the SDR across
     # re-enumeration, which moves its bus and device numbers. A bind mount

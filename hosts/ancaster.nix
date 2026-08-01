@@ -12,6 +12,12 @@ in {
     {
       adsb = {
         secretsFile = "adsb.yaml";
+        expose = {
+          domain = "adsb.orangesquash.org.uk";
+          # Served to anyone until the sign-on service has an identity
+          # provider behind it.
+          auth = false;
+        };
       };
     }
     "base"
