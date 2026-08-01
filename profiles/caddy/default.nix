@@ -129,7 +129,7 @@
         headers.request.set = {
           "X-Forwarded-Method" = ["{http.request.method}"];
           "X-Forwarded-Uri" = ["{http.request.uri}"];
-          "X-Real-Ip" = ["{http.request.remote.host}"];
+          "X-Real-Ip" = ["{http.vars.client_ip}"];
         };
 
         handle_response = [
@@ -183,7 +183,7 @@
               {
                 handle = [
                   (lib.recursiveUpdate (proxyTo authUpstream) {
-                    headers.request.set."X-Real-Ip" = ["{http.request.remote.host}"];
+                    headers.request.set."X-Real-Ip" = ["{http.vars.client_ip}"];
                   })
                 ];
               }
@@ -234,6 +234,21 @@
             tls_connection_policies =
               lib.optional (cfg.originAuth.directSources != []) directPolicy
               ++ [originPolicy];
+
+            # Caddy turns this on by itself once a client certificate is asked
+            # for, and says so in a warning. Setting it is the same thing said
+            # out loud.
+            strict_sni_host = true;
+
+            # Which visitor a request came from is taken from the header
+            # Cloudflare sets. Every source is believed, because the policies
+            # above already decide who may connect: a peer either proved it was
+            # Cloudflare or came from `directSources`.
+            trusted_proxies = {
+              source = "static";
+              ranges = ["0.0.0.0/0" "::/0"];
+            };
+            client_ip_headers = ["Cf-Connecting-Ip"];
           };
 
         # Let's Encrypt, falling back to ZeroSSL where it will not issue.
