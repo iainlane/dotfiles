@@ -110,12 +110,6 @@
       description = "Name of the Caddy podman container.";
     };
 
-    extraConfig = lib.mkOption {
-      type = lib.types.lines;
-      default = "";
-      description = "Caddyfile directives appended after the generated site blocks.";
-    };
-
     auth = {
       enable = lib.mkEnableOption ''
         single sign-on for sites that ask for it, provided by one oauth2-proxy

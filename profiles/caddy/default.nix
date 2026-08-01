@@ -44,10 +44,10 @@
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
       authSecretsFile = inputs.secrets + "/${cfg.auth.secretsFile}";
 
-      caddyfilePath = "/etc/caddy/Caddyfile";
+      configPath = "/etc/caddy/config.json";
 
-      # The token reaches Caddy as an environment variable, so `acme_dns` names
-      # it by reference and the value stays in a mode-restricted file.
+      # The token reaches Caddy as an environment variable, so the DNS provider
+      # names it by reference and the value stays in a mode-restricted file.
       tokenEnvVar = "CF_API_TOKEN";
 
       authUpstream = "${cfg.auth.containerName}:${toString cfg.auth.port}";
@@ -71,57 +71,153 @@
         (_: container: (container.containerConfig.labels or {}) ? "edge-proxy.domain")
         config.virtualisation.quadlet.containers;
 
-      siteBlock = name: container: let
+      proxyTo = upstream: {
+        handler = "reverse_proxy";
+        upstreams = [{dial = upstream;}];
+      };
+
+      # Identity of the signed-in visitor, carried from the sign-in service's
+      # answer onto the request that goes on to the service. Each header is
+      # dropped first, so one supplied by the visitor cannot survive, and set
+      # again only when the answer actually carried it.
+      identityHeaders = [
+        "X-Auth-Request-User"
+        "X-Auth-Request-Email"
+        "X-Auth-Request-Preferred-Username"
+        "X-Auth-Request-Groups"
+      ];
+
+      copyIdentityHeader = header: let
+        answered = "{http.reverse_proxy.header.${header}}";
+      in [
+        {
+          handle = [
+            {
+              handler = "headers";
+              request.delete = [header];
+            }
+          ];
+        }
+
+        {
+          match = [{not = [{vars.${answered} = [""];}];}];
+          handle = [
+            {
+              handler = "headers";
+              request.set.${header} = [answered];
+            }
+          ];
+        }
+      ];
+
+      # Asks the sign-in service whether it knows the visitor, before the
+      # request reaches the service behind it. One sign-in service serves every
+      # protected site, so the identity provider needs only one callback
+      # address however many sites there are.
+      authGate = {
+        handler = "reverse_proxy";
+        upstreams = [{dial = authUpstream;}];
+
+        # The question is asked of a fixed path, whatever was originally
+        # requested; the original method and path travel as headers.
+        rewrite = {
+          method = "GET";
+          uri = "/oauth2/auth";
+        };
+
+        headers.request.set = {
+          "X-Forwarded-Method" = ["{http.request.method}"];
+          "X-Forwarded-Uri" = ["{http.request.uri}"];
+          "X-Real-Ip" = ["{http.request.remote.host}"];
+        };
+
+        handle_response = [
+          {
+            match.status_code = [2];
+            routes = lib.concatMap copyIdentityHeader identityHeaders;
+          }
+
+          # An unrecognised visitor is sent to sign in and comes back to where
+          # they started.
+          {
+            match.status_code = [401];
+            routes = [
+              {
+                handle = [
+                  {
+                    handler = "static_response";
+                    status_code = 302;
+                    headers.Location = ["https://${cfg.auth.domain}/oauth2/sign_in?rd={http.request.scheme}://{http.request.host}{http.request.uri}"];
+                  }
+                ];
+              }
+            ];
+          }
+        ];
+      };
+
+      siteRoute = name: container: let
         inherit (container.containerConfig) labels;
         authenticated = labels."edge-proxy.auth" == "true";
-      in ''
-        ${labels."edge-proxy.domain"} {
-        ${lib.optionalString authenticated "  import protected"}
-          reverse_proxy ${name}:${labels."edge-proxy.port"}
-        }
-      '';
-
-      # One sign-in service for every protected site, so the identity provider
-      # only ever needs the one callback address. An unauthenticated visitor is
-      # sent there and comes back to where they started.
-      authSnippet = ''
-        (protected) {
-          forward_auth ${authUpstream} {
-            uri /oauth2/auth
-
-            # forward_auth sets the X-Forwarded-* headers itself, but not
-            # X-Real-IP, which oauth2-proxy also expects.
-            header_up X-Real-IP {remote_host}
-
-            # Identity of the signed-in visitor, moved from the auth response
-            # onto the request that carries on to the service. Only copied when
-            # the check succeeded.
-            copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Preferred-Username X-Auth-Request-Groups
-
-            @unauthorized status 401
-            handle_response @unauthorized {
-              redir * https://${cfg.auth.domain}/oauth2/sign_in?rd={scheme}://{host}{uri}
-            }
+      in {
+        match = [{host = [labels."edge-proxy.domain"];}];
+        terminal = true;
+        handle = [
+          {
+            handler = "subroute";
+            routes =
+              lib.optional authenticated {handle = [authGate];}
+              ++ [{handle = [(proxyTo "${name}:${labels."edge-proxy.port"}")];}];
           }
-        }
+        ];
+      };
 
-        ${cfg.auth.domain} {
-          reverse_proxy ${authUpstream} {
-            header_up X-Real-IP {remote_host}
+      authSiteRoute = {
+        match = [{host = [cfg.auth.domain];}];
+        terminal = true;
+        handle = [
+          {
+            handler = "subroute";
+            routes = [
+              {
+                handle = [
+                  (lib.recursiveUpdate (proxyTo authUpstream) {
+                    headers.request.set."X-Real-Ip" = ["{http.request.remote.host}"];
+                  })
+                ];
+              }
+            ];
           }
-        }
-      '';
+        ];
+      };
 
-      caddyfile = ''
+      acmeIssuer = ca:
         {
-          email ${cfg.email}
-          acme_dns cloudflare {env.${tokenEnvVar}}
+          module = "acme";
+          inherit (cfg) email;
+          challenges.dns.provider = {
+            name = "cloudflare";
+            api_token = "{env.${tokenEnvVar}}";
+          };
         }
+        // lib.optionalAttrs (ca != null) {inherit ca;};
 
-        ${lib.optionalString cfg.auth.enable authSnippet}
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList siteBlock exposed)}
-        ${cfg.extraConfig}
-      '';
+      caddyConfig.apps = {
+        http.servers.edge = {
+          listen = [":443"];
+
+          routes =
+            lib.optional cfg.auth.enable authSiteRoute
+            ++ lib.mapAttrsToList siteRoute exposed;
+        };
+
+        # Let's Encrypt, falling back to ZeroSSL where it will not issue.
+        tls.automation.policies = [
+          {issuers = [(acmeIssuer null) (acmeIssuer "https://acme.zerossl.com/v2/DV90")];}
+        ];
+      };
+
+      configFile = pkgs.writeText "caddy-config.json" (builtins.toJSON caddyConfig);
     in {
       imports = [./options.nix];
 
@@ -158,10 +254,6 @@
                 "caddy.env".content = ''
                   ${tokenEnvVar}=${config.sops.placeholder.${cfg.dnsTokenKey}}
                 '';
-
-                # The Caddyfile carries no secrets of its own, but is rendered
-                # here alongside them so the proxy has a single config source.
-                "Caddyfile".content = caddyfile;
               }
               // lib.optionalAttrs cfg.auth.enable {
                 "oauth2-proxy.env".content = ''
@@ -206,7 +298,7 @@
                   image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
                   networks = ["${proxy.network}.network"];
                   ip6 = cfg.ipv6Address;
-                  exec = "run --config ${caddyfilePath} --adapter caddyfile";
+                  exec = "run --config ${configPath}";
                   entrypoint = "${caddyPackage}/bin/caddy";
 
                   # IPv6 reaches the address above directly. IPv4 is a single
@@ -219,10 +311,13 @@
                     "${cfg.ipv4Address}:443:443/udp"
                   ];
 
+                  # The config carries no secrets, so it is mounted from the
+                  # store. Naming the store path in the quadlet means a changed
+                  # config changes the unit that mounts it.
                   volumes = [
                     "caddy-data:/data"
                     "caddy-config:/config"
-                    "${config.sops.templates."Caddyfile".path}:${caddyfilePath}:ro"
+                    "${configFile}:${configPath}:ro"
                   ];
 
                   environmentFiles = [config.sops.templates."caddy.env".path];
