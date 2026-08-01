@@ -209,6 +209,11 @@
           routes =
             lib.optional cfg.auth.enable authSiteRoute
             ++ lib.mapAttrsToList siteRoute exposed;
+
+          # An empty object turns on access logging under the default logger,
+          # which the unit collects into the journal. Caddy otherwise records
+          # errors alone, and a request it served leaves no trace.
+          logs = {};
         };
 
         # Let's Encrypt, falling back to ZeroSSL where it will not issue.
