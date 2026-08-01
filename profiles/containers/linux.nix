@@ -1,6 +1,9 @@
 {
   flake.profiles.containers.os.linux.systemManagerModule = _: {pkgs, ...}: {
-    imports = [./quadlet.nix];
+    imports = [
+      ./edge-proxy.nix
+      ./quadlet.nix
+    ];
 
     config = {
       environment.etc = {
