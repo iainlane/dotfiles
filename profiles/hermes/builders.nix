@@ -37,17 +37,7 @@
   # Nix closure, loaded via a `podman.images` quadlet. There is no host
   # `/nix/store` bind mount; the package lives inside the image at its store
   # path.
-  # No `tag` is given, so buildLayeredImage derives a content-addressed
-  # `imageTag`. Containers reference that tag, so a changed image flips the
-  # tag, which changes the container unit and triggers a restart on deploy.
-  mkNixImage = name: contents:
-    pkgs.dockerTools.buildLayeredImage {
-      inherit name contents;
-      # A generic base image ships /tmp; a layered image does not. signal-cli
-      # (sqlite-jdbc) extracts a native library there at startup, so create a
-      # world-writable /tmp.
-      extraCommands = "mkdir -m 1777 tmp";
-    };
+  inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
   # A fixed in-container service user. The host user is mapped onto this uid
   # via `keep-id:uid=…`, so the container runs as `hermes` (non-root) while
   # still owning the host-side state. `fakeNss` already provides root and
