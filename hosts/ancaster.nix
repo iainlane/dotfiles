@@ -149,5 +149,31 @@ in {
     }
     "nixbuild-substituter"
     "unifi"
+    {
+      caddy = {
+        # The spare address routed here, not the one the LAN answers on.
+        ipv4Address = "81.187.184.100";
+        # Delegated from the /64 routed to this host, so the proxy is reached
+        # over IPv6 without publishing or translation.
+        network.v6 = {
+          subnet = "2001:8b0:df29:1a0:c::/80";
+          # Named at the far end of the range, leaving the low addresses for
+          # the services. Left unset, the bridge would take `::1`.
+          gateway = "2001:8b0:df29:1a0:c::ffff";
+        };
+        ipv6Address = "2001:8b0:df29:1a0:c::1";
+        email = "iain@orangesquash.org.uk";
+        secretsFile = "ancaster/host-caddy.yaml";
+        auth = {
+          # Waiting on a GitHub OAuth application and its secrets. The
+          # settings below are what it will use.
+          enable = false;
+          domain = "auth.orangesquash.org.uk";
+          cookieDomain = ".orangesquash.org.uk";
+          secretsFile = "ancaster/host-oauth2-proxy.yaml";
+          githubUsers = ["iainlane"];
+        };
+      };
+    }
   ];
 }
