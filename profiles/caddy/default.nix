@@ -45,6 +45,7 @@
       authSecretsFile = inputs.secrets + "/${cfg.auth.secretsFile}";
 
       configPath = "/etc/caddy/config.json";
+      originPullCaPath = "/etc/caddy/origin-pull-ca.pem";
 
       # The token reaches Caddy as an environment variable, so the DNS provider
       # names it by reference and the value stays in a mode-restricted file.
@@ -202,19 +203,38 @@
         }
         // lib.optionalAttrs (ca != null) {inherit ca;};
 
-      caddyConfig.apps = {
-        http.servers.edge = {
-          listen = [":443"];
+      # Connections from these addresses are served without being asked for a
+      # certificate. Policies are tried in order, so this one has to come first
+      # for those addresses to reach the host at all.
+      directPolicy = {match.remote_ip.ranges = cfg.originAuth.directSources;};
 
-          routes =
-            lib.optional cfg.auth.enable authSiteRoute
-            ++ lib.mapAttrsToList siteRoute exposed;
-
-          # An empty object turns on access logging under the default logger,
-          # which the unit collects into the journal. Caddy otherwise records
-          # errors alone, and a request it served leaves no trace.
-          logs = {};
+      originPolicy.client_authentication = {
+        mode = "require_and_verify";
+        ca = {
+          provider = "file";
+          pem_files = [originPullCaPath];
         };
+      };
+
+      caddyConfig.apps = {
+        http.servers.edge =
+          {
+            listen = [":443"];
+
+            routes =
+              lib.optional cfg.auth.enable authSiteRoute
+              ++ lib.mapAttrsToList siteRoute exposed;
+
+            # An empty object turns on access logging under the default
+            # logger, which the unit collects into the journal. Without it
+            # Caddy records errors alone, and a served request leaves no trace.
+            logs = {};
+          }
+          // lib.optionalAttrs cfg.originAuth.enable {
+            tls_connection_policies =
+              lib.optional (cfg.originAuth.directSources != []) directPolicy
+              ++ [originPolicy];
+          };
 
         # Let's Encrypt, falling back to ZeroSSL where it will not issue.
         tls.automation.policies = [
@@ -319,11 +339,13 @@
                   # The config carries no secrets, so it is mounted from the
                   # store. Naming the store path in the quadlet means a changed
                   # config changes the unit that mounts it.
-                  volumes = [
-                    "caddy-data:/data"
-                    "caddy-config:/config"
-                    "${configFile}:${configPath}:ro"
-                  ];
+                  volumes =
+                    [
+                      "caddy-data:/data"
+                      "caddy-config:/config"
+                      "${configFile}:${configPath}:ro"
+                    ]
+                    ++ lib.optional cfg.originAuth.enable "${cfg.originAuth.caFile}:${originPullCaPath}:ro";
 
                   environmentFiles = [config.sops.templates."caddy.env".path];
                   environments.XDG_DATA_HOME = "/data";

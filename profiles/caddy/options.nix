@@ -110,6 +110,37 @@
       description = "Name of the Caddy podman container.";
     };
 
+    originAuth = {
+      enable = lib.mkEnableOption ''
+        refusing connections that did not arrive through the content delivery
+        network in front of this host. The network holds a client certificate
+        and presents it when connecting, so someone who has found the host's
+        own address cannot reach the services behind it directly
+      '';
+
+      caFile = lib.mkOption {
+        type = lib.types.path;
+        default = ./cloudflare-origin-pull-ca.pem;
+        description = ''
+          Authority the client certificate must be signed by. Defaults to a
+          copy of Cloudflare's origin pull authority, published at
+          <https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem>
+          and replaced when Cloudflare rotates it.
+        '';
+      };
+
+      directSources = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        example = ["192.168.1.0/24" "2001:db8::/48"];
+        description = ''
+          Addresses served without being asked for a certificate. Clients on
+          these networks reach the host directly, so they hold no certificate
+          and would otherwise be refused along with everyone else.
+        '';
+      };
+    };
+
     auth = {
       enable = lib.mkEnableOption ''
         single sign-on for sites that ask for it, provided by one oauth2-proxy

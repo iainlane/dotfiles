@@ -170,6 +170,16 @@ in {
         ipv6Address = "2001:8b0:df29:1a0:c::1";
         email = "iain@orangesquash.org.uk";
         secretsFile = "ancaster/host-caddy.yaml";
+        originAuth = {
+          enable = true;
+          # The LAN and the IoT VLAN reach these addresses directly, so they
+          # hold no certificate from Cloudflare to present.
+          directSources = [
+            "192.168.1.0/24"
+            "192.168.2.0/24"
+            "2001:8b0:df29::/48"
+          ];
+        };
         auth = {
           # Waiting on a GitHub OAuth application and its secrets. The
           # settings below are what it will use.
