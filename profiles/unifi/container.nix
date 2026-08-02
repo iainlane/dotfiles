@@ -1,26 +1,12 @@
 {
-  hostConfig,
-  pkgs,
   cfg,
-  imagePath,
-  imageRef,
-  serverVersion,
+  image,
+  network,
+  uuidBuilder,
 }: let
-  volumePrefix = "unifi-${hostConfig.hostname}";
-  runtimeEnvFile = "%t/unifi/runtime.env";
-
-  loadImageScript = pkgs.writeShellApplication {
-    name = "unifi-load-image";
-    runtimeInputs = with pkgs; [
-      coreutils
-      gnugrep
-      gnutar
-      jq
-      podman
-      util-linux
-    ];
-    text = builtins.readFile ./load-image.sh;
-  };
+  volumePrefix = "unifi";
+  runtimeDirectory = "unifi";
+  runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
 
   defaultPorts = [
     "${toString cfg.webPort}:443"
@@ -41,59 +27,51 @@
   ];
 in {
   autoStart = true;
-  description = "UniFi OS Server";
-  image = imageRef;
 
-  ports = defaultPorts ++ cfg.extraPorts;
+  containerConfig = {
+    inherit image;
+    networks = [network];
+    publishPorts = defaultPorts ++ cfg.extraPorts;
 
-  environment = {
-    APP_MODEL = "UOSSERVER";
-    APP_VERSION = serverVersion;
-    PRODUCT_NAME = "uosserver";
-    FIRMWARE_PLATFORM =
-      if pkgs.stdenv.hostPlatform.isAarch64
-      then "linux-arm64"
-      else "linux-x64";
+    # UniFi OS runs its own init, which wants to manage more processes than
+    # podman's default allows, and raw sockets for device discovery.
+    pidsLimit = 65536;
+    addCapabilities = ["NET_RAW" "NET_ADMIN"];
+    podmanArgs = ["--systemd=always"];
+
+    healthCmd = "curl --fail http://127.0.0.1/api/ping || exit 1";
+    healthInterval = "60s";
+    healthTimeout = "5s";
+    healthRetries = 3;
+
+    environments = {
+      APP_MODEL = "UOSSERVER";
+      APP_VERSION = cfg.serverVersion;
+      PRODUCT_NAME = "uosserver";
+      FIRMWARE_PLATFORM = cfg.firmwarePlatform;
+    };
+
+    environmentFiles = [runtimeEnvFile];
+
+    volumes = [
+      "${volumePrefix}-persistent:/persistent"
+      "${volumePrefix}-var-log:/var/log"
+      "${volumePrefix}-data:/data"
+      "${volumePrefix}-srv:/srv"
+      "${volumePrefix}-var-lib-unifi:/var/lib/unifi"
+      "${volumePrefix}-var-lib-mongodb:/var/lib/mongodb"
+      "${volumePrefix}-etc-rabbitmq-ssl:/etc/rabbitmq/ssl"
+    ];
   };
 
-  volumes = [
-    "${volumePrefix}-persistent:/persistent"
-    "${volumePrefix}-var-log:/var/log"
-    "${volumePrefix}-data:/data"
-    "${volumePrefix}-srv:/srv"
-    "${volumePrefix}-var-lib-unifi:/var/lib/unifi"
-    "${volumePrefix}-var-lib-mongodb:/var/lib/mongodb"
-    "${volumePrefix}-etc-rabbitmq-ssl:/etc/rabbitmq/ssl"
-  ];
+  unitConfig = {
+    Description = "UniFi OS Server";
+    After = ["network-online.target"];
+    Wants = ["network-online.target"];
+  };
 
-  extraConfig = {
-    Container = {
-      PidsLimit = "65536";
-      AddCapability = "NET_RAW NET_ADMIN";
-      PodmanArgs = "--systemd=always";
-      HealthCmd = "curl --fail http://127.0.0.1/api/ping || exit 1";
-      HealthInterval = "60s";
-      HealthTimeout = "5s";
-      HealthRetries = "3";
-      Network = "pasta:--ns-ifname,eth0,--map-host-loopback,203.0.113.113,--dns-forward,203.0.113.113";
-      DNS = "203.0.113.113";
-      AddHost = [
-        "host.docker.internal:203.0.113.113"
-        "host.containers.internal:203.0.113.113"
-      ];
-      EnvironmentFile = [runtimeEnvFile];
-    };
-    Unit = {
-      After = ["network-online.target"];
-      Wants = ["network-online.target"];
-    };
-    Service = {
-      ExecStartPre = [
-        "${loadImageScript}/bin/unifi-load-image ${imageRef} ${imagePath}/image.tar"
-      ];
-      Environment = [
-        "PATH=/usr/local/libexec/podman:/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin:/bin"
-      ];
-    };
+  serviceConfig = {
+    RuntimeDirectory = runtimeDirectory;
+    ExecStartPre = ["${uuidBuilder}"];
   };
 }
