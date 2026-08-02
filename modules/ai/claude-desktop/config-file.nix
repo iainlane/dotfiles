@@ -9,9 +9,22 @@
 }: let
   mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
 
-  servers =
+  # Claude Desktop loads remote connectors from its account settings. Servers
+  # managed through claude_desktop_config.json use its stdio interface.
+  mkMcpServer = name: server:
+    if server ? url
+    then
+      mcp.mcpRemote.mkServer {
+        inherit name;
+        inherit (server) url;
+        headers = server.headers or {};
+      }
+    else server;
+
+  servers = lib.mapAttrs mkMcpServer (
     mcp.excludeServers config.dotfiles.claudeDesktop.excludeMcpServers
-    config.dotfiles.ai.mcpServers;
+    config.dotfiles.ai.mcpServers
+  );
 in
   pkgs.writeText "claude_desktop_config.json" (
     builtins.toJSON {

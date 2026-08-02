@@ -1,0 +1,118 @@
+diff --git a/src/lib/node-oauth-client-provider.test.ts b/src/lib/node-oauth-client-provider.test.ts
+index cfa761d..b6d94ae 100644
+--- a/src/lib/node-oauth-client-provider.test.ts
++++ b/src/lib/node-oauth-client-provider.test.ts
+@@ -64,11 +64,11 @@ describe('NodeOAuthClientProvider - OAuth Scope Handling', () => {
+       expect(metadata.scope).toBe('openid email profile read:user')
+     })
+
+-    it('should fallback to default scopes when none provided', () => {
++    it('should omit scope when none is available', () => {
+       provider = new NodeOAuthClientProvider(defaultOptions)
+
+       const metadata = provider.clientMetadata
+-      expect(metadata.scope).toBe('openid email profile')
++      expect(metadata).not.toHaveProperty('scope')
+     })
+   })
+
+@@ -86,13 +86,13 @@ describe('NodeOAuthClientProvider - OAuth Scope Handling', () => {
+       expect(authUrl.searchParams.get('scope')).toBe('github read:user')
+     })
+
+-    it('should include default scope in authorization URL when none specified', async () => {
++    it('should omit scope from the authorization URL when none is available', async () => {
+       provider = new NodeOAuthClientProvider(defaultOptions)
+
+       const authUrl = new URL('https://auth.example.com/authorize')
+       await provider.redirectToAuthorization(authUrl)
+
+-      expect(authUrl.searchParams.get('scope')).toBe('openid email profile')
++      expect(authUrl.searchParams.get('scope')).toBeNull()
+     })
+   })
+
+@@ -134,7 +134,7 @@ describe('NodeOAuthClientProvider - OAuth Scope Handling', () => {
+
+       await provider.invalidateCredentials('client')
+
+-      expect(provider.clientMetadata.scope).toBe('openid email profile')
++      expect(provider.clientMetadata).not.toHaveProperty('scope')
+       expect(mockDeleteConfigFile).toHaveBeenCalledWith('test-hash', 'client_info.json')
+     })
+
+@@ -253,7 +253,7 @@ describe('NodeOAuthClientProvider - OAuth Scope Handling', () => {
+       expect(clientMetadata.scope).toBe('openid email')
+     })
+
+-    it('should treat empty scope string as no scope and use default', () => {
++    it('should treat an empty scope string as no scope', () => {
+       provider = new NodeOAuthClientProvider({
+         ...defaultOptions,
+         staticOAuthClientMetadata: {
+@@ -262,8 +262,7 @@ describe('NodeOAuthClientProvider - OAuth Scope Handling', () => {
+       })
+
+       const clientMetadata = provider.clientMetadata
+-      // Empty scope should fallback to default
+-      expect(clientMetadata.scope).toBe('openid email profile')
++      expect(clientMetadata).not.toHaveProperty('scope')
+     })
+   })
+ })
+diff --git a/src/lib/node-oauth-client-provider.ts b/src/lib/node-oauth-client-provider.ts
+index 5b976ab..3f8c2bc 100644
+--- a/src/lib/node-oauth-client-provider.ts
++++ b/src/lib/node-oauth-client-provider.ts
+@@ -64,5 +64,8 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
+   get clientMetadata() {
+     const effectiveScope = this.getEffectiveScope()
++    const staticOAuthClientMetadata = { ...this.staticOAuthClientMetadata }
++    delete staticOAuthClientMetadata.scope
++
+     return {
+       redirect_uris: [this.redirectUrl],
+       token_endpoint_auth_method: 'none',
+@@ -72,7 +75,7 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
+       software_id: this.softwareId,
+       software_version: this.softwareVersion,
+-      ...this.staticOAuthClientMetadata,
+-      scope: effectiveScope,
++      ...staticOAuthClientMetadata,
++      ...(effectiveScope ? { scope: effectiveScope } : {}),
+     }
+   }
+
+@@ -104,7 +104,7 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
+     }
+   }
+
+-  private getEffectiveScope(): string {
++  private getEffectiveScope(): string | undefined {
+     // Priority 1: User-provided scope from staticOAuthClientMetadata (highest priority)
+     if (this.staticOAuthClientMetadata?.scope && this.staticOAuthClientMetadata.scope.trim().length > 0) {
+       debugLog('Using scope from staticOAuthClientMetadata', { scope: this.staticOAuthClientMetadata.scope })
+@@ -148,9 +148,7 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
+       return scope
+     }
+
+-    // Priority 6: Fallback to hardcoded default
+-    debugLog('Using fallback default scope')
+-    return 'openid email profile'
++    return undefined
+   }
+
+   /**
+@@ -257,8 +255,11 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
+     }
+
+     const effectiveScope = this.getEffectiveScope()
+-    authorizationUrl.searchParams.set('scope', effectiveScope)
+-    debugLog('Added scope parameter to authorization URL', { scopes: effectiveScope })
++
++    if (effectiveScope) {
++      authorizationUrl.searchParams.set('scope', effectiveScope)
++      debugLog('Added scope parameter to authorization URL', { scopes: effectiveScope })
++    }
+
+     log(`\nPlease authorize this client by visiting:\n${authorizationUrl.toString()}\n`)

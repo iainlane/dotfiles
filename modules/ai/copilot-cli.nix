@@ -15,10 +15,22 @@
   mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
 
+  # Copilot requires an explicit transport for remote servers and a tool
+  # selection for every server.
+  mkMcpServer = server:
+    (lib.removeAttrs server ["disabled"])
+    // lib.optionalAttrs (server ? url) {type = "http";}
+    // lib.optionalAttrs (server ? command) {type = "stdio";}
+    // {tools = server.tools or ["*"];};
+
+  enabledMcpServers =
+    lib.filterAttrs (_name: server: !(server.disabled or false))
+    config.dotfiles.ai.mcpServers;
+
   # Copilot CLI reads servers from a JSON file; generate it from the shared set.
   copilotMcpConfig = pkgs.writeText "mcp-config.json" (
     builtins.toJSON {
-      servers = config.dotfiles.ai.mcpServers;
+      servers = lib.mapAttrs (_name: mkMcpServer) enabledMcpServers;
     }
   );
 

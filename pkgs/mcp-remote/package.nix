@@ -23,6 +23,8 @@ in
       hash = "sha256-+oNI2Uq7gW3sLzJS4ky2+BXhTmo44+WpcdYgieGPpmI=";
     };
 
+    patches = [./optional-oauth-scope.patch];
+
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname version src;
       inherit pnpm;
@@ -43,6 +45,16 @@ in
       pnpm build
 
       runHook postBuild
+    '';
+
+    doCheck = true;
+
+    checkPhase = ''
+      runHook preCheck
+
+      pnpm test:unit
+
+      runHook postCheck
     '';
 
     installPhase = ''
