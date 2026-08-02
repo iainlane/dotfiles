@@ -366,10 +366,13 @@
                   environments.XDG_DATA_HOME = "/data";
                 };
 
+                # A protected site is served by asking the sign-in service
+                # about the visitor, so Caddy answers 502 for it whenever that
+                # service is absent.
                 unitConfig = {
                   Description = "Caddy reverse proxy";
-                  After = ["network-online.target" "sops-install-secrets.service"];
-                  Wants = ["network-online.target" "sops-install-secrets.service"];
+                  After = ["network-online.target" "sops-install-secrets.service"] ++ lib.optional cfg.auth.enable "${cfg.auth.containerName}.service";
+                  Wants = ["network-online.target" "sops-install-secrets.service"] ++ lib.optional cfg.auth.enable "${cfg.auth.containerName}.service";
                 };
               };
 
