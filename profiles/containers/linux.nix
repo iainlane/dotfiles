@@ -6,6 +6,8 @@
     ];
 
     config = {
+      virtualisation.podman.enable = true;
+
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
         # container tools check for this to avoid trying to use the Docker socket.
