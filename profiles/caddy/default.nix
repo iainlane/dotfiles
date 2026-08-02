@@ -312,6 +312,9 @@
               gateways =
                 [cfg.network.v4.gateway]
                 ++ lib.optional (cfg.network.v6.gateway != null) cfg.network.v6.gateway;
+              ipRanges =
+                [cfg.network.v4.range]
+                ++ lib.optional (cfg.network.v6.range != null) cfg.network.v6.range;
               ipv6 = cfg.network.v6.subnet != null;
             };
 

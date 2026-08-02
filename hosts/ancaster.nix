@@ -161,6 +161,9 @@ in {
           # Named at the far end of the range, leaving the low addresses for
           # the services. Left unset, the bridge would take `::1`.
           gateway = "2001:8b0:df29:1a0:c::ffff";
+          # Keeps the low addresses free for the services given a fixed one,
+          # `ipv6Address` below among them.
+          range = "2001:8b0:df29:1a0:c::100/120";
         };
         ipv6Address = "2001:8b0:df29:1a0:c::1";
         email = "iain@orangesquash.org.uk";

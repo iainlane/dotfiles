@@ -13,8 +13,8 @@
       '';
     };
 
-    # Quadlet pairs `Gateway=` entries with `Subnet=` entries by position, so
-    # each family's subnet and its gateway are set together.
+    # Quadlet pairs `Gateway=` and `IPRange=` entries with `Subnet=` entries by
+    # position, so each family's settings are given together.
     network = {
       v4 = {
         subnet = lib.mkOption {
@@ -32,6 +32,17 @@
           type = lib.types.str;
           default = "10.90.0.1";
           description = "Address within `subnet` given to the bridge itself.";
+        };
+
+        range = lib.mkOption {
+          type = lib.types.str;
+          default = "10.90.0.128/25";
+          description = ''
+            Part of `subnet` podman allocates from when a container asks for no
+            particular address. Addresses outside it stay free for the services
+            that are given a fixed one, which would otherwise be handed to
+            whichever container started first.
+          '';
         };
       };
 
@@ -56,6 +67,17 @@
           default = null;
           example = "2001:db8:0:0:c::1";
           description = "Address within `subnet` given to the bridge itself.";
+        };
+
+        range = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "2001:db8:0:0:c::100/120";
+          description = ''
+            Part of `subnet` podman allocates from when a container asks for no
+            particular address. Addresses outside it stay free for the services
+            that are given a fixed one, `ipv6Address` among them.
+          '';
         };
       };
     };
