@@ -12,12 +12,7 @@ in {
     {
       adsb = {
         secretsFile = "adsb.yaml";
-        expose = {
-          domain = "adsb.orangesquash.org.uk";
-          # Served to anyone until the sign-on service has an identity
-          # provider behind it.
-          auth = false;
-        };
+        expose.domain = "adsb.orangesquash.org.uk";
       };
     }
     "base"
@@ -181,9 +176,7 @@ in {
           ];
         };
         auth = {
-          # Waiting on a GitHub OAuth application and its secrets. The
-          # settings below are what it will use.
-          enable = false;
+          enable = true;
           domain = "auth.orangesquash.org.uk";
           cookieDomain = ".orangesquash.org.uk";
           secretsFile = "ancaster/host-oauth2-proxy.yaml";

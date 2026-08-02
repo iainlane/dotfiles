@@ -1424,11 +1424,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1785603330,
-        "narHash": "sha256-njisyHliKy7yi929x3WyV2ZDf42cV0m0KySPjtvGPrs=",
+        "lastModified": 1785658661,
+        "narHash": "sha256-HLDMbZ5PSlT/55d32DAkyi1FQkx7bHURqeKAvR9NwaM=",
         "ref": "refs/heads/main",
-        "rev": "8974caa4f6aa098dc5b9c307099a55aa02a0c8eb",
-        "revCount": 41,
+        "rev": "29ffdbffece4e9f5736d3edc21e96d1171ec74ec",
+        "revCount": 42,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },
