@@ -18,22 +18,7 @@
         the feeder keeps to its own network, where only the containers sharing
         it can reach the map.
       '';
-      type = lib.types.nullOr (lib.types.submodule {
-        options = {
-          domain = lib.mkOption {
-            type = lib.types.str;
-            description = "Public host name the map answers to.";
-          };
-
-          auth = lib.mkOption {
-            type = lib.types.bool;
-            default = true;
-            description = ''
-              Require the proxy's single sign-on before serving the map.
-            '';
-          };
-        };
-      });
+      type = lib.types.nullOr (lib.types.submodule ../../lib/exposed-service.nix);
     };
   };
 }

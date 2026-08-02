@@ -49,14 +49,16 @@ in {
         `exposePodman container { domain, port, auth }`. Returns the definition
         with the shared network added and the proxy's labels set; everything
         else about the container is left alone.
+
+        `domain` and `auth` are the host's to set, and a service takes them
+        through `lib/exposed-service.nix`; `port` is the service's own.
       '';
     };
   };
 
   config.services.edge-proxy = {
     exposePodman = container: settings: let
-      inherit (settings) domain port;
-      auth = settings.auth or false;
+      inherit (settings) domain port auth;
       containerConfig = container.containerConfig or {};
     in
       container
