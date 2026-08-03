@@ -95,6 +95,9 @@ in {
 
         tldr
 
+        # Keep uv handy for ad-hoc Python tooling.
+        uv
+
         zizmor
       ];
 

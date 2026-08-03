@@ -18,9 +18,6 @@ _: {
     home.packages = with pkgs; [
       spotify
       telegram-desktop
-
-      # Keep uv handy for ad-hoc Python tooling.
-      uv
     ];
 
     programs.vscode = {
