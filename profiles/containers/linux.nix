@@ -6,7 +6,19 @@
     ];
 
     config = {
-      virtualisation.podman.enable = true;
+      virtualisation.podman = {
+        enable = true;
+
+        # Every build tags its image with the store hash, so an image that a
+        # newer build has superseded keeps its tag and stays out of reach of a
+        # plain prune. `--all` collects those, and the age floor leaves images
+        # belonging to units that have not started yet.
+        autoPrune = {
+          enable = true;
+          dates = "weekly";
+          flags = ["--all" "--filter" "until=168h"];
+        };
+      };
 
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
