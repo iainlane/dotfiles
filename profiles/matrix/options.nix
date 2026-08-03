@@ -87,6 +87,18 @@
       '';
     };
 
+    uid = lib.mkOption {
+      type = lib.types.int;
+      default = 1000;
+      description = "Uid the homeserver runs as inside the container.";
+    };
+
+    gid = lib.mkOption {
+      type = lib.types.int;
+      default = 1000;
+      description = "Gid the homeserver runs as inside the container.";
+    };
+
     package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = null;

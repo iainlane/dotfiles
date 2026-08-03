@@ -32,16 +32,6 @@
       adminConfigPath = "/etc/continuwuity-admin.toml";
       stateVolume = "matrix-state";
 
-      # A fixed in-container service user owning the database. `fakeNss` already
-      # provides root and nobody plus nsswitch.conf; this adds the one line the
-      # homeserver runs as.
-      user = "continuwuity";
-      uid = 1000;
-      nss = pkgs.dockerTools.fakeNss.override {
-        extraPasswdLines = ["${user}:x:${toString uid}:${toString uid}:${user}:${databasePath}:/bin/sh"];
-        extraGroupLines = ["${user}:x:${toString uid}:"];
-      };
-
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
       image = mkNixImage cfg.containerName [
@@ -50,7 +40,7 @@
         pkgs.curl
         pkgs.dockerTools.binSh
         pkgs.dockerTools.caCertificates
-        nss
+        pkgs.dockerTools.fakeNss
       ];
 
       configFile = (pkgs.formats.toml {}).generate "continuwuity.toml" {
@@ -98,10 +88,9 @@
           )
           cfg.provisionUsers
         );
-      adminExecuteToml = "[" + lib.concatMapStringsSep ", " (command: ''"${command}"'') adminCommands + "]";
 
       matrixContainer = import ./container.nix {
-        inherit adminConfigPath configFile configPath databasePath cfg pkgs package stateVolume user;
+        inherit adminConfigPath configFile configPath databasePath cfg pkgs package stateVolume;
         adminConfigFile = config.sops.templates."continuwuity-admin.toml".path;
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
         networks = [config.virtualisation.quadlet.networks.matrixnet.ref];
@@ -128,11 +117,13 @@
             # A config overlay carrying the secret-bearing settings. Living in a
             # mode-restricted file keeps the passwords out of the world-readable
             # store and out of process arguments.
-            templates."continuwuity-admin.toml".content = ''
-              [global]
-              registration_token = "${config.sops.placeholder.matrix_registration_token}"
-              admin_execute = ${adminExecuteToml}
-            '';
+            templates."continuwuity-admin.toml" = {
+              content = ''
+                [global]
+                registration_token = ${builtins.toJSON config.sops.placeholder.matrix_registration_token}
+                admin_execute = ${builtins.toJSON adminCommands}
+              '';
+            };
           };
 
           virtualisation.quadlet = {
