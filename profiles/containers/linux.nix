@@ -1,11 +1,82 @@
 {
-  flake.profiles.containers.os.linux.systemManagerModule = _: {pkgs, ...}: {
+  flake.profiles.containers.os.linux.systemManagerModule = _: {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
+    cfg = config.virtualisation.containers.subordinatePool;
+
+    userRanges =
+      lib.concatMap (
+        user:
+          map (range: {
+            inherit (user) name;
+            inherit (range) count;
+            start = range.startUid;
+          })
+          user.subUidRanges
+          ++ map (range: {
+            inherit (user) name;
+            inherit (range) count;
+            start = range.startGid;
+          })
+          user.subGidRanges
+      )
+      (lib.attrValues config.users.users);
+
+    overlappingRanges =
+      lib.filter
+      (range: range.start < cfg.start + cfg.count && cfg.start < range.start + range.count)
+      userRanges;
+
+    subordinateFile = startField: rangesField:
+      lib.concatLines (
+        lib.concatMap (
+          user:
+            map (range: "${user.name}:${toString range.${startField}}:${toString range.count}")
+            user.${rangesField}
+        )
+        (lib.attrValues config.users.users)
+        ++ ["containers:${toString cfg.start}:${toString cfg.count}"]
+      );
+  in {
     imports = [
       ./edge-proxy.nix
       ./quadlet.nix
     ];
 
+    options.virtualisation.containers.subordinatePool = {
+      start = lib.mkOption {
+        type = lib.types.int;
+        default = 1000000;
+        description = ''
+          First host id of the pool podman draws per-container user namespace
+          ranges from, written to /etc/subuid and /etc/subgid as the
+          `containers` entry that `--userns=auto` requires.
+        '';
+      };
+
+      count = lib.mkOption {
+        type = lib.types.int;
+        default = 65536000;
+        description = "Size of that pool, in ids.";
+      };
+    };
+
     config = {
+      assertions = [
+        {
+          assertion = overlappingRanges == [];
+          message = ''
+            virtualisation.containers.subordinatePool covers ${toString cfg.start}
+            to ${toString (cfg.start + cfg.count - 1)}, which podman hands out to
+            containers. It overlaps subordinate ranges belonging to:
+            ${lib.concatMapStringsSep ", " (range: "${range.name} (${toString range.start}+${toString range.count})") overlappingRanges}.
+          '';
+        }
+      ];
+
       virtualisation.podman = {
         enable = true;
 
@@ -24,6 +95,9 @@
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
         # container tools check for this to avoid trying to use the Docker socket.
         "containers/nodocker".text = "";
+
+        "subuid".text = subordinateFile "startUid" "subUidRanges";
+        "subgid".text = subordinateFile "startGid" "subGidRanges";
       };
 
       # Rootless podman needs newuidmap/newgidmap with setuid privileges.
