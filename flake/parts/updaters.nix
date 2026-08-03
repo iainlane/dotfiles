@@ -20,6 +20,7 @@
   # Flake inputs pinned to an immutable release tag, each bumped by a generated
   # updater named `update-<input>`.
   flakeInputs = {
+    gh-stack-skill.repo = "github/gh-stack";
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
 

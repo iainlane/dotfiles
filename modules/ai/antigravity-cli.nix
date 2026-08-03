@@ -21,7 +21,7 @@
 }: let
   mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
-  skills = import ./skills.nix {inherit lib;};
+  skills = import ./skills.nix {inherit inputs lib;};
 
   # Wrap Antigravity CLI to add shared tools to PATH
   wrappedAntigravity = mcp.wrapWithTools {

@@ -561,6 +561,23 @@
         "type": "github"
       }
     },
+    "gh-stack-skill": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785346327,
+        "narHash": "sha256-48JkOeqbvHlCZ2u3LnwJymw55xMQWLTPJLDbV44clGI=",
+        "owner": "github",
+        "repo": "gh-stack",
+        "rev": "a1b4a3d4d0bcde9ec3a78ab99b2d63af121857a9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "github",
+        "ref": "v0.1.0",
+        "repo": "gh-stack",
+        "type": "github"
+      }
+    },
     "git-hooks-nix": {
       "inputs": {
         "flake-compat": "flake-compat_2",
@@ -1175,11 +1192,11 @@
     },
     "nixpkgs_5": {
       "locked": {
-        "lastModified": 1785301185,
-        "narHash": "sha256-eoS3KQTO0aPWXZvIaRbRAzSSHW3l5wdMFXtT1ISfoKA=",
+        "lastModified": 1785715447,
+        "narHash": "sha256-4K0IGmbAOJnd/Hx2+CNEvx3ECrtYnsoaf4grI6gvZ/Q=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "9bc02893134c733dd85de46ee4fb2fac696b5529",
+        "rev": "243895692ae2a2fbd08a05141462c0cc0d3ca10f",
         "type": "github"
       },
       "original": {
@@ -1340,6 +1357,7 @@
         "disko": "disko",
         "fenix": "fenix_2",
         "flake-parts": "flake-parts_2",
+        "gh-stack-skill": "gh-stack-skill",
         "git-hooks-nix": "git-hooks-nix_2",
         "hermes-agent": "hermes-agent",
         "hermes-lcm": "hermes-lcm",
