@@ -65,11 +65,7 @@ in {
             (["gateway" "run" "--replace"] ++ cfg.extraArgs);
           network =
             lib.toList cfg.container.network
-            ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network"
-            ++ lib.optional cfg.matrix.enable "${cfg.matrix.network}.network";
-          # Start after the homeserver is healthy (it creates the bot account at
-          # startup), so the agent's first Matrix login finds the account there.
-          after = lib.optional cfg.matrix.enable "podman-${cfg.matrix.containerName}.service";
+            ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
           ports = cfg.container.ports;
           service.TimeoutStopSec = 210;
         };

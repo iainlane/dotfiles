@@ -214,17 +214,15 @@
     };
 
     matrix = {
-      enable = lib.mkEnableOption "the Matrix platform, backed by a Continuwuity homeserver sidecar";
+      enable = lib.mkEnableOption "the Matrix platform";
 
       serverName = lib.mkOption {
         type = lib.types.str;
-        example = "matrix.orangesquash.org.uk";
+        example = "example.org";
         description = ''
-          The homeserver's `server_name`: the domain suffix of every user and
-          room ID (`@hermes:<serverName>`). It is baked into all identifiers and
-          cannot be changed once accounts and rooms exist, so choose carefully.
-          It need not be the address clients connect to; with federation off it
-          is purely an identity label.
+          Domain suffix of the bot's user ID (`@<username>:<serverName>`). This
+          is the homeserver's `server_name`, which is its identity and is not
+          necessarily the name it is reached at; `httpUrl` is that.
         '';
       };
 
@@ -298,92 +296,13 @@
         };
       };
 
-      provisionUsers = lib.mkOption {
-        type = lib.types.attrsOf (lib.types.submodule {
-          options = {
-            passwordKey = lib.mkOption {
-              type = lib.types.str;
-              description = ''
-                Key in `secretsFile` holding this account's password. The
-                password must not contain whitespace, `"` or `\` (it travels
-                through a TOML string and a whitespace-split admin command);
-                anything else, such as the output of `openssl rand -base64 24`,
-                is fine.
-              '';
-            };
-
-            admin = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = ''
-                Grant this account server-admin rights, needed to run `!admin`
-                commands (such as creating further users) from a Matrix client.
-              '';
-            };
-          };
-        });
-        default = {};
-        example = lib.literalExpression ''{ iain = { passwordKey = "matrix_iain_password"; admin = true; }; }'';
-        description = ''
-          Extra accounts the homeserver creates at startup via its admin
-          command, keyed by local username (`@<name>:<serverName>`). The bot's
-          own account is always created; these are additional accounts, such as
-          your own. Each `passwordKey` must exist in `secretsFile`.
-        '';
-      };
-
       httpUrl = lib.mkOption {
         type = lib.types.str;
-        default = "http://matrix:6167";
+        example = "https://matrix.example.org";
         description = ''
           URL at which Hermes reaches the homeserver's client-server API. The
-          default resolves the Continuwuity container by name over the shared
-          podman network.
-        '';
-      };
-
-      network = lib.mkOption {
-        type = lib.types.str;
-        default = "matrixnet";
-        description = "Podman network shared between Hermes and the Continuwuity homeserver.";
-      };
-
-      package = lib.mkOption {
-        type = lib.types.nullOr lib.types.package;
-        default = null;
-        description = "Continuwuity package to run. Defaults to `pkgs.matrix-continuwuity`.";
-      };
-
-      containerName = lib.mkOption {
-        type = lib.types.str;
-        default = "matrix";
-        description = "Name of the Continuwuity podman container, and the host it is reached at on the network.";
-      };
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 6167;
-        description = "Port the homeserver's client-server API listens on, inside the container and as published on `listenAddress`.";
-      };
-
-      listenAddress = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1";
-        description = ''
-          Host address the client-server API is published on, for a reverse
-          proxy to front. Defaults to localhost so it stays off any routable
-          interface; put your own proxy (for example `tailscale serve`) in
-          front of it to reach it with a Matrix client.
-        '';
-      };
-
-      settings = lib.mkOption {
-        type = lib.types.attrs;
-        default = {};
-        description = ''
-          Extra Continuwuity `[global]` settings, merged over the defaults this
-          module sets (`server_name`, listen address and port, federation off,
-          token-gated registration). See https://continuwuity.org/configuration.html.
+          agent is an ordinary client of the homeserver, so this is the public
+          name it is served at.
         '';
       };
     };

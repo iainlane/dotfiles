@@ -18,6 +18,18 @@ in {
     "base"
     "containers"
     {
+      matrix = {
+        serverName = "orangesquash.org.uk";
+        botUsername = "godfrey";
+        secretsFile = "ancaster/host-matrix.yaml";
+        settings.admins_list = ["@iain:orangesquash.org.uk"];
+        expose = {
+          domain = "matrix.orangesquash.org.uk";
+          auth = false;
+        };
+      };
+    }
+    {
       hermes = {
         profilePicture = ./ancaster/godfrey;
         signal = {
@@ -26,16 +38,12 @@ in {
         };
         matrix = {
           enable = true;
-          serverName = "matrix.orangesquash.org.uk";
+          serverName = "orangesquash.org.uk";
+          httpUrl = "https://matrix.orangesquash.org.uk";
           username = "godfrey";
           displayName = "Godfrey";
-          homeRoom = "!g6bq75R53WYYH1QJp7DUHO5wlMwYEt6TfR9tKnVRMzA";
           secretsFile = "ancaster/user-hermes.yaml";
-          settings.admins_list = ["@iain:matrix.orangesquash.org.uk"];
-          encryption = {
-            enable = true;
-            recoveryKeyKey = "matrix_recovery_key";
-          };
+          encryption.enable = true;
         };
         dashboard.enable = true;
         homeassistant = {

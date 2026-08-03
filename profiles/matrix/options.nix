@@ -1,0 +1,108 @@
+{lib, ...}: {
+  options.services.continuwuity = {
+    serverName = lib.mkOption {
+      type = lib.types.str;
+      example = "matrix.orangesquash.org.uk";
+      description = ''
+        The homeserver's `server_name`: the domain suffix of every user and room
+        ID (`@someone:<serverName>`). It is baked into all identifiers and
+        cannot be changed once accounts and rooms exist, so choose carefully.
+      '';
+    };
+
+    botUsername = lib.mkOption {
+      type = lib.types.str;
+      example = "godfrey";
+      description = ''
+        Local part of the account the homeserver creates at startup for the
+        agent to log in as. The password comes from `matrix_password` in
+        `secretsFile`.
+      '';
+    };
+
+    provisionUsers = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          passwordKey = lib.mkOption {
+            type = lib.types.str;
+            description = ''
+              Key in `secretsFile` holding this account's password. The password
+              must not contain whitespace, `"` or `\` (it travels through a TOML
+              string and a whitespace-split admin command); anything else, such
+              as the output of `openssl rand -base64 24`, is fine.
+            '';
+          };
+
+          admin = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Grant this account server-admin rights, needed to run `!admin`
+              commands (such as creating further users) from a Matrix client.
+            '';
+          };
+        };
+      });
+      default = {};
+      example = lib.literalExpression ''{ iain = { passwordKey = "matrix_iain_password"; admin = true; }; }'';
+      description = ''
+        Extra accounts the homeserver creates at startup via its admin command,
+        keyed by local username (`@<name>:<serverName>`). The agent's own
+        account is always created; these are additional accounts, such as your
+        own. Each `passwordKey` must exist in `secretsFile`.
+      '';
+    };
+
+    secretsFile = lib.mkOption {
+      type = lib.types.str;
+      example = "ancaster/host-matrix.yaml";
+      description = ''
+        Path, relative to the `secrets` flake input, of the sops file holding
+        `matrix_password` (the password the agent's account is created with),
+        `matrix_registration_token` (the token that gates registration, entered
+        in a Matrix client to create accounts) and every `passwordKey` named in
+        `provisionUsers`. The homeserver runs as a system service, so this file
+        is encrypted to the host key.
+      '';
+    };
+
+    settings = lib.mkOption {
+      type = lib.types.attrs;
+      default = {};
+      example = lib.literalExpression ''{ admins_list = ["@iain:example.org"]; }'';
+      description = ''
+        Extra keys merged into the `[global]` table of the generated
+        `continuwuity.toml`, overriding what this profile sets.
+      '';
+    };
+
+    expose = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule (import ../../lib/exposed-service.nix));
+      default = null;
+      description = ''
+        How the reverse proxy serves the homeserver. Clients and other
+        homeservers authenticate to Matrix itself, so `auth` belongs off here: a
+        sign-in gate in front would leave every client and all federation unable
+        to reach the API.
+      '';
+    };
+
+    package = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      description = "Continuwuity package to run. Defaults to `pkgs.matrix-continuwuity`.";
+    };
+
+    containerName = lib.mkOption {
+      type = lib.types.str;
+      default = "matrix";
+      description = "Name of the Continuwuity podman container, and the name the proxy resolves it by.";
+    };
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 6167;
+      description = "Port the homeserver's client-server API listens on inside the container.";
+    };
+  };
+}

@@ -1,0 +1,51 @@
+{
+  adminConfigFile,
+  cfg,
+  configFile,
+  configPath,
+  adminConfigPath,
+  databasePath,
+  image,
+  networks,
+  package,
+  pkgs,
+  stateVolume,
+  user,
+}: let
+  healthUrl = "http://127.0.0.1:${toString cfg.port}/_matrix/client/versions";
+in {
+  autoStart = true;
+
+  containerConfig = {
+    inherit image networks user;
+
+    entrypoint = "${package}/bin/conduwuit";
+    exec = "--config ${configPath} --config ${adminConfigPath}";
+
+    volumes = [
+      "${stateVolume}.volume:${databasePath}"
+      "${configFile}:${configPath}:ro"
+      "${adminConfigFile}:${adminConfigPath}:ro"
+    ];
+
+    environments.HOME = databasePath;
+
+    dropCapabilities = ["ALL"];
+    noNewPrivileges = true;
+
+    # Report ready only once Continuwuity answers, so the proxy and anything
+    # else ordered after the homeserver waits for it to be reachable.
+    notify = "healthy";
+    healthCmd = "${pkgs.curl}/bin/curl -fsS ${healthUrl}";
+    healthInterval = "5s";
+    healthTimeout = "5s";
+    healthRetries = 6;
+    healthStartPeriod = "60s";
+  };
+
+  unitConfig = {
+    Description = "Continuwuity Matrix homeserver";
+    After = ["network-online.target" "sops-install-secrets.service"];
+    Wants = ["network-online.target" "sops-install-secrets.service"];
+  };
+}

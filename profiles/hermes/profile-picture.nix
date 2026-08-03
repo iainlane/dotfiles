@@ -50,7 +50,6 @@
     ++ lib.optionals cfg.signal.enable [config.sops.templates."hermes-signal.env".path];
   profilePictureNetworks =
     lib.toList cfg.container.network
-    ++ lib.optional cfg.matrix.enable "${cfg.matrix.network}.network"
     ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
 in {
   config = lib.mkIf (cfg.enable && cfg.profilePicture != null && (cfg.matrix.enable || cfg.signal.enable)) {
@@ -100,11 +99,9 @@ in {
           Unit = {
             After =
               ["network-online.target" "sops-nix.service" profilePictureImageUnit]
-              ++ lib.optional cfg.matrix.enable "podman-${cfg.matrix.containerName}.service"
               ++ lib.optional cfg.signal.enable "podman-${cfg.signal.containerName}.service";
             Wants =
               ["network-online.target" "sops-nix.service" profilePictureImageUnit]
-              ++ lib.optional cfg.matrix.enable "podman-${cfg.matrix.containerName}.service"
               ++ lib.optional cfg.signal.enable "podman-${cfg.signal.containerName}.service";
           };
           Service = {
