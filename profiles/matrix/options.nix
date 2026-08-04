@@ -44,6 +44,17 @@
               commands (such as creating further users) from a Matrix client.
             '';
           };
+
+          supportUser = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Publish this account at `/.well-known/matrix/support`. The
+              homeserver publishes one contact, so at most one account may set
+              this. With none set it publishes everyone in the admin room, the
+              agent's account among them.
+            '';
+          };
         };
       });
       default = {};

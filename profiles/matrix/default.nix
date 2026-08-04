@@ -43,6 +43,21 @@
         pkgs.dockerTools.fakeNss
       ];
 
+      supportUsers = lib.attrNames (lib.filterAttrs (_: user: user.supportUser) cfg.users);
+
+      wellKnown =
+        lib.optionalAttrs (cfg.expose != null) {
+          # `server_name` is the identity; the homeserver answers at
+          # `expose.domain`. These documents point one at the other. Clients
+          # and other homeservers fetch them from the identity domain, which
+          # redirects here.
+          client = "https://${cfg.expose.domain}";
+          server = "${cfg.expose.domain}:443";
+        }
+        // lib.optionalAttrs (supportUsers != []) {
+          support_mxid = "@${lib.head supportUsers}:${cfg.serverName}";
+        };
+
       configFile = (pkgs.formats.toml {}).generate "continuwuity.toml" {
         global =
           {
@@ -50,7 +65,7 @@
             address = ["0.0.0.0"];
             port = [cfg.port];
             database_path = databasePath;
-            allow_federation = false;
+            allow_federation = true;
             # Token-gated registration: the agent's account is created
             # administratively below, and registration is open to anyone holding
             # the token, so accounts can be made from a Matrix client without the
@@ -62,16 +77,7 @@
             admin_execute_errors_ignore = true;
             trusted_servers = [];
           }
-          // lib.optionalAttrs (cfg.expose != null) {
-            # `server_name` is the identity; the homeserver answers at
-            # `expose.domain`. These documents point one at the other. Clients
-            # and other homeservers fetch them from the identity domain, which
-            # redirects here.
-            well_known = {
-              client = "https://${cfg.expose.domain}";
-              server = "${cfg.expose.domain}:443";
-            };
-          }
+          // lib.optionalAttrs (wellKnown != {}) {well_known = wellKnown;}
           // cfg.settings;
       };
 
@@ -104,6 +110,17 @@
       config = lib.mkMerge [
         {services.continuwuity = args;}
         {
+          assertions = [
+            {
+              assertion = lib.length supportUsers <= 1;
+              message = ''
+                services.continuwuity publishes one support contact, and
+                ${lib.concatStringsSep ", " supportUsers} are all marked
+                `supportUser`.
+              '';
+            }
+          ];
+
           sops = {
             secrets =
               {
