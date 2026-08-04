@@ -194,6 +194,17 @@
         fi
       '')
       cfg.environmentFiles
+      # Values with spaces survive the round trip through python-dotenv
+      # because the entry is written quoted.
+      + lib.concatStrings (
+        lib.mapAttrsToList
+        (name: path: ''
+          if [ -f "$state/${path}" ]; then
+            printf '\n${name}="%s"\n' "$(cat "$state/${path}")" >> "$state/.hermes/.env"
+          fi
+        '')
+        cfg.environmentFromState
+      )
       + ''
 
         find "$state/.hermes/plugins" -maxdepth 1 -type l -name 'nix-managed-*' -delete

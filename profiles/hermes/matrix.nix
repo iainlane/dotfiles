@@ -13,6 +13,14 @@
   cfg = config.services.hermes-agent;
   matrixSecretsFile = inputs.secrets + "/${cfg.matrix.secretsFile}";
   usingRecoveryKey = cfg.matrix.encryption.enable && cfg.matrix.encryption.recoveryKeyKey != null;
+
+  # With no recovery key in the secrets file, the bot bootstraps cross-signing
+  # itself: on the first encrypted run it writes the generated recovery key
+  # here (a path inside the state volume, mounted at /data in the container),
+  # and every later start reads it back into MATRIX_RECOVERY_KEY so the bot
+  # can re-sign its device after key rotation.
+  bootstrappingKeys = cfg.matrix.encryption.enable && !usingRecoveryKey;
+  recoveryKeyStatePath = ".hermes/matrix-recovery-key";
 in {
   config = lib.mkIf (cfg.enable && cfg.matrix.enable) {
     services.hermes-agent = {
@@ -28,8 +36,14 @@ in {
         // lib.optionalAttrs cfg.matrix.encryption.enable {
           MATRIX_E2EE_MODE = "required";
           MATRIX_DEVICE_ID = cfg.matrix.encryption.deviceId;
+        }
+        // lib.optionalAttrs bootstrappingKeys {
+          MATRIX_RECOVERY_KEY_OUTPUT_FILE = "/data/${recoveryKeyStatePath}";
         };
       environmentFiles = [config.sops.templates."hermes-matrix.env".path];
+      environmentFromState = lib.optionalAttrs bootstrappingKeys {
+        MATRIX_RECOVERY_KEY = recoveryKeyStatePath;
+      };
     };
 
     sops = {

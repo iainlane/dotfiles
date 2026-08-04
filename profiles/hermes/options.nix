@@ -29,6 +29,20 @@
       default = [];
     };
 
+    environmentFromState = lib.mkOption {
+      type = with lib.types; attrsOf str;
+      default = {};
+      example = {
+        MATRIX_RECOVERY_KEY = ".hermes/matrix-recovery-key";
+      };
+      description = ''
+        Environment variables whose values live in files inside the state
+        volume, as a map of variable name to path relative to the state
+        directory. Each file's content becomes the variable's value when the
+        agent starts; variables whose file does not exist yet are left unset.
+      '';
+    };
+
     secretEnv = lib.mkOption {
       type = with lib.types; attrsOf str;
       default = {};
@@ -287,11 +301,11 @@
           default = null;
           example = "matrix_recovery_key";
           description = ''
-            Key in `secretsFile` holding the cross-signing recovery key. Leave
-            null on the first encrypted run: the bot bootstraps cross-signing
-            and logs a fresh recovery key. Save that into the secrets file and
-            set this so the bot re-signs its device after key rotation on later
-            restarts.
+            Key in `secretsFile` holding the cross-signing recovery key. Left
+            null, the bot bootstraps cross-signing on its first encrypted run
+            and keeps the generated recovery key in its state volume, from
+            which later runs read it back to re-sign the device after key
+            rotation. Set this to source the key from the secrets file.
           '';
         };
       };
