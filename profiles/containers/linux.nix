@@ -96,13 +96,17 @@
         # container tools check for this to avoid trying to use the Docker socket.
         "containers/nodocker".text = "";
 
+        # `newuidmap` and `newgidmap` are setuid, and open these without
+        # following symlinks, so they have to be real files.
         "subuid" = {
           replaceExisting = true;
+          mode = "0644";
           text = subordinateFile "startUid" "subUidRanges";
         };
 
         "subgid" = {
           replaceExisting = true;
+          mode = "0644";
           text = subordinateFile "startGid" "subGidRanges";
         };
       };
