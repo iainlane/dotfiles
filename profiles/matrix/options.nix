@@ -67,6 +67,22 @@
       '';
     };
 
+    backup = {
+      enable = lib.mkEnableOption "periodic online backups of the database";
+
+      keep = lib.mkOption {
+        type = lib.types.int;
+        default = 3;
+        description = "How many backups to retain before the oldest is deleted.";
+      };
+
+      onCalendar = lib.mkOption {
+        type = lib.types.str;
+        default = "*-*-* 03:30:00";
+        description = "When to take a backup, in the format of systemd.time(7).";
+      };
+    };
+
     secretsFile = lib.mkOption {
       type = lib.types.str;
       example = "ancaster/host-matrix.yaml";

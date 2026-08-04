@@ -1,11 +1,14 @@
 {
   adminConfigFile,
+  backupPath,
+  backupVolume,
   cfg,
   configFile,
   configPath,
   adminConfigPath,
   databasePath,
   image,
+  lib,
   networks,
   package,
   pkgs,
@@ -23,11 +26,13 @@ in {
     entrypoint = "${package}/bin/conduwuit";
     exec = "--config ${configPath} --config ${adminConfigPath}";
 
-    volumes = [
-      "${stateVolume}.volume:${databasePath}"
-      "${configFile}:${configPath}:ro"
-      "${adminConfigFile}:${adminConfigPath}:ro,idmap"
-    ];
+    volumes =
+      [
+        "${stateVolume}.volume:${databasePath}"
+        "${configFile}:${configPath}:ro"
+        "${adminConfigFile}:${adminConfigPath}:ro,idmap"
+      ]
+      ++ lib.optional cfg.backup.enable "${backupVolume}.volume:${backupPath}";
 
     environments.HOME = databasePath;
 

@@ -22,6 +22,7 @@ in {
         serverName = "orangesquash.org.uk";
         botUsername = "godfrey";
         secretsFile = "ancaster/host-matrix.yaml";
+        backup.enable = true;
         users.iain = {
           admin = true;
           supportUser = true;

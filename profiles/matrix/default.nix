@@ -28,9 +28,12 @@
         else pkgs.matrix-continuwuity;
 
       databasePath = "/var/lib/continuwuity";
+      backupPath = "/var/lib/continuwuity-backup";
       configPath = "/etc/continuwuity.toml";
       adminConfigPath = "/etc/continuwuity-admin.toml";
       stateVolume = "matrix-state";
+      backupVolume = "matrix-backup";
+      backupUnit = "${cfg.containerName}-backup";
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
@@ -78,6 +81,10 @@
             trusted_servers = [];
           }
           // lib.optionalAttrs (wellKnown != {}) {well_known = wellKnown;}
+          // lib.optionalAttrs cfg.backup.enable {
+            database_backup_path = backupPath;
+            database_backups_to_keep = cfg.backup.keep;
+          }
           // cfg.settings;
       };
 
@@ -97,7 +104,7 @@
         );
 
       matrixContainer = import ./container.nix {
-        inherit adminConfigPath configFile configPath databasePath cfg pkgs package stateVolume;
+        inherit adminConfigPath backupPath backupVolume configFile configPath databasePath cfg lib pkgs package stateVolume;
         adminConfigFile = config.sops.templates."continuwuity-admin.toml".path;
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
         networks = [config.virtualisation.quadlet.networks.matrixnet.ref];
@@ -144,10 +151,36 @@
             };
           };
 
+          systemd = lib.mkIf cfg.backup.enable {
+            services.${backupUnit} = {
+              description = "Take a Continuwuity online database backup";
+              requires = ["${cfg.containerName}.service"];
+              after = ["${cfg.containerName}.service"];
+              serviceConfig = {
+                Type = "oneshot";
+                # SIGUSR2 reaches conduwuit as the container's first process.
+                # The unit's own main process is conmon.
+                ExecStart = "${config.virtualisation.podman.package}/bin/podman kill --signal USR2 ${cfg.containerName}";
+              };
+            };
+
+            timers.${backupUnit} = {
+              description = "Take a Continuwuity online database backup daily";
+              wantedBy = ["timers.target"];
+              timerConfig = {
+                OnCalendar = cfg.backup.onCalendar;
+                Persistent = true;
+                RandomizedDelaySec = "15m";
+              };
+            };
+          };
+
           virtualisation.quadlet = {
             networks.matrixnet = {};
 
-            volumes.${stateVolume} = {};
+            volumes =
+              {${stateVolume} = {};}
+              // lib.optionalAttrs cfg.backup.enable {${backupVolume} = {};};
 
             images.${cfg.containerName}.imageConfig = {
               image = "docker-archive:${image}";
