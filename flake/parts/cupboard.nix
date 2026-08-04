@@ -9,6 +9,9 @@
 #     builds natively (Darwin).
 #   - bestEffort: true because closures can need resources CI cannot reach (a
 #     token-gated fixed-output derivation such as the Falcon sensor).
+#   - cohort: the system, so every target for one system builds in a single
+#     job. These closures overlap almost entirely, and a cohort fetches that
+#     shared work once and builds it once instead of once per target.
 #   - attr: the flake installable to build.
 #   - rootDrvPath: the derivation graph root used to plan shared work.
 #   - rootSuffix: appended to the per-event prefix to form the retention root.
@@ -22,6 +25,7 @@
   baseFor = system: {
     inherit system;
     bestEffort = true;
+    cohort = system;
     os =
       if lib.hasSuffix "-darwin" system
       then "macos-latest"

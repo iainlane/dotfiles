@@ -12,6 +12,7 @@
     {
       attr = ".#nixosConfigurations.bonington.config.system.build.toplevel";
       bestEffort = true;
+      cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/nixos-bonington";
@@ -20,6 +21,7 @@
     {
       attr = ".#darwinConfigurations.melton.system";
       bestEffort = true;
+      cohort = "aarch64-darwin";
       os = "macos-latest";
       remote = false;
       rootSuffix = "aarch64-darwin/darwin-melton";
@@ -28,6 +30,7 @@
     {
       attr = ''.#homeConfigurations."laney@ancaster".activationPackage'';
       bestEffort = true;
+      cohort = "aarch64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "aarch64-linux/home-ancaster";
@@ -36,6 +39,7 @@
     {
       attr = ''.#homeConfigurations."laney@bonington".activationPackage'';
       bestEffort = true;
+      cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/home-bonington";
@@ -44,6 +48,7 @@
     {
       attr = ''.#homeConfigurations."laney@cripps".activationPackage'';
       bestEffort = true;
+      cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/home-cripps";
@@ -52,6 +57,7 @@
     {
       attr = ''.#homeConfigurations."laney@florence".activationPackage'';
       bestEffort = true;
+      cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/home-florence";
@@ -60,6 +66,7 @@
     {
       attr = ''.#homeConfigurations."laney@melton".activationPackage'';
       bestEffort = true;
+      cohort = "aarch64-darwin";
       os = "macos-latest";
       remote = false;
       rootSuffix = "aarch64-darwin/home-melton";
@@ -68,6 +75,7 @@
     {
       attr = ''.#homeConfigurations."laney@sherwood".activationPackage'';
       bestEffort = true;
+      cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/home-sherwood";
