@@ -84,6 +84,8 @@
           // lib.optionalAttrs cfg.backup.enable {
             database_backup_path = backupPath;
             database_backups_to_keep = cfg.backup.keep;
+            # SIGUSR2 runs these, which is how the timer asks for a backup.
+            admin_signal_execute = ["server backup-database"];
           }
           // cfg.settings;
       };
