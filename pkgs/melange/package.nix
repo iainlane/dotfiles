@@ -4,9 +4,9 @@
   updaters,
 }:
 melange.overrideAttrs (_finalAttrs: prevAttrs: {
-  version = "0.56.2";
-  src = prevAttrs.src.overrideAttrs {outputHash = "sha256-wlg4St2+LePqNMvcLaTOKtkOngx9wZQ2K0kfmDKp6wM=";};
-  vendorHash = "sha256-lzVHSb8gpitjVfEOEYbWbbNv8A783nW631hpIuS1OSY=";
+  version = "0.56.5";
+  src = prevAttrs.src.overrideAttrs {outputHash = "sha256-QEk74JLKNmjvN8Yu1Kx3APrV17CyBProsEjLeoBOgms=";};
+  vendorHash = "sha256-M0eIwpAGuYzVlEfRblES7MJovyi6cI1eTr/LXMA5vN4=";
 
   passthru =
     (prevAttrs.passthru or {})
