@@ -96,8 +96,15 @@
         # container tools check for this to avoid trying to use the Docker socket.
         "containers/nodocker".text = "";
 
-        "subuid".text = subordinateFile "startUid" "subUidRanges";
-        "subgid".text = subordinateFile "startGid" "subGidRanges";
+        "subuid" = {
+          replaceExisting = true;
+          text = subordinateFile "startUid" "subUidRanges";
+        };
+
+        "subgid" = {
+          replaceExisting = true;
+          text = subordinateFile "startGid" "subGidRanges";
+        };
       };
 
       # Rootless podman needs newuidmap/newgidmap with setuid privileges.
