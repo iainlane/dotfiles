@@ -20,7 +20,12 @@
       };
     });
 
-  mkSystemSopsModule = {
+  systemSopsModule = {
     sops.age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+  };
+
+  # Containers mount rendered secrets with idmap, which needs tmpfs.
+  linuxSystemSopsModule = {
+    sops.useTmpfs = true;
   };
 }

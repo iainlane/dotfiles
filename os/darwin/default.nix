@@ -30,7 +30,7 @@
         inherit pkgs;
         modules =
           [
-            helpers.mkSystemSopsModule
+            helpers.systemSopsModule
             ./system.nix
             config.flake.nix.substitutersModule
             inputs.determinate.darwinModules.default

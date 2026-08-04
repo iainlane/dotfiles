@@ -28,6 +28,6 @@ in {
   inherit (hosts) hosts;
   inherit (profiles) activeProfileNames hasProfile mkModules validateProfileRequirements;
   inherit (home) mkEmbeddedHomeManager mkHomeConfiguration;
-  inherit (sops) mkSystemSopsModule;
+  inherit (sops) linuxSystemSopsModule systemSopsModule;
   inherit (projects) mkProjectShells;
 }

@@ -26,7 +26,8 @@
         inherit overlays;
         modules =
           [
-            helpers.mkSystemSopsModule
+            helpers.systemSopsModule
+            helpers.linuxSystemSopsModule
             ./system.nix
             inputs.sops-nix.nixosModules.sops
             config.flake.nix.substitutersModule
