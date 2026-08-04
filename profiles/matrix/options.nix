@@ -20,16 +20,19 @@
       '';
     };
 
-    provisionUsers = lib.mkOption {
+    users = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
         options = {
           passwordKey = lib.mkOption {
-            type = lib.types.str;
+            type = lib.types.nullOr lib.types.str;
+            default = null;
             description = ''
-              Key in `secretsFile` holding this account's password. The password
-              must not contain whitespace, `"` or `\` (it travels through a TOML
-              string and a whitespace-split admin command); anything else, such
-              as the output of `openssl rand -base64 24`, is fine.
+              Key in `secretsFile` holding the password to create this account
+              with. Null for an account that already exists, or one registered
+              from a client with the registration token. The password must not
+              contain whitespace (it travels through a whitespace-split admin
+              command); anything else, such as the output of
+              `openssl rand -base64 24`, is fine.
             '';
           };
 
@@ -44,12 +47,12 @@
         };
       });
       default = {};
-      example = lib.literalExpression ''{ iain = { passwordKey = "matrix_iain_password"; admin = true; }; }'';
+      example = lib.literalExpression ''{ iain.admin = true; }'';
       description = ''
-        Extra accounts the homeserver creates at startup via its admin command,
-        keyed by local username (`@<name>:<serverName>`). The agent's own
-        account is always created; these are additional accounts, such as your
-        own. Each `passwordKey` must exist in `secretsFile`.
+        Accounts the homeserver acts on at startup, keyed by local username
+        (`@<name>:<serverName>`). An account with a `passwordKey` is created,
+        and one with `admin` is granted server-admin rights whether or not it
+        was created here. The agent's own account is always created.
       '';
     };
 
@@ -85,18 +88,6 @@
         sign-in gate in front would leave every client and all federation unable
         to reach the API.
       '';
-    };
-
-    uid = lib.mkOption {
-      type = lib.types.int;
-      default = 1000;
-      description = "Uid the homeserver runs as inside the container.";
-    };
-
-    gid = lib.mkOption {
-      type = lib.types.int;
-      default = 1000;
-      description = "Gid the homeserver runs as inside the container.";
     };
 
     package = lib.mkOption {

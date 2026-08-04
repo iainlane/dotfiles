@@ -82,11 +82,12 @@
         ["users create_user ${cfg.botUsername} ${config.sops.placeholder.matrix_password}"]
         ++ lib.concatLists (
           lib.mapAttrsToList (
-            name: user':
-              ["users create_user ${name} ${config.sops.placeholder.${user'.passwordKey}}"]
-              ++ lib.optional user'.admin "users make-user-admin ${name}"
+            name: user:
+              lib.optional (user.passwordKey != null)
+              "users create_user ${name} ${config.sops.placeholder.${user.passwordKey}}"
+              ++ lib.optional user.admin "users make-user-admin ${name}"
           )
-          cfg.provisionUsers
+          cfg.users
         );
 
       matrixContainer = import ./container.nix {
@@ -110,9 +111,9 @@
                 matrix_registration_token.sopsFile = secretsFile;
               }
               // lib.mapAttrs' (
-                _: user': lib.nameValuePair user'.passwordKey {sopsFile = secretsFile;}
+                _: user: lib.nameValuePair user.passwordKey {sopsFile = secretsFile;}
               )
-              cfg.provisionUsers;
+              (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
 
             # A config overlay carrying the secret-bearing settings. Living in a
             # mode-restricted file keeps the passwords out of the world-readable

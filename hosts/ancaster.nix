@@ -22,7 +22,7 @@ in {
         serverName = "orangesquash.org.uk";
         botUsername = "godfrey";
         secretsFile = "ancaster/host-matrix.yaml";
-        settings.admins_list = ["@iain:orangesquash.org.uk"];
+        users.iain.admin = true;
         expose = {
           domain = "matrix.orangesquash.org.uk";
           auth = false;
