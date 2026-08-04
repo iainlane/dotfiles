@@ -22,7 +22,10 @@ in {
         serverName = "orangesquash.org.uk";
         botUsername = "godfrey";
         secretsFile = "ancaster/host-matrix.yaml";
-        backup.enable = true;
+        backup = {
+          enable = true;
+          ageRecipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
+        };
         users.iain = {
           admin = true;
           supportUser = true;
@@ -62,10 +65,11 @@ in {
         extraDependencyGroups = ["messaging" "exa"];
         # `raft-platform` is a bundled gateway adapter we do not use; without it
         # disabled the agent probes for the absent `raft` CLI on startup.
-        disabledPlugins = ["raft-platform"];
+        # `google_chat-platform` registers a Platform value the gateway does
+        # not define, so it fails to load and warns on every startup.
+        disabledPlugins = ["raft-platform" "google_chat-platform"];
         backup = {
           enable = true;
-          secretsFile = "ancaster/user-hermes.yaml";
           ageRecipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
         };
         secretEnvFile = "ancaster/user-hermes.yaml";
@@ -95,9 +99,10 @@ in {
             }
             {
               provider = "anthropic";
-              model = "claude-opus-4-8";
+              model = "claude-opus-5";
             }
           ];
+          agent.reasoning_effort = "high";
           memory = {
             memory_enabled = true;
             user_profile_enabled = true;

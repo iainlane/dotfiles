@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  hostConfig,
+  lib,
+  ...
+}: {
   options.services.continuwuity = {
     serverName = lib.mkOption {
       type = lib.types.str;
@@ -67,20 +71,37 @@
       '';
     };
 
-    backup = {
-      enable = lib.mkEnableOption "periodic online backups of the database";
+    backup = lib.mkOption {
+      type = lib.types.submodule [
+        ((import ../../lib/r2-backup.nix).options {
+          defaultPrefix = "matrix";
+          defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
+        })
+        {
+          options = {
+            keep = lib.mkOption {
+              type = lib.types.int;
+              default = 3;
+              description = ''
+                How many backups the homeserver retains on disk before deleting
+                the oldest. Each is uploaded as it is taken; this is what stays
+                locally.
+              '';
+            };
 
-      keep = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "How many backups to retain before the oldest is deleted.";
-      };
-
-      onCalendar = lib.mkOption {
-        type = lib.types.str;
-        default = "*-*-* 03:30:00";
-        description = "When to take a backup, in the format of systemd.time(7).";
-      };
+            timeout = lib.mkOption {
+              type = lib.types.int;
+              default = 1800;
+              description = ''
+                Seconds to wait for a backup to appear after asking for one,
+                before giving up and failing the unit.
+              '';
+            };
+          };
+        }
+      ];
+      default = {};
+      description = "Online database backups, uploaded to Cloudflare R2.";
     };
 
     secretsFile = lib.mkOption {

@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  hostConfig,
+  lib,
+  ...
+}: {
   options.services.hermes-agent = {
     enable = lib.mkEnableOption "Hermes Agent gateway service";
 
@@ -396,45 +400,13 @@
       description = "Context engine to use for conversation context management.";
     };
 
-    backup = {
-      enable = lib.mkEnableOption "scheduled, encrypted backups of the Hermes state to Cloudflare R2";
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        example = "ancaster/user-hermes.yaml";
-        description = ''
-          Path, relative to the `secrets` input, of the sops file holding
-          `r2_bucket`, `r2_endpoint`, `r2_access_key_id`, and
-          `r2_secret_access_key`.
-        '';
-      };
-
-      ageRecipient = lib.mkOption {
-        type = lib.types.str;
-        example = "age1qz...";
-        description = ''
-          age public key the backup is encrypted to. Keep the matching private
-          key offline; it is needed to restore.
-        '';
-      };
-
-      schedule = lib.mkOption {
-        type = lib.types.str;
-        default = "*-*-* 04:00:00";
-        description = "systemd `OnCalendar` schedule for the backup.";
-      };
-
-      keepDays = lib.mkOption {
-        type = lib.types.int;
-        default = 30;
-        description = "Delete remote backups older than this many days.";
-      };
-
-      prefix = lib.mkOption {
-        type = lib.types.str;
-        default = "hermes";
-        description = "Path prefix within the R2 bucket.";
-      };
+    backup = lib.mkOption {
+      type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
+        defaultPrefix = "hermes";
+        defaultSecretsFile = "${hostConfig.hostname}/user-r2.yaml";
+      });
+      default = {};
+      description = "Encrypted backups of the agent state, uploaded to Cloudflare R2.";
     };
   };
 }

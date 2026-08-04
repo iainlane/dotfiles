@@ -37,6 +37,14 @@
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
+      r2Backup = import ../../lib/r2-backup.nix;
+      uploader = r2Backup.uploader {inherit pkgs;};
+      backupScript = pkgs.writeShellApplication {
+        name = "matrix-backup";
+        runtimeInputs = [pkgs.coreutils];
+        text = builtins.readFile ./backup.sh;
+      };
+
       image = mkNixImage cfg.containerName [
         package
         pkgs.coreutils
@@ -130,47 +138,64 @@
             }
           ];
 
-          sops = {
-            secrets =
-              {
-                matrix_password.sopsFile = secretsFile;
-                matrix_registration_token.sopsFile = secretsFile;
-              }
-              // lib.mapAttrs' (
-                _: user: lib.nameValuePair user.passwordKey {sopsFile = secretsFile;}
-              )
-              (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
+          sops = lib.mkMerge [
+            (lib.mkIf cfg.backup.enable (r2Backup.sopsFragment {
+              inherit config;
+              secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+              templateName = "matrix-backup.env";
+            }))
+            {
+              secrets =
+                {
+                  matrix_password.sopsFile = secretsFile;
+                  matrix_registration_token.sopsFile = secretsFile;
+                }
+                // lib.mapAttrs' (
+                  _: user: lib.nameValuePair user.passwordKey {sopsFile = secretsFile;}
+                )
+                (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
 
-            # A config overlay carrying the secret-bearing settings. Living in a
-            # mode-restricted file keeps the passwords out of the world-readable
-            # store and out of process arguments.
-            templates."continuwuity-admin.toml" = {
-              content = ''
-                [global]
-                registration_token = ${builtins.toJSON config.sops.placeholder.matrix_registration_token}
-                admin_execute = ${builtins.toJSON adminCommands}
-              '';
-            };
-          };
+              # A config overlay carrying the secret-bearing settings. Living in a
+              # mode-restricted file keeps the passwords out of the world-readable
+              # store and out of process arguments.
+              templates."continuwuity-admin.toml" = {
+                content = ''
+                  [global]
+                  registration_token = ${builtins.toJSON config.sops.placeholder.matrix_registration_token}
+                  admin_execute = ${builtins.toJSON adminCommands}
+                '';
+              };
+            }
+          ];
 
           systemd = lib.mkIf cfg.backup.enable {
             services.${backupUnit} = {
-              description = "Take a Continuwuity online database backup";
+              description = "Back the Continuwuity database up to Cloudflare R2";
               requires = ["${cfg.containerName}.service"];
-              after = ["${cfg.containerName}.service"];
+              after = ["${cfg.containerName}.service" "network-online.target"];
+              wants = ["network-online.target"];
+              path = [config.virtualisation.podman.package uploader];
               serviceConfig = {
                 Type = "oneshot";
-                # SIGUSR2 reaches conduwuit as the container's first process.
-                # The unit's own main process is conmon.
-                ExecStart = "${config.virtualisation.podman.package}/bin/podman kill --signal USR2 ${cfg.containerName}";
+                EnvironmentFile = config.sops.templates."matrix-backup.env".path;
+                Environment = [
+                  "MATRIX_CONTAINER=${cfg.containerName}"
+                  "MATRIX_BACKUP_VOLUME=${backupVolume}"
+                  "MATRIX_BACKUP_TIMEOUT=${toString cfg.backup.timeout}"
+                  "BACKUP_NAME=${cfg.containerName}"
+                  "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
+                  "BACKUP_PREFIX=${cfg.backup.prefix}"
+                  "BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
+                ];
+                ExecStart = "${backupScript}/bin/matrix-backup";
               };
             };
 
             timers.${backupUnit} = {
-              description = "Take a Continuwuity online database backup daily";
+              description = "Schedule the Continuwuity backup";
               wantedBy = ["timers.target"];
               timerConfig = {
-                OnCalendar = cfg.backup.onCalendar;
+                OnCalendar = cfg.backup.schedule;
                 Persistent = true;
                 RandomizedDelaySec = "15m";
               };

@@ -1,15 +1,13 @@
 # shellcheck shell=bash
 #
-# Snapshot the Hermes state, encrypt it to an age recipient, and push it to
-# Cloudflare R2. Driven entirely by the environment so it stays a plain,
-# checkable shell script:
+# Snapshot the Hermes state into a directory and hand it to the uploader.
+# Driven entirely by the environment so it stays a plain, checkable shell
+# script:
 #
-#   HERMES_STATE_DIR             state directory to back up, or
-#   HERMES_STATE_VOLUME          podman volume whose mountpoint to back up
-#   HERMES_BACKUP_AGE_RECIPIENT  age public key to encrypt to
-#   HERMES_BACKUP_PREFIX         path prefix within the bucket
-#   HERMES_BACKUP_KEEP_DAYS      delete remote backups older than this
-#   R2_BUCKET R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+#   HERMES_STATE_DIR     state directory to back up, or
+#   HERMES_STATE_VOLUME  podman volume whose mountpoint to back up
+#
+# plus everything `r2-upload` reads.
 set -euo pipefail
 umask 077
 
@@ -18,9 +16,7 @@ if [ -z "${HERMES_STATE_DIR:-}" ] && [ -n "${HERMES_STATE_VOLUME:-}" ]; then
 	HERMES_STATE_DIR="$(podman volume inspect --format '{{.Mountpoint}}' "${HERMES_STATE_VOLUME}")"
 fi
 
-: "${HERMES_STATE_DIR:?}" "${HERMES_BACKUP_AGE_RECIPIENT:?}"
-: "${HERMES_BACKUP_PREFIX:?}" "${HERMES_BACKUP_KEEP_DAYS:?}"
-: "${R2_BUCKET:?}" "${R2_ENDPOINT:?}" "${R2_ACCESS_KEY_ID:?}" "${R2_SECRET_ACCESS_KEY:?}"
+: "${HERMES_STATE_DIR:?}"
 
 work="$(mktemp -d)"
 # The snapshot copies Hermes' read-only bundled skills, whose leaf
@@ -52,20 +48,4 @@ for db in state.db memory_store.db kanban.db; do
 	fi
 done
 
-ts="$(date -u +%Y%m%dT%H%M%SZ)"
-archive="${work}/hermes-${ts}.tar.zst.age"
-tar --use-compress-program='zstd -T0 -19' -C "${snap}" -cf - . |
-	age -r "${HERMES_BACKUP_AGE_RECIPIENT}" -o "${archive}"
-
-export RCLONE_CONFIG_R2_TYPE=s3
-export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-# A scoped R2 token cannot create or probe buckets, so stop rclone from
-# attempting it and upload straight into the existing bucket.
-export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
-export RCLONE_CONFIG_R2_ENDPOINT="${R2_ENDPOINT}"
-export RCLONE_CONFIG_R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
-export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
-dest="R2:${R2_BUCKET}/${HERMES_BACKUP_PREFIX}"
-
-rclone copy "${archive}" "${dest}/"
-rclone delete --min-age "${HERMES_BACKUP_KEEP_DAYS}d" "${dest}/" || true
+BACKUP_SOURCE="${snap}" r2-upload

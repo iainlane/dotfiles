@@ -9,31 +9,22 @@
 }: let
   cfg = config.services.hermes-agent;
   inherit (import ./builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
-  backupSecretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+  r2Backup = import ../../lib/r2-backup.nix;
+  uploader = r2Backup.uploader {inherit pkgs;};
   # The script reads its config from the environment, so it stays a plain
   # checkable shell file. The systemd service supplies the non-secret values
   # and the sops env file supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "hermes-backup-r2";
-    runtimeInputs = with pkgs; [coreutils rsync sqlite zstd gnutar rclone age podman];
+    runtimeInputs = with pkgs; [coreutils rsync sqlite podman uploader];
     text = builtins.readFile ./backup-r2.sh;
   };
 in {
   config = lib.mkIf (cfg.enable && cfg.backup.enable) {
-    sops = {
-      secrets = {
-        r2_bucket.sopsFile = backupSecretsFile;
-        r2_endpoint.sopsFile = backupSecretsFile;
-        r2_access_key_id.sopsFile = backupSecretsFile;
-        r2_secret_access_key.sopsFile = backupSecretsFile;
-      };
-
-      templates."hermes-backup.env".content = ''
-        R2_BUCKET=${config.sops.placeholder.r2_bucket}
-        R2_ENDPOINT=${config.sops.placeholder.r2_endpoint}
-        R2_ACCESS_KEY_ID=${config.sops.placeholder.r2_access_key_id}
-        R2_SECRET_ACCESS_KEY=${config.sops.placeholder.r2_secret_access_key}
-      '';
+    sops = r2Backup.sopsFragment {
+      inherit config;
+      secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+      templateName = "hermes-backup.env";
     };
 
     systemd.user.services.hermes-backup = {
@@ -47,9 +38,10 @@ in {
         EnvironmentFile = config.sops.templates."hermes-backup.env".path;
         Environment = [
           "HERMES_STATE_VOLUME=${hermesStateVolume}"
-          "HERMES_BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
-          "HERMES_BACKUP_PREFIX=${cfg.backup.prefix}"
-          "HERMES_BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
+          "BACKUP_NAME=hermes"
+          "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
+          "BACKUP_PREFIX=${cfg.backup.prefix}"
+          "BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
         ];
         ExecStart = "${backupScript}/bin/hermes-backup-r2";
       };
