@@ -23,7 +23,7 @@ trap 'rm -rf "${work}"' EXIT
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 archive="${work}/${BACKUP_NAME}-${ts}.tar.zst.age"
 
-tar --use-compress-program='zstd -T0 -19' --numeric-ids -C "${BACKUP_SOURCE}" -cf - . |
+tar --use-compress-program='zstd -T0 -19' --numeric-owner -C "${BACKUP_SOURCE}" -cf - . |
 	age -r "${BACKUP_AGE_RECIPIENT}" -o "${archive}"
 
 export RCLONE_CONFIG_R2_TYPE=s3
