@@ -8,6 +8,7 @@ _: {
   flake.profiles.base = {
     features = [
       "catppuccin"
+      "gh"
       "git"
       "motd"
       "scripts"
@@ -21,7 +22,6 @@ _: {
 
     homeManagerModule = {
       pkgs,
-      pkgs-unstable,
       lib,
       inputs,
       flakePath,
@@ -101,18 +101,6 @@ _: {
       };
 
       programs = {
-        gh = {
-          enable = true;
-
-          # The extension comes from unstable on every channel, keeping it in
-          # step with the `gh-stack-skill` flake input, which tracks upstream
-          # releases.
-          extensions = [pkgs-unstable.gh-stack];
-
-          gitCredentialHelper.enable = true;
-          settings.gitProtocol = "https";
-        };
-
         home-manager.enable = true;
 
         nh = {

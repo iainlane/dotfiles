@@ -62,6 +62,8 @@ available features are:
 - `cli-tools`: Common CLI programs and terminal utilities, including `direnv`
   integration.
 - `falcon`: CrowdStrike Falcon sensor (NixOS hosts).
+- `gh`: GitHub CLI configuration and extensions, including the gh-dash dashboard
+  and the gh-enhance GitHub Actions viewer.
 - `ghostty`: Ghostty terminal configuration.
 - `git`: Git defaults, aliases, signing, and ignore behaviour.
 - `gnome`: GNOME desktop configuration, including USBGuard (NixOS hosts).
