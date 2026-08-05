@@ -171,8 +171,8 @@
           systemd = lib.mkIf cfg.backup.enable {
             services.${backupUnit} = {
               description = "Back the Continuwuity database up to Cloudflare R2";
-              requires = ["${cfg.containerName}.service"];
-              after = ["${cfg.containerName}.service" "network-online.target"];
+              requires = ["${cfg.containerName}.service" "sops-install-secrets.service"];
+              after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
               wants = ["network-online.target"];
               path = [config.virtualisation.podman.package uploader];
               serviceConfig = {
