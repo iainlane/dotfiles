@@ -338,12 +338,39 @@
         type = lib.types.str;
         default = "127.0.0.1";
         description = ''
-          Loopback address the dashboard binds to, on the host network
-          namespace. Keep it on loopback: Hermes engages its own auth gate on
-          any non-loopback bind and refuses to start without an auth provider.
-          Put a reverse proxy (for example `tailscale serve`) in front to
-          expose it.
+          Address the dashboard binds to when it is not exposed. On loopback
+          nothing outside the container reaches it. Setting `expose` binds
+          every address instead, and configures the sign-in that Hermes then
+          requires.
         '';
+      };
+
+      expose = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule (import ../../lib/exposed-service.nix));
+        default = null;
+        description = ''
+          How the reverse proxy serves the dashboard. Hermes makes people
+          sign in, but serves anyone the identity provider recognises, so
+          `auth` belongs on: the proxy's `allow` list is the only thing that
+          limits who gets in.
+        '';
+      };
+
+      secretsFile = lib.mkOption {
+        type = with lib.types; nullOr str;
+        default = null;
+        example = "ancaster/host-hermes.yaml";
+        description = ''
+          Path, relative to the `secrets` flake input, of the sops file
+          holding the dashboard's half of the secret it shares with the
+          identity provider. The provider reads the same file.
+        '';
+      };
+
+      clientSecretKey = lib.mkOption {
+        type = lib.types.str;
+        default = "dashboard_oidc_client_secret";
+        description = "Key in `dashboard.secretsFile` holding that secret.";
       };
 
       containerName = lib.mkOption {

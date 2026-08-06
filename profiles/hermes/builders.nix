@@ -275,6 +275,7 @@
     networks ? [],
     publishPorts ? [],
     environments ? {},
+    environmentFiles ? [],
     after ? [],
     serviceConfig ? {},
   }: {
@@ -283,7 +284,7 @@
     containerConfig =
       hardening
       // {
-        inherit exec networks publishPorts;
+        inherit exec networks publishPorts environmentFiles;
 
         image = config.virtualisation.quadlet.images.${cfg.container.name}.ref;
 

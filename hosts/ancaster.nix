@@ -61,7 +61,14 @@ in {
           secretsFile = "ancaster/host-hermes.yaml";
           encryption.enable = true;
         };
-        dashboard.enable = true;
+        dashboard = {
+          enable = true;
+          secretsFile = "ancaster/host-hermes.yaml";
+          expose = {
+            domain = "godfrey.orangesquash.org.uk";
+            auth = true;
+          };
+        };
         homeassistant = {
           enable = true;
           secretsFile = "ancaster/host-hermes.yaml";
