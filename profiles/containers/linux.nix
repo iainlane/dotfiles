@@ -25,6 +25,7 @@
     imports = [
       ./edge-proxy.nix
       ./id-ranges.nix
+      ./identity-provider.nix
       ./quadlet.nix
     ];
 

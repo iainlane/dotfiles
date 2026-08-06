@@ -18,6 +18,15 @@ in {
     "base"
     "containers"
     {
+      dex = {
+        secretsFile = "ancaster/host-dex.yaml";
+        expose = {
+          domain = "auth.orangesquash.org.uk";
+          auth = false;
+        };
+      };
+    }
+    {
       matrix = {
         serverName = "orangesquash.org.uk";
         botUsername = "godfrey";
@@ -197,10 +206,8 @@ in {
         };
         auth = {
           enable = true;
-          domain = "auth.orangesquash.org.uk";
           cookieDomain = ".orangesquash.org.uk";
           secretsFile = "ancaster/host-oauth2-proxy.yaml";
-          githubUsers = ["iainlane"];
           allow = ["iainlane"];
         };
       };

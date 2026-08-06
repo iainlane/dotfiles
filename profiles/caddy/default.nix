@@ -29,6 +29,7 @@
     }: let
       cfg = config.services.caddy-proxy;
       proxy = config.services.edge-proxy;
+      idp = config.services.identity-provider;
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
@@ -52,6 +53,88 @@
       tokenEnvVar = "CF_API_TOKEN";
 
       authUpstream = "${cfg.auth.containerName}:${toString cfg.auth.port}";
+
+      # Named apart from the sign-in service's own OAUTH2_PROXY_ prefix: this
+      # one is read by the substitution in the file below, not by the service.
+      authClientSecretEnv = "OIDC_CLIENT_SECRET";
+
+      authConfigPath = "/etc/oauth2-proxy.cfg";
+      authAlphaConfigPath = "/etc/oauth2-proxy.yaml";
+
+      # The identity of a signed-in visitor, as the sign-in service answers
+      # with it. Under the structured configuration these are stated rather
+      # than implied, so the header a site's allow-list is matched against is
+      # named in the same place it is decided.
+      authResponseHeader = header: claim: {
+        name = header;
+        values = [{claimSource = {inherit claim;};}];
+      };
+
+      # The provider and the identity it hands back. Anything the sign-in
+      # service accepts more than once, or that describes who it talks to,
+      # lives here; what is left in the file below is what this format has no
+      # place for yet.
+      authAlphaConfigFile = (pkgs.formats.yaml {}).generate "oauth2-proxy.yaml" {
+        server.bindAddress = "0.0.0.0:${toString cfg.auth.port}";
+
+        providers = [
+          {
+            id = cfg.auth.clientId;
+            provider = "oidc";
+            clientID = cfg.auth.clientId;
+            # Substituted when the file is read, so the value stays in the
+            # environment and out of the store.
+            clientSecret = "\${${authClientSecretEnv}}";
+
+            oidcConfig.issuerURL = idp.issuer;
+
+            # Binds the authorisation code to this exchange, so a code taken
+            # in flight cannot be redeemed by anyone else.
+            code_challenge_method = "S256";
+
+            # Consent is for letting someone hand a third party access to
+            # their account elsewhere. Every client here belongs to the same
+            # operator as the provider, so there is nothing to hand over and
+            # nothing to ask.
+            loginURLParameters = [];
+          }
+        ];
+
+        injectResponseHeaders = [
+          (authResponseHeader "X-Auth-Request-User" "user")
+          (authResponseHeader "X-Auth-Request-Email" "email")
+          (authResponseHeader "X-Auth-Request-Preferred-Username" "preferred_username")
+          (authResponseHeader "X-Auth-Request-Groups" "groups")
+        ];
+      };
+
+      # Keys are the sign-in service's own option names, with underscores for
+      # hyphens and a plural for anything it accepts more than once.
+      authConfigFile = (pkgs.formats.toml {}).generate "oauth2-proxy.cfg" {
+        # A path with no host: the scheme and host come from the request, so
+        # each site's callback is its own, which is what lets the sign-in
+        # service live under every site.
+        redirect_url = "/oauth2/callback";
+
+        cookie_domains = [cfg.auth.cookieDomain];
+        cookie_secure = true;
+
+        # What lets the redirect after sign-in land on a different subdomain
+        # from the one that authenticated.
+        whitelist_domains = [cfg.auth.cookieDomain];
+
+        # Caddy terminates TLS, so the scheme and host used to build redirects
+        # come from the forwarded headers. Only the proxy may set them, and it
+        # is the one peer on the network this listens on.
+        reverse_proxy = true;
+        trusted_proxy_ips = containerSources;
+
+        # Which accounts are served is decided by the allow-list in front of
+        # each site, so any address the provider returns is accepted here.
+        email_domains = ["*"];
+
+        skip_provider_button = true;
+      };
 
       caddyImage = mkNixImage cfg.containerName [
         caddyPackage
@@ -78,6 +161,15 @@
       serviceNetworks =
         map proxy.serviceNetwork (lib.attrNames exposed)
         ++ lib.optional cfg.auth.enable (proxy.serviceNetwork cfg.auth.containerName);
+
+      # A client of the identity provider fetches its discovery document, its
+      # keys, and the tokens it issues, all from the provider's public name.
+      # Answering to that name on the networks it shares with the services
+      # keeps those calls on this host, and the certificate they are served
+      # under is the one for that name.
+      issuerAlias =
+        lib.optionalString (idp.enable && idp.issuer != null)
+        ":alias=${lib.removePrefix "https://" idp.issuer}";
 
       # A static address belongs to one network, and podman takes `--ip6` only
       # from a container on a single network, so it is given as an option of
@@ -126,9 +218,7 @@
       ];
 
       # Asks the sign-in service whether it knows the visitor, before the
-      # request reaches the service behind it. One sign-in service serves every
-      # protected site, so the identity provider needs only one callback
-      # address however many sites there are.
+      # request reaches the service behind it.
       authGate = {
         handler = "reverse_proxy";
         upstreams = [{dial = authUpstream;}];
@@ -162,7 +252,7 @@
                   {
                     handler = "static_response";
                     status_code = 302;
-                    headers.Location = ["https://${cfg.auth.domain}/oauth2/sign_in?rd={http.request.scheme}://{http.request.host}{http.request.uri}"];
+                    headers.Location = ["/oauth2/sign_in?rd={http.request.uri}"];
                   }
                 ];
               }
@@ -176,7 +266,7 @@
       # decides which of them this host serves, and does so wherever the
       # identity comes from.
       allowGate = {
-        match = [{not = [{header."X-Auth-Request-User" = cfg.auth.allow;}];}];
+        match = [{not = [{header."X-Auth-Request-Preferred-Username" = cfg.auth.allow;}];}];
         terminal = true;
         handle = [
           {
@@ -184,6 +274,19 @@
             status_code = 403;
             body = "Signed in, but not on the list for this site.\n";
           }
+        ];
+      };
+
+      # The sign-in service answers under every site it protects, so signing in
+      # happens on the site's own name and its callback is that name too. The
+      # identity provider takes a list of them, one per site.
+      signInRoute = {
+        match = [{path = ["/oauth2/*"];}];
+        terminal = true;
+        handle = [
+          (lib.recursiveUpdate (proxyTo authUpstream) {
+            headers.request.set."X-Real-Ip" = ["{http.vars.client_ip}"];
+          })
         ];
       };
 
@@ -198,29 +301,10 @@
             handler = "subroute";
             routes =
               lib.optionals authenticated (
-                [{handle = [authGate];}]
+                [signInRoute {handle = [authGate];}]
                 ++ lib.optional (cfg.auth.allow != []) allowGate
               )
               ++ [{handle = [(proxyTo "${name}:${labels."edge-proxy.port"}")];}];
-          }
-        ];
-      };
-
-      authSiteRoute = {
-        match = [{host = [cfg.auth.domain];}];
-        terminal = true;
-        handle = [
-          {
-            handler = "subroute";
-            routes = [
-              {
-                handle = [
-                  (lib.recursiveUpdate (proxyTo authUpstream) {
-                    headers.request.set."X-Real-Ip" = ["{http.vars.client_ip}"];
-                  })
-                ];
-              }
-            ];
           }
         ];
       };
@@ -239,7 +323,12 @@
       # Connections from these addresses are served without being asked for a
       # certificate. Policies are tried in order, so this one has to come first
       # for those addresses to reach the host at all.
-      directPolicy = {match.remote_ip.ranges = cfg.originAuth.directSources;};
+      # Podman allocates the per-service networks from this range. A service
+      # calling the identity provider comes from one, and holds no certificate
+      # from Cloudflare to present; nothing off this host can send from them.
+      containerSources = ["10.89.0.0/16"];
+
+      directPolicy = {match.remote_ip.ranges = cfg.originAuth.directSources ++ containerSources;};
 
       originPolicy.client_authentication = {
         mode = "require_and_verify";
@@ -254,9 +343,7 @@
           {
             listen = [":443"];
 
-            routes =
-              lib.optional cfg.auth.enable authSiteRoute
-              ++ lib.mapAttrsToList siteRoute exposed;
+            routes = lib.mapAttrsToList siteRoute exposed;
 
             # An empty object turns on access logging under the default
             # logger, which the unit collects into the journal. Without it
@@ -311,13 +398,27 @@
             }
           ];
 
+          # The sign-in service answers under each protected site, so it comes
+          # back to whichever one it started at. Every site is listed, and the
+          # list follows whatever is exposed.
+          services.identity-provider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
+            ${cfg.auth.clientId} = {
+              displayName = "Sign in";
+              redirectURIs =
+                lib.mapAttrsToList
+                (_: container: "https://${container.containerConfig.labels."edge-proxy.domain"}/oauth2/callback")
+                (lib.filterAttrs (_: container: container.containerConfig.labels."edge-proxy.auth" == "true") exposed);
+              inherit (cfg.auth) secretsFile;
+              secretKey = cfg.auth.clientSecretKey;
+            };
+          };
+
           sops = {
             secrets =
               {
                 ${cfg.dnsTokenKey}.sopsFile = secretsFile;
               }
               // lib.optionalAttrs cfg.auth.enable {
-                ${cfg.auth.clientIdKey}.sopsFile = authSecretsFile;
                 ${cfg.auth.clientSecretKey}.sopsFile = authSecretsFile;
                 ${cfg.auth.cookieSecretKey}.sopsFile = authSecretsFile;
               };
@@ -330,8 +431,7 @@
               }
               // lib.optionalAttrs cfg.auth.enable {
                 "oauth2-proxy.env".content = ''
-                  OAUTH2_PROXY_CLIENT_ID=${config.sops.placeholder.${cfg.auth.clientIdKey}}
-                  OAUTH2_PROXY_CLIENT_SECRET=${config.sops.placeholder.${cfg.auth.clientSecretKey}}
+                  ${authClientSecretEnv}=${config.sops.placeholder.${cfg.auth.clientSecretKey}}
                   OAUTH2_PROXY_COOKIE_SECRET=${config.sops.placeholder.${cfg.auth.cookieSecretKey}}
                 '';
               };
@@ -380,7 +480,7 @@
                   image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
                   networks =
                     [proxyNetwork]
-                    ++ map (network: "${network}.network") serviceNetworks;
+                    ++ map (network: "${network}.network${issuerAlias}") serviceNetworks;
                   exec = "run --config ${configPath}";
                   entrypoint = "${caddyPackage}/bin/caddy";
 
@@ -424,33 +524,17 @@
                   image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
                   networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];
                   entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
-                  environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
+                  exec = "--config ${authConfigPath} --alpha-config ${authAlphaConfigPath}";
 
-                  environments =
-                    {
-                      OAUTH2_PROXY_PROVIDER = "github";
-                      OAUTH2_PROXY_HTTP_ADDRESS = "0.0.0.0:${toString cfg.auth.port}";
-                      OAUTH2_PROXY_REDIRECT_URL = "https://${cfg.auth.domain}/oauth2/callback";
-                      OAUTH2_PROXY_COOKIE_DOMAINS = cfg.auth.cookieDomain;
-                      # What lets the redirect after sign-in land on a
-                      # different subdomain from the one that authenticated.
-                      OAUTH2_PROXY_WHITELIST_DOMAINS = cfg.auth.cookieDomain;
-                      OAUTH2_PROXY_COOKIE_SECURE = "true";
-                      # Caddy terminates TLS, so the scheme and host used to
-                      # build redirects come from the forwarded headers.
-                      OAUTH2_PROXY_REVERSE_PROXY = "true";
-                      # Asked only whether a request is authenticated, over
-                      # /oauth2/auth, so it never proxies to a service itself
-                      # and needs no upstream.
-                      OAUTH2_PROXY_SET_XAUTHREQUEST = "true";
-                      # Accounts are allowed by GitHub identity, which the
-                      # provider docs pair with accepting any email domain.
-                      OAUTH2_PROXY_EMAIL_DOMAINS = "*";
-                      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON = "true";
-                    }
-                    // lib.optionalAttrs (cfg.auth.githubUsers != []) {
-                      OAUTH2_PROXY_GITHUB_USERS = lib.concatStringsSep "," cfg.auth.githubUsers;
-                    };
+                  volumes = [
+                    "${authConfigFile}:${authConfigPath}:ro"
+                    "${authAlphaConfigFile}:${authAlphaConfigPath}:ro"
+                  ];
+
+                  # The two secrets arrive as environment, which the sign-in
+                  # service reads in preference to its config file, so they
+                  # stay out of the store.
+                  environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
                 };
 
                 unitConfig = {

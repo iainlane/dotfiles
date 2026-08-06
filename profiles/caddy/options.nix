@@ -170,17 +170,22 @@
         breaks them in ways that are hard to attribute
       '';
 
-      domain = lib.mkOption {
+      clientId = lib.mkOption {
         type = lib.types.str;
-        example = "auth.example.org";
+        default = "oauth2-proxy";
         description = ''
-          Public host name the sign-in service answers to. Every protected site
-          sends unauthenticated visitors here, so this is the only address the
-          identity provider needs as a callback, however many sites are
-          protected. GitHub allows an OAuth app exactly one.
+          Name the sign-in service registers with the identity provider, and
+          gives when it asks who somebody is.
+        '';
+      };
 
-          It must share a parent domain with the sites it protects, since the
-          session cookie is scoped to that parent.
+      clientSecretKey = lib.mkOption {
+        type = lib.types.str;
+        default = "oidc_client_secret";
+        description = ''
+          Key in `auth.secretsFile` holding the secret shared with the identity
+          provider. The provider reads the same file, so the value is written
+          once.
         '';
       };
 
@@ -188,27 +193,14 @@
         type = lib.types.str;
         example = ".example.org";
         description = ''
-          Domain the session cookie is scoped to. Must be a parent of both
-          `domain` and every protected site, or a visitor signing in at the
-          former is not recognised at the latter.
+          Domain the session cookie is scoped to. Must be a parent of every
+          protected site, so that signing in at one is recognised at the rest.
         '';
       };
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
         description = "Filename within the secrets input holding the OAuth client credentials.";
-      };
-
-      clientIdKey = lib.mkOption {
-        type = lib.types.str;
-        default = "client_id";
-        description = "Key in `auth.secretsFile` holding the OAuth application's client ID.";
-      };
-
-      clientSecretKey = lib.mkOption {
-        type = lib.types.str;
-        default = "client_secret";
-        description = "Key in `auth.secretsFile` holding the OAuth application's client secret.";
       };
 
       cookieSecretKey = lib.mkOption {
@@ -221,30 +213,19 @@
         '';
       };
 
-      githubUsers = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [];
-        example = ["iainlane"];
-        description = ''
-          GitHub accounts allowed to sign in. Leave empty and any GitHub account
-          is accepted, which is rarely what you want on a personal host.
-        '';
-      };
-
       allow = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [];
         example = ["iainlane"];
         description = ''
-          Identities allowed past the sign-in gate, matched against the
-          `X-Auth-Request-User` header the sign-in service answers with. The
-          proxy drops that header off an incoming request and sets it only
-          from that answer, so a visitor cannot claim to be someone else.
+          Account names allowed past the sign-in gate, matched against the
+          `X-Auth-Request-Preferred-Username` header the sign-in service
+          answers with. The proxy drops that header off an incoming request
+          and sets it only from that answer, so a visitor cannot claim to be
+          someone else.
 
-          What it holds depends on the identity provider: the account name
-          for GitHub, and for OpenID Connect whichever claim `userIDClaim`
-          names. Prefer a claim the provider will not reissue, since a name
-          someone gives up can be taken by somebody else.
+          A name someone gives up on the identity provider can be taken by
+          somebody else, who would then match a list still naming it.
 
           Empty admits anyone the provider authenticates, which for a
           provider that will sign in any account at all is no restriction.
