@@ -132,7 +132,7 @@
 
   podmanPackage = config.virtualisation.podman.package;
 
-  hostCliPackage = pkgs.writeShellApplication {
+  cliScript = pkgs.writeShellApplication {
     name = "hermes-agent-container-cli";
 
     text = ''
@@ -155,15 +155,17 @@
         "${cfg.container.name}" \
         "${hermesBinDir}/$program" "$@"
     '';
-
-    derivationArgs = {
-      postInstall = ''
-        ln -s hermes-agent-container-cli "$out/bin/hermes"
-        ln -s hermes-agent-container-cli "$out/bin/hermes-agent"
-        ln -s hermes-agent-container-cli "$out/bin/hermes-acp"
-      '';
-    };
   };
+
+  # The script reads the sub-command off the name it was called by, so each
+  # one is a link to it.
+  hostCliPackage = pkgs.runCommand "hermes-agent-cli" {} ''
+    mkdir -p "$out/bin"
+
+    for name in hermes-agent-container-cli hermes hermes-agent hermes-acp; do
+    	ln -s ${cliScript}/bin/hermes-agent-container-cli "$out/bin/$name"
+    done
+  '';
 
   envFile = pkgs.writeText "hermes-env" (
     lib.concatStringsSep "\n" (
