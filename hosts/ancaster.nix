@@ -41,7 +41,7 @@ in {
         profilePicture = ./ancaster/godfrey;
         signal = {
           enable = true;
-          secretsFile = "ancaster/user-hermes.yaml";
+          secretsFile = "ancaster/host-hermes.yaml";
         };
         matrix = {
           enable = true;
@@ -49,13 +49,13 @@ in {
           httpUrl = "https://matrix.orangesquash.org.uk";
           username = "godfrey";
           displayName = "Godfrey";
-          secretsFile = "ancaster/user-hermes.yaml";
+          secretsFile = "ancaster/host-hermes.yaml";
           encryption.enable = true;
         };
         dashboard.enable = true;
         homeassistant = {
           enable = true;
-          secretsFile = "ancaster/user-hermes.yaml";
+          secretsFile = "ancaster/host-hermes.yaml";
         };
         soul.enable = true;
         agents.enable = true;
@@ -72,7 +72,7 @@ in {
           enable = true;
           ageRecipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
         };
-        secretEnvFile = "ancaster/user-hermes.yaml";
+        secretEnvFile = "ancaster/host-hermes.yaml";
         secretEnv = {
           GROQ_API_KEY = "groq_api_key";
           OPENROUTER_API_KEY = "openrouter_api_key";

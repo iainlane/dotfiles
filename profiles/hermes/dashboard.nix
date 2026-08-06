@@ -11,10 +11,13 @@
   inherit (import ./builders.nix {inherit config inputs lib pkgs;}) mkHermesContainer;
 in {
   config = lib.mkIf (cfg.enable && cfg.dashboard.enable) {
-    services.podman.containers.${cfg.dashboard.containerName} = mkHermesContainer {
+    virtualisation.quadlet.containers.${cfg.dashboard.containerName} = mkHermesContainer {
       description = "Hermes Agent Web Dashboard";
-      # Host networking with a loopback bind: Hermes engages its auth gate on
-      # any non-loopback bind and refuses to start without an auth provider.
+      # Bound to the container's own loopback, so nothing on the network
+      # reaches it. Hermes engages its auth gate on any other bind and
+      # refuses to start without a provider, and it has no way to accept one
+      # the proxy has already made. It joins the network for everything else
+      # it talks to.
       exec = lib.concatStringsSep " " [
         "dashboard"
         "--host"
@@ -24,9 +27,11 @@ in {
         "--no-open"
         "--skip-build"
       ];
-      network = ["host"];
+      networks =
+        lib.toList cfg.container.network
+        ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
       after = [
-        "podman-${cfg.container.name}.service"
+        "${cfg.container.name}.service"
       ];
     };
   };

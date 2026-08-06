@@ -403,7 +403,7 @@
     backup = lib.mkOption {
       type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
         defaultPrefix = "hermes";
-        defaultSecretsFile = "${hostConfig.hostname}/user-r2.yaml";
+        defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
       });
       default = {};
       description = "Encrypted backups of the agent state, uploaded to Cloudflare R2.";

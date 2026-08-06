@@ -8,8 +8,11 @@
   pkgs,
 }: let
   cfg = config.services.hermes-agent;
+
   yaml = pkgs.formats.yaml {};
+
   generatedConfigFile = yaml.generate "hermes-config.yaml" cfg.settings;
+
   # Add an extra Python package as a leaf on the agent's import path: drop
   # its propagated deps so they cannot duplicate packages the sealed venv
   # already ships, which the package's collision check rejects. Shared deps
@@ -25,6 +28,7 @@
       doCheck = false;
       dontCheckRuntimeDeps = true;
     });
+
   package =
     if cfg.package != null
     then cfg.package
@@ -33,31 +37,44 @@
         inherit (cfg) extraDependencyGroups;
         extraPythonPackages = map venvLeafPackage cfg.extraPythonPackages;
       };
+
+  hermesBinDir = "${package}/bin";
+
   # Each container runs from a self-contained layered image built from the
   # Nix closure, loaded via a `podman.images` quadlet. There is no host
   # `/nix/store` bind mount; the package lives inside the image at its store
   # path.
   inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
-  # A fixed in-container service user. The host user is mapped onto this uid
-  # via `keep-id:uid=…`, so the container runs as `hermes` (non-root) while
-  # still owning the host-side state. `fakeNss` already provides root and
-  # nobody plus nsswitch.conf; we just add the `hermes` line.
+
+  # A fixed in-container service user, which the shared range maps onto the
+  # host. `fakeNss` already provides root and nobody plus nsswitch.conf; we
+  # just add the `hermes` line.
   hermesUser = "hermes";
+
   hermesUid = 1000;
+
   hermesNss = pkgs.dockerTools.fakeNss.override {
     extraPasswdLines = ["${hermesUser}:x:${toString hermesUid}:${toString hermesUid}:${hermesUser}:/home/hermes:/bin/sh"];
     extraGroupLines = ["${hermesUser}:x:${toString hermesUid}:"];
   };
-  hermesUserNS = "keep-id:uid=${toString hermesUid},gid=${toString hermesUid}";
+
+  # The agent, the dashboard and signal-cli hand files to one another through
+  # shared volumes, so they take their maps from one reserved range and a file
+  # one writes is one the others can read.
+  idRange = config.virtualisation.containers.idRanges.hermes;
+
   # Podman-managed named volumes hold the durable state. The setup step and
   # backup resolve their mountpoints at runtime via `podman volume inspect`.
   hermesStateVolume = "hermes-state";
+
   hermesHomeVolume = "hermes-home";
+
   hermesCacheVolume = "hermes-cache";
+
   # Where the profile-picture source is mounted in any container that reads it
   # (the rotation helper, and signal-cli, which resolves the avatar path itself).
   profilePictureContainerPath = "/profile-pictures";
-  hermesBinDir = "${package}/bin";
+
   # Tools the agent can shell out to, on top of the package's own runtime
   # deps (git/node/ripgrep/ffmpeg/...). `agentPackages` are nixpkgs
   # attribute names; they go into the image and onto the container PATH so
@@ -65,7 +82,9 @@
   agentToolDrvs =
     map (name: pkgs.${name}) cfg.agentPackages
     ++ cfg.extraPackages;
+
   agentBinPath = lib.makeBinPath agentToolDrvs;
+
   # extraPlugins are symlinked into the state dir by the setup script using
   # their store paths. The container has no host /nix/store, so carry those
   # paths into the image closure here (buildLayeredImage ships the whole
@@ -75,6 +94,7 @@
   extraPluginPaths = pkgs.linkFarm "hermes-extra-plugins" (
     lib.mapAttrsToList (name: path: {inherit name path;}) cfg.extraPlugins
   );
+
   hermesImage = mkNixImage cfg.container.name (
     [
       package
@@ -100,17 +120,21 @@
     ++ lib.optional cfg.mcp.enable pkgs.mcp-nixos
     ++ lib.optional (cfg.extraPlugins != {}) extraPluginPaths
   );
-  hermesImageRef = "localhost/${cfg.container.name}:${hermesImage.imageTag}";
-  hermesImageUnit = "podman-${cfg.container.name}-image.service";
-  # Sandbox hardening shared by every container: no capabilities, no
-  # privilege gain on exec, and resource caps.
-  hardeningPodmanArgs =
-    lib.optional cfg.container.noNewPrivileges "--security-opt=no-new-privileges"
-    ++ lib.optional (cfg.container.memory != null) "--memory=${cfg.container.memory}"
-    ++ lib.optional (cfg.container.pidsLimit != null) "--pids-limit=${toString cfg.container.pidsLimit}";
+
+  hermesImageUnit = "${cfg.container.name}-image.service";
+
+  # Sandbox hardening shared by every container.
+  hardening = {
+    dropCapabilities = ["ALL"];
+    noNewPrivileges = cfg.container.noNewPrivileges;
+    inherit (idRange) uidMaps gidMaps;
+  };
+
+  podmanPackage = config.virtualisation.podman.package;
+
   hostCliPackage = pkgs.writeShellApplication {
     name = "hermes-agent-container-cli";
-    runtimeInputs = [pkgs.podman];
+
     text = ''
       program="$(basename "$0")"
 
@@ -124,13 +148,14 @@
         tty_arg="-it"
       fi
 
-      exec podman exec "$tty_arg" -u ${hermesUser} \
+      exec sudo ${podmanPackage}/bin/podman exec "$tty_arg" -u ${hermesUser} \
         -e "TERM=''${TERM-}" \
         -e "COLORTERM=''${COLORTERM-}" \
         -e "LANG=''${LANG-}" \
         "${cfg.container.name}" \
         "${hermesBinDir}/$program" "$@"
     '';
+
     derivationArgs = {
       postInstall = ''
         ln -s hermes-agent-container-cli "$out/bin/hermes"
@@ -139,6 +164,7 @@
       '';
     };
   };
+
   envFile = pkgs.writeText "hermes-env" (
     lib.concatStringsSep "\n" (
       lib.mapAttrsToList
@@ -146,25 +172,34 @@
       cfg.environment
     )
   );
+
+  # Everything the agent needs in place before it starts: the state tree, the
+  # package it is running, the file that tells the host CLI how to reach it,
+  # and the environment assembled from the sops-rendered files.
   setupScript = pkgs.writeShellApplication {
     name = "hermes-prepare-state";
+
     runtimeInputs = with pkgs; [
       coreutils
       findutils
       gnused
-      podman
+      podmanPackage
     ];
+
     text =
       ''
         state="$(podman volume inspect --format '{{.Mountpoint}}' ${hermesStateVolume})"
 
-        install -d -m 0700 "$state/.hermes"
-        install -d -m 0700 "$state/.hermes/cron"
-        install -d -m 0700 "$state/.hermes/logs"
-        install -d -m 0700 "$state/.hermes/memories"
-        install -d -m 0700 "$state/.hermes/plugins"
-        install -d -m 0700 "$state/.hermes/sessions"
-        install -d -m 0700 "$state/workspace"
+        # This runs on the host, so what it creates is given the host id the
+        # container's `hermes` user maps to.
+        owner=${toString (idRange.start + hermesUid)}
+
+        install -d -m 0700 -o "$owner" -g "$owner" "$state"
+
+        for dir in .hermes .hermes/cron .hermes/logs .hermes/memories \
+          .hermes/plugins .hermes/sessions workspace; do
+        	install -d -m 0700 -o "$owner" -g "$owner" "$state/$dir"
+        done
 
         ln -sfn "${package}" "$state/current-package"
 
@@ -181,13 +216,16 @@
         exec_user=${hermesUser}
         hermes_bin=${hermesBinDir}/hermes
         HERMES_CONTAINER_MODE_EOF
+
         sed -i 's/^          //' "$state/.hermes/.container-mode"
         chmod 0600 "$state/.hermes/.container-mode"
+        chown "$owner:$owner" "$state/.hermes/.container-mode"
 
-        install -m 0600 "${envFile}" "$state/.hermes/.env"
+        install -m 0600 -o "$owner" -g "$owner" "${envFile}" "$state/.hermes/.env"
       ''
       + lib.concatMapStrings
       (file: ''
+
         if [ -f "${file}" ]; then
           printf '\n' >> "$state/.hermes/.env"
           cat "${file}" >> "$state/.hermes/.env"
@@ -199,6 +237,7 @@
       + lib.concatStrings (
         lib.mapAttrsToList
         (name: path: ''
+
           if [ -f "$state/${path}" ]; then
             printf '\n${name}="%s"\n' "$(cat "$state/${path}")" >> "$state/.hermes/.env"
           fi
@@ -212,15 +251,18 @@
       + lib.concatStringsSep "\n" (
         lib.mapAttrsToList
         (name: plugin: ''
+
           if [ ! -f "${plugin}/plugin.yaml" ]; then
             echo "ERROR: extraPlugins entry '${name}' has no plugin.yaml" >&2
             exit 1
           fi
+
           ln -sfn "${plugin}" "$state/.hermes/plugins/nix-managed-${name}"
         '')
         cfg.extraPlugins
       );
   };
+
   # Both the gateway and the dashboard are the same image and the same
   # `hermes` binary run with a different sub-command. This builds the shared
   # container definition; callers vary only the sub-command, ports, and a
@@ -228,74 +270,86 @@
   mkHermesContainer = {
     description,
     exec,
-    network ? [],
-    ports ? [],
-    environment ? {},
+    networks ? [],
+    publishPorts ? [],
+    environments ? {},
     after ? [],
-    service ? {},
+    serviceConfig ? {},
   }: {
     autoStart = true;
-    inherit description exec network ports;
-    image = hermesImageRef;
-    # Run as the fixed `hermes` user (non-root inside), mapped to the host
-    # user so it can write its state mounts but not its own system paths.
-    user = hermesUser;
-    userNS = hermesUserNS;
-    entrypoint = "${hermesBinDir}/hermes";
-    volumes =
-      [
-        "${hermesStateVolume}.volume:/data"
-        "${hermesHomeVolume}.volume:/home/hermes"
-        "${hermesCacheVolume}.volume:/data/.hermes/cache"
-        # config.yaml and SOUL.md come straight from the Nix store, read
-        # only. Hermes never writes them, and a change flips the store path,
-        # so the unit changes and the container restarts to pick it up.
-        "${generatedConfigFile}:/data/.hermes/config.yaml:ro"
-      ]
-      ++ lib.optional cfg.soul.enable "${cfg.soul.file}:/data/.hermes/SOUL.md:ro"
-      ++ lib.optional cfg.agents.enable "${cfg.agents.file}:/data/workspace/AGENTS.md:ro"
-      ++ cfg.container.extraVolumes;
-    environment =
-      {
-        HOME = "/home/hermes";
-        HERMES_CONTAINER = "true";
-        HERMES_HOME = "/data/.hermes";
-        HERMES_MANAGED = "true";
-        PATH = "${hermesBinDir}:${agentBinPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+
+    containerConfig =
+      hardening
+      // {
+        inherit exec networks publishPorts;
+
+        image = config.virtualisation.quadlet.images.${cfg.container.name}.ref;
+
+        # Runs as the fixed `hermes` user, non-root inside the namespace and a
+        # subordinate id on the host, so it writes its state mounts and
+        # nothing else.
+        user = hermesUser;
+
+        entrypoint = "${hermesBinDir}/hermes";
+
+        volumes =
+          [
+            "${hermesStateVolume}.volume:/data"
+            "${hermesHomeVolume}.volume:/home/hermes"
+            "${hermesCacheVolume}.volume:/data/.hermes/cache"
+            # config.yaml and SOUL.md come straight from the Nix store, read
+            # only. Hermes never writes them, and a change flips the store path,
+            # so the unit changes and the container restarts to pick it up.
+            "${generatedConfigFile}:/data/.hermes/config.yaml:ro"
+          ]
+          ++ lib.optional cfg.soul.enable "${cfg.soul.file}:/data/.hermes/SOUL.md:ro"
+          ++ lib.optional cfg.agents.enable "${cfg.agents.file}:/data/workspace/AGENTS.md:ro"
+          ++ cfg.container.extraVolumes;
+
+        environments =
+          {
+            HOME = "/home/hermes";
+            HERMES_CONTAINER = "true";
+            HERMES_HOME = "/data/.hermes";
+            HERMES_MANAGED = "true";
+            PATH = "${hermesBinDir}:${agentBinPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+          }
+          // environments;
+
+        podmanArgs = cfg.container.extraPodmanArgs;
       }
-      // environment;
-    # Hermes loads /data/.hermes/.env into its environment itself, so no
-    # podman env-file is needed; the file lives in the state volume.
-    dropCapabilities = ["ALL"];
-    extraPodmanArgs = hardeningPodmanArgs ++ cfg.container.extraPodmanArgs;
-    extraConfig = {
-      Unit = {
-        After = ["network-online.target" "sops-nix.service" hermesImageUnit] ++ after;
-        Wants = ["network-online.target" "sops-nix.service" hermesImageUnit] ++ after;
+      // lib.optionalAttrs (cfg.container.memory != null) {
+        inherit (cfg.container) memory;
+      }
+      // lib.optionalAttrs (cfg.container.pidsLimit != null) {
+        inherit (cfg.container) pidsLimit;
       };
-      Service =
-        {
-          ExecStartPre = ["${setupScript}/bin/hermes-prepare-state"];
-          Environment = [
-            "PATH=/usr/local/libexec/podman:/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin:/bin"
-          ];
-        }
-        // service;
+
+    unitConfig = {
+      Description = description;
+      After = ["network-online.target" "sops-install-secrets.service" hermesImageUnit] ++ after;
+      Wants = ["network-online.target" "sops-install-secrets.service" hermesImageUnit] ++ after;
     };
+
+    serviceConfig =
+      {
+        ExecStartPre = ["${setupScript}/bin/hermes-prepare-state"];
+      }
+      // serviceConfig;
   };
 in {
   inherit
     mkNixImage
     hermesUser
     hermesNss
-    hermesUserNS
     hermesStateVolume
     hermesHomeVolume
     hermesCacheVolume
     profilePictureContainerPath
     hermesImage
-    hardeningPodmanArgs
+    hardening
     hostCliPackage
     mkHermesContainer
+    idRange
     ;
 }

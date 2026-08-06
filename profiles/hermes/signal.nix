@@ -12,10 +12,9 @@
     (import ./builders.nix {inherit config inputs lib pkgs;})
     mkNixImage
     hermesUser
-    hermesUserNS
     hermesNss
     hermesCacheVolume
-    hardeningPodmanArgs
+    hardening
     profilePictureContainerPath
     ;
 
@@ -32,11 +31,10 @@
     pkgs.dockerTools.caCertificates
     hermesNss
   ];
-  signalImageRef = "localhost/${cfg.signal.containerName}:${signalImage.imageTag}";
-  signalImageUnit = "podman-${cfg.signal.containerName}-image.service";
+  signalImageUnit = "${cfg.signal.containerName}-image.service";
 in {
   config = lib.mkIf (cfg.enable && cfg.signal.enable) {
-    home.packages = [signalCliPackage];
+    environment.systemPackages = [signalCliPackage];
 
     sops = {
       secrets = {
@@ -57,54 +55,43 @@ in {
       environmentFiles = [config.sops.templates."hermes-signal.env".path];
     };
 
-    services.podman = {
-      volumes.${signalStateVolume} = {
-        description = "signal-cli account state";
-      };
+    virtualisation.quadlet = {
+      volumes.${signalStateVolume} = {};
 
-      networks.${cfg.signal.network} = {
-        description = "Hermes and signal-cli network";
-        extraConfig.Service.Environment = {
-          PATH = "/usr/local/libexec/podman:/run/wrappers/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-        };
-      };
+      networks.${cfg.signal.network} = {};
 
-      images.${cfg.signal.containerName} = {
+      images.${cfg.signal.containerName}.imageConfig = {
         image = "docker-archive:${signalImage}";
-        autoStart = true;
+        tag = "localhost/${cfg.signal.containerName}:${signalImage.imageTag}";
       };
 
       containers.${cfg.signal.containerName} = {
         autoStart = true;
-        description = "signal-cli JSON-RPC daemon for Hermes";
-        image = signalImageRef;
-        user = hermesUser;
-        userNS = hermesUserNS;
-        entrypoint = "${signalCliPackage}/bin/signal-cli";
-        exec = "--config /data daemon --http 0.0.0.0:8080";
-        network = ["${cfg.signal.network}.network"];
-        volumes =
-          [
-            "${signalStateVolume}.volume:/data"
-            # Hermes writes outgoing attachments under /data/.hermes/cache in
-            # its own namespace and hands signal-cli that path, so the shared
-            # cache volume resolves them to the same files here.
-            "${hermesCacheVolume}.volume:/data/.hermes/cache:ro"
-          ]
-          ++ lib.optional (cfg.profilePicture != null) "${cfg.profilePicture}:${profilePictureContainerPath}:ro";
-        environment.HOME = "/data";
-        dropCapabilities = ["ALL"];
-        extraPodmanArgs = hardeningPodmanArgs;
-        extraConfig = {
-          Unit = {
-            After = ["network-online.target" signalImageUnit];
-            Wants = ["network-online.target" signalImageUnit];
+
+        containerConfig =
+          hardening
+          // {
+            image = config.virtualisation.quadlet.images.${cfg.signal.containerName}.ref;
+            user = hermesUser;
+            entrypoint = "${signalCliPackage}/bin/signal-cli";
+            exec = "--config /data daemon --http 0.0.0.0:8080";
+            networks = ["${cfg.signal.network}.network"];
+            volumes =
+              [
+                "${signalStateVolume}.volume:/data"
+                # Hermes writes outgoing attachments under /data/.hermes/cache in
+                # its own namespace and hands signal-cli that path, so the shared
+                # cache volume resolves them to the same files here.
+                "${hermesCacheVolume}.volume:/data/.hermes/cache:ro"
+              ]
+              ++ lib.optional (cfg.profilePicture != null) "${cfg.profilePicture}:${profilePictureContainerPath}:ro";
+            environments.HOME = "/data";
           };
-          Service = {
-            Environment = [
-              "PATH=/usr/local/libexec/podman:/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin:/bin"
-            ];
-          };
+
+        unitConfig = {
+          Description = "signal-cli JSON-RPC daemon for Hermes";
+          After = ["network-online.target" signalImageUnit];
+          Wants = ["network-online.target" signalImageUnit];
         };
       };
     };

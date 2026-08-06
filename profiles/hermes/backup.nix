@@ -27,13 +27,13 @@ in {
       templateName = "hermes-backup.env";
     };
 
-    systemd.user.services.hermes-backup = {
-      Unit = {
-        Description = "Back up Hermes state to Cloudflare R2";
-        After = ["network-online.target" "sops-nix.service"];
-        Wants = ["network-online.target"];
-      };
-      Service = {
+    systemd.services.hermes-backup = {
+      description = "Back up Hermes state to Cloudflare R2";
+      requires = ["sops-install-secrets.service"];
+      after = ["network-online.target" "sops-install-secrets.service"];
+      wants = ["network-online.target"];
+      path = [config.virtualisation.podman.package uploader];
+      serviceConfig = {
         Type = "oneshot";
         EnvironmentFile = config.sops.templates."hermes-backup.env".path;
         Environment = [
@@ -47,13 +47,14 @@ in {
       };
     };
 
-    systemd.user.timers.hermes-backup = {
-      Unit.Description = "Schedule the Hermes R2 backup";
-      Timer = {
+    systemd.timers.hermes-backup = {
+      description = "Schedule the Hermes R2 backup";
+      wantedBy = ["timers.target"];
+      timerConfig = {
         OnCalendar = cfg.backup.schedule;
         Persistent = true;
+        RandomizedDelaySec = "15m";
       };
-      Install.WantedBy = ["timers.target"];
     };
   };
 }

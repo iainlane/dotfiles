@@ -19,7 +19,7 @@
     ;
 in {
   config = lib.mkIf cfg.enable {
-    home.packages =
+    environment.systemPackages =
       [
         hostCliPackage
         pkgs.fuse-overlayfs
@@ -27,48 +27,41 @@ in {
       ]
       ++ cfg.extraPackages;
 
-    services = {
-      hermes-agent.settings = {
-        # The agent's terminal working directory, inside the container.
-        terminal.cwd = "/data/workspace";
+    services.hermes-agent.settings = {
+      # The agent's terminal working directory, inside the container.
+      terminal.cwd = "/data/workspace";
 
-        # Single owner of the `plugins` allow/deny lists, merging the two
-        # sources (context-engine's enable, host-level disables) into one
-        # `settings.plugins` definition.
-        plugins = lib.filterAttrs (_: v: v != []) {
-          enabled = cfg.enabledPlugins;
-          disabled = cfg.disabledPlugins;
-        };
+      # Single owner of the `plugins` allow/deny lists, merging the two
+      # sources (context-engine's enable, host-level disables) into one
+      # `settings.plugins` definition.
+      plugins = lib.filterAttrs (_: v: v != []) {
+        enabled = cfg.enabledPlugins;
+        disabled = cfg.disabledPlugins;
+      };
+    };
+
+    virtualisation.quadlet = {
+      volumes = {
+        ${hermesStateVolume} = {};
+        ${hermesHomeVolume} = {};
+        ${hermesCacheVolume} = {};
       };
 
-      podman = {
-        enable = true;
-        volumes = {
-          ${hermesStateVolume} = {
-            description = "Hermes Agent durable state";
-          };
-          ${hermesHomeVolume} = {
-            description = "Hermes Agent home directory";
-          };
-          ${hermesCacheVolume} = {
-            description = "Hermes Agent attachment cache, shared with signal-cli";
-          };
-        };
-        images.${cfg.container.name} = {
-          image = "docker-archive:${hermesImage}";
-          autoStart = true;
-        };
-        containers.${cfg.container.name} = mkHermesContainer {
-          description = "Hermes Agent Gateway";
-          exec =
-            lib.concatStringsSep " "
-            (["gateway" "run" "--replace"] ++ cfg.extraArgs);
-          network =
-            lib.toList cfg.container.network
-            ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
-          ports = cfg.container.ports;
-          service.TimeoutStopSec = 210;
-        };
+      images.${cfg.container.name}.imageConfig = {
+        image = "docker-archive:${hermesImage}";
+        tag = "localhost/${cfg.container.name}:${hermesImage.imageTag}";
+      };
+
+      containers.${cfg.container.name} = mkHermesContainer {
+        description = "Hermes Agent Gateway";
+        exec =
+          lib.concatStringsSep " "
+          (["gateway" "run" "--replace"] ++ cfg.extraArgs);
+        networks =
+          lib.toList cfg.container.network
+          ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
+        publishPorts = cfg.container.ports;
+        serviceConfig.TimeoutStopSec = 210;
       };
     };
   };

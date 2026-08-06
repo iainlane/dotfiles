@@ -4,6 +4,10 @@
 # service and serves it at a public name. The agent connects to that name like
 # any other client would, so it needs the bot account's password and the list of
 # users allowed to talk to it, and nothing about where the homeserver runs.
+#
+# Both profiles hold the bot's password, one to create the account and one to
+# log in with, so the agent's secrets are named apart from the homeserver's and
+# say which key they read.
 {
   config,
   inputs,
@@ -49,22 +53,32 @@ in {
     sops = {
       secrets =
         {
-          matrix_password.sopsFile = matrixSecretsFile;
-          matrix_allowed_users.sopsFile = matrixSecretsFile;
+          hermes_matrix_password = {
+            sopsFile = matrixSecretsFile;
+            key = "matrix_password";
+          };
+
+          hermes_matrix_allowed_users = {
+            sopsFile = matrixSecretsFile;
+            key = "matrix_allowed_users";
+          };
         }
         // lib.optionalAttrs usingRecoveryKey {
-          ${cfg.matrix.encryption.recoveryKeyKey}.sopsFile = matrixSecretsFile;
+          hermes_matrix_recovery_key = {
+            sopsFile = matrixSecretsFile;
+            key = cfg.matrix.encryption.recoveryKeyKey;
+          };
         };
 
       # The agent logs in by password; the user ID and home room are not secret
       # and ride along as plain environment.
       templates."hermes-matrix.env".content =
         ''
-          MATRIX_PASSWORD=${config.sops.placeholder.matrix_password}
-          MATRIX_ALLOWED_USERS=${config.sops.placeholder.matrix_allowed_users}
+          MATRIX_PASSWORD=${config.sops.placeholder.hermes_matrix_password}
+          MATRIX_ALLOWED_USERS=${config.sops.placeholder.hermes_matrix_allowed_users}
         ''
         + lib.optionalString usingRecoveryKey ''
-          MATRIX_RECOVERY_KEY=${config.sops.placeholder.${cfg.matrix.encryption.recoveryKeyKey}}
+          MATRIX_RECOVERY_KEY=${config.sops.placeholder.hermes_matrix_recovery_key}
         '';
     };
   };
