@@ -9,7 +9,6 @@
   databasePath,
   image,
   lib,
-  networks,
   package,
   pkgs,
   stateVolume,
@@ -19,7 +18,7 @@ in {
   autoStart = true;
 
   containerConfig = {
-    inherit image networks;
+    inherit image;
 
     userns = "auto";
 

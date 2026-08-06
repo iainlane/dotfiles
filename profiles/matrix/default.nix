@@ -117,7 +117,6 @@
         inherit adminConfigPath backupPath backupVolume configFile configPath databasePath cfg lib pkgs package stateVolume;
         adminConfigFile = config.sops.templates."continuwuity-admin.toml".path;
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
-        networks = [config.virtualisation.quadlet.networks.matrixnet.ref];
       };
 
       expose = cfg.expose != null && config.services.edge-proxy.enable;
@@ -203,8 +202,6 @@
           };
 
           virtualisation.quadlet = {
-            networks.matrixnet = {};
-
             volumes =
               {${stateVolume} = {};}
               // lib.optionalAttrs cfg.backup.enable {${backupVolume} = {};};
