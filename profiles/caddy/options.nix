@@ -231,6 +231,26 @@
         '';
       };
 
+      allow = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        example = ["iainlane"];
+        description = ''
+          Identities allowed past the sign-in gate, matched against the
+          `X-Auth-Request-User` header the sign-in service answers with. The
+          proxy drops that header off an incoming request and sets it only
+          from that answer, so a visitor cannot claim to be someone else.
+
+          What it holds depends on the identity provider: the account name
+          for GitHub, and for OpenID Connect whichever claim `userIDClaim`
+          names. Prefer a claim the provider will not reissue, since a name
+          someone gives up can be taken by somebody else.
+
+          Empty admits anyone the provider authenticates, which for a
+          provider that will sign in any account at all is no restriction.
+        '';
+      };
+
       containerName = lib.mkOption {
         type = lib.types.str;
         default = "oauth2-proxy";

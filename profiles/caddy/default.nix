@@ -171,6 +171,22 @@
         ];
       };
 
+      # Who the sign-in service said the visitor is, once the gate above has
+      # set it. The identity provider decides who may sign in at all; this
+      # decides which of them this host serves, and does so wherever the
+      # identity comes from.
+      allowGate = {
+        match = [{not = [{header."X-Auth-Request-User" = cfg.auth.allow;}];}];
+        terminal = true;
+        handle = [
+          {
+            handler = "static_response";
+            status_code = 403;
+            body = "Signed in, but not on the list for this site.\n";
+          }
+        ];
+      };
+
       siteRoute = name: container: let
         inherit (container.containerConfig) labels;
         authenticated = labels."edge-proxy.auth" == "true";
@@ -181,7 +197,10 @@
           {
             handler = "subroute";
             routes =
-              lib.optional authenticated {handle = [authGate];}
+              lib.optionals authenticated (
+                [{handle = [authGate];}]
+                ++ lib.optional (cfg.auth.allow != []) allowGate
+              )
               ++ [{handle = [(proxyTo "${name}:${labels."edge-proxy.port"}")];}];
           }
         ];

@@ -201,6 +201,7 @@ in {
           cookieDomain = ".orangesquash.org.uk";
           secretsFile = "ancaster/host-oauth2-proxy.yaml";
           githubUsers = ["iainlane"];
+          allow = ["iainlane"];
         };
       };
     }
