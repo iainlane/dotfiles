@@ -514,13 +514,10 @@
                   noNewPrivileges = true;
                 };
 
-                # A protected site is served by asking the sign-in service
-                # about the visitor, so Caddy answers 502 for it whenever that
-                # service is absent.
                 unitConfig = {
                   Description = "Caddy reverse proxy";
-                  After = ["network-online.target" "sops-install-secrets.service"] ++ lib.optional cfg.auth.enable "${cfg.auth.containerName}.service";
-                  Wants = ["network-online.target" "sops-install-secrets.service"] ++ lib.optional cfg.auth.enable "${cfg.auth.containerName}.service";
+                  After = ["network-online.target" "sops-install-secrets.service"];
+                  Wants = ["network-online.target" "sops-install-secrets.service"];
                 };
               };
 
@@ -546,10 +543,15 @@
                   noNewPrivileges = true;
                 };
 
+                # It asks the identity provider who its keys are at startup,
+                # and reaches it by the name the proxy answers to, so the
+                # proxy is serving before it starts. The proxy needs nothing
+                # of it to start in turn: a protected site is answered 502
+                # until this is up.
                 unitConfig = {
                   Description = "Single sign-on for the sites Caddy protects";
-                  After = ["network-online.target" "sops-install-secrets.service"];
-                  Wants = ["network-online.target" "sops-install-secrets.service"];
+                  After = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
+                  Wants = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
                 };
               };
             };
