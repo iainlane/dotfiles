@@ -507,6 +507,11 @@
 
                   environmentFiles = [config.sops.templates."caddy.env".path];
                   environments.XDG_DATA_HOME = "/data";
+
+                  # Listening below port 1024 is the one privilege it keeps.
+                  dropCapabilities = ["ALL"];
+                  addCapabilities = ["NET_BIND_SERVICE"];
+                  noNewPrivileges = true;
                 };
 
                 # A protected site is served by asking the sign-in service
@@ -535,6 +540,10 @@
                   # service reads in preference to its config file, so they
                   # stay out of the store.
                   environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
+
+                  # It listens above port 1024, so it needs nothing.
+                  dropCapabilities = ["ALL"];
+                  noNewPrivileges = true;
                 };
 
                 unitConfig = {
