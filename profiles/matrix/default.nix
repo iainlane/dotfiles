@@ -216,7 +216,7 @@
 
             containers.${cfg.containerName} =
               if expose
-              then config.services.edge-proxy.exposePodman matrixContainer (cfg.expose // {inherit (cfg) port;})
+              then config.services.edge-proxy.exposePodman cfg.containerName matrixContainer (cfg.expose // {inherit (cfg) port;})
               else matrixContainer;
           };
         }

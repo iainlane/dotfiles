@@ -21,8 +21,7 @@
           type = lib.types.str;
           default = "10.90.0.0/24";
           description = ''
-            Private IPv4 range for the shared network. Only carries traffic
-            between the proxy and the services it fronts, so the addresses never
+            Private IPv4 range for the proxy's own network. The addresses never
             leave the host. Outside podman's own pool, so its allocator cannot
             hand the same range to another network.
           '';

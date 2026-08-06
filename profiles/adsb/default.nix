@@ -101,7 +101,7 @@
             containers = {
               ${ultrafeederName} =
                 if exposeUltrafeeder
-                then config.services.edge-proxy.exposePodman ultrafeederContainer (cfg.expose // {port = 80;})
+                then config.services.edge-proxy.exposePodman ultrafeederName ultrafeederContainer (cfg.expose // {port = 80;})
                 else ultrafeederContainer;
               piaware = piawareContainer;
               fr24 = fr24Container;

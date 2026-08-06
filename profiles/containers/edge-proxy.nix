@@ -1,10 +1,14 @@
 # The interface between a container and the reverse proxy in front of it.
 #
-# A service passes its own quadlet through `exposePodman`, which joins it to the
-# shared network and labels it with the name it should answer to. The proxy
-# discovers what to serve by reading those labels back off the containers, so
-# the container definition stays the single description of the service and
-# neither side names the other.
+# A service passes its own quadlet through `exposePodman`, which joins it to a
+# network it shares with the proxy and sets labels saying which domain it
+# answers to. The proxy reads those labels back off the containers to work out
+# what to serve, so a service is described in one place: its own container
+# definition.
+#
+# Each service gets its own network, with just that service and the proxy on
+# it. Podman cannot filter traffic within a network, so two services sharing
+# one could open connections to each other.
 #
 # The options live here, alongside the container runtime: a host can then run a
 # service with or without a proxy present and still evaluate. `enable` is set by
@@ -34,10 +38,20 @@ in {
       type = lib.types.str;
       default = "edge";
       description = ''
-        Podman network shared between the proxy and the services it fronts. A
-        wrapped container joins this network in addition to its own private
-        ones, so the proxy resolves it by container name and nothing needs to be
-        published to the host.
+        Podman network holding the proxy's own addresses, which is how the
+        outside reaches it. The networks it shares with the services it fronts
+        are named after this one.
+      '';
+    };
+
+    serviceNetwork = lib.mkOption {
+      type = lib.types.raw;
+      readOnly = true;
+      description = ''
+        Name of the network the proxy shares with one service, as
+        `serviceNetwork name`, where `name` is the name the container is
+        declared under. The proxy joins every one of them; a service joins
+        only its own, and so reaches the proxy and nothing else.
       '';
     };
 
@@ -46,9 +60,12 @@ in {
       readOnly = true;
       description = ''
         Wrap a container definition so the proxy will serve it, as
-        `exposePodman container { domain, port, auth }`. Returns the definition
-        with the shared network added and the proxy's labels set; everything
-        else about the container is left alone.
+        `exposePodman name container { domain, port, auth }`. Returns the
+        definition joined to the network it shares with the proxy, with the
+        proxy's labels set; everything else about the container is left alone.
+
+        `name` is the name the container is declared under, which is both what
+        the proxy resolves it by and what names their shared network.
 
         `domain` and `auth` are the host's to set, and a service takes them
         through `lib/exposed-service.nix`; `port` is the service's own.
@@ -57,7 +74,9 @@ in {
   };
 
   config.services.edge-proxy = {
-    exposePodman = container: settings: let
+    serviceNetwork = name: "${cfg.network}-${name}";
+
+    exposePodman = name: container: settings: let
       inherit (settings) domain port auth;
       containerConfig = container.containerConfig or {};
     in
@@ -66,7 +85,7 @@ in {
         containerConfig =
           containerConfig
           // {
-            networks = (containerConfig.networks or []) ++ ["${cfg.network}.network"];
+            networks = (containerConfig.networks or []) ++ ["${cfg.serviceNetwork name}.network"];
 
             labels =
               (containerConfig.labels or {})

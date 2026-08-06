@@ -1,14 +1,14 @@
-# Caddy as the single entry point for container services. It sits on a shared
-# podman network, resolves each backend by container name, and terminates TLS
-# with certificates issued over the ACME DNS-01 challenge, so a certificate can
-# be had before any traffic can arrive.
+# Caddy as the single entry point for container services. It resolves each
+# backend by container name over a network it shares with that service alone,
+# and terminates TLS with certificates issued over the ACME DNS-01 challenge,
+# so a certificate can be had before any traffic can arrive.
 #
-# The shared network carries a public IPv6 range delegated from the prefix
-# routed to this host, so Caddy holds an address the internet reaches directly.
-# IPv4 is a single address that cannot be delegated, so it is published instead.
+# Caddy's own network holds a public IPv6 range delegated from the prefix routed
+# to this host, so it has an address the internet reaches directly. IPv4 is a
+# single address that cannot be delegated, so it is published instead.
 #
 # What to serve is discovered from the containers themselves: anything wrapped
-# in `config.lib.edgeProxy.exposePodman` carries labels saying which name it
+# in `config.services.edge-proxy.exposePodman` has labels saying which name it
 # answers to and whether it needs signing in first. This profile never names an
 # individual service.
 {
@@ -71,6 +71,20 @@
         lib.filterAttrs
         (_: container: (container.containerConfig.labels or {}) ? "edge-proxy.domain")
         config.virtualisation.quadlet.containers;
+
+      # One network per service, with just that service and the proxy on it.
+      # The sign-in service gets one too: the proxy asks it about a request
+      # before serving it.
+      serviceNetworks =
+        map proxy.serviceNetwork (lib.attrNames exposed)
+        ++ lib.optional cfg.auth.enable (proxy.serviceNetwork cfg.auth.containerName);
+
+      # A static address belongs to one network, and podman takes `--ip6` only
+      # from a container on a single network, so it is given as an option of
+      # the network it is an address on.
+      proxyNetwork =
+        "${proxy.network}.network"
+        + lib.optionalString (cfg.ipv6Address != null) ":ip6=${cfg.ipv6Address}";
 
       proxyTo = upstream: {
         handler = "reverse_proxy";
@@ -305,18 +319,24 @@
           };
 
           virtualisation.quadlet = {
-            networks.${proxy.network}.networkConfig = {
-              subnets =
-                [cfg.network.v4.subnet]
-                ++ lib.optional (cfg.network.v6.subnet != null) cfg.network.v6.subnet;
-              gateways =
-                [cfg.network.v4.gateway]
-                ++ lib.optional (cfg.network.v6.gateway != null) cfg.network.v6.gateway;
-              ipRanges =
-                [cfg.network.v4.range]
-                ++ lib.optional (cfg.network.v6.range != null) cfg.network.v6.range;
-              ipv6 = cfg.network.v6.subnet != null;
-            };
+            # Podman allocates the per-service networks itself; nothing on them
+            # needs an address anyone has to know in advance.
+            networks =
+              lib.genAttrs serviceNetworks (_: {})
+              // {
+                ${proxy.network}.networkConfig = {
+                  subnets =
+                    [cfg.network.v4.subnet]
+                    ++ lib.optional (cfg.network.v6.subnet != null) cfg.network.v6.subnet;
+                  gateways =
+                    [cfg.network.v4.gateway]
+                    ++ lib.optional (cfg.network.v6.gateway != null) cfg.network.v6.gateway;
+                  ipRanges =
+                    [cfg.network.v4.range]
+                    ++ lib.optional (cfg.network.v6.range != null) cfg.network.v6.range;
+                  ipv6 = cfg.network.v6.subnet != null;
+                };
+              };
 
             # `optionalAttrs` rather than `mkIf`: an attribute defined as
             # `mkIf false` still exists, leaving quadlet-nix to render an
@@ -339,8 +359,9 @@
               ${cfg.containerName} = {
                 containerConfig = {
                   image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
-                  networks = ["${proxy.network}.network"];
-                  ip6 = cfg.ipv6Address;
+                  networks =
+                    [proxyNetwork]
+                    ++ map (network: "${network}.network") serviceNetworks;
                   exec = "run --config ${configPath}";
                   entrypoint = "${caddyPackage}/bin/caddy";
 
@@ -382,7 +403,7 @@
               ${cfg.auth.containerName} = lib.mkIf cfg.auth.enable {
                 containerConfig = {
                   image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
-                  networks = ["${proxy.network}.network"];
+                  networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];
                   entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
                   environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
 
