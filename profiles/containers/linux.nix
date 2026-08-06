@@ -3,79 +3,56 @@
     config,
     lib,
     pkgs,
+    username,
     ...
   }: let
-    cfg = config.virtualisation.containers.subordinatePool;
+    inherit (config.virtualisation.containers) idRanges;
 
-    userRanges =
-      lib.concatMap (
-        user:
-          map (range: {
-            inherit (user) name;
-            inherit (range) count;
-            start = range.startUid;
-          })
-          user.subUidRanges
-          ++ map (range: {
-            inherit (user) name;
-            inherit (range) count;
-            start = range.startGid;
-          })
-          user.subGidRanges
-      )
-      (lib.attrValues config.users.users);
+    # `newuidmap` reads these to decide what a user may map rootless, and
+    # nothing else on the host writes them.
+    subordinateFile = lib.concatLines (
+      lib.mapAttrsToList
+      (name: range: "${name}:${toString range.start}:${toString range.size}")
+      idRanges
+    );
 
-    overlappingRanges =
-      lib.filter
-      (range: range.start < cfg.start + cfg.count && cfg.start < range.start + range.count)
-      userRanges;
-
-    subordinateFile = startField: rangesField:
-      lib.concatLines (
-        lib.concatMap (
-          user:
-            map (range: "${user.name}:${toString range.${startField}}:${toString range.count}")
-            user.${rangesField}
-        )
-        (lib.attrValues config.users.users)
-        ++ ["containers:${toString cfg.start}:${toString cfg.count}"]
-      );
+    usersWithRanges = lib.attrNames (
+      lib.filterAttrs
+      (_: user: user.subUidRanges != [] || user.subGidRanges != [])
+      config.users.users
+    );
   in {
     imports = [
       ./edge-proxy.nix
+      ./id-ranges.nix
       ./quadlet.nix
     ];
-
-    options.virtualisation.containers.subordinatePool = {
-      start = lib.mkOption {
-        type = lib.types.int;
-        default = 1000000;
-        description = ''
-          First host id of the pool podman draws per-container user namespace
-          ranges from, written to /etc/subuid and /etc/subgid as the
-          `containers` entry that `--userns=auto` requires.
-        '';
-      };
-
-      count = lib.mkOption {
-        type = lib.types.int;
-        default = 65536000;
-        description = "Size of that pool, in ids.";
-      };
-    };
 
     config = {
       assertions = [
         {
-          assertion = overlappingRanges == [];
+          assertion = usersWithRanges == [];
           message = ''
-            virtualisation.containers.subordinatePool covers ${toString cfg.start}
-            to ${toString (cfg.start + cfg.count - 1)}, which podman hands out to
-            containers. It overlaps subordinate ranges belonging to:
-            ${lib.concatMapStringsSep ", " (range: "${range.name} (${toString range.start}+${toString range.count})") overlappingRanges}.
+            /etc/subuid and /etc/subgid are written from
+            virtualisation.containers.idRanges, so the subordinate ids set on
+            ${lib.concatStringsSep ", " usersWithRanges} through users.users
+            would reach neither file. Declare them as idRanges instead.
           '';
         }
       ];
+
+      virtualisation.containers.idRanges = {
+        # The name `--userns=auto` looks up when it draws a range for a
+        # container that asks for one of its own.
+        containers = {
+          start = lib.mkDefault 1000000;
+          size = lib.mkDefault 65536000;
+        };
+
+        # Rootless container storage on disk is already owned inside this
+        # range, so it has to keep matching what the distribution allocated.
+        ${username}.start = lib.mkDefault 165536;
+      };
 
       virtualisation.podman = {
         enable = true;
@@ -101,13 +78,13 @@
         "subuid" = {
           replaceExisting = true;
           mode = "0644";
-          text = subordinateFile "startUid" "subUidRanges";
+          text = subordinateFile;
         };
 
         "subgid" = {
           replaceExisting = true;
           mode = "0644";
-          text = subordinateFile "startGid" "subGidRanges";
+          text = subordinateFile;
         };
       };
 

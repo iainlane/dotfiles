@@ -130,20 +130,6 @@
       home = hostConfig.homeDirectory;
       isNormalUser = true;
       shell = pkgs.zsh;
-      # Rootless container storage is owned inside this range, so it matches
-      # what the host already allocated.
-      subUidRanges = [
-        {
-          startUid = 165536;
-          count = 65536;
-        }
-      ];
-      subGidRanges = [
-        {
-          startGid = 165536;
-          count = 65536;
-        }
-      ];
       # system-manager's option set does not include `programs.zsh`, so opt out
       # of the NixOS shell-program assertion while still using zsh as login shell.
       ignoreShellProgramCheck = true;

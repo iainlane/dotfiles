@@ -36,9 +36,14 @@
       username,
       ...
     }: {
-      config.users.users.${username} = {
-        autoSubUidGidRange = lib.mkDefault true;
-        linger = lib.mkDefault true;
+      config = {
+        users.users.${username}.linger = lib.mkDefault true;
+
+        # Reserved for the agent, the dashboard and signal-cli, which share
+        # state volumes and so map their ids from one range to see the same
+        # owner on a file. It sits above the window NixOS allocates
+        # subordinate ids from, so the reservation holds there too.
+        virtualisation.containers.idRanges.hermes.start = 1900644000;
       };
     };
   };
