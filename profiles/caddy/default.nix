@@ -33,13 +33,27 @@
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
+      # Answers the ACME DNS-01 challenge, so a certificate is issued without
+      # anything having to reach this host.
+      # renovate: datasource=go depName=github.com/caddy-dns/cloudflare
+      cloudflareDnsVersion = "v0.2.4";
+
+      # Reads the start of a connection before Caddy decides it is HTTP, which
+      # is what lets a service speaking its own protocol share the port the web
+      # is served on.
+      # renovate: datasource=go depName=github.com/mholt/caddy-l4
+      caddyL4Version = "v0.1.2";
+
       caddyPackage =
         if cfg.package != null
         then cfg.package
         else
           pkgs.caddy.withPlugins {
-            plugins = ["github.com/caddy-dns/cloudflare@v0.2.4"];
-            hash = "sha256-7GoH8YLCoPmPExQxoga2FHB58zQDoZVf1BBwkVi0SsQ=";
+            plugins = [
+              "github.com/caddy-dns/cloudflare@${cloudflareDnsVersion}"
+              "github.com/mholt/caddy-l4@${caddyL4Version}"
+            ];
+            hash = "sha256-6HJkIfqacmsEaubClOVjzPM+7Jy5Z7xHVORzf6+5OxU=";
           };
 
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
@@ -160,6 +174,7 @@
       # before serving it.
       serviceNetworks =
         map proxy.serviceNetwork (lib.attrNames exposed)
+        ++ map proxy.serviceNetwork (lib.attrNames proxy.streams)
         ++ lib.optional cfg.auth.enable (proxy.serviceNetwork cfg.auth.containerName);
 
       # A client of the identity provider fetches its discovery document, its
@@ -309,6 +324,69 @@
         ];
       };
 
+      # A service that speaks its own protocol rather than HTTP. The handshake
+      # says which one, so it shares the port the web is served on and is
+      # handed the connection decrypted. There is no sign-in here: the client
+      # is identified by its certificate, matched in full against the ones the
+      # service listed.
+      streamRoute = name: stream: {
+        match = [
+          {
+            tls = {
+              alpn = [stream.alpn];
+              sni = [stream.domain];
+            };
+          }
+        ];
+        handle = [
+          {
+            handler = "tls";
+            connection_policies = [
+              {
+                alpn = [stream.alpn];
+                # `require` asks for a certificate without checking who issued
+                # it. These are self-signed, so there is no chain to follow,
+                # and the verifier below does the real check.
+                client_authentication = {
+                  mode = "require";
+                  verifiers = [
+                    {
+                      verifier = "leaf";
+                      leaf_certs_loaders = [
+                        {
+                          loader = "pem";
+                          certificates = stream.trustedClients;
+                        }
+                      ];
+                    }
+                  ];
+                };
+              }
+            ];
+          }
+
+          {
+            handler = "proxy";
+            upstreams = [{dial = ["${name}:${toString stream.port}"];}];
+          }
+        ];
+      };
+
+      # Connections are offered to the stream routes first; one that matches
+      # none of them carries on to the web server.
+      listenerWrappers = lib.optionals (proxy.streams != {}) [
+        {
+          wrapper = "layer4";
+          routes = lib.mapAttrsToList streamRoute proxy.streams;
+        }
+        {wrapper = "tls";}
+      ];
+
+      # Caddy works out which certificates to get from the hostnames its web
+      # routes match on. A stream never appears there, so its name is listed
+      # separately.
+      streamDomains = lib.mapAttrsToList (_: stream: stream.domain) proxy.streams;
+
       acmeIssuer = ca:
         {
           module = "acme";
@@ -350,6 +428,9 @@
             # Caddy records errors alone, and a served request leaves no trace.
             logs = {};
           }
+          // lib.optionalAttrs (listenerWrappers != []) {
+            listener_wrappers = listenerWrappers;
+          }
           // lib.optionalAttrs cfg.originAuth.enable {
             tls_connection_policies =
               lib.optional (cfg.originAuth.directSources != []) directPolicy
@@ -372,9 +453,15 @@
           };
 
         # Let's Encrypt, falling back to ZeroSSL where it will not issue.
-        tls.automation.policies = [
-          {issuers = [(acmeIssuer null) (acmeIssuer "https://acme.zerossl.com/v2/DV90")];}
-        ];
+        tls =
+          {
+            automation.policies = [
+              {issuers = [(acmeIssuer null) (acmeIssuer "https://acme.zerossl.com/v2/DV90")];}
+            ];
+          }
+          // lib.optionalAttrs (streamDomains != []) {
+            certificates.automate = streamDomains;
+          };
       };
 
       configFile = pkgs.writeText "caddy-config.json" (builtins.toJSON caddyConfig);
@@ -395,6 +482,17 @@
             {
               assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
               message = "services.caddy-proxy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
+            }
+            {
+              assertion = lib.all (stream: stream.trustedClients != []) (lib.attrValues proxy.streams);
+              message = let
+                empty = lib.attrNames (lib.filterAttrs (_: stream: stream.trustedClients == []) proxy.streams);
+              in ''
+                These streams have no client certificates, so nothing can
+                connect to them: ${lib.concatStringsSep ", " empty}. Add the
+                certificate of each machine that should reach them to
+                `trustedClients`.
+              '';
             }
           ];
 

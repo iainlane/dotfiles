@@ -71,6 +71,64 @@ in {
         through `lib/exposed-service.nix`; `port` is the service's own.
       '';
     };
+
+    streams = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          domain = lib.mkOption {
+            type = lib.types.str;
+            example = "pg.example.com";
+            description = ''
+              Hostname clients connect to. The proxy holds a certificate for
+              it, so it has to resolve to this host, and it has to reach the
+              host directly: a CDN in front would answer the handshake itself
+              and then try to speak HTTP to the service.
+            '';
+          };
+
+          alpn = lib.mkOption {
+            type = lib.types.str;
+            example = "postgresql";
+            description = ''
+              Protocol the client asks for during the handshake. This is how
+              the proxy tells these connections apart from web traffic, so
+              both can share one port.
+            '';
+          };
+
+          port = lib.mkOption {
+            type = lib.types.port;
+            description = ''
+              Port the service listens on inside its container. The proxy
+              connects to it by container name, over the network the two of
+              them share.
+            '';
+          };
+
+          trustedClients = lib.mkOption {
+            type = with lib.types; listOf str;
+            default = [];
+            example = lib.literalExpression ''[(builtins.readFile ./client.pem)]'';
+            description = ''
+              Certificates, in PEM form, allowed to connect. Each is matched
+              in full, so a client presenting anything else is closed off
+              during the handshake, and dropping one from this list cuts that
+              machine off as soon as the proxy reloads.
+
+              There is no sign-in here, so this list decides who gets in and
+              cannot be empty.
+            '';
+          };
+        };
+      });
+      default = {};
+      description = ''
+        Services reached over TLS but not over HTTP, keyed by container name.
+        The proxy terminates TLS on the port it already listens on, tells them
+        apart from web traffic by the protocol asked for during the handshake,
+        and passes the decrypted connection to the service.
+      '';
+    };
   };
 
   config.services.edge-proxy = {
