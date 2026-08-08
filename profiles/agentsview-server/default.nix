@@ -1,14 +1,14 @@
-# The machine holding the shared archive of agent sessions.
+# The machine that holds the shared archive of agent sessions.
 #
-# A Postgres database takes the pushes, and AgentsView serves a read-only
-# dashboard over it showing every machine's sessions together. The dashboard is
-# ordinary web traffic and goes behind the proxy like anything else; the
-# database is reached over the same port, told apart by the protocol asked for
-# during the handshake.
+# A Postgres database receives the pushes. AgentsView shows a read-only
+# dashboard of the sessions from all the machines.
 #
-# Which machines may push is worked out from the host records: every machine
-# with the `agentsview` profile that is not a work machine, identified by the
-# certificate sitting beside its host record. Nothing here lists them.
+# The dashboard is web traffic and goes behind the proxy. The database uses
+# the same port. The protocol in the handshake tells the two apart.
+#
+# The host records give the machines that can push: each machine that has the
+# `agentsview` profile and is not a work machine. A certificate beside the
+# host record identifies each one. This file contains no list of them.
 {
   inputs,
   lib,
@@ -49,8 +49,8 @@ in {
       dashboardName = "agentsview";
       databaseName = "agentsview-db";
 
-      # Just these two on it, so the dashboard reaches the database without
-      # the database being reachable from anything else on the host.
+      # This network holds the database and the dashboard. Thus the dashboard
+      # is the only service on this host that reaches the database.
       network = "agentsviewnet";
 
       dataVolume = "agentsview-db-state";
@@ -58,17 +58,33 @@ in {
 
       databasePort = 5432;
 
-      # renovate: datasource=docker depName=docker.io/library/postgres versioning=docker
-      databaseTag = "18-alpine";
-
       dataDir = "/data";
+
+      # The location of the database files and of the socket. We choose both,
+      # thus this file gives them one time.
+      pgData = "/var/lib/postgresql/data";
+      pgSocketDir = "/tmp";
+
+      postgresql = pkgs.postgresql_18;
+
+      # Postgres refuses to run as root. At start, it also reads the name of
+      # its own id. Thus it gets an id and a name of its own.
+      databaseUser = "postgres";
+      databaseId = 999;
+
+      databaseNss = pkgs.dockerTools.fakeNss.override {
+        extraPasswdLines = [
+          "${databaseUser}:x:${toString databaseId}:${toString databaseId}::${pgData}:/bin/sh"
+        ];
+        extraGroupLines = ["${databaseUser}:x:${toString databaseId}:"];
+      };
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
       dashboardImage = mkNixImage dashboardName [
         inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview
-        # The entrypoint runs from inside the container, so it and the file it
-        # reads have to be in the image.
+        # The entrypoint runs in the container. Thus the image must contain
+        # the entrypoint and the file that it reads.
         entrypointScript
         pkgs.dockerTools.binSh
         pkgs.dockerTools.caCertificates
@@ -77,18 +93,17 @@ in {
 
       agentsview = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview;
 
-      # The proxy holds the certificate the pushing machines check, and hands
-      # over what it decrypts, so this last hop runs inside the container
-      # network on its own. AgentsView asks to be told that is deliberate.
+      # The proxy holds the certificate that the machines check. It decrypts
+      # the traffic and sends it on. Thus the last part of the path is in the
+      # container network and has no TLS. AgentsView asks you to confirm
+      # this.
       configFile = (pkgs.formats.toml {}).generate "agentsview.toml" {
         pg.allow_insecure = true;
       };
 
-      # AgentsView reads its configuration from the data directory and writes
-      # back to it, so the file is written into the volume on first start and
-      # left alone after that.
-      # Only the shell itself is used to put it there: the image holds
-      # AgentsView and a shell, and nothing else to copy a file with.
+      # AgentsView reads its configuration from the data directory. It also
+      # writes to that file. Thus the first start puts the file in the volume,
+      # and subsequent starts keep it.
       entrypointScript = pkgs.writeShellScriptBin "agentsview-entrypoint" ''
         set -eu
 
@@ -99,23 +114,72 @@ in {
         exec ${agentsview}/bin/agentsview "$@"
       '';
 
-      # The proxy joins the database only to carry the pushes, so with no
-      # machine pushing the database is reached by the dashboard alone.
+      # The proxy connects to the database to carry the pushes. If no machine
+      # pushes, only the dashboard connects to it.
       reachableFromProxy = trustedClients != [];
 
       superuser = "postgres";
       superuserSecret = "agentsview_superuser_password";
 
-      # The database reports itself healthy before this runs, so a few
-      # attempts are enough to cover a blip. The statements are repeatable, so
-      # retrying costs nothing.
+      databaseImage = mkNixImage databaseName [
+        postgresql
+        databaseInit
+        databaseNss
+        pkgs.dockerTools.binSh
+      ];
+
+      # The first start makes the data directory. The script then runs the
+      # database in the foreground, thus the unit reports the output of the
+      # database.
+      #
+      # The database trusts local connections. The roles unit uses the socket
+      # and needs no password. The machines that push connect over the
+      # network and give a password.
+      databaseInit = pkgs.writeShellScriptBin "agentsview-db-init" ''
+        set -eu
+
+        if [ ! -s ${pgData}/PG_VERSION ]; then
+          printf '%s\n' "$POSTGRES_PASSWORD" | ${postgresql}/bin/initdb \
+            --pgdata=${pgData} \
+            --username=${superuser} \
+            --pwfile=/dev/stdin \
+            --auth-local=trust \
+            --auth-host=scram-sha-256 \
+            --encoding=UTF8 \
+            --locale=C.UTF-8
+        fi
+
+        exec ${postgresql}/bin/postgres \
+          -D ${pgData} \
+          -c listen_addresses='*' \
+          -c port=${toString databasePort} \
+          -c unix_socket_directories=${pgSocketDir}
+      '';
+
+      # `initdb` makes only the default database of a cluster. The first run
+      # of this statement makes the database that holds the sessions.
+      databaseSql = pkgs.writeText "agentsview-database.sql" ''
+        SELECT 'CREATE DATABASE ' || quote_ident('${cfg.database}')
+         WHERE NOT EXISTS (
+           SELECT FROM pg_database WHERE datname = '${cfg.database}'
+         )\gexec
+      '';
+
+      # The database reports that it is healthy before this script runs. Thus
+      # a small number of attempts is sufficient. You can run the statements
+      # more than one time safely.
       rolesScript = pkgs.writeShellScript "agentsview-db-roles" ''
         set -u
 
+        run() {
+          podman exec -i ${databaseName} \
+            ${postgresql}/bin/psql -q -v ON_ERROR_STOP=1 \
+            -h ${pgSocketDir} -U ${superuser} "$@"
+        }
+
         for _ in $(seq 10); do
-          if podman exec -i ${databaseName} \
-               psql -q -v ON_ERROR_STOP=1 -U ${superuser} -d ${cfg.database} \
-               < ${config.sops.templates."agentsview-roles.sql".path}; then
+          if run -d postgres < ${databaseSql} \
+             && run -d ${cfg.database} < ${config.sops.templates."agentsview-roles.sql".path}; then
             exit 0
           fi
           sleep 2
@@ -125,13 +189,12 @@ in {
         exit 1
       '';
 
-      # Every pushing machine owns what it writes through one shared role, so
-      # a machine reads what the others pushed without being granted anything
-      # against them by name.
+      # One shared role owns everything that the machines write. Thus each
+      # machine reads the data of the others, and no grant names a machine.
       group = "agentsview_push";
 
-      # Brought into line on every start, so adding or removing a machine
-      # takes effect on the next deploy.
+      # Each start applies these statements. Thus a change to the set of
+      # machines takes effect at the next deploy.
       rolesSql =
         ''
           DO $$
@@ -141,13 +204,18 @@ in {
             END IF;
           END $$;
 
-          -- AgentsView keeps its tables in a schema of its own, which the
-          -- first machine to push creates. Granting on the database is what
-          -- lets it, and `SET ROLE` below is what makes the shared role the
-          -- owner, so every machine can read what the others wrote.
+          -- AgentsView keeps its tables in a schema of its own. The first
+          -- machine that pushes makes that schema. This grant lets it. The
+          -- `SET ROLE` below makes the shared role the owner, thus each
+          -- machine reads the data of the others.
           GRANT ALL ON DATABASE ${cfg.database} TO ${group};
 
-          -- A machine no longer listed keeps its rows and loses its way in.
+          -- `initdb` sets this password at the first run. This statement
+          -- sets it again at each start, thus a new password takes effect
+          -- and the cluster stays.
+          ALTER ROLE ${superuser} PASSWORD '${config.sops.placeholder.${superuserSecret}}';
+
+          -- A machine that leaves the list keeps its rows and loses access.
           DO $$
           DECLARE
             wanted text[] := ARRAY[${lib.concatMapStringsSep ", " (h: "'${common.role h}'") (lib.attrNames pushers)}];
@@ -178,8 +246,8 @@ in {
 
           ALTER ROLE "${name}" LOGIN PASSWORD '${config.sops.placeholder.${common.passwordSecretFor hostname}}';
           GRANT ${group} TO "${name}";
-          -- Everything it creates belongs to the shared role, so the next
-          -- machine along can read it.
+          -- The shared role owns everything that this machine makes, thus
+          -- the other machines read it.
           ALTER ROLE "${name}" SET ROLE ${group};
 
         '') (lib.attrNames pushers);
@@ -188,43 +256,49 @@ in {
         autoStart = true;
 
         containerConfig = {
-          image = "docker.io/library/postgres:${databaseTag}";
+          image = config.virtualisation.quadlet.images.${databaseName}.ref;
 
           networks =
             ["${network}.network"]
             ++ lib.optional reachableFromProxy "${proxy.serviceNetwork databaseName}.network";
 
-          # `auto` shifts the image's own files into the namespace as well as
-          # mapping the ids. Given a bare uid map the image looks to be owned
-          # by nobody from inside, and the entrypoint's drop from root to the
-          # postgres user spins instead of completing.
-          userns = "auto";
-
-          # Postgres 18 keeps its data under `/var/lib/postgresql/<major>/`
-          # and declares the directory above it as the volume, so that whole
-          # directory is what gets kept.
-          volumes = ["${dataVolume}.volume:/var/lib/postgresql"];
-
-          # On a fresh volume the database runs once to initialise itself
-          # before running for real, and that first pass listens on the local
-          # socket alone. Asking over TCP therefore answers only once the
-          # database is the one that keeps running.
+          # The container uses the host ids. It runs as its own user and has
+          # no capabilities. An escape from the container gets an id that owns
+          # the database files and nothing more.
           #
-          # `notify` holds the unit in `activating` until this passes, so
-          # anything ordered after it starts against a database that is
-          # actually listening.
-          healthCmd = "pg_isready -h 127.0.0.1 -p ${toString databasePort} -U ${superuser} -d ${cfg.database}";
-          healthInterval = "5s";
-          healthRetries = 12;
+          # In a user namespace on this host, connections to Postgres 18 stop
+          # at `authentication` and stay there. Thus the container uses host
+          # ids. The cause is still unknown.
+          user = databaseUser;
+          dropCapabilities = ["ALL"];
+
+          entrypoint = "${databaseInit}/bin/agentsview-db-init";
+
+          # `U` tells podman to give the contents to the user of the
+          # container. That id is the same at each start, thus podman does
+          # this work one time.
+          volumes = ["${dataVolume}.volume:${pgData}:U"];
+
+          # `notify` keeps the unit in `activating` until this check passes.
+          # Thus the units that come after it start against a database that
+          # listens.
+          #
+          # The check uses the socket, thus the database answers for itself.
+          # Each check holds a connection while it waits. The interval is long
+          # and keeps the other connections free.
+          healthCmd = "${postgresql}/bin/pg_isready -h ${pgSocketDir} -p ${toString databasePort} -U ${superuser}";
+          healthInterval = "30s";
+          healthRetries = 4;
           healthStartPeriod = "60s";
           notify = "healthy";
 
-          environments = {
-            POSTGRES_USER = superuser;
-            POSTGRES_DB = cfg.database;
-          };
-
           environmentFiles = [config.sops.templates."agentsview-db.env".path];
+
+          # A shutdown writes a checkpoint first. Podman allows ten seconds
+          # by default. After that it kills the database, and the next start
+          # reads the log back. That time increases with the size of the
+          # archive.
+          stopTimeout = 120;
 
           noNewPrivileges = true;
         };
@@ -248,9 +322,9 @@ in {
 
           entrypoint = "${entrypointScript}/bin/agentsview-entrypoint";
 
-          # `--host` as a flag: set in the file, a non-loopback address makes
-          # AgentsView require a token of its own, and the proxy in front is
-          # what decides who is served here.
+          # This is a flag. A non-loopback address in the configuration file
+          # makes AgentsView ask for a token of its own. The proxy in front
+          # decides who gets access.
           exec = lib.concatStringsSep " " [
             "pg"
             "serve"
@@ -258,11 +332,10 @@ in {
             "0.0.0.0"
             "--port"
             (toString cfg.port)
-            # Nothing here can open one, and it would be asked for on every
-            # start.
             "--no-browser"
-            # The request arrives from the proxy without the name it was asked
-            # for, so AgentsView is told it here and checks it against this.
+            # The request comes from the proxy and does not carry the name
+            # that the browser used. This flag gives AgentsView that name,
+            # and it checks each request against it.
             "--public-url"
             "https://${cfg.expose.domain}"
           ];
@@ -281,8 +354,8 @@ in {
 
         unitConfig = {
           Description = "AgentsView dashboard";
-          # It reads everything it serves from the database, so it waits for
-          # it and goes down with it.
+          # The dashboard reads all of its data from the database. Thus it
+          # waits for the database and stops with it.
           Requires = ["${databaseName}.service"];
           After = ["${databaseName}.service" "sops-install-secrets.service"];
           Wants = ["sops-install-secrets.service"];
@@ -299,27 +372,46 @@ in {
             {
               assertion = withoutCertificate == [];
               message = ''
-                These machines are set to push their agent sessions but have no
-                certificate, so the database would turn them away:
-                ${lib.concatStringsSep ", " withoutCertificate}. Make one for
-                each with:
+                These machines push their agent sessions and have no
+                certificate, thus the database refuses them:
+                ${lib.concatStringsSep ", " withoutCertificate}. Make a
+                certificate for each machine with these commands:
                 ${lib.concatMapStrings common.generateCertificate withoutCertificate}
               '';
             }
             {
               assertion = proxy.enable;
               message = ''
-                services.agentsview-server needs a proxy on this host: it is
-                what holds the certificate the pushing machines check, and what
+                services.agentsview-server needs a proxy on this host. The
+                proxy holds the certificate that the machines check, and it
                 serves the dashboard.
               '';
             }
           ];
 
-          # Reached on the port the web is served on, told apart from it by
-          # the protocol. Only the machines whose certificates are listed here
-          # get that far, so the database is offered to the network once there
-          # is a machine to offer it to.
+          # The user of the container is a host user, and it owns the
+          # database files on the volume. `systemd-sysusers` gives out system
+          # ids from 999 down. This entry keeps that id and gives the files a
+          # name on the host. No process runs as this user.
+          environment.etc."sysusers.d/${databaseName}.conf".text = ''
+            u ${databaseName} ${toString databaseId} "AgentsView database" /nonexistent /usr/sbin/nologin
+          '';
+
+          systemd.services."${databaseName}-user" = {
+            description = "Claim the id the AgentsView database runs as";
+            wantedBy = ["system-manager.target"];
+            before = ["${databaseName}.service"];
+
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = "${pkgs.systemd}/bin/systemd-sysusers";
+            };
+          };
+
+          # The database uses the same port as the web. The protocol tells
+          # the two apart. Only the machines with a certificate in this list
+          # get through. The stream starts when there is one such machine.
           services.edge-proxy.streams = lib.mkIf reachableFromProxy {
             ${databaseName} = {
               inherit (cfg) domain;
@@ -334,8 +426,8 @@ in {
               {
                 ${superuserSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
               }
-              # Every pushing machine's password, so the roles can be brought
-              # into line with whatever the secrets repository now holds.
+              # The password of each machine that pushes. The roles unit
+              # applies the passwords that the secrets repository holds.
               // lib.mapAttrs' (hostname: _:
                 lib.nameValuePair (common.passwordSecretFor hostname) {
                   sopsFile = inputs.secrets + "/${common.passwordFile hostname}";
@@ -378,9 +470,16 @@ in {
               ${dashboardVolume} = {};
             };
 
-            images.${dashboardName}.imageConfig = {
-              image = "docker-archive:${dashboardImage}";
-              tag = "localhost/${dashboardName}:${dashboardImage.imageTag}";
+            images = {
+              ${dashboardName}.imageConfig = {
+                image = "docker-archive:${dashboardImage}";
+                tag = "localhost/${dashboardName}:${dashboardImage.imageTag}";
+              };
+
+              ${databaseName}.imageConfig = {
+                image = "docker-archive:${databaseImage}";
+                tag = "localhost/${databaseName}:${databaseImage.imageTag}";
+              };
             };
 
             containers = {

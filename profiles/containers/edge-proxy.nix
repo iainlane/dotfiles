@@ -79,10 +79,10 @@ in {
             type = lib.types.str;
             example = "pg.example.com";
             description = ''
-              Hostname clients connect to. The proxy holds a certificate for
-              it, so it has to resolve to this host, and it has to reach the
-              host directly: a CDN in front would answer the handshake itself
-              and then try to speak HTTP to the service.
+              The hostname that clients connect to. The proxy holds a
+              certificate for it, thus the name must point at this host. It
+              must also reach the host directly. A CDN answers the handshake
+              itself and then sends HTTP to the service, which fails.
             '';
           };
 
@@ -90,18 +90,18 @@ in {
             type = lib.types.str;
             example = "postgresql";
             description = ''
-              Protocol the client asks for during the handshake. This is how
-              the proxy tells these connections apart from web traffic, so
-              both can share one port.
+              The protocol that the client asks for in the handshake. The
+              proxy uses it to tell these connections from web traffic, thus
+              the two share one port.
             '';
           };
 
           port = lib.mkOption {
             type = lib.types.port;
             description = ''
-              Port the service listens on inside its container. The proxy
-              connects to it by container name, over the network the two of
-              them share.
+              The port of the service inside its container. The proxy uses
+              the container name and the network that the two of them
+              share.
             '';
           };
 
@@ -110,23 +110,25 @@ in {
             default = [];
             example = lib.literalExpression ''[(builtins.readFile ./client.pem)]'';
             description = ''
-              Certificates, in PEM form, allowed to connect. Each is matched
-              in full, so a client presenting anything else is closed off
-              during the handshake, and dropping one from this list cuts that
-              machine off as soon as the proxy reloads.
+              The certificates, in PEM form, that can connect. The proxy
+              compares each one in full. It closes a connection that gives a
+              different certificate during the handshake. Remove a
+              certificate from this list and that machine loses access at the
+              next reload.
 
-              There is no sign-in here, so this list decides who gets in and
-              cannot be empty.
+              These protocols have no sign-in, thus this list decides who
+              gets access. It cannot be empty.
             '';
           };
         };
       });
       default = {};
       description = ''
-        Services reached over TLS but not over HTTP, keyed by container name.
-        The proxy terminates TLS on the port it already listens on, tells them
-        apart from web traffic by the protocol asked for during the handshake,
-        and passes the decrypted connection to the service.
+        The services that use TLS and do not use HTTP, by container name.
+
+        The proxy terminates TLS on the port that it already uses. It tells
+        these services from web traffic by the protocol in the handshake. It
+        then passes the decrypted connection to the service.
       '';
     };
   };

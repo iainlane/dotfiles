@@ -1,22 +1,22 @@
-# What the two AgentsView profiles need to agree on.
+# The values that both AgentsView profiles use.
 #
-# Machines keep their own archive of agent sessions and push it to a shared
-# database, which one machine serves a dashboard from. Both ends need to agree
-# on which machines push, where they push to, and which certificate each one
-# presents.
+# Each machine keeps an archive of its agent sessions. Some machines push
+# their archive to a shared database. One machine holds that database and
+# shows a dashboard of it.
 #
-# All of that is worked out from the host records, so adding the profile to a
-# machine is all it takes. Host discovery reads the files under `hosts/`
-# directly and never resolves a profile, so reading it from a profile does not
-# feed back on itself.
+# The two profiles must agree on three things: which machines push, where
+# they push to, and which certificate each machine presents.
+#
+# This file reads the answers from the host records. To add a machine, add
+# the profile to it. Host discovery reads the files under `hosts/` directly,
+# so a profile can call these functions safely.
 {lib}: let
   helpers = import ./profiles.nix {inherit lib;};
 
   clientProfile = "agentsview";
   serverProfile = "agentsview-server";
 
-  # Work stays on the machine it happened on, so a work machine keeps its
-  # archive and pushes nothing.
+  # A work machine keeps its archive on the machine. It does not push.
   pushes = host: helpers.hasProfile host clientProfile && !helpers.hasProfile host "work";
 
   # Settings a host passes to one of its profiles.
@@ -36,12 +36,12 @@
     database = "agentsview";
   };
 
-  # Each machine connects as itself, with a password of its own, so taking one
-  # machine's access away leaves the others alone.
+  # Each machine connects as itself and has its own password. You can remove
+  # the access of one machine and the others keep theirs.
   role = hostname: hostname;
 
-  # The one machine serving the dashboard, and the settings it was given. The
-  # clients read the hostname to push to from here, so it is written down once.
+  # The machine that shows the dashboard, and the settings it was given. The
+  # clients read the hostname from here, so the file gives it one time.
   serverSettings = hosts: let
     found = lib.filterAttrs (_: host: helpers.hasProfile host serverProfile) hosts;
   in
@@ -49,35 +49,37 @@
     then null
     else serverDefaults // profileSettings serverProfile (lib.head (lib.attrValues found));
 
-  # A machine's certificate lives beside its host record. Nothing lists them:
-  # the path follows from the hostname, so the server finds each one for
-  # itself.
+  # The certificate of a machine is beside its host record. The path comes
+  # from the hostname, so the server finds each certificate itself. No list of
+  # them is necessary.
   certificatePath = hostname: ../hosts + "/${hostname}/agentsview.pem";
 
   hasCertificate = hostname: builtins.pathExists (certificatePath hostname);
 
-  # The two secrets a pushing machine needs. Both paths follow from the
-  # hostname, so no machine states where its own credentials are.
+  # A machine that pushes needs two secrets. Both paths come from the
+  # hostname, so a machine does not state where its own secrets are.
   #
-  # The password is its database role's; the server reads every machine's to
-  # keep the roles in step. The key is the certificate's, and belongs to the
-  # user running the push, so it sits with that machine's other user secrets.
+  # The first secret is the password of the database role. The server reads
+  # the password of every machine and keeps the roles correct.
   #
-  # A password ends up in a connection URL, so generate it with
-  # `openssl rand -hex 32`. One containing `/`, `#`, `?` or `:` is parsed as a
-  # port or a path and the connection fails.
+  # The second secret is the private key of the certificate. It belongs to the
+  # user that runs the push, so it sits with the other user secrets.
+  #
+  # A password goes into a connection URL. Make it with
+  # `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
+  # reads as a port or a path, and the connection fails.
   passwordFile = hostname: "agentsview-postgres/${hostname}.yaml";
   passwordSecret = "password";
 
   privateKeyFile = hostname: "${hostname}/user-agentsview.yaml";
   privateKeySecret = "agentsview_client_key";
 
-  # A secret is named after the machine it belongs to, so one host reading
-  # several of them keeps them apart.
+  # The name of a secret contains the machine that owns it. One host can hold
+  # the secrets of several machines and keep them apart.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
 
-  # openssl writes the curve out in full by default and Go rejects a key like
-  # that, so the named-curve encoding has to be asked for.
+  # By default, openssl writes the full curve parameters. Go rejects a key of
+  # that form. Thus the command asks for the named-curve encoding.
   generateCertificate = hostname: ''
     openssl req -x509 -newkey ec \
       -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve \

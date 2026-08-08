@@ -1,16 +1,13 @@
 # AgentsView on a machine that runs coding agents.
 #
-# It reads the session files the agents leave behind, keeps its own archive of
-# them, and serves a dashboard over that archive on 127.0.0.1. A machine that
-# syncs also pushes the archive to the shared database, so its sessions show up
-# in the dashboard the server hosts.
+# The agents write session files. AgentsView reads these files and keeps an
+# archive of them. It also shows a dashboard of the archive on 127.0.0.1.
 #
-# Both run at once: the second writer notices the first and goes through it
-# rather than opening the archive itself.
+# Some machines also push their archive to the shared database. The server
+# then shows their sessions with the sessions of the other machines.
 #
-# The push only ever goes one way. The archive here stays the original, so a
-# machine that pushes nothing still holds everything about itself, and holds
-# nothing about anyone else either way.
+# The dashboard and the push run at the same time. The push finds the
+# dashboard and sends its work through it.
 {
   inputs,
   lib,
@@ -22,18 +19,17 @@
 
   server = common.serverSettings helpers.hosts;
 
-  # Everything needing an address to push to waits until there is one, so the
-  # assertion below is what reports a machine set to push with nowhere to push
-  # to.
+  # The parts that need an address wait until there is one. The assertion
+  # below then reports a machine that pushes to no server.
   haveServer = server != null;
 
   environmentFile = "agentsview-pg.env";
 
   agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
 
-  # Reached on the port the web is served on, told apart from it by the
-  # protocol asked for during the handshake. The driver negotiates TLS that
-  # way when asked for `direct`.
+  # The database uses the same port as the web. The protocol in the handshake
+  # tells the two apart. The driver negotiates TLS this way when you ask for
+  # `direct`.
   dsn = {
     hostname,
     password,
@@ -43,14 +39,14 @@
     "postgres://${common.role hostname}:${password}@${server.domain}:443/${server.database}"
     + "?sslmode=verify-full"
     + "&sslnegotiation=direct"
-    # The proxy is served under a public certificate, so the machine's trust
-    # store already knows who signed it.
+    # The proxy has a public certificate. The trust store of the machine
+    # already knows the issuer.
     + "&sslrootcert=system"
     + "&sslcert=${certificate}"
     + "&sslkey=${key}";
 
-  # launchd cannot read a job's environment from a file, so both platforms go
-  # through this and pick the address up at startup.
+  # launchd reads the environment of a job from its own configuration only.
+  # Thus both platforms use this script, which reads the address at start.
   pushScript = {
     pkgs,
     agentsview,
@@ -97,8 +93,9 @@
           };
 
           Service = {
-            # Brings the local archive up to date, pushes what changed, then
-            # stays running and does it again whenever a session is written.
+            # This command updates the local archive and pushes the changes.
+            # It then stays active and repeats the work after each new
+            # session.
             ExecStart = "${pushScript {
               inherit pkgs;
               agentsview = agentsviewFor system;
@@ -190,15 +187,15 @@ in {
             {
               assertion = server != null;
               message = ''
-                ${hostname} is set to push its agent sessions, but no machine
-                has the `agentsview-server` profile, so there is nowhere to
-                push them to.
+                ${hostname} pushes its agent sessions. No machine has the
+                `agentsview-server` profile, thus there is no server to push
+                to.
               '';
             }
             {
               assertion = builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}");
               message = ''
-                ${hostname} is set to push its agent sessions, so it needs a
+                ${hostname} pushes its agent sessions, thus it needs a
                 database role of its own. Add its password to the secrets
                 repository as `${common.passwordFile hostname}` under
                 `${common.passwordSecret}`.
@@ -207,12 +204,13 @@ in {
             {
               assertion = common.hasCertificate hostname;
               message = ''
-                ${hostname} is set to push its agent sessions, so it needs a
-                certificate to identify itself to the proxy. Make one with:
+                ${hostname} pushes its agent sessions, thus it needs a
+                certificate. The proxy uses the certificate to identify the
+                machine. Make one with this command:
 
                 ${common.generateCertificate hostname}
-                Commit the certificate, and put the key in the secrets
-                repository as `${common.privateKeyFile hostname}` under
+                Commit the certificate. Put the key in the secrets repository
+                as `${common.privateKeyFile hostname}` under
                 `${common.privateKeySecret}`.
               '';
             }
@@ -231,9 +229,9 @@ in {
               };
             };
 
-            # The password is the only part of the address worth hiding, so
-            # the rest is written out plainly and the rendered file is what
-            # stays unreadable.
+            # The password is the only secret part of the address. The
+            # other parts are in plain text here. sops makes the file that
+            # holds the result unreadable.
             templates.${environmentFile}.content = ''
               AGENTSVIEW_PG_URL=${dsn {
                 inherit hostname;

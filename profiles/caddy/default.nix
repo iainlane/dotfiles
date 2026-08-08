@@ -33,14 +33,14 @@
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
-      # Answers the ACME DNS-01 challenge, so a certificate is issued without
-      # anything having to reach this host.
+      # This plugin answers the ACME DNS-01 challenge. The issuer gives a
+      # certificate and connects to nothing on this host.
       # renovate: datasource=go depName=github.com/caddy-dns/cloudflare
       cloudflareDnsVersion = "v0.2.4";
 
-      # Reads the start of a connection before Caddy decides it is HTTP, which
-      # is what lets a service speaking its own protocol share the port the web
-      # is served on.
+      # This plugin reads the start of a connection before Caddy calls it
+      # HTTP. Thus a service with its own protocol shares the port of the
+      # web.
       # renovate: datasource=go depName=github.com/mholt/caddy-l4
       caddyL4Version = "v0.1.2";
 
@@ -324,11 +324,13 @@
         ];
       };
 
-      # A service that speaks its own protocol rather than HTTP. The handshake
-      # says which one, so it shares the port the web is served on and is
-      # handed the connection decrypted. There is no sign-in here: the client
-      # is identified by its certificate, matched in full against the ones the
-      # service listed.
+      # A service with its own protocol. The handshake gives the name of
+      # that protocol, thus the service shares the port of the web and gets
+      # the connection decrypted.
+      #
+      # These services have no sign-in. The certificate of the client
+      # identifies it. Caddy compares that certificate in full with the ones
+      # that the service lists.
       streamRoute = name: stream: {
         match = [
           {
@@ -344,9 +346,9 @@
             connection_policies = [
               {
                 alpn = [stream.alpn];
-                # `require` asks for a certificate without checking who issued
-                # it. These are self-signed, so there is no chain to follow,
-                # and the verifier below does the real check.
+                # `require` asks for a certificate and does not look at the
+                # issuer. These certificates are self-signed and have no
+                # chain. The verifier below makes the decision.
                 client_authentication = {
                   mode = "require";
                   verifiers = [
@@ -372,8 +374,8 @@
         ];
       };
 
-      # Connections are offered to the stream routes first; one that matches
-      # none of them carries on to the web server.
+      # Caddy gives each connection to the stream routes first. A connection
+      # that matches no stream route goes to the web server.
       listenerWrappers = lib.optionals (proxy.streams != {}) [
         {
           wrapper = "layer4";
@@ -382,9 +384,9 @@
         {wrapper = "tls";}
       ];
 
-      # Caddy works out which certificates to get from the hostnames its web
-      # routes match on. A stream never appears there, so its name is listed
-      # separately.
+      # Caddy reads the hostnames of its web routes and gets a certificate
+      # for each one. A stream has no web route, thus this list gives its
+      # name.
       streamDomains = lib.mapAttrsToList (_: stream: stream.domain) proxy.streams;
 
       acmeIssuer = ca:
@@ -488,9 +490,9 @@
               message = let
                 empty = lib.attrNames (lib.filterAttrs (_: stream: stream.trustedClients == []) proxy.streams);
               in ''
-                These streams have no client certificates, so nothing can
-                connect to them: ${lib.concatStringsSep ", " empty}. Add the
-                certificate of each machine that should reach them to
+                These streams have no client certificates, thus nothing
+                connects to them: ${lib.concatStringsSep ", " empty}. Add the
+                certificate of each machine that must reach them to
                 `trustedClients`.
               '';
             }

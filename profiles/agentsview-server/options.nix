@@ -6,8 +6,9 @@ in {
       type = lib.types.bool;
       default = true;
       description = ''
-        Whether to hold the shared archive of agent sessions and serve a
-        dashboard over it. Machines with the `agentsview` profile push to it.
+        Whether this machine holds the shared archive of agent sessions and
+        shows a dashboard of it. The machines with the `agentsview` profile
+        push to this machine.
       '';
     };
 
@@ -15,11 +16,11 @@ in {
       type = lib.types.str;
       example = "pg.example.com";
       description = ''
-        Hostname the database answers to. It has to reach this host directly,
-        without a CDN in between, because what arrives is not HTTP.
+        The hostname of the database. It must reach this host directly. A
+        CDN between the two breaks it, because the traffic is not HTTP.
 
-        Machines reading it push here, so changing it means redeploying them
-        too.
+        The machines that push read this name. If you change it, deploy them
+        again.
       '';
     };
 
@@ -29,20 +30,21 @@ in {
           domain = lib.mkOption {
             type = lib.types.str;
             example = "agents.example.com";
-            description = "Hostname the dashboard is served under.";
+            description = "The hostname of the dashboard.";
           };
 
           auth = lib.mkOption {
             type = lib.types.bool;
             default = true;
             description = ''
-              Whether to make people sign in before the dashboard is served.
-              It shows every machine's sessions, so this should stay on.
+              Whether a person must sign in before the dashboard shows
+              anything. The dashboard shows the sessions of all the machines,
+              thus keep this on.
             '';
           };
         };
       };
-      description = "Where the dashboard is served, which is ordinary web traffic.";
+      description = "The address of the dashboard, which is web traffic.";
     };
 
     database = lib.mkOption {
@@ -50,29 +52,31 @@ in {
       default = common.serverDefaults.database;
       readOnly = true;
       description = ''
-        Database the sessions are kept in. Fixed, for the same reason as
-        `user`.
+        The database that holds the sessions. The machines that push work
+        this name out for themselves and cannot read it from here, thus it is
+        fixed.
       '';
     };
 
     port = lib.mkOption {
       type = lib.types.port;
       default = 8080;
-      description = "Port the dashboard listens on inside its container.";
+      description = "The port of the dashboard inside its container.";
     };
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
       example = "ancaster/host-agentsview.yaml";
       description = ''
-        File in the secrets repository holding the database superuser's
-        password. Each pushing machine has a role and a password of its own,
-        under `agentsview-postgres/<machine>.yaml`; this one is the account
-        those roles are created with.
+        The file in the secrets repository that holds the password of the
+        database superuser. This account makes the roles.
 
-        The dashboard connects with it over a URL, so generate it with
-        `openssl rand -hex 32`. One containing `/`, `#`, `?` or `:` is parsed
-        as a port or a path and the dashboard refuses to start.
+        Each machine that pushes has a role and a password of its own, under
+        `agentsview-postgres/<machine>.yaml`.
+
+        The dashboard puts this password in a URL. Make it with
+        `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
+        reads as a port or a path, and the dashboard does not start.
       '';
     };
   };

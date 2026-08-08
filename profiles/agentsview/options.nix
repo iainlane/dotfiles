@@ -4,10 +4,10 @@
       type = lib.types.bool;
       default = true;
       description = ''
-        Whether to keep an archive of this machine's agent sessions and serve
-        a dashboard over it. The archive is a SQLite database under
-        `~/.agentsview`, built by reading the session files each agent leaves
-        behind and kept up to date as they are written.
+        Whether this machine keeps an archive of its agent sessions and
+        shows a dashboard of it. The archive is a SQLite database under
+        `~/.agentsview`. AgentsView makes the archive from the session files
+        of each agent and updates it as the agents write.
       '';
     };
 
@@ -15,8 +15,8 @@
       type = lib.types.port;
       default = 8080;
       description = ''
-        Port the dashboard listens on. It binds 127.0.0.1, so it is reachable
-        from this machine alone.
+        The port of the dashboard. It binds 127.0.0.1, thus only this
+        machine reaches it.
       '';
     };
 
@@ -25,12 +25,13 @@
         type = lib.types.bool;
         readOnly = true;
         description = ''
-          Whether to also push this machine's archive to the shared database,
-          so its sessions appear in the dashboard alongside every other
-          machine's. Off leaves the archive where it is, readable only here.
+          Whether this machine also pushes its archive to the shared
+          database. The dashboard on the server then shows its sessions with
+          the sessions of the other machines. If this is off, the archive
+          stays on this machine and only this machine reads it.
 
-          Read off the host record: a machine with the `work` profile keeps
-          its sessions and pushes nothing.
+          The value comes from the host record. A machine with the `work`
+          profile keeps its sessions and does not push.
         '';
       };
 
@@ -38,9 +39,9 @@
         type = lib.types.str;
         default = "15m";
         description = ''
-          How long to wait before pushing anyway, having seen nothing change.
-          Changes are noticed as they happen; this is what covers a machine
-          whose watches were exhausted or missed.
+          The maximum time between pushes. AgentsView pushes each change as
+          it occurs. This interval also pushes on a machine where the file
+          watches failed.
         '';
       };
     };
