@@ -8,6 +8,7 @@ in {
   stateVersion = "25.05";
   motd = halls.bonington;
   profiles = [
+    "agentsview"
     "base"
     "nixbuild-builder"
     {

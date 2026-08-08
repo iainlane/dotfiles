@@ -6,6 +6,7 @@ in {
   arch = "aarch64";
   motd = halls.melton;
   profiles = [
+    "agentsview"
     "base"
     "development"
     "desktop"

@@ -15,6 +15,17 @@ in {
         expose.domain = "adsb.orangesquash.org.uk";
       };
     }
+    "agentsview"
+    {
+      agentsview-server = {
+        domain = "agentsdb.orangesquash.org.uk";
+        expose = {
+          domain = "agents.orangesquash.org.uk";
+          auth = true;
+        };
+        secretsFile = "ancaster/host-agentsview.yaml";
+      };
+    }
     "base"
     "containers"
     {
