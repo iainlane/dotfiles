@@ -3,8 +3,9 @@
   network,
   ultrafeederService,
 }: let
-  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-piaware
-  image = "ghcr.io/sdr-enthusiasts/docker-piaware:latest";
+  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-piaware versioning=docker
+  tag = "latest";
+  image = "ghcr.io/sdr-enthusiasts/docker-piaware:${tag}";
 in {
   autoStart = true;
 

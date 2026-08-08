@@ -3,8 +3,9 @@
   network,
   ultrafeederService,
 }: let
-  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-flightradar24
-  image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:latest";
+  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-flightradar24 versioning=docker
+  tag = "latest";
+  image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:${tag}";
 in {
   autoStart = true;
 

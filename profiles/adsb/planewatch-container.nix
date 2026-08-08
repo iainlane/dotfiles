@@ -3,8 +3,9 @@
   network,
   ultrafeederService,
 }: let
-  # renovate: datasource=docker depName=ghcr.io/plane-watch/docker-plane-watch
-  image = "ghcr.io/plane-watch/docker-plane-watch:latest";
+  # renovate: datasource=docker depName=ghcr.io/plane-watch/docker-plane-watch versioning=docker
+  tag = "latest";
+  image = "ghcr.io/plane-watch/docker-plane-watch:${tag}";
 in {
   autoStart = true;
 

@@ -63,8 +63,9 @@
       matchStrings: [
         // YAML writes `key: value` and Nix writes `key = "value";`, so the
         // separator takes surrounding space and the value stops at the quote
-        // or semicolon that closes it.
-        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_-]+?\\s*[:=]\\s*[\"']?(?<currentValue>[^\"';]+?)[\"']?;?\\s*$",
+        // or semicolon that closes it. A trailing `@sha256:...` is read as the
+        // digest, so a pinned image is updated in one piece.
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_-]+?\\s*[:=]\\s*[\"']?(?<currentValue>[^\"';]+?)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))?[\"']?;?\\s*$",
       ],
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },

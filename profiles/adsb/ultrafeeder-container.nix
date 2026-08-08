@@ -5,8 +5,9 @@
   envFile,
   network,
 }: let
-  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
-  image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
+  # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder versioning=docker
+  tag = "latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
+  image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:${tag}";
   rtlSerial = "00000001";
   timezone = "UTC";
 
