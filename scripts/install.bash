@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash coreutils findutils openssl
+#!nix-shell -I nixpkgs=flake:nixpkgs
+# shellcheck shell=bash
 
 # Install NixOS onto a remote target, optionally injecting generated set-up keys
 # and secure boot files.

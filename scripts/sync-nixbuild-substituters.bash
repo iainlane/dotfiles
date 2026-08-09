@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash coreutils openssh
+#!nix-shell -I nixpkgs=flake:nixpkgs
+# shellcheck shell=bash
 
 # Sync nixbuild.net account substituters and trusted keys from this repo's
 # shared cache settings.

@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash coreutils gh gnused mkpasswd sops
+#!nix-shell -I nixpkgs=flake:nixpkgs
+# shellcheck shell=bash
 
 # Prompt for the user's host password, encrypt it and the user SSH key, and
 # register the SSH key with GitHub.

@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash coreutils
+#!nix-shell -I nixpkgs=flake:nixpkgs
+# shellcheck shell=bash
 
 # Build a host-specific NixOS ISO by composing remote-built contents into a
 # local image.

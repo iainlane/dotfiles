@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p bash coreutils nh
+#!nix-shell -I nixpkgs=flake:nixpkgs
+# shellcheck shell=bash
 
 # Garbage collect old generations, rebuild cached direnv shells, and refresh
 # project direnv caches.

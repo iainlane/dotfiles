@@ -3,6 +3,10 @@
 # Shared helpers for the extracted just scripts: repo-root setup, logging, temp
 # cleanup, and encrypted file helpers.
 #
+# This file is sourced, so the caller's `nix-shell` header must list what these
+# helpers run: coreutils throughout, findutils for `shred_tree`, and sops for
+# `encrypt_yaml_file`.
+#
 # Usage: source scripts/lib/just-common.bash
 
 COMMON_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
