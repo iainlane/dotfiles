@@ -80,30 +80,47 @@
       };
     };
   in {
-    checks.statix =
-      pkgs.runCommandLocal "statix-check" {}
-      ''
-        set -e
+    checks = {
+      statix =
+        pkgs.runCommandLocal "statix-check" {}
+        ''
+          set -e
 
-        cd ${lib.escapeShellArg inputs.self}
-        ${statixBinary} check ${statixIgnoreArgs} .
+          cd ${lib.escapeShellArg inputs.self}
+          ${statixBinary} check ${statixIgnoreArgs} .
 
-        touch $out
-      '';
+          touch $out
+        '';
 
-    checks.nix-build-retry =
-      pkgs.runCommandLocal "nix-build-retry-test" {
-        nativeBuildInputs = [
-          pkgs.bash
-          pkgs.coreutils
-        ];
-      }
-      ''
-        bash ${../../scripts/nix-build-retry.test.bash} \
-          ${../../scripts/nix-build-retry.bash}
+      nix-build-retry =
+        pkgs.runCommandLocal "nix-build-retry-test" {
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.coreutils
+          ];
+        }
+        ''
+          bash ${../../scripts/nix-build-retry.test.bash} \
+            ${../../scripts/nix-build-retry.bash}
 
-        touch $out
-      '';
+          touch $out
+        '';
+
+      r2-verify =
+        pkgs.runCommandLocal "r2-verify-test" {
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.jq
+          ];
+        }
+        ''
+          bash ${../../lib/r2-verify.test.bash} \
+            ${../../lib/r2-verify.sh}
+
+          touch $out
+        '';
+    };
 
     treefmt = treefmtConfig;
   };

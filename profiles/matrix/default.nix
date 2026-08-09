@@ -39,6 +39,7 @@
 
       r2Backup = import ../../lib/r2-backup.nix;
       uploader = r2Backup.uploader {inherit pkgs;};
+      verifier = r2Backup.verifier {inherit pkgs;};
       backupScript = pkgs.writeShellApplication {
         name = "matrix-backup";
         runtimeInputs = [pkgs.coreutils];
@@ -195,6 +196,35 @@
               wantedBy = ["timers.target"];
               timerConfig = {
                 OnCalendar = cfg.backup.schedule;
+                Persistent = true;
+                RandomizedDelaySec = "15m";
+              };
+            };
+
+            services."${backupUnit}-verify" = lib.mkIf cfg.backup.verify.enable {
+              description = "Check the Continuwuity R2 backup arrived";
+              requires = ["sops-install-secrets.service"];
+              after = ["network-online.target" "sops-install-secrets.service"];
+              wants = ["network-online.target"];
+              serviceConfig = {
+                Type = "oneshot";
+                EnvironmentFile = config.sops.templates."matrix-backup.env".path;
+                Environment = [
+                  "BACKUP_NAME=${cfg.containerName}"
+                  "BACKUP_PREFIX=${cfg.backup.prefix}"
+                  "BACKUP_MAX_AGE_HOURS=${toString cfg.backup.verify.maxAgeHours}"
+                  "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
+                  "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
+                ];
+                ExecStart = "${verifier}/bin/r2-verify";
+              };
+            };
+
+            timers."${backupUnit}-verify" = lib.mkIf cfg.backup.verify.enable {
+              description = "Schedule the Continuwuity backup check";
+              wantedBy = ["timers.target"];
+              timerConfig = {
+                OnCalendar = cfg.backup.verify.schedule;
                 Persistent = true;
                 RandomizedDelaySec = "15m";
               };
