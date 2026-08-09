@@ -26,7 +26,10 @@ in {
 
       settings = {
         # The agent's terminal working directory, inside the container.
-        terminal.cwd = "/data/workspace";
+        terminal = {
+          cwd = "/data/workspace";
+          home_mode = "real";
+        };
 
         checkpoints.enabled = lib.mkDefault true;
         display.busy_input_mode = lib.mkDefault "steer";
