@@ -46,8 +46,19 @@ in {
 
       proxy = config.services.edge-proxy;
 
+      database = import ./database.nix {inherit pkgs;};
+
       dashboardName = "agentsview";
-      databaseName = "agentsview-db";
+
+      inherit
+        (database)
+        superuser
+        ;
+
+      databaseName = database.containerName;
+      databasePort = database.port;
+      pgSocketDir = database.socketDir;
+      postgresql = database.package;
 
       # This network holds the database and the dashboard. Thus the dashboard
       # is the only service on this host that reaches the database.
@@ -56,19 +67,11 @@ in {
       dataVolume = "agentsview-db-state";
       dashboardVolume = "agentsview-state";
 
-      databasePort = 5432;
-
       dataDir = "/data";
 
-      # The location of the database files and of the socket. We choose both,
-      # thus this file gives them one time.
+      # The location of the database files. We choose it, thus this file gives
+      # it one time.
       pgData = "/var/lib/postgresql/data";
-      pgSocketDir = "/tmp";
-
-      # AgentsView keeps the vectors for its semantic search in the database.
-      # It runs `CREATE EXTENSION vector` at each push, thus pgvector comes
-      # with Postgres.
-      postgresql = pkgs.postgresql_18.withPackages (p: [p.pgvector]);
 
       # Postgres refuses to run as root. At start, it also reads the name of
       # its own id. Thus it gets an id and a name of its own.
@@ -120,7 +123,6 @@ in {
       # pushes, only the dashboard connects to it.
       reachableFromProxy = trustedClients != [];
 
-      superuser = "postgres";
       superuserSecret = "agentsview_superuser_password";
 
       databaseImage = mkNixImage databaseName [
@@ -412,7 +414,7 @@ in {
         };
       };
     in {
-      imports = [./options.nix];
+      imports = [./options.nix ./backup.nix];
 
       config = lib.mkMerge [
         {services.agentsview-server = args;}

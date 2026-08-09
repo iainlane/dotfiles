@@ -1,4 +1,8 @@
-{lib, ...}: let
+{
+  hostConfig,
+  lib,
+  ...
+}: let
   common = import ../../lib/agentsview.nix {inherit lib;};
 in {
   options.services.agentsview-server = {
@@ -62,6 +66,19 @@ in {
       type = lib.types.port;
       default = 8080;
       description = "The port of the dashboard inside its container.";
+    };
+
+    backup = lib.mkOption {
+      type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
+        defaultPrefix = "agentsview";
+        defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
+      });
+      default = {};
+      description = ''
+        Encrypted backups of the session database, uploaded to Cloudflare R2.
+        `pg_dump` reads the database while it is serving, so the machines keep
+        pushing while a backup runs.
+      '';
     };
 
     secretsFile = lib.mkOption {
