@@ -211,3 +211,9 @@ generate-borgmatic-secrets host secrets_dir:
 # Generate all keys and secrets for a new NixOS host
 generate-host-keys host:
     ./scripts/generate-host-keys.bash "{{ host }}" "{{ secrets_repo }}"
+
+# Generate the AgentsView secrets for every host that needs them, or those named
+generate-agentsview-secrets *hosts:
+    ./scripts/with-secrets-repo.bash "{{ secrets_repo }}" \
+        "agentsview: add the missing secrets" \
+        ./scripts/generate-agentsview-secrets.bash {{ hosts }}
