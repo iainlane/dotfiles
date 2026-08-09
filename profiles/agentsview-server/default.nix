@@ -65,7 +65,10 @@ in {
       pgData = "/var/lib/postgresql/data";
       pgSocketDir = "/tmp";
 
-      postgresql = pkgs.postgresql_18;
+      # AgentsView keeps the vectors for its semantic search in the database.
+      # It runs `CREATE EXTENSION vector` at each push, thus pgvector comes
+      # with Postgres.
+      postgresql = pkgs.postgresql_18.withPackages (p: [p.pgvector]);
 
       # Postgres refuses to run as root. At start, it also reads the name of
       # its own id. Thus it gets an id and a name of its own.
@@ -256,6 +259,11 @@ in {
 
           GRANT ALL ON DATABASE ${cfg.database} TO ${group};
 
+          -- AgentsView holds the vectors of its semantic search in this
+          -- extension and asks for it at each push. Only a superuser can
+          -- create it, thus it happens here.
+          CREATE EXTENSION IF NOT EXISTS vector;
+
           -- `initdb` sets this password at the first run. This statement
           -- sets it again at each start, thus a new password takes effect
           -- and the cluster stays.
@@ -349,6 +357,8 @@ in {
           userns = "auto";
 
           networks = ["${network}.network"];
+
+          entrypoint = "${agentsview}/bin/agentsview";
 
           # This is a flag. A non-loopback address in the configuration file
           # makes AgentsView ask for a token of its own. The proxy in front
