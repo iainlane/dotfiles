@@ -2,14 +2,29 @@
 # the host for, where the credentials come from, and the scripts that archive,
 # encrypt and upload, check what arrived, and fetch it back. A service supplies
 # the directory to archive and the schedule to do it on.
-{
+let
+  # The public age key that backups are encrypted to. It is the same key on
+  # every host. The matching private key is kept offline, and a restore needs
+  # it.
+  recipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
+in {
+  inherit recipient;
+
   # Options a service exposes for the host to fill in, as a submodule.
   options = {
     defaultPrefix,
     defaultSecretsFile,
   }: {lib, ...}: {
     options = {
-      enable = lib.mkEnableOption "scheduled, encrypted backups to Cloudflare R2";
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether to upload scheduled, encrypted backups to Cloudflare R2.
+          This is on by default: a service holding state that cannot be
+          rebuilt should be backed up as soon as a host runs it.
+        '';
+      };
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
@@ -24,10 +39,10 @@
 
       ageRecipient = lib.mkOption {
         type = lib.types.str;
-        example = "age1qz...";
+        default = recipient;
         description = ''
-          age public key the backup is encrypted to. Keep the matching private
-          key offline; it is needed to restore.
+          age public key the backup is encrypted to, defaulting to the shared
+          one. Keep the matching private key offline; a restore needs it.
         '';
       };
 

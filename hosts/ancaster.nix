@@ -42,10 +42,6 @@ in {
         serverName = "orangesquash.org.uk";
         botUsername = "godfrey";
         secretsFile = "ancaster/host-matrix.yaml";
-        backup = {
-          enable = true;
-          ageRecipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
-        };
         users.iain = {
           admin = true;
           supportUser = true;
@@ -95,10 +91,6 @@ in {
         # `google_chat-platform` registers a Platform value the gateway does
         # not define, so it fails to load and warns on every startup.
         disabledPlugins = ["raft-platform" "google_chat-platform"];
-        backup = {
-          enable = true;
-          ageRecipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
-        };
         secretEnvFile = "ancaster/host-hermes.yaml";
         secretEnv = {
           GROQ_API_KEY = "groq_api_key";
