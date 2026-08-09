@@ -1,4 +1,8 @@
-{lib, ...}: {
+{
+  config,
+  lib,
+  ...
+}: {
   options.programs.agentsview = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -20,6 +24,15 @@
       '';
     };
 
+    dataDir = lib.mkOption {
+      type = lib.types.str;
+      default = "${config.home.homeDirectory}/.agentsview";
+      description = ''
+        The directory that holds the archive, the logs and `config.toml`.
+        Every AgentsView command on this machine reads the same directory.
+      '';
+    };
+
     sync = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -32,16 +45,6 @@
 
           The value comes from the host record. A machine with the `work`
           profile keeps its sessions and does not push.
-        '';
-      };
-
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "15m";
-        description = ''
-          The maximum time between pushes. AgentsView pushes each change as
-          it occurs. This interval also pushes on a machine where the file
-          watches failed.
         '';
       };
     };

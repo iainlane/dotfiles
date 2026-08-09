@@ -81,37 +81,36 @@ in {
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
+      agentsview = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview;
+
       dashboardImage = mkNixImage dashboardName [
-        inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview
-        # The entrypoint runs in the container. Thus the image must contain
-        # the entrypoint and the file that it reads.
-        entrypointScript
+        agentsview
         pkgs.dockerTools.binSh
         pkgs.dockerTools.caCertificates
         pkgs.dockerTools.fakeNss
       ];
 
-      agentsview = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview;
+      configPath = "${dataDir}/config.toml";
+      configTemplate = "agentsview-config.toml";
 
+      # AgentsView reads this file from its data directory. sops renders it,
+      # thus the password stays out of the store.
+      #
+      # AgentsView makes an auth token and a cursor secret for itself at the
+      # first start and writes both into this file. The file is read-only,
+      # thus both values come from the secrets repository.
+      #
       # The proxy holds the certificate that the machines check. It decrypts
       # the traffic and sends it on. Thus the last part of the path is in the
-      # container network and has no TLS. AgentsView asks you to confirm
-      # this.
-      configFile = (pkgs.formats.toml {}).generate "agentsview.toml" {
-        pg.allow_insecure = true;
-      };
+      # container network and has no TLS. AgentsView asks you to confirm this.
+      configContent = ''
+        auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
+        cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
+        disable_update_check = true
 
-      # AgentsView reads its configuration from the data directory. It also
-      # writes to that file. Thus the first start puts the file in the volume,
-      # and subsequent starts keep it.
-      entrypointScript = pkgs.writeShellScriptBin "agentsview-entrypoint" ''
-        set -eu
-
-        if [ ! -e ${dataDir}/config.toml ]; then
-          printf '%s\n' "$(<${configFile})" > ${dataDir}/config.toml
-        fi
-
-        exec ${agentsview}/bin/agentsview "$@"
+        [pg]
+        url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${databaseName}:${toString databasePort}/${cfg.database}?sslmode=disable"
+        allow_insecure = true
       '';
 
       # The proxy connects to the database to carry the pushes. If no machine
@@ -128,13 +127,27 @@ in {
         pkgs.dockerTools.binSh
       ];
 
+      # Who can connect, and how. `initdb` writes rules for the loopback
+      # addresses only. The dashboard and the proxy arrive from a podman
+      # network, thus this file gives a rule for that range.
+      #
+      # The roles unit uses the socket, and the database trusts it. Everything
+      # else arrives over the network and gives a password.
+      hbaFile = pkgs.writeText "pg_hba.conf" ''
+        # TYPE  DATABASE  USER  ADDRESS         METHOD
+        local   all       all                   trust
+        host    all       all   127.0.0.1/32    scram-sha-256
+        host    all       all   ::1/128         scram-sha-256
+        host    all       all   ${containerRange}  scram-sha-256
+      '';
+
+      # Podman gives the networks of this host their addresses from this
+      # range.
+      containerRange = "10.89.0.0/16";
+
       # The first start makes the data directory. The script then runs the
       # database in the foreground, thus the unit reports the output of the
       # database.
-      #
-      # The database trusts local connections. The roles unit uses the socket
-      # and needs no password. The machines that push connect over the
-      # network and give a password.
       databaseInit = pkgs.writeShellScriptBin "agentsview-db-init" ''
         set -eu
 
@@ -143,14 +156,13 @@ in {
             --pgdata=${pgData} \
             --username=${superuser} \
             --pwfile=/dev/stdin \
-            --auth-local=trust \
-            --auth-host=scram-sha-256 \
             --encoding=UTF8 \
             --locale=C.UTF-8
         fi
 
         exec ${postgresql}/bin/postgres \
           -D ${pgData} \
+          -c hba_file=${hbaFile} \
           -c listen_addresses='*' \
           -c port=${toString databasePort} \
           -c unix_socket_directories=${pgSocketDir}
@@ -193,6 +205,44 @@ in {
       # machine reads the data of the others, and no grant names a machine.
       group = "agentsview_push";
 
+      rolesUnit = "${databaseName}-roles";
+
+      # The dashboard connects as a member of the shared role, like the
+      # machines do. The superuser makes the roles and does nothing else.
+      dashboardRole = "agentsview_dashboard";
+      dashboardSecret = "agentsview_dashboard_password";
+
+      # Everything that connects over the network: one role for each machine
+      # that pushes, and one for the dashboard.
+      clients =
+        lib.mapAttrsToList (hostname: _: {
+          name = common.role hostname;
+          password = config.sops.placeholder.${common.passwordSecretFor hostname};
+        })
+        pushers
+        ++ [
+          {
+            name = dashboardRole;
+            password = config.sops.placeholder.${dashboardSecret};
+          }
+        ];
+
+      loginRole = client: ''
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${client.name}') THEN
+            CREATE ROLE "${client.name}";
+          END IF;
+        END $$;
+
+        ALTER ROLE "${client.name}" LOGIN PASSWORD '${client.password}';
+        GRANT ${group} TO "${client.name}";
+        -- The shared role owns everything that this client makes, thus the
+        -- other clients read it.
+        ALTER ROLE "${client.name}" SET ROLE ${group};
+
+      '';
+
       # Each start applies these statements. Thus a change to the set of
       # machines takes effect at the next deploy.
       rolesSql =
@@ -204,10 +254,6 @@ in {
             END IF;
           END $$;
 
-          -- AgentsView keeps its tables in a schema of its own. The first
-          -- machine that pushes makes that schema. This grant lets it. The
-          -- `SET ROLE` below makes the shared role the owner, thus each
-          -- machine reads the data of the others.
           GRANT ALL ON DATABASE ${cfg.database} TO ${group};
 
           -- `initdb` sets this password at the first run. This statement
@@ -218,7 +264,7 @@ in {
           -- A machine that leaves the list keeps its rows and loses access.
           DO $$
           DECLARE
-            wanted text[] := ARRAY[${lib.concatMapStringsSep ", " (h: "'${common.role h}'") (lib.attrNames pushers)}];
+            wanted text[] := ARRAY[${lib.concatMapStringsSep ", " (c: "'${c.name}'") clients}];
             member record;
           BEGIN
             FOR member IN
@@ -234,23 +280,7 @@ in {
           END $$;
 
         ''
-        + lib.concatMapStrings (hostname: let
-          name = common.role hostname;
-        in ''
-          DO $$
-          BEGIN
-            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${name}') THEN
-              CREATE ROLE "${name}";
-            END IF;
-          END $$;
-
-          ALTER ROLE "${name}" LOGIN PASSWORD '${config.sops.placeholder.${common.passwordSecretFor hostname}}';
-          GRANT ${group} TO "${name}";
-          -- The shared role owns everything that this machine makes, thus
-          -- the other machines read it.
-          ALTER ROLE "${name}" SET ROLE ${group};
-
-        '') (lib.attrNames pushers);
+        + lib.concatMapStrings loginRole clients;
 
       databaseContainer = {
         autoStart = true;
@@ -320,8 +350,6 @@ in {
 
           networks = ["${network}.network"];
 
-          entrypoint = "${entrypointScript}/bin/agentsview-entrypoint";
-
           # This is a flag. A non-loopback address in the configuration file
           # makes AgentsView ask for a token of its own. The proxy in front
           # decides who gets access.
@@ -340,13 +368,18 @@ in {
             "https://${cfg.expose.domain}"
           ];
 
-          volumes = ["${dashboardVolume}.volume:${dataDir}"];
+          # `idmap` maps the ids of the volume into the namespace of the
+          # container. `userns=auto` takes a different range at each start.
+          # The mapping changes with it, and the owner on disk stays the
+          # same.
+          volumes = [
+            "${dashboardVolume}.volume:${dataDir}:idmap"
+            "${config.sops.templates.${configTemplate}.path}:${configPath}:ro,idmap"
+          ];
 
           environments = {
             AGENTSVIEW_DATA_DIR = dataDir;
           };
-
-          environmentFiles = [config.sops.templates."agentsview.env".path];
 
           dropCapabilities = ["ALL"];
           noNewPrivileges = true;
@@ -356,8 +389,15 @@ in {
           Description = "AgentsView dashboard";
           # The dashboard reads all of its data from the database. Thus it
           # waits for the database and stops with it.
-          Requires = ["${databaseName}.service"];
-          After = ["${databaseName}.service" "sops-install-secrets.service"];
+          #
+          # It also waits for the roles step, which makes the role that it
+          # connects as.
+          Requires = ["${databaseName}.service" "${rolesUnit}.service"];
+          After = [
+            "${databaseName}.service"
+            "${rolesUnit}.service"
+            "sops-install-secrets.service"
+          ];
           Wants = ["sops-install-secrets.service"];
         };
       };
@@ -374,9 +414,10 @@ in {
               message = ''
                 These machines push their agent sessions and have no
                 certificate, thus the database refuses them:
-                ${lib.concatStringsSep ", " withoutCertificate}. Make a
-                certificate for each machine with these commands:
-                ${lib.concatMapStrings common.generateCertificate withoutCertificate}
+                ${lib.concatStringsSep ", " withoutCertificate}.
+
+                Run this command for each of them:
+                ${lib.concatMapStrings (hostname: "\n  just generate-agentsview-secrets ${hostname}") withoutCertificate}
               '';
             }
             {
@@ -425,6 +466,9 @@ in {
             secrets =
               {
                 ${superuserSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
+                ${dashboardSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
+                ${common.authTokenSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
+                ${common.cursorSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
               }
               # The password of each machine that pushes. The roles unit
               # applies the passwords that the secrets repository holds.
@@ -440,15 +484,13 @@ in {
                 POSTGRES_PASSWORD=${config.sops.placeholder.${superuserSecret}}
               '';
 
-              "agentsview.env".content = ''
-                AGENTSVIEW_PG_URL=postgres://${superuser}:${config.sops.placeholder.${superuserSecret}}@${databaseName}:${toString databasePort}/${cfg.database}?sslmode=disable
-              '';
+              ${configTemplate}.content = configContent;
 
               "agentsview-roles.sql".content = rolesSql;
             };
           };
 
-          systemd.services.agentsview-db-roles = {
+          systemd.services.${rolesUnit} = {
             description = "Bring the AgentsView database roles into line";
             requires = ["${databaseName}.service" "sops-install-secrets.service"];
             after = ["${databaseName}.service" "sops-install-secrets.service"];

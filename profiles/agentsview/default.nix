@@ -23,7 +23,7 @@
   # below then reports a machine that pushes to no server.
   haveServer = server != null;
 
-  environmentFile = "agentsview-pg.env";
+  configTemplate = "agentsview-config.toml";
 
   agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
 
@@ -45,25 +45,29 @@
     + "&sslcert=${certificate}"
     + "&sslkey=${key}";
 
-  # launchd reads the environment of a job from its own configuration only.
-  # Thus both platforms use this script, which reads the address at start.
-  pushScript = {
-    pkgs,
-    agentsview,
-    envPath,
-    interval,
-  }:
-    pkgs.writeShellScript "agentsview-push" ''
-      set -eu
-      set -a
-      . ${envPath}
-      set +a
-      exec ${agentsview}/bin/agentsview pg push --watch --interval ${interval}
-    '';
+  # AgentsView reads `config.toml` from its data directory. The file holds the
+  # address of the database, thus sops renders it and keeps it readable by its
+  # owner alone.
+  configContent = {
+    authToken,
+    cursorSecret,
+    url,
+  }: ''
+    auth_token = "${authToken}"
+    cursor_secret = "${cursorSecret}"
+    disable_update_check = true
+
+    [pg]
+    url = "${url}"
+  '';
+
+  # The log of the push. `agentsview pg service logs` reads this path, thus
+  # that command works beside the units here.
+  pushLog = cfg: "${cfg.dataDir}/pg-watch.log";
+
   systemdModule = _: {
     config,
     lib,
-    pkgs,
     system,
     ...
   }: let
@@ -76,6 +80,7 @@
 
           Service = {
             ExecStart = "${agentsviewFor system}/bin/agentsview serve --no-browser --port ${toString cfg.port}";
+            Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
             Restart = "on-failure";
             RestartSec = 10;
           };
@@ -84,10 +89,11 @@
         };
       })
 
+      # A copy of the unit that `agentsview pg service install` writes.
       (lib.mkIf (cfg.enable && cfg.sync.enable && haveServer) {
         systemd.user.services.agentsview-push = {
           Unit = {
-            Description = "Push agent sessions to the shared archive";
+            Description = "agentsview PostgreSQL auto-push";
             After = ["network-online.target"];
             Wants = ["network-online.target"];
           };
@@ -96,14 +102,12 @@
             # This command updates the local archive and pushes the changes.
             # It then stays active and repeats the work after each new
             # session.
-            ExecStart = "${pushScript {
-              inherit pkgs;
-              agentsview = agentsviewFor system;
-              envPath = config.sops.templates.${environmentFile}.path;
-              inherit (cfg.sync) interval;
-            }}";
+            ExecStart = "${agentsviewFor system}/bin/agentsview pg push --watch";
+            Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
+            StandardOutput = "append:${pushLog cfg}";
+            StandardError = "append:${pushLog cfg}";
             Restart = "on-failure";
-            RestartSec = 30;
+            RestartSec = 10;
           };
 
           Install.WantedBy = ["default.target"];
@@ -114,11 +118,14 @@
   launchdModule = _: {
     config,
     lib,
-    pkgs,
     system,
     ...
   }: let
     cfg = config.programs.agentsview;
+
+    # launchd keeps no record of the output of a job. These files are that
+    # record, and they are the first place to look when an agent stops.
+    logDir = "${config.home.homeDirectory}/Library/Logs";
   in {
     config = lib.mkMerge [
       (lib.mkIf cfg.enable {
@@ -132,26 +139,31 @@
               "--port"
               (toString cfg.port)
             ];
+            EnvironmentVariables.AGENTSVIEW_DATA_DIR = cfg.dataDir;
             RunAtLoad = true;
             KeepAlive = true;
+            StandardOutPath = "${logDir}/agentsview.log";
+            StandardErrorPath = "${logDir}/agentsview.log";
           };
         };
       })
 
+      # A copy of the job that `agentsview pg service install` writes.
       (lib.mkIf (cfg.enable && cfg.sync.enable && haveServer) {
         launchd.agents.agentsview-push = {
           enable = true;
           config = {
             ProgramArguments = [
-              "${pushScript {
-                inherit pkgs;
-                agentsview = agentsviewFor system;
-                envPath = config.sops.templates.${environmentFile}.path;
-                inherit (cfg.sync) interval;
-              }}"
+              "${agentsviewFor system}/bin/agentsview"
+              "pg"
+              "push"
+              "--watch"
             ];
+            EnvironmentVariables.AGENTSVIEW_DATA_DIR = cfg.dataDir;
             RunAtLoad = true;
             KeepAlive = true;
+            StandardOutPath = pushLog cfg;
+            StandardErrorPath = pushLog cfg;
           };
         };
       })
@@ -193,25 +205,31 @@ in {
               '';
             }
             {
-              assertion = builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}");
+              assertion =
+                builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}")
+                && builtins.pathExists (inputs.secrets + "/${common.userSecretsFile hostname}")
+                && common.hasCertificate hostname;
               message = ''
                 ${hostname} pushes its agent sessions, thus it needs a
-                database role of its own. Add its password to the secrets
-                repository as `${common.passwordFile hostname}` under
-                `${common.passwordSecret}`.
-              '';
-            }
-            {
-              assertion = common.hasCertificate hostname;
-              message = ''
-                ${hostname} pushes its agent sessions, thus it needs a
-                certificate. The proxy uses the certificate to identify the
-                machine. Make one with this command:
+                database role, a certificate, and the two values that
+                AgentsView makes for itself. This command writes each one that
+                ${hostname} does not have yet:
 
-                ${common.generateCertificate hostname}
-                Commit the certificate. Put the key in the secrets repository
-                as `${common.privateKeyFile hostname}` under
-                `${common.privateKeySecret}`.
+                  just generate-agentsview-secrets ${hostname}
+
+                It writes the certificate to
+                `hosts/${hostname}/agentsview.pem`. Commit that file. It
+                writes the rest to the secrets repository:
+
+                  ${common.passwordFile hostname}
+                    ${common.passwordSecret}: the password of the database
+                      role.
+                  ${common.userSecretsFile hostname}
+                    ${common.privateKeySecret}: the key of the certificate.
+                    ${common.authTokenSecret}: authenticates a caller to the
+                      API of the dashboard.
+                    ${common.cursorSecret}: signs the cursors of the
+                      dashboard.
               '';
             }
           ];
@@ -219,27 +237,38 @@ in {
 
         (lib.mkIf (syncing && haveServer) {
           sops = {
-            secrets = {
+            secrets = let
+              userSecrets = inputs.secrets + "/${common.userSecretsFile hostname}";
+            in {
               ${common.passwordSecret}.sopsFile =
                 inputs.secrets + "/${common.passwordFile hostname}";
 
+              ${common.authTokenSecret}.sopsFile = userSecrets;
+              ${common.cursorSecret}.sopsFile = userSecrets;
+
               ${common.privateKeySecret} = {
-                sopsFile = inputs.secrets + "/${common.privateKeyFile hostname}";
+                sopsFile = userSecrets;
                 mode = "0400";
               };
             };
 
-            # The password is the only secret part of the address. The
+            # The password and the cursor key are the secret parts. The
             # other parts are in plain text here. sops makes the file that
             # holds the result unreadable.
-            templates.${environmentFile}.content = ''
-              AGENTSVIEW_PG_URL=${dsn {
-                inherit hostname;
-                password = config.sops.placeholder.${common.passwordSecret};
-                certificate = common.certificatePath hostname;
-                key = config.sops.secrets.${common.privateKeySecret}.path;
-              }}
-            '';
+            templates.${configTemplate} = {
+              path = "${cfg.dataDir}/config.toml";
+
+              content = configContent {
+                authToken = config.sops.placeholder.${common.authTokenSecret};
+                cursorSecret = config.sops.placeholder.${common.cursorSecret};
+                url = dsn {
+                  inherit hostname;
+                  password = config.sops.placeholder.${common.passwordSecret};
+                  certificate = common.certificatePath hostname;
+                  key = config.sops.secrets.${common.privateKeySecret}.path;
+                };
+              };
+            };
           };
         })
       ];

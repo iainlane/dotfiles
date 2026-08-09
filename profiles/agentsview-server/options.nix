@@ -68,15 +68,23 @@ in {
       type = lib.types.str;
       example = "ancaster/host-agentsview.yaml";
       description = ''
-        The file in the secrets repository that holds the password of the
-        database superuser. This account makes the roles.
+        The file in the secrets repository that holds the secrets of this
+        machine. It needs four keys:
+
+          agentsview_superuser_password: the account that makes the roles.
+          agentsview_dashboard_password: the role that the dashboard reads
+            the sessions as.
+          ${common.authTokenSecret}: authenticates a caller to the API of
+            the dashboard.
+          ${common.cursorSecret}: signs the cursors of the dashboard.
 
         Each machine that pushes has a role and a password of its own, under
         `agentsview-postgres/<machine>.yaml`.
 
-        The dashboard puts this password in a URL. Make it with
+        Both passwords go into a URL. Make each one with
         `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
-        reads as a port or a path, and the dashboard does not start.
+        reads as a port or a path, and the dashboard does not start. Make the
+        other two with `openssl rand -base64 32`.
       '';
     };
   };

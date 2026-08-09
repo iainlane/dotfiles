@@ -71,33 +71,35 @@
   passwordFile = hostname: "agentsview-postgres/${hostname}.yaml";
   passwordSecret = "password";
 
-  privateKeyFile = hostname: "${hostname}/user-agentsview.yaml";
+  # The secrets that belong to the user on one machine. The server reads the
+  # password file above to make the roles, and it has no part in these.
+  userSecretsFile = hostname: "${hostname}/user-agentsview.yaml";
   privateKeySecret = "agentsview_client_key";
+
+  # AgentsView makes these two values at the first start and writes them into
+  # its own configuration. The configuration here is read-only, thus they come
+  # with it. Make each one with `openssl rand -base64 32`.
+  #
+  # The first value signs the cursors of the dashboard. The second one
+  # authenticates a caller to the API of the dashboard.
+  cursorSecret = "agentsview_cursor_secret";
+  authTokenSecret = "agentsview_auth_token";
 
   # The name of a secret contains the machine that owns it. One host can hold
   # the secrets of several machines and keep them apart.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
-
-  # By default, openssl writes the full curve parameters. Go rejects a key of
-  # that form. Thus the command asks for the named-curve encoding.
-  generateCertificate = hostname: ''
-    openssl req -x509 -newkey ec \
-      -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve \
-      -nodes -days 36500 -subj "/CN=${hostname}" \
-      -keyout ${hostname}-agentsview.key \
-      -out hosts/${hostname}/agentsview.pem
-  '';
 in {
   inherit
+    authTokenSecret
     certificatePath
     clientProfile
-    generateCertificate
+    cursorSecret
     hasCertificate
     passwordFile
     passwordSecret
     passwordSecretFor
-    privateKeyFile
     privateKeySecret
+    userSecretsFile
     profileSettings
     pushes
     role
