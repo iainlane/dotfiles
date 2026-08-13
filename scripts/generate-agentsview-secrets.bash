@@ -5,13 +5,18 @@
 
 # Generate the secrets that a machine needs for AgentsView.
 #
-# A machine that pushes its agent sessions to the shared database needs four
-# values and a certificate:
+# Every machine that keeps an archive of its agent sessions needs two values
+# that AgentsView would otherwise generate for itself. Nix renders its
+# configuration read-only, so both come from here:
+#
+#   <host>/user-agentsview.yaml       agentsview_auth_token
+#                                     agentsview_cursor_secret
+#
+# A machine that also pushes its archive to the shared database needs a
+# password, a certificate, and the key of that certificate:
 #
 #   agentsview-postgres/<host>.yaml   password
 #   <host>/user-agentsview.yaml       agentsview_client_key
-#                                     agentsview_auth_token
-#                                     agentsview_cursor_secret
 #   hosts/<host>/agentsview.pem       the certificate that the proxy checks
 #
 # The machine that holds the database and shows the dashboard needs four more:
@@ -67,25 +72,11 @@ add_secret() {
 	echo "    ${path}: added ${key}"
 }
 
-# The machines that need AgentsView secrets, one `<role> <host>` line each.
-# A host record lists a profile as a name or as a name with its settings, so
-# both forms reduce to the name. A `work` machine keeps its sessions and does
-# not push.
+# The machines that need AgentsView secrets, one `<kind> <host>` line each.
+# The flake works this out from the host records.
 agentsview_hosts() {
-	nix eval --json "${REPO_ROOT}#hosts" \
-		--apply 'builtins.mapAttrs (_: host: host.profiles)' |
-		jq -r '
-            to_entries[]
-            | .key as $host
-            | (.value | map(if type == "string" then . else (keys | first) end)) as $profiles
-            | if ($profiles | index("agentsview-server")) then
-                  "server \($host)"
-              elif ($profiles | index("agentsview")) and (($profiles | index("work")) | not) then
-                  "client \($host)"
-              else
-                  empty
-              end
-        '
+	nix eval --json "${REPO_ROOT}#agentsviewHosts" |
+		jq -r 'to_entries[] | "\(.value) \(.key)"'
 }
 
 # The rule that lets the server and the machine itself read the password.
@@ -110,6 +101,56 @@ add_password_rule() {
 	echo "    Added a rule for ${host}"
 }
 
+# The auth token and the cursor secret every machine needs, and for a machine
+# that pushes, the key of its certificate as well.
+#
+# The certificate key goes in when the file is created. Creating an encrypted
+# file needs only the public keys, whereas adding a key to an existing file
+# means decrypting it first, which works only on a machine that a rule in
+# `.sops.yaml` covers.
+generate_user_secrets() {
+	local host="${1}"
+	local client_key="${2:-}"
+
+	local user_file="${host}/user-agentsview.yaml"
+	local plaintext key
+
+	mkdir -p "${host}"
+
+	if [[ -f "${user_file}" ]]; then
+		for key in agentsview_auth_token agentsview_cursor_secret; do
+			if has_secret "${user_file}" "${key}"; then
+				echo "    ${user_file}: ${key} is already set"
+				continue
+			fi
+
+			add_secret "${user_file}" "${key}" "$(openssl rand -base64 32)"
+		done
+
+		if [[ -n "${client_key}" ]]; then
+			add_secret "${user_file}" "agentsview_client_key" "${client_key}"
+		fi
+
+		return 0
+	fi
+
+	plaintext="$(make_temp_file)"
+	AUTH_TOKEN="$(openssl rand -base64 32)" \
+	CURSOR_SECRET="$(openssl rand -base64 32)" \
+		yq -n '
+            .agentsview_auth_token = strenv(AUTH_TOKEN) |
+            .agentsview_cursor_secret = strenv(CURSOR_SECRET)
+        ' >"${plaintext}"
+
+	if [[ -n "${client_key}" ]]; then
+		CLIENT_KEY="${client_key}" \
+			yq -i '.agentsview_client_key = strenv(CLIENT_KEY)' "${plaintext}"
+	fi
+
+	encrypt_yaml_file "${plaintext}" "${user_file}" "${user_file}"
+	echo "    Created ${user_file}"
+}
+
 generate_client_secrets() {
 	local host="${1}"
 
@@ -118,11 +159,11 @@ generate_client_secrets() {
 	local user_file="${host}/user-agentsview.yaml"
 
 	local client_key=""
-	local key_file plaintext key
+	local key_file plaintext
 
 	add_password_rule "${host}"
 
-	mkdir -p "agentsview-postgres" "${host}"
+	mkdir -p "agentsview-postgres"
 
 	if [[ -f "${certificate}" ]]; then
 		echo "    ${certificate} is already there"
@@ -155,45 +196,13 @@ generate_client_secrets() {
 		echo "    Created ${password_file}"
 	fi
 
-	# AgentsView makes the auth token and the cursor secret at the first start
-	# and writes them into its own configuration. Nix renders that file and
-	# keeps it read-only, thus both values come from here.
-	if [[ -f "${user_file}" ]]; then
-		for key in agentsview_auth_token agentsview_cursor_secret; do
-			if has_secret "${user_file}" "${key}"; then
-				echo "    ${user_file}: ${key} is already set"
-				continue
-			fi
-
-			add_secret "${user_file}" "${key}" "$(openssl rand -base64 32)"
-		done
-
-		if [[ -n "${client_key}" ]]; then
-			add_secret "${user_file}" "agentsview_client_key" "${client_key}"
-		fi
-
-		return 0
-	fi
-
-	if [[ -z "${client_key}" ]]; then
+	# openssl writes the key once, when it generates the certificate. If the
+	# certificate is already there, the key can only be in the user file.
+	if [[ ! -f "${user_file}" && -z "${client_key}" ]]; then
 		die "${certificate} is there and ${user_file} is not. Delete the certificate and run this again to make a matching pair."
 	fi
 
-	# All three go in together. sops decrypts a file before it adds a key to
-	# it, and this machine may not hold the key of the host. To make the file
-	# it needs the public keys alone.
-	plaintext="$(make_temp_file)"
-	AUTH_TOKEN="$(openssl rand -base64 32)" \
-	CURSOR_SECRET="$(openssl rand -base64 32)" \
-	CLIENT_KEY="${client_key}" \
-		yq -n '
-            .agentsview_auth_token = strenv(AUTH_TOKEN) |
-            .agentsview_cursor_secret = strenv(CURSOR_SECRET) |
-            .agentsview_client_key = strenv(CLIENT_KEY)
-        ' >"${plaintext}"
-
-	encrypt_yaml_file "${plaintext}" "${user_file}" "${user_file}"
-	echo "    Created ${user_file}"
+	generate_user_secrets "${host}" "${client_key}"
 }
 
 generate_server_secrets() {
@@ -253,9 +262,19 @@ for role in "${roles[@]}"; do
 	fi
 
 	log_step "Making the AgentsView secrets for ${host}"
-	generate_client_secrets "${host}"
 
-	if [[ "${kind}" == "server" ]]; then
+	case "${kind}" in
+	local)
+		generate_user_secrets "${host}"
+		;;
+
+	client)
+		generate_client_secrets "${host}"
+		;;
+
+	server)
+		generate_client_secrets "${host}"
 		generate_server_secrets "${host}"
-	fi
+		;;
+	esac
 done

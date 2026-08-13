@@ -32,6 +32,21 @@
 
   syncingHosts = hosts: lib.filterAttrs (_: pushes) hosts;
 
+  # What each machine with the client profile does with its archive. The
+  # machine that holds the database also pushes to it, and a machine that
+  # keeps its sessions to itself still shows them on its own dashboard.
+  #
+  # Which secrets a machine needs follows from this. The `agentsviewHosts`
+  # flake output exposes it to `generate-agentsview-secrets`.
+  kinds = hosts:
+    lib.mapAttrs (_: host:
+      if helpers.hasProfile host serverProfile
+      then "server"
+      else if pushes host
+      then "client"
+      else "local")
+    (lib.filterAttrs (_: host: helpers.hasProfile host clientProfile) hosts);
+
   serverDefaults = {
     database = "agentsview";
   };
@@ -95,6 +110,7 @@ in {
     clientProfile
     cursorSecret
     hasCertificate
+    kinds
     passwordFile
     passwordSecret
     passwordSecretFor

@@ -1442,11 +1442,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1786289171,
-        "narHash": "sha256-CcNk4rTUFv/qlJXw2Mp6lpJkqPv2o4Ul3Tza/jaU+PE=",
+        "lastModified": 1786355146,
+        "narHash": "sha256-otuHII37CxtrgsOmX2wGG73Pkhv4N3WEtm4PpcSs4R4=",
         "ref": "refs/heads/main",
-        "rev": "378207d2085aacacde81bef0e27f0f11d1b2cdb3",
-        "revCount": 53,
+        "rev": "ce30b1743c44457e1242b9d854fe1ba60403a83f",
+        "revCount": 54,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },
