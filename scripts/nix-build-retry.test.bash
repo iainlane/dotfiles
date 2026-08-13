@@ -8,8 +8,10 @@ trap 'rm -rf "${test_dir}"' EXIT
 
 mkdir "${test_dir}/bin"
 
-cat >"${test_dir}/bin/nix" <<'EOF'
-#!/usr/bin/env bash
+# The Nix build sandbox has no /usr/bin/env, so give each stub the running
+# bash as its interpreter.
+printf '#!%s\n' "${BASH}" >"${test_dir}/bin/nix"
+cat >>"${test_dir}/bin/nix" <<'EOF'
 
 set -euo pipefail
 
@@ -37,8 +39,8 @@ esac
 EOF
 chmod +x "${test_dir}/bin/nix"
 
-cat >"${test_dir}/bin/sleep" <<'EOF'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${test_dir}/bin/sleep"
+cat >>"${test_dir}/bin/sleep" <<'EOF'
 exit 0
 EOF
 chmod +x "${test_dir}/bin/sleep"
@@ -47,7 +49,7 @@ run_retry() {
 	PATH="${test_dir}/bin:${PATH}" \
 		FAKE_NIX_SCENARIO="${1}" \
 		FAKE_NIX_STATE="${test_dir}/state" \
-		"${retry_script}" .#checks.x86_64-linux.adapter-evals
+		bash "${retry_script}" .#checks.x86_64-linux.adapter-evals
 }
 
 output="$(run_retry fail-once 2>&1)"
