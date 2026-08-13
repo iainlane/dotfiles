@@ -49,8 +49,8 @@
   }
   ```
 
-- Consider the truly public API surface carefully. Expose only what is
-  necessary and use appropriate visibility modifiers for everything else.
+- Consider the truly public API surface carefully. Expose only what is necessary
+  and use appropriate visibility modifiers for everything else.
 
 ## MCP
 
@@ -79,11 +79,11 @@
 ## Code Review and Linting
 
 - Never suppress or weaken linter rules merely to make a finding disappear.
-  Treat a lint finding as evidence that the code should be reconsidered, not
-  as an obstacle to work around.
-- Do not satisfy a linter through a superficial structural workaround whose
-  only purpose is to silence the rule. Fix the underlying design or structure
-  that caused the finding.
+  Treat a lint finding as evidence that the code should be reconsidered, not as
+  an obstacle to work around.
+- Do not satisfy a linter through a superficial structural workaround whose only
+  purpose is to silence the rule. Fix the underlying design or structure that
+  caused the finding.
 - Treat all code-review and linter findings as valid and actionable by default.
   Do not dismiss or deprioritise a finding based only on your own judgement of
   severity. Understand the intent behind a rule's existence and fix the spirit
