@@ -1,116 +1,38 @@
 # General Guidelines
 
-- When writing code or documentation, if the project doesn't already have a
-  convention, use British English.
-- Add code comments sparingly. Focus on why something is done, especially for
-  complex logic, rather than what is done. The "why" must never be expressed in
-  contrast to a discarded alternative or previous state (see the next
-  sub-bullet).
-  - Do not leave defensive comments that anticipate objections, justify the
-    code's existence.
-
-    Bad:
-
-    ```python
-    # This is intentional - we really do want to swallow the error here
-    # because the caller handles retries.
-    try:
-        publish(event)
-    except TransientError:
-        pass
-    ```
-
-    Good (lets the type or structure speak, or names the invariant):
-
-    ```python
-    # Publication is best-effort. Callers can handle retries if they need it.
-    try:
-        publish(event)
-    except TransientError:
-        pass
-    ```
-
-  - Comments describe the code as it is now, in positive terms: what it does and
-    why. Never frame a comment as a contrast with an alternative, whatever kind
-    of alternative it is: a past state of the code ("previously", "no longer",
-    "used to"), an approach you tried and rejected, an option you merely
-    considered, or a default or fallback the reader might expect ("rather than",
-    "instead of", "avoids", "not X"). If it did not end up in the source, it
-    does not belong in the comments; history goes in the commit message. A
-    genuine reason survives the rewrite: "we do X rather than Y, because Z"
-    becomes "X, because Z", where Z is a fact about the code or its environment.
-
-    Bad (one contrasts with history, one with a considered alternative):
-
-    ```typescript
-    // Previously this used a Map, but we switched to a plain object
-    // because the keys are always strings.
-    const cache: Record<string, User> = {};
-
-    // Build the index up front rather than lazily, because lazy
-    // construction can deadlock during init.
-    buildIndex();
-    ```
-
-    Good (the history is deleted; the real reason is restated as a property of
-    the code as it stands):
-
-    ```typescript
-    const cache: Record<string, User> = {};
-
-    // Init must complete before anything takes index locks, so the index
-    // is built first.
-    buildIndex();
-    ```
-
-    A comment still earns its place when it records an external constraint a
-    future reader could not infer and might "tidy away" -- but it names the
-    constraint itself, never the rejected alternative:
-
-    ```python
-    # `boto3` reads the credentials file at import time, so the environment
-    # must be set up before this import.
-    os.environ["AWS_PROFILE"] = profile
-
-    import boto3
-    ```
-
-  - Only add high-value comments if necessary for clarity or if requested by the
-    user.
-  - Do not edit comments that are separate from the code you are changing.
-  - NEVER talk to the user or describe your changes through comments.
-
-- Mimic the style (formatting, naming), structure, framework choices, typing,
-  and architectural patterns of existing code in the project.
+- Follow the project's existing formatting, naming, structure, framework
+  choices, typing conventions, and architectural patterns.
+- Treat existing code conventions and existing prose differently:
+  - Existing code is authoritative for naming, terminology, formatting,
+    structure, architecture, APIs, and documentation layout.
+  - For comments, documentation, commit messages, and other prose, follow the
+    active output style. Do not reproduce awkward prose merely because similar
+    wording already exists in the repository.
 - Write idiomatic code for the language, libraries and frameworks used.
 - Do deep research into the particular language, libraries and frameworks used
   in the project. Understand thoroughly how they work and how to use them
-  effectively. You might have some knowledge already, but understand that it
-  might be out of date, so first refresh it.
-  - Prefer to use local tools to do this. If you can read the code of the
-    library from the system itself (e.g. reading from places like
-    `node_modules`, executing tools like `go doc`), that is ideal as it's faster
-    and you will get the version actually used in the project.
-  - Otherwise, fall back to the web. Try to find the code and read that, as that
-    will be the most accurate. Where that isn't enough -- perhaps for
-    establishing conventions or best practices -- first check the official
-    documentation.
-- Avoid overly hyperbolic praise of the user. You don't need to tell them
-  they're absolutely right every time they correct you. A simple acknowledgment
-  will do.
+  effectively. Existing knowledge may be out of date, so verify behaviour that
+  matters to the implementation.
+  - Prefer local tools and sources when possible. Reading the installed library
+    source, `node_modules`, generated API information, or tools such as `go doc`
+    gives the version actually used by the project.
+  - Otherwise, use upstream source. Where source is not enough for conventions
+    or intended usage, consult the official documentation.
+- Do not edit comments, documentation, or other prose that is separate from the
+  code you are changing unless the task calls for that cleanup.
 - If a `.envrc` file is present in the project root and has already been
-  allowed, activate it if it isn't already active.
-- If system tools (e.g. compilers, runtimes, utilities) are not in `PATH`, try
-  `nix run`.
+  allowed, activate it if it is not already active.
+- If required system tools such as compilers, runtimes, or utilities are not in
+  `PATH`, try `nix run`.
 
 ## Code Style
 
 - Be type-first: prefer explicit types, small domain models, and associated
   methods over free functions or ad-hoc untyped objects.
 - Use guard clauses and early returns to keep code flat and avoid deep nesting.
-  Avoid `else` blocks where possible. Keep the expected/happy path as
+  Avoid `else` blocks where possible. Keep the expected or happy path as
   left-aligned as possible.
-- Be generous with blank lines to improve readability.
+- Be generous with blank lines where they improve readability.
 
   Good:
 
@@ -127,91 +49,47 @@
   }
   ```
 
-- Consider the truly public API surface carefully. Only expose what is necessary
-  and use appropriate visibility modifiers for everything else.
+- Consider the truly public API surface carefully. Expose only what is
+  necessary and use appropriate visibility modifiers for everything else.
 
 ## MCP
 
-- If you have any tools available via MCP, they're there because the user wants
-  you to use them because they will augment your capabilities. Be quite
-  aggressive in when you choose to use such tools, as they will help provide
-  better output.
+- If relevant tools are available through MCP, use them aggressively when they
+  can provide information, context, or capabilities that improve the result.
 
 ## Documentation
 
-- Always fit in with any existing style.
-- If there is no existing style, try to write as a human rather than an LLM
-  would:
-  - Maintain a professional tone.
-  - Do not overuse emoji.
-  - Avoid jargony words. No "seams" or "wiring", things like that. Write in
-    clear, straightforward language.
-- Always _describe_ before showing. For example, when writing a README, you must
-  first introduce the project and _then_ go on to explain how it's used.
+- Follow the project's existing documentation structure, formatting, and
+  organisation.
 
 ### Markdown
 
-- Do not overuse Markdown formatting. An example of what not to do would be
-  `- **Bold at the start of every item in a list**: <...>`.
-- Use reference links. Put the reference in the section where it is first used.
+- Use reference links. Put the reference definitions in the section where they
+  are first used.
 
 ## Commits
 
-- Write clear commit messages that explain the "why" behind the change, not just
-  the "what". Write as a professional principal software engineer, not an AI.
-- Wrap commit messages at 72 characters.
-- Write longer commit message and structure them as:
-  1. A description of the current situation or problem.
-  2. An explanation of the solution and why it solves the problem.
+- Before writing a commit message, inspect the recent commit history and follow
+  the repository's subject format and other commit conventions.
+- Wrap commit messages at 72 characters unless the repository uses another
+  convention.
+- If there is no pre-commit check, run the relevant linters and formatters
+  before committing.
 
-  Bad (no description, no detail):
+## Code Review and Linting
 
-  ```text
-  add index to the foo table
-  ```
-
-  Bad (only describes the solution, no context or motivation):
-
-  ```text
-  add index to the foo table
-
-  - Added an index to the `quux` column of the `foo` table.
-  - Added a benchmark.
-  ```
-
-  Good:
-
-  ```text
-  fix(db): add an index to the `foo` table
-
-  We started receiving reports of the `bar` page being slow. Upon investigation,
-  it became clear that the query which we use to fetch all of the `baz` was
-  taking a long time. This turned out to be because the query was doing a full
-  table scan on the `foo` table on every page load.
-
-  What we need for this page is to be able to fetch all of the `baz` for a given
-  `quux`. So an index on the `quux` column of the `foo` table should help speed
-  up the query and improve latency.
-
-  Add an index in the Drizzle schema and generate a migration. A benchmark is
-  also added, and it shows a 5x improvement in query time when there are 1M
-  rows.
-  ```
-
-- If there is no pre-commit check, run linters and formatters before committing.
-- Check the latest commit history and ensure your message fits in with the
-  existing style and level of detail.
-
-## Code Review and linting
-
-- Never suppress or weaken linter rules. Treat the linter as a critical friend,
-  not an obstacle. When it gives a finding, that is a present: it is helping us
-  improve our project.
-- Treat all code reviewer and linter findings as valid and actionable by
-  default. Do not dismiss or deprioritise findings based on your own judgement
-  of severity.
-- Action every finding unless there is a concrete, demonstrable reason why it
-  does not apply (e.g. the reviewer misread the code, or the finding refers to
-  code that does not exist).
+- Never suppress or weaken linter rules merely to make a finding disappear.
+  Treat a lint finding as evidence that the code should be reconsidered, not
+  as an obstacle to work around.
+- Do not satisfy a linter through a superficial structural workaround whose
+  only purpose is to silence the rule. Fix the underlying design or structure
+  that caused the finding.
+- Treat all code-review and linter findings as valid and actionable by default.
+  Do not dismiss or deprioritise a finding based only on your own judgement of
+  severity. Understand the intent behind a rule's existence and fix the spirit
+  as well as the letter. Example: a rule which forbids more than a certain
+  number of function parameters could be satisfied by putting all parameters in
+  to a single struct in all cases, but that would often be a superficial
+  workaround to a more fundamental design problem.
 - When a finding conflicts with another project rule, flag the conflict to the
-  user rather than silently choosing which rule to follow.
+  user rather than choosing which rule to follow yourself.
