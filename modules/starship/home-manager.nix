@@ -297,6 +297,10 @@ in {
       cargoDeps = pkgs.rustPlatform.importCargoLock {
         lockFile = "${inputs.starship-custom}/Cargo.lock";
       };
+
+      # The time module uses jiff, which reads timezone data from the
+      # system. The build sandbox has none, so the tests fail without this.
+      env.TZDIR = "${pkgs.tzdata}/share/zoneinfo";
     });
 
     enableZshIntegration = true;

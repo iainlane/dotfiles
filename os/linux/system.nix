@@ -12,6 +12,12 @@
     inputs.nix-system-graphics.systemModules.default
   ];
 
+  # nixpkgs' config/nix.nix now declares nix.enable and nix.package itself,
+  # which collides with the declarations in system-manager's shim, so drop
+  # the shim. The shim's config side was inactive: it sat behind
+  # `mkIf config.nix.enable` and nothing enabled it.
+  disabledModules = ["${inputs.system-manager}/nix/modules/upstream/nixpkgs/nix.nix"];
+
   # Define NixOS-specific options for home-manager compatibility with system-manager
   options = {
     i18n.glibcLocales = lib.mkOption {
@@ -25,9 +31,23 @@
       default = false;
       description = "Enable fontconfig for home-manager compatibility";
     };
+
+    # nixpkgs' config/nix.nix hides the nixbld users from display managers.
+    # system-manager imports that module without the display-manager one, so
+    # the option has to exist for the definition to merge. Nothing reads it.
+    services.displayManager.hiddenUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "Ignored; declared so nixpkgs' config/nix.nix evaluates under system-manager";
+    };
   };
 
   config = {
+    # nixpkgs' default is true, under which config/nix.nix writes
+    # /etc/nix/nix.conf and creates the nixbld users. Determinate Nix owns
+    # both on these hosts; see the nix.custom.conf entry below.
+    nix.enable = false;
+
     environment = {
       etc = {
         "apparmor.d/nix-chrome".text = ''
