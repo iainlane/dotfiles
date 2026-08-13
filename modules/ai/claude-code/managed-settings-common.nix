@@ -17,6 +17,8 @@
   inherit (pkgs.stdenv.hostPlatform) system;
   inherit (inputs.llm-agents.packages.${system}) ccstatusline;
 
+  outputStyles = import ../output-styles.nix {inherit lib;};
+
   # Replace Claude Code's built-in `@` file picker with `fd | fzf --filter` so
   # queries get real fuzzy scoring and untracked files appear. See
   # ./file-suggestion for the rationale.
@@ -100,6 +102,7 @@ in {
       command = lib.getExe fileSuggestionCommand;
     };
     model = "claude-fable-5[1m]";
+    outputStyle = outputStyles.default.name;
     skipDangerousModePermissionPrompt = true;
     statusLine = {
       type = "command";

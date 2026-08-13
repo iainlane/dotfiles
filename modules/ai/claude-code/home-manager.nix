@@ -8,7 +8,14 @@
   ...
 }: let
   mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
-  instructions = import ../agent-instructions.nix {inherit lib;};
+  # Claude Code receives the output styles natively (see `outputStyles`
+  # below); `nativeOutputStyles` keeps the default style's body out of the
+  # instruction files, so the model does not receive the same text twice.
+  instructions = import ../agent-instructions.nix {
+    inherit lib;
+    nativeOutputStyles = true;
+  };
+  outputStyles = import ../output-styles.nix {inherit lib;};
   skills = import ../skills.nix {inherit inputs lib;};
 
   # Claude Code's `.mcp.json` schema: `type` of http/stdio plus `enabled`.
@@ -47,6 +54,9 @@ in {
 
       # Shared instructions as auto-loaded rule files.
       rules = instructions.files;
+
+      # Shared output styles from ../output-style/.
+      outputStyles = outputStyles.files;
 
       # Shared skills from ./skills/.
       inherit skills;

@@ -231,10 +231,14 @@
       (name: type: type == "regular" && lib.hasSuffix ".md" name)
       (builtins.readDir promptDir));
 
+  # A skill is either a directory to link or inline SKILL.md content to
+  # write.
   skillFiles =
     lib.mapAttrs'
-    (name: path:
-      lib.nameValuePair ".pi/agent/skills/${name}" {source = path;})
+    (name: skill:
+      if builtins.isPath skill || lib.hasPrefix "/" skill
+      then lib.nameValuePair ".pi/agent/skills/${name}" {source = skill;}
+      else lib.nameValuePair ".pi/agent/skills/${name}/SKILL.md" {text = skill;})
     skills;
 
   themeFiles =
