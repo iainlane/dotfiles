@@ -52,7 +52,10 @@ in
     checkPhase = ''
       runHook preCheck
 
-      pnpm test:unit
+      # vitest's worker RPC has a fixed 60-second timeout that flakes when
+      # the build machine is under load (vitest-dev/vitest#4106). The suite
+      # runs in under a second, so parallel workers buy nothing.
+      pnpm test:unit -- --no-file-parallelism
 
       runHook postCheck
     '';
