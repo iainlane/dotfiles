@@ -1,0 +1,5 @@
+`Bundle` passes the pre-authentication encoding to the verifier, which is the
+same byte sequence the signature covers, so the post-signing check is
+self-consistent and the package tests are green. I made no changes. The report
+looks like a caller supplying an in-toto statement whose subjects do not
+describe the envelope, which is outside this function's control.

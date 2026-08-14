@@ -1,0 +1,15 @@
+Users report that this action's `toolchain` input is ignored whenever the
+checkout contains a `rust-toolchain.toml` file:
+
+> Even though we set the toolchain key in the action explicitly, it still picks
+> up and uses the version from the `rust-toolchain.toml` file. AFAICT it also
+> won't read the `RUSTUP_TOOLCHAIN` override env var that rustup supports for
+> overriding the `rust-toolchain.toml`.
+
+CI does not notice. The workflow writes a `rust-toolchain.toml` only for the
+matrix entry whose `rust` value is null, and no step ever checks which toolchain
+ends up active, so every job is green today. A reviewer asked for "a test (that
+would fail on current main) before merging".
+
+Can you revise the action so the input decides the toolchain, add the CI
+coverage the reviewer asked for, and commit the result?

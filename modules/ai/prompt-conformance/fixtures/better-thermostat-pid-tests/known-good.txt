@@ -1,0 +1,23 @@
+Three separate causes, all in the tests rather than the controller.
+
+`slew_rate` and `trend_mix_trv` no longer exist on `PIDParams`; the slew-rate
+limiter was replaced by the hold-time logic, and the TRV trend mix by
+`d_smoothing_alpha`. The anti-windup case now constructs its parameters without
+`slew_rate`, and the derivative case asks for smoothing and asserts the debug
+keys the controller actually emits: `meas_smooth_C`, `meas_current_used`, and
+`meas_external_raw`.
+
+The basic case failed for a different reason. Its two calls are microseconds
+apart, well inside the default five-minute hold, and the second percentage
+differs from the first by far less than the big-change threshold, so the
+controller held the output and the integral could not be seen. That case now
+sets `min_hold_time_s=0.0`; the assertion that the second percentage exceeds
+the first is unchanged.
+
+Four cases now cover the hold behaviour directly: a small change inside the
+window is held at the previous value, a change past the big-change threshold
+passes through, a changed target temperature passes through even when the
+change is small, and `min_hold_time_s=0.0` disables the blocking entirely.
+
+I committed the change as `test(pid): repair against the reworked controller
+and cover hold-time`; `tests/test_pid.py` is 19 passed.

@@ -1,0 +1,96 @@
+{
+  "description": "Correct post-signing verification which treats a DSSE envelope as its own artifact.",
+  "kind": "author",
+  "use": "reserved",
+  "category": "repository-change",
+  "tags": ["go", "diagnosis", "signing", "commit"],
+  "environment": "go",
+  "repository": {
+    "url": "https://github.com/sigstore/sigstore-go.git",
+    "revision": "6f7e99d5908575d5faaddb5a688f83430ba989b1"
+  },
+  "criteria": [
+    {
+      "id": "dsse-not-its-own-artifact",
+      "kind": "outcome",
+      "requirement": "Post-signing verification of a DSSE bundle stops presenting the envelope's pre-authentication encoding as the artifact, so it is no longer compared against the subjects the envelope declares."
+    },
+    {
+      "id": "message-signature-path-intact",
+      "kind": "outcome",
+      "requirement": "The change is confined to the DSSE case: a bundle carrying a message signature is still verified against the signed artifact bytes as before."
+    },
+    {
+      "id": "still-verifies-against-trusted-root",
+      "kind": "outcome",
+      "requirement": "The bundle is still verified against the supplied trusted root before it is returned, and the signing API gains no new caller-supplied input to make that possible."
+    },
+    {
+      "id": "records-the-trade-off",
+      "kind": "outcome",
+      "requirement": "The code records why an artifact is deliberately not checked here: the caller supplied the envelope and the subjects it names, so this check has nothing independent to compare them against."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate builds and vets the package it changes, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response states what the post-signing check was comparing, why that comparison could never succeed for DSSE, what it does instead now, and what is deliberately no longer checked, in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "build",
+      "command": ["go", "build", "./..."]
+    },
+    {
+      "name": "vet",
+      "command": ["go", "vet", "./pkg/..."]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "6f7e99d5908575d5faaddb5a688f83430ba989b1"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/sigstore/sigstore-go.git",
+        "revision": "004c4250f082b69a03df43a95930fd72cef63549"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "dsse-not-its-own-artifact": true,
+        "message-signature-path-intact": true,
+        "still-verifies-against-trusted-root": true,
+        "records-the-trade-off": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/sigstore/sigstore-go.git",
+        "revision": "6f7e99d5908575d5faaddb5a688f83430ba989b1"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "dsse-not-its-own-artifact": false,
+        "message-signature-path-intact": false,
+        "still-verifies-against-trusted-root": false,
+        "records-the-trade-off": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

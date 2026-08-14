@@ -1,0 +1,11 @@
+The two failures were integration startup exceeding Vitest's five-second
+default under parallel load. The smoke test starts workerd with both bundled
+Workers and a Durable Object on its first dispatch. Each commit-lint CLI case
+starts a Node subprocess which compiles its TypeScript before answering.
+
+Those cases now have a 30-second budget, matching the smoke test's existing
+setup allowance. The workspace and package defaults, assertions, production
+code, discovery, and neighbouring tests are unchanged; the two CLI cases share
+one named timeout value. I committed the change as `test: give the slow
+integration tests room to start`; both affected files and their package type
+checks pass.

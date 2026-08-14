@@ -1,0 +1,16 @@
+The merge of upstream jrsonnet into rustanka dropped one `};` from
+`flake.nix`, the line which closed `benchmarks-quick-against-release`. Every
+package defined after it, `jrsonnet` through `tanka`, was then read as another
+attribute inside that call rather than a sibling in `packages`, so the parser
+only ran out of input at the end of the file. That is why the reported position
+is line 209 and not the merge conflict at line 134.
+
+Restoring the delimiter is the whole fix; no other definition needed to move.
+The flake now parses and evaluates, and the default package is jrsonnet again.
+
+Nothing in CI ran Nix, which is how this reached the default branch, so there
+is now a Nix Build workflow on pull requests and on pushes to `master`: it runs
+`nix flake check`, installs `.#rtk` from the flake, and evaluates a fixture
+environment with it as a smoke test.
+
+I committed both as `fix(nix): fix missing `};` in `flake.nix`, add CI check`.

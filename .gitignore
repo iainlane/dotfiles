@@ -11,3 +11,6 @@
 build/
 result
 result-*
+
+# Scratch output of prompt conformance tests
+prompt-results/

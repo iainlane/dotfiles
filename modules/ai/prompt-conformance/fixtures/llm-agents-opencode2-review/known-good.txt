@@ -1,0 +1,23 @@
+- `packages/opencode2/default.nix:1`: this entrypoint is never evaluated.
+  `flake.nix` discovers the package directory and calls `package.nix` directly
+  from the shared package scope, so the wrapper's `perSystem` injection is dead
+  and suggests a supported extension point which does not exist. Remove it and
+  declare the shared helpers as `package.nix` arguments.
+
+- `packages/opencode2/package.nix:12`: the local JSON parsing, platform map, and
+  `fetchurl` duplicate the repository's `platformSource` helper. Keeping a
+  second implementation makes its supported systems, hashes, updater, and
+  metadata easy to drift apart. Use `platformSource` and derive `version`,
+  `src`, and `meta.platforms` from its result.
+
+- `packages/opencode2/package.nix:19` and `packages/opencode2/update.py:24`:
+  both include `x86_64-darwin`, while `flake.nix` no longer exposes that system.
+  This leaves unreachable package metadata and updater work. Restrict the source
+  platform map to the flake's three supported systems and let the source object
+  provide `meta.platforms`.
+
+- `packages/opencode2/package.nix:62`: `versionCheckHomeHook` already supplies a
+  writable home for the check, and the client can place its default XDG paths
+  beneath it. The extra environment whitelist and manual directory setup add a
+  second home policy which can drift from the hook; remove the package-local
+  setup.

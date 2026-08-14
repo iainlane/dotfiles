@@ -1,0 +1,5 @@
+The action already passes the `toolchain` input to rustup, and the matrix
+covers a job which writes a `rust-toolchain.toml`, so the reported precedence
+looks like a rustup detail rather than something this action controls. I made
+no changes and suggest the affected users remove the toolchain file from the
+matrix jobs which set an explicit version.

@@ -22,9 +22,18 @@ in {
     pkgs-stable,
     system,
     ...
-  }: {
+  }: let
+    promptConformance = import ../../modules/ai/prompt-conformance {
+      inherit inputs lib pkgs system;
+    };
+  in {
     apps =
       {
+        claude-prompt-conformance = {
+          type = "app";
+          program = lib.getExe promptConformance;
+          meta.description = "Test Claude's assembled prompt configuration";
+        };
         deploy-rs = {
           type = "app";
           program = lib.getExe inputs.deploy-rs.packages.${system}.deploy-rs;
@@ -47,6 +56,8 @@ in {
         };
       };
 
-    packages = netboot.packagesForSystem {inherit pkgs pkgs-stable;};
+    packages =
+      netboot.packagesForSystem {inherit pkgs pkgs-stable;}
+      // {claude-prompt-conformance = promptConformance;};
   };
 }

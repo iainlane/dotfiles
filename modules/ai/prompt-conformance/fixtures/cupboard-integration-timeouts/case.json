@@ -1,0 +1,109 @@
+{
+  "description": "Diagnose load-sensitive integration timeouts without widening unrelated budgets.",
+  "kind": "author",
+  "use": "working",
+  "category": "repository-change",
+  "tags": ["typescript", "testing", "diagnosis", "concurrency", "commit"],
+  "environment": "cupboard",
+  "preparation": [
+    {
+      "name": "install dependencies",
+      "command": ["pnpm", "install", "--frozen-lockfile"]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/underwhelmingperformance/cupboard.git",
+    "revision": "ea6ad9426f3a989d89aa2d026f3b7f77ae9a2b16"
+  },
+  "criteria": [
+    {
+      "id": "scoped-timeouts",
+      "kind": "outcome",
+      "requirement": "Only the workers smoke test and commit-lint CLI cases receive a 30 second timeout; package-wide and workspace-wide Vitest defaults remain unchanged."
+    },
+    {
+      "id": "records-real-work",
+      "kind": "outcome",
+      "requirement": "The code records why these cases need more time under load: the smoke test boots workerd and bundled Workers on first dispatch, while each CLI case starts a Node subprocess which compiles TypeScript."
+    },
+    {
+      "id": "preserves-coverage",
+      "kind": "outcome",
+      "requirement": "The existing assertions, production code, test discovery, and setup timeout are preserved; the CLI cases share one clearly named timeout value."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate runs both affected test files and relevant type checks, makes a focused commit, and reports them accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response distinguishes slow integration startup from a hang, explains the scope of the timeout changes, and reports the commit and checks in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "affected tests",
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "packages/cli/src/deploy/workers-smoke.test.ts",
+        "packages/commit-lint/src/cli.test.ts"
+      ]
+    },
+    {
+      "name": "affected type checks",
+      "command": [
+        "pnpm",
+        "--filter",
+        "@cupboard/cli",
+        "--filter",
+        "@cupboard/commit-lint",
+        "check:types"
+      ]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "ea6ad9426f3a989d89aa2d026f3b7f77ae9a2b16"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/underwhelmingperformance/cupboard.git",
+        "revision": "2dcf35670b32b964f7bc66fb56e484c520dc81cc"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "scoped-timeouts": true,
+        "records-real-work": true,
+        "preserves-coverage": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/underwhelmingperformance/cupboard.git",
+        "revision": "ea6ad9426f3a989d89aa2d026f3b7f77ae9a2b16"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "scoped-timeouts": false,
+        "records-real-work": false,
+        "preserves-coverage": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "description": "Restore checking and rewording from Git linked worktrees.",
+  "kind": "revise",
+  "use": "reserved",
+  "category": "repository-change",
+  "tags": ["typescript", "deno", "git", "dependency", "testing", "commit"],
+  "environment": "wrapscallion",
+  "repository": {
+    "url": "https://github.com/underwhelmingperformance/wrapscallion.git",
+    "revision": "2f64f6f6778af971339346447ba3299b0019bbd4"
+  },
+  "criteria": [
+    {
+      "id": "linked-worktree-support",
+      "kind": "outcome",
+      "requirement": "Wrapscallion resolves a linked worktree's gitdir indirection, so checking and rewording work when .git is a file."
+    },
+    {
+      "id": "correct-ref-update",
+      "kind": "outcome",
+      "requirement": "Rewording from a linked worktree reads its own HEAD and moves the linked worktree's branch to the rewritten commit."
+    },
+    {
+      "id": "integration-coverage",
+      "kind": "outcome",
+      "requirement": "A regression test creates a real linked worktree, runs the reword operation there, and compares the complete rewrite outcome including the moved branch and signature state."
+    },
+    {
+      "id": "dependency-state",
+      "kind": "outcome",
+      "requirement": "The implementation and Deno lock file consistently use a just-git release that supports linked-worktree gitdir and common-dir discovery."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate runs relevant Deno checks, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response explains why linked worktrees failed, how repository discovery now works, the regression coverage, the commit, and verification in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "reword tests",
+      "command": [
+        "deno",
+        "test",
+        "--ignore-env",
+        "--allow-read",
+        "--allow-write",
+        "src/reword-command.test.ts"
+      ]
+    },
+    {
+      "name": "format",
+      "command": ["deno", "fmt", "--check", "src", "deno.json", "README.md"]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "2f64f6f6778af971339346447ba3299b0019bbd4"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/underwhelmingperformance/wrapscallion.git",
+        "revision": "644b53893bddb24190767038301bdebb449cca40"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "linked-worktree-support": true,
+        "correct-ref-update": true,
+        "integration-coverage": true,
+        "dependency-state": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/underwhelmingperformance/wrapscallion.git",
+        "revision": "2f64f6f6778af971339346447ba3299b0019bbd4"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "linked-worktree-support": false,
+        "correct-ref-update": false,
+        "integration-coverage": false,
+        "dependency-state": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

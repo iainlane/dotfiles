@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-prompt-conformance"
+version = "0.2.0"
+requires-python = ">=3.12"
+dependencies = ["httpx", "mcp", "msgspec", "psygnal", "pydantic", "rich", "tomli-w", "unidiff", "watchfiles"]
+
+[project.scripts]
+claude-prompt-conformance = "claude_prompt_conformance.cli:main"
+claude-prompt-conformance-mcp = "claude_prompt_conformance.mcp.server:main"
+claude-prompt-conformance-schema = "claude_prompt_conformance.protocols.schema:main"
+
+[tool.setuptools.packages.find]
+include = ["claude_prompt_conformance*"]
+
+[tool.pytest.ini_options]
+markers = [
+  "host_integration: requires host operating-system isolation",
+  "endpoint_integration: drives the packaged clients against a local endpoint",
+]
+timeout = 30
+timeout_method = "thread"
+
+[tool.basedpyright]
+include = ["claude_prompt_conformance", "tests"]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+
+# PyObjC's Foundation and Security bridge modules are generated at runtime
+# from the Objective-C class registry, so basedpyright has no stub to check
+# their attributes against. Silence that one rule for the isolated Keychain
+# code that touches them, rather than scattering per-line ignores.
+[[tool.basedpyright.executionEnvironments]]
+root = "claude_prompt_conformance/platforms/darwin.py"
+reportAttributeAccessIssue = "none"
+
+[tool.ruff.lint.isort]
+known-first-party = ["claude_prompt_conformance"]
+known-third-party = [
+  "httpx",
+  "mcp",
+  "msgspec",
+  "psygnal",
+  "pydantic",
+  "pytest",
+  "rich",
+  "tomli_w",
+  "unidiff",
+  "watchfiles",
+]

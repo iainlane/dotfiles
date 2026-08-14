@@ -1,0 +1,7 @@
+Please address this review feedback and commit the result:
+
+> The package module only checks `build.gradle`, so projects using Gradle's
+> Kotlin DSL never expose their package version. Kotlin builds normally use
+> `build.gradle.kts`, and their plugin declarations can contain version strings
+> of their own. Please add regression coverage and update the user-facing
+> documentation with the supported file.

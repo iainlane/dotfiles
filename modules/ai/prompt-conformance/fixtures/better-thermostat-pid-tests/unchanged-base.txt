@@ -1,0 +1,3 @@
+The failures come from the controller rework rather than from the tests, so
+repairing the tests would only hide it. I made no changes and suggest the
+controller regain `slew_rate` and `trend_mix_trv` before the suite is touched.

@@ -1,0 +1,108 @@
+{
+  "description": "Make the toolchain input beat a checked-in toolchain file and prove it in CI.",
+  "kind": "revise",
+  "use": "working",
+  "category": "repository-change",
+  "tags": ["github-actions", "yaml", "rust", "testing", "commit"],
+  "environment": "workflows",
+  "repository": {
+    "url": "https://github.com/iainlane/setup-rust-toolchain.git",
+    "revision": "d5fcac478a8270ade8a005df33017ae06891af79"
+  },
+  "criteria": [
+    {
+      "id": "input-wins-over-file",
+      "kind": "outcome",
+      "requirement": "The action selects the requested toolchain by a rustup mechanism which takes precedence over a checked-in rust-toolchain.toml, while its existing installation, targets, components, profile, downgrade, and default-to-stable behaviour is unchanged."
+    },
+    {
+      "id": "matrix-covers-both",
+      "kind": "outcome",
+      "requirement": "The CI matrix exercises every toolchain value both with and without a written rust-toolchain.toml, instead of tying the toolchain file to the null toolchain entry."
+    },
+    {
+      "id": "asserts-active-toolchain",
+      "kind": "outcome",
+      "requirement": "The workflow gains steps which assert the resulting active toolchain: that a written toolchain file does not decide it, and that stable results when neither an input nor a file selects one."
+    },
+    {
+      "id": "workflow-remains-valid",
+      "kind": "outcome",
+      "requirement": "The added steps are well-formed GitHub Actions YAML whose conditions parse as expressions, and the deterministic workflow lint of the changed file reports no problems."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate lints the workflow it changes, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response states why a checked-in toolchain file beat the action's input, what the action does instead now, and how the new CI coverage would catch the regression, in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "workflow lint",
+      "command": ["actionlint", ".github/workflows/ci.yml"]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "d5fcac478a8270ade8a005df33017ae06891af79"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/iainlane/setup-rust-toolchain.git",
+        "revision": "ba41ca6f71dca3d3a627600631fedb7f260d083e"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "input-wins-over-file": true,
+        "matrix-covers-both": true,
+        "asserts-active-toolchain": true,
+        "workflow-remains-valid": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "middling",
+      "comment": "The real intermediate commit of the fixup chain, before `ci: fix conditional` corrected the step condition.",
+      "repository": {
+        "url": "https://github.com/iainlane/setup-rust-toolchain.git",
+        "revision": "c6086ae6e539b9cca10fba3642fe77e559ba5705"
+      },
+      "response": "middling.txt",
+      "expectedCriteria": {
+        "input-wins-over-file": true,
+        "matrix-covers-both": true,
+        "asserts-active-toolchain": true,
+        "workflow-remains-valid": false,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/iainlane/setup-rust-toolchain.git",
+        "revision": "d5fcac478a8270ade8a005df33017ae06891af79"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "input-wins-over-file": false,
+        "matrix-covers-both": false,
+        "asserts-active-toolchain": false,
+        "workflow-remains-valid": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

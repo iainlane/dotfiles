@@ -1,0 +1,85 @@
+{
+  "description": "Repair a Nix flake left unparseable by an upstream merge and guard it in CI.",
+  "kind": "author",
+  "use": "reserved",
+  "category": "repository-change",
+  "tags": ["nix", "diagnosis", "merge", "ci", "commit"],
+  "environment": "nix",
+  "repository": {
+    "url": "https://github.com/grafana/rustanka.git",
+    "revision": "a06e9030bf3699ae5d83bc95cd4a885d9b6d0799"
+  },
+  "criteria": [
+    {
+      "id": "closes-attribute-set",
+      "kind": "outcome",
+      "requirement": "The flake regains the delimiter the merge dropped, so the package definitions which follow it belong to the packages attribute set again; no other definition is moved, reindented, or rewritten to work around the fault."
+    },
+    {
+      "id": "flake-parses",
+      "kind": "outcome",
+      "requirement": "The changed flake parses as Nix and the deterministic check of that file reports no problem."
+    },
+    {
+      "id": "ci-guard",
+      "kind": "outcome",
+      "requirement": "The repository gains continuous integration which exercises the flake on pull requests and on the default branch, so an unparseable or unbuildable flake fails a check instead of reaching the default branch unnoticed."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate checks the flake it changes, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response names the merge which dropped the delimiter, explains why the reported position is the end of the file rather than the fault, and states the concrete change, the new check, and the commit in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "flake syntax",
+      "command": ["alejandra", "--check", "flake.nix"]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "a06e9030bf3699ae5d83bc95cd4a885d9b6d0799"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/grafana/rustanka.git",
+        "revision": "740b9d1f032d16c3040686810e7fcb97a4866f4d"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "closes-attribute-set": true,
+        "flake-parses": true,
+        "ci-guard": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/grafana/rustanka.git",
+        "revision": "a06e9030bf3699ae5d83bc95cd4a885d9b6d0799"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "closes-attribute-set": false,
+        "flake-parses": false,
+        "ci-guard": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

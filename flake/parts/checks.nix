@@ -79,8 +79,21 @@
         };
       };
     };
+
+    promptConformance = import ../../modules/ai/prompt-conformance {
+      inherit inputs lib pkgs;
+      inherit (pkgs.stdenv.hostPlatform) system;
+    };
   in {
     checks = {
+      claude-prompt-conformance = promptConformance.tests.conformance;
+      claude-prompt-conformance-claude-endpoint =
+        promptConformance.tests.claudeEndpoint;
+      claude-prompt-conformance-codex-endpoint =
+        promptConformance.tests.codexEndpoint;
+      claude-prompt-conformance-codex-protocol =
+        promptConformance.tests.codexProtocol;
+
       statix =
         pkgs.runCommandLocal "statix-check" {}
         ''

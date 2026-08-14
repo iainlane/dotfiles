@@ -1,0 +1,22 @@
+The post-signing check in `pkg/sign.Bundle` always passed the DSSE envelope's
+pre-authentication encoding to `verify.WithArtifact`. The verifier treats that
+as the artifact and compares its digest against the subjects the in-toto
+statement declares, so it was comparing the envelope with the things the
+envelope is about. Those never match, and the two are not even the same kind of
+value, so no correctly formed DSSE bundle could pass.
+
+Reading the subject digest out of the statement and passing it as
+`WithArtifactDigest` would not help. Both the envelope and its subjects come
+from the same caller, so that check would compare the caller's input with
+itself. `Bundle` now asks for verification without an artifact when the content
+is DSSE, and keeps `WithArtifact` on the pre-authentication encoding for the
+message-signature case where the bytes really are the signed artifact. The
+comment above it records why: we have just signed this envelope trusting that
+the caller referenced the artifacts they meant to, and the certificate identity
+still comes from their identity token.
+
+The trusted root is still consulted and the bundle is still verified before it
+is returned; signing gained no new input. I committed the change as
+`fix(sign): do not verify a DSSE envelope against its own subjects`;
+`go build ./...` and `go vet ./pkg/...` pass, and the package tests are
+unchanged and still green, though none of them exercises this path.

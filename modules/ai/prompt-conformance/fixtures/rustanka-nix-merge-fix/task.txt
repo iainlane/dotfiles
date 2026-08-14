@@ -1,0 +1,16 @@
+Every Nix command in this repository stops before it does anything:
+
+```text
+error: syntax error, unexpected end of file, expecting ';'
+       at /build/source/flake.nix:209:1:
+          208| }
+          209|
+             | ^
+```
+
+The pointer is at the end of the file, so it is not obvious where the real
+problem is. This started after the merge of upstream jrsonnet into rustanka;
+nothing before that merge fails this way, and no CI job runs Nix, so it reached
+the default branch unnoticed.
+
+Can you investigate, fix it, and commit the result?

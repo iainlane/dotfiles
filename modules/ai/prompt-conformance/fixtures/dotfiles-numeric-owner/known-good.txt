@@ -1,0 +1,8 @@
+The backup uploader now passes GNU tar's `--numeric-owner` option. The failing
+`--numeric-ids` spelling belongs to rsync, where the Hermes snapshot code uses
+it correctly; passing it to tar stopped both backup paths before encryption or
+upload.
+
+I committed the focused fix as
+`fix(backup): ask tar for numeric owners by its own name`.
+`bash -n lib/r2-upload.sh` and the repository checks pass.

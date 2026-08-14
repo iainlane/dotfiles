@@ -1,0 +1,99 @@
+{
+  "description": "Repair PID tests against a reworked controller API and cover its new behaviour.",
+  "kind": "author",
+  "use": "working",
+  "category": "repository-change",
+  "tags": ["python", "testing", "regression", "commit"],
+  "environment": "python",
+  "preparation": [
+    {
+      "name": "create the pinned virtual environment",
+      "command": ["create-better-thermostat-environment"]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/KartoffelToby/better_thermostat.git",
+    "revision": "96ff4eef926bf83abad7b1b92d5a0e35411fc469"
+  },
+  "criteria": [
+    {
+      "id": "repairs-not-suppresses",
+      "kind": "outcome",
+      "requirement": "The three failing cases are repaired against the current PIDParams fields, each still asserting the behaviour it was written for; none is deleted, skipped, or reduced to a weaker assertion, and the controller is not changed to suit them."
+    },
+    {
+      "id": "integral-remains-observable",
+      "kind": "outcome",
+      "requirement": "The basic PID case can observe integral accumulation again because the controller's new output hold is neutralised for that case, not because the expected relationship between the two computed percentages was relaxed."
+    },
+    {
+      "id": "hold-time-coverage",
+      "kind": "outcome",
+      "requirement": "New cases cover the hold behaviour the controller gained: a small change inside the hold window is held, a large enough change and a target-temperature change each pass through, and a zero hold time disables the blocking."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate runs the PID test file, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response separates the three failure causes, says what each repaired case now asserts, describes the new hold coverage, and reports the commit in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "pid tests",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_pid.py"
+      ]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "96ff4eef926bf83abad7b1b92d5a0e35411fc469"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/KartoffelToby/better_thermostat.git",
+        "revision": "115f83eb7e4afef28c7ef1486616394356183609"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "repairs-not-suppresses": true,
+        "integral-remains-observable": true,
+        "hold-time-coverage": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/KartoffelToby/better_thermostat.git",
+        "revision": "96ff4eef926bf83abad7b1b92d5a0e35411fc469"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "repairs-not-suppresses": false,
+        "integral-remains-observable": false,
+        "hold-time-coverage": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "description": "Review an initial Nix package against the repository's packaging conventions.",
+  "kind": "review",
+  "use": "working",
+  "category": "repository-change",
+  "tags": ["nix", "review", "packaging", "repository-conventions"],
+  "environment": "llm-agents",
+  "repository": {
+    "url": "https://github.com/numtide/llm-agents.nix.git",
+    "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+  },
+  "comparisonRevision": "2234afec442341d1b3306eb16ca2ccfd5b43ad25",
+  "criteria": [
+    {
+      "id": "package-entrypoint",
+      "kind": "outcome",
+      "requirement": "The review identifies packages/opencode2/default.nix as dead and misleading because flake.nix discovers directories but calls each package.nix directly from the shared scope."
+    },
+    {
+      "id": "shared-platform-source",
+      "kind": "outcome",
+      "requirement": "The review identifies the hand-written hashes and platform selection in package.nix as duplicating the repository's platformSource helper and explains the maintenance consequence."
+    },
+    {
+      "id": "supported-platforms",
+      "kind": "outcome",
+      "requirement": "The review notices that opencode2 advertises and updates x86_64-darwin even though the flake's supported systems omit that platform, and asks for the package metadata and updater to derive from the supported source platforms."
+    },
+    {
+      "id": "home-hook-contract",
+      "kind": "outcome",
+      "requirement": "The review notices that versionCheckHomeHook already supplies a writable HOME, under which the client can use its default XDG paths, making the package's manual HOME and XDG setup redundant."
+    },
+    {
+      "id": "review-only",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate inspects the repository and patch without modifying or committing the reviewed checkout."
+    },
+    {
+      "id": "actionable-review",
+      "kind": "communication",
+      "requirement": "The final response leads with concrete findings, gives useful file and line references, and explains each consequence without padding or a generic summary."
+    }
+  ],
+  "verification": [
+    {
+      "name": "unchanged worktree",
+      "command": ["git", "diff", "--exit-code"]
+    },
+    {
+      "name": "unchanged index",
+      "command": ["git", "diff", "--cached", "--exit-code"]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/numtide/llm-agents.nix.git",
+        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "package-entrypoint": true,
+        "shared-platform-source": true,
+        "supported-platforms": true,
+        "home-hook-contract": true,
+        "actionable-review": true
+      }
+    },
+    {
+      "name": "middling",
+      "comment": "Authored reference, not a historical response. The findings it does make follow the upstream follow-up commit 2aca632c, which acted on all four; this subject omits the last one.",
+      "repository": {
+        "url": "https://github.com/numtide/llm-agents.nix.git",
+        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+      },
+      "response": "middling.txt",
+      "expectedCriteria": {
+        "package-entrypoint": true,
+        "shared-platform-source": true,
+        "supported-platforms": true,
+        "home-hook-contract": false,
+        "actionable-review": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/numtide/llm-agents.nix.git",
+        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "package-entrypoint": false,
+        "shared-platform-source": false,
+        "supported-platforms": false,
+        "home-hook-contract": false,
+        "actionable-review": false
+      }
+    }
+  ]
+}

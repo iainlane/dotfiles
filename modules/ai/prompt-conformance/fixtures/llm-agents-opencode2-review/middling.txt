@@ -1,0 +1,22 @@
+- `packages/opencode2/default.nix:1`: nothing evaluates this file. `flake.nix`
+  reads the package directory and calls `package.nix` from the shared scope
+  itself, so the `perSystem` argument this wrapper takes is never supplied and
+  the file advertises an extension point the repository does not have. Delete
+  it and take the shared helpers as arguments to `package.nix`.
+
+- `packages/opencode2/package.nix:12-32`: the `hashes.json` read, the
+  `platformMap`, and the `fetchurl` call reimplement `platformSource`, which
+  every other binary package here uses. Two implementations of the same thing
+  means the platform list, the hash layout, the updater, and `meta.platforms`
+  can drift apart one at a time, and each drift is silent until a build fails
+  on one system. Take `version`, `src`, and `meta.platforms` from
+  `platformSource` instead.
+
+- `packages/opencode2/package.nix:19` and `packages/opencode2/update.py:24`:
+  both name `x86_64-darwin`, which `flake.nix` does not list as a supported
+  system. The package therefore claims a platform which is never built, and the
+  updater spends a request per release resolving a hash nobody consumes. Derive
+  both from the flake's supported source platforms so this cannot be stated
+  twice.
+
+The version check and the wrapper arrangement look right to me.

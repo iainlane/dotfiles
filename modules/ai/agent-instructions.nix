@@ -1,48 +1,31 @@
 # Discover and expose shared agent instruction files from ./instructions/.
 #
-# Each harness can also carry its own extra instructions: any .md files in
-# the subdirectory matching the importing module's name (crush.nix ->
-# ./instructions/crush/, claude-code/home-manager.nix ->
-# ./instructions/claude-code/, pi/default.nix -> ./instructions/pi/) are
-# discovered and merged over the shared set, so a harness gains instructions
-# -- or overrides a shared file by reusing its stem -- just by dropping files
-# there. The module is identified from the source position of the caller's
-# argument set, so nothing needs to be passed explicitly.
+# Harnesses can also carry extra instructions. Named instruction sets merge
+# their harness directory over the shared files, so reusing a stem overrides
+# the shared file for that harness.
 #
 # The default output style (see ./output-styles.nix) is part of the shared
 # set: a harness with no native style support receives the style body as an
-# ordinary instruction. Claude Code selects the style through its settings
-# instead, and passes `nativeOutputStyles = true` here to keep the body out
-# of its instructions; the model would otherwise receive the same text
-# twice.
+# ordinary instruction. Claude Code installs the styles natively and selects
+# one through its settings, so its instruction set leaves the body out; the
+# model would otherwise receive the same text twice.
 #
-# Returns { files, concatenated } where:
+# Returns { files, concatenated, outputStyles, harnesses } where:
 #   files        — { stem = content; } for each instruction (for tools that
 #                  accept split files, e.g. Claude Code rules, Antigravity
 #                  context)
 #   concatenated — single string with AGENTS.md first, then the rest in
 #                  lexicographic order (for tools that need one blob, e.g.
 #                  Codex, OpenCode)
-args @ {
+#   outputStyles — { stem = parsed style; } from ./output-styles.nix
+#   harnesses    — named instruction sets with harness-specific files merged
+{
   lib,
-  nativeOutputStyles ? false,
+  source ? ./.,
 }: let
-  dir = ./instructions;
+  dir = source + "/instructions";
 
-  outputStyles = import ./output-styles.nix {inherit lib;};
-
-  # The file that wrote `{inherit lib;}` is the importing harness module.
-  callerPos = builtins.unsafeGetAttrPos "lib" args;
-
-  harness =
-    if callerPos == null
-    then null
-    else let
-      stem = lib.removeSuffix ".nix" (baseNameOf callerPos.file);
-    in
-      if stem == "default" || stem == "home-manager"
-      then baseNameOf (dirOf callerPos.file)
-      else stem;
+  outputStyles = import (source + "/output-styles.nix") {inherit lib;};
 
   # { stem = file content; } for every .md file directly under a directory.
   filesIn = d:
@@ -52,27 +35,39 @@ args @ {
       (name: type: type == "regular" && lib.hasSuffix ".md" name)
       (builtins.readDir d));
 
-  defaultStyle =
-    lib.optionalAttrs (!nativeOutputStyles)
-    {${outputStyles.default.stem} = outputStyles.default.body;};
+  makeInstructionSet = {
+    harnessDirectory ? null,
+    nativeOutputStyles ? false,
+  }: let
+    defaultStyle =
+      lib.optionalAttrs (!nativeOutputStyles)
+      {${outputStyles.default.stem} = outputStyles.default.body;};
 
-  harnessFiles =
-    lib.optionalAttrs
-    (harness != null && builtins.pathExists (dir + "/${harness}"))
-    (filesIn (dir + "/${harness}"));
+    harnessFiles =
+      lib.optionalAttrs (harnessDirectory != null)
+      (filesIn harnessDirectory);
 
-  files = filesIn dir // defaultStyle // harnessFiles;
+    files = filesIn dir // defaultStyle // harnessFiles;
 
-  # AGENTS first, then remaining stems in lexicographic order.
-  otherStems =
-    lib.sort (a: b: a < b)
-    (builtins.filter (s: s != "AGENTS") (lib.attrNames files));
-  order = ["AGENTS"] ++ otherStems;
+    # AGENTS first, then remaining stems in lexicographic order.
+    otherStems =
+      lib.sort (a: b: a < b)
+      (builtins.filter (s: s != "AGENTS") (lib.attrNames files));
+    order = ["AGENTS"] ++ otherStems;
 
-  concatenated =
-    lib.concatMapStringsSep "\n\n"
-    (stem: files.${stem})
-    order;
-in {
-  inherit files concatenated;
-}
+    concatenated =
+      lib.concatMapStringsSep "\n\n"
+      (stem: files.${stem})
+      order;
+  in {
+    inherit files concatenated;
+    outputStyles = outputStyles.styles;
+  };
+in
+  makeInstructionSet {}
+  // {
+    harnesses.claudeCode = makeInstructionSet {
+      harnessDirectory = dir + "/claude-code";
+      nativeOutputStyles = true;
+    };
+  }

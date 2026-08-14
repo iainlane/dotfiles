@@ -8,12 +8,9 @@
   ...
 }: let
   # Claude Code receives the output styles natively (see `outputStyles`
-  # below); `nativeOutputStyles` keeps the default style's body out of the
-  # instruction files, so the model does not receive the same text twice.
-  instructions = import ../agent-instructions.nix {
-    inherit lib;
-    nativeOutputStyles = true;
-  };
+  # below), so its instruction set leaves the default style's body out of
+  # the rule files; the model would otherwise receive the same text twice.
+  instructions = (import ../agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
   outputStyles = import ../output-styles.nix {inherit lib;};
   skills = import ../skills.nix {inherit inputs lib;};
 
