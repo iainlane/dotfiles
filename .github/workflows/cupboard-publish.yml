@@ -37,6 +37,9 @@ jobs:
       reuse-view: pull-requests
       maximise-space: true
       nix-config: .#nix.substituterConfig
+      input-known-hosts:
+        github.com ssh-ed25519
+        AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
       builders:
         ssh://eu.nixbuild.net x86_64-linux,aarch64-linux - 100 1
         big-parallel,benchmark
