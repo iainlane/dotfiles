@@ -16,7 +16,6 @@
 }: let
   inherit (pkgs.stdenv.hostPlatform) system;
   inherit (inputs.llm-agents.packages.${system}) ccstatusline;
-
   outputStyles = import ../output-styles.nix {inherit lib;};
 
   # Replace Claude Code's built-in `@` file picker with `fd | fzf --filter` so

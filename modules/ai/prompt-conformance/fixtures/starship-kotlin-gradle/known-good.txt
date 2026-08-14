@@ -1,0 +1,10 @@
+The package module now falls back to `build.gradle.kts` when `build.gradle` is
+absent. The existing version expression already understands Kotlin DSL
+assignment syntax, so the regression test uses a project with a versioned plugin
+and confirms that Starship reports the top-level project version. Existing
+Groovy Gradle and `gradle.properties` handling remain intact.
+
+The package documentation now lists both Gradle build filenames. I committed the
+response as
+`fix(package): support build.gradle.kts in gradle version detection`; the
+package-module tests and Rust formatting check pass.

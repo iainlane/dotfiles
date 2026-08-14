@@ -1,0 +1,22 @@
+A user reports that `sign.Bundle` cannot produce a DSSE bundle once they supply
+a trusted root:
+
+> I'm getting started with using the `Bundle()` function to make a signed
+> Sigstore Bundle from an intotoStatement. [...] If I specify a `TrustedRoot`,
+> then `Bundle()` will also attempt to `Verify()` before returning the bundle.
+> But I think there may be a few problems with the setup there.
+>
+> 1. The options `artifactOpts := verify.WithArtifact(bytes.NewReader(
+>    content.PreAuthEncoding()))` may not be correct to use, since it treats the
+>    "artifact" as the envelope, not as the artifact(s) that the envelope
+>    references.
+
+A maintainer agrees the post-signing verification is wrong:
+
+> I was trying to be clever by having `sigstore-go` signing only be aware of the
+> DSSE container, and not if DSSE was around an in-toto statement (or something
+> else). However, this means that when working with DSSE, we don't have any idea
+> what the artifact the document contained by DSSE refers to.
+
+The existing tests do not reach this path. Can you investigate, fix it, and
+commit the result?

@@ -1,0 +1,77 @@
+{
+  "description": "Repair a backup pipeline stopped by an rsync-only option passed to tar.",
+  "kind": "author",
+  "use": "reserved",
+  "category": "repository-change",
+  "tags": ["shell", "diagnosis", "commit"],
+  "environment": "dotfiles",
+  "repository": {
+    "url": "https://github.com/iainlane/dotfiles.git",
+    "revision": "92487e2f1bc0a44d0ef4c3e478ba8ea1cffa6733"
+  },
+  "criteria": [
+    {
+      "id": "fixes-archive-command",
+      "kind": "outcome",
+      "requirement": "The archive command uses GNU tar's valid --numeric-owner option and retains the existing compression, source-directory, pipe, encryption, upload, and retention behaviour."
+    },
+    {
+      "id": "focused-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate makes a focused commit whose message explains that --numeric-ids belongs to rsync and prevents both backup users from reaching R2."
+    },
+    {
+      "id": "verification",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate performs relevant verification and does not claim checks which the action trace or deterministic results contradict."
+    },
+    {
+      "id": "clear-handoff",
+      "kind": "communication",
+      "requirement": "The final response states the diagnosed cause, the concrete change, the commit, and the verification result in direct technical language."
+    }
+  ],
+  "verification": [
+    {
+      "name": "shell syntax",
+      "command": ["bash", "-n", "lib/r2-upload.sh"]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "92487e2f1bc0a44d0ef4c3e478ba8ea1cffa6733"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/iainlane/dotfiles.git",
+        "revision": "48ca476628dcf14443b3dd000ece13911814baec"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "fixes-archive-command": true,
+        "clear-handoff": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/iainlane/dotfiles.git",
+        "revision": "92487e2f1bc0a44d0ef4c3e478ba8ea1cffa6733"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "fixes-archive-command": false,
+        "clear-handoff": false
+      }
+    }
+  ]
+}

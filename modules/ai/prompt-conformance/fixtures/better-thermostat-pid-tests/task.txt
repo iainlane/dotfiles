@@ -1,0 +1,18 @@
+`tests/test_pid.py` has been red since the "mpc eco penalty" pull request
+reworked the PID controller:
+
+```text
+FAILED tests/test_pid.py::TestPIDController::test_basic_pid_calculation
+E       assert 20.2 > 20.2
+FAILED tests/test_pid.py::TestPIDController::test_anti_windup
+E       TypeError: PIDParams.__init__() got an unexpected keyword argument 'slew_rate'
+FAILED tests/test_pid.py::TestPIDController::test_derivative_on_measurement
+E       TypeError: PIDParams.__init__() got an unexpected keyword argument 'trend_mix_trv'
+3 failed, 12 passed
+```
+
+That pull request also added output hold-time behaviour to the controller,
+which nothing in the suite exercises.
+
+The controller changes themselves were reviewed and are wanted. Can you get the
+PID tests passing again and commit the result?

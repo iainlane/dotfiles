@@ -1,0 +1,15 @@
+The action installed the requested toolchain and then made it the rustup
+default. A `rust-toolchain.toml` in the checkout outranks the default, so the
+file kept deciding which compiler ran and the `toolchain` input had no effect.
+The action now sets a rustup directory override for the workspace instead,
+which the toolchain file does not outrank.
+
+I also split the toolchain file out of the `rust` matrix entry into its own
+`write-toolchain-file` dimension, so every toolchain value is exercised both
+with and without the file, and added two steps which read `rustc --version`:
+one asserts that the pinned nightly from the toolchain file is not what runs,
+the other that a job with neither an input nor a file gets stable. Both would
+fail on the previous action.
+
+I committed the change as `test: add toolchain file override test`. I did not
+run a workflow linter over the result.

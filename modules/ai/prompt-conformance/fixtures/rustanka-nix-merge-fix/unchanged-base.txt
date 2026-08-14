@@ -1,0 +1,5 @@
+The error points at the end of `flake.nix`, and the file ends with a balanced
+`}` closing the outer set, so the flake itself looks well formed. This is most
+likely a Nix version difference rather than a change in the repository. I made
+no changes; try the command again with the version pinned by the flake's own
+lock file.

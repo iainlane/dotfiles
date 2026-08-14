@@ -1,0 +1,2 @@
+The backup command looks correct. I did not change the repository. The archive
+and upload should work once the job is retried.

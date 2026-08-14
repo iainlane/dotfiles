@@ -1,10 +1,9 @@
-# Configure Codex with the shared MCP servers. Use a system-level managed
-# configuration file, so that user changes can be written to the file under the
-# home dir.
+# Configure Codex with system-wide defaults while leaving the home config free
+# for interactive edits and per-instance overrides.
 {
   flake.modules.ai = {
     homeManagerModules = [./home-manager.nix];
-    systemManagerModules = [./managed-config.nix];
-    nixosModules = [./managed-config.nix];
+    systemManagerModules = [./system-config.nix];
+    nixosModules = [./system-config.nix];
   };
 }

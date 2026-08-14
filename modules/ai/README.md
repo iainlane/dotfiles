@@ -67,13 +67,14 @@ interactive edits:
 
 - `claude-code.nix` - Writes Claude Code managed settings at the OS-specific
   system path
-- `codex.nix` - Writes `/etc/codex/managed_config.toml` with the shared MCP
-  servers
+- `codex/system-config.nix` - Writes `/etc/codex/config.toml` with shared
+  defaults and MCP servers
 
-Codex itself now reads layered config files (`~/.codex/config.toml`,
-`.codex/config.toml`, `/etc/codex/config.toml`, and
-`/etc/codex/managed_config.toml`), so we use the managed layer for shared
-defaults rather than injecting `-c` flags on every launch.
+Codex itself reads layered config files (`/etc/codex/config.toml`,
+`~/.codex/config.toml`, and `.codex/config.toml`). The system layer owns shared
+defaults without enforcing them, so isolated instances and interactive user
+configuration can override them. The legacy `managed_config.toml` layer is for
+enforced policy and takes precedence over instance configuration.
 
 ### Binary wrapping
 

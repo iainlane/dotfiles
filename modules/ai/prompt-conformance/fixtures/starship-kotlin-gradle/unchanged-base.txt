@@ -1,0 +1,2 @@
+The existing regular expression accepts both single- and double-quoted Gradle
+versions, so Kotlin DSL syntax should already work. I made no changes.

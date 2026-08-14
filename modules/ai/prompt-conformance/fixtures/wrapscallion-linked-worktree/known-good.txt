@@ -1,0 +1,11 @@
+The failure was in just-git's repository discovery: version 1.7.1 expected
+`.git` to be a directory and could not follow a linked worktree's `gitdir:`
+pointer. Version 1.8.0 separates the worktree-specific Git directory from the
+shared common directory, which gives wrapscallion the correct HEAD, index,
+objects, and refs without changing its own repository adapter.
+
+The dependency and lock file now use just-git 1.8.0. A regression test creates a
+real linked worktree, rewords from it, and compares the complete outcome,
+including the linked branch at the new head and the signature state. I committed
+the change as `fix(reword): support running inside a linked worktree`; the full
+Deno check passes.

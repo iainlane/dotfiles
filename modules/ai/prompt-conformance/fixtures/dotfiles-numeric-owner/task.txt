@@ -1,0 +1,8 @@
+The Matrix and Hermes backup jobs both use `lib/r2-upload.sh`. Their archive
+step now fails immediately with this diagnostic, and nothing reaches R2:
+
+```text
+tar: unrecognized option '--numeric-ids'
+```
+
+Can you investigate this, fix it, and commit the result?

@@ -6,7 +6,7 @@
   hostConfig,
   ...
 }: let
-  managedConfig = {
+  systemConfig = {
     # Updates come from Nix, not codex's self-check.
     check_for_update_on_startup = false;
     features = {
@@ -48,7 +48,7 @@
     zsh_path = "${pkgs.zsh}/bin/zsh";
   };
 
-  managedConfigFile = (pkgs.formats.toml {}).generate "codex-managed-config.toml" managedConfig;
+  systemConfigFile = (pkgs.formats.toml {}).generate "codex-system-config.toml" systemConfig;
 in {
   imports = [
     (import ../mcp-server-set.nix {
@@ -59,6 +59,6 @@ in {
   ];
 
   config = {
-    environment.etc."codex/managed_config.toml".source = managedConfigFile;
+    environment.etc."codex/config.toml".source = systemConfigFile;
   };
 }

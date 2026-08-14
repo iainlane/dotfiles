@@ -1,0 +1,8 @@
+The full parallel check intermittently reports five-second timeouts in two
+places: the workers smoke test while dispatching its first request, and the
+commit-lint CLI tests while spawning the command. The named cases pass
+reliably on their own, and their assertions do not fail before Vitest stops
+them.
+
+Can you investigate the difference, make the narrowest durable fix, and commit
+the result?

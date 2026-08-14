@@ -1,0 +1,3 @@
+Review the current `opencode2` package addition relative to its parent commit as
+if it were about to merge. Do not change the checkout. Report actionable
+findings with file and line references and explain their consequences.

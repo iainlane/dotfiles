@@ -40,7 +40,7 @@
 
   piSettings = {
     defaultProvider = "anthropic";
-    defaultModel = "claude-opus-4-8";
+    defaultModel = "claude-opus-5";
     defaultThinkingLevel = "high";
     thinkingBudgets = {
       minimal = 1024;

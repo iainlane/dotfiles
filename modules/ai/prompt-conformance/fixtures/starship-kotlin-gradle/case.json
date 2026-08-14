@@ -1,0 +1,89 @@
+{
+  "description": "Respond to feedback that Kotlin Gradle projects have no package version.",
+  "kind": "respond",
+  "use": "working",
+  "category": "repository-change",
+  "tags": ["rust", "review-feedback", "regression", "documentation", "commit"],
+  "environment": "starship",
+  "repository": {
+    "url": "https://github.com/starship/starship.git",
+    "revision": "a559d4305e27c53b90c4cd4e053f5d8b3febd8f1"
+  },
+  "criteria": [
+    {
+      "id": "kotlin-dsl-fallback",
+      "kind": "outcome",
+      "requirement": "Gradle version detection reads build.gradle.kts when build.gradle is absent while retaining build.gradle and gradle.properties behaviour."
+    },
+    {
+      "id": "selects-project-version",
+      "kind": "outcome",
+      "requirement": "A regression test demonstrates that a Kotlin DSL project's top-level version is reported even when a plugin declaration contains a different version."
+    },
+    {
+      "id": "documents-support",
+      "kind": "outcome",
+      "requirement": "The package module documentation names both build.gradle and build.gradle.kts as supported Gradle sources."
+    },
+    {
+      "id": "verification-and-commit",
+      "kind": "process",
+      "calibrate": false,
+      "requirement": "The candidate runs relevant Rust checks, makes a focused commit, and reports both accurately in relation to the trace and deterministic results."
+    },
+    {
+      "id": "clear-response",
+      "kind": "communication",
+      "requirement": "The final response directly closes the review feedback with the implementation, regression coverage, documentation, commit, and verification."
+    }
+  ],
+  "verification": [
+    {
+      "name": "package module tests",
+      "command": ["cargo", "test", "modules::package::tests", "--lib"]
+    },
+    {
+      "name": "format",
+      "command": ["cargo", "fmt", "--check"]
+    },
+    {
+      "name": "clean patch",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "a559d4305e27c53b90c4cd4e053f5d8b3febd8f1"
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "name": "known-good",
+      "repository": {
+        "url": "https://github.com/starship/starship.git",
+        "revision": "04614837ddab699783211627a7d7929bffaed82c"
+      },
+      "response": "known-good.txt",
+      "expectedCriteria": {
+        "kotlin-dsl-fallback": true,
+        "selects-project-version": true,
+        "documents-support": true,
+        "clear-response": true
+      }
+    },
+    {
+      "name": "unchanged-base",
+      "repository": {
+        "url": "https://github.com/starship/starship.git",
+        "revision": "a559d4305e27c53b90c4cd4e053f5d8b3febd8f1"
+      },
+      "response": "unchanged-base.txt",
+      "expectedCriteria": {
+        "kotlin-dsl-fallback": false,
+        "selects-project-version": false,
+        "documents-support": false,
+        "clear-response": false
+      }
+    }
+  ]
+}

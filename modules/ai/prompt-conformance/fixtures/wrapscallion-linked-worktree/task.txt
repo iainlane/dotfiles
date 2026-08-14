@@ -1,0 +1,7 @@
+Running wrapscallion from a checkout made by `git worktree add` fails with
+`could not find a Git repository`. Both ordinary checking and `--reword` are
+affected, while the same commands work in the main checkout. In the linked
+checkout, `.git` is a file containing a `gitdir:` pointer.
+
+Can you revise the integration so linked worktrees work correctly, add
+regression coverage for rewording, and commit the result?
