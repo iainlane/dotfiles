@@ -83,24 +83,39 @@
     }
   ];
 
-  missingRootDrvPaths =
-    map (target: target.attr)
-    (lib.filter (
-        target:
-          !(target ? rootDrvPath)
-          || !lib.hasPrefix "/nix/store/" target.rootDrvPath
-          || !lib.hasSuffix ".drv" target.rootDrvPath
-      )
-      targets);
-
-  failures =
-    lib.optional (actual != expected) "closure target set differs from the configured hosts"
-    ++ lib.optional (missingRootDrvPaths != []) "targets lack derivation paths: ${lib.concatStringsSep ", " missingRootDrvPaths}";
+  metadataCheckSystem = lib.head config.systems;
 in {
-  perSystem = {pkgs, ...}: {
-    checks.cupboard-targets =
-      if failures == []
-      then pkgs.runCommandLocal "cupboard-targets" {} "touch $out"
-      else throw "cupboard target checks failed:\n${lib.concatMapStringsSep "\n" (failure: "  - ${failure}") failures}";
+  perSystem = {
+    pkgs,
+    system,
+    ...
+  }: let
+    systemTargets = lib.filter (target: target.system == system) targets;
+
+    mkRootDrvPathCheck = target: let
+      targetName = lib.last (lib.splitString "/" target.rootSuffix);
+      checkName = "cupboard-target-${targetName}";
+      validRootDrvPath =
+        target ? rootDrvPath
+        && lib.isString target.rootDrvPath
+        && lib.hasPrefix "/nix/store/" target.rootDrvPath
+        && lib.hasSuffix ".drv" target.rootDrvPath;
+    in
+      lib.nameValuePair checkName (
+        if validRootDrvPath
+        then pkgs.runCommandLocal checkName {} "touch $out"
+        else throw "Cupboard target ${target.attr} lacks a derivation path"
+      );
+
+    rootDrvPathChecks = builtins.listToAttrs (map mkRootDrvPathCheck systemTargets);
+
+    metadataCheck = lib.optionalAttrs (system == metadataCheckSystem) {
+      cupboard-targets =
+        if actual == expected
+        then pkgs.runCommandLocal "cupboard-targets" {} "touch $out"
+        else throw "Cupboard target set differs from the configured hosts";
+    };
+  in {
+    checks = metadataCheck // rootDrvPathChecks;
   };
 }
