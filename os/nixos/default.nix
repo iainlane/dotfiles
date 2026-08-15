@@ -48,17 +48,6 @@
           pkgs-unstable = channel.unstable;
         }
         // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
-      homeConfig = helpers.mkHomeConfiguration {
-        inherit
-          hostConfig
-          hostname
-          username
-          ;
-        inherit (hostConfig) system;
-        inherit (config.flake) profiles modules;
-        extraSpecialArgs = homeSpecialArgs;
-      };
-
       # The unstable home-manager program modules grafted on by
       # modules/ai/unstable-hm-modules.nix are written against unstable's
       # `lib.hm`, which carries helpers (such as
@@ -78,47 +67,48 @@
       );
     in {
       inherit homeSpecialArgs;
-      systemConfig = channel.nixpkgs.lib.nixosSystem {
-        inherit (hostConfig) system;
-        pkgs = channel.primary;
-        modules =
-          [
-            helpers.systemSopsModule
-            helpers.linuxSystemSopsModule
-            ../../hosts/${hostname}/hardware.nix
-            ../../hosts/${hostname}/disks.nix
-            ./system.nix
-            inputs.disko.nixosModules.disko
-            inputs.sops-nix.nixosModules.sops
-            inputs.lanzaboote.nixosModules.lanzaboote
-            config.flake.nix.substitutersModule
-          ]
-          ++ helpers.mkModules {
-            moduleType = "nixosModule";
-            inherit hostConfig;
-            inherit (config.flake) profiles modules;
-          }
-          ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
-          ++ [
-            channel.home-manager.nixosModules.home-manager
-            (helpers.mkEmbeddedHomeManager {inherit username homeConfig;})
-          ];
-        specialArgs = {
-          inherit
-            inputs
-            hostname
-            hostConfig
-            username
-            ;
-          mcp = mcpByChannel.${hostConfig.channel};
-          pkgs-stable = channel.stable;
-          pkgs-unstable = channel.unstable;
+      mkSystemConfig = homeDefinition:
+        channel.nixpkgs.lib.nixosSystem {
+          inherit (hostConfig) system;
+          pkgs = channel.primary;
+          modules =
+            [
+              helpers.systemSopsModule
+              helpers.linuxSystemSopsModule
+              ../../hosts/${hostname}/hardware.nix
+              ../../hosts/${hostname}/disks.nix
+              ./system.nix
+              inputs.disko.nixosModules.disko
+              inputs.sops-nix.nixosModules.sops
+              inputs.lanzaboote.nixosModules.lanzaboote
+              config.flake.nix.substitutersModule
+            ]
+            ++ helpers.mkModules {
+              moduleType = "nixosModule";
+              inherit hostConfig;
+              inherit (config.flake) profiles modules;
+            }
+            ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
+            ++ [
+              channel.home-manager.nixosModules.home-manager
+              (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
+            ];
+          specialArgs = {
+            inherit
+              inputs
+              hostname
+              hostConfig
+              username
+              ;
+            mcp = mcpByChannel.${hostConfig.channel};
+            pkgs-stable = channel.stable;
+            pkgs-unstable = channel.unstable;
+          };
         };
-      };
     }
   );
 in {
   homeBaseDir = "/home";
   systemSuffix = "linux";
-  inherit (result) homeSpecialArgs systemConfig;
+  inherit (result) homeSpecialArgs mkSystemConfig;
 }

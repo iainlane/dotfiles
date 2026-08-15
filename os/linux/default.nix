@@ -27,39 +27,40 @@
         mcp = mcpByChannel.${hostConfig.channel};
         pkgs-unstable = pkgs;
       };
-      systemConfig = inputs.system-manager.lib.makeSystemConfig {
-        inherit overlays;
-        modules =
-          [
-            helpers.systemSopsModule
-            helpers.linuxSystemSopsModule
-            ./system.nix
-            inputs.sops-nix.nixosModules.sops
-            config.flake.nix.substitutersModule
-          ]
-          ++ helpers.mkModules {
-            moduleType = "systemManagerModule";
-            inherit hostConfig;
-            inherit (config.flake) profiles modules;
-          }
-          ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
-        specialArgs = {
-          inherit
-            inputs
-            hostname
-            hostConfig
-            username
-            nixpkgsConfig
-            ;
-          mcp = mcpByChannel.${hostConfig.channel};
-          pkgs-unstable = pkgs;
+      mkSystemConfig = _:
+        inputs.system-manager.lib.makeSystemConfig {
+          inherit overlays;
+          modules =
+            [
+              helpers.systemSopsModule
+              helpers.linuxSystemSopsModule
+              ./system.nix
+              inputs.sops-nix.nixosModules.sops
+              config.flake.nix.substitutersModule
+            ]
+            ++ helpers.mkModules {
+              moduleType = "systemManagerModule";
+              inherit hostConfig;
+              inherit (config.flake) profiles modules;
+            }
+            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
+          specialArgs = {
+            inherit
+              inputs
+              hostname
+              hostConfig
+              username
+              nixpkgsConfig
+              ;
+            mcp = mcpByChannel.${hostConfig.channel};
+            pkgs-unstable = pkgs;
+          };
         };
-      };
     }
   );
 in {
   homeBaseDir = "/home";
   systemSuffix = "linux";
   extraHomeModules = homeExtraModules;
-  inherit (result) homeSpecialArgs systemConfig;
+  inherit (result) homeSpecialArgs mkSystemConfig;
 }

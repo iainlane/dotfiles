@@ -1,6 +1,6 @@
 # Home Manager assembly: gather the Home Manager modules and special args for a
 # host in one place so the standalone `homeConfigurations` output and the
-# NixOS/nix-darwin embeddings stay in sync. `mkModules` (profile resolution)
+# embedded configurations stay in sync. `mkModules` (profile resolution)
 # and `mkHomeSopsModule` (secrets) are injected so this module only owns the
 # Home Manager wiring itself.
 {
@@ -59,19 +59,19 @@
   # embeddings.
   mkEmbeddedHomeManager = {
     username,
-    homeConfig,
+    homeDefinition,
   }: {
     home-manager = {
       useGlobalPkgs = true;
       useUserPackages = true;
-      users.${username}.imports = homeConfig.modules;
-      inherit (homeConfig) extraSpecialArgs;
+      users.${username}.imports = homeDefinition.modules;
+      inherit (homeDefinition) extraSpecialArgs;
     };
   };
 
-  # Assemble home-manager modules and special args for a host in one place so
-  # standalone home-manager and nix-darwin embedding stay in sync.
-  mkHomeConfiguration = {
+  # Assemble the modules and special arguments used by both forms of a host's
+  # Home Manager configuration.
+  mkHomeDefinition = {
     hostConfig,
     hostname,
     system,

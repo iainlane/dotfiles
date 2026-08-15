@@ -39,22 +39,45 @@
       }; hostConfig)
     outerConfig.flake.hosts;
 
-  # Call each host's OS module. Laziness means homeBaseDir/systemSuffix are
-  # available without forcing systemConfig evaluation.
-  hostResults =
+  hostAdapters =
     lib.mapAttrs (
       hostname: hostConfig:
         osModules.${hostConfig.os} hostname hostConfig
     )
     checkedHosts;
 
+  homeDefinitions =
+    lib.mapAttrs (
+      hostname: hostConfig: let
+        adapter = hostAdapters.${hostname};
+      in
+        helpers.mkHomeDefinition {
+          inherit
+            hostConfig
+            hostname
+            username
+            ;
+          inherit (hostConfig) system;
+          inherit (outerConfig.flake) profiles modules;
+          extraModules = adapter.extraHomeModules or [];
+          extraSpecialArgs = adapter.homeSpecialArgs;
+        }
+    )
+    checkedHosts;
+
+  hostResults =
+    lib.mapAttrs (
+      hostname: adapter: {
+        inherit (adapter) homeBaseDir systemSuffix;
+        systemConfig = adapter.mkSystemConfig homeDefinitions.${hostname};
+      }
+    )
+    hostAdapters;
+
   # The standalone output must build from the same channel as the host's
   # system configuration, so that applying it directly produces the packages
   # the system build would.
   mkStandaloneHome = hostname: hostConfig: let
-    result = hostResults.${hostname};
-    extraModules = result.extraHomeModules or [];
-
     onStable = hostConfig.channel == "stable";
 
     home-manager =
@@ -65,24 +88,13 @@
     withSystem hostConfig.system (
       args: let
         inherit (args.config._module.args) pkgs pkgs-stable;
-        homeConfig = helpers.mkHomeConfiguration {
-          inherit
-            hostConfig
-            hostname
-            username
-            ;
-          inherit (hostConfig) system;
-          inherit (outerConfig.flake) profiles modules;
-          inherit extraModules;
-          extraSpecialArgs = result.homeSpecialArgs;
-        };
       in
         home-manager.lib.homeManagerConfiguration {
           pkgs =
             if onStable
             then pkgs-stable
             else pkgs;
-          inherit (homeConfig) modules extraSpecialArgs;
+          inherit (homeDefinitions.${hostname}) modules extraSpecialArgs;
         }
     );
 in {
