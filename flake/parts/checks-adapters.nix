@@ -16,13 +16,24 @@
   lib,
   ...
 }: let
-  toplevels = builder: lib.mapAttrsToList (_: builder);
+  traceEvaluated = outputName: configurationName: value:
+    builtins.deepSeq value (
+      builtins.traceVerbose
+      "adapter-evals: evaluated ${outputName}.${configurationName}"
+      value
+    );
+
+  toplevels = outputName: builder:
+    lib.mapAttrsToList (
+      configurationName: configuration:
+        traceEvaluated outputName configurationName (builder configuration)
+    );
 
   drvPaths =
-    toplevels (cfg: cfg.config.system.build.toplevel.drvPath) config.flake.nixosConfigurations
-    ++ toplevels (cfg: cfg.config.system.build.toplevel.drvPath) config.flake.darwinConfigurations
-    ++ toplevels (cfg: cfg.config.build.toplevel.drvPath) config.flake.systemConfigs
-    ++ toplevels (cfg: cfg.activationPackage.drvPath) config.flake.homeConfigurations;
+    toplevels "nixosConfigurations" (cfg: cfg.config.system.build.toplevel.drvPath) config.flake.nixosConfigurations
+    ++ toplevels "darwinConfigurations" (cfg: cfg.config.system.build.toplevel.drvPath) config.flake.darwinConfigurations
+    ++ toplevels "systemConfigs" (cfg: cfg.config.build.toplevel.drvPath) config.flake.systemConfigs
+    ++ toplevels "homeConfigurations" (cfg: cfg.activationPackage.drvPath) config.flake.homeConfigurations;
 in {
   perSystem = {pkgs, ...}: {
     checks.adapter-evals =
