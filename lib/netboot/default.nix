@@ -163,6 +163,15 @@
       }:
         pkgsForHost pkgs pkgs-stable hostConfig
     );
+
+  # Evaluate the target installer once per host. Each build system still uses
+  # its local package set to assemble the ISO from this shared configuration.
+  isoConfigs =
+    lib.mapAttrs (
+      hostname: hostConfig:
+        mkIsoInstallerConfig (mkHostPkgs hostConfig) hostname hostConfig
+    )
+    nixosHosts;
 in {
   packagesForSystem = {
     pkgs,
@@ -170,15 +179,6 @@ in {
   }: let
     inherit (pkgs.stdenv.hostPlatform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
-
-    # Pre-compute the ISO installer config once per host so that
-    # iso-contents and iso reuse the same NixOS module evaluation.
-    isoConfigs =
-      lib.mapAttrs (
-        hostname: hostConfig:
-          mkIsoInstallerConfig (mkHostPkgs hostConfig) hostname hostConfig
-      )
-      nixosHosts;
   in
     lib.mapAttrs'
     (
