@@ -1,14 +1,13 @@
 # Configure Crush CLI with the shared MCP servers, LSP and instructions.
 {
   pkgs,
-  pkgs-unstable,
   config,
   inputs,
   lib,
+  mcp,
   system,
   ...
 }: let
-  mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
 
   # Crush selects its MCP transport from the required `type` field.

@@ -1,14 +1,11 @@
 {
-  pkgs,
-  pkgs-unstable,
-  inputs,
   lib,
   options,
   config,
   ...
 }: {
   imports = [
-    (import ./mcp-server-set.nix {inherit inputs lib pkgs pkgs-unstable;})
+    (import ./mcp-server-set.nix {})
   ];
 
   # Mirror the set into programs.mcp for upstream `enableMcpIntegration`

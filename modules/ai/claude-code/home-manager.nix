@@ -1,13 +1,12 @@
 {
   config,
-  pkgs,
-  pkgs-unstable,
   inputs,
   lib,
+  mcp,
+  pkgs,
   system,
   ...
 }: let
-  mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   # Claude Code receives the output styles natively (see `outputStyles`
   # below); `nativeOutputStyles` keeps the default style's body out of the
   # instruction files, so the model does not receive the same text twice.

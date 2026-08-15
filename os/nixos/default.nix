@@ -31,6 +31,7 @@
 
   result = withSystem hostConfig.system (
     {
+      mcpByChannel,
       pkgs,
       pkgs-stable,
       ...
@@ -42,6 +43,7 @@
         {
           inherit (channel) secondary;
           inherit inputs;
+          mcp = mcpByChannel.${hostConfig.channel};
           pkgs-stable = channel.stable;
           pkgs-unstable = channel.unstable;
         }
@@ -108,6 +110,7 @@
             hostConfig
             username
             ;
+          mcp = mcpByChannel.${hostConfig.channel};
           pkgs-stable = channel.stable;
           pkgs-unstable = channel.unstable;
         };
