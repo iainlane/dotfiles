@@ -14,55 +14,46 @@
         mcp = mcpByChannel.${hostConfig.channel};
         pkgs-unstable = pkgs;
       };
-      homeConfig = helpers.mkHomeConfiguration {
-        inherit
-          hostConfig
-          hostname
-          username
-          ;
-        inherit (hostConfig) system;
-        inherit (config.flake) profiles modules;
-        extraSpecialArgs = homeSpecialArgs;
-      };
     in {
       inherit homeSpecialArgs;
-      systemConfig = inputs.nix-darwin.lib.darwinSystem {
-        inherit (hostConfig) system;
-        inherit pkgs;
-        modules =
-          [
-            helpers.systemSopsModule
-            ./system.nix
-            config.flake.nix.substitutersModule
-            inputs.determinate.darwinModules.default
-            inputs.sops-nix.darwinModules.sops
-          ]
-          ++ helpers.mkModules {
-            moduleType = "systemManagerModule";
-            inherit hostConfig;
-            inherit (config.flake) profiles modules;
-          }
-          ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
-          ++ [
-            inputs.home-manager.darwinModules.home-manager
-            (helpers.mkEmbeddedHomeManager {inherit username homeConfig;})
-          ];
-        specialArgs = {
-          inherit
-            inputs
-            hostname
-            hostConfig
-            pkgs-stable
-            username
-            ;
-          mcp = mcpByChannel.${hostConfig.channel};
-          pkgs-unstable = pkgs;
+      mkSystemConfig = homeDefinition:
+        inputs.nix-darwin.lib.darwinSystem {
+          inherit (hostConfig) system;
+          inherit pkgs;
+          modules =
+            [
+              helpers.systemSopsModule
+              ./system.nix
+              config.flake.nix.substitutersModule
+              inputs.determinate.darwinModules.default
+              inputs.sops-nix.darwinModules.sops
+            ]
+            ++ helpers.mkModules {
+              moduleType = "systemManagerModule";
+              inherit hostConfig;
+              inherit (config.flake) profiles modules;
+            }
+            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
+            ++ [
+              inputs.home-manager.darwinModules.home-manager
+              (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
+            ];
+          specialArgs = {
+            inherit
+              inputs
+              hostname
+              hostConfig
+              pkgs-stable
+              username
+              ;
+            mcp = mcpByChannel.${hostConfig.channel};
+            pkgs-unstable = pkgs;
+          };
         };
-      };
     }
   );
 in {
   homeBaseDir = "/Users";
   systemSuffix = "darwin";
-  inherit (result) homeSpecialArgs systemConfig;
+  inherit (result) homeSpecialArgs mkSystemConfig;
 }
