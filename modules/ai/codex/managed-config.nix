@@ -1,8 +1,6 @@
 # This matches the `home-manager` module for Codex.
 {
   pkgs,
-  pkgs-unstable,
-  inputs,
   lib,
   config,
   hostConfig,
@@ -54,7 +52,6 @@
 in {
   imports = [
     (import ../mcp-server-set.nix {
-      inherit inputs lib pkgs pkgs-unstable;
       declareSopsSecrets = false;
       excludedServers = ["codex"];
       secretPath = name: "${hostConfig.homeDirectory}/.config/sops-nix/secrets/${name}";

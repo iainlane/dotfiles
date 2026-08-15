@@ -18,8 +18,13 @@
     }
   ];
   result = withSystem hostConfig.system (
-    {pkgs, ...}: {
+    {
+      mcpByChannel,
+      pkgs,
+      ...
+    }: {
       homeSpecialArgs = {
+        mcp = mcpByChannel.${hostConfig.channel};
         pkgs-unstable = pkgs;
       };
       systemConfig = inputs.system-manager.lib.makeSystemConfig {
@@ -46,6 +51,7 @@
             username
             nixpkgsConfig
             ;
+          mcp = mcpByChannel.${hostConfig.channel};
           pkgs-unstable = pkgs;
         };
       };

@@ -9,14 +9,13 @@
 # both ChatGPT Plus/Pro and Claude Pro/Max.
 {
   pkgs,
-  pkgs-unstable,
   config,
   inputs,
   lib,
+  mcp,
   system,
   ...
 }: let
-  mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ../agent-instructions.nix {inherit lib;};
   skills = import ../skills.nix {inherit inputs lib;};
   piExtensions = import ./extensions.nix {inherit pkgs lib;};

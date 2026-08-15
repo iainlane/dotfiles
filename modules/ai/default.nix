@@ -1,4 +1,4 @@
-_: {
+{inputs, ...}: {
   imports = [
     ./claude-code
     ./claude-desktop
@@ -16,4 +16,24 @@ _: {
     ./opencode2.nix
     ./pi
   ];
+
+  perSystem = {
+    pkgs,
+    pkgs-stable,
+    ...
+  }: {
+    _module.args.mcpByChannel = {
+      stable = import ./mcp-servers.nix {
+        inherit inputs;
+        inherit (pkgs-stable) lib;
+        pkgs = pkgs-stable;
+        pkgs-unstable = pkgs;
+      };
+      unstable = import ./mcp-servers.nix {
+        inherit inputs pkgs;
+        inherit (pkgs) lib;
+        pkgs-unstable = pkgs;
+      };
+    };
+  };
 }

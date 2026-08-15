@@ -5,14 +5,13 @@
 # file anyway as best-effort.
 {
   pkgs,
-  pkgs-unstable,
   config,
   inputs,
   lib,
+  mcp,
   system,
   ...
 }: let
-  mcp = import ./mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
   instructions = import ./agent-instructions.nix {inherit lib;};
 
   # Copilot requires an explicit transport for remote servers and a tool

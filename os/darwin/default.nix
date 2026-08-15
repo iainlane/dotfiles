@@ -9,8 +9,9 @@
 }: hostname: hostConfig: let
   result = withSystem hostConfig.system (
     args: let
-      inherit (args.config._module.args) pkgs pkgs-stable;
+      inherit (args.config._module.args) mcpByChannel pkgs pkgs-stable;
       homeSpecialArgs = {
+        mcp = mcpByChannel.${hostConfig.channel};
         pkgs-unstable = pkgs;
       };
       homeConfig = helpers.mkHomeConfiguration {
@@ -54,6 +55,7 @@
             pkgs-stable
             username
             ;
+          mcp = mcpByChannel.${hostConfig.channel};
           pkgs-unstable = pkgs;
         };
       };

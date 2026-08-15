@@ -2,13 +2,10 @@
 # server set, dropping any servers a profile has excluded for Claude Desktop.
 {
   config,
-  inputs,
   lib,
+  mcp,
   pkgs,
-  pkgs-unstable,
 }: let
-  mcp = import ../mcp-servers.nix {inherit pkgs pkgs-unstable inputs lib;};
-
   # Claude Desktop loads remote connectors from its account settings. Servers
   # managed through claude_desktop_config.json use its stdio interface.
   mkMcpServer = name: server:

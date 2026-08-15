@@ -1,17 +1,14 @@
 {
   declareSopsSecrets ? true,
   excludedServers ? [],
-  inputs,
-  lib,
-  pkgs,
-  pkgs-unstable,
   secretPath ? null,
 }: {
   config,
   hostname,
+  lib,
+  mcp,
   ...
 }: let
-  mcp = import ./mcp-servers.nix {inherit inputs lib pkgs pkgs-unstable;};
   resolvedSecretPath =
     if secretPath != null
     then secretPath
