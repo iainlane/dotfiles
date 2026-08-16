@@ -10,7 +10,16 @@
   actual = sortTargets (map targetShape targets);
   expected = sortTargets [
     {
-      attr = ".#nixosConfigurations.bonington.config.system.build.toplevel";
+      attr = ".#deploy.nodes.ancaster.profiles.system.path";
+      bestEffort = true;
+      cohort = "aarch64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "aarch64-linux/linux-ancaster";
+      system = "aarch64-linux";
+    }
+    {
+      attr = ".#deploy.nodes.bonington.profiles.system.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -19,7 +28,25 @@
       system = "x86_64-linux";
     }
     {
-      attr = ".#darwinConfigurations.melton.system";
+      attr = ".#deploy.nodes.cripps.profiles.system.path";
+      bestEffort = true;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/linux-cripps";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#deploy.nodes.florence.profiles.system.path";
+      bestEffort = true;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/linux-florence";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#deploy.nodes.melton.profiles.system.path";
       bestEffort = true;
       cohort = "aarch64-darwin";
       os = "macos-latest";
@@ -28,7 +55,16 @@
       system = "aarch64-darwin";
     }
     {
-      attr = ''.#homeConfigurations."laney@ancaster".activationPackage'';
+      attr = ".#deploy.nodes.sherwood.profiles.system.path";
+      bestEffort = true;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/linux-sherwood";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#deploy.nodes.ancaster.profiles.laney.path";
       bestEffort = true;
       cohort = "aarch64-linux";
       os = "ubuntu-latest";
@@ -37,7 +73,7 @@
       system = "aarch64-linux";
     }
     {
-      attr = ''.#homeConfigurations."laney@bonington".activationPackage'';
+      attr = ".#deploy.nodes.bonington.profiles.laney.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -46,7 +82,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ''.#homeConfigurations."laney@cripps".activationPackage'';
+      attr = ".#deploy.nodes.cripps.profiles.laney.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -55,7 +91,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ''.#homeConfigurations."laney@florence".activationPackage'';
+      attr = ".#deploy.nodes.florence.profiles.laney.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -64,7 +100,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ''.#homeConfigurations."laney@melton".activationPackage'';
+      attr = ".#deploy.nodes.melton.profiles.laney.path";
       bestEffort = true;
       cohort = "aarch64-darwin";
       os = "macos-latest";
@@ -73,7 +109,7 @@
       system = "aarch64-darwin";
     }
     {
-      attr = ''.#homeConfigurations."laney@sherwood".activationPackage'';
+      attr = ".#deploy.nodes.sherwood.profiles.laney.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
