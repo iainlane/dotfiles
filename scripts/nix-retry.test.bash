@@ -46,20 +46,23 @@ EOF
 chmod +x "${test_dir}/bin/sleep"
 
 run_retry() {
+	local scenario="${1}"
+	shift
+
 	PATH="${test_dir}/bin:${PATH}" \
-		FAKE_NIX_SCENARIO="${1}" \
+		FAKE_NIX_SCENARIO="${scenario}" \
 		FAKE_NIX_STATE="${test_dir}/state" \
-		bash "${retry_script}" .#checks.x86_64-linux.adapter-evals
+		bash "${retry_script}" "$@"
 }
 
-output="$(run_retry fail-once 2>&1)"
+output="$(run_retry fail-once build .#checks.x86_64-linux.example 2>&1)"
 [[ "${output}" == *"Cannot build '/nix/store/example.drv'."* ]]
 [[ "${output}" == *'attempt 1/3'* ]]
 [[ "${output}" == *'build completed on retry'* ]]
 
 rm "${test_dir}/state"
 set +e
-output="$(run_retry always-fails 2>&1)"
+output="$(run_retry always-fails build .#checks.x86_64-linux.example 2>&1)"
 status=$?
 set -e
 
@@ -68,6 +71,6 @@ set -e
 [[ "${output}" == *'attempt 1/3'* ]]
 [[ "${output}" == *'attempt 2/3'* ]]
 
-output="$(run_retry success 2>&1)"
+output="$(run_retry success flake check --all-systems --no-build 2>&1)"
 [[ "${output}" == *'build completed'* ]]
 [[ "${output}" != *'retrying'* ]]

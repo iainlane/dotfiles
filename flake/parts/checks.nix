@@ -92,16 +92,16 @@
           touch $out
         '';
 
-      nix-build-retry =
-        pkgs.runCommandLocal "nix-build-retry-test" {
+      nix-retry =
+        pkgs.runCommandLocal "nix-retry-test" {
           nativeBuildInputs = [
             pkgs.bash
             pkgs.coreutils
           ];
         }
         ''
-          bash ${../../scripts/nix-build-retry.test.bash} \
-            ${../../scripts/nix-build-retry.bash}
+          bash ${../../scripts/nix-retry.test.bash} \
+            ${../../scripts/nix-retry.bash}
 
           touch $out
         '';

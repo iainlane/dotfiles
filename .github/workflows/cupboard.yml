@@ -93,17 +93,16 @@ jobs:
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
 
-      # Evaluating this check forces the toplevel derivation of every host
-      # configuration (flake/parts/checks-adapters.nix), so a configuration
-      # that fails to instantiate fails the check. The host configurations are
-      # not built.
+      # The generated adapter checks force the toplevel derivation of every
+      # host configuration (flake/parts/checks-adapters.nix). Evaluate all
+      # systems so every host is covered, but do not build the checks.
       - name: Evaluate the host configurations
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         run: |
           set -euo pipefail
 
-          ./scripts/nix-build-retry.bash \
-            .#checks.x86_64-linux.adapter-evals
+          ./scripts/nix-retry.bash \
+            flake check --all-systems --no-build
 
   publish:
     permissions:
