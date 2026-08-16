@@ -1,9 +1,15 @@
 # Build outputs for the cupboard publish workflow.
 #
-# `flake.cupboardOutputs` enumerates the configured host and home closures. The
-# workflow evaluates their derivation graphs, so packages are selected by the
-# configurations that use them rather than by the flake's package export
-# matrix. Each entry carries enough to plan, run and route its job:
+# `flake.cupboardOutputs` is the publication manifest consumed by the workflow.
+# Each entry below targets a deploy-rs profile. A system profile contains the
+# NixOS, nix-darwin or system-manager closure for one host. A home profile
+# contains its Home Manager generation. Both profile types include the
+# activation files that deploy-rs copies to the host.
+#
+# The workflow evaluates each profile's derivation graph, so packages are
+# selected by the configurations that use them rather than by the flake's
+# package export matrix. Each entry carries enough to plan, run and route its
+# job:
 #
 #   - os/remote: the runner, and whether it offloads to nixbuild.net (Linux) or
 #     builds natively (Darwin).
@@ -20,7 +26,8 @@
   lib,
   ...
 }: let
-  inherit (config.flake) hosts homeConfigurations;
+  inherit (config.dotfiles) username;
+  inherit (config.flake) deploy hosts homeConfigurations;
 
   baseFor = system: {
     inherit system;
@@ -33,51 +40,31 @@
     remote = !lib.hasSuffix "-darwin" system;
   };
 
-  # The system closure: a NixOS toplevel or a nix-darwin system. The
-  # system-manager Linux hosts have neither, so they contribute only a home
-  # closure below.
-  systemClosure = name: host:
-    if host.os == "nixos"
-    then [
-      (let
-        toplevel = config.flake.nixosConfigurations.${name}.config.system.build.toplevel;
-      in
-        baseFor host.system
-        // {
-          attr = ".#nixosConfigurations.${name}.config.system.build.toplevel";
-          rootDrvPath = toplevel.drvPath;
-          rootSuffix = "${host.system}/nixos-${name}";
-        })
-    ]
-    else if host.os == "darwin"
-    then [
-      (let
-        system = config.flake.darwinConfigurations.${name}.system;
-      in
-        baseFor host.system
-        // {
-          attr = ".#darwinConfigurations.${name}.system";
-          rootDrvPath = system.drvPath;
-          rootSuffix = "${host.system}/darwin-${name}";
-        })
-    ]
-    else [];
+  systemEntry = name: host: let
+    profile = deploy.nodes.${name}.profiles.system.path;
+  in
+    baseFor host.system
+    // {
+      attr = ".#deploy.nodes.${name}.profiles.system.path";
+      rootDrvPath = profile.drvPath;
+      rootSuffix = "${host.system}/${host.os}-${name}";
+    };
 
   homeEntry = homeName: let
     hostname = lib.last (lib.splitString "@" homeName);
     inherit (hosts.${hostname}) system;
-    activationPackage = homeConfigurations.${homeName}.activationPackage;
+    profile = deploy.nodes.${hostname}.profiles.${username}.path;
   in
     baseFor system
     // {
-      attr = ''.#homeConfigurations."${homeName}".activationPackage'';
-      rootDrvPath = activationPackage.drvPath;
+      attr = ".#deploy.nodes.${hostname}.profiles.${username}.path";
+      rootDrvPath = profile.drvPath;
       rootSuffix = "${system}/home-${hostname}";
     };
 
-  closureEntries =
-    lib.concatLists (lib.mapAttrsToList systemClosure hosts)
+  profileEntries =
+    lib.mapAttrsToList systemEntry hosts
     ++ map homeEntry (lib.attrNames homeConfigurations);
 in {
-  flake.cupboardOutputs = closureEntries;
+  flake.cupboardOutputs = profileEntries;
 }
