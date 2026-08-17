@@ -101,7 +101,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Keep evaluation-time builds on this runner. They can depend on
+          # store paths that the evaluator created locally.
           ./scripts/nix-retry.bash \
+            --option builders '' \
+            --option max-jobs auto \
             flake check --all-systems --no-build
 
   publish:
