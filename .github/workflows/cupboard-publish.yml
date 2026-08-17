@@ -29,7 +29,7 @@ jobs:
       contents: read
       id-token: write # issue the OIDC token the cupboard cache trusts for push
     # The release tag is part of the tenant's job_workflow_ref trust policy.
-    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.23 # zizmor: ignore[unpinned-uses]
+    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.24 # zizmor: ignore[unpinned-uses]
     with:
       url: https://cupboard.supply/t/laney
       targets: .#cupboardOutputs
