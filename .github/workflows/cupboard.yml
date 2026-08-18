@@ -94,19 +94,27 @@ jobs:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
 
       # The generated adapter checks force the toplevel derivation of every
-      # host configuration (flake/parts/checks-adapters.nix). Evaluate all
-      # systems so every host is covered, but do not build the checks.
+      # host configuration (flake/parts/checks-adapters.nix). Forcing the
+      # derivation path of every check, on every system, therefore evaluates
+      # every host without building any of them.
+      #
+      # Do not use `nix flake check --no-build` here. That flag puts Nix into
+      # read-only mode, where a filtered source gets a store path that Nix
+      # computes but never writes, and evaluation fails as soon as it needs
+      # that path. Without the flag, `nix flake check` builds every check for
+      # this runner's system, which is more than this job is for.
       - name: Evaluate the host configurations
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         run: |
           set -euo pipefail
 
-          # Keep evaluation-time builds on this runner. They can depend on
-          # store paths that the evaluator created locally.
-          ./scripts/nix-retry.bash \
-            --option builders '' \
-            --option max-jobs auto \
-            flake check --all-systems --no-build
+          ./scripts/nix-retry.bash eval --raw .#checks --apply \
+            'checks:
+              builtins.deepSeq
+                (builtins.mapAttrs
+                  (_: builtins.mapAttrs (_: check: check.drvPath))
+                  checks)
+                "ok"'
 
   publish:
     permissions:
