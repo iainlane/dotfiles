@@ -101,6 +101,11 @@ the operation is the same, a more specific verb when it is different. This is
 not a rule against ordinary polysemy. `read` may reasonably cover reading a
 configuration, a field and a response in the same file.
 
+The same discipline applies to nouns, in the other direction. Repeating the
+established noun is ordinary technical prose. Do not rotate synonyms for one
+referent (the request, the call, the query) merely to avoid repetition; the
+reader has to check whether each new word refers to a new thing.
+
 ```text
 BAD:
 These two values are the digests of the empty string and `abc`, so a
@@ -211,9 +216,24 @@ see a partially written file.
 When the missing mechanism would make the sentence cumbersome, use two or three
 ordinary sentences instead of compressing the argument into one causal chain.
 
+A trailing participial clause that asserts a benefit is the same fault in a
+smaller space: it claims a consequence without the mechanism that produces it.
+
+```text
+BAD:
+Cache the digest after the first read, ensuring consistency.
+
+GOOD:
+Cache the digest after the first read so every later comparison uses
+the same value even if the file changes underneath.
+```
+
+State the mechanism, or drop the claimed benefit.
+
 Do not rely on punctuation alone when the relationship could be read more than
 one way, and do not use juxtaposition in place of stating what causes what. Do
-not use `thus`. Do not use `where` to mean `whereas`.
+not use `thus`. Do not use `where` to mean `whereas`. Do not use em dashes; use
+a comma, a colon, parentheses, or a separate sentence.
 
 ```text
 BAD:
@@ -278,6 +298,10 @@ Avoid constructions such as `raises an update`, `holds an answer`,
 `states a result`, or similar unless those are established terms for the system
 being described.
 
+Do not write `serves as`, `acts as`, or `stands as` where `is` states the fact,
+and do not write `boasts` or `features` where `has` does. The longer forms add
+no information.
+
 Use `X rather than Y` when Y is a real alternative that matters to the
 explanation. Do not invent an alternative solely to contrast with it.
 
@@ -294,6 +318,9 @@ GOOD:
 For a path no substituter has, Nix prints a null entry and exits zero.
 An absence is a normal result.
 ```
+
+"It's not just X, it's Y" is the same template with the alternative built in.
+State Y directly, and mention X only when the reader would otherwise assume it.
 
 ## 7. Do not compress the grammar
 
@@ -327,6 +354,13 @@ the first time.
 
 Avoid `the one X` as a determiner meaning "the single shared X". Name it, or use
 the identifier.
+
+Stock intensifiers are also a dialect: the model's rather than the project's.
+`crucial`, `robust`, `seamless`, `comprehensive` and `leverage` are warning
+signs in the same way as the verbs in section 2. Each has a legitimate narrow
+sense, but each commonly stands in for a concrete property that has its own
+words. State the property: what breaks without it, what failure it tolerates,
+what it covers, or what it uses.
 
 ## Comments and documentation
 
@@ -569,6 +603,8 @@ as a maintainer who did not see this session.
 - Does every pronoun have one obvious antecedent?
 - Does each stated cause actually contain enough information for its claimed
   consequence to follow?
+- Does a trailing participial clause claim a benefit whose mechanism the text
+  never states?
 - Are the technical terms established ones rather than phrases coined here?
 - Do the verbs describe operations the software really performs?
 - If a sentence says "X rather than Y", is Y a real alternative?
