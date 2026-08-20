@@ -10,8 +10,6 @@ export GITHUB_TOKEN := gh-token
 nix-config-base := env('NIX_CONFIG', '')
 nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
 export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token + "\nimpure-env = GITHUB_TOKEN=" + gh-token
-xdg_state_home := env('XDG_STATE_HOME', env('HOME') + "/.local/state")
-
 # Secrets repository URL (cloned for key management)
 
 secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
@@ -83,9 +81,9 @@ update-host-home hostname *args:
 deploy-host hostname target *args:
     nix run .#deploy-rs -- --skip-checks --interactive-sudo true --hostname '{{ hostname }}.home.orangesquash.org.uk' .#{{ target }} {{ args }}
 
-# Pre-build all direnv development shells for faster directory changes
+# Pre-build all direnv development shells and refresh their caches
 build-direnvs:
-    nix build .#direnv-shells --profile "{{ xdg_state_home }}/nix/profiles/direnv-shells"
+    ./scripts/build-direnvs.bash
 
 # Search for a package in nixpkgs
 search query *args:
@@ -117,7 +115,7 @@ inputs *args:
 
 # Delete old generations and garbage collect
 gc days="30":
-    ./scripts/gc.bash "{{ days }}" "{{ xdg_state_home }}"
+    ./scripts/gc.bash "{{ days }}"
 
 # Open a nix repl with the flake loaded
 repl *args:

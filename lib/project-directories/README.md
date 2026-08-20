@@ -28,7 +28,8 @@ This module generates `~/dev/debian/.envrc` pointing to a flake shell with
 The tricky bit: we want `.envrc` to update when the shell definition changes. We
 do this by embedding the shell's derivation path as a comment in the `.envrc`,
 but with its string context stripped. When the shell changes, the `.drv` path
-changes, so the file changes, triggering home-manager's `onChange` hook to clear
-the direnv cache without pulling the dev shell into the system closure.
+changes, so the file changes and direnv treats the existing cache as stale. The
+Home Manager `onChange` hook allows the new contents without pulling the dev
+shell into the system closure.
 
 See `lib/helpers.nix` for `mkProjectShells` which wires this up.

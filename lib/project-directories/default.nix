@@ -107,7 +107,6 @@ in {
             + "use flake \"${flakePath}#${flakeAttr}\"\n"
             + lib.concatMapStrings (p: "PATH_add ${p}\n") dirConfig.extraPaths;
           onChange = ''
-            rm -rf ${lib.escapeShellArg "${absoluteDir}/.direnv"}
             ${config.programs.direnv.package}/bin/direnv allow ${lib.escapeShellArg absoluteDir}
           '';
         };
