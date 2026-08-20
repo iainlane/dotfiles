@@ -6,7 +6,9 @@ import pwd
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
+from typing import Protocol, cast, overload
 
 from ..claude_storage import ClaudeSecureStorage
 from ..credentials import ClaudeCredential
@@ -249,56 +251,148 @@ class DarwinClaudeCredentialStore:
         return credential
 
 
+class _Bundle(Protocol):
+    @classmethod
+    def bundleWithPath_(cls, path: str, /) -> "_Bundle | None": ...
+
+    def load(self) -> bool: ...
+
+
+class _AuthenticationContext(Protocol):
+    @classmethod
+    def alloc(cls) -> "_AuthenticationContext": ...
+
+    def init(self) -> object: ...
+
+
+class _Foundation(Protocol):
+    NSBundle: type[_Bundle]
+
+    def NSClassFromString(
+        self,
+        name: str,
+        /,
+    ) -> type[_AuthenticationContext] | None: ...
+
+
+class _Date(Protocol):
+    def timeIntervalSince1970(self) -> float: ...
+
+
+class _DataKey: ...
+
+
+class _ModificationDateKey: ...
+
+
+class _PersistentReferenceKey: ...
+
+
+class _SecurityItem(Protocol):
+    def __contains__(self, key: object, /) -> bool: ...
+
+    @overload
+    def __getitem__(self, key: _DataKey, /) -> bytes: ...
+
+    @overload
+    def __getitem__(self, key: _ModificationDateKey, /) -> _Date: ...
+
+    @overload
+    def __getitem__(self, key: _PersistentReferenceKey, /) -> bytes: ...
+
+
+class _Security(Protocol):
+    kSecClass: object
+    kSecClassGenericPassword: object
+    kSecAttrAccount: object
+    kSecAttrService: object
+    kSecReturnData: object
+    kSecReturnAttributes: object
+    kSecReturnPersistentRef: object
+    kSecMatchLimit: object
+    kSecMatchLimitOne: object
+    kSecUseAuthenticationContext: object
+    kSecMatchItemList: object
+    kSecValueData: _DataKey
+    kSecAttrModificationDate: _ModificationDateKey
+    kSecValuePersistentRef: _PersistentReferenceKey
+    errSecSuccess: int
+
+    def SecItemCopyMatching(
+        self,
+        query: Mapping[object, object],
+        result: None,
+        /,
+    ) -> tuple[int, _SecurityItem | None]: ...
+
+    def SecItemUpdate(
+        self,
+        query: Mapping[object, object],
+        attributes: Mapping[object, object],
+        /,
+    ) -> int: ...
+
+
+def _load_foundation() -> _Foundation:
+    return cast(_Foundation, import_module("Foundation"))
+
+
+def _load_security() -> _Security:
+    return cast(_Security, import_module("Security"))
+
+
 class PyObjCKeychain:
     """Read generic passwords through the macOS Security framework binding."""
 
+    _authentication: object
+
     def __init__(self) -> None:
-        import Foundation
+        foundation = _load_foundation()
 
         # Keychain creates and discards an authentication context for each
         # operation unless the caller supplies one. Retaining the context for
         # the run lets one successful authentication authorize later reads and
         # writes of the same credential.
-        framework = Foundation.NSBundle.bundleWithPath_(_LOCAL_AUTHENTICATION_FRAMEWORK)
+        framework = foundation.NSBundle.bundleWithPath_(_LOCAL_AUTHENTICATION_FRAMEWORK)
         if framework is None or not framework.load():
             raise KeychainAuthenticationContextUnavailableError
 
-        authentication = Foundation.NSClassFromString("LAContext")
+        authentication = foundation.NSClassFromString("LAContext")
         if authentication is None:
             raise KeychainAuthenticationContextUnavailableError
 
         self._authentication = authentication.alloc().init()
 
     def generic_password(self, account: str, service: str) -> KeychainItem:
-        import Security
+        security = _load_security()
 
         query = {
-            Security.kSecClass: Security.kSecClassGenericPassword,
-            Security.kSecAttrAccount: account,
-            Security.kSecAttrService: service,
-            Security.kSecReturnData: True,
-            Security.kSecReturnAttributes: True,
-            Security.kSecReturnPersistentRef: True,
-            Security.kSecMatchLimit: Security.kSecMatchLimitOne,
-            Security.kSecUseAuthenticationContext: self._authentication,
+            security.kSecClass: security.kSecClassGenericPassword,
+            security.kSecAttrAccount: account,
+            security.kSecAttrService: service,
+            security.kSecReturnData: True,
+            security.kSecReturnAttributes: True,
+            security.kSecReturnPersistentRef: True,
+            security.kSecMatchLimit: security.kSecMatchLimitOne,
+            security.kSecUseAuthenticationContext: self._authentication,
         }
-        status, item = Security.SecItemCopyMatching(query, None)
-        if status != Security.errSecSuccess:
+        status, item = security.SecItemCopyMatching(query, None)
+        if status != security.errSecSuccess:
             raise KeychainReadError(status)
-        if item is None or Security.kSecValueData not in item:
+        if item is None or security.kSecValueData not in item:
             raise KeychainDataMissingError
-        if Security.kSecAttrModificationDate not in item:
+        if security.kSecAttrModificationDate not in item:
             raise KeychainRevisionMissingError
-        if Security.kSecValuePersistentRef not in item:
+        if security.kSecValuePersistentRef not in item:
             raise KeychainPersistentReferenceMissingError
 
         revision = KeychainRevision(
-            float(item[Security.kSecAttrModificationDate].timeIntervalSince1970())
+            float(item[security.kSecAttrModificationDate].timeIntervalSince1970())
         )
         return KeychainItem(
-            bytes(item[Security.kSecValueData]),
+            bytes(item[security.kSecValueData]),
             revision,
-            bytes(item[Security.kSecValuePersistentRef]),
+            bytes(item[security.kSecValuePersistentRef]),
         )
 
     def update_generic_password(
@@ -306,17 +400,17 @@ class PyObjCKeychain:
         persistent_reference: bytes,
         value: bytes,
     ) -> None:
-        import Security
+        security = _load_security()
 
         query = {
-            Security.kSecMatchItemList: [persistent_reference],
-            Security.kSecUseAuthenticationContext: self._authentication,
+            security.kSecMatchItemList: [persistent_reference],
+            security.kSecUseAuthenticationContext: self._authentication,
         }
-        status = Security.SecItemUpdate(
+        status = security.SecItemUpdate(
             query,
-            {Security.kSecValueData: value},
+            {security.kSecValueData: value},
         )
-        if status != Security.errSecSuccess:
+        if status != security.errSecSuccess:
             raise KeychainWriteError(status)
 
     def generic_password_revision(
@@ -325,22 +419,22 @@ class PyObjCKeychain:
     ) -> KeychainRevision:
         """Read the non-secret revision without requesting password data."""
 
-        import Security
+        security = _load_security()
 
         query = {
-            Security.kSecMatchItemList: [persistent_reference],
-            Security.kSecReturnAttributes: True,
-            Security.kSecMatchLimit: Security.kSecMatchLimitOne,
-            Security.kSecUseAuthenticationContext: self._authentication,
+            security.kSecMatchItemList: [persistent_reference],
+            security.kSecReturnAttributes: True,
+            security.kSecMatchLimit: security.kSecMatchLimitOne,
+            security.kSecUseAuthenticationContext: self._authentication,
         }
-        status, item = Security.SecItemCopyMatching(query, None)
-        if status != Security.errSecSuccess:
+        status, item = security.SecItemCopyMatching(query, None)
+        if status != security.errSecSuccess:
             raise KeychainReadError(status)
-        if item is None or Security.kSecAttrModificationDate not in item:
+        if item is None or security.kSecAttrModificationDate not in item:
             raise KeychainRevisionMissingError
 
         return KeychainRevision(
-            float(item[Security.kSecAttrModificationDate].timeIntervalSince1970())
+            float(item[security.kSecAttrModificationDate].timeIntervalSince1970())
         )
 
 

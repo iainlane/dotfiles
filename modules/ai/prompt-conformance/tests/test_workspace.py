@@ -1,5 +1,6 @@
 import errno
 import os
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -42,7 +43,7 @@ def test_inspector_retains_untracked_files_without_following_links(
     artefacts.mkdir()
 
     evidence = GitWorkspaceInspector(
-        DirectProcessRunner(ProcessSupervisor()), "git"
+        DirectProcessRunner(ProcessSupervisor()), _git_program()
     ).inspect(workspace, base_revision, artefacts, "/bin:/usr/bin")
 
     snapshots = artefacts / "untracked-files"
@@ -296,7 +297,7 @@ def test_inspector_excludes_deleted_children_beneath_untracked_symlinks(
     artefacts.mkdir()
 
     evidence = GitWorkspaceInspector(
-        DirectProcessRunner(ProcessSupervisor()), "git"
+        DirectProcessRunner(ProcessSupervisor()), _git_program()
     ).inspect(workspace, base_revision, artefacts, "/bin:/usr/bin")
     snapshot = artefacts / "workspace-snapshot"
     entries = tuple(
@@ -340,7 +341,7 @@ def run_git(workspace: Path, *arguments: str) -> str:
     """Run a local Git command for repository-level outcome assertions."""
 
     result = subprocess.run(
-        ("git", "-C", str(workspace), *arguments),
+        (_git_program(), "-C", str(workspace), *arguments),
         check=True,
         capture_output=True,
         env=(
@@ -353,3 +354,11 @@ def run_git(workspace: Path, *arguments: str) -> str:
         text=True,
     )
     return result.stdout
+
+
+def _git_program() -> str:
+    program = shutil.which("git")
+    if program is None:
+        pytest.fail("Git is required for workspace tests")
+
+    return program
