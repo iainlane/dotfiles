@@ -1,18 +1,17 @@
-# Host configuration evaluation checks.
+# Checks that every host configuration evaluates.
 #
-# The profile-contracts check exercises the resolver against fixtures; these
-# checks point at the real outputs. Forcing each configuration's toplevel
-# drvPath catches a configuration that fails to evaluate, without building the
-# host configuration itself.
+# Each check forces the top-level derivation path from one configured host
+# output. This detects evaluation failures without building the host
+# configuration.
 #
-# Each configuration has its own check on its target system. This lets Nix
-# evaluate independent configurations concurrently, while `--all-systems`
-# still checks every host. The configurations are enumerated from the flake
-# outputs, so hosts can come and go without this file changing.
+# Each configuration has a separate check for its target system, so Nix can
+# evaluate independent configurations concurrently. Running the flake checks
+# with `--all-systems` covers every host. The checks are derived from the flake
+# outputs and therefore follow changes to the host inventory.
 #
 # Evaluation reads the private secrets input, so CI needs its deploy key.
-# Configurations that use import from derivation also realise those dependencies
-# during evaluation.
+# Configurations that use import from derivation also realise their imported
+# derivations during evaluation.
 {
   config,
   lib,
@@ -38,7 +37,7 @@
   traceEvaluated = outputName: configurationName: value:
     builtins.deepSeq value (
       builtins.traceVerbose
-      "adapter-evals: evaluated ${outputName}.${configurationName}"
+      "host-evaluation: evaluated ${outputName}.${configurationName}"
       value
     );
 in {
@@ -63,7 +62,7 @@ in {
           configuration = config.flake.${adapter.outputName}.${hostname};
         in
           mkCheck
-          "adapter-eval-${hostConfig.os}-${hostname}"
+          "host-evaluation-${hostConfig.os}-${hostname}"
           adapter.outputName
           hostname
           (adapter.drvPath configuration)
@@ -74,7 +73,7 @@ in {
       lib.mapAttrs' (
         hostname: _:
           mkCheck
-          "adapter-eval-home-${hostname}"
+          "host-evaluation-home-${hostname}"
           "homeConfigurations"
           "${username}@${hostname}"
           config.flake.homeConfigurations."${username}@${hostname}".activationPackage.drvPath

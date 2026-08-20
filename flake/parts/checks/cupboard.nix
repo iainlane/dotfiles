@@ -119,7 +119,7 @@
     }
   ];
 
-  metadataCheckSystem = lib.head config.systems;
+  targetSetCheckSystem = lib.head config.systems;
 in {
   perSystem = {
     pkgs,
@@ -145,13 +145,13 @@ in {
 
     rootDrvPathChecks = builtins.listToAttrs (map mkRootDrvPathCheck systemTargets);
 
-    metadataCheck = lib.optionalAttrs (system == metadataCheckSystem) {
+    targetSetCheck = lib.optionalAttrs (system == targetSetCheckSystem) {
       cupboard-targets =
         if actual == expected
         then pkgs.runCommandLocal "cupboard-targets" {} "touch $out"
         else throw "Cupboard target set differs from the configured hosts";
     };
   in {
-    checks = metadataCheck // rootDrvPathChecks;
+    checks = targetSetCheck // rootDrvPathChecks;
   };
 }

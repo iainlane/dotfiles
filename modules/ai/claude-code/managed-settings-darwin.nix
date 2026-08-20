@@ -6,9 +6,10 @@
   pkgs,
   ...
 }: let
-  settingsFile =
-    (pkgs.formats.json {}).generate "managed-settings.json"
-    config.dotfiles.claudeCode.managedSettings;
+  settingsFile = import ./managed-settings-file.nix {
+    inherit pkgs;
+    settings = config.dotfiles.claudeCode.managedSettings;
+  };
   darwinPath = "/Library/Application Support/ClaudeCode";
 in {
   imports = [./managed-settings-common.nix];

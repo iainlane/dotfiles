@@ -1,5 +1,5 @@
 {lib, ...}: let
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  quadlet = import ../../../lib/quadlet.nix {inherit lib;};
 
   throws = value: !(builtins.tryEval (builtins.deepSeq value true)).success;
 
@@ -48,11 +48,11 @@
       name = "a path bind preserves Nix's store-path context";
       pass =
         quadlet.mount {
-          source.bind = ../../profiles/hermes/soul.md;
+          source.bind = ../../../profiles/hermes/soul.md;
           target = "/soul.md";
           readOnly = true;
         }
-        == "${../../profiles/hermes/soul.md}:/soul.md:ro";
+        == "${../../../profiles/hermes/soul.md}:/soul.md:ro";
     }
     {
       name = "chown ownership renders Podman's U option";
