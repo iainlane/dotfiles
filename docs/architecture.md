@@ -76,8 +76,7 @@ Profiles can also scope both features and inline modules to a specific OS via
 A profile can declare that it needs another profile present with `requires`. The
 requirement is validated while the host set is evaluated (in
 `flake/parts/hosts.nix`, via `validateProfileRequirements`), so a missing or
-self-referential requirement fails before any build; the
-[contract checks](#contract-checks) also exercise this logic directly.
+self-referential requirement fails before any build.
 
 ## Features and modules
 
@@ -152,28 +151,3 @@ flake imports as `helpers`:
 | `lib/home.nix`      | Home Manager module + `specialArgs` assembly         |
 | `lib/sops.nix`      | sops-nix module fragments                            |
 | `lib/projects.nix`  | project shell / direnv generation                    |
-
-## Contract checks
-
-Formatting and linting are covered by the `treefmt`/`statix`/… checks in
-`flake/parts/checks.nix`. The `profile-contracts` check in
-`flake/parts/checks-contracts.nix` guards the _architecture_ instead: it
-evaluates the resolution contract during `nix flake check` and fails if
-
-- name resolution or composition order regresses (base + OS feature exports,
-  OS-scoped profile features, and Home Manager / system-manager / NixOS
-  targets),
-- a feature name is unknown or a profile is declared twice on one host,
-- a profile requirement is missing or self-referential,
-- a profile references a feature that is not in `flake.modules`, or an `os.<os>`
-  scope key is not a known operating system.
-
-The assertions are pure evaluation, so they run inside a pure flake check.
-
-The `adapter-evals` check (`flake/parts/checks-adapters.nix`) complements the
-fixture-based contracts by pointing at the real outputs: it forces the toplevel
-derivation of every host configuration (NixOS, nix-darwin, system-manager, and
-standalone Home Manager), so a configuration that no longer evaluates fails
-`nix flake check` without the host configurations being built. Evaluating the
-configurations reads the private secrets input, so this check needs access to
-it.

@@ -4,11 +4,6 @@ in {
   imports =
     [
       ./apps.nix
-      ./checks.nix
-      ./checks-adapters.nix
-      ./checks-contracts.nix
-      ./checks-cupboard.nix
-      ./checks-quadlet.nix
       ./context.nix
       ./cupboard.nix
       ./deploy.nix
@@ -19,8 +14,10 @@ in {
       ./modules.nix
       ./pkgs.nix
       ./profiles.nix
+      ./treefmt.nix
       ./updaters.nix
     ]
+    ++ map (name: ./checks + "/${name}") (helpers.fileNames ./checks ".nix")
     ++ helpers.discoverModules ../../profiles
     ++ helpers.discoverModules ../../modules;
 }

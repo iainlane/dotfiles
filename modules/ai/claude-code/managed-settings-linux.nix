@@ -4,10 +4,13 @@
   config,
   pkgs,
   ...
-}: {
+}: let
+  settingsFile = import ./managed-settings-file.nix {
+    inherit pkgs;
+    settings = config.dotfiles.claudeCode.managedSettings;
+  };
+in {
   imports = [./managed-settings-common.nix];
 
-  environment.etc."claude-code/managed-settings.json".source =
-    (pkgs.formats.json {}).generate "managed-settings.json"
-    config.dotfiles.claudeCode.managedSettings;
+  environment.etc."claude-code/managed-settings.json".source = settingsFile;
 }

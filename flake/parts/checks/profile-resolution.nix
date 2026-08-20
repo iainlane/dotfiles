@@ -1,28 +1,25 @@
-# Architecture contract checks.
+# Checks profile and feature resolution.
 #
-# The formatting/linting checks in checks.nix keep the source tidy; these keep
-# the *architecture* honest. They evaluate the profile/feature resolution
-# contract directly so `nix flake check` fails on a broken contract (an unknown
-# feature name, a duplicate profile, a mis-scoped OS key, a regression in name
-# resolution or composition order) rather than only on a bad build much later.
+# Fixtures cover module composition, profile requirements, duplicate profiles,
+# and invalid module types. Assertions against the configured profiles and
+# modules detect unknown features and invalid operating-system keys.
 #
-# The resolution assertions compare the constructed module list, so they pin
-# composition order. Option precedence within that list is the module system's
-# business (merge functions and priorities), not part of this contract.
+# The fixture assertions compare complete module lists, including their order.
+# Nix module merge functions and priorities determine option precedence after
+# resolution, which this check does not test.
 #
-# Everything here is pure Nix evaluation — no shelling out to `nix eval`, which
-# is unavailable inside a pure `nix flake check`. Each assertion is a
-# `{ name; pass; }` pair, optionally carrying a `detail` list naming the
-# offending entries; if any fail the derivation throws with a readable report.
+# Each assertion is a `{ name; pass; }` attribute set so the check can report all
+# failures together. Assertions over the live configuration can also include
+# the offending entries in a `detail` list.
 {
   inputs,
   config,
   lib,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  helpers = import ../../../lib/helpers.nix {inherit inputs;};
 
-  # --- fixtures: minimal stand-ins for flake.modules / flake.profiles ---
+  # Fixtures representing `flake.modules` and `flake.profiles`.
   emptyModule = {
     homeManagerModules = [];
     systemManagerModules = [];
@@ -30,28 +27,27 @@
     os = {};
   };
   fixtureModules = {
-    # base-only Home Manager export.
+    # A base Home Manager export.
     alpha = emptyModule // {homeManagerModules = ["alpha-home"];};
-    # NixOS export.
+    # A NixOS export.
     beta = emptyModule // {nixosModules = ["beta-nixos"];};
-    # both a base export and an OS-specific export.
+    # Base and Linux-specific Home Manager exports.
     gamma =
       emptyModule
       // {
         homeManagerModules = ["gamma-home"];
         os.linux.homeManagerModules = ["gamma-linux"];
       };
-    # base export, reached only via an OS-scoped profile feature.
+    # A base export selected by an OS-specific profile feature.
     delta = emptyModule // {homeManagerModules = ["delta-home"];};
-    # both a base and an OS-specific export, reached via an OS-scoped profile
-    # feature.
+    # Base and Linux-specific exports selected by an OS-specific profile feature.
     zeta =
       emptyModule
       // {
         homeManagerModules = ["zeta-home"];
         os.linux.homeManagerModules = ["zeta-linux"];
       };
-    # system-manager export.
+    # A system-manager export.
     sysfeat = emptyModule // {systemManagerModules = ["sys-mod"];};
   };
   mkProfile = attrs:
@@ -68,7 +64,7 @@
     hostname = "fixture";
     inherit os profiles;
   };
-  # Resolve one profile "p" for the given target and host OS.
+  # Resolves the fixture profile named `p` for the given module type and host OS.
   resolve = moduleType: os: profile:
     helpers.mkModules {
       inherit moduleType;
@@ -78,7 +74,7 @@
     };
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr true)).success;
 
-  # --- real config: feature names and OS keys must be valid ---
+  # Feature and OS references from the configured profiles and modules.
   profileFeatureNames = profile:
     (profile.features or [])
     ++ lib.concatLists (lib.mapAttrsToList (_: osCfg: osCfg.features or []) (profile.os or {}));
@@ -193,17 +189,15 @@
   ];
 
   failures = lib.filter (a: !a.pass) assertions;
-  # One line per failed assertion; assertions over the real config name the
-  # offending entries via `detail`.
   describeFailure = a:
     "  ✗ ${a.name}"
     + lib.concatMapStrings (d: "\n      ${d}") (a.detail or []);
   report = lib.concatMapStringsSep "\n" describeFailure failures;
 in {
   perSystem = {pkgs, ...}: {
-    checks.profile-contracts =
+    checks.profile-resolution =
       if failures == []
-      then pkgs.runCommandLocal "profile-contracts" {} "touch $out"
-      else throw "profile-contract checks failed:\n${report}";
+      then pkgs.runCommandLocal "profile-resolution" {} "touch $out"
+      else throw "profile resolution checks failed:\n${report}";
   };
 }
