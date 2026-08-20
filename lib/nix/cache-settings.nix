@@ -13,6 +13,10 @@
     "crane.cachix.org" = {
       key = "8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=";
     };
+    "cupboard.supply/t/cupboard/cache/releases" = {
+      key = "tiaTSFvY6LqLUwbjsNcig64LnxZ+T5EQgW5Cr4XjXqU=";
+      publicKeyName = "cupboard";
+    };
     "cupboard.supply/t/laney" = {
       key = "rupCzv0DJn5yLpuqAZl9IrzjadNvD2d+BQxIqNoFZKQ=";
       publicKeyName = "cupboard";
