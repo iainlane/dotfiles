@@ -29,14 +29,6 @@ include = ["claude_prompt_conformance", "tests"]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"
 
-# PyObjC's Foundation and Security bridge modules are generated at runtime
-# from the Objective-C class registry, so basedpyright has no stub to check
-# their attributes against. Silence that one rule for the isolated Keychain
-# code that touches them, rather than scattering per-line ignores.
-[[tool.basedpyright.executionEnvironments]]
-root = "claude_prompt_conformance/platforms/darwin.py"
-reportAttributeAccessIssue = "none"
-
 [tool.ruff.lint.isort]
 known-first-party = ["claude_prompt_conformance"]
 known-third-party = [
