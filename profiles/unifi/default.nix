@@ -42,7 +42,7 @@
       };
 
       unifiContainer = import ./container.nix {
-        inherit cfg network;
+        inherit cfg lib network;
         image = config.virtualisation.quadlet.images.${imageName}.ref;
         uuidBuilder = "${uuidBuilder}/bin/unifi-build-uuid-env";
       };

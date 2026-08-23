@@ -14,6 +14,7 @@
   stateVolume,
 }: let
   healthUrl = "http://127.0.0.1:${toString cfg.port}/_matrix/client/versions";
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
 in {
   autoStart = true;
 
@@ -26,12 +27,31 @@ in {
     exec = "--config ${configPath} --config ${adminConfigPath}";
 
     volumes =
-      [
-        "${stateVolume}.volume:${databasePath}"
-        "${configFile}:${configPath}:ro"
-        "${adminConfigFile}:${adminConfigPath}:ro,idmap"
+      quadlet.mounts [
+        {
+          source.quadletVolume = stateVolume;
+          target = databasePath;
+          ownership = "idmap";
+        }
+        {
+          source.bind = configFile;
+          target = configPath;
+          readOnly = true;
+        }
+        {
+          source.bind = adminConfigFile;
+          target = adminConfigPath;
+          ownership = "idmap";
+          readOnly = true;
+        }
       ]
-      ++ lib.optional cfg.backup.enable "${backupVolume}.volume:${backupPath}";
+      ++ lib.optionals cfg.backup.enable (quadlet.mounts [
+        {
+          source.quadletVolume = backupVolume;
+          target = backupPath;
+          ownership = "idmap";
+        }
+      ]);
 
     environments.HOME = databasePath;
 

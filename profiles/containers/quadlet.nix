@@ -8,7 +8,11 @@
   config,
   lib,
   ...
-}: {
+}: let
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  unsafeAutoUsernsVolumes =
+    quadlet.autoUsernsVolumesWithoutIdmap config.virtualisation.quadlet.containers;
+in {
   imports = [
     ./podman.nix
     ./vendored/quadlet-system-manager-module.nix
@@ -16,6 +20,20 @@
   ];
 
   config = lib.mkIf config.virtualisation.podman.enable {
+    assertions = [
+      {
+        assertion = unsafeAutoUsernsVolumes == [];
+        message = ''
+          Containers using `userns=auto` must mount every named volume
+          with `idmap`:
+          ${lib.concatMapStringsSep "\n" (
+              volume: "  ${volume.container}: ${volume.mount}"
+            )
+            unsafeAutoUsernsVolumes}
+        '';
+      }
+    ];
+
     # The quadlet generator comes from podman itself, which the podman module
     # puts in `systemd.packages`. Naming the same package here means the
     # command lines quadlet-nix writes into the units it generates run the

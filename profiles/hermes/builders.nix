@@ -8,6 +8,7 @@
   pkgs,
 }: let
   cfg = config.services.hermes-agent;
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
   yaml = pkgs.formats.yaml {};
 
@@ -296,18 +297,43 @@
         entrypoint = "${hermesBinDir}/hermes";
 
         volumes =
-          [
-            "${hermesStateVolume}.volume:/data"
-            "${hermesHomeVolume}.volume:/home/hermes"
-            "${hermesCacheVolume}.volume:/data/.hermes/cache"
+          quadlet.mounts [
+            {
+              source.quadletVolume = hermesStateVolume;
+              target = "/data";
+            }
+            {
+              source.quadletVolume = hermesHomeVolume;
+              target = "/home/hermes";
+            }
+            {
+              source.quadletVolume = hermesCacheVolume;
+              target = "/data/.hermes/cache";
+            }
             # config.yaml and SOUL.md come straight from the Nix store, read
             # only. Hermes never writes them, and a change flips the store path,
             # so the unit changes and the container restarts to pick it up.
-            "${generatedConfigFile}:/data/.hermes/config.yaml:ro"
+            {
+              source.bind = generatedConfigFile;
+              target = "/data/.hermes/config.yaml";
+              readOnly = true;
+            }
           ]
-          ++ lib.optional cfg.soul.enable "${cfg.soul.file}:/data/.hermes/SOUL.md:ro"
-          ++ lib.optional cfg.agents.enable "${cfg.agents.file}:/data/workspace/AGENTS.md:ro"
-          ++ cfg.container.extraVolumes;
+          ++ lib.optionals cfg.soul.enable (quadlet.mounts [
+            {
+              source.bind = cfg.soul.file;
+              target = "/data/.hermes/SOUL.md";
+              readOnly = true;
+            }
+          ])
+          ++ lib.optionals cfg.agents.enable (quadlet.mounts [
+            {
+              source.bind = cfg.agents.file;
+              target = "/data/workspace/AGENTS.md";
+              readOnly = true;
+            }
+          ])
+          ++ quadlet.mounts cfg.container.extraVolumes;
 
         environments =
           {

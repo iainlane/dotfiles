@@ -8,6 +8,7 @@
   ...
 }: let
   cfg = config.services.hermes-agent;
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
   inherit
     (import ./builders.nix {inherit config inputs lib pkgs;})
     mkNixImage
@@ -77,14 +78,27 @@ in {
             exec = "--config /data daemon --http 0.0.0.0:8080";
             networks = ["${cfg.signal.network}.network"];
             volumes =
-              [
-                "${signalStateVolume}.volume:/data"
+              quadlet.mounts [
+                {
+                  source.quadletVolume = signalStateVolume;
+                  target = "/data";
+                }
                 # Hermes writes outgoing attachments under /data/.hermes/cache in
                 # its own namespace and hands signal-cli that path, so the shared
                 # cache volume resolves them to the same files here.
-                "${hermesCacheVolume}.volume:/data/.hermes/cache:ro"
+                {
+                  source.quadletVolume = hermesCacheVolume;
+                  target = "/data/.hermes/cache";
+                  readOnly = true;
+                }
               ]
-              ++ lib.optional (cfg.profilePicture != null) "${cfg.profilePicture}:${profilePictureContainerPath}:ro";
+              ++ lib.optionals (cfg.profilePicture != null) (quadlet.mounts [
+                {
+                  source.bind = cfg.profilePicture;
+                  target = profilePictureContainerPath;
+                  readOnly = true;
+                }
+              ]);
             environments.HOME = "/data";
           };
 

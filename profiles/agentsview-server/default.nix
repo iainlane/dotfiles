@@ -17,6 +17,7 @@
   helpers = import ../../lib/helpers.nix {inherit inputs;};
 
   common = import ../../lib/agentsview.nix {inherit lib;};
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
   pushers = common.syncingHosts helpers.hosts;
 
@@ -314,10 +315,16 @@ in {
 
           entrypoint = "${databaseInit}/bin/agentsview-db-init";
 
-          # `U` tells podman to give the contents to the user of the
-          # container. That id is the same at each start, thus podman does
-          # this work one time.
-          volumes = ["${dataVolume}.volume:${pgData}:U"];
+          # The database user has the same host mapping at each start, so
+          # changing the volume ownership is safe here. Auto user namespaces
+          # use an ID map because their host mappings can change.
+          volumes = quadlet.mounts [
+            {
+              source.quadletVolume = dataVolume;
+              target = pgData;
+              ownership = "chown";
+            }
+          ];
 
           # `notify` keeps the unit in `activating` until this check passes.
           # Thus the units that come after it start against a database that
@@ -380,13 +387,18 @@ in {
             "https://${cfg.expose.domain}"
           ];
 
-          # `idmap` maps the ids of the volume into the namespace of the
-          # container. `userns=auto` takes a different range at each start.
-          # The mapping changes with it, and the owner on disk stays the
-          # same.
-          volumes = [
-            "${dashboardVolume}.volume:${dataDir}:idmap"
-            "${config.sops.templates.${configTemplate}.path}:${configPath}:ro,idmap"
+          volumes = quadlet.mounts [
+            {
+              source.quadletVolume = dashboardVolume;
+              target = dataDir;
+              ownership = "idmap";
+            }
+            {
+              source.bind = config.sops.templates.${configTemplate}.path;
+              target = configPath;
+              ownership = "idmap";
+              readOnly = true;
+            }
           ];
 
           environments = {
