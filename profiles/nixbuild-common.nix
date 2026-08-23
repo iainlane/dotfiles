@@ -45,9 +45,7 @@
 
   sshConfigText = ''
     Host ${builderAlias}
-      ControlMaster auto
-      ControlPath ~/.ssh/ssh-nixbuild-builder-%C
-      ControlPersist 10m
+      ControlMaster no
       HostKeyAlias ${hostName}
       HostName ${hostName}
       IdentityFile /run/secrets/nixbuild-private-key
