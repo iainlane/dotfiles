@@ -2,7 +2,9 @@
   hostConfig,
   lib,
   ...
-}: {
+}: let
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
+in {
   options.services.hermes-agent = {
     enable = lib.mkEnableOption "Hermes Agent gateway service";
 
@@ -161,8 +163,16 @@
       };
 
       extraVolumes = lib.mkOption {
-        type = with lib.types; listOf str;
+        type = lib.types.listOf quadlet.mountType;
         default = [];
+        example = [
+          {
+            source.bind = "/srv/hermes";
+            target = "/srv/hermes";
+            readOnly = true;
+          }
+        ];
+        description = "Additional typed mounts for each Hermes application container.";
       };
 
       extraPodmanArgs = lib.mkOption {

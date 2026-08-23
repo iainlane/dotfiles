@@ -32,6 +32,7 @@
       idp = config.services.identity-provider;
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
+      quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
       # This plugin answers the ACME DNS-01 challenge. The issuer gives a
       # certificate and connects to nothing on this host.
@@ -598,12 +599,28 @@
                   # store. Naming the store path in the quadlet means a changed
                   # config changes the unit that mounts it.
                   volumes =
-                    [
-                      "caddy-data:/data"
-                      "caddy-config:/config"
-                      "${configFile}:${configPath}:ro"
+                    quadlet.mounts [
+                      {
+                        source.podmanVolume = "caddy-data";
+                        target = "/data";
+                      }
+                      {
+                        source.podmanVolume = "caddy-config";
+                        target = "/config";
+                      }
+                      {
+                        source.bind = configFile;
+                        target = configPath;
+                        readOnly = true;
+                      }
                     ]
-                    ++ lib.optional cfg.originAuth.enable "${cfg.originAuth.caFile}:${originPullCaPath}:ro";
+                    ++ lib.optionals cfg.originAuth.enable (quadlet.mounts [
+                      {
+                        source.bind = cfg.originAuth.caFile;
+                        target = originPullCaPath;
+                        readOnly = true;
+                      }
+                    ]);
 
                   environmentFiles = [config.sops.templates."caddy.env".path];
                   environments.XDG_DATA_HOME = "/data";
@@ -628,9 +645,17 @@
                   entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
                   exec = "--config ${authConfigPath} --alpha-config ${authAlphaConfigPath}";
 
-                  volumes = [
-                    "${authConfigFile}:${authConfigPath}:ro"
-                    "${authAlphaConfigFile}:${authAlphaConfigPath}:ro"
+                  volumes = quadlet.mounts [
+                    {
+                      source.bind = authConfigFile;
+                      target = authConfigPath;
+                      readOnly = true;
+                    }
+                    {
+                      source.bind = authAlphaConfigFile;
+                      target = authAlphaConfigPath;
+                      readOnly = true;
+                    }
                   ];
 
                   # The two secrets arrive as environment, which the sign-in

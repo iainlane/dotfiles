@@ -8,6 +8,7 @@ in {
       ./checks-adapters.nix
       ./checks-contracts.nix
       ./checks-cupboard.nix
+      ./checks-quadlet.nix
       ./context.nix
       ./cupboard.nix
       ./deploy.nix

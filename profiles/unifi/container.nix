@@ -1,9 +1,11 @@
 {
   cfg,
   image,
+  lib,
   network,
   uuidBuilder,
 }: let
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
   volumePrefix = "unifi";
   runtimeDirectory = "unifi";
   runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
@@ -53,14 +55,35 @@ in {
 
     environmentFiles = [runtimeEnvFile];
 
-    volumes = [
-      "${volumePrefix}-persistent:/persistent"
-      "${volumePrefix}-var-log:/var/log"
-      "${volumePrefix}-data:/data"
-      "${volumePrefix}-srv:/srv"
-      "${volumePrefix}-var-lib-unifi:/var/lib/unifi"
-      "${volumePrefix}-var-lib-mongodb:/var/lib/mongodb"
-      "${volumePrefix}-etc-rabbitmq-ssl:/etc/rabbitmq/ssl"
+    volumes = quadlet.mounts [
+      {
+        source.podmanVolume = "${volumePrefix}-persistent";
+        target = "/persistent";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-var-log";
+        target = "/var/log";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-data";
+        target = "/data";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-srv";
+        target = "/srv";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-var-lib-unifi";
+        target = "/var/lib/unifi";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-var-lib-mongodb";
+        target = "/var/lib/mongodb";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-etc-rabbitmq-ssl";
+        target = "/etc/rabbitmq/ssl";
+      }
     ];
   };
 

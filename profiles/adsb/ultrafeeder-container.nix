@@ -5,6 +5,8 @@
   envFile,
   network,
 }: let
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
+
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder versioning=docker
   tag = "latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
   image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:${tag}";
@@ -87,12 +89,25 @@ in {
       runtimeEnvFile
     ];
 
-    volumes = [
+    volumes = quadlet.mounts [
       # Bind-mount USB bus so re-enumerated device nodes remain visible.
-      "/dev/bus/usb:/dev/bus/usb"
-      "${volumePrefix}-globe-history:/var/globe_history"
-      "${volumePrefix}-graphs1090:/var/lib/collectd"
-      "/proc/diskstats:/proc/diskstats:ro"
+      {
+        source.bind = "/dev/bus/usb";
+        target = "/dev/bus/usb";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-globe-history";
+        target = "/var/globe_history";
+      }
+      {
+        source.podmanVolume = "${volumePrefix}-graphs1090";
+        target = "/var/lib/collectd";
+      }
+      {
+        source.bind = "/proc/diskstats";
+        target = "/proc/diskstats";
+        readOnly = true;
+      }
     ];
 
     tmpfses = [

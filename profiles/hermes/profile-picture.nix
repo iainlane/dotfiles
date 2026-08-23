@@ -9,6 +9,7 @@
   ...
 }: let
   cfg = config.services.hermes-agent;
+  quadlet = import ../../lib/quadlet.nix {inherit lib;};
   inherit
     (import ./builders.nix {inherit config inputs lib pkgs;})
     mkNixImage
@@ -70,9 +71,16 @@ in {
             user = hermesUser;
             entrypoint = "${profilePictureScript}/bin/hermes-profile-picture";
             networks = profilePictureNetworks;
-            volumes = [
-              "${profilePictureStateVolume}.volume:/state"
-              "${cfg.profilePicture}:${profilePictureContainerPath}:ro"
+            volumes = quadlet.mounts [
+              {
+                source.quadletVolume = profilePictureStateVolume;
+                target = "/state";
+              }
+              {
+                source.bind = cfg.profilePicture;
+                target = profilePictureContainerPath;
+                readOnly = true;
+              }
             ];
             environments =
               {

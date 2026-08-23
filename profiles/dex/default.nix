@@ -38,6 +38,8 @@
 
       issuer = "https://${cfg.expose.domain}";
 
+      quadlet = import ../../lib/quadlet.nix {inherit lib;};
+
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
       image = mkNixImage cfg.containerName [
@@ -115,9 +117,17 @@
           entrypoint = "${package}/bin/dex";
           exec = "serve ${configPath}";
 
-          volumes = [
-            "${stateVolume}.volume:${dataPath}"
-            "${configFile}:${configPath}:ro"
+          volumes = quadlet.mounts [
+            {
+              source.quadletVolume = stateVolume;
+              target = dataPath;
+              ownership = "idmap";
+            }
+            {
+              source.bind = configFile;
+              target = configPath;
+              readOnly = true;
+            }
           ];
 
           environmentFiles = [config.sops.templates."dex.env".path];
