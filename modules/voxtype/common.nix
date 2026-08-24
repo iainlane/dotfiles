@@ -10,5 +10,15 @@
       # ones, and warns before defaulting to TDT.
       model_type = "tdt";
     };
+
+    text = {
+      spoken_punctuation = true;
+
+      replacements = {
+        "full stop" = ".";
+        "quote" = "\"";
+        "unquote" = "\"";
+      };
+    };
   };
 }
