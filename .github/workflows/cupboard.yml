@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          nix build .#checks.x86_64-linux.profile-contracts
+          nix build .#checks.x86_64-linux.profile-resolution
 
       # Evaluating the host and home configurations reads the private secrets
       # input, so the adapter check needs the deploy key. Fork pull requests do
