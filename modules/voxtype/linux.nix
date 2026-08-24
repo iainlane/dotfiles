@@ -56,6 +56,11 @@ in {
         # eitype types through the libei portal, which GNOME supports.
         driver_order = ["eitype" "clipboard"];
 
+        # At the zero-delay default, eitype silently drops the tail of longer
+        # dictations and still reports success, so the clipboard fallback
+        # never engages (upstream issue #552, reproduced on GNOME).
+        type_delay_ms = 1;
+
         notification.on_transcription = false;
       };
     };
