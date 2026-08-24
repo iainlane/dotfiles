@@ -1,49 +1,46 @@
 {
   binaryCaches = {
     "anyrun.cachix.org" = {
-      key = "pqBobmOjI7nKlsUMV25u9QHa9btJK65/C8vnO3p346s=";
+      publicKeys = ["anyrun.cachix.org-1:pqBobmOjI7nKlsUMV25u9QHa9btJK65/C8vnO3p346s="];
     };
     "cache.nixos.org" = {
-      key = "6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=";
+      publicKeys = ["cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="];
     };
     "cache.numtide.com" = {
-      key = "DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=";
-      publicKeyName = "niks3.numtide.com";
+      publicKeys = ["niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="];
     };
     "crane.cachix.org" = {
-      key = "8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk=";
+      publicKeys = ["crane.cachix.org-1:8Scfpmn9w+hGdXH/Q9tTLiYAE/2dnJYRJP7kl80GuRk="];
     };
     "cupboard.supply/t/cupboard/cache/releases" = {
-      key = "tiaTSFvY6LqLUwbjsNcig64LnxZ+T5EQgW5Cr4XjXqU=";
-      publicKeyName = "cupboard";
+      publicKeys = ["cupboard-1:tiaTSFvY6LqLUwbjsNcig64LnxZ+T5EQgW5Cr4XjXqU="];
     };
     "cupboard.supply/t/laney" = {
-      key = "rupCzv0DJn5yLpuqAZl9IrzjadNvD2d+BQxIqNoFZKQ=";
-      publicKeyName = "cupboard";
+      publicKeys = ["cupboard-laney-2:qpgAuXaVoxE7uPvqcNdSdQgRTtVl8L3nxf0NeO/cQfo="];
     };
     "deploy-rs.cachix.org" = {
-      key = "xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI=";
+      publicKeys = ["deploy-rs.cachix.org-1:xfNobmiwF/vzvK1gpfediPwpdIP0rpDV2rYqx40zdSI="];
     };
     "devenv.cachix.org" = {
-      key = "w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
+      publicKeys = ["devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="];
     };
     "hyprland.cachix.org" = {
-      key = "a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=";
+      publicKeys = ["hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="];
     };
     "nix-community.cachix.org" = {
-      key = "mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=";
+      publicKeys = ["nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="];
     };
     "nix-gaming.cachix.org" = {
-      key = "nbjlureqMbRAxR1gJ/f3hxemL9svXaZF/Ees8vCUUs4=";
+      publicKeys = ["nix-gaming.cachix.org-1:nbjlureqMbRAxR1gJ/f3hxemL9svXaZF/Ees8vCUUs4="];
     };
     "nix-on-droid.cachix.org" = {
-      key = "56snoMJTXmDRC1Ei24CmKoUqvHJ9XCp+nidK7qkMQrU=";
+      publicKeys = ["nix-on-droid.cachix.org-1:56snoMJTXmDRC1Ei24CmKoUqvHJ9XCp+nidK7qkMQrU="];
     };
     "nixpkgs-wayland.cachix.org" = {
-      key = "3lwxaILxMRkVhehr5StQprHdEo4IrE8sRho9R9HOLYA=";
+      publicKeys = ["nixpkgs-wayland.cachix.org-1:3lwxaILxMRkVhehr5StQprHdEo4IrE8sRho9R9HOLYA="];
     };
     "numtide.cachix.org" = {
-      key = "2ps1kLBUWjxIneOy1Ik6cQjb41X0iXVXeHigGmycPPE=";
+      publicKeys = ["numtide.cachix.org-1:2ps1kLBUWjxIneOy1Ik6cQjb41X0iXVXeHigGmycPPE="];
     };
   };
 

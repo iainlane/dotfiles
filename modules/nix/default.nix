@@ -10,18 +10,14 @@
           if cache ? substituter && cache.substituter != null
           then cache.substituter
           else "https://${name}";
-        publicKeyName =
-          if cache ? publicKeyName && cache.publicKeyName != null
-          then cache.publicKeyName
-          else name;
       in {
+        inherit (cache) publicKeys;
         inherit substituter;
-        publicKey = "${publicKeyName}-1:${cache.key}";
       }
     );
 
   substitutersOf = caches: map (cache: cache.substituter) (cacheEntries caches);
-  trustedPublicKeysOf = caches: map (cache: cache.publicKey) (cacheEntries caches);
+  trustedPublicKeysOf = caches: lib.concatMap (cache: cache.publicKeys) (cacheEntries caches);
 
   # A nix.conf fragment trusting the public caches plus the nixbuild.net remote
   # store key, for an environment that starts without the substituter trust the
@@ -40,12 +36,8 @@
   }: let
     binaryCacheType = lib.types.submodule {
       options = {
-        key = lib.mkOption {
-          type = lib.types.str;
-        };
-        publicKeyName = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
+        publicKeys = lib.mkOption {
+          type = lib.types.nonEmptyListOf lib.types.str;
         };
         substituter = lib.mkOption {
           type = lib.types.nullOr lib.types.str;

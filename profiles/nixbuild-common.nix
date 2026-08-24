@@ -26,8 +26,7 @@
       # every path. Deprioritise it so it is only a fallback for paths built on
       # nixbuild.net that never reached cupboard.supply.
       substituter = "ssh://${builderAlias}?priority=100";
-      publicKeyName = signingKeyName;
-      key = signingKey;
+      publicKeys = ["${signingKeyName}-1:${signingKey}"];
     };
   };
 
