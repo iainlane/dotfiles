@@ -24,13 +24,19 @@
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
 
-  hasUpdateScript = pkgs: name: pkgs.${name} ? updateScript;
+  hasUpdateScript = packages: name: (packages.${name} or null) ? updateScript;
 
-  # An updater exists for every system, so read one system's packages to learn
-  # which carry an update script.
-  refPackages = config.flake.packages.${lib.head (lib.attrNames config.flake.packages)};
+  # `flake.packages` omits packages that are not available on a system, so a
+  # package gets an updater when it defines an update script in at least one
+  # system's package set.
   updaterNames =
-    lib.filter (hasUpdateScript refPackages) packageNames
+    lib.filter (
+      name:
+        lib.any
+        (packages: hasUpdateScript packages name)
+        (lib.attrValues config.flake.packages)
+    )
+    packageNames
     ++ lib.attrNames flakeInputs;
 in {
   perSystem = {pkgs, ...}: let
