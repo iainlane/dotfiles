@@ -23,7 +23,7 @@ mapfile -t substituters < <(
 )
 mapfile -t trusted_public_keys < <(
 	nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches |
-		nix run nixpkgs#jq -- -r 'to_entries[] | ((.value.publicKeyName // .key) + "-1:" + .value.key)'
+		nix run nixpkgs#jq -- -r 'to_entries[].value.publicKeys[]'
 )
 
 {
