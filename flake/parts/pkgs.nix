@@ -11,6 +11,9 @@
   names = helpers.discoverPackages ../../pkgs;
 in {
   perSystem = {pkgs, ...}: {
-    packages = lib.genAttrs names (name: pkgs.${name});
+    packages =
+      lib.filterAttrs
+      (_: lib.meta.availableOn pkgs.stdenv.hostPlatform)
+      (lib.genAttrs names (name: pkgs.${name}));
   };
 }

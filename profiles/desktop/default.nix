@@ -9,6 +9,7 @@ _: {
     "ai"
     "ghostty"
     "kitty"
+    "voxtype"
     "zed-editor"
   ];
 
