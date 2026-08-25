@@ -10,6 +10,10 @@
           type = lib.types.nullOr lib.types.str;
           default = null;
         };
+        publishInputs = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          default = {};
+        };
       };
     };
     default = {};

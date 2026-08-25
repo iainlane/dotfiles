@@ -19,14 +19,22 @@
   substitutersOf = caches: map (cache: cache.substituter) (cacheEntries caches);
   trustedPublicKeysOf = caches: lib.concatMap (cache: cache.publicKeys) (cacheEntries caches);
 
-  # A nix.conf fragment trusting the public caches plus the nixbuild.net remote
-  # store key, for an environment that starts without the substituter trust the
-  # hosts carry (such as a single-user Nix on a fresh runner). nixbuild-action
-  # adds the `ssh://nixbuild` substituter itself where it offloads, so only the
-  # signing key is needed, and that key is harmless where nixbuild is absent.
+  ciBinaryCaches =
+    cacheSettings.binaryCaches // {nixbuild = nixbuild.binaryCaches.${nixbuild.builderAlias};};
+
+  # Substituters for the nixbuild.net remote builder used in CI. This can only
+  # use HTTP substituters, since the builder is not configured with any SSH
+  # keys.
+  remoteSubstituters = lib.concatStringsSep "," (
+    lib.filter (substituter: !lib.hasPrefix "ssh://" substituter)
+    (substitutersOf cacheSettings.binaryCaches)
+  );
+  remoteTrustedKeys = lib.concatStringsSep "," (trustedPublicKeysOf ciBinaryCaches);
+
+  # Substituters for `nix` used on the CI system itself.
   substituterConfig = ''
     extra-substituters = ${lib.concatStringsSep " " (substitutersOf cacheSettings.binaryCaches)}
-    extra-trusted-public-keys = ${lib.concatStringsSep " " (trustedPublicKeysOf (cacheSettings.binaryCaches // {nixbuild = nixbuild.binaryCaches.${nixbuild.builderAlias};}))}
+    extra-trusted-public-keys = ${lib.concatStringsSep " " (trustedPublicKeysOf ciBinaryCaches)}
   '';
 
   substitutersModule = {
@@ -74,6 +82,24 @@
     };
   };
 in {
-  flake.nix.substitutersModule = substitutersModule;
-  flake.nix.substituterConfig = substituterConfig;
+  flake.nix = {
+    inherit substitutersModule substituterConfig;
+
+    publishInputs = {
+      # The cupboard cache's public key, which the publish workflow pins so the
+      # pushed artefacts are trusted without trusting every cupboard tenant.
+      trustedPublicKey = lib.head cacheSettings.binaryCaches."cupboard.supply/t/laney".publicKeys;
+
+      # The remote builder line for CI, which authenticates with the nixbuild.net
+      # token in the workflow's SSH config rather than an identity file, so the
+      # key-path column stays `-`.
+      builders = "ssh://${nixbuild.hostName} ${lib.concatStringsSep "," nixbuild.systems} - ${toString nixbuild.maxJobs} ${toString nixbuild.speedFactor} ${lib.concatStringsSep "," nixbuild.supportedFeatures} -";
+
+      builderKnownHosts = "${nixbuild.hostName} ${nixbuild.hostKey}";
+
+      githubKnownHost = "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
+
+      inherit remoteSubstituters remoteTrustedKeys;
+    };
+  };
 }
