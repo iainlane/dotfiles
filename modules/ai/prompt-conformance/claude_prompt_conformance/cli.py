@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import FrameType
 from typing import Protocol
 
@@ -13,6 +14,7 @@ from rich.console import Console
 
 from .backend import (
     RunRequest,
+    RunSummary,
     Selection,
     select_fixtures,
 )
@@ -22,6 +24,7 @@ from .closure_root import (
     runtime_directory,
 )
 from .composition import ApplicationFactory, acquire_run_authentication
+from .demo import DemoApplicationFactory
 from .errors import ConformanceError
 from .frontend import JsonFrontend, RichFrontend, catalogue_table, choose_fixtures
 from .improvement import ImprovementRequest, PromptImprovementSuite
@@ -51,6 +54,12 @@ class NameFilterConflictError(ConformanceError):
 class ImprovementCalibrationConflictError(ConformanceError):
     def __str__(self) -> str:
         return "--skip-calibration cannot be used during prompt improvement"
+
+
+@dataclass(eq=True)
+class DemoImprovementConflictError(ConformanceError):
+    def __str__(self) -> str:
+        return "--improve cannot be combined with --demo"
 
 
 @dataclass(eq=True)
@@ -102,6 +111,11 @@ def parser() -> argparse.ArgumentParser:
         "--list",
         action="store_true",
         help="list available tests and exit",
+    )
+    result.add_argument(
+        "--demo",
+        action="store_true",
+        help="demonstrate a run with scripted agents; no model requests",
     )
     result.add_argument(
         "--unlink-first",
@@ -226,8 +240,23 @@ def _main(argv: Sequence[str] | None = None) -> int:
         list_fixtures(fixtures, rich_output, console)
         return 0
 
+    if arguments.demo:
+        try:
+            validate_demo_options(demo=True, improve=arguments.improve)
+            selection = selection_from_arguments(
+                demo_arguments(arguments),
+                fixtures,
+                console,
+                interactive=rich_output and sys.stdin.isatty(),
+            )
+            selected = select_fixtures(fixtures, selection)
+            summary = run_demo(arguments, inputs, selected, console, rich_output)
+        except ConformanceError as error:
+            return setup_error(error, "rich" if rich_output else "json")
+        return exit_status(summary)
+
     if arguments.output is None:
-        parser().error("OUTPUT is required unless --list is used")
+        parser().error("OUTPUT is required unless --list or --demo is used")
 
     try:
         selection = selection_from_arguments(
@@ -323,9 +352,90 @@ def _main(argv: Sequence[str] | None = None) -> int:
     except ConformanceError as error:
         return setup_error(error, "rich" if rich_output else "json")
 
+    return exit_status(summary)
+
+
+def exit_status(summary: RunSummary) -> int:
     return (
         0 if summary.failed == 0 and summary.invalid == 0 and summary.stale == 0 else 1
     )
+
+
+def run_demo(
+    arguments: argparse.Namespace,
+    inputs: RuntimeInputs,
+    selected: tuple[Fixture, ...],
+    console: Console,
+    rich_output: bool,
+) -> RunSummary:
+    """Run the ordinary suite frontend against scripted demo capabilities.
+
+    The result store lives in a temporary directory so scripted evidence can
+    never be resumed as if a real run had produced it.
+    """
+
+    with TemporaryDirectory(prefix="prompt-conformance-demo-") as temporary:
+        output = resolve_output(Path(temporary) / "results")
+        with RunLease(output):
+            _, runtime = RunStore.open(
+                output,
+                inputs,
+                RunInvocation(
+                    fixtures=tuple(fixture.name for fixture in selected),
+                    improve=False,
+                    calibrate=not arguments.skip_calibration,
+                    proposals=0,
+                    samples=0,
+                    keep_workspaces=False,
+                ),
+                unlink_first=False,
+            )
+            materialised_by_name = {
+                fixture.name: fixture for fixture in runtime.fixtures
+            }
+            selected = tuple(materialised_by_name[fixture.name] for fixture in selected)
+
+            frontend = (
+                RichFrontend(console) if rich_output else JsonFrontend(sys.stdout)
+            )
+            signal.signal(signal.SIGINT, InterruptEscalation(frontend))
+
+            applications = DemoApplicationFactory(
+                tasks=TaskScopes(frontend),
+                slots=SlotPool(arguments.jobs),
+            )
+            application = applications(runtime.configuration, frontend)
+
+            return application.suite.run(
+                RunRequest(
+                    output=output,
+                    fixtures=selected,
+                    calibrate=not arguments.skip_calibration,
+                    keep_workspaces=False,
+                )
+            )
+
+
+def demo_arguments(arguments: argparse.Namespace) -> argparse.Namespace:
+    """Treat every positional as a test name; a demo run has no OUTPUT.
+
+    The parser assigns the first positional to OUTPUT, so without this a
+    demo invocation could never select a test by name.
+    """
+
+    result = argparse.Namespace(**vars(arguments))
+    if result.output is not None:
+        result.tests = [str(result.output), *result.tests]
+        result.output = None
+
+    return result
+
+
+def validate_demo_options(*, demo: bool, improve: bool) -> None:
+    """Reject options which contradict a scripted demonstration run."""
+
+    if demo and improve:
+        raise DemoImprovementConflictError
 
 
 def positive_integer(value: str) -> int:
