@@ -180,6 +180,7 @@ in {
     maxJobs
     nixosModule
     speedFactor
+    sshKnownHost
     sshConfigText
     storeMatchBlock
     substituterModule
