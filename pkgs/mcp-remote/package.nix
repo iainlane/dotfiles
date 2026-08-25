@@ -14,13 +14,13 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "mcp-remote";
-    version = "0.1.38";
+    version = "0.2.1";
 
     src = fetchFromGitHub {
       owner = "geelen";
       repo = "mcp-remote";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-+oNI2Uq7gW3sLzJS4ky2+BXhTmo44+WpcdYgieGPpmI=";
+      hash = "sha256-xloxs1RimInxuIn5YSr6IKic+KqBt9TTf2w7cVniRVE=";
     };
 
     patches = [./optional-oauth-scope.patch];
@@ -29,7 +29,7 @@ in
       inherit (finalAttrs) pname version src;
       inherit pnpm;
       fetcherVersion = 3;
-      hash = "sha256-8aV/WRBrcezMb8HyRKW89v11MumgQnQwSBde5MZkzos=";
+      hash = "sha256-ce4bce81G9StSEnRjqMw6lb7AFK+eZVO8cQT4Tv8mdo=";
     };
 
     nativeBuildInputs = [

@@ -670,6 +670,7 @@
     "hermes-agent": {
       "inputs": {
         "flake-parts": "flake-parts_3",
+        "home-manager": "home-manager",
         "nixpkgs": [
           "nixpkgs"
         ],
@@ -679,16 +680,16 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1787037991,
-        "narHash": "sha256-LyI50ipeOVOcQ7tpoh+ofiEhxW3qW9pTJNUK7deJkYE=",
+        "lastModified": 1787314587,
+        "narHash": "sha256-oeFJlEoFybqKkbuWT4mW8PRauusjt3y44ZJXAcA7TPY=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "e624e9fde561e1add9388384012b295fde669ade",
+        "rev": "fcbd1076a93841fa88855acce810e342a5b78101",
         "type": "github"
       },
       "original": {
         "owner": "NousResearch",
-        "ref": "v2026.8.18",
+        "ref": "v2026.8.19",
         "repo": "hermes-agent",
         "type": "github"
       }
@@ -713,15 +714,16 @@
     "home-manager": {
       "inputs": {
         "nixpkgs": [
+          "hermes-agent",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1786603258,
-        "narHash": "sha256-j1lYPT7YxOQc/G7NcJKqdpQ5/A5yX2aZdhVKkJR6cM4=",
+        "lastModified": 1786487128,
+        "narHash": "sha256-ad60hrRVhH/bo3Jl1YLzO+QcS3mUNZr9LNJdzhMO2P4=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "0668fdbc15bd602e463cab37ff64346021193652",
+        "rev": "f404edbfa4117810c96b97048299242fc50e5362",
         "type": "github"
       },
       "original": {
@@ -747,6 +749,26 @@
       "original": {
         "owner": "nix-community",
         "ref": "release-26.05",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "home-manager_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786603258,
+        "narHash": "sha256-j1lYPT7YxOQc/G7NcJKqdpQ5/A5yX2aZdhVKkJR6cM4=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "0668fdbc15bd602e463cab37ff64346021193652",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
         "repo": "home-manager",
         "type": "github"
       }
@@ -1374,7 +1396,7 @@
         "git-hooks-nix": "git-hooks-nix_2",
         "hermes-agent": "hermes-agent",
         "hermes-lcm": "hermes-lcm",
-        "home-manager": "home-manager",
+        "home-manager": "home-manager_2",
         "home-manager-stable": "home-manager-stable",
         "just-sublime": "just-sublime",
         "kolide-launcher": "kolide-launcher",
