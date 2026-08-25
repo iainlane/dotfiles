@@ -16,8 +16,7 @@ on:
         description: nixbuild.net token used to realise derivations remotely.
         required: true
       secrets_deploy_key:
-        description:
-          Read-only deploy key for the private dotfiles-secrets input.
+        description: Read-only deploy key for the private dotfiles-secrets input.
         required: false
 
 permissions: {}
@@ -29,7 +28,7 @@ jobs:
       contents: read
       id-token: write # issue the OIDC token the cupboard cache trusts for push
     # The release tag is part of the tenant's job_workflow_ref trust policy.
-    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.30 # zizmor: ignore[unpinned-uses]
+    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.32 # zizmor: ignore[unpinned-uses]
     with:
       url: https://cupboard.supply/t/laney
       targets: .#cupboardOutputs
@@ -38,18 +37,14 @@ jobs:
       maximise-space: true
       nix-config: .#nix.substituterConfig
       trusted-public-key: cupboard-laney-2:qpgAuXaVoxE7uPvqcNdSdQgRTtVl8L3nxf0NeO/cQfo=
-      input-known-hosts:
-        github.com ssh-ed25519
-        AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-      builders:
-        ssh://eu.nixbuild.net x86_64-linux,aarch64-linux - 100 1
-        big-parallel,benchmark
-      builder-known-hosts:
-        eu.nixbuild.net ssh-ed25519
-        AAAAC3NzaC1lZDI1NTE5AAAAIPIQCZc54poJ8vqawd8TraNryQeJnvH1eLpIDgbiqymM
-      push:
-        ${{ inputs.push && (github.event_name != 'pull_request' ||
-        github.event.pull_request.head.repo.full_name == github.repository) }}
+      input-known-hosts: |
+        github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+      builders: |
+        ssh://eu.nixbuild.net x86_64-linux,aarch64-linux - 100 1 big-parallel,benchmark
+      builder-known-hosts: |
+        eu.nixbuild.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPIQCZc54poJ8vqawd8TraNryQeJnvH1eLpIDgbiqymM
+      push: |
+        ${{ inputs.push && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     secrets:
       # nixbuild.net authenticates with a token carried in the SSH connection
       # environment. Its remote builders use their own substituter settings, so
