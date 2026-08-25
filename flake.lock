@@ -166,12 +166,12 @@
         "nixpkgs-x86_64-darwin": "nixpkgs-x86_64-darwin"
       },
       "locked": {
-        "lastModified": 1787610938,
-        "narHash": "sha256-XxZ0Bf1YnQgAmgDM85Ld5HuU/LX9dfwX/faGzk5K2Pc=",
-        "rev": "64f6997f674012582acb30138c3ac723d1f08438",
-        "revCount": 1106,
+        "lastModified": 1787666389,
+        "narHash": "sha256-OZEdPE7KZqpDmh9/eu7kNTIAuaeBIQz/eu5Fb25hreg=",
+        "rev": "f5f91e081caa0b36e77073e69a293b72f3864328",
+        "revCount": 1110,
         "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.32/01a037d9-5f7e-7bc0-8798-800cf67e19a9/source.tar.gz"
+        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.33/01a03951-5f51-7da0-afee-293194dde823/source.tar.gz"
       },
       "original": {
         "type": "tarball",

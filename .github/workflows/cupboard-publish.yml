@@ -61,7 +61,7 @@ jobs:
 
     # `cupboard` has a trust policy that requires the `job_workflow_ref` to be
     # `[...]@v*`. So we can't pin by SHA here.
-    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.32 # zizmor: ignore[unpinned-uses]
+    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.33 # zizmor: ignore[unpinned-uses]
     with:
       url: https://cupboard.supply/t/laney
       targets: .#cupboardOutputs
