@@ -11,14 +11,6 @@
       model_type = "tdt";
     };
 
-    text = {
-      spoken_punctuation = true;
-
-      replacements = {
-        "full stop" = ".";
-        "quote" = "\"";
-        "unquote" = "\"";
-      };
-    };
+    text.spoken_punctuation = true;
   };
 }
