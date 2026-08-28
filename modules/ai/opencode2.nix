@@ -20,7 +20,7 @@
   ...
 }: let
   instructions = import ./agent-instructions.nix {inherit lib;};
-  skills = import ./skills.nix {inherit inputs lib;};
+  skills = config.dotfiles.ai.skills;
 
   jsonFormat = pkgs.formats.json {};
 
@@ -76,7 +76,7 @@
     ];
   };
 
-  # Shared skills from ./skills/. OpenCode 2 discovers everything under
+  # The shared skill set. OpenCode 2 discovers everything under
   # `<config dir>/skills` without being told about it. A skill is either a
   # directory to link or inline SKILL.md content to write.
   skillFiles =

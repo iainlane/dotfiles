@@ -12,7 +12,6 @@
   # the rule files; the model would otherwise receive the same text twice.
   instructions = (import ../agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
   outputStyles = import ../output-styles.nix {inherit lib;};
-  skills = import ../skills.nix {inherit inputs lib;};
 
   # Claude Code's `.mcp.json` schema: `type` of http/stdio plus `enabled`.
   mkMcpServer = server:
@@ -54,8 +53,7 @@ in {
       # Shared output styles from ../output-style/.
       outputStyles = outputStyles.files;
 
-      # Shared skills from ./skills/.
-      inherit skills;
+      skills = config.dotfiles.ai.skills;
     };
 
     xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (

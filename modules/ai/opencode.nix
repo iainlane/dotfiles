@@ -8,7 +8,6 @@
   ...
 }: let
   instructions = import ./agent-instructions.nix {inherit lib;};
-  skills = import ./skills.nix {inherit inputs lib;};
 
   # OpenCode's schema: `type` is remote/local, a local server's command and args
   # are a single list, and `env` becomes `environment`.
@@ -53,8 +52,7 @@ in {
 
       tui.theme = "system";
 
-      # Shared skills from ./skills/.
-      inherit skills;
+      skills = config.dotfiles.ai.skills;
     };
   };
 }

@@ -90,8 +90,13 @@ in {
         ];
 
         dotfiles = {
-          # Home Manager tools get the enterprise connectors here.
-          ai.mcpServers = workMcp;
+          ai = {
+            # Home Manager tools get the enterprise connectors here.
+            mcpServers = workMcp;
+
+            # Work-only skills, alongside the shared set from modules/ai.
+            skills.weekly-update = ./skills/weekly-update;
+          };
           # Claude Code and Claude Desktop receive these from the
           # organisation, so don't dupe.
           claudeCode.excludeMcpServers = builtins.attrNames workMcp;
