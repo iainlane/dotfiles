@@ -9,6 +9,7 @@
   flake.modules.ai.homeManagerModules = [
     ./unstable-hm-modules.nix
     ./mcp.nix
+    ./skill-set.nix
     ./antigravity-cli.nix
     ./copilot-cli.nix
     ./crush.nix

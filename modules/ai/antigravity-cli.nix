@@ -20,7 +20,6 @@
   ...
 }: let
   instructions = import ./agent-instructions.nix {inherit lib;};
-  skills = import ./skills.nix {inherit inputs lib;};
 
   # Wrap Antigravity CLI to add shared tools to PATH
   wrappedAntigravity = mcp.wrapWithTools {
@@ -56,8 +55,7 @@ in {
       # Shared instructions as separate context files.
       context = instructions.files;
 
-      # Shared skills from ./skills/.
-      inherit skills;
+      skills = config.dotfiles.ai.skills;
     };
 
     home.activation.antigravityCliSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
