@@ -59,15 +59,21 @@
         enable = true;
 
         # Every build tags its image with the store hash, so an image that a
-        # newer build has superseded keeps its tag and stays out of reach of a
-        # plain prune. `--all` collects those, and the age floor leaves images
-        # belonging to units that have not started yet.
+        # newer build has superseded keeps its tag and stays out of reach of
+        # a plain prune. `--all` collects those. The `until` filter compares
+        # creation dates, and Nix dates its images at the Unix epoch, so only
+        # registry images pulled within the last week are exempt.
         autoPrune = {
           enable = true;
           dates = "weekly";
           flags = ["--all" "--filter" "until=168h"];
         };
       };
+
+      # Only a running container protects a Nix-built image from the prune.
+      # Wait for the containers, so a timer run replayed just after boot does
+      # not delete the images the image units have just pulled.
+      systemd.services.podman-prune.after = ["system-manager.target"];
 
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
