@@ -158,6 +158,7 @@ install_voxtype_app() {
 	local staged_app="${staging_directory}/Voxtype.app"
 	local previous_app="${staging_directory}/Voxtype.previous.app"
 	local staged_binary="${staged_app}/Contents/MacOS/voxtype-bin"
+	local staged_webgpu_runtime="${staged_app}/Contents/Frameworks/libwebgpu_dawn.dylib"
 	local marker="${staged_app}/Contents/Resources/NixStorePath"
 
 	if ! /usr/bin/ditto "${source_bundle}" "${staged_app}"; then
@@ -171,6 +172,17 @@ install_voxtype_app() {
 	fi
 
 	if ! /usr/bin/printf '%s\n' "${source_bundle}" >"${marker}"; then
+		/bin/rm -rf "${staging_directory}"
+		return 1
+	fi
+
+	if [[ -f ${staged_webgpu_runtime} ]] && ! /usr/bin/codesign \
+		--force \
+		--keychain "${signing_keychain}" \
+		--sign "${signing_identity_hash}" \
+		--identifier "${bundle_identifier}" \
+		--timestamp=none \
+		"${staged_webgpu_runtime}"; then
 		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
