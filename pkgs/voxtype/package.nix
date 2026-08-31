@@ -3,7 +3,9 @@
   stdenv,
   rustPlatform,
   fetchFromGitHub,
+  fetchurl,
   nix-update-script,
+  stdenvNoCC,
   versionCheckHook,
   clang,
   cmake,
@@ -22,6 +24,7 @@
   which,
   xclip,
   xdotool,
+  xz,
   installManPages ? stdenv.buildPlatform.canExecute stdenv.hostPlatform,
   installShellCompletions ? stdenv.buildPlatform.canExecute stdenv.hostPlatform,
   vulkanSupport ? false,
@@ -42,7 +45,35 @@
     xdotool
   ],
 }: let
-  version = "0.7.5";
+  version = "1.0.0";
+  revision = "7f69bff6ad9bbb166d6c56abf99be5a17bc1eb7f";
+  webgpuRuntimeHash = "e7271056b10dc2fec4b1bcc5bb9ac28a5f288de0a1f9c24c389c95566a487549";
+  webgpuRuntime = stdenvNoCC.mkDerivation {
+    pname = "onnxruntime-webgpu";
+    version = "1.24.2";
+
+    src = fetchurl {
+      url = "https://cdn.pyke.io/0/pyke:ort-rs/ms@1.24.2/aarch64-apple-darwin+wgpu.tar.lzma2";
+      hash = "sha256-5ycQVrENwv7EsbzFu5rCil8ojeCh+cJMOJyVVmpIdUk=";
+    };
+
+    nativeBuildInputs = [xz];
+    dontUnpack = true;
+
+    installPhase = ''
+      runHook preInstall
+
+      mkdir -p "$out/lib" "$out/dfbin/aarch64-apple-darwin"
+      xz --format=raw --lzma2=dict=64MiB --decompress --stdout "$src" \
+        | tar -xf - -C "$out/lib"
+      ln -s "$out/lib" \
+        "$out/dfbin/aarch64-apple-darwin/${webgpuRuntimeHash}"
+
+      runHook postInstall
+    '';
+  };
+  dynamicOnnxSupport = onnxSupport && stdenv.hostPlatform.isLinux;
+  webgpuOnnxSupport = onnxSupport && stdenv.hostPlatform.isDarwin;
   infoPlist = builtins.toFile "Info.plist" (
     builtins.replaceStrings ["@version@"] [version] (builtins.readFile ./Info.plist)
   );
@@ -52,19 +83,23 @@ in
     inherit version;
 
     src = fetchFromGitHub {
-      owner = "peteonrails";
+      owner = "iainlane";
       repo = "voxtype";
-      tag = "v${version}";
-      hash = "sha256-zsOG1mBTXN4gdsTb1pUPKXATfhV5ZjgEsIUk07asaGo=";
+      rev = revision;
+      hash = "sha256-OX2VyMXRrlXm+Pc4xOts6rvjhtJK5QO0ZWjKZ0V44Rc=";
     };
 
-    cargoHash = "sha256-YK5xZWPo7KAeWZeuMxNxHA3k6RR/MT2MIfEPcgMND00=";
+    cargoHash = "sha256-3jrfKW2dA5e04U0rwhZR1g3S62y47+LvQWFSNeYoyig=";
+
+    checkFlags = lib.optionals stdenv.hostPlatform.isDarwin [
+      "--skip=setup::binary::tests::running_variant_reads_the_live_process_not_the_symlink"
+    ];
 
     buildFeatures =
       lib.optionals stdenv.hostPlatform.isDarwin ["gpu-metal"]
       ++ lib.optionals vulkanSupport ["gpu-vulkan"]
-      ++ lib.optionals (onnxSupport && stdenv.hostPlatform.isDarwin) ["parakeet-coreml"]
-      ++ lib.optionals (onnxSupport && stdenv.hostPlatform.isLinux) [
+      ++ lib.optionals webgpuOnnxSupport ["parakeet-webgpu"]
+      ++ lib.optionals dynamicOnnxSupport [
         "parakeet-load-dynamic"
         "moonshine"
         "sensevoice"
@@ -95,7 +130,8 @@ in
         vulkan-headers
         vulkan-loader
       ]
-      ++ lib.optionals onnxSupport [onnxruntime];
+      ++ lib.optionals dynamicOnnxSupport [onnxruntime]
+      ++ lib.optionals webgpuOnnxSupport [webgpuRuntime];
 
     env =
       {
@@ -104,9 +140,8 @@ in
           stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isx86_64
         ) "-C target-cpu=x86-64-v3";
       }
-      // lib.optionalAttrs (onnxSupport && stdenv.hostPlatform.isDarwin) {
-        ORT_PREFER_DYNAMIC_LINK = "1";
-        ORT_STRATEGY = "system";
+      // lib.optionalAttrs webgpuOnnxSupport {
+        ORT_CACHE_DIR = webgpuRuntime;
       };
 
     preBuild =
@@ -116,7 +151,7 @@ in
       + lib.optionalString vulkanSupport ''
         export VULKAN_SDK="${shaderc.bin}"
       ''
-      + lib.optionalString onnxSupport ''
+      + lib.optionalString dynamicOnnxSupport ''
         export ORT_LIB_LOCATION="${lib.getLib onnxruntime}/lib"
       '';
 
@@ -150,9 +185,15 @@ in
         install -Dm644 ${infoPlist} "$app/Info.plist"
         install -Dm644 assets/icon.png "$app/Resources/AppIcon.png"
 
-        ${lib.optionalString onnxSupport ''
-          wrapProgram "$out/bin/voxtype" \
-            --prefix DYLD_FALLBACK_LIBRARY_PATH : "${lib.getLib onnxruntime}/lib"
+        ${lib.optionalString webgpuOnnxSupport ''
+          install -Dm755 ${webgpuRuntime}/lib/libwebgpu_dawn.dylib \
+            "$out/lib/libwebgpu_dawn.dylib"
+          install_name_tool -add_rpath "$out/lib" "$out/bin/voxtype"
+
+          install -Dm755 ${webgpuRuntime}/lib/libwebgpu_dawn.dylib \
+            "$app/Frameworks/libwebgpu_dawn.dylib"
+          install_name_tool -add_rpath '@executable_path/../Frameworks' \
+            "$app/MacOS/voxtype-bin"
         ''}
       ''
       + lib.optionalString installManPages ''
