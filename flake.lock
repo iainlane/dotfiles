@@ -919,6 +919,23 @@
         "type": "github"
       }
     },
+    "nix-direnv": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788110087,
+        "narHash": "sha256-nizx6hDPX8P9/M7GWLunnnQpyPJed1ZzKuNDnU+R4Oc=",
+        "owner": "nix-community",
+        "repo": "nix-direnv",
+        "rev": "8c7ebb294d997bc1720ddf3f7ee9ed27c290a0e6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "nix-direnv",
+        "rev": "8c7ebb294d997bc1720ddf3f7ee9ed27c290a0e6",
+        "type": "github"
+      }
+    },
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
@@ -1382,6 +1399,7 @@
         "llm-agents": "llm-agents",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
+        "nix-direnv": "nix-direnv",
         "nix-index-database": "nix-index-database",
         "nix-system-graphics": "nix-system-graphics",
         "nixos-anywhere": "nixos-anywhere",

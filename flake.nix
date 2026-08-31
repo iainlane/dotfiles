@@ -131,6 +131,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nix-direnv = {
+      url = "github:nix-community/nix-direnv/8c7ebb294d997bc1720ddf3f7ee9ed27c290a0e6";
+      flake = false;
+    };
+
     # Pre-built nix-index database for faster `nix-locate` queries
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
