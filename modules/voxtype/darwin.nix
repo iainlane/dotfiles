@@ -4,9 +4,9 @@
   inputs,
   lib,
   pkgs,
+  voxtypeSettings,
   ...
 }: let
-  common = import ./common.nix;
   tomlFormat = pkgs.formats.toml {};
   package = pkgs.voxtype-onnx;
   sourceBundle = "${package}/Applications/Voxtype.app";
@@ -24,25 +24,27 @@
 
   # Voxtype requires these tables whenever a config file exists; this mirrors
   # the base settings of home-manager's services.voxtype module.
-  settings = pkgs.lib.recursiveUpdate {
-    hotkey = {
-      key = "FN";
-      mode = "push_to_talk";
-    };
+  settings =
+    pkgs.lib.recursiveUpdate {
+      hotkey = {
+        key = "FN";
+        mode = "push_to_talk";
+      };
 
-    audio = {
-      device = "default";
-      sample_rate = 16000;
-      max_duration_secs = 60;
-    };
+      audio = {
+        device = "default";
+        sample_rate = 16000;
+        max_duration_secs = 60;
+      };
 
-    output = {
-      mode = "type";
-      fallback_to_clipboard = true;
-    };
+      output = {
+        mode = "type";
+        fallback_to_clipboard = true;
+      };
 
-    osd.enabled = false;
-  } (common.settings pkgs);
+      osd.enabled = false;
+    }
+    voxtypeSettings;
 in {
   home = {
     packages = [package];

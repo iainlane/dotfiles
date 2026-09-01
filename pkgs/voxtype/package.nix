@@ -45,8 +45,8 @@
     xdotool
   ],
 }: let
-  version = "1.0.0";
-  revision = "7f69bff6ad9bbb166d6c56abf99be5a17bc1eb7f";
+  version = "1.0.1";
+  revision = "2009408d6244a2d4162feff798b07f1173dc4f08";
   webgpuRuntimeHash = "e7271056b10dc2fec4b1bcc5bb9ac28a5f288de0a1f9c24c389c95566a487549";
   webgpuRuntime = stdenvNoCC.mkDerivation {
     pname = "onnxruntime-webgpu";
@@ -86,10 +86,10 @@ in
       owner = "iainlane";
       repo = "voxtype";
       rev = revision;
-      hash = "sha256-OX2VyMXRrlXm+Pc4xOts6rvjhtJK5QO0ZWjKZ0V44Rc=";
+      hash = "sha256-wrjWDWCHvI7tcrNDjVTrCVwvJfyEGHNUwLUROra0Zws=";
     };
 
-    cargoHash = "sha256-3jrfKW2dA5e04U0rwhZR1g3S62y47+LvQWFSNeYoyig=";
+    cargoHash = "sha256-fTYAhz3TVDJGRQZbYunws6lIymvbJBRMCEcI7a/fyT4=";
 
     checkFlags = lib.optionals stdenv.hostPlatform.isDarwin [
       "--skip=setup::binary::tests::running_variant_reads_the_live_process_not_the_symlink"
