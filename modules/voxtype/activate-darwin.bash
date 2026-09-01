@@ -126,14 +126,6 @@ installed_bundle_is_current() {
 		"${app_bundle}" >/dev/null 2>&1
 }
 
-stop_voxtype() {
-	if ! /bin/launchctl print "${launch_agent_target}" >/dev/null 2>&1; then
-		return
-	fi
-
-	/bin/launchctl bootout "${launch_agent_target}"
-}
-
 start_voxtype() {
 	if [[ ! -f ${launch_agent_plist} ]]; then
 		echo "Could not find the Voxtype launch agent: ${launch_agent_plist}" >&2
@@ -141,18 +133,22 @@ start_voxtype() {
 	fi
 
 	if /bin/launchctl print "${launch_agent_target}" >/dev/null 2>&1; then
-		/bin/launchctl kickstart -k "${launch_agent_target}"
 		return
 	fi
 
 	/bin/launchctl bootstrap "${launch_agent_domain}" "${launch_agent_plist}"
 }
 
-install_voxtype_app() {
-	if installed_bundle_is_current; then
+restart_voxtype() {
+	if ! /bin/launchctl print "${launch_agent_target}" >/dev/null 2>&1; then
+		start_voxtype
 		return
 	fi
 
+	/bin/launchctl kickstart -k "${launch_agent_target}"
+}
+
+install_voxtype_app() {
 	local staging_directory
 	staging_directory=$(/usr/bin/mktemp -d "/Applications/.voxtype.XXXXXX")
 	local staged_app="${staging_directory}/Voxtype.app"
@@ -258,15 +254,16 @@ main() {
 		return 1
 	fi
 
-	if ! stop_voxtype; then
-		return 1
+	if installed_bundle_is_current; then
+		restart_voxtype
+		return
 	fi
 
 	if ! install_voxtype_app; then
 		return 1
 	fi
 
-	start_voxtype
+	restart_voxtype
 }
 
 main "$@"

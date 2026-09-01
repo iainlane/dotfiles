@@ -3,10 +3,9 @@
   inputs,
   lib,
   pkgs,
+  voxtypeSettings,
   ...
 }: let
-  common = import ./common.nix;
-
   palette =
     (builtins.fromJSON (builtins.readFile "${inputs.catppuccin-palette}/palette.json"))
     .${config.catppuccin.flavor}
@@ -44,7 +43,7 @@ in {
       pkgs.which
     ];
 
-    settings = lib.recursiveUpdate (common.settings pkgs) {
+    settings = lib.recursiveUpdate voxtypeSettings {
       # GNOME shortcuts cannot fire on key release, so push-to-talk is not
       # possible; the dconf binding below toggles recording instead. The
       # built-in hotkey would need evdev access via the input group.
@@ -55,8 +54,6 @@ in {
         # virtual-keyboard Wayland protocol that Mutter does not implement.
         # eitype types through the libei portal, which GNOME supports.
         driver_order = ["eitype" "clipboard"];
-
-        notification.on_transcription = false;
       };
     };
   };
