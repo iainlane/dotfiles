@@ -198,7 +198,6 @@ class CodexEffectiveConfiguration(msgspec.Struct, frozen=True):
     model_provider: str | None
     openai_base_url: str | None
     chatgpt_base_url: str | None
-    experimental_thread_config_endpoint: str | None
     service_tier: str | None
     model_verbosity: Literal["low", "medium", "high"] | None
     model_context_window: int | None
@@ -308,7 +307,6 @@ class CodexModelTransport(msgspec.Struct, frozen=True):
     provider: str | None
     openai_base_url: str | None
     chatgpt_base_url: str | None
-    thread_config_endpoint: str | None
 
 
 class CodexCompactionConfiguration(msgspec.Struct, frozen=True):
