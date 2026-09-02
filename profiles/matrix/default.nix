@@ -175,7 +175,7 @@
               after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
               wants = ["network-online.target"];
               path = [config.virtualisation.podman.package uploader];
-              serviceConfig = {
+              serviceConfig = r2Backup.withScratchDirectory backupUnit {
                 Type = "oneshot";
                 EnvironmentFile = config.sops.templates."matrix-backup.env".path;
                 Environment = [

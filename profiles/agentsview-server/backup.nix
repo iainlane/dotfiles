@@ -47,7 +47,7 @@ in {
         wants = ["network-online.target"];
         path = [config.virtualisation.podman.package uploader];
 
-        serviceConfig = {
+        serviceConfig = r2Backup.withScratchDirectory "agentsview-backup" {
           Type = "oneshot";
           EnvironmentFile = config.sops.templates.${envTemplate}.path;
           Environment = [
