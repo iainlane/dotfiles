@@ -100,7 +100,7 @@ in {
       type = "command";
       command = lib.getExe fileSuggestionCommand;
     };
-    model = "claude-fable-5[1m]";
+    model = "claude-fable-5.1[1m]";
     outputStyle = outputStyles.default.name;
     skipDangerousModePermissionPrompt = true;
     statusLine = {

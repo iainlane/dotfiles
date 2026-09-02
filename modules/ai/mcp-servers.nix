@@ -12,10 +12,7 @@ let
   programs = {
     codex = {
       enable = true;
-      package = import ./codex/package.nix {
-        inherit inputs;
-        system = pkgs.stdenv.hostPlatform.system;
-      };
+      package = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex;
     };
 
     context7.enable = true;

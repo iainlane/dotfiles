@@ -640,7 +640,6 @@ class CodexStructuredAgent:
             provider=configuration.model_provider,
             openai_base_url=configuration.openai_base_url,
             chatgpt_base_url=configuration.chatgpt_base_url,
-            thread_config_endpoint=configuration.experimental_thread_config_endpoint,
         )
         if actual_transport != self._transport:
             raise CodexModelTransportError(actual_transport, self._transport)
@@ -686,7 +685,6 @@ def codex_model_transport(openai_base_url: str = "") -> CodexModelTransport:
         provider="openai",
         openai_base_url=openai_base_url,
         chatgpt_base_url="https://chatgpt.com/backend-api/",
-        thread_config_endpoint=None,
     )
 
 
@@ -712,11 +710,6 @@ def codex_instance_configuration(
         "default_tools_approval_mode": "approve",
         "enabled": True,
     }
-    endpoint = (
-        {"experimental_thread_config_endpoint": transport.thread_config_endpoint}
-        if transport.thread_config_endpoint is not None
-        else {}
-    )
     return {
         "model_reasoning_effort": agent.effort,
         "service_tier": agent.service_tier,
@@ -725,7 +718,6 @@ def codex_instance_configuration(
         "model_provider": transport.provider,
         "openai_base_url": transport.openai_base_url,
         "chatgpt_base_url": transport.chatgpt_base_url,
-        **endpoint,
         "cli_auth_credentials_store": "ephemeral",
         "project_doc_max_bytes": 0,
         "project_root_markers": [".claude-prompt-conformance-root"],
@@ -782,6 +774,7 @@ def codex_isolated_features() -> dict[str, bool]:
     return {
         "apps": False,
         "auth_elicitation": False,
+        "background_paginated_rollout_migration": False,
         "browser_use": False,
         "browser_use_external": False,
         "browser_use_full_cdp_access": False,

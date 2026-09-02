@@ -344,7 +344,6 @@ class RecordingJudgeRunner:
                             "chatgpt_base_url": instance_configuration[
                                 "chatgpt_base_url"
                             ],
-                            "experimental_thread_config_endpoint": None,
                             "service_tier": instance_configuration["service_tier"],
                             "model_verbosity": instance_configuration[
                                 "model_verbosity"
@@ -484,7 +483,6 @@ class CodexProbeFailure(StrEnum):
     PERMISSIONS_READ = "permissions-read"
     PERMISSIONS_WRITE = "permissions-write"
     TRANSPORT_REDIRECT = "transport-redirect"
-    THREAD_CONFIG = "thread-config"
     COMPACTION = "compaction"
     MODEL_REQUEST = "model-request"
 
@@ -625,11 +623,6 @@ class FailingCodexProbeRunner:
                     else ""
                 ),
                 "chatgpt_base_url": "https://chatgpt.com/backend-api/",
-                "experimental_thread_config_endpoint": (
-                    "https://control.example/config"
-                    if self.failure is CodexProbeFailure.THREAD_CONFIG
-                    else None
-                ),
                 "service_tier": (
                     "priority"
                     if self.failure is CodexProbeFailure.MODEL_REQUEST
@@ -1758,28 +1751,17 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                 network=CodexNetworkPermissions(enabled=False),
             ),
         )
-    elif failure in (
-        CodexProbeFailure.TRANSPORT_REDIRECT,
-        CodexProbeFailure.THREAD_CONFIG,
-    ):
-        openai_base_url = ""
-        thread_config_endpoint = None
-        if failure is CodexProbeFailure.TRANSPORT_REDIRECT:
-            openai_base_url = "https://redirect.example/v1"
-        if failure is CodexProbeFailure.THREAD_CONFIG:
-            thread_config_endpoint = "https://control.example/config"
+    elif failure is CodexProbeFailure.TRANSPORT_REDIRECT:
         expected_error = CodexModelTransportError(
             CodexModelTransport(
                 provider="openai",
-                openai_base_url=openai_base_url,
+                openai_base_url="https://redirect.example/v1",
                 chatgpt_base_url="https://chatgpt.com/backend-api/",
-                thread_config_endpoint=thread_config_endpoint,
             ),
             CodexModelTransport(
                 provider="openai",
                 openai_base_url="",
                 chatgpt_base_url="https://chatgpt.com/backend-api/",
-                thread_config_endpoint=None,
             ),
         )
     elif failure is CodexProbeFailure.COMPACTION:
@@ -1911,7 +1893,6 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.PERMISSIONS_READ,
                     CodexProbeFailure.PERMISSIONS_WRITE,
                     CodexProbeFailure.TRANSPORT_REDIRECT,
-                    CodexProbeFailure.THREAD_CONFIG,
                     CodexProbeFailure.COMPACTION,
                     CodexProbeFailure.MODEL_REQUEST,
                 )
@@ -1935,7 +1916,6 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.PERMISSIONS_READ,
                     CodexProbeFailure.PERMISSIONS_WRITE,
                     CodexProbeFailure.TRANSPORT_REDIRECT,
-                    CodexProbeFailure.THREAD_CONFIG,
                     CodexProbeFailure.COMPACTION,
                     CodexProbeFailure.MODEL_REQUEST,
                 )
