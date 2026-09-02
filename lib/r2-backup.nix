@@ -140,6 +140,18 @@ in {
     '';
   };
 
+  # Gives a backup unit a working directory on the root filesystem. Each
+  # script builds its archive under `mktemp -d`, which honours TMPDIR. Left
+  # to the default, the archive goes under /tmp, and on a host where /tmp is
+  # a tmpfs the whole archive sits in RAM: a dump larger than the tmpfs fails
+  # outright, and a smaller one crowds out the running services.
+  withScratchDirectory = unitName: serviceConfig:
+    serviceConfig
+    // {
+      CacheDirectory = unitName;
+      Environment = ["TMPDIR=%C/${unitName}"] ++ serviceConfig.Environment or [];
+    };
+
   uploader = {pkgs}:
     pkgs.writeShellApplication {
       name = "r2-upload";
