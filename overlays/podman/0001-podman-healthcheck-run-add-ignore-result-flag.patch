@@ -1,0 +1,83 @@
+From d2638e951ed5d74055a3507e9e9707252589ecd1 Mon Sep 17 00:00:00 2001
+From: Patrick Wicki <patrick.wicki@siemens.com>
+Date: Mon, 19 Jan 2026 17:03:14 +0100
+Subject: [PATCH 1/2] podman-healthcheck-run: add --ignore-result flag
+
+This is useful for triggering the execution of a healthcheck
+without caring about it's result as long as no fatal error occured.
+
+Signed-off-by: Patrick Wicki <patrick.wicki@siemens.com>
+(cherry picked from commit 3856389fc90a72ba1f0d510f39b849066eec8ef4)
+---
+ cmd/podman/healthcheck/run.go                    | 14 ++++++++++++--
+ docs/source/markdown/podman-healthcheck-run.1.md |  6 +++++-
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/cmd/podman/healthcheck/run.go b/cmd/podman/healthcheck/run.go
+index 32e1af0..81ba4c0 100644
+--- a/cmd/podman/healthcheck/run.go
++++ b/cmd/podman/healthcheck/run.go
+@@ -13,7 +13,7 @@ import (
+
+ var (
+ 	runCmd = &cobra.Command{
+-		Use:               "run CONTAINER",
++		Use:               "run [options] CONTAINER",
+ 		Short:             "Run the health check of a container",
+ 		Long:              "Run the health check of a container",
+ 		Example:           `podman healthcheck run mywebapp`,
+@@ -23,11 +23,17 @@ var (
+ 	}
+ )
+
++var ignoreResult bool
++
+ func init() {
+ 	registry.Commands = append(registry.Commands, registry.CliCommand{
+ 		Command: runCmd,
+ 		Parent:  healthCmd,
+ 	})
++
++	flags := runCmd.Flags()
++	flags.BoolVar(&ignoreResult, "ignore-result", false,
++		"Exit with code 0 regardless of healthcheck result or if the container is still in startup period")
+ }
+
+ func run(_ *cobra.Command, args []string) error {
+@@ -37,7 +43,11 @@ func run(_ *cobra.Command, args []string) error {
+ 	}
+ 	switch response.Status {
+ 	case define.HealthCheckUnhealthy, define.HealthCheckStarting, define.HealthCheckStopped:
+-		registry.SetExitCode(1)
++		if ignoreResult {
++			registry.SetExitCode(0)
++		} else {
++			registry.SetExitCode(1)
++		}
+ 		fmt.Println(response.Status)
+ 	}
+ 	return err
+diff --git a/docs/source/markdown/podman-healthcheck-run.1.md b/docs/source/markdown/podman-healthcheck-run.1.md
+index 863c896..d295cee 100644
+--- a/docs/source/markdown/podman-healthcheck-run.1.md
++++ b/docs/source/markdown/podman-healthcheck-run.1.md
+@@ -4,7 +4,7 @@
+ podman\-healthcheck\-run - Run a container healthcheck
+
+ ## SYNOPSIS
+-**podman healthcheck run** *container*
++**podman healthcheck run** [*options*] *container*
+
+ ## DESCRIPTION
+
+@@ -25,6 +25,10 @@ Possible errors that can occur during the healthcheck are:
+
+ Print usage statement
+
++#### **--ignore-result**
++
++Exit with code 0 regardless of the healthcheck result and if the container is
++still in the startup period. Other errors will not be ignored.
+
+ ## EXAMPLES
+

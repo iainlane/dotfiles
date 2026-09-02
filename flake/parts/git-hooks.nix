@@ -22,7 +22,12 @@
           check-added-large-files.enable = true;
           check-yaml.enable = true;
           end-of-file-fixer.enable = true;
-          trim-trailing-whitespace.enable = true;
+          trim-trailing-whitespace = {
+            enable = true;
+            # A blank context line in a unified diff is a single space, which
+            # this hook would strip.
+            excludes = ["\\.patch$"];
+          };
 
           wrapscallion = {
             enable = true;
