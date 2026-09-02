@@ -1,0 +1,29 @@
+From 9226148da9c8012592eb734bc148106c20cb1b66 Mon Sep 17 00:00:00 2001
+From: Patrick Wicki <patrick.wicki@siemens.com>
+Date: Fri, 6 Feb 2026 16:21:16 +0100
+Subject: [PATCH 2/2] healthcheck_linux: avoid failing transient units
+
+The main purpose of the transient services/timers is to trigger the
+healthcheck execution in regular intervals, their own state should
+not depend on the result of the healthchecks. This way there are no
+failing systemd services unless there is actually a fatal error.
+
+Signed-off-by: Patrick Wicki <patrick.wicki@siemens.com>
+(cherry picked from commit 2828965a7524fc754f16f2b1425fe0065191e11f)
+---
+ libpod/healthcheck_linux.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libpod/healthcheck_linux.go b/libpod/healthcheck_linux.go
+index 21ca2bc..4b29b1b 100644
+--- a/libpod/healthcheck_linux.go
++++ b/libpod/healthcheck_linux.go
+@@ -47,7 +47,7 @@ func (c *Container) createTimer(interval string, isStartup bool) error {
+ 		cmd = append(cmd, "--log-level=debug", "--syslog")
+ 	}
+
+-	cmd = append(cmd, "healthcheck", "run", c.ID())
++	cmd = append(cmd, "healthcheck", "run", "--ignore-result", c.ID())
+
+ 	conn, err := systemd.ConnectToDBUS()
+ 	if err != nil {
