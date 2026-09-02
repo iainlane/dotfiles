@@ -1,0 +1,53 @@
+name: prompt conformance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: prompt-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  prompt-conformance:
+    name: Check prompt conformance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+      - name: Trust our binary caches
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+
+      - name: Run the prompt conformance hook
+        env:
+          FROM_REF:
+            ${{ github.event.pull_request.base.sha || github.event.before }}
+          TO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          from_ref="${FROM_REF}"
+          if [[ -z "${from_ref}" || "${from_ref}" =~ ^0+$ ]]; then
+            from_ref="$(git rev-parse HEAD^)"
+          fi
+
+          nix develop --command pre-commit run prompt-conformance \
+            --from-ref "${from_ref}" \
+            --to-ref "${TO_REF}"
