@@ -101,10 +101,6 @@ in {
           # Hermes' OpenAI-compatible TTS backend looks for its key under this
           # name; reuse the OpenRouter key so speech routes through OpenRouter.
           VOICE_TOOLS_OPENAI_KEY = "openrouter_api_key";
-          # Anthropic via a Claude Max subscription: a long-lived Claude Code
-          # OAuth token (generate with `claude setup-token`), which the
-          # `anthropic` provider accepts in place of an API key.
-          CLAUDE_CODE_OAUTH_TOKEN = "claude_code_oauth_token";
         };
         settings = {
           model = {
@@ -115,10 +111,6 @@ in {
             {
               provider = "openrouter";
               model = "openai/gpt-5.6-sol";
-            }
-            {
-              provider = "anthropic";
-              model = "claude-opus-5";
             }
           ];
           agent.reasoning_effort = "high";
