@@ -72,7 +72,7 @@
     # on every platform. Pinned to a release tag; bumped by
     # `nix run .#update-gh-stack-skill`.
     gh-stack-skill = {
-      url = "github:github/gh-stack/v0.1.0";
+      url = "github:github/gh-stack/v0.1.1";
       flake = false;
     };
 
@@ -92,7 +92,7 @@
     };
 
     hermes-agent = {
-      url = "github:NousResearch/hermes-agent/v2026.8.18";
+      url = "github:NousResearch/hermes-agent/v2026.8.31";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
