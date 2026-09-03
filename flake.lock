@@ -697,16 +697,16 @@
     "hermes-lcm": {
       "flake": false,
       "locked": {
-        "lastModified": 1781156491,
-        "narHash": "sha256-YOMnNZUvD8k7Zy+IAeuFE4JHbue8DAFki2zQ0e8X6ks=",
+        "lastModified": 1784847804,
+        "narHash": "sha256-yJ1Nn+su7YbKd+cgVOizXChzLbKHqTprSprF1p9/HYk=",
         "owner": "stephenschoettler",
         "repo": "hermes-lcm",
-        "rev": "0b64837b17c35e2a25084edf5a8f0d8c87f6d187",
+        "rev": "49e99a272d2d461e5c90732e7ef2bc20e96f0826",
         "type": "github"
       },
       "original": {
         "owner": "stephenschoettler",
-        "ref": "v0.16.2",
+        "ref": "v0.20.0",
         "repo": "hermes-lcm",
         "type": "github"
       }

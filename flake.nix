@@ -97,7 +97,7 @@
     };
 
     hermes-lcm = {
-      url = "github:stephenschoettler/hermes-lcm/v0.16.2";
+      url = "github:stephenschoettler/hermes-lcm/v0.20.0";
       flake = false;
     };
 
