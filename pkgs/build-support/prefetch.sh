@@ -1,10 +1,11 @@
 # shellcheck shell=bash
-# Shared helpers for the prebuilt-binary update scripts. Sourced, not executed.
+# Shared helpers for the update scripts. Sourced, not executed.
 #
-# chainctl and wolfictl both pin one upstream binary per platform: discover a
-# version, then download and hash each platform's binary. Version discovery and
-# the URL layout differ between them, but the download, hashing and
-# sources.json assembly are identical and live here.
+# `download` and `hash_file` are used by every updater that fetches an
+# upstream artifact and records its hash. `write_sources` is used only by
+# chainctl and wolfictl, which pin one upstream binary per platform: version
+# discovery and the URL layout differ between those two, but downloading,
+# hashing and assembling sources.json are identical.
 
 # Download a URL to a path, showing wget's progress bar (size, rate, ETA).
 download() {

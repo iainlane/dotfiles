@@ -17,7 +17,23 @@
   ...
 }: let
   instructions = import ../agent-instructions.nix {inherit lib;};
-  piExtensions = import ./extensions.nix {inherit pkgs lib;};
+  # The extensions to install, each packaged under `pkgs/<name>/` and bumped by
+  # `nix run .#update-<name>`.
+  piExtensions = lib.genAttrs [
+    "checkpoint-pi"
+    "lsp-pi"
+    "pi-claude-permissions"
+    "pi-footer"
+    "pi-mcp-adapter"
+    "pi-memory"
+    "pi-notify"
+    "pi-prompt-template-model"
+    "pi-simplify"
+    "pi-sub-core"
+    "pi-subagents"
+    "pi-system-theme"
+    "pi-web-access"
+  ] (name: pkgs.${name});
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -92,7 +108,7 @@
     # Point Pi at stable symlinks in ~/.pi/agent/packages. Home Manager keeps
     # those symlinks rooted in the current generation, while the settings file
     # stays readable and avoids leaking long store paths into the prompt.
-    packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions.extensions;
+    packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions;
 
     extensions = [];
     skills = ["skills"];
@@ -237,11 +253,15 @@
       {text = toJson theme;})
     catppuccin.themes;
 
+  # Each extension is installed as an npm package, so the directory Pi loads
+  # is the one holding its `package.json`, not the derivation root.
   extensionFiles =
     lib.mapAttrs'
     (name: drv:
-      lib.nameValuePair ".pi/agent/packages/${name}" {source = drv;})
-    piExtensions.extensions;
+      lib.nameValuePair ".pi/agent/packages/${name}" {
+        source = "${drv}/${drv.packageRoot}";
+      })
+    piExtensions;
 in {
   home = {
     packages = [wrappedPi];

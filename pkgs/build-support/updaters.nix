@@ -8,10 +8,12 @@
   git,
   gnugrep,
   gnused,
+  gnutar,
   jq,
   lib,
   nix,
   nix-update,
+  nodejs,
   wget,
   writeShellApplication,
 }: {
@@ -83,6 +85,63 @@
         cd "$(git rev-parse --show-toplevel)"
 
         nix-update --flake --override-filename "pkgs/${attr}/package.nix" ${lib.escapeShellArgs extraFlags} "${attr}"
+      '';
+    };
+
+  # Bump a Pi extension packaged from its npm registry tarball. It reads the
+  # latest version from the registry, writes that version and the new tarball
+  # hash to `source.json`, and regenerates the lockfile under `npm-deps/` that
+  # `importNpmLock` resolves `node_modules` from, so a version bump needs no
+  # hand editing.
+  mkPiExtensionUpdater = {
+    npmName,
+    pname,
+  }:
+    writeShellApplication {
+      name = "update-${pname}";
+
+      runtimeInputs = [coreutils git gnutar jq nix nodejs wget];
+
+      text = ''
+        cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
+
+        # shellcheck disable=SC1091
+        source "${./prefetch.sh}"
+
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "''${tmpdir}"' EXIT
+
+        # Leave the caller's npm cache alone; this run only reads metadata.
+        export npm_config_cache="''${tmpdir}/npm-cache"
+
+        version="$(npm view ${npmName} version)"
+        current="$(jq -r .version source.json)"
+
+        if [[ "''${version}" == "''${current}" ]]; then
+          echo "${pname} is already on the latest version (''${version})" >&2
+          exit 0
+        fi
+
+        echo "Bumping ${pname}: ''${current} -> ''${version}" >&2
+
+        tarball="''${tmpdir}/${pname}.tgz"
+        download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
+
+        tar -xzf "''${tarball}" -C "''${tmpdir}" package/package.json
+
+        # npm resolves beside the manifest, but only the lockfile is
+        # committed: the build reads what it needs from the lockfile's root
+        # record. `--ignore-scripts` because this run wants a lockfile alone,
+        # and npm would otherwise run the package's `prepare` script.
+        (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
+        cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
+
+        jq -n --sort-keys \
+          --arg version "''${version}" \
+          --arg hash "$(hash_file "''${tarball}")" \
+          '{version: $version, tarballHash: $hash}' >source.json
+
+        echo "Updated ${pname} to ''${version}." >&2
       '';
     };
 

@@ -49,10 +49,12 @@ enough to pick the theme on a new machine without taking the file over.
 
 Pi (`pi/`) writes its configuration directly into `~/.pi/agent/` via
 `home.file`, since Pi is configured through that directory rather than an
-upstream home-manager module. Pinned Pi extensions are built as fixed-output Nix
-derivations in `pi/extensions.nix` and surfaced as local-path packages, so
-runtime package updates are not needed. `pi-mcp-adapter` reads the shared
-`~/.config/mcp/mcp.json`, and auth stays interactive through `pi /login`.
+upstream home-manager module. Pinned Pi extensions are packaged under
+`pkgs/<name>/` and installed as local-path packages, so Pi never downloads them
+itself. Each extension is bumped by `nix run .#update-<name>`, which the
+scheduled `package update` workflow runs alongside the other packages.
+`pi-mcp-adapter` reads the shared `~/.config/mcp/mcp.json`, and auth stays
+interactive through `pi /login`.
 
 The `mkConfigFile` function takes three parameters:
 
