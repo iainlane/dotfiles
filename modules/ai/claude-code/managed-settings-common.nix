@@ -71,6 +71,7 @@ in {
     attribution = {
       commit = "";
       pr = "";
+      sessionUrl = false;
     };
     enabledPlugins = {
       "claude-code-setup@claude-plugins-official" = true;
