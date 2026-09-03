@@ -15,7 +15,6 @@
   inputs,
   lib,
   mcp,
-  skillTree,
   pkgs,
   system,
   ...
@@ -86,12 +85,5 @@ in {
       jsonFormat.generate "tui.json" tui;
 
     "${configDir}/AGENTS.md".text = instructions.concatenated;
-
-    # OpenCode 2 discovers everything under `<config dir>/skills` without
-    # being told about it.
-    "${configDir}/skills" = {
-      source = skillTree config.dotfiles.ai.skills;
-      recursive = true;
-    };
   };
 }

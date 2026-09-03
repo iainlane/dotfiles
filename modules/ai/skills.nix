@@ -7,11 +7,14 @@
 # named after the style's stem. A profile adds skills of its own with
 # ordinary module merging.
 #
-# `skillTree` is a module argument for the harness modules: it assembles a
-# set of skills into one directory, which a harness links into its skills
-# directory. A value in the set is inline SKILL.md content, a directory that
-# is a skill, or a directory that contains skills. Evaluation cannot tell
-# the last two apart, because the contents of a store path are not readable
+# `skillTree` assembles a set of skills into one directory. The shared set
+# is linked into `~/.agents/skills`, the harness-neutral location. A harness
+# that reads only its own directory links the tree itself, through the
+# `skillTree` module argument.
+#
+# A value in the set is inline SKILL.md content, a directory that is a
+# skill, or a directory that contains skills. Evaluation cannot tell the
+# last two apart, because the contents of a store path are not readable
 # until it is built, so each value first becomes a directory of skills in a
 # build of its own, which looks for `SKILL.md` at the top of the directory.
 # The key names a single skill. For a directory of skills the key is
@@ -19,6 +22,7 @@
 # directory name. `buildEnv` then merges those directories, and aborts the
 # build when two skills with one name differ.
 {
+  config,
   inputs,
   lib,
   pkgs,
@@ -93,6 +97,11 @@ in {
 
   config = {
     dotfiles.ai.skills = local // external // styles;
+
+    home.file.".agents/skills" = {
+      source = skillTree config.dotfiles.ai.skills;
+      recursive = true;
+    };
 
     _module.args = {inherit skillTree;};
   };
