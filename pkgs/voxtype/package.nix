@@ -161,6 +161,9 @@ in
           "$out/share/voxtype/default-config.toml"
       ''
       + lib.optionalString stdenv.hostPlatform.isLinux ''
+        install -Dm644 packaging/io.voxtype.Voxtype.desktop \
+          "$out/share/applications/io.voxtype.Voxtype.desktop"
+
         wrapProgram "$out/bin/voxtype" \
           --prefix PATH : ${
           (lib.makeBinPath (

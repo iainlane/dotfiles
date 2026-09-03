@@ -44,10 +44,15 @@ in {
     ];
 
     settings = lib.recursiveUpdate voxtypeSettings {
-      # GNOME shortcuts cannot fire on key release, so push-to-talk is not
-      # possible; the dconf binding below toggles recording instead. The
-      # built-in hotkey would need evdev access via the input group.
-      hotkey.enabled = false;
+      # The desktop manages the binding through the XDG GlobalShortcuts
+      # portal: hold to record, release to transcribe. The desktop's saved
+      # binding is authoritative; change it in the desktop's own shortcut
+      # settings.
+      hotkey = {
+        enabled = true;
+        backend = "portal";
+        mode = "push_to_talk";
+      };
 
       output = {
         # The default driver chain starts with wtype, which needs the
@@ -74,18 +79,4 @@ in {
     color2     = "${palette.green.hex}"
     color3     = "${palette.yellow.hex}"
   '';
-
-  dconf.settings = {
-    "org/gnome/settings-daemon/plugins/media-keys" = {
-      custom-keybindings = ["/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voxtype/"];
-    };
-
-    # Super+V would match upstream's examples but GNOME reserves it for the
-    # notification list.
-    "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voxtype" = {
-      name = "Voxtype";
-      command = "${lib.getExe pkgs.voxtype-onnx} record toggle";
-      binding = "<Super><Shift>v";
-    };
-  };
 }
