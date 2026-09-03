@@ -7,5 +7,7 @@
     };
 
     output.notification.on_transcription = false;
+
+    text.spoken_punctuation = true;
   };
 }
