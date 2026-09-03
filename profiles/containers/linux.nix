@@ -21,6 +21,33 @@
       (_: user: user.subUidRanges != [] || user.subGidRanges != [])
       config.users.users
     );
+
+    # Nix builds an image's OCI config with an epoch creation time, for
+    # reproducibility (see `lib/container-image.nix`), so the `until=168h`
+    # prune filter below can never treat one as recent no matter when it
+    # was actually pulled into local storage. That leaves the prune's
+    # other check, being referenced by an existing container, as the only
+    # thing keeping a Nix-built image alive. A container that only runs
+    # briefly on a timer, rather than staying up, has no such reference
+    # between runs, so a prune sweeping through in that window removes an
+    # image the current generation still wants.
+    #
+    # Rather than track which containers stay running, make every
+    # Nix-built image unit reassert its image whenever something depends
+    # on it, instead of trusting that its last successful pull still
+    # holds. `RemainAfterExit = false` makes the unit go inactive once
+    # the pull finishes, so `Requires=`/`After=` on a dependent unit reruns
+    # it on every start. The pull re-imports the same tag from the
+    # already-built store path, so repeating it costs a local copy, not a
+    # network fetch.
+    nixBuiltImageOverrides =
+      lib.mapAttrs' (
+        name: _image:
+          lib.nameValuePair "${name}-image" {
+            serviceConfig.RemainAfterExit = lib.mkForce false;
+          }
+      ) (lib.filterAttrs (_: image: lib.hasPrefix "docker-archive:" image.imageConfig.image)
+        config.virtualisation.quadlet.images);
   in {
     imports = [
       ./edge-proxy.nix
@@ -70,10 +97,34 @@
         };
       };
 
-      # Only a running container protects a Nix-built image from the prune.
-      # Wait for the containers, so a timer run replayed just after boot does
-      # not delete the images the image units have just pulled.
-      systemd.services.podman-prune.after = ["system-manager.target"];
+      systemd.services =
+        {
+          # Only a running container protects a Nix-built image from the
+          # prune. Wait for the containers, so a timer run replayed just
+          # after boot does not delete the images the image units have
+          # just pulled.
+          podman-prune.after = ["system-manager.target"];
+
+          # Rootless podman needs newuidmap/newgidmap with setuid privileges.
+          # system-manager does not expose security.wrappers, so install
+          # helpers into /usr/local/libexec/podman at boot.
+          install-rootless-uidmap-wrappers = {
+            description = "Install setuid uidmap helpers for rootless containers";
+            wantedBy = ["sysinit.target"];
+            after = ["local-fs.target"];
+            before = ["systemd-user-sessions.service"];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              install -d -m 0755 /usr/local/libexec/podman
+              install -m 4755 -o root -g root ${pkgs.shadow}/bin/newuidmap /usr/local/libexec/podman/newuidmap
+              install -m 4755 -o root -g root ${pkgs.shadow}/bin/newgidmap /usr/local/libexec/podman/newgidmap
+            '';
+          };
+        }
+        // nixBuiltImageOverrides;
 
       environment.etc = {
         # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
@@ -93,25 +144,6 @@
           mode = "0644";
           text = subordinateFile;
         };
-      };
-
-      # Rootless podman needs newuidmap/newgidmap with setuid privileges.
-      # system-manager does not expose security.wrappers, so install helpers
-      # into /usr/local/libexec/podman at boot.
-      systemd.services.install-rootless-uidmap-wrappers = {
-        description = "Install setuid uidmap helpers for rootless containers";
-        wantedBy = ["sysinit.target"];
-        after = ["local-fs.target"];
-        before = ["systemd-user-sessions.service"];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          install -d -m 0755 /usr/local/libexec/podman
-          install -m 4755 -o root -g root ${pkgs.shadow}/bin/newuidmap /usr/local/libexec/podman/newuidmap
-          install -m 4755 -o root -g root ${pkgs.shadow}/bin/newgidmap /usr/local/libexec/podman/newgidmap
-        '';
       };
     };
   };
