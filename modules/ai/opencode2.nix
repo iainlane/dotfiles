@@ -15,12 +15,12 @@
   inputs,
   lib,
   mcp,
+  skillTree,
   pkgs,
   system,
   ...
 }: let
   instructions = import ./agent-instructions.nix {inherit lib;};
-  skills = config.dotfiles.ai.skills;
 
   jsonFormat = pkgs.formats.json {};
 
@@ -75,29 +75,23 @@
       "${config.xdg.configHome}/${configDir}"
     ];
   };
-
-  # The shared skill set. OpenCode 2 discovers everything under
-  # `<config dir>/skills` without being told about it. A skill is either a
-  # directory to link or inline SKILL.md content to write.
-  skillFiles =
-    lib.mapAttrs'
-    (name: skill:
-      if builtins.isPath skill || lib.hasPrefix "/" skill
-      then lib.nameValuePair "${configDir}/skills/${name}" {source = skill;}
-      else lib.nameValuePair "${configDir}/skills/${name}/SKILL.md" {text = skill;})
-    skills;
 in {
   home.packages = [wrappedOpencode2];
 
-  xdg.configFile =
-    {
-      "${configDir}/opencode.json".source =
-        jsonFormat.generate "opencode.json" settings;
+  xdg.configFile = {
+    "${configDir}/opencode.json".source =
+      jsonFormat.generate "opencode.json" settings;
 
-      "${configDir}/tui.json".source =
-        jsonFormat.generate "tui.json" tui;
+    "${configDir}/tui.json".source =
+      jsonFormat.generate "tui.json" tui;
 
-      "${configDir}/AGENTS.md".text = instructions.concatenated;
-    }
-    // skillFiles;
+    "${configDir}/AGENTS.md".text = instructions.concatenated;
+
+    # OpenCode 2 discovers everything under `<config dir>/skills` without
+    # being told about it.
+    "${configDir}/skills" = {
+      source = skillTree config.dotfiles.ai.skills;
+      recursive = true;
+    };
+  };
 }

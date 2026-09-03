@@ -16,6 +16,7 @@
   inputs,
   lib,
   mcp,
+  skillTree,
   system,
   ...
 }: let
@@ -54,8 +55,11 @@ in {
 
       # Shared instructions as separate context files.
       context = instructions.files;
+    };
 
-      skills = config.dotfiles.ai.skills;
+    home.file.".gemini/antigravity-cli/skills" = {
+      source = skillTree config.dotfiles.ai.skills;
+      recursive = true;
     };
 
     home.activation.antigravityCliSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
