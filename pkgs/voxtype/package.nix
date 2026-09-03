@@ -46,7 +46,7 @@
   ],
 }: let
   version = "1.0.1";
-  revision = "2009408d6244a2d4162feff798b07f1173dc4f08";
+  revision = "df1c4e156673a5b8c185299bd6f5e65288fe5817";
   webgpuRuntimeHash = "e7271056b10dc2fec4b1bcc5bb9ac28a5f288de0a1f9c24c389c95566a487549";
   webgpuRuntime = stdenvNoCC.mkDerivation {
     pname = "onnxruntime-webgpu";
@@ -77,19 +77,30 @@
   infoPlist = builtins.toFile "Info.plist" (
     builtins.replaceStrings ["@version@"] [version] (builtins.readFile ./Info.plist)
   );
+  src = fetchFromGitHub {
+    owner = "iainlane";
+    repo = "voxtype";
+    rev = revision;
+    hash = "sha256-bUirk6N7yNBQkAkoOFPXg8jz0IzhK9iEvZTG75Q96gE=";
+  };
 in
   rustPlatform.buildRustPackage {
     pname = "voxtype";
-    inherit version;
+    inherit version src;
 
-    src = fetchFromGitHub {
-      owner = "iainlane";
-      repo = "voxtype";
-      rev = revision;
-      hash = "sha256-wrjWDWCHvI7tcrNDjVTrCVwvJfyEGHNUwLUROra0Zws=";
+    # Cargo.lock pins four crates from one openvino-rs Git revision, and
+    # fetchCargoVendor (cargoHash) cannot copy that checkout: a submodule holds
+    # a symlink loop that it follows until the path is too long. importCargoLock
+    # fetches the repository with fetchgit, which keeps the symlink as is.
+    cargoLock = {
+      lockFile = "${src}/Cargo.lock";
+      outputHashes = {
+        "openvino-finder-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
+        "openvino-genai-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
+        "openvino-genai-sys-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
+        "openvino-sys-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
+      };
     };
-
-    cargoHash = "sha256-fTYAhz3TVDJGRQZbYunws6lIymvbJBRMCEcI7a/fyT4=";
 
     checkFlags = lib.optionals stdenv.hostPlatform.isDarwin [
       "--skip=setup::binary::tests::running_variant_reads_the_live_process_not_the_symlink"
