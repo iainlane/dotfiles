@@ -7,6 +7,9 @@
 # server's dashboard shows their sessions with the sessions of the other
 # machines. Such a machine runs only the push watcher, which ingests the
 # session files and pushes them in one process; it has no local dashboard.
+#
+# The agents also get the AgentsView skill, which tells them how to search
+# the archive for past decisions and instructions.
 {
   inputs,
   lib,
@@ -25,6 +28,31 @@
   configTemplate = "agentsview-config.toml";
 
   agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
+
+  # The package renders its skills once per harness: the `claude` render
+  # names Claude Code's Task tool, and the `agents` render is generic. Each
+  # file starts with a header holding a hash of its body, which `agentsview
+  # skills list` compares against a fresh render for that harness, so a
+  # harness has to get the render made for it.
+  skillsFor = system: harness: "${agentsviewFor system}/share/agentsview/skills/${harness}";
+
+  # The harness modules, and with them the `dotfiles.ai` and
+  # `dotfiles.claudeCode` options, exist only on a host that also composes
+  # the `ai` feature.
+  skillsModule = {
+    config,
+    lib,
+    options,
+    system,
+    ...
+  }: {
+    config = lib.optionalAttrs (options ? dotfiles && options.dotfiles ? ai) (
+      lib.mkIf config.programs.agentsview.enable {
+        dotfiles.ai.skills.agentsview = skillsFor system "agents";
+        dotfiles.claudeCode.skills.agentsview = skillsFor system "claude";
+      }
+    );
+  };
 
   # The database uses the same port as the web. The protocol in the handshake
   # tells the two apart. The driver negotiates TLS this way when you ask for
@@ -246,7 +274,7 @@ in {
         "${codexHome}/archived_sessions"
       ];
     in {
-      imports = [./options.nix];
+      imports = [./options.nix skillsModule];
 
       config = lib.mkMerge [
         {programs.agentsview = args;}

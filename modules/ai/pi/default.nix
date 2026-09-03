@@ -13,11 +13,11 @@
   inputs,
   lib,
   mcp,
+  skillTree,
   system,
   ...
 }: let
   instructions = import ../agent-instructions.nix {inherit lib;};
-  skills = import ../skills.nix {inherit inputs lib;};
   piExtensions = import ./extensions.nix {inherit pkgs lib;};
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
@@ -230,16 +230,6 @@
       (name: type: type == "regular" && lib.hasSuffix ".md" name)
       (builtins.readDir promptDir));
 
-  # A skill is either a directory to link or inline SKILL.md content to
-  # write.
-  skillFiles =
-    lib.mapAttrs'
-    (name: skill:
-      if builtins.isPath skill || lib.hasPrefix "/" skill
-      then lib.nameValuePair ".pi/agent/skills/${name}" {source = skill;}
-      else lib.nameValuePair ".pi/agent/skills/${name}/SKILL.md" {text = skill;})
-    skills;
-
   themeFiles =
     lib.mapAttrs'
     (flavor: theme:
@@ -266,9 +256,13 @@ in {
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
         ".pi/agent/system-theme.json".text = toJson piSystemThemeConfig;
         ".pi/agent/AGENTS.md".text = instructions.concatenated;
+
+        ".pi/agent/skills" = {
+          source = skillTree config.dotfiles.ai.skills;
+          recursive = true;
+        };
       }
       // themeFiles
-      // skillFiles
       // promptFiles
       // extensionFiles;
   };

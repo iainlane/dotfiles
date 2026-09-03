@@ -4,6 +4,7 @@
   inputs,
   lib,
   mcp,
+  skillTree,
   system,
   ...
 }: let
@@ -51,8 +52,11 @@ in {
       };
 
       tui.theme = "system";
+    };
 
-      skills = config.dotfiles.ai.skills;
+    xdg.configFile."opencode/skills" = {
+      source = skillTree config.dotfiles.ai.skills;
+      recursive = true;
     };
   };
 }

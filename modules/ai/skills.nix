@@ -1,15 +1,28 @@
-# Discover and expose shared skill directories from ./skills/, plus skills
-# published in external repositories and consumed as flake inputs.
+# Skills for every AI harness.
 #
-# Every shared output style (see ./output-styles.nix) also becomes a skill,
-# so the user can adopt a style mid-session in any harness by invoking the
-# skill named after the style's stem.
+# `dotfiles.ai.skills` is the shared set: the directories under ./skills/,
+# skills published in external repositories and consumed as flake inputs,
+# and one skill per shared output style (see ./output-styles.nix), so the
+# user can adopt a style mid-session in any harness by invoking the skill
+# named after the style's stem. A profile adds skills of its own with
+# ordinary module merging.
 #
-# Returns { name = <directory path or SKILL.md content>; } for each skill,
-# suitable for passing directly to programs.<tool>.skills.
+# `skillTree` is a module argument for the harness modules: it assembles a
+# set of skills into one directory, which a harness links into its skills
+# directory. A value in the set is inline SKILL.md content, a directory that
+# is a skill, or a directory that contains skills. Evaluation cannot tell
+# the last two apart, because the contents of a store path are not readable
+# until it is built, so each value first becomes a directory of skills in a
+# build of its own, which looks for `SKILL.md` at the top of the directory.
+# The key names a single skill. For a directory of skills the key is
+# ignored: the Agent Skills format requires a skill's `name` to match its
+# directory name. `buildEnv` then merges those directories, and aborts the
+# build when two skills with one name differ.
 {
   inputs,
   lib,
+  pkgs,
+  ...
 }: let
   dir = ./skills;
 
@@ -45,5 +58,42 @@
     ${style.body}'';
 
   styles = lib.mapAttrs styleSkill outputStyles.styles;
-in
-  local // external // styles
+
+  isDirectory = skill: builtins.isPath skill || lib.hasPrefix "/" skill;
+
+  asSkillDirectory = name: skill:
+    if isDirectory skill
+    then
+      pkgs.runCommandLocal "skills-${name}" {source = "${skill}";} ''
+        if [ -e "$source/SKILL.md" ]; then
+          mkdir "$out"
+          ln -s "$source" "$out"/${lib.escapeShellArg name}
+        else
+          ln -s "$source" "$out"
+        fi
+      ''
+    else pkgs.writeTextDir "${name}/SKILL.md" skill;
+
+  skillTree = skills:
+    pkgs.buildEnv {
+      name = "skills";
+      paths = lib.mapAttrsToList asSkillDirectory skills;
+    };
+in {
+  options.dotfiles.ai.skills = lib.mkOption {
+    type = with lib.types; attrsOf (either path str);
+    default = {};
+    description = ''
+      Skills for every AI harness, keyed by skill name. A value is a skill
+      directory containing SKILL.md, the SKILL.md content itself, or a
+      directory of skill directories. For a directory of skills the key is
+      ignored and each skill keeps its own directory name.
+    '';
+  };
+
+  config = {
+    dotfiles.ai.skills = local // external // styles;
+
+    _module.args = {inherit skillTree;};
+  };
+}

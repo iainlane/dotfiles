@@ -4,6 +4,7 @@
   lib,
   mcp,
   pkgs,
+  skillTree,
   system,
   ...
 }: let
@@ -25,14 +26,26 @@
     binName = "claude";
   };
 in {
-  options.dotfiles.claudeCode.excludeMcpServers = lib.mkOption {
-    type = with lib.types; listOf str;
-    default = [];
-    description = ''
-      Names of shared MCP servers to drop from Claude Code. The work profile
-      uses this to exclude the enterprise connectors, which Claude Code
-      receives from the organisation directly.
-    '';
+  options.dotfiles.claudeCode = {
+    excludeMcpServers = lib.mkOption {
+      type = with lib.types; listOf str;
+      default = [];
+      description = ''
+        Names of shared MCP servers to drop from Claude Code. The work profile
+        uses this to exclude the enterprise connectors, which Claude Code
+        receives from the organisation directly.
+      '';
+    };
+
+    skills = lib.mkOption {
+      type = with lib.types; attrsOf (either path str);
+      default = {};
+      description = ''
+        Skills for Claude Code only, in the form of `dotfiles.ai.skills`.
+        They are merged over the shared set by key, so a profile can give
+        Claude Code its own variant of a shared skill.
+      '';
+    };
   };
 
   config = {
@@ -52,8 +65,11 @@ in {
 
       # Shared output styles from ../output-style/.
       outputStyles = outputStyles.files;
+    };
 
-      skills = config.dotfiles.ai.skills;
+    home.file."${config.programs.claude-code.configDir}/skills" = {
+      source = skillTree (config.dotfiles.ai.skills // config.dotfiles.claudeCode.skills);
+      recursive = true;
     };
 
     xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (
