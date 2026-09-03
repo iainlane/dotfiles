@@ -4,7 +4,6 @@
   inputs,
   lib,
   mcp,
-  skillTree,
   system,
   ...
 }: let
@@ -30,10 +29,17 @@
         // lib.optionalAttrs (server ? env) {environment = server.env;}
     );
 
-  # Wrap OpenCode to add shared tools to PATH
+  # Wrap OpenCode to add shared tools to PATH. OpenCode also scans
+  # `~/.claude/skills`, which holds the same skills as `~/.agents/skills`
+  # with Claude Code's variant of each, so that scan is switched off.
   wrappedOpencode = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.opencode;
     binName = "opencode";
+    extraWrapperArgs = [
+      "--set"
+      "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"
+      "1"
+    ];
   };
 in {
   config = {
@@ -52,11 +58,6 @@ in {
       };
 
       tui.theme = "system";
-    };
-
-    xdg.configFile."opencode/skills" = {
-      source = skillTree config.dotfiles.ai.skills;
-      recursive = true;
     };
   };
 }

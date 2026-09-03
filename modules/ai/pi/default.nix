@@ -13,7 +13,6 @@
   inputs,
   lib,
   mcp,
-  skillTree,
   system,
   ...
 }: let
@@ -256,11 +255,6 @@ in {
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
         ".pi/agent/system-theme.json".text = toJson piSystemThemeConfig;
         ".pi/agent/AGENTS.md".text = instructions.concatenated;
-
-        ".pi/agent/skills" = {
-          source = skillTree config.dotfiles.ai.skills;
-          recursive = true;
-        };
       }
       // themeFiles
       // promptFiles
