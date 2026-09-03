@@ -96,8 +96,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # The v0.20.0 tag plus one cherry-picked commit: the OpenAI-compatible
+    # embedding provider proposed upstream as
+    # stephenschoettler/hermes-lcm#519, on the fork's
+    # `openai-embeddings-on-v0.20.0` branch. Semantic recall needs an
+    # embedding provider, and none of the three v0.20.0 ships suits ancaster:
+    # Voyage means a second account, Ollama means another service on the Pi,
+    # and nixpkgs marks fastembed broken on aarch64-linux. The
+    # OpenAI-compatible provider reaches OpenRouter with the API key Hermes
+    # already uses for its models. When #519 merges, restore the release tag
+    # and add hermes-lcm to `flakeInputs` in flake/parts/updaters.nix so it
+    # follows releases again.
     hermes-lcm = {
-      url = "github:stephenschoettler/hermes-lcm/v0.20.0";
+      url = "github:iainlane/hermes-lcm/3b80eb6770613250f97f13b7f1cba4c8f8b66b11";
       flake = false;
     };
 

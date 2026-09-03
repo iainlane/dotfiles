@@ -84,6 +84,16 @@ in {
         agents.enable = true;
         mcp.enable = true;
         context-engine = "lcm";
+        embeddings = {
+          enable = true;
+          # OpenRouter serves OpenAI-shaped embeddings, so LCM reaches it
+          # through the provider proposed in hermes-lcm#519 and reads the key
+          # from the variable `secretEnv` already sets for the agent's models.
+          baseUrl = "https://openrouter.ai/api/v1";
+          apiKeyVariable = "OPENROUTER_API_KEY";
+          # 1024-dim and multilingual, at $0.01 per million input tokens.
+          model = "baai/bge-m3";
+        };
         # Pull in exa-py so the native web_search Exa backend has its client.
         extraDependencyGroups = ["messaging" "exa"];
         # `raft-platform` is a bundled gateway adapter we do not use; without it
