@@ -566,16 +566,16 @@
     "gh-stack-skill": {
       "flake": false,
       "locked": {
-        "lastModified": 1785346327,
-        "narHash": "sha256-48JkOeqbvHlCZ2u3LnwJymw55xMQWLTPJLDbV44clGI=",
+        "lastModified": 1787852077,
+        "narHash": "sha256-jwfqiCnCOOW0AKA52hbgvCCoLzfFX+QfM+vXABkzZgw=",
         "owner": "github",
         "repo": "gh-stack",
-        "rev": "a1b4a3d4d0bcde9ec3a78ab99b2d63af121857a9",
+        "rev": "2bd699a544a09cb5c45a013d03416e0894b0454e",
         "type": "github"
       },
       "original": {
         "owner": "github",
-        "ref": "v0.1.0",
+        "ref": "v0.1.1",
         "repo": "gh-stack",
         "type": "github"
       }
@@ -671,6 +671,7 @@
     "hermes-agent": {
       "inputs": {
         "flake-parts": "flake-parts_3",
+        "home-manager": "home-manager",
         "nixpkgs": [
           "nixpkgs"
         ],
@@ -680,16 +681,16 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1787037991,
-        "narHash": "sha256-LyI50ipeOVOcQ7tpoh+ofiEhxW3qW9pTJNUK7deJkYE=",
+        "lastModified": 1788204567,
+        "narHash": "sha256-Ii9xP2fKUpvCcwWZuxJ0g3CZ+IL2UZH14pUNvBfdclc=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "e624e9fde561e1add9388384012b295fde669ade",
+        "rev": "29112bef099274229cadff79cdff7bf7b99c4b77",
         "type": "github"
       },
       "original": {
         "owner": "NousResearch",
-        "ref": "v2026.8.18",
+        "ref": "v2026.8.31",
         "repo": "hermes-agent",
         "type": "github"
       }
@@ -714,15 +715,16 @@
     "home-manager": {
       "inputs": {
         "nixpkgs": [
+          "hermes-agent",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1786603258,
-        "narHash": "sha256-j1lYPT7YxOQc/G7NcJKqdpQ5/A5yX2aZdhVKkJR6cM4=",
+        "lastModified": 1786487128,
+        "narHash": "sha256-ad60hrRVhH/bo3Jl1YLzO+QcS3mUNZr9LNJdzhMO2P4=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "0668fdbc15bd602e463cab37ff64346021193652",
+        "rev": "f404edbfa4117810c96b97048299242fc50e5362",
         "type": "github"
       },
       "original": {
@@ -748,6 +750,26 @@
       "original": {
         "owner": "nix-community",
         "ref": "release-26.05",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "home-manager_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786603258,
+        "narHash": "sha256-j1lYPT7YxOQc/G7NcJKqdpQ5/A5yX2aZdhVKkJR6cM4=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "0668fdbc15bd602e463cab37ff64346021193652",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
         "repo": "home-manager",
         "type": "github"
       }
@@ -1392,7 +1414,7 @@
         "git-hooks-nix": "git-hooks-nix_2",
         "hermes-agent": "hermes-agent",
         "hermes-lcm": "hermes-lcm",
-        "home-manager": "home-manager",
+        "home-manager": "home-manager_2",
         "home-manager-stable": "home-manager-stable",
         "just-sublime": "just-sublime",
         "kolide-launcher": "kolide-launcher",
