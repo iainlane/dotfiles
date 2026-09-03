@@ -18,7 +18,7 @@
 #   HERMES_RESTORE_UNITS  units to stop while the state is replaced
 #   BACKUP_ENV_FILE       file holding the R2 credentials
 #
-# plus BACKUP_NAME and BACKUP_PREFIX, which `r2-restore` reads.
+# plus BACKUP_NAME and BACKUP_PREFIX, which `r2 restore` reads.
 set -euo pipefail
 umask 077
 
@@ -85,7 +85,7 @@ set -a
 set +a
 
 if [ "${list}" = true ]; then
-	exec r2-restore list
+	exec r2 restore list
 fi
 
 [ -n "${identity}" ] || fail "the offline age key is needed: --identity <file>"
@@ -105,7 +105,7 @@ fetched="$(
 	BACKUP_IDENTITY_FILE="${identity}" \
 		BACKUP_ARCHIVE="${archive}" \
 		BACKUP_RESTORE_DIR="${unpacked}" \
-		r2-restore fetch
+		r2 restore fetch
 )"
 
 if [ "${confirm}" != true ]; then

@@ -1,13 +1,13 @@
 # shellcheck shell=bash
 #
-# Snapshot the Hermes state into a directory and hand it to the uploader.
+# Snapshot the Hermes state into a directory and hand it to `r2 backup`.
 # Driven entirely by the environment so it stays a plain, checkable shell
 # script:
 #
 #   HERMES_STATE_DIR     state directory to back up, or
 #   HERMES_STATE_VOLUME  podman volume whose mountpoint to back up
 #
-# plus everything `r2-upload` reads.
+# plus everything `r2 backup` reads.
 set -euo pipefail
 umask 077
 
@@ -48,4 +48,4 @@ for db in state.db memory_store.db kanban.db; do
 	fi
 done
 
-BACKUP_SOURCE="${snap}" r2-upload
+BACKUP_SOURCE="${snap}" r2 backup

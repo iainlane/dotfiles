@@ -10,7 +10,7 @@ _: {
       }
       ''
         bash ${../../../lib/r2-verify.test.bash} \
-          ${../../../lib/r2-verify.sh}
+          ${../../../lib/r2.sh}
 
         touch $out
       '';

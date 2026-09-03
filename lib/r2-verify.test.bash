@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-verify_script="${1}"
+r2_script="${1}"
 test_dir="$(mktemp -d)"
 trap 'rm -rf "${test_dir}"' EXIT
 
@@ -41,7 +41,7 @@ run_verify() {
 		R2_ENDPOINT=https://example.invalid \
 		R2_ACCESS_KEY_ID=key \
 		R2_SECRET_ACCESS_KEY=secret \
-		bash "${verify_script}"
+		bash "${r2_script}" verify
 }
 
 assert_fails() {

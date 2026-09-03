@@ -38,8 +38,7 @@
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
       r2Backup = import ../../lib/r2-backup.nix;
-      uploader = r2Backup.uploader {inherit pkgs;};
-      verifier = r2Backup.verifier {inherit pkgs;};
+      r2Tool = r2Backup.tool {inherit pkgs;};
       backupScript = pkgs.writeShellApplication {
         name = "matrix-backup";
         runtimeInputs = [pkgs.coreutils];
@@ -174,7 +173,7 @@
               requires = ["${cfg.containerName}.service" "sops-install-secrets.service"];
               after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
               wants = ["network-online.target"];
-              path = [config.virtualisation.podman.package uploader];
+              path = [config.virtualisation.podman.package r2Tool];
               serviceConfig = r2Backup.withScratchDirectory backupUnit {
                 Type = "oneshot";
                 EnvironmentFile = config.sops.templates."matrix-backup.env".path;
@@ -216,7 +215,7 @@
                   "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
                   "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
                 ];
-                ExecStart = "${verifier}/bin/r2-verify";
+                ExecStart = "${r2Tool}/bin/r2 verify";
               };
             };
 

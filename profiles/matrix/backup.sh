@@ -1,13 +1,13 @@
 # shellcheck shell=bash
 #
 # Ask the homeserver for an online database backup, wait for it to land, and
-# hand the result to the uploader.
+# hand the result to `r2 backup`.
 #
 #   MATRIX_CONTAINER      container to signal
 #   MATRIX_BACKUP_VOLUME  podman volume the backups are written to
 #   MATRIX_BACKUP_TIMEOUT seconds to wait for one to appear
 #
-# plus everything `r2-upload` reads.
+# plus everything `r2 backup` reads.
 set -euo pipefail
 
 : "${MATRIX_CONTAINER:?}" "${MATRIX_BACKUP_VOLUME:?}" "${MATRIX_BACKUP_TIMEOUT:?}"
@@ -56,4 +56,4 @@ done
 
 echo "backup $(latest) complete after ${waited}s"
 
-BACKUP_SOURCE="${dir}" exec r2-upload
+BACKUP_SOURCE="${dir}" exec r2 backup

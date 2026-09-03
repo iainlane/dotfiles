@@ -1,7 +1,7 @@
 # The pieces a service needs to back itself up to Cloudflare R2: what it asks
-# the host for, where the credentials come from, and the scripts that archive,
-# encrypt and upload, check what arrived, and fetch it back. A service supplies
-# the directory to archive and the schedule to do it on.
+# the host for, where the credentials come from, and the tool that archives,
+# encrypts and uploads, checks what arrived, and fetches it back. A service
+# supplies the directory to archive and the schedule to do it on.
 let
   # The public age key that backups are encrypted to. It is the same key on
   # every host. The matching private key is kept offline, and a restore needs
@@ -152,27 +152,13 @@ in {
       Environment = ["TMPDIR=%C/${unitName}"] ++ serviceConfig.Environment or [];
     };
 
-  uploader = {pkgs}:
+  # Archives, checks, and restores: `r2 backup`, `r2 verify`, and
+  # `r2 restore list|fetch`. What a service does with a restored tree is its
+  # own business.
+  tool = {pkgs}:
     pkgs.writeShellApplication {
-      name = "r2-upload";
-      runtimeInputs = with pkgs; [age coreutils gnutar rclone zstd];
-      text = builtins.readFile ./r2-upload.sh;
-    };
-
-  # The check a host can make on backups it cannot open.
-  verifier = {pkgs}:
-    pkgs.writeShellApplication {
-      name = "r2-verify";
-      runtimeInputs = with pkgs; [coreutils jq rclone];
-      text = builtins.readFile ./r2-verify.sh;
-    };
-
-  # The generic half of a restore: pick a backup, fetch it, open it with the
-  # offline key. What to do with the result is the service's own business.
-  restorer = {pkgs}:
-    pkgs.writeShellApplication {
-      name = "r2-restore";
-      runtimeInputs = with pkgs; [age coreutils gnutar rclone zstd];
-      text = builtins.readFile ./r2-restore.sh;
+      name = "r2";
+      runtimeInputs = with pkgs; [age coreutils gnutar jq rclone zstd];
+      text = builtins.readFile ./r2.sh;
     };
 }

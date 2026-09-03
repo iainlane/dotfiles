@@ -11,16 +11,14 @@
   cfg = config.services.hermes-agent;
   inherit (import ./builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
   r2Backup = import ../../lib/r2-backup.nix;
-  uploader = r2Backup.uploader {inherit pkgs;};
-  verifier = r2Backup.verifier {inherit pkgs;};
-  restorer = r2Backup.restorer {inherit pkgs;};
+  r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";
   # The script reads its config from the environment, so it stays a plain
   # checkable shell file. The systemd service supplies the non-secret values
   # and the sops env file supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "hermes-backup-r2";
-    runtimeInputs = with pkgs; [coreutils rsync sqlite podman uploader];
+    runtimeInputs = with pkgs; [coreutils rsync sqlite podman r2Tool];
     text = builtins.readFile ./backup-r2.sh;
   };
 
@@ -34,7 +32,7 @@
   # values it needs and reads the credentials from the sops env file itself.
   restoreScript = pkgs.writeShellApplication {
     name = "hermes-restore-r2";
-    runtimeInputs = with pkgs; [coreutils findutils podman restorer rsync systemd];
+    runtimeInputs = with pkgs; [coreutils findutils podman r2Tool rsync systemd];
     runtimeEnv = {
       HERMES_STATE_VOLUME = hermesStateVolume;
       HERMES_RESTORE_UNITS = lib.concatStringsSep " " stateUnits;
@@ -60,7 +58,7 @@ in {
         requires = ["sops-install-secrets.service"];
         after = ["network-online.target" "sops-install-secrets.service"];
         wants = ["network-online.target"];
-        path = [config.virtualisation.podman.package uploader];
+        path = [config.virtualisation.podman.package r2Tool];
         serviceConfig = r2Backup.withScratchDirectory "hermes-backup" {
           Type = "oneshot";
           EnvironmentFile = config.sops.templates.${envTemplate}.path;
@@ -102,7 +100,7 @@ in {
             "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
             "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
           ];
-          ExecStart = "${verifier}/bin/r2-verify";
+          ExecStart = "${r2Tool}/bin/r2 verify";
         };
       };
 

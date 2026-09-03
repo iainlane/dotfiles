@@ -12,8 +12,7 @@
   database = import ./database.nix {inherit pkgs;};
 
   r2Backup = import ../../lib/r2-backup.nix;
-  uploader = r2Backup.uploader {inherit pkgs;};
-  verifier = r2Backup.verifier {inherit pkgs;};
+  r2Tool = r2Backup.tool {inherit pkgs;};
 
   envTemplate = "agentsview-backup.env";
 
@@ -24,7 +23,7 @@
   # and the sops env file supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "agentsview-backup-r2";
-    runtimeInputs = with pkgs; [coreutils podman uploader];
+    runtimeInputs = with pkgs; [coreutils podman r2Tool];
     text = builtins.readFile ./backup-r2.sh;
   };
 in {
@@ -45,7 +44,7 @@ in {
           "sops-install-secrets.service"
         ];
         wants = ["network-online.target"];
-        path = [config.virtualisation.podman.package uploader];
+        path = [config.virtualisation.podman.package r2Tool];
 
         serviceConfig = r2Backup.withScratchDirectory "agentsview-backup" {
           Type = "oneshot";
@@ -93,7 +92,7 @@ in {
             "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
             "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
           ];
-          ExecStart = "${verifier}/bin/r2-verify";
+          ExecStart = "${r2Tool}/bin/r2 verify";
         };
       };
 

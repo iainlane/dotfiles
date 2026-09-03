@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Dump the AgentsView database and hand the result to the uploader. Driven
+# Dump the AgentsView database and hand the result to `r2 backup`. Driven
 # entirely by the environment so it stays a plain, checkable shell script:
 #
 #   AGENTSVIEW_CONTAINER   container running Postgres
@@ -9,7 +9,7 @@
 #   AGENTSVIEW_SUPERUSER   role to connect as
 #   AGENTSVIEW_SOCKET_DIR  directory holding the Postgres socket
 #
-# plus everything `r2-upload` reads.
+# plus everything `r2 backup` reads.
 #
 # Postgres keeps serving while this runs. `pg_dump` reads inside a single
 # repeatable-read transaction, so the dump shows the database as it was when
@@ -32,7 +32,7 @@ mkdir -p "${snapshot}"
 dump="${snapshot}/${AGENTSVIEW_DATABASE}.dump"
 
 # The custom format lets a restore take one table at a time and in parallel.
-# The uploader compresses with zstd, thus pg_dump does none of its own.
+# `r2 backup` compresses with zstd, thus pg_dump does none of its own.
 podman exec "${AGENTSVIEW_CONTAINER}" \
 	"${AGENTSVIEW_PG_DUMP}" \
 	--format=custom \
@@ -50,4 +50,4 @@ podman exec "${AGENTSVIEW_CONTAINER}" \
 
 echo "dumped ${AGENTSVIEW_DATABASE}: $(stat -c %s "${dump}") bytes"
 
-BACKUP_SOURCE="${snapshot}" exec r2-upload
+BACKUP_SOURCE="${snapshot}" exec r2 backup
