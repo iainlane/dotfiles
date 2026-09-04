@@ -20,6 +20,7 @@ in {
       features.dex
       features.matrix
       features.hermes
+      features.network
       features.nixbuild-substituter
       features.unifi
       features.caddy
@@ -27,6 +28,24 @@ in {
 
     systemModule = {
       dotfiles = {
+        network.systemd.network.networks."10-eth0" = {
+          matchConfig.Name = "eth0";
+          address = [
+            "192.168.1.138/24"
+            # Routed to this host by the ISP. The proxy publishes its ports on
+            # it, and it is a /32 because nothing else on the LAN holds one.
+            "81.187.184.100/32"
+            # One address out of the /64 routed here. The rest of the prefix is
+            # delegated to the proxy's own podman network.
+            "2001:8b0:df29:1a0::/128"
+          ];
+          networkConfig = {
+            Gateway = "192.168.1.100";
+            MulticastDNS = "yes";
+          };
+          linkConfig.RequiredForOnline = "yes";
+        };
+
         adsb = {
           secretsFile = "adsb.yaml";
           expose.domain = "adsb.orangesquash.org.uk";
