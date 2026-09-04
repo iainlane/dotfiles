@@ -46,9 +46,9 @@
       else "local")
     (lib.filterAttrs (_: host: helpers.hasFeature host clientFeature) hosts);
 
-  serverDefaults = {
-    database = "agentsview";
-  };
+  # The database that stores the sessions. The server's option defaults to
+  # it and the machines that push put it in their connection URL.
+  database = "agentsview";
 
   # Each machine connects as itself and has its own password. You can remove
   # the access of one machine and the others keep theirs.
@@ -69,8 +69,7 @@
     else if domain == null
     then throw "Host '${lib.head found}' has the ${serverFeature.name} feature but does not set flake.agentsviewServer.domain"
     else {
-      inherit domain;
-      inherit (serverDefaults) database;
+      inherit domain database;
     };
 
   # The certificate of a machine is beside its host record. The path comes
@@ -117,6 +116,7 @@ in {
     authTokenSecret
     certificatePath
     cursorSecret
+    database
     hasCertificate
     kinds
     passwordFile
@@ -126,7 +126,6 @@ in {
     userSecretsFile
     pushes
     role
-    serverDefaults
     serverSettings
     syncingHosts
     ;

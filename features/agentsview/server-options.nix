@@ -1,4 +1,4 @@
-# The options of the machine that holds the shared archive.
+# The options of the server that stores the shared archive.
 #
 # `common` is `common.nix`, applied by `server.nix`: this file is a
 # system-manager module, and the flake configuration `common.nix` needs is
@@ -25,36 +25,20 @@ in {
     };
 
     expose = lib.mkOption {
-      type = lib.types.submodule {
-        options = {
-          domain = lib.mkOption {
-            type = lib.types.str;
-            example = "agents.example.com";
-            description = "The hostname of the dashboard.";
-          };
-
-          auth = lib.mkOption {
-            type = lib.types.bool;
-            default = true;
-            description = ''
-              Whether a person must sign in before the dashboard shows
-              anything. The dashboard shows the sessions of all the machines,
-              thus keep this on.
-            '';
-          };
-        };
-      };
-      description = "The address of the dashboard, which is web traffic.";
+      type = lib.types.submodule (import ../../lib/exposed-service.nix);
+      description = ''
+        How the proxy serves the dashboard, which is web traffic. The
+        dashboard shows the sessions of every machine, so leave `auth` on.
+      '';
     };
 
     database = lib.mkOption {
       type = lib.types.str;
-      default = common.serverDefaults.database;
-      readOnly = true;
+      default = common.database;
       description = ''
-        The database that holds the sessions. The machines that push work
-        this name out for themselves and cannot read it from here, thus it is
-        fixed.
+        The database that holds the sessions. The machines that push read
+        the same name from `common.nix` to build their connection URL, so a
+        host that changes it here has to change it there as well.
       '';
     };
 
