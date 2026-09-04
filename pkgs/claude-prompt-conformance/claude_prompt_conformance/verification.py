@@ -56,7 +56,7 @@ class CommandVerifier:
         artefacts: Path,
         index: int,
     ) -> VerificationResult:
-        """Run one check, quarantining a gate which fails and then passes."""
+        """Run one check, marking a gate which fails and then passes as flaky."""
 
         first = self._attempt(fixture, check, instance, artefacts, f"{index}")
         if first.passed or check.kind is not VerificationKind.GATE:
@@ -91,10 +91,8 @@ class CommandVerifier:
                         instance.control,
                         instance.candidate_cache,
                         instance.candidate_temp,
-                        artefacts,
                     ),
                     network=NetworkAccess.PUBLIC,
-                    readable_paths=(instance.workspace,),
                 ),
                 stdout=stdout,
                 stderr=stderr,
@@ -112,7 +110,7 @@ class CommandVerifier:
 
 
 class CommandWorkspacePreparer:
-    """Install dependencies declared by a fixture in its isolated checkout."""
+    """Run the preparation commands a fixture declares in its checkout."""
 
     def __init__(self, runner: ProcessRunner) -> None:
         self._runner = runner

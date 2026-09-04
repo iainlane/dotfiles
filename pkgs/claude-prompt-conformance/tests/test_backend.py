@@ -157,8 +157,10 @@ class ScriptedRunner:
 
     return_codes: list[int]
     attempts: int = 0
+    invocations: list[models.ProcessInvocation] = field(default_factory=list)
 
     def run(self, invocation: models.ProcessInvocation) -> models.ProcessResult:
+        self.invocations.append(invocation)
         invocation.stdout.write_text(f"attempt {self.attempts + 1}\n")
         invocation.stderr.write_text("")
         return_code = self.return_codes[self.attempts]
@@ -891,6 +893,29 @@ def test_a_failed_gate_is_retried_once_before_it_counts(
         tuple(sorted(path.name for path in artefacts.glob("verification-*.stdout"))),
         runner.attempts,
     ) == (*expected, len(return_codes))
+
+
+def test_verification_keeps_its_evidence_out_of_the_command_s_reach(
+    tmp_path: Path,
+) -> None:
+    fixture = make_fixture(tmp_path / "fixtures")
+    artefacts = tmp_path / "artefacts"
+    artefacts.mkdir()
+    instance = FakeInstances().create("candidate", artefacts)
+    runner = ScriptedRunner([0])
+
+    CommandVerifier(runner).verify(fixture, instance, artefacts)
+
+    (invocation,) = runner.invocations
+    assert invocation.capabilities == models.ProcessCapabilities(
+        writable_paths=(
+            instance.workspace,
+            instance.control,
+            instance.candidate_cache,
+            instance.candidate_temp,
+        ),
+        network=models.NetworkAccess.PUBLIC,
+    )
 
 
 def test_a_quarantined_gate_does_not_fail_its_fixture(tmp_path: Path) -> None:
