@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils findutils openssl
+#!nix-shell -i bash -p bash coreutils findutils openssl util-linux
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -13,10 +13,14 @@ set -euo pipefail
 # shellcheck source=scripts/lib/just-common.bash
 source "$(dirname "${BASH_SOURCE[0]}")/lib/just-common.bash"
 
-host="${1}"
-target="${2}"
-keys_dir="${3}"
-phases="${4}"
+host="${1:-}"
+target="${2:-}"
+keys_dir="${3:-}"
+phases="${4:-}"
+
+if [[ -z "${host}" || -z "${target}" ]]; then
+	die "usage: install <host> <target> [keys_dir] [phases]"
+fi
 
 ensure_repo_root
 
@@ -46,7 +50,8 @@ if [[ -n "${keys_dir}" && -d "${keys_dir}" ]]; then
 			-subj "/CN=${host} ${subdir}/" -days 3650 2>/dev/null
 		chmod 0600 "${extra_files_dir}/etc/secureboot/keys/${subdir}/${subdir}.key"
 	done
-	printf '%s' "$(uuidgen)" >"${extra_files_dir}/etc/secureboot/GUID"
+	guid="$(uuidgen)"
+	printf '%s' "${guid}" >"${extra_files_dir}/etc/secureboot/GUID"
 
 	extra_files_args=(--extra-files "${extra_files_dir}")
 	echo "    SSH host key, user age key, and secure boot keys will be injected"
