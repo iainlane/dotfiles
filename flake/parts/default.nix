@@ -19,6 +19,5 @@ in {
     ++ map (name: ./checks + "/${name}") (helpers.fileNames ./checks ".nix")
     ++ helpers.discoverModuleFiles ../../hosts
     ++ helpers.discoverModules ../../features
-    ++ helpers.discoverModules ../../profiles
     ++ helpers.discoverModules ../../modules;
 }

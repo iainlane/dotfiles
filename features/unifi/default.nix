@@ -14,18 +14,10 @@
       ...
     }: let
       cfg = config.services.unifi;
-      sources = lib.importJSON ./sources.json;
-      platform =
-        sources.platforms.${pkgs.stdenv.hostPlatform.system}
-        or (throw "unifi: unsupported system ${pkgs.stdenv.hostPlatform.system}");
 
       # The installer ships an OCI archive inside its own firmware image, which
-      # is unpacked at build time and loaded through a quadlet.
-      imagePath = import ./image.nix {
-        inherit pkgs;
-        src = pkgs.fetchurl {inherit (platform) url hash;};
-        inherit (sources) version;
-      };
+      # the package unpacks at build time and a quadlet loads from the store.
+      imagePath = pkgs.unifi-os-server-image;
 
       imageName = "unifi-os";
       network = config.virtualisation.quadlet.networks.unifinet.ref;
@@ -47,7 +39,7 @@
       config = lib.mkMerge [
         {
           services.unifi = {
-            serverVersion = sources.version;
+            serverVersion = imagePath.version;
             firmwarePlatform =
               if pkgs.stdenv.hostPlatform.isAarch64
               then "linux-arm64"
@@ -60,7 +52,7 @@
 
             images.${imageName}.imageConfig = {
               image = "docker-archive:${imagePath}/image.tar";
-              tag = "localhost/${sources.imageTag}";
+              tag = "localhost/${imagePath.imageTag}";
             };
 
             containers.unifi-os = unifiContainer;

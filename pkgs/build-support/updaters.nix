@@ -17,6 +17,26 @@
   wget,
   writeShellApplication,
 }: {
+  # Run a package's own update script from its directory in the working tree.
+  # For upstreams whose release metadata needs more than a version number and
+  # a per-platform URL, which `mkSourcesUpdater` covers.
+  mkScriptUpdater = {
+    pname,
+    script,
+    extraRuntimeInputs ? [],
+  }:
+    writeShellApplication {
+      name = "update-${pname}";
+
+      runtimeInputs = [coreutils git jq nix wget] ++ extraRuntimeInputs;
+
+      text = ''
+        cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
+
+        ${builtins.readFile script}
+      '';
+    };
+
   # Regenerate a package's `sources.json`: discover the latest upstream
   # version, then download and hash one prebuilt binary per platform.
   #

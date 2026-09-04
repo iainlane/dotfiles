@@ -48,11 +48,11 @@
       name = "a path bind preserves Nix's store-path context";
       pass =
         quadlet.mount {
-          source.bind = ../../../profiles/hermes/soul.md;
+          source.bind = ../../../features/hermes/soul.md;
           target = "/soul.md";
           readOnly = true;
         }
-        == "${../../../profiles/hermes/soul.md}:/soul.md:ro";
+        == "${../../../features/hermes/soul.md}:/soul.md:ro";
     }
     {
       name = "chown ownership renders Podman's U option";

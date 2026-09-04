@@ -1,15 +1,9 @@
-#!/usr/bin/env nix
-#! nix shell nixpkgs#bash nixpkgs#binwalk nixpkgs#curl nixpkgs#gnutar nixpkgs#jq nixpkgs#nix nixpkgs#unzip nixpkgs#wget --command bash
 # shellcheck shell=bash
 
 # Update UniFi OS Server to the latest Linux release published by Ubiquiti.
 # Fetches the official downloads API, selects the latest Linux arm64/x64
 # installers, extracts the embedded OCI tag, computes SRI hashes, and rewrites
 # sources.json.
-
-set -euo pipefail
-
-cd "$(dirname "${BASH_SOURCE[0]}")"
 
 API_URL="https://download.svc.ui.com/v1/software-downloads"
 
