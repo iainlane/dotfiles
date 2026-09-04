@@ -9,23 +9,10 @@
   cfg = config.programs.projectDirectories;
   inherit (lib) mkOption types;
 
-  # Default attribute path from directory path (user-facing).
-  # "dev/debian" -> "dev.debian"
-  defaultAttrPath = dirPath:
-    lib.concatStringsSep "." (
-      lib.filter (s: s != "") (lib.splitString "/" dirPath)
-    );
-
-  # Convert user-facing attr path to internal tree structure path.
-  # "dev.debian" -> ["dev" "subdirectories" "debian" "shell"]
-  toTreePath = attrPath: let
-    segments = lib.splitString "." attrPath;
-    first = lib.head segments;
-    rest = lib.tail segments;
-  in
-    [first]
-    ++ lib.concatMap (seg: ["subdirectories" seg]) rest
-    ++ ["shell"];
+  # `treePath` and `directorySegments` are the ones `mkProjectShells` builds
+  # the `direnvs` tree with, so the path this module looks a shell up at is
+  # the path that shell was put at.
+  inherit (import ../projects.nix {inherit lib;}) directorySegments treePath;
 
   # Resolve a directory path to absolute.
   toAbsolute = dirPath:
@@ -46,17 +33,21 @@ in {
       type = types.attrsOf (
         types.submodule ({name, ...}: {
           options = {
-            attrPath = mkOption {
-              type = types.str;
-              default = defaultAttrPath name;
-              description = ''Attribute path (relative to the namespace) for this directory's dev shell'';
-              example = "dev.debian";
+            attrSegments = mkOption {
+              type = types.listOf types.str;
+              default = directorySegments name;
+              description = ''The segments naming this directory's dev shell under the namespace.'';
+              example = ["dev" "debian"];
             };
 
             extraPaths = mkOption {
               type = types.listOf types.str;
               default = [];
-              description = "Extra directories to prepend to PATH via direnv PATH_add.";
+              description = ''
+                Extra directories to prepend to PATH via direnv PATH_add. Each
+                value is written to the `.envrc` unquoted, so the shell expands
+                it and it has to be safe that way.
+              '';
               example = lib.literalExpression ''["$HOME/go/bin"]'';
             };
           };
@@ -66,7 +57,7 @@ in {
       example = lib.literalExpression ''
         {
           "dev/debian" = {
-            attrPath = "dev.debian";
+            attrSegments = ["dev" "debian"];
           };
         }
       '';
@@ -83,19 +74,19 @@ in {
         }
       ]
       ++ lib.mapAttrsToList (dirPath: dirConfig: let
-        treePath = [cfg.attrNamespace system] ++ toTreePath dirConfig.attrPath;
-        shellAttr = lib.attrByPath treePath null inputs.self.outputs;
+        shellPath = [cfg.attrNamespace system] ++ treePath dirConfig.attrSegments;
+        shellAttr = lib.attrByPath shellPath null inputs.self.outputs;
       in {
         assertion = shellAttr != null;
-        message = "programs.projectDirectories: missing devShell ${lib.concatStringsSep "." treePath} for ${dirPath} in inputs.self outputs";
+        message = "programs.projectDirectories: missing devShell ${lib.concatStringsSep "." shellPath} for ${dirPath} in inputs.self outputs";
       })
       cfg.directories;
 
     home.file =
       lib.mapAttrs' (dirPath: dirConfig: let
-        treePath = [cfg.attrNamespace system] ++ toTreePath dirConfig.attrPath;
-        flakeAttr = lib.concatStringsSep "." treePath;
-        shellAttr = lib.attrByPath treePath null inputs.self.outputs;
+        shellPath = [cfg.attrNamespace system] ++ treePath dirConfig.attrSegments;
+        flakeAttr = lib.concatStringsSep "." shellPath;
+        shellAttr = lib.attrByPath shellPath null inputs.self.outputs;
         derivationComment = "# ${builtins.unsafeDiscardStringContext shellAttr.drvPath}\n";
         absoluteDir = toAbsolute dirPath;
       in {

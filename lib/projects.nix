@@ -3,21 +3,25 @@
 # that generates the matching `.envrc` files. Used by features that define
 # per-directory development environments (personal, work, FOSS contexts).
 {lib}: rec {
-  # Normalise project definitions by computing derived path fields.
-  # Each project gets:
-  #   - attrSegments: directory path split into segments (e.g., "dev/debian" → ["dev" "debian"])
-  #   - attrPath: dotted path for nix attribute access (e.g., "dev.debian")
-  # All other fields are passed through as-is for the feature's mkShell to use.
-  normaliseProject = _name: attrs: let
-    attrSegments =
-      attrs.attrSegments
-      or (lib.filter (segment: segment != "") (lib.splitString "/" attrs.directory));
-  in
-    attrs
-    // {
-      inherit attrSegments;
-      attrPath = attrs.attrPath or (lib.concatStringsSep "." attrSegments);
-    };
+  # The segments of a project's directory path, which name its shell in the
+  # `direnvs` tree: "dev/debian" gives ["dev" "debian"]. A segment may contain
+  # a dot, so the segments are what every consumer works from.
+  directorySegments = directory:
+    lib.filter (segment: segment != "") (lib.splitString "/" directory);
+
+  # Where a project's shell is in the `direnvs` tree, so that "dev" and
+  # "dev/debian" can both have one:
+  #   ["dev"]           → ["dev" "shell"]
+  #   ["dev" "debian"]  → ["dev" "subdirectories" "debian" "shell"]
+  treePath = segments:
+    [(lib.head segments)]
+    ++ lib.concatMap (segment: ["subdirectories" segment]) (lib.tail segments)
+    ++ ["shell"];
+
+  # Add the directory's segments to a project definition. Every other field is
+  # passed through for the feature's mkShell to use.
+  normaliseProject = _name: attrs:
+    attrs // {attrSegments = directorySegments attrs.directory;};
 
   # Derive the kernel/OS name (e.g. "linux", "darwin") from a flake system
   # string so callers can pick `os.<name>` overlays without inspecting `pkgs`
@@ -27,29 +31,18 @@
   # Create nested attribute structure for the direnvs output. Each node can have:
   #   - shell: the devShell for this directory (optional)
   #   - subdirectories: nested directory nodes (default {})
-  # This allows both "dev" and "dev/debian" to have shells without conflicts.
-  # For example, "dev" becomes direnvs.dev.shell, "dev/debian" becomes
-  # direnvs.dev.subdirectories.debian.shell.
   mkNestedShells = {
     pkgs,
     os,
     mkShell,
     projectDefinitions,
-  }: let
-    # Build the attribute path for a shell.
-    # ["dev"] → ["dev" "shell"]
-    # ["dev" "debian"] → ["dev" "subdirectories" "debian" "shell"]
-    mkShellPath = segments:
-      [(lib.head segments)]
-      ++ lib.concatMap (seg: ["subdirectories" seg]) (lib.tail segments)
-      ++ ["shell"];
-  in
+  }:
     lib.foldl'
     (
       acc: def:
         lib.recursiveUpdate
         acc
-        (lib.setAttrByPath (mkShellPath def.attrSegments) (mkShell pkgs os def))
+        (lib.setAttrByPath (treePath def.attrSegments) (mkShell pkgs os def))
     )
     {}
     (builtins.attrValues projectDefinitions);
@@ -73,13 +66,13 @@
     );
 
   # Transform projects into the format expected by the project-directories
-  # home-manager module (directory path and attrPath).
+  # home-manager module (directory path and segments).
   mkDirectoriesConfig = projectDefinitions:
     lib.listToAttrs (
       lib.mapAttrsToList (_: def: {
         name = def.directory;
         value =
-          {inherit (def) attrPath;}
+          {inherit (def) attrSegments;}
           // lib.optionalAttrs (def ? extraPaths) {inherit (def) extraPaths;};
       })
       projectDefinitions
