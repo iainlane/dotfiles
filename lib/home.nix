@@ -93,16 +93,14 @@ in rec {
   mkHomeDefinition = {
     hostConfig,
     username,
-    extraModules ? [],
-    extraSpecialArgs,
+    homeSpecialArgs,
   }: {
     modules =
       mkHomeModules {inherit hostConfig username;}
       ++ [
         inputs.sops-nix.homeManagerModules.sops
         (mkHomeSopsModule {inherit hostConfig;})
-      ]
-      ++ extraModules;
-    inherit extraSpecialArgs;
+      ];
+    extraSpecialArgs = homeSpecialArgs;
   };
 }

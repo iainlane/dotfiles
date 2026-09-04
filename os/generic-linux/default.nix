@@ -13,15 +13,6 @@
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
 
-  homeExtraModules = [
-    {
-      nix.gc = {
-        automatic = true;
-        dates = "weekly";
-        options = "--delete-older-than 30d";
-      };
-    }
-  ];
   result = withSystem hostConfig.system (
     {
       mcpByChannel,
@@ -67,6 +58,5 @@
     }
   );
 in {
-  extraHomeModules = homeExtraModules;
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

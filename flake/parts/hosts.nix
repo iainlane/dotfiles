@@ -40,16 +40,13 @@
 
   homeDefinitions =
     lib.mapAttrs (
-      hostname: hostConfig: let
-        adapter = hostAdapters.${hostname};
-      in
+      hostname: hostConfig:
         home.mkHomeDefinition {
           inherit
             hostConfig
             username
             ;
-          extraModules = adapter.extraHomeModules or [];
-          extraSpecialArgs = adapter.homeSpecialArgs;
+          inherit (hostAdapters.${hostname}) homeSpecialArgs;
         }
     )
     hosts;
