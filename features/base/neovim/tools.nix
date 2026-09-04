@@ -19,6 +19,7 @@
     statix
     stylua
     tflint
+    zizmor
     ;
 
   inherit (pkgs.rubyPackages) htmlbeautifier;
