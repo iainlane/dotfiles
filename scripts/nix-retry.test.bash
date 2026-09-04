@@ -74,3 +74,11 @@ set -e
 output="$(run_retry success flake check --all-systems --no-build 2>&1)"
 [[ "${output}" == *'build completed'* ]]
 [[ "${output}" != *'retrying'* ]]
+
+set +e
+output="$(run_retry success 2>&1)"
+status=$?
+set -e
+
+[[ "${status}" -eq 2 ]]
+[[ "${output}" == *'usage:'* ]]

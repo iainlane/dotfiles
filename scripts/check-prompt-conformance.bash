@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+# Build the prompt-conformance checks named on the command line, but only when
+# the change under review touches a file they read.
+#
+# The checks take minutes, so the pre-commit hook that runs this passes every
+# check it wants built and this script decides whether to build them.
+#
+# Usage: check-prompt-conformance <flake check>...
+
 set -euo pipefail
 
 relevant_paths=(
