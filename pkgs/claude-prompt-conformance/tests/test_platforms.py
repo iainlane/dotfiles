@@ -44,6 +44,7 @@ from claude_prompt_conformance.platforms.darwin import (
     KeychainReadError,
     PyObjCKeychain,
     claude_keychain_namespace,
+    sbpl_string,
     seatbelt_profile,
 )
 from claude_prompt_conformance.platforms.linux import (
@@ -367,14 +368,32 @@ def test_darwin_backend_denies_undeclared_unix_sockets_under_public_network(
         f'(allow file-read* (subpath "{tmp_path / "readable"}"))\n'
         f'(allow file-read* (subpath "{tmp_path / "writable"}"))\n'
         f'(allow file-read* (literal "{tmp_path / "credential"}"))\n'
+        '(allow file-read* (literal "/private/var/run/mDNSResponder"))\n'
         f'(allow file-read* (literal "{tmp_path / "actual-socket"}"))\n'
         f'(allow file-write* (subpath "{tmp_path / "writable"}"))\n'
         f'(allow file-write* (literal "{tmp_path / "credential"}"))\n'
         "(deny network-outbound (remote unix-socket))\n"
-        '(allow network-outbound (literal "/private/var/run/mDNSResponder"))\n'
+        "(allow network-outbound "
+        '(remote unix-socket (path-literal "/private/var/run/mDNSResponder")))\n'
         "(allow network-outbound "
         f'(remote unix-socket (path-literal "{tmp_path / "actual-socket"}")))\n'
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("/tmp/plain", '"/tmp/plain"', id="ascii"),
+        pytest.param("/tmp/naïve", '"/tmp/naïve"', id="non-ascii"),
+        pytest.param('/tmp/say "so"', '"/tmp/say \\"so\\""', id="quote"),
+        pytest.param("/tmp/back\\slash", '"/tmp/back\\\\slash"', id="backslash"),
+    ],
+)
+def test_sbpl_string_escapes_the_two_characters_sbpl_reads(
+    value: str,
+    expected: str,
+) -> None:
+    assert sbpl_string(value) == expected
 
 
 @dataclass
@@ -683,6 +702,57 @@ def test_darwin_backend_uses_an_explicit_tls_certificate_bundle(
         msgspec.json.decode(process.stdout.read_bytes(), type=TlsProbeResult),
         process.stderr.read_text(),
     ) == (ProcessResult(0), TlsProbeResult(tls=True), "")
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="requires macOS Seatbelt")
+@pytest.mark.host_integration
+def test_darwin_backend_grants_a_path_whose_name_is_not_ascii(
+    tmp_path: Path,
+) -> None:
+    readable = tmp_path / "dépôt"
+    readable.mkdir()
+    source = readable / "rule.md"
+    source.write_text("Be precise.\n")
+    hidden = tmp_path / "cachée"
+    hidden.mkdir()
+    (hidden / "secret.txt").write_text("secret\n")
+    control = tmp_path / "control"
+    control.mkdir()
+    process = ProcessInvocation(
+        command=(
+            sys.executable,
+            "-c",
+            (
+                "import sys\n"
+                "sys.stdout.write(open(sys.argv[1]).read())\n"
+                "try:\n"
+                "    open(sys.argv[2])\n"
+                "except PermissionError:\n"
+                "    sys.stdout.write('denied\\n')\n"
+            ),
+            str(source),
+            str(hidden / "secret.txt"),
+        ),
+        cwd=control,
+        environment={"PATH": os.environ["PATH"]},
+        capabilities=ProcessCapabilities(
+            writable_paths=(control,),
+            readable_paths=(readable, tmp_path),
+            hidden_paths=(hidden,),
+            network=NetworkAccess.NONE,
+        ),
+        stdout=control / "accented.stdout",
+        stderr=control / "accented.stderr",
+    )
+
+    result = DarwinProcessRunner("/usr/bin/sandbox-exec", ProcessSupervisor()).run(
+        process
+    )
+
+    assert (result, process.stdout.read_text()) == (
+        ProcessResult(0),
+        "Be precise.\ndenied\n",
+    )
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="requires macOS Seatbelt")

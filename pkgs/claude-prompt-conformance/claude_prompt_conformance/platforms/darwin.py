@@ -1,6 +1,5 @@
 """macOS process isolation implemented with Seatbelt."""
 
-import json
 import os
 import pwd
 import re
@@ -106,7 +105,7 @@ SYSTEM_READ_PATHS = (
 # Host name resolution goes through this socket, not through a capability the
 # caller declares, so PUBLIC network access keeps it reachable the same way
 # it keeps SYSTEM_READ_PATHS readable.
-_SYSTEM_UNIX_SOCKETS = ("/private/var/run/mDNSResponder",)
+_SYSTEM_UNIX_SOCKETS = (Path("/private/var/run/mDNSResponder"),)
 _KEYCHAIN_ACCOUNT = re.compile(r"^[a-zA-Z0-9._-]+$")
 _KEYCHAIN_FALLBACK_ACCOUNT = "claude-code-user"
 _LOCAL_AUTHENTICATION_FRAMEWORK = (
@@ -438,7 +437,23 @@ class PyObjCKeychain:
         )
 
 
+def sbpl_string(value: str) -> str:
+    """Quote one path as an SBPL string literal.
+
+    SBPL reads `\\` and `"` as escapes inside a string and every other byte as
+    itself, so a JSON encoder's `\\uXXXX` form for a non-ASCII path produces a
+    rule that matches nothing.
+    """
+
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def seatbelt_profile(invocation: ProcessInvocation) -> str:
+    capabilities = invocation.capabilities
+    unix_sockets = tuple(path.resolve() for path in capabilities.unix_sockets)
+    if capabilities.network is NetworkAccess.PUBLIC:
+        unix_sockets = _SYSTEM_UNIX_SOCKETS + unix_sockets
     rules = [
         "(version 1)",
         "(allow default)",
@@ -458,55 +473,46 @@ def seatbelt_profile(invocation: ProcessInvocation) -> str:
         '(allow file-write* (literal "/dev/null"))',
     ]
     rules.extend(
-        f"(allow file-read* (subpath {json.dumps(path)}))" for path in SYSTEM_READ_PATHS
-    )
-    readable_paths = (
-        invocation.capabilities.readable_paths + invocation.capabilities.writable_paths
+        f"(allow file-read* (subpath {sbpl_string(path)}))"
+        for path in SYSTEM_READ_PATHS
     )
     rules.extend(
-        f"(allow file-read* (subpath {json.dumps(str(path.resolve()))}))"
-        for path in readable_paths
+        f"(allow file-read* (subpath {sbpl_string(str(path.resolve()))}))"
+        for path in capabilities.readable_paths + capabilities.writable_paths
     )
     rules.extend(
-        f"(allow file-read* (literal {json.dumps(str(path.resolve()))}))"
-        for path in (
-            invocation.capabilities.writable_files
-            + invocation.capabilities.unix_sockets
-        )
+        f"(allow file-read* (literal {sbpl_string(str(path.resolve()))}))"
+        for path in capabilities.writable_files + unix_sockets
     )
     rules.extend(
-        f"(allow file-write* (subpath {json.dumps(str(path.resolve()))}))"
-        for path in invocation.capabilities.writable_paths
+        f"(allow file-write* (subpath {sbpl_string(str(path.resolve()))}))"
+        for path in capabilities.writable_paths
     )
     rules.extend(
-        f"(allow file-write* (literal {json.dumps(str(path.resolve()))}))"
-        for path in invocation.capabilities.writable_files
+        f"(allow file-write* (literal {sbpl_string(str(path.resolve()))}))"
+        for path in capabilities.writable_files
     )
     # Hidden paths must be denied after every read/write allow above so a
     # hidden path nested inside a writable or readable path stays hidden.
     rules.extend(
         rule
-        for path in invocation.capabilities.hidden_paths
+        for path in capabilities.hidden_paths
         for rule in (
-            f"(deny file-read* (subpath {json.dumps(str(path.resolve()))}))",
-            f"(deny file-write* (subpath {json.dumps(str(path.resolve()))}))",
+            f"(deny file-read* (subpath {sbpl_string(str(path.resolve()))}))",
+            f"(deny file-write* (subpath {sbpl_string(str(path.resolve()))}))",
         )
     )
-    if invocation.capabilities.network is NetworkAccess.NONE:
+    if capabilities.network is NetworkAccess.NONE:
         rules.append("(deny network*)")
-    elif invocation.capabilities.network is NetworkAccess.PUBLIC:
+    elif capabilities.network is NetworkAccess.PUBLIC:
         # PUBLIC only opens remote network access; without this, nothing
         # constrains connections to host unix-domain sockets (the SSH agent,
         # an editor's IPC socket, ...), so deny them by default and allow
-        # only the sockets declared below and the system sockets above.
+        # only the sockets below.
         rules.append("(deny network-outbound (remote unix-socket))")
-        rules.extend(
-            f"(allow network-outbound (literal {json.dumps(path)}))"
-            for path in _SYSTEM_UNIX_SOCKETS
-        )
     rules.extend(
         "(allow network-outbound "
-        f"(remote unix-socket (path-literal {json.dumps(str(path.resolve()))})))"
-        for path in invocation.capabilities.unix_sockets
+        f"(remote unix-socket (path-literal {sbpl_string(str(path))})))"
+        for path in unix_sockets
     )
     return "\n".join(rules) + "\n"
