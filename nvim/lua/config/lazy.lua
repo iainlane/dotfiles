@@ -87,14 +87,13 @@ require("lazy").setup({
     { import = "plugins" },
   },
 
-  defaults = {
-    checker = {
-      enabled = true,
-      notify = false,
-    },
-    change_detection = {
-      notify = false,
-    },
+  checker = {
+    enabled = true,
+    notify = false,
+  },
+
+  change_detection = {
+    notify = false,
   },
 
   dev = {
@@ -102,9 +101,4 @@ require("lazy").setup({
   },
 
   lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
-
-  profiling = {
-    loader = true,
-    require = true,
-  },
 })
