@@ -18,6 +18,11 @@ in
     extraArgs = name:
       if name == "melange"
       then {inherit (nixpkgsUnstable) melange;}
+      else if name == "claude-prompt-conformance"
+      then {
+        inherit inputs;
+        pkgs = final;
+      }
       else {};
   in
     {

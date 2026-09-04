@@ -1,3 +1,6 @@
+# Re-export tools from flake inputs so the justfile can reference pinned
+# versions with `nix run .#<app>`, and build the netboot installer and its
+# server.
 {
   inputs,
   config,
@@ -14,24 +17,18 @@
       ;
   };
 in {
-  # Re-export tools from flake inputs so the justfile can reference pinned
-  # versions via `nix run .#<app>`.
   perSystem = {
     lib,
     pkgs,
     pkgs-stable,
     system,
     ...
-  }: let
-    promptConformance = import ../../pkgs/claude-prompt-conformance {
-      inherit inputs lib pkgs system;
-    };
-  in {
+  }: {
     apps =
       {
         claude-prompt-conformance = {
           type = "app";
-          program = lib.getExe promptConformance;
+          program = lib.getExe pkgs.claude-prompt-conformance;
           meta.description = "Test Claude's assembled prompt configuration";
         };
         deploy-rs = {
@@ -56,8 +53,6 @@ in {
         };
       };
 
-    packages =
-      netboot.packagesForSystem {inherit pkgs pkgs-stable;}
-      // {claude-prompt-conformance = promptConformance;};
+    packages = netboot.packagesForSystem {inherit pkgs pkgs-stable;};
   };
 }

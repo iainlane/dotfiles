@@ -1,9 +1,14 @@
+# The prompt-conformance suite: it drives whole agent packages from
+# `llm-agents` and reads this flake's own prompt files, so it takes the input
+# set and the package set rather than a list of individual dependencies. The
+# local package overlay passes both.
 {
   inputs,
   lib,
   pkgs,
-  system,
+  stdenv,
 }: let
+  inherit (stdenv.hostPlatform) system;
   defaultModels = import ../../features/ai/models.nix;
   instructions = (import ../../features/ai/agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
   managedSettings =
