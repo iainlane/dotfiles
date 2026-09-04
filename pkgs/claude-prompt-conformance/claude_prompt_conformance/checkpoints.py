@@ -26,6 +26,7 @@ from .storage import (
     clear_directory,
     directory_exists,
     pending_files,
+    read_regular_file,
 )
 
 
@@ -170,6 +171,7 @@ class JsonFixtureResultStore:
         if not directory_exists(root, artefacts):
             return None
         stored_result = self._read(
+            root,
             artefacts,
             artefacts / RESULT_FILE,
             StoredTestResult,
@@ -192,6 +194,7 @@ class JsonFixtureResultStore:
             return stored_result.result
 
         checkpoint = self._read(
+            root,
             artefacts,
             artefacts / CHECKPOINT_FILE,
             FixtureCheckpoint,
@@ -227,23 +230,37 @@ class JsonFixtureResultStore:
         # An arm racing this one may be part way through publishing the same
         # judgements, so an interrupted write is never adopted here: its author
         # is more probably alive than crashed, and recalibrating is safe.
-        stored = self._read(root, source, StoredCalibration, recover_interrupted=False)
+        stored = self._read(
+            root,
+            root,
+            source,
+            StoredCalibration,
+            recover_interrupted=False,
+        )
         if stored is None:
             return None
 
+        # These judgements are a cache every arm of the run store shares.
+        # Discard the cache when it no longer describes this fixture, this
+        # judge, or its own evidence, so the fixture calibrates again instead
+        # of being abandoned for the rest of the run.
         if (
             stored.contract != fixture_contract(fixture)
             or stored.judge != judge
             or calibration_verdicts(stored.assessments)
             != calibration_declaration(fixture)
         ):
-            raise FixtureCheckpointMismatchError(source, fixture.name)
+            return None
 
         artefacts = calibration_evidence_root(root, stored.artefacts)
         if not directory_exists(root, artefacts):
-            raise FixtureEvidenceMismatchError(source)
-        if calibration_inventory(artefacts) != stored.evidence:
-            raise FixtureEvidenceMismatchError(source)
+            return None
+        try:
+            inventory = calibration_inventory(artefacts)
+        except FixtureEvidenceMismatchError:
+            return None
+        if inventory != stored.evidence:
+            return None
         return RetainedCalibration(stored.assessments, artefacts)
 
     def reset(
@@ -320,18 +337,21 @@ class JsonFixtureResultStore:
 
     def _read(
         self,
+        root: Path,
         base: Path,
         path: Path,
         target: type[T],
         *,
         recover_interrupted: bool,
     ) -> T | None:
+        if not directory_exists(root, path.parent):
+            return None
         try:
-            contents = path.read_bytes()
+            contents = read_regular_file(root, path)
         except FileNotFoundError:
             if not recover_interrupted:
                 return None
-            return self._recover_pending(base, path, target)
+            return self._recover_pending(root, base, path, target)
         except OSError as error:
             raise FixtureCheckpointReadError(path, error) from error
 
@@ -348,6 +368,7 @@ class JsonFixtureResultStore:
 
     def _recover_pending(
         self,
+        root: Path,
         base: Path,
         path: Path,
         target: type[T],
@@ -361,10 +382,8 @@ class JsonFixtureResultStore:
                 ValueError("multiple interrupted checkpoint writes exist"),
             )
         (pending,) = candidates
-        if pending.is_symlink():
-            raise RetainedPathUnsafeError(pending)
         try:
-            contents = pending.read_bytes()
+            contents = read_regular_file(root, pending)
         except FileNotFoundError:
             return None
         except OSError as error:
@@ -473,7 +492,6 @@ class JsonFixtureResultStore:
         expected = tuple(sorted(criterion.identifier for criterion in fixture.criteria))
         if tuple(result.judgement.identifiers) != expected:
             raise FixtureCheckpointMismatchError(source, fixture.name)
-        result.judgement.validate()
 
 
 def calibration_state(root: Path, fixture: Fixture) -> Path:
@@ -743,6 +761,11 @@ def judge_identity(run_metadata: Path) -> str:
 def calibration_inventory(artefacts: Path) -> tuple[EvidenceDigest, ...]:
     """Hash the exact retained files which support the reference judgements."""
 
+    # `evidence_digest` expresses each entry relative to the resolved artefacts
+    # root, so start the walk there. From an unresolved root, a symlinked
+    # component anywhere above the fixture leaves the walked paths outside the
+    # resolved root and every `relative_to` call fails.
+    artefacts = artefacts.resolve()
     root = artefacts / CALIBRATION_DIRECTORY
     try:
         if not root.is_dir() or root.is_symlink():

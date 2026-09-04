@@ -402,7 +402,7 @@ def demo_judgement(fixture: Fixture) -> Judgement:
                 identifier=criterion.identifier,
                 passed=True,
                 reason="The recorded work meets this criterion.",
-                evidence=(),
+                evidence=("get_evaluation_brief",),
             )
             for criterion in fixture.criteria
         ),
@@ -425,7 +425,7 @@ def reference_judgement(expected: tuple[tuple[str, bool], ...]) -> Judgement:
                 identifier=identifier,
                 passed=verdict,
                 reason="Reference verdict.",
-                evidence=(),
+                evidence=("get_evaluation_brief",),
             )
             for identifier, verdict in expected
         ),
@@ -434,8 +434,8 @@ def reference_judgement(expected: tuple[tuple[str, bool], ...]) -> Judgement:
         recommendation=(
             "No changes are needed." if passed else "Apply the expected fix."
         ),
-        counterfactual="",
-        corrected_response="",
+        counterfactual="" if passed else "diff --git a/file b/file",
+        corrected_response="" if passed else "Fixed and checked.",
         prompt_observations=(),
     )
 

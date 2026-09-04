@@ -1476,7 +1476,7 @@ def test_codex_judge_uses_bespoke_mcp_and_shared_auth(
                     "id": 2,
                     "method": "config/read",
                     "params": {
-                        "includeLayers": True,
+                        "includeLayers": False,
                         "cwd": str(control),
                     },
                 },
@@ -1865,7 +1865,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                             "id": 2,
                             "method": "config/read",
                             "params": {
-                                "includeLayers": True,
+                                "includeLayers": False,
                                 "cwd": str(control),
                             },
                         },

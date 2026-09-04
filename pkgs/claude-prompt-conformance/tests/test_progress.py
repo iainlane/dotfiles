@@ -6,7 +6,6 @@ from threading import Event
 import pytest
 
 from claude_prompt_conformance.progress import (
-    DuplicateTaskActivityError,
     DuplicateTaskChildError,
     DuplicateTaskChildOrderError,
     FinishedTaskMutationError,
@@ -81,8 +80,6 @@ def test_scoped_tasks_retain_complete_parent_child_state() -> None:
             kind=TaskKind.SUITE,
             description="Conformance",
             detail="One fixture failed",
-            completed=1,
-            total=1,
             outcome=TaskOutcome.FAILED,
             revision=2,
             started_at=1.0,
@@ -93,8 +90,6 @@ def test_scoped_tasks_retain_complete_parent_child_state() -> None:
                     kind=TaskKind.FIXTURE,
                     description="Fixture",
                     detail="Judge rejected the work",
-                    completed=1,
-                    total=2,
                     outcome=TaskOutcome.FAILED,
                     revision=2,
                     started_at=2.0,
@@ -138,8 +133,6 @@ def test_task_tracks_parallel_activities_by_identity() -> None:
         kind=TaskKind.SUITE,
         description="Conformance",
         detail="Checks finished",
-        completed=0,
-        total=0,
         outcome=None,
         revision=4,
         started_at=1.0,
@@ -185,13 +178,32 @@ def test_task_owner_reports_detail_independently_of_its_children() -> None:
     )
 
 
+def test_a_repeated_activity_identifier_replaces_the_one_being_shown() -> None:
+    times = iter((1.0, 2.0, 3.0, 4.0))
+    scopes = TaskScopes(RecordingRoots(), lambda: next(times))
+
+    with scopes.root("run", TaskKind.SUITE, "Conformance") as task:
+        task.start_activity("tool", "Bash: first")
+        task.start_activity("tool", "Bash: second")
+        running = task.snapshot()
+
+    assert (running.activity, running.active_activities) == (
+        TaskActivity(
+            identifier="tool",
+            description="Bash: second",
+            sequence=2,
+            started_at=3.0,
+            observed_at=3.0,
+            elapsed_seconds=0,
+            heartbeat=False,
+        ),
+        1,
+    )
+
+
 @pytest.mark.parametrize(
     ("operation", "expected"),
     (
-        (
-            lambda task: task.start_activity("tool", "Duplicate"),
-            DuplicateTaskActivityError(("run",), "tool"),
-        ),
         (
             lambda task: task.heartbeat_activity("missing", 1),
             UnknownTaskActivityError(("run",), "missing"),
@@ -204,7 +216,7 @@ def test_task_owner_reports_detail_independently_of_its_children() -> None:
 )
 def test_task_rejects_invalid_activity_transitions(
     operation: Callable[[TaskRun], None],
-    expected: DuplicateTaskActivityError | UnknownTaskActivityError,
+    expected: UnknownTaskActivityError,
 ) -> None:
     scopes = TaskScopes(RecordingRoots())
 
@@ -237,8 +249,6 @@ def test_thread_submission_preserves_the_current_task_context() -> None:
             kind=TaskKind.SUITE,
             description="Conformance",
             detail="Completed",
-            completed=1,
-            total=1,
             outcome=TaskOutcome.COMPLETED,
             revision=2,
             started_at=1.0,
@@ -249,8 +259,6 @@ def test_thread_submission_preserves_the_current_task_context() -> None:
                     kind=TaskKind.FIXTURE,
                     description="Worker",
                     detail="Completed",
-                    completed=0,
-                    total=0,
                     outcome=TaskOutcome.COMPLETED,
                     revision=1,
                     started_at=2.0,
@@ -447,8 +455,8 @@ def test_bounded_children_use_the_pessimistic_total_until_sealed() -> None:
         ),
     )
     assert (
-        (before_sealing.completed, before_sealing.total),
-        (after_sealing.completed, after_sealing.total),
+        (before_sealing.child_progress.completed, before_sealing.child_progress.total),
+        (after_sealing.child_progress.completed, after_sealing.child_progress.total),
     ) == ((1, 3), (1, 1))
 
 
@@ -469,7 +477,7 @@ def test_bounded_children_can_discover_direct_work_regions() -> None:
         maximum=2,
         children=(TaskChildSnapshot("discovered", 1.0, False, True),),
     )
-    assert (running.completed, running.total) == (1, 2)
+    assert (running.child_progress.completed, running.child_progress.total) == (1, 2)
 
 
 def test_unbounded_children_are_indeterminate_until_sealed() -> None:
@@ -500,8 +508,8 @@ def test_unbounded_children_are_indeterminate_until_sealed() -> None:
         ),
     )
     assert (
-        (before_sealing.completed, before_sealing.total),
-        (after_sealing.completed, after_sealing.total),
+        (before_sealing.child_progress.completed, before_sealing.child_progress.total),
+        (after_sealing.child_progress.completed, after_sealing.child_progress.total),
     ) == ((1, None), (1, 1))
 
 
@@ -564,8 +572,6 @@ def test_passing_task_rejects_incomplete_fixed_regions() -> None:
             kind=TaskKind.SUITE,
             description="Conformance",
             detail="Failed",
-            completed=1,
-            total=2,
             outcome=TaskOutcome.FAILED,
             revision=2,
             started_at=1.0,
@@ -770,8 +776,6 @@ def test_async_cancellation_marks_the_task_as_cancelled() -> None:
             kind=TaskKind.SUITE,
             description="Conformance",
             detail="Cancelled",
-            completed=0,
-            total=0,
             outcome=TaskOutcome.CANCELLED,
             revision=1,
             started_at=1.0,

@@ -480,7 +480,7 @@ def _clip(value: str, width: int) -> str:
 def displayed_progress(snapshot: TaskSnapshot) -> tuple[int, int | None]:
     """Return the task's explicit, stable progress measurement."""
 
-    return snapshot.completed, snapshot.total
+    return snapshot.child_progress.completed, snapshot.child_progress.total
 
 
 def progress_count(snapshot: TaskSnapshot) -> str:

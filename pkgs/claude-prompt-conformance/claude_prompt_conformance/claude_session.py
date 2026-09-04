@@ -11,6 +11,7 @@ from .models import ProcessExchange, ProcessOutputRecord, SecretFileDescriptor
 from .ports import ActivityReporter, ClaudeIdentity
 from .protocols.claude import (
     ClaudeAssistantRecord,
+    ClaudeControlFailure,
     ClaudeControlRequest,
     ClaudeControlRequestRecord,
     ClaudeControlResponse,
@@ -56,32 +57,31 @@ class ClaudeControlRequestUnsupportedError(ConformanceError):
         return f"Claude requested unsupported SDK control operation {self.subtype}"
 
 
+_KIND_DECODER = msgspec.json.Decoder(ClaudeRecordKind)
+_RECORD_DECODERS = {
+    "assistant": msgspec.json.Decoder(ClaudeAssistantRecord),
+    "user": msgspec.json.Decoder(ClaudeUserRecord),
+    "system": msgspec.json.Decoder(ClaudeSystemRecord),
+    "tool_progress": msgspec.json.Decoder(ClaudeToolProgressRecord),
+    "result": msgspec.json.Decoder(ClaudeResultRecord),
+    "control_request": msgspec.json.Decoder(ClaudeControlRequestRecord),
+}
+
+
 def decode_stream_record(value: bytes) -> ClaudeStreamRecord | None:
     """Decode a record against its own schema, passing unknown kinds by."""
 
     try:
-        kind = msgspec.json.decode(value, type=ClaudeRecordKind)
+        kind = _KIND_DECODER.decode(value)
     except (msgspec.DecodeError, msgspec.ValidationError) as error:
         raise ClaudeControlRecordDecodeError(error) from error
 
-    match kind.type:
-        case "assistant":
-            schema = ClaudeAssistantRecord
-        case "user":
-            schema = ClaudeUserRecord
-        case "system":
-            schema = ClaudeSystemRecord
-        case "tool_progress":
-            schema = ClaudeToolProgressRecord
-        case "result":
-            schema = ClaudeResultRecord
-        case "control_request":
-            schema = ClaudeControlRequestRecord
-        case _:
-            return None
+    decoder = _RECORD_DECODERS.get(kind.type)
+    if decoder is None:
+        return None
 
     try:
-        return msgspec.json.decode(value, type=schema)
+        return decoder.decode(value)
     except (msgspec.DecodeError, msgspec.ValidationError) as error:
         raise ClaudeControlRecordDecodeError(error) from error
 
@@ -89,6 +89,8 @@ def decode_stream_record(value: bytes) -> ClaudeStreamRecord | None:
 _INITIALIZE_REQUEST_ID = "prompt-conformance-initialize"
 _DEFERRING_TASK_TYPES = frozenset({"local_agent", "local_workflow"})
 _TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "stopped", "killed"})
+# The pinned client abandons a control request after 30 seconds, so the refresh
+# has to answer inside that window with room for the write to reach it.
 _OAUTH_CALLBACK_BUDGET_SECONDS = 28
 
 
@@ -141,7 +143,7 @@ class ClaudeSdkSession:
     def receive(self, record: ProcessOutputRecord) -> ProcessExchange:
         """Handle one Claude output record and return any protocol response."""
 
-        event = self._decode(record)
+        event = decode_stream_record(record.value)
         if event is None:
             return ProcessExchange()
 
@@ -155,10 +157,25 @@ class ClaudeSdkSession:
         request = event.request
         if request is None:
             raise ClaudeControlRequestBodyMissingError
-        if request.subtype != "oauth_token_refresh":
-            raise ClaudeControlRequestUnsupportedError(request.subtype)
         if event.request_id is None:
             raise ClaudeControlRequestIdMissingError
+        if request.subtype != "oauth_token_refresh":
+            # A record whose kind the suite does not model is ignored above; a
+            # control request is a question, so answer it with the protocol's
+            # own error and let the candidate's run continue.
+            failure = ClaudeControlRequestUnsupportedError(request.subtype)
+            return ProcessExchange(
+                writes=(
+                    _line(
+                        ClaudeControlResponse(
+                            ClaudeControlFailure(
+                                request_id=event.request_id,
+                                error=str(failure),
+                            )
+                        )
+                    ),
+                )
+            )
 
         deadline = record.received_at + _OAUTH_CALLBACK_BUDGET_SECONDS
         if (
@@ -177,9 +194,6 @@ class ClaudeSdkSession:
             )
         )
         return ProcessExchange(writes=(_line(response),))
-
-    def _decode(self, record: ProcessOutputRecord) -> ClaudeStreamRecord | None:
-        return decode_stream_record(record.value)
 
     def _track_activity(self, event: ClaudeStreamRecord) -> None:
         activity = self._activity

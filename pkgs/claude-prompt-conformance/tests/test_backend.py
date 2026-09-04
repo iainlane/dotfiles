@@ -505,30 +505,22 @@ def test_suite_orchestrates_capabilities_and_calibrates_the_judge(
             TaskOutline(
                 path=("conformance",),
                 kind=ProgressTaskKind.SUITE,
-                completed=1,
-                total=1,
                 outcome=TaskOutcome.PASSED,
                 children=(
                     TaskOutline(
                         path=("conformance", fixture.name),
                         kind=ProgressTaskKind.FIXTURE,
-                        completed=6,
-                        total=6,
                         outcome=TaskOutcome.PASSED,
                         children=(
                             TaskOutline(
                                 path=("conformance", fixture.name, "prepare"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "calibrate"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=2,
-                                total=2,
                                 outcome=TaskOutcome.PASSED,
                                 children=tuple(
                                     TaskOutline(
@@ -539,8 +531,6 @@ def test_suite_orchestrates_capabilities_and_calibrates_the_judge(
                                             f"subject-{index:02}",
                                         ),
                                         kind=ProgressTaskKind.PHASE,
-                                        completed=4,
-                                        total=4,
                                         outcome=TaskOutcome.PASSED,
                                         children=(),
                                     )
@@ -550,32 +540,24 @@ def test_suite_orchestrates_capabilities_and_calibrates_the_judge(
                             TaskOutline(
                                 path=("conformance", fixture.name, "candidate"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "evidence"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "verify"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.PASSED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "judge"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.PASSED,
                                 children=(),
                             ),
@@ -968,15 +950,11 @@ def test_suite_reuses_a_complete_result_when_the_run_store_already_exists(
             TaskOutline(
                 path=("conformance",),
                 kind=ProgressTaskKind.SUITE,
-                completed=1,
-                total=1,
                 outcome=TaskOutcome.PASSED,
                 children=(
                     TaskOutline(
                         path=("conformance", fixture.name),
                         kind=ProgressTaskKind.FIXTURE,
-                        completed=6,
-                        total=6,
                         outcome=TaskOutcome.PASSED,
                         children=(),
                     ),
@@ -1240,54 +1218,40 @@ def test_suite_reuses_calibration_after_the_candidate_phase_failed(
             TaskOutline(
                 path=("conformance",),
                 kind=ProgressTaskKind.SUITE,
-                completed=1,
-                total=1,
                 outcome=TaskOutcome.PASSED,
                 children=(
                     TaskOutline(
                         path=("conformance", fixture.name),
                         kind=ProgressTaskKind.FIXTURE,
-                        completed=6,
-                        total=6,
                         outcome=TaskOutcome.PASSED,
                         children=(
                             TaskOutline(
                                 path=("conformance", fixture.name, "prepare"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "candidate"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "evidence"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.COMPLETED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "verify"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.PASSED,
                                 children=(),
                             ),
                             TaskOutline(
                                 path=("conformance", fixture.name, "judge"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.PASSED,
                                 children=(),
                             ),
@@ -1330,18 +1294,16 @@ def test_suite_calibrates_again_when_the_judge_configuration_changed(
     assert (
         (resumed.passed, resumed.failed, resumed.invalid, resumed.stale),
         resumed_run.status,
-        type(resumed_run.error),
         counting.subjects,
     ) == (
-        (0, 0, 0, 1),
-        Status.STALE,
-        FixtureCheckpointMismatchError,
-        ("subject-01", "subject-02"),
+        (1, 0, 0, 0),
+        Status.PASSED,
+        ("candidate", "subject-01", "subject-01", "subject-02", "subject-02"),
     )
 
 
 @pytest.mark.parametrize("replacement", [None, "changed after calibration\n"])
-def test_suite_rejects_missing_or_changed_calibration_evidence(
+def test_missing_or_changed_calibration_evidence_is_calibrated_again(
     tmp_path: Path,
     replacement: str | None,
 ) -> None:
@@ -1366,20 +1328,19 @@ def test_suite_rejects_missing_or_changed_calibration_evidence(
         evidence.unlink()
     else:
         evidence.write_text(replacement)
+    counting = CountingJudge()
 
-    resumed = suite(metadata, RecordingEvents(), judge=UnexpectedJudge()).run(request)
+    resumed = suite(metadata, RecordingEvents(), judge=counting).run(request)
     (result,) = resumed.results
 
     assert (
         (resumed.passed, resumed.failed, resumed.invalid, resumed.stale),
         result.status,
-        type(result.error),
-        result.result,
+        counting.subjects,
     ) == (
-        (0, 0, 0, 1),
-        Status.STALE,
-        FixtureEvidenceMismatchError,
-        None,
+        (1, 0, 0, 0),
+        Status.PASSED,
+        ("candidate", "subject-01", "subject-02"),
     )
 
 
@@ -1527,22 +1488,16 @@ def test_suite_resumes_at_the_judge_after_a_complete_candidate_checkpoint(
             TaskOutline(
                 path=("conformance",),
                 kind=ProgressTaskKind.SUITE,
-                completed=1,
-                total=1,
                 outcome=TaskOutcome.PASSED,
                 children=(
                     TaskOutline(
                         path=("conformance", fixture.name),
                         kind=ProgressTaskKind.FIXTURE,
-                        completed=5,
-                        total=5,
                         outcome=TaskOutcome.PASSED,
                         children=(
                             TaskOutline(
                                 path=("conformance", fixture.name, "judge"),
                                 kind=ProgressTaskKind.PHASE,
-                                completed=0,
-                                total=0,
                                 outcome=TaskOutcome.PASSED,
                                 children=(),
                             ),

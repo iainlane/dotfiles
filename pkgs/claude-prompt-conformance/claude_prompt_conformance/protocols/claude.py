@@ -116,8 +116,18 @@ class ClaudeControlSuccess(
     response: ClaudeOAuthTokenRefreshResult
 
 
+class ClaudeControlFailure(
+    msgspec.Struct,
+    frozen=True,
+    tag="error",
+    tag_field="subtype",
+):
+    request_id: str
+    error: str
+
+
 class ClaudeControlResponse(msgspec.Struct, frozen=True, tag="control_response"):
-    response: ClaudeControlSuccess
+    response: ClaudeControlSuccess | ClaudeControlFailure
 
 
 class ClaudeTaskPatch(msgspec.Struct, frozen=True):

@@ -354,22 +354,37 @@ def test_claude_sdk_session_retains_activity_across_a_provisional_result() -> No
     )
 
 
-def test_claude_sdk_session_rejects_an_unknown_control_request() -> None:
+def test_claude_sdk_session_answers_an_unknown_control_request() -> None:
     session = ClaudeSdkSession("task", RenewableIdentity("token", "replacement"))
 
-    with pytest.raises(ClaudeControlRequestUnsupportedError) as raised:
-        session.receive(
-            received(
+    exchange = session.receive(
+        received(
+            {
+                "type": "control_request",
+                "request_id": "request-1",
+                "request": {"subtype": "host_auth_token_refresh"},
+            }
+        )
+    )
+
+    assert exchange == ProcessExchange(
+        writes=(
+            msgspec.json.encode(
                 {
-                    "type": "control_request",
-                    "request_id": "request-1",
-                    "request": {"subtype": "host_auth_token_refresh"},
+                    "type": "control_response",
+                    "response": {
+                        "subtype": "error",
+                        "request_id": "request-1",
+                        "error": str(
+                            ClaudeControlRequestUnsupportedError(
+                                "host_auth_token_refresh"
+                            )
+                        ),
+                    },
                 }
             )
+            + b"\n",
         )
-
-    assert raised.value == ClaudeControlRequestUnsupportedError(
-        "host_auth_token_refresh"
     )
 
 

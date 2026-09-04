@@ -76,6 +76,17 @@ class CodexConfigurationProbeUnexpectedResponseError(CodexRuntimeError):
 
 
 @dataclass(eq=True)
+class CodexConfigurationProbeServerRequestError(CodexRuntimeError):
+    method: str
+
+    def __str__(self) -> str:
+        return (
+            "Codex app-server asked the configuration probe for "
+            f"unsupported client method {self.method!r}"
+        )
+
+
+@dataclass(eq=True)
 class CodexManagedRequirementsPresentError(CodexRuntimeError):
     source: Path
 
@@ -121,6 +132,11 @@ class CodexConfigurationSession:
 
         if envelope.id is None:
             return ProcessExchange()
+        if envelope.method is not None:
+            # A record carrying both an id and a method is app-server asking
+            # the client something, not answering it. Reject it before the id
+            # check, which reports an id collision as the wrong record.
+            raise CodexConfigurationProbeServerRequestError(envelope.method)
         if envelope.id != self._expected_request_id:
             raise CodexConfigurationProbeUnexpectedResponseError(
                 self._expected_request_id,
@@ -147,7 +163,7 @@ class CodexConfigurationSession:
                             id=_CONFIGURATION_REQUEST_ID,
                             method="config/read",
                             params=_ConfigReadParameters(
-                                include_layers=True,
+                                include_layers=False,
                                 cwd=str(self.cwd),
                             ),
                         )

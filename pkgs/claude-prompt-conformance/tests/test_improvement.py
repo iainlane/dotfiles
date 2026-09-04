@@ -985,8 +985,6 @@ def test_the_progress_tree_shows_drafts_and_samples_as_siblings(
         TaskOutline(
             path=("prompt-improvement",),
             kind=TaskKind.IMPROVEMENT,
-            completed=3,
-            total=3,
             outcome=TaskOutcome.PASSED,
             children=(
                 evaluation_outline(
@@ -998,8 +996,6 @@ def test_the_progress_tree_shows_drafts_and_samples_as_siblings(
                 TaskOutline(
                     path=("prompt-improvement", "draft-01"),
                     kind=TaskKind.ITERATION,
-                    completed=4,
-                    total=4,
                     outcome=TaskOutcome.PASSED,
                     children=(
                         evaluation_outline(
@@ -1013,8 +1009,6 @@ def test_the_progress_tree_shows_drafts_and_samples_as_siblings(
                 TaskOutline(
                     path=("prompt-improvement", "reserved-checks"),
                     kind=TaskKind.EVALUATION,
-                    completed=3,
-                    total=3,
                     outcome=TaskOutcome.PASSED,
                     children=(
                         evaluation_outline(
@@ -1676,15 +1670,11 @@ def evaluation_outline(
     return TaskOutline(
         path=path,
         kind=TaskKind.EVALUATION,
-        completed=samples,
-        total=samples,
         outcome=outcome,
         children=tuple(
             TaskOutline(
                 path=(*path, f"sample-{sample:02}"),
                 kind=TaskKind.SAMPLE,
-                completed=0,
-                total=0,
                 outcome=outcome,
                 children=(),
             )

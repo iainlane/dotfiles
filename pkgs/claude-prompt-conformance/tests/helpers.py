@@ -165,8 +165,6 @@ class TaskOutline:
 
     path: tuple[str, ...]
     kind: ProgressTaskKind
-    completed: int
-    total: int | None
     outcome: TaskOutcome | None
     children: tuple["TaskOutline", ...]
 
@@ -184,8 +182,6 @@ def task_outline(task: TaskRun) -> TaskOutline:
     return TaskOutline(
         path=snapshot.path,
         kind=snapshot.kind,
-        completed=snapshot.completed,
-        total=snapshot.total,
         outcome=snapshot.outcome,
         children=tuple(task_outline(child) for child in task.children),
     )

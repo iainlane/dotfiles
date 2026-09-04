@@ -89,15 +89,6 @@ class IncompleteTaskChildrenError(TaskInvariantError):
 
 
 @dataclass(eq=True)
-class DuplicateTaskActivityError(TaskInvariantError):
-    task: tuple[str, ...]
-    activity: str
-
-    def __str__(self) -> str:
-        return f"progress task {self.task!r} already has activity {self.activity!r}"
-
-
-@dataclass(eq=True)
 class UnknownTaskActivityError(TaskInvariantError):
     task: tuple[str, ...]
     activity: str
@@ -158,8 +149,6 @@ class TaskSnapshot:
     kind: TaskKind
     description: str
     detail: str
-    completed: int
-    total: int | None
     outcome: TaskOutcome | None
     revision: int
     started_at: float
@@ -227,7 +216,7 @@ class TaskRun:
 
     @property
     def path(self) -> tuple[str, ...]:
-        """Return the stable path formed by this task's ancestors."""
+        """Return this task's ancestor names followed by its own."""
 
         if self.parent is None:
             return (self.name,)
@@ -293,8 +282,10 @@ class TaskRun:
 
         with self._lock:
             self._ensure_running()
-            if identifier in self._active_activities:
-                raise DuplicateTaskActivityError(self.path, identifier)
+            # The identifiers come from the candidate's event stream, which the
+            # suite does not control, so a repeat replaces the activity being
+            # displayed.
+            self._active_activities.pop(identifier, None)
             observed_at = self._clock()
             self._activity_sequence += 1
             self._active_activities[identifier] = TaskActivity(
@@ -399,8 +390,6 @@ class TaskRun:
             kind=self.kind,
             description=self.description,
             detail=self._detail,
-            completed=progress.completed,
-            total=progress.total,
             outcome=self._outcome,
             revision=self._revision,
             started_at=self._started_at,

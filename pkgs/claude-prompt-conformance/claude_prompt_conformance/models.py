@@ -472,34 +472,40 @@ class PromptProposal:
     risks: tuple[str, ...]
     patch: str
 
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        """Reject a proposal that does not carry a complete improvement theory."""
+
+        if self.no_change and self.patch:
+            raise NoChangeProposalHasPatchError
+        if not self.no_change and not self.patch:
+            raise PromptProposalMissingPatchError
+        if not self.title.strip():
+            raise PromptProposalTitleMissingError
+        if (
+            self.title != self.title.strip()
+            or "\n" in self.title
+            or "\r" in self.title
+            or len(self.title) > 100
+        ):
+            raise PromptProposalTitleFormatError
+        if not self.observations or any(
+            not observation.strip() for observation in self.observations
+        ):
+            raise PromptProposalObservationsMissingError
+        if not self.no_change and not self.change.strip():
+            raise PromptProposalChangeMissingError
+        if not self.reasoning.strip():
+            raise PromptProposalReasoningMissingError
+
     @classmethod
     def from_file(cls, path: Path) -> "PromptProposal":
         try:
             value = msgspec.json.decode(path.read_bytes(), type=PromptProposalResponse)
         except (OSError, msgspec.DecodeError, msgspec.ValidationError) as error:
             raise PromptProposalFormatError(path, error) from error
-
-        if value.no_change and value.patch:
-            raise NoChangeProposalHasPatchError
-        if not value.no_change and not value.patch:
-            raise PromptProposalMissingPatchError
-        if not value.title.strip():
-            raise PromptProposalTitleMissingError
-        if (
-            value.title != value.title.strip()
-            or "\n" in value.title
-            or "\r" in value.title
-            or len(value.title) > 100
-        ):
-            raise PromptProposalTitleFormatError
-        if not value.observations or any(
-            not observation.strip() for observation in value.observations
-        ):
-            raise PromptProposalObservationsMissingError
-        if not value.no_change and not value.change.strip():
-            raise PromptProposalChangeMissingError
-        if not value.reasoning.strip():
-            raise PromptProposalReasoningMissingError
 
         return cls(
             value.no_change,
@@ -690,10 +696,14 @@ class Judgement:
         ) as error:
             raise JudgementFormatError(path, error) from error
 
-        judgement.validate()
         return judgement
 
+    def __post_init__(self) -> None:
+        self.validate()
+
     def validate(self) -> None:
+        """Require evidence for every criterion and the fields each verdict needs."""
+
         if not self.criteria:
             raise JudgementCriteriaEmptyError
 
