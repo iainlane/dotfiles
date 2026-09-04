@@ -180,8 +180,8 @@ sync-nixbuild-substituters:
 # Install NixOS onto a locally-connected drive
 install-local host device:
     @echo "Installing NixOS on {{ host }} to {{ device }}"
-    sudo nix run github:nix-community/disko -- \
-      --mode disko hosts/{{ host }}/disks.nix \
+    sudo nix run .#disko -- \
+      --mode destroy,format,mount hosts/{{ host }}/disks.nix \
       --arg device '"{{ device }}"'
     sudo nixos-install --flake .#{{ host }} --root /mnt
 

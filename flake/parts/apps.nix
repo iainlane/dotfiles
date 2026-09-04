@@ -36,6 +36,11 @@ in {
           program = lib.getExe inputs.deploy-rs.packages.${system}.deploy-rs;
           meta.description = "Multi-profile Nix deployment tool";
         };
+        disko = {
+          type = "app";
+          program = lib.getExe inputs.disko.packages.${system}.disko;
+          meta.description = "Partition, format and mount disks from a Nix description";
+        };
         nixos-anywhere = {
           type = "app";
           program = lib.getExe'
