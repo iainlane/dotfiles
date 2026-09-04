@@ -67,7 +67,7 @@
     };
 
     # Agent skill shipped in the `gh-stack` repository's `skills/gh-stack/`.
-    # The shared skills set (`modules/ai/skills.nix`) reads it from this
+    # The shared skills set (`features/ai/skills.nix`) reads it from this
     # native-fetched input, so the skill directory exists at evaluation time
     # on every platform. Pinned to a release tag; bumped by
     # `nix run .#update-gh-stack-skill`.

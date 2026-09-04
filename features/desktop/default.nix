@@ -25,6 +25,7 @@ in {
   flake.features.desktop = {
     includes = with children; [
       features.ai
+      features.ai.provides.claude-desktop
       ghostty
       kitty
       voxtype

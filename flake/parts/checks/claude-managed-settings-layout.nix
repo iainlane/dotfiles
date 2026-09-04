@@ -1,7 +1,7 @@
 _: {
   perSystem = {pkgs, ...}: let
     inherit (pkgs) lib;
-    settingsFile = import ../../../modules/ai/claude-code/managed-settings-file.nix {
+    settingsFile = import ../../../features/ai/claude-code/managed-settings-file.nix {
       inherit pkgs;
       settings.test = true;
     };

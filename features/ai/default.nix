@@ -1,4 +1,10 @@
-{inputs, ...}: let
+{
+  inputs,
+  config,
+  ...
+}: let
+  children = config.flake.features.ai.provides;
+
   # Hands every module of the feature the shared model defaults as an
   # argument. The key keeps a module list that ends up importing it twice
   # from defining the argument twice.
@@ -8,25 +14,39 @@
   };
 in {
   imports = [
+    ./antigravity-cli
     ./claude-code
     ./claude-desktop
     ./cloudflare-mcp
     ./codex
+    ./copilot-cli
+    ./crush
+    ./opencode
+    ./opencode2
+    ./pi
   ];
 
   flake.features.ai = {
+    # One child per harness. `claude-desktop` and `cloudflare-mcp` are not
+    # here: a feature or a host that wants them lists them.
+    includes = with children; [
+      antigravity-cli
+      copilot-cli
+      crush
+      opencode
+      opencode2
+      pi
+      claude-code
+      codex
+    ];
+
     system = [modelDefaults];
+
     homeManager = [
       modelDefaults
       ./unstable-hm-modules.nix
       ./mcp.nix
       ./skills.nix
-      ./antigravity-cli.nix
-      ./copilot-cli.nix
-      ./crush.nix
-      ./opencode.nix
-      ./opencode2.nix
-      ./pi
     ];
   };
 

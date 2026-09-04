@@ -10,9 +10,8 @@
 // fancy-footer `ready` event. Emitting that on startup covers the case where
 // pi-service-tier loaded first and we missed its initial publish.
 
-// Pi passes the extension API in. Only the event bus is used here, and these
-// files live outside any npm project, so describe that much structurally
-// rather than importing types this directory cannot resolve.
+// These standalone extensions have no npm project from which to resolve Pi's
+// types. Declare only the event-bus interface used here.
 interface ExtensionAPI {
   events: {
     on(event: string, listener: (message: unknown) => void): unknown;

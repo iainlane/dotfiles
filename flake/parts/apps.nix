@@ -23,7 +23,7 @@ in {
     system,
     ...
   }: let
-    promptConformance = import ../../modules/ai/prompt-conformance {
+    promptConformance = import ../../pkgs/claude-prompt-conformance {
       inherit inputs lib pkgs system;
     };
   in {

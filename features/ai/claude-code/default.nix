@@ -11,7 +11,7 @@
 # store path into place via an activation script, the same mechanism that
 # `environment.etc` itself uses under the hood.
 {
-  flake.features.ai = {
+  flake.features.ai.provides.claude-code = {
     homeManager = ./home-manager.nix;
     # The two managed-settings modules are registered per class instead of
     # under `system`: system-manager's `system.activationScripts` is narrower

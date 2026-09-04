@@ -1,5 +1,5 @@
 {config, ...}: let
-  defaultModels = import ../../modules/ai/models.nix;
+  defaultModels = import ../../features/ai/models.nix;
 in {
   flake.features.hermes = {
     includes = [config.flake.features.containers];

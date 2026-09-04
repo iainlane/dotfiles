@@ -2,9 +2,14 @@
 # server. Cloudflare is personal infrastructure, so features include this on
 # the hosts that should reach it. The MCP server set is read at both the Home
 # Manager and the OS level, so the module is registered for every target.
-{
-  flake.features."cloudflare-mcp" = {
-    homeManager = ./module.nix;
-    system = ./module.nix;
+#
+# `ai` does not carry this child, so it brings `ai` itself: the servers are
+# defined under `dotfiles.ai`, which `ai` declares.
+{config, ...}: {
+  flake.features.ai.provides.cloudflare-mcp = {
+    includes = [config.flake.features.ai];
+
+    homeManager = ./shared.nix;
+    system = ./shared.nix;
   };
 }

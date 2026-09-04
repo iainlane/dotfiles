@@ -4,11 +4,11 @@
   pkgs,
   system,
 }: let
-  defaultModels = import ../models.nix;
-  instructions = (import ../agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
+  defaultModels = import ../../features/ai/models.nix;
+  instructions = (import ../../features/ai/agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
   managedSettings =
     (lib.evalModules {
-      modules = [../claude-code/managed-settings-common.nix];
+      modules = [../../features/ai/claude-code/managed-settings-common.nix];
       specialArgs = {inherit defaultModels inputs pkgs;};
     }).config.dotfiles.claudeCode.managedSettings;
   suiteManagedSettings = removeAttrs managedSettings [
@@ -180,12 +180,12 @@
     managedSettings = suiteManagedSettings;
   };
   promptSource = lib.fileset.toSource {
-    root = ../.;
+    root = ../../features/ai;
     fileset = lib.fileset.unions [
-      ../agent-instructions.nix
-      ../instructions
-      ../output-style
-      ../output-styles.nix
+      ../../features/ai/agent-instructions.nix
+      ../../features/ai/instructions
+      ../../features/ai/output-style
+      ../../features/ai/output-styles.nix
     ];
   };
   variantExpressionSource = pkgs.linkFarm "prompt-conformance-variant-expression" [
@@ -460,7 +460,7 @@
       starshipPath=$(jq --raw-output '.[] | select(.name == "starship-kotlin-gradle") | .environmentPath' ${fixtureManifest})
       env PATH="$starshipPath" cargo clippy --version >/dev/null
       cmp \
-        ${../instructions/claude-code/harness.md} \
+        ${../../features/ai/instructions/claude-code/harness.md} \
         ${candidateContext}/rules/harness.md
       grep --fixed-strings --quiet \
         '# Plain technical prose test variant' \

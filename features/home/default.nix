@@ -7,7 +7,7 @@ in {
   ];
 
   flake.features.home = {
-    includes = [features.cloudflare-mcp features.git];
+    includes = [features.ai.provides.cloudflare-mcp features.git];
 
     os."generic-linux".includes = [children.debian];
 

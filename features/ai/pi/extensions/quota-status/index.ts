@@ -7,9 +7,8 @@
 // The `sub-core:ready` event covers pi-sub-core loading first, and
 // `sub-core:update-current` carries every later refresh.
 
-// Pi passes the extension API in. Only the event bus is used here, and these
-// files live outside any npm project, so describe that much structurally
-// rather than importing types this directory cannot resolve.
+// These standalone extensions have no npm project from which to resolve Pi's
+// types. Declare only the event-bus interface used here.
 interface ExtensionAPI {
   events: {
     on(event: string, listener: (message: unknown) => void): unknown;

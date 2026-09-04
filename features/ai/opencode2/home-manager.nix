@@ -19,7 +19,7 @@
   system,
   ...
 }: let
-  instructions = import ./agent-instructions.nix {inherit lib;};
+  instructions = import ../agent-instructions.nix {inherit lib;};
 
   jsonFormat = pkgs.formats.json {};
 

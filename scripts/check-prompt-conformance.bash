@@ -8,13 +8,13 @@ relevant_paths=(
 	.github/workflows/prompt-conformance.yml
 	flake/parts/apps.nix
 	flake/parts/git-hooks.nix
-	modules/ai/agent-instructions.nix
-	modules/ai/default.nix
-	modules/ai/claude-code/managed-settings-common.nix
-	modules/ai/output-styles.nix
-	modules/ai/instructions/
-	modules/ai/output-style/
-	modules/ai/prompt-conformance/
+	features/ai/agent-instructions.nix
+	features/ai/models.nix
+	features/ai/claude-code/managed-settings-common.nix
+	features/ai/output-styles.nix
+	features/ai/instructions/
+	features/ai/output-style/
+	pkgs/claude-prompt-conformance/
 	scripts/check-prompt-conformance.bash
 )
 

@@ -73,7 +73,7 @@ in {
     };
 
     xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (
-      import ../ccstatusline {inherit pkgs lib;}
+      import ./ccstatusline {inherit pkgs lib;}
     ));
   };
 }

@@ -12,7 +12,7 @@
   system,
   ...
 }: let
-  instructions = import ./agent-instructions.nix {inherit lib;};
+  instructions = import ../agent-instructions.nix {inherit lib;};
 
   # Copilot requires an explicit transport for remote servers and a tool
   # selection for every server.
