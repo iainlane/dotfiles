@@ -3,10 +3,12 @@
   "version": "5.1.15",
   "platforms": {
     "aarch64-linux": {
+      "firmwarePlatform": "linux-arm64",
       "url": "https://fw-download.ubnt.com/data/unifi-os-server/adc4-linux-arm64-5.1.15-53ab1f2c-4cd5-4a5f-b750-d1aa35679b4f.15-arm64",
       "hash": "sha256-bP8MHu2vvYLd2vuDJMLiF0mBTaWGKSqVVPYwQ7jEVfU="
     },
     "x86_64-linux": {
+      "firmwarePlatform": "linux-x64",
       "url": "https://fw-download.ubnt.com/data/unifi-os-server/24e0-linux-x64-5.1.15-926621de-c9d7-48cd-8921-a0ff3eebd3f4.15-x64",
       "hash": "sha256-BMjkAes0Mw/pnZTzWqNR4ODpeJXw2aS0Wf80+1DK0rs="
     }

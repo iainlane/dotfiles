@@ -5,7 +5,15 @@
 
 set -euo pipefail
 
-ENV_FILE="/run/unifi/runtime.env"
+# systemd sets RUNTIME_DIRECTORY, and creates the directory, from the unit's
+# `RuntimeDirectory=`. The container's `EnvironmentFile=` names the same path,
+# built from the same setting.
+if [ -z "${RUNTIME_DIRECTORY:-}" ]; then
+	echo "RUNTIME_DIRECTORY environment variable is required" >&2
+	exit 1
+fi
+
+ENV_FILE="${RUNTIME_DIRECTORY}/runtime.env"
 
 if [ -f "$ENV_FILE" ] && grep -q '^UOS_UUID=' "$ENV_FILE"; then
 	exit 0

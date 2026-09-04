@@ -44,6 +44,17 @@ in
     installPhase = ''
       runHook preInstall
 
+      # The quadlet names the image by the tag in sources.json, which the
+      # updater reads out of the arm64 installer alone. An x86_64 installer
+      # carrying a different tag would leave the quadlet naming an image that
+      # does not exist, and podman would say so only when the container
+      # started.
+      extracted_tag="$(cat extracted/image-tag)"
+      if [ "$extracted_tag" != "${sources.imageTag}" ]; then
+        echo "installer carries image tag $extracted_tag, sources.json says ${sources.imageTag}" >&2
+        exit 1
+      fi
+
       mkdir -p "$out"
       cp extracted/image.tar "$out/image.tar"
       cp extracted/image-tag "$out/image-tag"
@@ -57,6 +68,10 @@ in
       # come from.
       inherit (sources) imageTag;
 
+      # The platform name UniFi OS expects of itself, taken from the same entry
+      # that selects the installer.
+      inherit (platform) firmwarePlatform;
+
       updateScript = updaters.mkScriptUpdater {
         pname = "unifi-os-server-image";
         script = ./update.sh;
@@ -64,11 +79,11 @@ in
       };
     };
 
-    meta = with lib; {
+    meta = {
       description = "Extracted OCI image archive from the UniFi OS Server installer";
       homepage = "https://help.ui.com/hc/en-us/articles/34210126298775-Self-Hosting-UniFi";
-      license = licenses.unfreeRedistributableFirmware;
-      platforms = platforms.linux;
-      sourceProvenance = with sourceTypes; [binaryNativeCode];
+      license = lib.licenses.unfreeRedistributableFirmware;
+      platforms = lib.platforms.linux;
+      sourceProvenance = [lib.sourceTypes.binaryNativeCode];
     };
   }

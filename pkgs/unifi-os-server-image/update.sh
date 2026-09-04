@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 
-# Update UniFi OS Server to the latest Linux release published by Ubiquiti.
-# Fetches the official downloads API, selects the latest Linux arm64/x64
-# installers, extracts the embedded OCI tag, computes SRI hashes, and rewrites
-# sources.json.
+# Rewrite sources.json for the latest Linux release of UniFi OS Server that
+# Ubiquiti publish. Fetches the official downloads API, selects the latest
+# Linux arm64 and x64 installers, extracts the embedded OCI tag, and computes
+# SRI hashes.
 
 API_URL="https://download.svc.ui.com/v1/software-downloads"
 
@@ -81,10 +81,12 @@ jq -n \
 		version: $version,
 		platforms: {
 			"aarch64-linux": {
+				firmwarePlatform: "linux-arm64",
 				url: $arm64_url,
 				hash: $arm64_hash
 			},
 			"x86_64-linux": {
+				firmwarePlatform: "linux-x64",
 				url: $x64_url,
 				hash: $x64_hash
 			}

@@ -3,26 +3,22 @@
     webPort = lib.mkOption {
       type = lib.types.port;
       default = 11443;
-      description = "HTTPS web UI port for UniFi OS.";
+      description = ''
+        Port on the host's LAN address the HTTPS web UI is published on. The
+        controller serves it on 443 inside the container.
+      '';
     };
 
     extraPorts = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
       example = ["1900:1900/udp"];
-      description = "Additional port mappings beyond the defaults.";
-    };
-
-    serverVersion = lib.mkOption {
-      type = lib.types.str;
-      internal = true;
-      description = "Version of the UniFi OS release the image was taken from.";
-    };
-
-    firmwarePlatform = lib.mkOption {
-      type = lib.types.str;
-      internal = true;
-      description = "Platform name UniFi OS expects for this architecture.";
+      description = ''
+        Port mappings published in addition to the ones the controller always
+        needs. Each is passed to podman as written, so a mapping that should
+        stay off the routed public address has to name the LAN address
+        itself.
+      '';
     };
   };
 }

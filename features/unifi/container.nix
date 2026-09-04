@@ -1,16 +1,24 @@
 {
   cfg,
+  firmwarePlatform,
   image,
-  lib,
+  lanAddress,
   network,
+  quadlet,
+  serverVersion,
   uuidBuilder,
+  volumes,
 }: let
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
-  volumePrefix = "unifi";
   runtimeDirectory = "unifi";
   runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
 
-  defaultPorts = [
+  # The controller's own ports, published on the host's LAN address. This host
+  # also holds a routed public address, so a publish that named every address
+  # would put the admin UI, the unencrypted inform port, RabbitMQ and syslog in
+  # front of the internet.
+  publish = mapping: "${lanAddress}:${mapping}";
+
+  defaultPorts = map publish [
     "${toString cfg.webPort}:443"
     "5005:5005"
     "5671:5671"
@@ -41,50 +49,27 @@ in {
     addCapabilities = ["NET_RAW" "NET_ADMIN"];
     podmanArgs = ["--systemd=always"];
 
-    healthCmd = "curl --fail http://127.0.0.1/api/ping || exit 1";
+    healthCmd = "curl --fail http://127.0.0.1/api/ping";
     healthInterval = "60s";
     healthTimeout = "5s";
     healthRetries = 3;
 
     environments = {
       APP_MODEL = "UOSSERVER";
-      APP_VERSION = cfg.serverVersion;
+      APP_VERSION = serverVersion;
       PRODUCT_NAME = "uosserver";
-      FIRMWARE_PLATFORM = cfg.firmwarePlatform;
+      FIRMWARE_PLATFORM = firmwarePlatform;
     };
 
     environmentFiles = [runtimeEnvFile];
 
-    volumes = quadlet.mounts [
-      {
-        source.podmanVolume = "${volumePrefix}-persistent";
-        target = "/persistent";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-var-log";
-        target = "/var/log";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-data";
-        target = "/data";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-srv";
-        target = "/srv";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-var-lib-unifi";
-        target = "/var/lib/unifi";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-var-lib-mongodb";
-        target = "/var/lib/mongodb";
-      }
-      {
-        source.podmanVolume = "${volumePrefix}-etc-rabbitmq-ssl";
-        target = "/etc/rabbitmq/ssl";
-      }
-    ];
+    volumes = quadlet.mounts (
+      map (mount: {
+        source.quadletVolume = mount.volume;
+        inherit (mount) target;
+      })
+      volumes.all
+    );
   };
 
   unitConfig = {
