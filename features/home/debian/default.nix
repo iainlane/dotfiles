@@ -1,14 +1,15 @@
-# Debian/Ubuntu/GNOME project directories - Linux only.
+# The Debian, Ubuntu and GNOME project directories.
 #
-# This is a flake-parts module that exports shells for all systems (they're just
-# derivations) but only configures the project directories on Linux hosts.
+# The shells are derivations, so this flake-parts module exports them for
+# every system. `home` lists this child only on generic-linux hosts, so only
+# those get the project directories.
 {
   inputs,
   config,
   withSystem,
   ...
 }: let
-  helpers = import ../helpers.nix {inherit inputs;};
+  helpers = import ../../../lib/helpers.nix {inherit inputs;};
   inherit (inputs.nixpkgs) lib;
 
   projects = let
@@ -71,40 +72,9 @@
   };
 in {
   imports = [projectShells.flakeModule];
-  flake.features.home.os."generic-linux".homeManager = {config, ...} @ args:
-    lib.recursiveUpdate
-    (projectShells.homeManagerModule args)
-    {
-      home.sessionPath = [
-        "${config.home.homeDirectory}/bin/ubuntu-dev-tools"
-        "${config.home.homeDirectory}/bin/ubuntu-archive-tools"
-      ];
 
-      programs = {
-        git.settings = {
-          merge."dpkg-mergechangelogs" = {
-            name = "debian/changelog merge driver";
-            driver = "dpkg-mergechangelogs -m %O %A %B %A";
-          };
-
-          # Git URL shortcuts.
-
-          # Allow gnome:<path> shorthand for SSH URLs; also rewrite git:// to
-          # SSH for pushes.
-          "url \"ssh://git.gnome.org/git/\"" = {
-            insteadOf = "gnome:";
-            pushInsteadOf = "git://git.gnome.org/git/";
-          };
-
-          # lp: shorthand for Launchpad Git URLs.
-          "url \"git+ssh://laney@git.launchpad.net/\"".insteadOf = "lp:";
-        };
-
-        zsh.sessionVariables = {
-          QUILT_PATCHES = "debian/patches";
-        };
-      };
-
-      xdg.configFile."zsh/functions".source = ../../features/base/zsh/functions;
-    };
+  flake.features.home.provides.debian.homeManager = [
+    projectShells.homeManagerModule
+    ./home-manager.nix
+  ];
 }

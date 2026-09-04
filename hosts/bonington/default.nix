@@ -18,6 +18,7 @@ in {
       features.containers
       features.inference
       features.work
+      features.work.provides.claude-managed-settings
     ];
 
     systemModule = {
