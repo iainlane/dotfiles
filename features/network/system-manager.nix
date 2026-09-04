@@ -10,44 +10,59 @@
 
   reloadUnit = "networkctl-reload";
 in {
-  config = lib.mkIf (units != {}) {
-    assertions = [
-      {
-        assertion = lib.length cfg.privateAddresses == 1;
-        message = ''
-          dotfiles.network.lanAddress is the host's own address on the LAN,
-          and the networks under dotfiles.network.systemd.network carry
-          ${
-            if cfg.privateAddresses == []
-            then "no private IPv4 address"
-            else "${toString (lib.length cfg.privateAddresses)} of them: ${lib.concatStringsSep ", " cfg.privateAddresses}"
-          }.
-        '';
-      }
-    ];
+  config = lib.mkMerge [
+    {
+      # Checked whether or not this host describes any links. `unifi` and
+      # `adsb` compose this feature to read `lanAddress`; under the condition
+      # below, a host that composes one of them and describes nothing would
+      # get the module system's "used but not defined" from inside a
+      # container definition, with nothing naming the option that is missing.
+      assertions = [
+        {
+          assertion = lib.length cfg.privateAddresses == 1;
+          message = ''
+            dotfiles.network.lanAddress is the host's own address on the LAN:
+            the single private IPv4 address the networks under
+            dotfiles.network.systemd.network carry. They carry ${
+              if cfg.privateAddresses == []
+              then "none"
+              else "${toString (lib.length cfg.privateAddresses)}: ${lib.concatStringsSep ", " cfg.privateAddresses}"
+            }.
 
-    environment.etc =
-      lib.mapAttrs' (
-        name: unit:
-          lib.nameValuePair "systemd/network/${name}" {source = "${unit.unit}/${name}";}
-      )
-      units;
+            A feature that publishes a container port binds it to that
+            address and composes this feature to read it, so a host running
+            one of those services describes its links under
+            dotfiles.network.systemd.network even where something else
+            already configures them.
+          '';
+        }
+      ];
+    }
 
-    # systemd-networkd applies a changed .network file only when it is told to
-    # re-read the directory. The unit runs on every activation and is ordered
-    # after the files are in place, so the links follow the configuration
-    # without a reboot.
-    systemd.services.${reloadUnit} = {
-      description = "Reload systemd-networkd's link configuration";
-      wantedBy = ["system-manager.target"];
-      after = ["systemd-networkd.service"];
-      restartTriggers = lib.mapAttrsToList (name: unit: "${unit.unit}/${name}") units;
+    (lib.mkIf (units != {}) {
+      environment.etc =
+        lib.mapAttrs' (
+          name: unit:
+            lib.nameValuePair "systemd/network/${name}" {source = "${unit.unit}/${name}";}
+        )
+        units;
 
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStart = "${pkgs.systemd}/bin/networkctl reload";
+      # systemd-networkd applies a changed .network file only when it is told
+      # to re-read the directory. The unit runs on every activation and is
+      # ordered after the files are in place, so the links follow the
+      # configuration without a reboot.
+      systemd.services.${reloadUnit} = {
+        description = "Reload systemd-networkd's link configuration";
+        wantedBy = ["system-manager.target"];
+        after = ["systemd-networkd.service"];
+        restartTriggers = lib.mapAttrsToList (name: unit: "${unit.unit}/${name}") units;
+
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${pkgs.systemd}/bin/networkctl reload";
+        };
       };
-    };
-  };
+    })
+  ];
 }
