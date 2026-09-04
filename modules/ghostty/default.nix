@@ -1,10 +1,10 @@
 {
-  flake.modules.ghostty = {
-    homeManagerModules = [./home-manager.nix];
+  flake.features.ghostty = {
+    homeManager = ./home-manager.nix;
     os = {
-      darwin.homeManagerModules = [./darwin.nix];
-      linux.homeManagerModules = [./linux.nix];
-      nixos.homeManagerModules = [./linux.nix];
+      darwin.homeManager = ./darwin.nix;
+      linux.homeManager = ./linux.nix;
+      nixos.homeManager = ./linux.nix;
     };
   };
 }

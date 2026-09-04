@@ -1,8 +1,14 @@
-_: {
-  flake.profiles.base.os.nixos = {
-    features = ["borgmatic"];
+{config, ...}: {
+  flake.features.base = {
+    os.nixos = {
+      includes = [config.flake.features.borgmatic];
 
-    nixosModule = {
+      homeManager = {pkgs, ...}: {
+        home.packages = import ./linux-packages.nix pkgs;
+      };
+    };
+
+    nixos = {
       users.groups.ssh = {};
 
       services.nixseparatedebuginfod2.enable = true;
@@ -22,10 +28,6 @@ _: {
         };
         extraConfig = "AllowGroups ssh";
       };
-    };
-
-    homeManagerModule = {pkgs, ...}: {
-      home.packages = import ./linux-packages.nix pkgs;
     };
   };
 }

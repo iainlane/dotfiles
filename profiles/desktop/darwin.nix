@@ -1,5 +1,5 @@
 {
-  flake.profiles.desktop.os.darwin.homeManagerModule = {
+  flake.features.desktop.os.darwin.homeManager = {
     pkgs,
     lib,
     ...
@@ -21,7 +21,7 @@
     '';
   };
 
-  flake.profiles.desktop.os.darwin.systemManagerModule = {
+  flake.features.desktop.darwin = {
     homebrew = {
       casks = [
         "google-chrome"

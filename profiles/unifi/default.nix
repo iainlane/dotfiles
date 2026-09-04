@@ -3,16 +3,11 @@
 # Ubiquiti publish it as a firmware installer rather than a container image, so
 # the OCI archive is unpacked out of that installer at build time and loaded
 # from the store.
-{
-  flake.profiles.unifi = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+{config, ...}: {
+  flake.features.unifi = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {
+    systemManager = {
       config,
       lib,
       pkgs,
@@ -51,15 +46,13 @@
 
       config = lib.mkMerge [
         {
-          services.unifi =
-            args
-            // {
-              serverVersion = sources.version;
-              firmwarePlatform =
-                if pkgs.stdenv.hostPlatform.isAarch64
-                then "linux-arm64"
-                else "linux-x64";
-            };
+          services.unifi = {
+            serverVersion = sources.version;
+            firmwarePlatform =
+              if pkgs.stdenv.hostPlatform.isAarch64
+              then "linux-arm64"
+              else "linux-x64";
+          };
         }
         {
           virtualisation.quadlet = {

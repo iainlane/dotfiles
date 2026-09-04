@@ -30,21 +30,14 @@
     darwin = import ../../os/darwin osArgs;
   };
 
-  checkedHosts =
-    lib.mapAttrs
-    (_hostname: hostConfig:
-      assert helpers.validateProfileRequirements {
-        inherit hostConfig;
-        inherit (outerConfig.flake) profiles;
-      }; hostConfig)
-    outerConfig.flake.hosts;
+  inherit (outerConfig.flake) hosts;
 
   hostAdapters =
     lib.mapAttrs (
       hostname: hostConfig:
         osModules.${hostConfig.os} hostname hostConfig
     )
-    checkedHosts;
+    hosts;
 
   homeDefinitions =
     lib.mapAttrs (
@@ -58,12 +51,11 @@
             username
             ;
           inherit (hostConfig) system;
-          inherit (outerConfig.flake) profiles modules;
           extraModules = adapter.extraHomeModules or [];
           extraSpecialArgs = adapter.homeSpecialArgs;
         }
     )
-    checkedHosts;
+    hosts;
 
   hostResults =
     lib.mapAttrs (
@@ -97,6 +89,84 @@
           inherit (homeDefinitions.${hostname}) modules extraSpecialArgs;
         }
     );
+
+  hostModule = {
+    name,
+    config,
+    ...
+  }: let
+    result = hostResults.${name};
+  in {
+    options = {
+      os = lib.mkOption {
+        type = lib.types.enum outerConfig.dotfiles.operatingSystems;
+      };
+      arch = lib.mkOption {
+        type = lib.types.enum ["x86_64" "aarch64"];
+      };
+      hostname = lib.mkOption {
+        type = lib.types.str;
+        default = name;
+      };
+      features = lib.mkOption {
+        type = lib.types.listOf helpers.featureType;
+        default = [];
+        description = "Entries of `flake.features`. Each one brings the features it includes.";
+      };
+      channel = lib.mkOption {
+        type = lib.types.enum ["stable" "unstable"];
+        default = "unstable";
+      };
+      stateVersion = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+      timezone = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Timezone in TZ format, e.g. 'Europe/London'. Set to null to skip timezone configuration and let `systemd-timedated` manage.";
+      };
+      locale = lib.mkOption {
+        type = lib.types.str;
+        default = "en_GB.UTF-8";
+      };
+      motd = lib.mkOption {
+        type = lib.types.str;
+      };
+      flakePath = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+      homeModule = lib.mkOption {
+        type = lib.types.nullOr lib.types.deferredModule;
+        default = null;
+        description = "Home Manager module for this host only.";
+      };
+      systemModule = lib.mkOption {
+        type = lib.types.nullOr lib.types.deferredModule;
+        default = null;
+        description = "Module for this host only, for whichever of NixOS, nix-darwin or system-manager builds it.";
+      };
+
+      # Computed
+      featureNames = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        readOnly = true;
+        default = helpers.featureNames {inherit (config) features os;};
+        description = "The name of every feature the host has, including the ones its features include.";
+      };
+      homeDirectory = lib.mkOption {
+        type = lib.types.str;
+        readOnly = true;
+        default = "${result.homeBaseDir}/${username}";
+      };
+      system = lib.mkOption {
+        type = lib.types.str;
+        readOnly = true;
+        default = "${config.arch}-${result.systemSuffix}";
+      };
+    };
+  };
 in {
   options = {
     dotfiles.operatingSystems = lib.mkOption {
@@ -106,104 +176,25 @@ in {
     };
 
     flake.hosts = lib.mkOption {
-      type = lib.types.attrsOf (lib.types.submodule ({
-        name,
-        config,
-        ...
-      }: let
-        result = hostResults.${name};
-      in {
-        options = {
-          os = lib.mkOption {
-            type = lib.types.enum outerConfig.dotfiles.operatingSystems;
-          };
-          arch = lib.mkOption {
-            type = lib.types.enum ["x86_64" "aarch64"];
-          };
-          hostname = lib.mkOption {
-            type = lib.types.str;
-            default = name;
-          };
-          profiles = lib.mkOption {
-            # Each entry is either a bare profile name ("base") or an attrset
-            # mapping profile names to their per-host options
-            # ({ adsb = { ... }; }). Each option value is itself an attrset (or
-            # null, normalised to {}); the outer shape is validated so typos
-            # and malformed entries (e.g. { adsb = true; }) fail with a clear
-            # message before profile resolution runs.
-            type = with lib.types; listOf (either str (attrsOf (nullOr attrs)));
-            default = [];
-          };
-          channel = lib.mkOption {
-            type = lib.types.enum ["stable" "unstable"];
-            default = "unstable";
-          };
-          stateVersion = lib.mkOption {
-            type = lib.types.nullOr lib.types.str;
-            default = null;
-          };
-          timezone = lib.mkOption {
-            type = lib.types.nullOr lib.types.str;
-            default = null;
-            description = "Timezone in TZ format, e.g. 'Europe/London'. Set to null to skip timezone configuration and let `systemd-timedated` manage.";
-          };
-          locale = lib.mkOption {
-            type = lib.types.str;
-            default = "en_GB.UTF-8";
-          };
-          motd = lib.mkOption {
-            type = lib.types.str;
-          };
-          flakePath = lib.mkOption {
-            type = lib.types.nullOr lib.types.str;
-            default = null;
-          };
-          homeModule = lib.mkOption {
-            type = lib.types.nullOr lib.types.unspecified;
-            default = null;
-          };
-          systemModule = lib.mkOption {
-            type = lib.types.nullOr lib.types.unspecified;
-            default = null;
-          };
-          nixosModule = lib.mkOption {
-            type = lib.types.nullOr lib.types.unspecified;
-            default = null;
-          };
-
-          # Computed
-          homeDirectory = lib.mkOption {
-            type = lib.types.str;
-            readOnly = true;
-            default = "${result.homeBaseDir}/${username}";
-          };
-          system = lib.mkOption {
-            type = lib.types.str;
-            readOnly = true;
-            default = "${config.arch}-${result.systemSuffix}";
-          };
-        };
-      }));
+      type = lib.types.attrsOf (lib.types.submodule hostModule);
       default = {};
+      description = "One entry per machine. The files under `hosts/` define them.";
     };
   };
 
   config.flake = {
-    # Populate hosts from discovered host files
-    inherit (helpers) hosts;
-
     # Route system configs to the right flake output per OS
     nixosConfigurations =
       lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: checkedHosts.${n}.os == "nixos") hostResults);
+      (lib.filterAttrs (n: _: hosts.${n}.os == "nixos") hostResults);
 
     systemConfigs =
       lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: checkedHosts.${n}.os == "linux") hostResults);
+      (lib.filterAttrs (n: _: hosts.${n}.os == "linux") hostResults);
 
     darwinConfigurations =
       lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: checkedHosts.${n}.os == "darwin") hostResults);
+      (lib.filterAttrs (n: _: hosts.${n}.os == "darwin") hostResults);
 
     # Standalone home-manager configurations for all hosts
     homeConfigurations =
@@ -213,6 +204,6 @@ in {
             mkStandaloneHome hostname hostConfig
           )
       )
-      checkedHosts;
+      hosts;
   };
 }

@@ -1,14 +1,16 @@
-# The home profile configures Debian/Ubuntu/GNOME project directories. The
+# The home feature configures Debian/Ubuntu/GNOME project directories. The
 # project directories themselves are Linux-specific, defined in linux.nix.
-_: {
+{config, ...}: let
+  inherit (config.flake) features;
+in {
   imports = [
     ./linux.nix
   ];
 
-  flake.profiles.home = {
-    features = ["cloudflare-mcp" "git"];
+  flake.features.home = {
+    includes = [features.cloudflare-mcp features.git];
 
-    homeManagerModule = {
+    homeManager = {
       dotfiles.ssh.settings = {
         cripps = {
           HostName = "cripps.orangesquash.org.uk";

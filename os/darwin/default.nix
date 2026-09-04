@@ -28,10 +28,9 @@
               inputs.determinate.darwinModules.default
               inputs.sops-nix.darwinModules.sops
             ]
-            ++ helpers.mkModules {
-              moduleType = "systemManagerModule";
+            ++ helpers.resolveFeatures {
+              class = "darwin";
               inherit hostConfig;
-              inherit (config.flake) profiles modules;
             }
             ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
             ++ [

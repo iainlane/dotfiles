@@ -1,6 +1,6 @@
 _: {
-  flake.profiles.inference = {
-    homeManagerModule = {pkgs, ...}: {
+  flake.features.inference = {
+    homeManager = {pkgs, ...}: {
       home.packages = with pkgs; [
         aichat
         mods
@@ -8,7 +8,7 @@ _: {
       ];
     };
 
-    nixosModule = {
+    nixos = {
       config,
       pkgs,
       pkgs-unstable,

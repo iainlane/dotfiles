@@ -1,19 +1,21 @@
-_: {
+{config, ...}: let
+  inherit (config.flake) features;
+in {
   imports = [
     ./linux.nix
     ./darwin.nix
     ./nixos
   ];
 
-  flake.profiles.desktop.features = [
-    "ai"
-    "ghostty"
-    "kitty"
-    "voxtype"
-    "zed-editor"
+  flake.features.desktop.includes = [
+    features.ai
+    features.ghostty
+    features.kitty
+    features.voxtype
+    features.zed-editor
   ];
 
-  flake.profiles.desktop.homeManagerModule = {pkgs, ...}: {
+  flake.features.desktop.homeManager = {pkgs, ...}: {
     fonts.fontconfig.enable = true;
 
     home.packages = with pkgs; [

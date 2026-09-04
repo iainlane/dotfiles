@@ -1,9 +1,9 @@
 {
-  flake.modules.gnome = {
-    nixosModules = [
+  flake.features.gnome = {
+    nixos = [
       ./nixos.nix
       ./usbguard.nix
     ];
-    os.nixos.homeManagerModules = [./home-manager.nix];
+    os.nixos.homeManager = ./home-manager.nix;
   };
 }

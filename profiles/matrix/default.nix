@@ -3,16 +3,11 @@
 # The homeserver owns its own accounts and state and knows nothing about what
 # talks to it. Clients reach it at its public name, which is also how the agent
 # on this host reaches it.
-{
-  flake.profiles.matrix = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+{config, ...}: {
+  flake.features.matrix = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {
+    systemManager = {
       config,
       inputs,
       lib,
@@ -124,7 +119,6 @@
       imports = [./options.nix];
 
       config = lib.mkMerge [
-        {services.continuwuity = args;}
         {
           assertions = [
             {

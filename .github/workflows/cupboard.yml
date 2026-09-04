@@ -54,13 +54,13 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      # Exercise the profile resolver and reject invalid feature names, OS
-      # scopes, requirements and composition order without needing any secrets.
-      - name: Validate profile composition
+      # Exercise the feature resolver against its fixtures: include order,
+      # deduplication, OS scoping and cycle detection. This needs no secrets.
+      - name: Validate feature resolution
         run: |
           set -euo pipefail
 
-          nix build .#checks.x86_64-linux.profile-resolution
+          nix build .#checks.x86_64-linux.feature-resolution
 
       # Evaluating the host and home configurations reads the private secrets
       # input, so the adapter check needs the deploy key. Fork pull requests do

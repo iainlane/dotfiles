@@ -1,3 +1,3 @@
 {
-  flake.modules.falcon.nixosModules = [./nixos.nix];
+  flake.features.falcon.nixos = ./nixos.nix;
 }

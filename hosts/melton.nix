@@ -1,28 +1,33 @@
-let
+{config, ...}: let
+  inherit (config.flake) features;
   halls = import ../lib/halls.nix;
 in {
-  hostname = "melton.local";
-  os = "darwin";
-  arch = "aarch64";
-  motd = halls.melton;
-  profiles = [
-    "agentsview"
-    "base"
-    "development"
-    "desktop"
-    {"nixbuild-builder" = {admin = true;};}
+  flake.hosts.melton = {
+    hostname = "melton.local";
+    os = "darwin";
+    arch = "aarch64";
+    motd = halls.melton;
+    features = [
+      features.agentsview
+      features.base
+      features.development
+      features.desktop
+      features.nixbuild-builder
+      features.home
+    ];
 
-    "home"
-  ];
+    homeModule = {
+      dotfiles = {
+        git.signing.global.openpgp.key = "E352D5C51C5041D4";
+        nixbuild.admin = true;
+      };
 
-  homeModule = _: {
-    dotfiles.git.signing.global.openpgp.key = "E352D5C51C5041D4";
-
-    targets.darwin.defaults = {
-      NSGlobalDomain = {
-        AppleShowAllExtensions = true;
-        InitialKeyRepeat = 15;
-        KeyRepeat = 2;
+      targets.darwin.defaults = {
+        NSGlobalDomain = {
+          AppleShowAllExtensions = true;
+          InitialKeyRepeat = 15;
+          KeyRepeat = 2;
+        };
       };
     };
   };

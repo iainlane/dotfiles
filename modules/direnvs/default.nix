@@ -7,8 +7,8 @@
 
   # A language fragment is a function `pkgs -> attrset` returning a partial
   # mkShell argument set. The submodule mirrors the shape used by
-  # `flake.profiles` and `flake.modules`: a base value plus an `os.<name>`
-  # branch that overlays it for that platform.
+  # `flake.features`: a base value plus an `os.<name>` branch that overlays
+  # it for that platform.
   shellOption = mkOption {
     type = types.nullOr (types.functionTo types.attrs);
     default = null;
@@ -73,7 +73,7 @@ in {
       description = ''
         Per-language fragments contributed to direnv shells. Each entry has
         a base `shell` function and may carry per-OS overlays under
-        `os.<name>.shell`. Profiles compose these by listing language names
+        `os.<name>.shell`. Features compose these by listing language names
         on a project definition rather than replicating shell glue.
       '';
     };

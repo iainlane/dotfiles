@@ -1,3 +1,3 @@
 {
-  flake.modules.scripts.homeManagerModules = [./home-manager.nix];
+  flake.features.scripts.homeManager = ./home-manager.nix;
 }

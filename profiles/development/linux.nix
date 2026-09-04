@@ -1,5 +1,5 @@
 {
-  flake.profiles.development.os.linux.homeManagerModule = {pkgs, ...}: {
+  flake.features.development.os.linux.homeManager = {pkgs, ...}: {
     home.packages = import ./linux-packages.nix pkgs;
 
     home.file.".gdbinit".text = ''

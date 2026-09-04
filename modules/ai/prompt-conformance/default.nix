@@ -1,10 +1,10 @@
 {
   inputs,
-  defaultModels,
   lib,
   pkgs,
   system,
 }: let
+  defaultModels = import ../models.nix;
   instructions = (import ../agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
   managedSettings =
     (lib.evalModules {

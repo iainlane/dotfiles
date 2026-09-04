@@ -9,18 +9,13 @@
 #
 # What to serve is discovered from the containers themselves: anything wrapped
 # in `config.services.edge-proxy.exposePodman` has labels saying which name it
-# answers to and whether it needs signing in first. This profile never names an
+# answers to and whether it needs signing in first. This feature never names an
 # individual service.
-{
-  flake.profiles.caddy = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+{config, ...}: {
+  flake.features.caddy = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {
+    systemManager = {
       config,
       inputs,
       lib,
@@ -472,7 +467,7 @@
       imports = [./options.nix];
 
       config = lib.mkMerge [
-        {services.caddy-proxy = {enable = lib.mkDefault true;} // args;}
+        {services.caddy-proxy.enable = lib.mkDefault true;}
 
         (lib.mkIf cfg.enable {
           services.edge-proxy.enable = true;

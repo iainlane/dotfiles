@@ -1,13 +1,13 @@
-# Project shell generation: turn a profile's project-directory definitions into
+# Project shell generation: turn a feature's project-directory definitions into
 # direnv shells, flat `nix develop` shells, and the home-manager configuration
-# that generates the matching `.envrc` files. Used by profiles that define
+# that generates the matching `.envrc` files. Used by features that define
 # per-directory development environments (personal, work, FOSS contexts).
 {lib}: rec {
   # Normalise project definitions by computing derived path fields.
   # Each project gets:
   #   - attrSegments: directory path split into segments (e.g., "dev/debian" → ["dev" "debian"])
   #   - attrPath: dotted path for nix attribute access (e.g., "dev.debian")
-  # All other fields are passed through as-is for the profile's mkShell to use.
+  # All other fields are passed through as-is for the feature's mkShell to use.
   normaliseProject = _name: attrs: let
     attrSegments =
       attrs.attrSegments
@@ -88,9 +88,9 @@
   # Build direnv shells and devShells for a set of project directories, returning
   # both the flake-parts module and the directories configuration.
   #
-  # This is used by profiles that define project-specific development environments.
-  # The profile imports the returned module and uses the directories configuration
-  # in its homeManagerModule.
+  # This is used by features that define project-specific development environments.
+  # The feature imports the returned module and uses the directories configuration
+  # in its `homeManager` module.
   #
   # The direnv system automatically generates .envrc files that set up per-directory
   # development environments with custom environment variables (email, git config, etc).
@@ -121,7 +121,7 @@
     projectDefinitions = lib.mapAttrs normaliseProject projects;
     directories = mkDirectoriesConfig projectDefinitions;
   in {
-    # A home-manager module fragment that profiles can import to configure
+    # A home-manager module fragment that features can import to configure
     # project-directories. This reduces boilerplate.
     homeManagerModule = _: {
       imports = [./project-directories];

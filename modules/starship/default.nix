@@ -1,3 +1,3 @@
 {
-  flake.modules.starship.homeManagerModules = [./home-manager.nix];
+  flake.features.starship.homeManager = ./home-manager.nix;
 }

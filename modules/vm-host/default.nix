@@ -1,5 +1,3 @@
 {
-  flake.modules."vm-host" = {
-    nixosModules = [./nixos.nix];
-  };
+  flake.features."vm-host".nixos = ./nixos.nix;
 }

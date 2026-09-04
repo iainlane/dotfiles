@@ -7,7 +7,7 @@ one shared set of building blocks.
 The data flows in one direction:
 
 ```text
-host  →  profiles  →  features  →  OS adapter  →  flake outputs
+host  →  features  →  OS adapter  →  flake outputs
 ```
 
 Each stage is described below.
@@ -18,99 +18,110 @@ Each stage is described below.
 
 ## Hosts
 
-A host is one machine. Host records live in `hosts/*.nix` (or
-`hosts/<name>/default.nix` when a host needs extra files such as `hardware.nix`
-and `disks.nix`). They are discovered automatically — there is no hand-written
-list to keep in sync.
+A host is one machine. Each file under `hosts/` is a flake-parts module that
+sets `flake.hosts.<name>`. A NixOS host is a directory,
+`hosts/<name>/default.nix`, because the NixOS adapter imports `hardware.nix` and
+`disks.nix` from beside it. The files are discovered automatically, so there is
+no list to keep in sync.
 
-A host declares its OS and architecture, the profiles it wants, and any per-host
-overrides:
-
-```nix
-{
-  hostname = "florence.example.com";
-  os = "nixos"; # or "darwin" / "linux" (system-manager)
-  arch = "x86_64";
-  profiles = ["base" "desktop" "development"];
-
-  # Optional per-host tweak.
-  homeModule = {...}: {
-    programs.git.settings.user.email = "me@example.com";
-  };
-}
-```
-
-The `flake.hosts` option (in `flake/parts/hosts.nix`) types and normalises these
-records and computes derived fields such as `system` and `homeDirectory`.
-
-## Profiles
-
-A profile is a composable bundle of behaviour: `base`, `desktop`, `development`,
-`work`, and so on. Profiles live in `profiles/*/default.nix` and are discovered
-automatically. A host selects profiles by name; a profile can also carry
-per-host options when a host selects it as `{ adsb = { ... }; }` instead of the
-bare string `"adsb"`.
-
-Profiles compose **features** and may contribute their own inline modules:
+A host declares its OS and architecture, the features it has, and any
+configuration that applies to this host alone:
 
 ```nix
-flake.profiles.base = {
-  features = [
-    "catppuccin"
-    "git"
-    "neovim"
-    "zsh"
-    # ...
-  ];
+{config, ...}: let
+  inherit (config.flake) features;
+in {
+  flake.hosts.example = {
+    hostname = "example.local";
+    os = "linux"; # or "nixos" / "darwin"
+    arch = "x86_64";
+    motd = "Welcome to example";
+    features = [features.base features.desktop features.nixbuild-builder];
 
-  # Inline configuration that is specific to this profile.
-  homeManagerModule = {pkgs, ...}: {
-    # ...
-  };
-};
-```
-
-Profiles can also scope both features and inline modules to a specific OS via
-`flake.profiles.<name>.os.<os>`, e.g. `base.os.nixos.features = ["borgmatic"]`.
-
-A profile can declare that it needs another profile present with `requires`. The
-requirement is validated while the host set is evaluated (in
-`flake/parts/hosts.nix`, via `validateProfileRequirements`), so a missing or
-self-referential requirement fails before any build.
-
-## Features and modules
-
-A feature is a self-contained unit of configuration for one program or a small
-group of them (`git`, `zsh`, `neovim`, `ghostty`, …). Feature modules live in
-`modules/*/default.nix` and register themselves under `flake.modules.<name>`:
-
-```nix
-# modules/git/default.nix
-{
-  flake.modules.git = {
-    homeManagerModules = [./home-manager.nix];
-    os = {
-      darwin.homeManagerModules = [./credential-darwin.nix];
-      linux.homeManagerModules = [./credential-linux.nix ./gitsign.nix];
-      nixos.homeManagerModules = [./credential-linux.nix ./gitsign.nix];
+    # Settings for this host only. `systemModule` goes to whichever of NixOS,
+    # nix-darwin or system-manager builds the host; `homeModule` goes to Home
+    # Manager.
+    homeModule = {
+      dotfiles.nixbuild.admin = true;
+      programs.git.settings.user.email = "me@example.com";
     };
   };
 }
 ```
 
-Each feature exposes module lists per target — `homeManagerModules`,
-`systemManagerModules`, `nixosModules` — plus OS-specific variants under `os`.
+Features are referenced by value, so a feature that does not exist is an
+evaluation error at the reference. A feature that takes per-host settings
+declares options in the module system it configures, and the host sets those
+options through `systemModule` or `homeModule`, where the module system checks
+them.
 
-Profiles reference features **by name**. The name is resolved against
-`flake.modules` during module assembly (`lib/profiles.nix`, `mkModules`), so a
-typo fails with a clear "unknown feature" error naming the profile, and the
-profile layer stays declarative rather than carrying opaque module values.
+The `flake.hosts` option (in `flake/parts/hosts.nix`) types these records and
+computes derived fields such as `system`, `homeDirectory` and `featureNames`,
+the names of every feature the host has once includes are followed.
+
+## Features
+
+A feature is the configuration for one concern across the module systems that
+build a host. It is registered under `flake.features.<name>` with one field per
+module system, named after the module system that evaluates it:
+
+| Field           | Evaluated by                                      |
+| --------------- | ------------------------------------------------- |
+| `nixos`         | NixOS                                             |
+| `darwin`        | nix-darwin                                        |
+| `systemManager` | system-manager, on Linux hosts that are not NixOS |
+| `homeManager`   | Home Manager                                      |
+| `system`        | whichever of the first three builds the host      |
+
+Each field takes a module, or a list of modules. Several files may define the
+same field of the same feature; the definitions merge into one module.
+
+A feature includes the features it depends on, and hosts get those too. Home
+Manager content and includes can be scoped to one host OS under `os.<os>`:
+
+```nix
+# modules/git/default.nix
+{
+  flake.features.git = {
+    homeManager = ./home-manager.nix;
+    os = {
+      darwin.homeManager = ./credential-darwin.nix;
+      linux.homeManager = [./credential-linux.nix ./gitsign.nix];
+      nixos.homeManager = [./credential-linux.nix ./gitsign.nix];
+    };
+  };
+}
+
+# profiles/adsb/default.nix
+{config, ...}: {
+  flake.features.adsb = {
+    includes = [config.flake.features.containers];
+    systemManager = {config, pkgs, ...}: {
+      imports = [./options.nix];
+      # ...
+    };
+  };
+}
+```
+
+The system classes need no OS scoping because each one already implies an OS.
+
+The features a host lists directly live in `profiles/<name>/default.nix`, and
+the features those include live in `modules/<name>/default.nix`. Both
+directories are discovered automatically, and only a `default.nix` one level
+down is loaded, so helper files beside it are not modules.
+
+`lib/features.nix` resolves a host's feature list into the modules for one
+module system. It expands includes depth-first, so a feature comes after the
+features it includes, emits each feature once, and reports an include cycle by
+naming it. The check in `flake/parts/checks/feature-resolution.nix` pins that
+behaviour against fixtures.
 
 ## OS adapters
 
-For a given host, the selected profiles resolve to a flat list of modules for
-each target. The OS adapters in `os/<os>/default.nix` take that list and hand it
-to the right system builder:
+For a given host, the features resolve to a flat list of modules for each module
+system. The OS adapters in `os/<os>/default.nix` take that list and hand it to
+the right system builder:
 
 - `os/nixos` → `nixpkgs.lib.nixosSystem` (also embeds Home Manager, and grafts
   the unstable `lib.hm` onto stable hosts so unstable HM modules evaluate),
@@ -118,9 +129,9 @@ to the right system builder:
 - `os/linux` → `system-manager.lib.makeSystemConfig` (Home Manager is deployed
   standalone rather than embedded).
 
-Shared plumbing — profile/module resolution, Home Manager assembly, sops
-fragments — lives in `lib/` so the three adapters only own the parts that
-genuinely differ between the system builders.
+Shared plumbing (feature resolution, Home Manager assembly, sops fragments)
+lives in `lib/` so the three adapters only own the parts that genuinely differ
+between the system builders.
 
 ## Flake outputs
 
@@ -143,11 +154,10 @@ pushed with `deploy .#<host>`.
 wires the pieces together and re-exports the stable surface the rest of the
 flake imports as `helpers`:
 
-| File                | Responsibility                                       |
-| ------------------- | ---------------------------------------------------- |
-| `lib/discovery.nix` | filesystem discovery (hosts/profiles/modules/pkgs)   |
-| `lib/hosts.nix`     | host record loading                                  |
-| `lib/profiles.nix`  | profile normalisation, validation, module resolution |
-| `lib/home.nix`      | Home Manager module + `specialArgs` assembly         |
-| `lib/sops.nix`      | sops-nix module fragments                            |
-| `lib/projects.nix`  | project shell / direnv generation                    |
+| File                | Responsibility                                        |
+| ------------------- | ----------------------------------------------------- |
+| `lib/discovery.nix` | filesystem discovery (hosts/features/pkgs)            |
+| `lib/features.nix`  | feature resolution: includes, ordering, class modules |
+| `lib/home.nix`      | Home Manager module + `specialArgs` assembly          |
+| `lib/sops.nix`      | sops-nix module fragments                             |
+| `lib/projects.nix`  | project shell / direnv generation                     |

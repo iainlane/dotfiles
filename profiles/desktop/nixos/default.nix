@@ -1,10 +1,13 @@
-{config, ...}: {
-  flake.profiles.desktop.os.nixos = {
-    features = ["gnome" "vm-host" "secure-boot"];
+{config, ...}: let
+  inherit (config.flake) features;
+in {
+  flake.features.desktop = {
+    os.nixos = {
+      includes = [features.gnome features.vm-host features.secure-boot];
+      homeManager = features.desktop.os.linux.homeManager;
+    };
 
-    inherit (config.flake.profiles.desktop.os.linux) homeManagerModule;
-
-    nixosModule = {usbguardStaticRules ? {}}: {
+    nixos = {
       pkgs,
       lib,
       config,
@@ -14,8 +17,6 @@
         ./console.nix
         ./options.nix
       ];
-
-      dotfiles.desktop.usbguard.staticRules = usbguardStaticRules;
 
       fonts.packages = import ../fonts.nix pkgs;
 

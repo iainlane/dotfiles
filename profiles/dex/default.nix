@@ -5,16 +5,11 @@
 # and returns the answer as OpenID Connect, which is a language more things
 # speak than GitHub's own API. Whether a given person is served is decided by
 # the proxy, from the identity in the answer.
-{
-  flake.profiles.dex = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+{config, ...}: {
+  flake.features.dex = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {
+    systemManager = {
       config,
       inputs,
       lib,
@@ -148,7 +143,6 @@
       imports = [./options.nix];
 
       config = lib.mkMerge [
-        {services.dex = args;}
         {
           services.identity-provider = {
             enable = true;

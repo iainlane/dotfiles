@@ -1,5 +1,3 @@
 {
-  flake.modules."secure-boot" = {
-    nixosModules = [./nixos.nix];
-  };
+  flake.features."secure-boot".nixos = ./nixos.nix;
 }

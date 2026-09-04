@@ -8,19 +8,17 @@
 #
 # On Linux, `environment.etc` maps directly to /etc which is the right
 # location. On macOS the target is /Library (not /etc), so we symlink the
-# store path into place via an activation script — the same mechanism that
+# store path into place via an activation script, the same mechanism that
 # `environment.etc` itself uses under the hood.
 {
-  flake.modules.ai = {
-    homeManagerModules = [./home-manager.nix];
-    # Managed settings file is placed per-OS. Linux (both NixOS and
-    # system-manager) uses environment.etc; darwin uses an activation-script
-    # symlink into /Library. Splitting the two avoids feeding the darwin
-    # branch to system-manager-linux, whose `system.activationScripts` is
-    # narrower than nix-darwin's and rejects the definition even under
+  flake.features.ai = {
+    homeManager = ./home-manager.nix;
+    # The two managed-settings modules are registered per class instead of
+    # under `system`: system-manager's `system.activationScripts` is narrower
+    # than nix-darwin's and rejects the darwin definition even under
     # `lib.mkIf false`.
-    nixosModules = [./managed-settings-linux.nix];
-    os.linux.systemManagerModules = [./managed-settings-linux.nix];
-    os.darwin.systemManagerModules = [./managed-settings-darwin.nix];
+    nixos = ./managed-settings-linux.nix;
+    systemManager = ./managed-settings-linux.nix;
+    darwin = ./managed-settings-darwin.nix;
   };
 }

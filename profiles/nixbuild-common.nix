@@ -105,17 +105,20 @@
     };
   };
 
-  homeManagerModule = {admin ? false}: {
+  homeManagerModule = {
+    config,
     hostConfig,
     inputs,
     lib,
     ...
-  }:
-    lib.mkMerge [
+  }: {
+    options.dotfiles.nixbuild.admin = lib.mkEnableOption "the nixbuild.net admin key and its SSH host alias";
+
+    config = lib.mkMerge [
       {
         dotfiles.ssh.settings = storeMatchBlock;
       }
-      (lib.mkIf admin {
+      (lib.mkIf config.dotfiles.nixbuild.admin {
         sops.secrets.nixbuild-admin-private-key = {
           sopsFile = inputs.secrets + "/nixbuild-admin.yaml";
           key = "nixbuild_admin_private_key";
@@ -125,6 +128,7 @@
         dotfiles.ssh.settings = adminMatchBlock;
       })
     ];
+  };
 
   linuxSystemManagerModule = {
     imports = [substituterModule];

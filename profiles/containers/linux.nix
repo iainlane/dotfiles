@@ -1,5 +1,5 @@
 {
-  flake.profiles.containers.os.linux.systemManagerModule = _: {
+  flake.features.containers.systemManager = {
     config,
     lib,
     pkgs,

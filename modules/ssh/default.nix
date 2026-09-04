@@ -1,5 +1,3 @@
 {
-  flake.modules.ssh = {
-    homeManagerModules = [./home-manager.nix];
-  };
+  flake.features.ssh.homeManager = ./home-manager.nix;
 }

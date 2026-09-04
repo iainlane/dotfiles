@@ -1,10 +1,10 @@
 {
-  flake.modules.kitty = {
-    homeManagerModules = [./home-manager.nix];
+  flake.features.kitty = {
+    homeManager = ./home-manager.nix;
     os = {
-      darwin.homeManagerModules = [./darwin.nix];
-      linux.homeManagerModules = [./linux.nix];
-      nixos.homeManagerModules = [./linux.nix];
+      darwin.homeManager = ./darwin.nix;
+      linux.homeManager = ./linux.nix;
+      nixos.homeManager = ./linux.nix;
     };
   };
 }

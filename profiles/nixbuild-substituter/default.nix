@@ -1,13 +1,10 @@
 {inputs, ...}: let
   nixbuild = import ../nixbuild-common.nix {inherit (inputs.nixpkgs) lib;};
 in {
-  flake.profiles.nixbuild-substituter = {
-    inherit (nixbuild) homeManagerModule;
-
-    os = {
-      darwin.systemManagerModule = _: nixbuild.darwinSystemManagerModule;
-      linux.systemManagerModule = _: nixbuild.linuxSystemManagerModule;
-      nixos.nixosModule = _: nixbuild.nixosModule;
-    };
+  flake.features.nixbuild-substituter = {
+    homeManager = nixbuild.homeManagerModule;
+    darwin = nixbuild.darwinSystemManagerModule;
+    systemManager = nixbuild.linuxSystemManagerModule;
+    nixos = nixbuild.nixosModule;
   };
 }

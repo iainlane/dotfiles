@@ -1,3 +1,3 @@
 {
-  flake.modules."zed-editor".homeManagerModules = [./home-manager.nix];
+  flake.features."zed-editor".homeManager = ./home-manager.nix;
 }

@@ -1,16 +1,19 @@
-let
+{config, ...}: let
+  inherit (config.flake) features;
   halls = import ../lib/halls.nix;
 in {
-  hostname = "florence.local";
-  os = "linux";
-  arch = "x86_64";
-  motd = halls.florence;
-  profiles = [
-    "base"
-    "desktop"
-    "development"
-    "containers"
-    "nixbuild-builder"
-    "cloud"
-  ];
+  flake.hosts.florence = {
+    hostname = "florence.local";
+    os = "linux";
+    arch = "x86_64";
+    motd = halls.florence;
+    features = [
+      features.base
+      features.desktop
+      features.development
+      features.containers
+      features.nixbuild-builder
+      features.cloud
+    ];
+  };
 }

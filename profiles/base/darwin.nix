@@ -1,6 +1,6 @@
 # Darwin-specific base configuration
 {
-  flake.profiles.base.os.darwin.homeManagerModule = {pkgs, ...}: {
+  flake.features.base.os.darwin.homeManager = {pkgs, ...}: {
     home.packages = with pkgs; [
       ghostty-bin.terminfo
     ];
@@ -13,7 +13,7 @@
     };
   };
 
-  flake.profiles.base.os.darwin.systemManagerModule = {
+  flake.features.base.darwin = {
     imports = [
       ./system-defaults.nix
     ];

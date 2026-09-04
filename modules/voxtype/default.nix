@@ -1,10 +1,10 @@
 {
-  flake.modules.voxtype = {
-    homeManagerModules = [./home-manager.nix];
+  flake.features.voxtype = {
+    homeManager = ./home-manager.nix;
     os = {
-      darwin.homeManagerModules = [./darwin.nix];
-      linux.homeManagerModules = [./linux.nix];
-      nixos.homeManagerModules = [./linux.nix];
+      darwin.homeManager = ./darwin.nix;
+      linux.homeManager = ./linux.nix;
+      nixos.homeManager = ./linux.nix;
     };
   };
 }

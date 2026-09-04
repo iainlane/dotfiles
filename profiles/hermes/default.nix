@@ -1,15 +1,10 @@
 {config, ...}: let
-  inherit (config.flake.modules.ai) defaultModels;
+  defaultModels = import ../../modules/ai/models.nix;
 in {
-  flake.profiles.hermes = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+  flake.features.hermes = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {lib, ...}: {
+    systemManager = {lib, ...}: {
       imports = [
         ./options.nix
         ./core.nix
@@ -28,23 +23,19 @@ in {
       ];
 
       config = {
-        # The host's per-profile settings arrive as `args`; default the service
-        # on so opting into the profile is enough to get the agent.
-        services.hermes-agent =
-          lib.recursiveUpdate
-          {
-            enable = lib.mkDefault true;
-            settings = {
-              model.default = defaultModels.openai;
-              fallback_providers = [
-                {
-                  provider = "openrouter";
-                  model = "openai/${defaultModels.openai}";
-                }
-              ];
-            };
-          }
-          args;
+        # Giving a host the feature is enough to run the agent.
+        services.hermes-agent = {
+          enable = lib.mkDefault true;
+          settings = {
+            model.default = lib.mkDefault defaultModels.openai;
+            fallback_providers = lib.mkDefault [
+              {
+                provider = "openrouter";
+                model = "openai/${defaultModels.openai}";
+              }
+            ];
+          };
+        };
 
         # Reserved for the agent, the dashboard and signal-cli, which share
         # state volumes and so map their ids from one range to see the same

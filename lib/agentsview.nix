@@ -1,38 +1,27 @@
-# The values that both AgentsView profiles use.
+# The values that both AgentsView features use.
 #
 # Each machine keeps an archive of its agent sessions. Some machines push
 # their archive to a shared database. One machine holds that database and
 # shows a dashboard of it.
 #
-# The two profiles must agree on three things: which machines push, where
+# The two features must agree on three things: which machines push, where
 # they push to, and which certificate each machine presents.
 #
-# This file reads the answers from the host records. To add a machine, add
-# the profile to it. Host discovery reads the files under `hosts/` directly,
-# so a profile can call these functions safely.
+# Which machines push is read from the host records. Where they push to is
+# `flake.agentsviewServer.domain`, which the host with the server feature
+# sets beside its host record. To add a machine, give it the feature.
 {lib}: let
-  helpers = import ./profiles.nix {inherit lib;};
+  helpers = import ./features.nix {inherit lib;};
 
-  clientProfile = "agentsview";
-  serverProfile = "agentsview-server";
+  clientFeature = "agentsview";
+  serverFeature = "agentsview-server";
 
   # A work machine keeps its archive on the machine. It does not push.
-  pushes = host: helpers.hasProfile host clientProfile && !helpers.hasProfile host "work";
-
-  # Settings a host passes to one of its profiles.
-  profileSettings = name: host: let
-    matching =
-      lib.filter
-      (entry: entry.name == name)
-      (helpers.normaliseProfileEntries host.profiles);
-  in
-    if matching == []
-    then {}
-    else (lib.head matching).profileOptions or {};
+  pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host "work";
 
   syncingHosts = hosts: lib.filterAttrs (_: pushes) hosts;
 
-  # What each machine with the client profile does with its archive. The
+  # What each machine with the client feature does with its archive. The
   # machine that holds the database also pushes to it, and a machine that
   # keeps its sessions to itself still shows them on its own dashboard.
   #
@@ -40,12 +29,12 @@
   # flake output exposes it to `generate-agentsview-secrets`.
   kinds = hosts:
     lib.mapAttrs (_: host:
-      if helpers.hasProfile host serverProfile
+      if helpers.hasFeature host serverFeature
       then "server"
       else if pushes host
       then "client"
       else "local")
-    (lib.filterAttrs (_: host: helpers.hasProfile host clientProfile) hosts);
+    (lib.filterAttrs (_: host: helpers.hasFeature host clientFeature) hosts);
 
   serverDefaults = {
     database = "agentsview";
@@ -55,14 +44,24 @@
   # the access of one machine and the others keep theirs.
   role = hostname: hostname;
 
-  # The machine that shows the dashboard, and the settings it was given. The
-  # clients read the hostname from here, so the file gives it one time.
-  serverSettings = hosts: let
-    found = lib.filterAttrs (_: host: helpers.hasProfile host serverProfile) hosts;
+  # The database's hostname and name, or null when no machine has the server
+  # feature. `domain` is `flake.agentsviewServer.domain`; a server whose host
+  # has not set it is an error here, so the clients do not conclude that
+  # there is no server.
+  serverSettings = {
+    hosts,
+    domain,
+  }: let
+    found = lib.attrNames (lib.filterAttrs (_: host: helpers.hasFeature host serverFeature) hosts);
   in
-    if found == {}
+    if found == []
     then null
-    else serverDefaults // profileSettings serverProfile (lib.head (lib.attrValues found));
+    else if domain == null
+    then throw "Host '${lib.head found}' has the ${serverFeature} feature but does not set flake.agentsviewServer.domain"
+    else {
+      inherit domain;
+      inherit (serverDefaults) database;
+    };
 
   # The certificate of a machine is beside its host record. The path comes
   # from the hostname, so the server finds each certificate itself. No list of
@@ -107,7 +106,7 @@ in {
   inherit
     authTokenSecret
     certificatePath
-    clientProfile
+    clientFeature
     cursorSecret
     hasCertificate
     kinds
@@ -116,11 +115,10 @@ in {
     passwordSecretFor
     privateKeySecret
     userSecretsFile
-    profileSettings
     pushes
     role
     serverDefaults
-    serverProfile
+    serverFeature
     serverSettings
     syncingHosts
     ;

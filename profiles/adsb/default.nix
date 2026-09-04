@@ -4,16 +4,11 @@
 # These run rootful. The feeders need the reverse proxy to resolve them by
 # container name, and a rootless bridge lives in a network namespace the host
 # cannot route into, so the whole stack sits on a rootful netavark bridge.
-{
-  flake.profiles.adsb = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+{config, ...}: {
+  flake.features.adsb = {
+    includes = [config.flake.features.containers];
 
-    os.linux.systemManagerModule = args: {
+    systemManager = {
       config,
       hostConfig,
       inputs,
@@ -59,7 +54,6 @@
       imports = [./options.nix];
 
       config = lib.mkMerge [
-        {services.adsb = args;}
         {
           # The DVB kernel drivers claim the SDR unless they are kept away
           # from it.

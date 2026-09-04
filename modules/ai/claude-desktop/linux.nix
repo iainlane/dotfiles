@@ -1,6 +1,6 @@
-# The ai module is not tied to the desktop profile (the work profile pulls it
-# in too), so only install the GUI application where the host also has the
-# desktop profile.
+# The ai feature is not tied to the desktop feature (the work feature includes
+# it too), so only install the GUI application where the host also has the
+# desktop feature.
 {
   config,
   mcp,
@@ -14,7 +14,7 @@
 in {
   imports = [./options.nix];
 
-  config = lib.mkIf (helpers.hasProfile hostConfig "desktop") {
+  config = lib.mkIf (helpers.hasFeature hostConfig "desktop") {
     home.packages = [
       inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop
     ];

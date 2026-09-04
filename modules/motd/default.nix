@@ -1,5 +1,3 @@
 {
-  flake.modules.motd = {
-    homeManagerModules = [./home-manager.nix];
-  };
+  flake.features.motd.homeManager = ./home-manager.nix;
 }

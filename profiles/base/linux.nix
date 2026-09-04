@@ -1,5 +1,5 @@
 {
-  flake.profiles.base.os.linux.homeManagerModule = {
+  flake.features.base.os.linux.homeManager = {
     lib,
     pkgs,
     ...
@@ -8,8 +8,9 @@
       packages = import ./linux-packages.nix pkgs;
 
       # deploy-rs activate-rs invokes `nix-env` by name on remote hosts.
-      # Ensure non-interactive SSH sessions can resolve Nix CLI binaries.
-      sessionPath = ["/nix/var/nix/profiles/default/bin"];
+      # Ensure non-interactive SSH sessions can resolve Nix CLI binaries. It
+      # goes last so it never shadows the user's own directories.
+      sessionPath = lib.mkAfter ["/nix/var/nix/profiles/default/bin"];
 
       # Home Manager's generic Linux target sources `nix.sh`, which may omit
       # daemon-profile paths on multi-user installs. Prefer `nix-daemon.sh` when
@@ -24,7 +25,7 @@
     targets.genericLinux.enable = true;
   };
 
-  flake.profiles.base.os.linux.systemManagerModule = {
+  flake.features.base.systemManager = {
     config,
     lib,
     pkgs,

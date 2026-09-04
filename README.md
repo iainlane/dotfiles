@@ -20,18 +20,22 @@ These are managed using [Nix].
 
 ## Structure
 
-The flake is composed of _hosts_. Each host selects a set of _profiles_, and
-those profiles compose _features_ (feature modules referenced by name).
+The flake is composed of _hosts_ and _features_. A host lists the features it
+has. A feature is the configuration for one concern across every module system
+that builds a host (NixOS, nix-darwin, system-manager and Home Manager), plus
+the other features it includes.
 
-For a fuller walk through `host → profiles → features → OS adapter → outputs`,
-see [docs/architecture.md](docs/architecture.md).
+For a fuller walk through `host → features → OS adapter → outputs`, see
+[docs/architecture.md](docs/architecture.md).
 
-### Profiles
+### Features
 
-Profiles are composable bundles of behaviour and packages. They are used to
-group related concerns (base tooling, desktop apps, cloud tooling, development
-shells, and work-specific settings) so hosts can opt into them selectively.
-Profile definitions are kept in `profiles/*/default.nix`.
+Every feature registers itself under `flake.features.<name>`. The features a
+host lists directly live under `profiles/`; the features they include live under
+`modules/`. Both directories are discovered automatically, and only a
+`<name>/default.nix` inside them is loaded.
+
+Some of the features under `profiles/`:
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
@@ -48,12 +52,8 @@ Profile definitions are kept in `profiles/*/default.nix`.
   registering the host as a remote-build client.
 - `work`: Work-specific project shells, identity defaults, and tooling.
 
-### Features
-
-We use feature _modules_ to break out configuration for specific programs or
-groups of programs and keep it self-contained. Each registers itself under
-`flake.modules.<name>`, and profiles select them by name via `features`. The
-available features are:
+The hosts under `hosts/` show the rest, which are mostly services on ancaster.
+Some of the features under `modules/`:
 
 - `ai`: AI tooling modules and shared MCP wiring.
 - `borgmatic`: Borg backups via borgmatic, with credentials from the secrets
@@ -80,22 +80,31 @@ available features are:
 
 ### Hosts
 
-Hosts represent machines. A host record defines OS/architecture and the profiles
-to apply, with optional per-host overrides. Host definitions are kept in
-`hosts/*.nix`.
-
-Profiles are selected per host:
+Hosts represent machines. A host record defines OS/architecture and the features
+the host has, with optional per-host overrides. Each file under `hosts/` is a
+flake-parts module that sets `flake.hosts.<name>`:
 
 ```nix
-{
-  hostname = "hostname.example.com";
-  os = "linux";
-  arch = "x86_64";
-  profiles = [ "base" "desktop" "development" "cloud" "work" ];
+{config, ...}: let
+  inherit (config.flake) features;
+in {
+  flake.hosts.example = {
+    hostname = "hostname.example.com";
+    os = "linux";
+    arch = "x86_64";
+    motd = "Welcome to example";
+    features = [
+      features.base
+      features.desktop
+      features.development
+      features.cloud
+      features.work
+    ];
 
-  # Optional per-host overrides
-  homeModule = { ... }: {
-    programs.git.settings.user.email = "work@example.com";
+    # Optional per-host overrides
+    homeModule = {
+      programs.git.settings.user.email = "work@example.com";
+    };
   };
 }
 ```
@@ -245,13 +254,20 @@ version with `./just gc <days>` (defaults to 30).
 Create `hosts/HOSTNAME.nix` to add a new host:
 
 ```nix
-{
-  hostname = "hostname.example.com";
-  os = "darwin";  # or "linux"
-  arch = "aarch64";  # or "x86_64"
-  profiles = [ "base" ];
+{config, ...}: {
+  flake.hosts.HOSTNAME = {
+    hostname = "hostname.example.com";
+    os = "darwin";  # or "linux" (system-manager) or "nixos"
+    arch = "aarch64";  # or "x86_64"
+    motd = "Welcome to HOSTNAME";
+    features = [config.flake.features.base];
+  };
 }
 ```
+
+A NixOS host is a directory instead, `hosts/HOSTNAME/`, because the NixOS
+adapter imports `hardware.nix` and `disks.nix` from beside its `default.nix`.
+`hosts/bonington/` is the example to copy.
 
 ## Secrets
 

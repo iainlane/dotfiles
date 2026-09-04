@@ -71,10 +71,10 @@
 in {
   imports = [projectShells.flakeModule];
 
-  flake.profiles.work = {
-    features = ["ai" "git"];
+  flake.features.work = {
+    includes = [config.flake.features.ai config.flake.features.git];
 
-    homeManagerModule = {pkgs, ...} @ args:
+    homeManager = {pkgs, ...} @ args:
       lib.recursiveUpdate
       (projectShells.homeManagerModule args)
       {
@@ -115,38 +115,36 @@ in {
         programs.opencode.settings.share = "disabled";
       };
 
-    os.nixos = {
-      features = ["falcon"];
+    os.nixos.includes = [config.flake.features.falcon];
 
-      nixosModule = {
-        inputs,
-        config,
-        hostConfig,
-        ...
-      }: let
-        secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
-        falconRelease = import (inputs.secrets + "/crowdstrike/falcon.nix");
-      in {
-        imports =
-          [./kolide.nix]
-          ++ lib.optional (helpers.hasProfile hostConfig "desktop")
-          ./claude-managed-settings.nix;
+    nixos = {
+      inputs,
+      config,
+      hostConfig,
+      ...
+    }: let
+      secretsFile = inputs.secrets + "/${config.networking.hostName}/host-crowdstrike-falcon.yaml";
+      falconRelease = import (inputs.secrets + "/crowdstrike/falcon.nix");
+    in {
+      imports =
+        [./kolide.nix]
+        ++ lib.optional (helpers.hasFeature hostConfig "desktop")
+        ./claude-managed-settings.nix;
 
-        dotfiles.ai.mcpServers =
-          lib.mkIf (helpers.hasProfile hostConfig "desktop") workMcp;
+      dotfiles.ai.mcpServers =
+        lib.mkIf (helpers.hasFeature hostConfig "desktop") workMcp;
 
-        services.falcon-sensor = {
-          enable = true;
-          cidFile = config.sops.secrets.falcon-cid.path;
-          release = falconRelease;
-          traceLevel = "err";
-        };
+      services.falcon-sensor = {
+        enable = true;
+        cidFile = config.sops.secrets.falcon-cid.path;
+        release = falconRelease;
+        traceLevel = "err";
+      };
 
-        sops.secrets = {
-          falcon-cid = {
-            mode = "0600";
-            sopsFile = secretsFile;
-          };
+      sops.secrets = {
+        falcon-cid = {
+          mode = "0600";
+          sopsFile = secretsFile;
         };
       };
     };

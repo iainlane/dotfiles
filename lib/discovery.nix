@@ -1,7 +1,7 @@
 # Filesystem discovery helpers: turn directory layouts into lists of paths and
 # imported values. These are the primitives the flake uses to auto-discover
-# hosts, profiles, modules, packages, and overlays without hand-maintained
-# import lists.
+# hosts, features, packages, and overlays without hand-maintained import
+# lists.
 {lib}: rec {
   # Sorted names for one `builtins.readDir` entry type. Examples of entry types
   # are `"regular"` and `"directory"`. Pass `""` for `suffix` to disable suffix
@@ -32,6 +32,13 @@
     (builtins.filter
       (name: builtins.pathExists (dir + "/${name}/default.nix"))
       (directoryNames dir));
+
+  # Discover flake-parts modules kept either as `<name>.nix` or as
+  # `<name>/default.nix`. Hosts use this layout so a host that needs extra
+  # files (hardware, disks) can keep them beside its record.
+  discoverModuleFiles = dir:
+    map (name: dir + "/${name}") (fileNames dir ".nix")
+    ++ discoverModules dir;
 
   # Discover local packages: list subdirectory names of `dir` that contain a
   # `package.nix`. Used by the `pkgs/` layout to surface packages both as an

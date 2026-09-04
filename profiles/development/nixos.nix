@@ -1,5 +1,3 @@
 {config, ...}: {
-  flake.profiles.development.os.nixos = {
-    inherit (config.flake.profiles.development.os.linux) homeManagerModule;
-  };
+  flake.features.development.os.nixos.homeManager = config.flake.features.development.os.linux.homeManager;
 }

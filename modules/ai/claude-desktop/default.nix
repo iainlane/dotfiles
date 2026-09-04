@@ -2,13 +2,12 @@
 # uses the Homebrew cask), plus its MCP configuration managed outside of
 # llm-agents.
 {
-  flake.modules.ai.os = {
-    darwin = {
-      homeManagerModules = [./darwin.nix];
-      systemManagerModules = [./system-manager.nix];
+  flake.features.ai = {
+    darwin = ./system-manager.nix;
+    os = {
+      darwin.homeManager = ./darwin.nix;
+      linux.homeManager = ./linux.nix;
+      nixos.homeManager = ./linux.nix;
     };
-
-    linux.homeManagerModules = [./linux.nix];
-    nixos.homeManagerModules = [./linux.nix];
   };
 }

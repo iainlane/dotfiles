@@ -83,12 +83,11 @@
               inputs.lanzaboote.nixosModules.lanzaboote
               config.flake.nix.substitutersModule
             ]
-            ++ helpers.mkModules {
-              moduleType = "nixosModule";
+            ++ helpers.resolveFeatures {
+              class = "nixos";
               inherit hostConfig;
-              inherit (config.flake) profiles modules;
             }
-            ++ lib.optional (hostConfig.nixosModule != null) hostConfig.nixosModule
+            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
             ++ [
               channel.home-manager.nixosModules.home-manager
               (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})

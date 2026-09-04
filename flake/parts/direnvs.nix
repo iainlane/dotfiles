@@ -1,12 +1,12 @@
 # Direnv shell aggregation and flake option declaration.
 #
 # This module:
-# 1. Declares the `flake.direnvs` option that profiles contribute to
+# 1. Declares the `flake.direnvs` option that features contribute to
 # 2. Creates a `direnv-shells` package that depends on all direnv shells,
 #    allowing them to be pre-built with `nix build .#direnv-shells`
 {lib, ...}: let
   # A type that recursively merges attribute sets from multiple modules.
-  # This allows multiple profiles to contribute nested shells under the same
+  # This allows multiple features to contribute nested shells under the same
   # path prefixes (e.g., both can add to direnvs.aarch64-darwin.dev.*).
   recursiveAttrs = lib.mkOptionType {
     name = "recursiveAttrs";

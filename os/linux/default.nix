@@ -38,10 +38,9 @@
               inputs.sops-nix.nixosModules.sops
               config.flake.nix.substitutersModule
             ]
-            ++ helpers.mkModules {
-              moduleType = "systemManagerModule";
+            ++ helpers.resolveFeatures {
+              class = "systemManager";
               inherit hostConfig;
-              inherit (config.flake) profiles modules;
             }
             ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
           specialArgs = {

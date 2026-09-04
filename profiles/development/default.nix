@@ -61,7 +61,7 @@ in {
     ./nixos.nix
   ];
 
-  flake.profiles.development.homeManagerModule = {pkgs, ...} @ args:
+  flake.features.development.homeManager = {pkgs, ...} @ args:
     lib.recursiveUpdate
     (projectShells.homeManagerModule args)
     {

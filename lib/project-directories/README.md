@@ -5,11 +5,11 @@ development environment via direnv.
 
 ## What it does
 
-Profiles like `home` and `work` define projects - directories with custom
+Features like `home` and `work` define projects, directories with custom
 environment variables (git identity, signing keys, etc.). This module creates
 `.envrc` files that load those environments.
 
-For example, if a profile defines:
+For example, if a feature defines:
 
 ```nix
 projects = {

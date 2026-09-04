@@ -44,7 +44,7 @@
           stays on this machine and only this machine reads it.
 
           The value comes from the host record. A machine with the `work`
-          profile keeps its sessions and does not push.
+          feature keeps its sessions and does not push.
         '';
       };
     };

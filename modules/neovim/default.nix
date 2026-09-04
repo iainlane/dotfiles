@@ -1,3 +1,3 @@
 {
-  flake.modules.neovim.homeManagerModules = [./home-manager.nix];
+  flake.features.neovim.homeManager = ./home-manager.nix;
 }

@@ -1,25 +1,23 @@
 # Home Manager assembly: gather the Home Manager modules and special args for a
 # host in one place so the standalone `homeConfigurations` output and the
-# embedded configurations stay in sync. `mkModules` (profile resolution)
-# and `mkHomeSopsModule` (secrets) are injected so this module only owns the
-# Home Manager wiring itself.
+# embedded configurations stay in sync. `resolveFeatures` and
+# `mkHomeSopsModule` (secrets) are injected so this module only owns the Home
+# Manager wiring itself.
 {
   inputs,
   lib,
-  mkModules,
+  resolveFeatures,
   mkHomeSopsModule,
 }: rec {
   mkHomeModules = {
     hostConfig,
     username,
-    profiles,
-    modules,
   }:
-    mkModules {
-      moduleType = "homeManagerModule";
-      inherit hostConfig profiles modules;
+    resolveFeatures {
+      class = "homeManager";
+      inherit hostConfig;
     }
-    ++ lib.optional (hostConfig.homeModule or null != null) hostConfig.homeModule
+    ++ lib.optional (hostConfig.homeModule != null) hostConfig.homeModule
     ++ [
       {
         home = {
@@ -76,20 +74,11 @@
     hostname,
     system,
     username,
-    profiles,
-    modules,
     extraModules ? [],
     extraSpecialArgs ? {},
   }: {
     modules =
-      mkHomeModules {
-        inherit
-          hostConfig
-          username
-          profiles
-          modules
-          ;
-      }
+      mkHomeModules {inherit hostConfig username;}
       ++ [
         inputs.sops-nix.homeManagerModules.sops
         (mkHomeSopsModule {inherit hostConfig;})

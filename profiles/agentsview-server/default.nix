@@ -7,19 +7,20 @@
 # the same port. The protocol in the handshake tells the two apart.
 #
 # The host records give the machines that can push: each machine that has the
-# `agentsview` profile and is not a work machine. A certificate beside the
+# `agentsview` feature and is not a work machine. A certificate beside the
 # host record identifies each one. This file contains no list of them.
 {
+  config,
   inputs,
   lib,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
-
   common = import ../../lib/agentsview.nix {inherit lib;};
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
-  pushers = common.syncingHosts helpers.hosts;
+  pushers = common.syncingHosts config.flake.hosts;
+
+  serverDomain = config.flake.agentsviewServer.domain;
 
   withoutCertificate =
     lib.attrNames (lib.filterAttrs (hostname: _: !common.hasCertificate hostname) pushers);
@@ -29,15 +30,23 @@
     (hostname: builtins.readFile (common.certificatePath hostname))
     (lib.attrNames (lib.filterAttrs (hostname: _: common.hasCertificate hostname) pushers));
 in {
-  flake.profiles.agentsview-server = {
-    requires = [
-      {
-        profile = "containers";
-        os = ["linux"];
-      }
-    ];
+  options.flake.agentsviewServer.domain = lib.mkOption {
+    type = lib.types.nullOr lib.types.str;
+    default = null;
+    example = "pg.example.com";
+    description = ''
+      The hostname of the shared session database. The host with the
+      `agentsview-server` feature sets this beside its host record. The
+      server listens on it, and every pushing machine connects to it, so it
+      is declared once at the flake level instead of being read out of the
+      server's configuration.
+    '';
+  };
 
-    os.linux.systemManagerModule = args: {
+  config.flake.features.agentsview-server = {
+    includes = [config.flake.features.containers];
+
+    systemManager = {
       config,
       lib,
       pkgs,
@@ -429,7 +438,7 @@ in {
       imports = [./options.nix ./backup.nix];
 
       config = lib.mkMerge [
-        {services.agentsview-server = args;}
+        (lib.mkIf (serverDomain != null) {services.agentsview-server.domain = serverDomain;})
 
         (lib.mkIf cfg.enable {
           assertions = [

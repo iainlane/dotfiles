@@ -11,7 +11,7 @@ in {
       default = true;
       description = ''
         Whether this machine holds the shared archive of agent sessions and
-        shows a dashboard of it. The machines with the `agentsview` profile
+        shows a dashboard of it. The machines with the `agentsview` feature
         push to this machine.
       '';
     };
@@ -23,8 +23,8 @@ in {
         The hostname of the database. It must reach this host directly. A
         CDN between the two breaks it, because the traffic is not HTTP.
 
-        The machines that push read this name. If you change it, deploy them
-        again.
+        The feature sets this from `flake.agentsviewServer.domain`, which the
+        machines that push read too. If you change it, deploy them again.
       '';
     };
 

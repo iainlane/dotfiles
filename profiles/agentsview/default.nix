@@ -11,15 +11,17 @@
 # The agents also get the AgentsView skill, which tells them how to search
 # the archive for past decisions and instructions.
 {
+  config,
   inputs,
   lib,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
-
   common = import ../../lib/agentsview.nix {inherit lib;};
 
-  server = common.serverSettings helpers.hosts;
+  server = common.serverSettings {
+    inherit (config.flake) hosts;
+    inherit (config.flake.agentsviewServer) domain;
+  };
 
   # The parts that need an address wait until there is one. The assertion
   # below then reports a machine that pushes to no server.
@@ -122,7 +124,7 @@
   restartTrigger = config:
     builtins.hashString "sha256" config.sops.templates.${configTemplate}.content;
 
-  systemdModule = _: {
+  systemdModule = {
     config,
     lib,
     system,
@@ -178,7 +180,7 @@
       })
     ];
   };
-  launchdModule = _: {
+  launchdModule = {
     config,
     lib,
     system,
@@ -238,16 +240,16 @@ in {
   options.flake.agentsviewHosts = lib.mkOption {
     type = lib.types.attrsOf (lib.types.enum ["server" "client" "local"]);
     description = ''
-      What each machine with the AgentsView profile does with its archive.
+      What each machine with the AgentsView feature does with its archive.
       `just generate-agentsview-secrets` reads this to decide which secrets
       each machine needs.
     '';
   };
 
-  config.flake.agentsviewHosts = common.kinds helpers.hosts;
+  config.flake.agentsviewHosts = common.kinds config.flake.hosts;
 
-  config.flake.profiles.agentsview = {
-    homeManagerModule = args: {
+  config.flake.features.agentsview = {
+    homeManager = {
       config,
       hostConfig,
       hostname,
@@ -277,8 +279,6 @@ in {
       imports = [./options.nix skillsModule];
 
       config = lib.mkMerge [
-        {programs.agentsview = args;}
-
         {programs.agentsview.sync.enable = common.pushes hostConfig;}
 
         (lib.mkIf cfg.enable {
@@ -319,7 +319,7 @@ in {
               assertion = server != null;
               message = ''
                 ${hostname} pushes its agent sessions. No machine has the
-                `agentsview-server` profile, thus there is no server to push
+                `agentsview-server` feature, so there is no server to push
                 to.
               '';
             }
@@ -399,9 +399,9 @@ in {
     };
 
     os = {
-      linux.homeManagerModule = systemdModule;
-      nixos.homeManagerModule = systemdModule;
-      darwin.homeManagerModule = launchdModule;
+      linux.homeManager = systemdModule;
+      nixos.homeManager = systemdModule;
+      darwin.homeManager = launchdModule;
     };
   };
 }

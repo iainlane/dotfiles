@@ -1,5 +1,3 @@
 {
-  flake.modules.borgmatic = {
-    nixosModules = [./nixos.nix];
-  };
+  flake.features.borgmatic.nixos = ./nixos.nix;
 }

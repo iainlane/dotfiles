@@ -1,26 +1,28 @@
-_: {
+{config, ...}: let
+  inherit (config.flake) features;
+in {
   imports = [
     ./linux.nix
     ./darwin.nix
     ./nixos.nix
   ];
 
-  flake.profiles.base = {
-    features = [
-      "catppuccin"
-      "gh"
-      "git"
-      "motd"
-      "scripts"
-      "ssh"
-      "zsh"
-      "neovim"
-      "starship"
-      "cli-tools"
+  flake.features.base = {
+    includes = [
+      features.catppuccin
+      features.gh
+      features.git
+      features.motd
+      features.scripts
+      features.ssh
+      features.zsh
+      features.neovim
+      features.starship
+      features.cli-tools
     ];
-    nixosModule.security.sudo.extraRules = import ./sudo-rules.nix;
+    nixos.security.sudo.extraRules = import ./sudo-rules.nix;
 
-    homeManagerModule = {
+    homeManager = {
       pkgs,
       lib,
       inputs,

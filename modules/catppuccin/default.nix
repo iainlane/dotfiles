@@ -1,6 +1,6 @@
 {
-  flake.modules.catppuccin = {
-    homeManagerModules = [./home-manager.nix];
-    nixosModules = [./nixos.nix];
+  flake.features.catppuccin = {
+    homeManager = ./home-manager.nix;
+    nixos = ./nixos.nix;
   };
 }
