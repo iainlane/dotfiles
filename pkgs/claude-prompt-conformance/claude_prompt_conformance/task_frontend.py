@@ -108,8 +108,8 @@ class RichTaskView:
 
     Task changes only mark the frame dirty. A ticker thread paints at the
     frame rate, and a paint whose fingerprint matches the previous one is
-    skipped before the frame is built, so a still display costs nothing and
-    a change reaches the terminal within one tick.
+    skipped before the frame is built. An unchanged frame therefore avoids
+    rendering, and a change reaches the terminal within one tick.
 
     The live display only ever renders prebuilt text, never the task tree.
     A finishing task publishes while the task-tree lock is held, so the tree
@@ -422,15 +422,7 @@ def _append_description(text: Text, row: TaskRow, width: int) -> None:
 def _status(snapshot: TaskSnapshot, now: float) -> tuple[str, str]:
     if snapshot.outcome is None:
         return _spinner_frame(now), "blue"
-    statuses = {
-        TaskOutcome.COMPLETED: ("●", "blue"),
-        TaskOutcome.PASSED: ("✓", "green"),
-        TaskOutcome.FAILED: ("✗", "red"),
-        TaskOutcome.INVALID: ("!", "yellow"),
-        TaskOutcome.CANCELLED: ("■", "yellow"),
-        TaskOutcome.SKIPPED: ("–", "dim"),
-    }
-    return statuses[snapshot.outcome]
+    return _STRIP_GLYPHS[snapshot.outcome]
 
 
 def _spinner_frame(now: float) -> str:

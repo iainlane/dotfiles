@@ -183,7 +183,7 @@ class ProcessReaperStartError(ProcessExecutionError):
     cause: RuntimeError
 
     def __str__(self) -> str:
-        return f"could not start the exit monitor for {command_program(self.command)}"
+        return f"could not start the process reaper for {command_program(self.command)}"
 
 
 @dataclass(eq=True)

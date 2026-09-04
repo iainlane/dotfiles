@@ -730,8 +730,10 @@ class Judgement:
             raise FailingJudgementIncompleteError
 
     @property
-    def identifiers(self) -> list[str]:
-        return sorted(criterion.identifier for criterion in self.criteria)
+    def identifiers(self) -> tuple[str, ...]:
+        """Return the judged criterion identifiers in a stable order."""
+
+        return tuple(sorted(criterion.identifier for criterion in self.criteria))
 
 
 @dataclass(frozen=True)

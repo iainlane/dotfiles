@@ -490,7 +490,7 @@ class JsonFixtureResultStore:
         )
         self._validate_checkpoint(fixture, checkpoint, source, calibrate)
         expected = tuple(sorted(criterion.identifier for criterion in fixture.criteria))
-        if tuple(result.judgement.identifiers) != expected:
+        if result.judgement.identifiers != expected:
             raise FixtureCheckpointMismatchError(source, fixture.name)
 
 

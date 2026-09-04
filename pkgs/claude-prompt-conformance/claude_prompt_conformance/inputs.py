@@ -30,7 +30,7 @@ class RuntimeConfigurationDecodeError(ConformanceError):
     cause: msgspec.DecodeError | msgspec.ValidationError
 
     def __str__(self) -> str:
-        return f"runtime configuration {self.source} is invalid: {self.cause}"
+        return f"runtime configuration {self.source} could not be decoded: {self.cause}"
 
 
 @dataclass(eq=True)

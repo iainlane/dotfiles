@@ -38,8 +38,9 @@ from typing import Literal
 import msgspec
 from compression import zstd
 
-RESPONSES_PATH = "/v1/responses"
-MODELS_PATH = "/v1/models"
+API_PREFIX = "/v1"
+RESPONSES_PATH = f"{API_PREFIX}/responses"
+MODELS_PATH = f"{API_PREFIX}/models"
 CATALOGUE_DECLINED_STATUS = 404
 CODE_MODE_TOOL = "exec"
 CODE_MODE_TOOLS = ("exec", "wait", "request_user_input")

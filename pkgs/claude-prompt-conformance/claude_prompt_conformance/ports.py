@@ -48,22 +48,22 @@ class ProcessRunner(Protocol):
     def run(self, invocation: ProcessInvocation) -> ProcessResult: ...
 
 
-class InteractiveProcessRunner(ProcessRunner, Protocol):
-    """Run processes which exchange records over retained standard input."""
-
-    def run_interactive(
-        self,
-        invocation: ProcessInvocation,
-        session: "ProcessSession",
-    ) -> ProcessResult: ...
-
-
 class ProcessSession(Protocol):
     """Drive a line-oriented bidirectional child-process protocol."""
 
     def initial_input(self) -> tuple[bytes, ...]: ...
 
     def receive(self, record: ProcessOutputRecord) -> ProcessExchange: ...
+
+
+class InteractiveProcessRunner(ProcessRunner, Protocol):
+    """Run processes which exchange records over retained standard input."""
+
+    def run_interactive(
+        self,
+        invocation: ProcessInvocation,
+        session: ProcessSession,
+    ) -> ProcessResult: ...
 
 
 class ProcessController(Protocol):
@@ -85,7 +85,7 @@ class IsolatedChildProcesses(Protocol):
         self,
         invocation: ProcessInvocation,
         command: tuple[str, ...],
-        session: "ProcessSession",
+        session: ProcessSession,
     ) -> ProcessResult: ...
 
 
@@ -172,7 +172,7 @@ class ProcessIdentity(Protocol):
 
 
 class ClaudeIdentity(Protocol):
-    """Provide Claude authentication and identify its billing mechanism."""
+    """Provide Claude authentication and report its billing mode."""
 
     @property
     def billing_mode(self) -> ClaudeBillingMode: ...

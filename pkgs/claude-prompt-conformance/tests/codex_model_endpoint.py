@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from .codex_responses_protocol import (
+    API_PREFIX,
     CATALOGUE_DECLINED_STATUS,
     MODELS_PATH,
     RESPONSES_PATH,
@@ -69,7 +70,7 @@ class ScriptedModelEndpoint:
     @property
     def base_url(self) -> str:
         port = self._server.servers[0].sockets[0].getsockname()[1]
-        return f"http://127.0.0.1:{port}/v1"
+        return f"http://127.0.0.1:{port}{API_PREFIX}"
 
     @property
     def requests(self) -> tuple[ResponsesRequest, ...]:

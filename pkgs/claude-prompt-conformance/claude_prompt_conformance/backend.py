@@ -998,9 +998,9 @@ class ConformanceSuite:
             if task is not None:
                 task.set_detail("Asking the independent judge")
             judgement = self._judge.assess(fixture, subject, instance, artefacts)
-        expected = sorted(criterion.identifier for criterion in fixture.criteria)
+        expected = tuple(sorted(criterion.identifier for criterion in fixture.criteria))
         if judgement.identifiers != expected:
-            raise JudgementCriteriaError(tuple(expected), tuple(judgement.identifiers))
+            raise JudgementCriteriaError(expected, judgement.identifiers)
         return judgement
 
 

@@ -70,7 +70,10 @@ class SelectionNumberOutOfRangeError(ConformanceError):
     available: int
 
     def __str__(self) -> str:
-        return "selection contains an unknown test number"
+        return (
+            f"selection {self.values!r} contains a test number outside "
+            f"the range 1 to {self.available}"
+        )
 
 
 @dataclass(eq=True)
@@ -78,7 +81,7 @@ class DuplicateSelectionNumberError(ConformanceError):
     values: tuple[int, ...]
 
     def __str__(self) -> str:
-        return "selection contains a duplicate test number"
+        return f"selection {self.values!r} contains repeated test numbers"
 
 
 class JsonFrontend:

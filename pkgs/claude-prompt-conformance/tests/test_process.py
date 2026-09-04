@@ -85,7 +85,7 @@ class BackloggedFailingSession:
 
 
 @dataclass(frozen=True)
-class SynchronizedFailingSession:
+class SynchronisedFailingSession:
     barrier: threading.Barrier
 
     def initial_input(self) -> tuple[bytes, ...]:
@@ -340,7 +340,7 @@ def stoppable_interactive_invocation(
     return invocation, ready, stopped
 
 
-def synchronize_process_start(
+def synchronise_process_start(
     monkeypatch: pytest.MonkeyPatch,
     ready: Path,
 ) -> threading.Event:
@@ -791,7 +791,7 @@ def test_wakeup_creation_failure_stops_the_started_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     invocation, ready, stopped = stoppable_interactive_invocation(tmp_path)
-    started = synchronize_process_start(monkeypatch, ready)
+    started = synchronise_process_start(monkeypatch, ready)
     original_pipe = process_runtime.os.pipe
 
     def create_pipe() -> tuple[int, int]:
@@ -828,7 +828,7 @@ def test_output_channel_allocation_failure_stops_the_started_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     invocation, ready, stopped = stoppable_interactive_invocation(tmp_path)
-    synchronize_process_start(monkeypatch, ready)
+    synchronise_process_start(monkeypatch, ready)
 
     def reject_output_channel(*_args: object) -> None:
         raise MemoryError
@@ -1200,7 +1200,7 @@ def test_process_supervisor_stops_a_child_that_outlives_its_deadline(
 ) -> None:
     invocation, ready, stopped = stoppable_interactive_invocation(tmp_path)
     invocation = replace(invocation, deadline_seconds=0.05)
-    synchronize_process_start(monkeypatch, ready)
+    synchronise_process_start(monkeypatch, ready)
 
     with pytest.raises(ProcessDeadlineExceededError) as raised:
         start(ProcessSupervisor(), invocation)
@@ -1286,7 +1286,7 @@ def test_process_supervisor_tears_concurrent_process_groups_down_together(
         )
 
     supervisor = ProcessSupervisor()
-    session = SynchronizedFailingSession(threading.Barrier(2))
+    session = SynchronisedFailingSession(threading.Barrier(2))
     invocations = (invocation("first"), invocation("second"))
 
     outcomes: list[Exception] = []
@@ -1351,7 +1351,7 @@ def test_process_supervisor_bounds_secret_delivery_by_the_deadline(
     )
 
 
-def test_output_channel_prioritizes_leader_completion_over_queued_output() -> None:
+def test_output_channel_prefers_leader_completion_over_queued_output() -> None:
     deadline = process_runtime._ProcessDeadline.start(("fixture",), 30.0)
     wakeup_read, wakeup_write = os.pipe()
     try:

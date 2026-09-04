@@ -9,7 +9,7 @@ instead of a billed run.
 import json
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import pytest
@@ -161,7 +161,8 @@ def build_instance(root: Path) -> InstancePaths:
         judge_cache=root / "judge-cache",
         judge_temp=root / "judge-temp",
     )
-    for path in instance.__dict__.values():
+    for entry in fields(instance):
+        path = getattr(instance, entry.name)
         path.mkdir(parents=True, exist_ok=True)
     return instance
 

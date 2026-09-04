@@ -3,7 +3,7 @@ import json
 import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from threading import Lock, Semaphore
 from types import TracebackType
@@ -201,14 +201,13 @@ class RecordingSlots:
     peak: int = 0
     held: int = 0
     _lock: Lock = field(default_factory=Lock)
-    _released: Semaphore | None = None
+    _released: Semaphore = field(init=False)
 
     def __post_init__(self) -> None:
         self._released = Semaphore(self.capacity)
 
     @contextmanager
     def hold(self) -> Iterator[None]:
-        assert self._released is not None
         self._released.acquire()
         with self._lock:
             self.active += 1
@@ -225,7 +224,8 @@ class RecordingSlots:
 class FakeInstances:
     def create(self, name: str, results: Path) -> InstancePaths:
         paths = instance_paths(name, results)
-        for path in paths.__dict__.values():
+        for entry in fields(paths):
+            path = getattr(paths, entry.name)
             path.mkdir(parents=True, exist_ok=True)
         return paths
 

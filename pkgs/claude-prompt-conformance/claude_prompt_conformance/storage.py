@@ -86,6 +86,18 @@ class DirectoryIdentity:
     inode: int
 
 
+def run_relative(root: Path, directory: Path) -> Path:
+    """Locate a directory under a run root, rejecting a path that escapes it."""
+
+    try:
+        relative = directory.relative_to(root.resolve())
+    except ValueError as error:
+        raise RetainedPathUnsafeError(directory) from error
+    if any(part in ("", ".", "..") for part in relative.parts):
+        raise RetainedPathUnsafeError(directory)
+    return relative
+
+
 @contextmanager
 def directory_descriptor(
     root: Path,
@@ -95,13 +107,8 @@ def directory_descriptor(
 ) -> Generator[int]:
     """Open a run-owned directory without following any path component."""
 
+    relative = run_relative(root, directory)
     root = root.resolve()
-    try:
-        relative = directory.relative_to(root)
-    except ValueError as error:
-        raise RetainedPathUnsafeError(directory) from error
-    if any(part in ("", ".", "..") for part in relative.parts):
-        raise RetainedPathUnsafeError(directory)
 
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptors: list[int] = []
@@ -146,11 +153,8 @@ def ensure_directory(root: Path, directory: Path) -> None:
 def directory_exists(root: Path, directory: Path) -> bool:
     """Test for a real run-owned directory without following path components."""
 
+    relative = run_relative(root, directory)
     root = root.resolve()
-    try:
-        relative = directory.relative_to(root)
-    except ValueError as error:
-        raise RetainedPathUnsafeError(directory) from error
 
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptors: list[int] = []
