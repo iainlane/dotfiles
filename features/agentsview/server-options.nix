@@ -16,8 +16,9 @@ in {
       type = lib.types.str;
       example = "pg.example.com";
       description = ''
-        The hostname of the database. It must reach this host directly. A
-        CDN between the two breaks it, because the traffic is not HTTP.
+        The domain the database answers to. It must resolve to this host
+        directly. A CDN between the two breaks it, because the traffic is not
+        HTTP.
 
         The feature sets this from `flake.agentsviewServer.domain`, which the
         machines that push read too. If you change it, deploy them again.
@@ -35,10 +36,12 @@ in {
     database = lib.mkOption {
       type = lib.types.str;
       default = common.database;
+      readOnly = true;
       description = ''
-        The database that holds the sessions. The machines that push read
-        the same name from `common.nix` to build their connection URL, so a
-        host that changes it here has to change it there as well.
+        The name of the database the sessions are stored in. It is fixed in
+        `common.nix`: the machines that push read it from there to build their
+        connection URL, and only the server evaluates this module, so a value
+        set here could not reach them.
       '';
     };
 
@@ -71,10 +74,10 @@ in {
         Each machine that pushes has a role and a password of its own, under
         `agentsview-postgres/<machine>.yaml`.
 
-        Both passwords go into a URL. Make each one with
-        `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
-        reads as a port or a path, and the dashboard does not start. Make the
-        other two with `openssl rand -base64 32`.
+        The dashboard's password goes into a connection URL, so make it with
+        `openssl rand -hex 32`: one containing `/`, `#`, `?` or `:` reads as a
+        port or a path and the dashboard does not start. Make the other three
+        with `openssl rand -base64 32`.
       '';
     };
   };

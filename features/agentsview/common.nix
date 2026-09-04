@@ -92,7 +92,13 @@
   # `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
   # reads as a port or a path, and the connection fails.
   passwordFile = hostname: "agentsview-postgres/${hostname}.yaml";
+
+  # The key inside that file, and the name the machine declares the sops
+  # secret under. The two differ because the rendered secret lands in a
+  # directory shared with every other feature's secrets, where a bare
+  # `password` would collide with any other feature declaring one.
   passwordSecret = "password";
+  passwordSecretName = "agentsview_password";
 
   # The secrets that belong to the user on one machine. The server reads the
   # password file above to make the roles, and it has no part in these.
@@ -122,11 +128,12 @@ in {
     passwordFile
     passwordSecret
     passwordSecretFor
+    passwordSecretName
     privateKeySecret
-    userSecretsFile
     pushes
     role
     serverSettings
     syncingHosts
+    userSecretsFile
     ;
 }

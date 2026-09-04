@@ -1,4 +1,4 @@
-# The parts of the database container that the rest of this profile names.
+# The parts of the database container that the rest of this feature names.
 #
 # The backup runs `pg_dump` inside the running container, so it needs the same
 # Postgres build the image was made from. Defining it once keeps the two in

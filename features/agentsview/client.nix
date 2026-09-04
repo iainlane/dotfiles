@@ -55,9 +55,12 @@
     };
   };
 
-  # The database uses the same port as the web. The protocol in the handshake
-  # tells the two apart. The driver negotiates TLS this way when you ask for
-  # `direct`.
+  # The database answers on 443, the port the web already uses, and the proxy
+  # tells the two apart by the protocol named in the TLS handshake. That name
+  # is there only if the driver starts with TLS, which is what
+  # `sslnegotiation=direct` asks for; the default negotiates TLS through a
+  # Postgres message first, and the proxy would send the connection to the
+  # web server.
   dsn = {
     hostname,
     password,
@@ -73,9 +76,9 @@
     + "&sslcert=${certificate}"
     + "&sslkey=${key}";
 
-  # AgentsView reads `config.toml` from its data directory. On a machine that
-  # pushes, the file holds the address of the database, so sops renders it and
-  # keeps it readable only by its owner.
+  # AgentsView reads `config.toml` from its data directory. It carries the
+  # auth token on every machine and the database password on a machine that
+  # pushes, so sops renders it and keeps it readable only by its owner.
   #
   # AgentsView generates the auth token and the cursor secret itself whenever
   # either is missing from the file, and it refuses to start when it cannot
@@ -90,7 +93,7 @@
       auth_token = "${authToken}"
       cursor_secret = "${cursorSecret}"
       disable_update_check = true
-      codex_sessions_dirs = [${lib.concatMapStringsSep ", " (dir: "\"${dir}\"") codexSessionsDirs}]
+      codex_sessions_dirs = [${lib.concatMapStringsSep ", " builtins.toJSON codexSessionsDirs}]
     ''
     + lib.optionalString (url != null) ''
 
@@ -302,7 +305,7 @@ in {
       (lib.mkIf syncing {
         assertions = [
           {
-            assertion = server != null;
+            assertion = haveServer;
             message = ''
               ${name} pushes its agent sessions. No machine has the
               `agentsview-server` feature, so there is no server to push
@@ -360,7 +363,7 @@ in {
                 then
                   dsn {
                     hostname = name;
-                    password = config.sops.placeholder.${common.passwordSecret};
+                    password = config.sops.placeholder.${common.passwordSecretName};
                     certificate = common.certificatePath name;
                     key = config.sops.secrets.${common.privateKeySecret}.path;
                   }
@@ -372,8 +375,10 @@ in {
 
       (lib.mkIf (syncing && haveServer) {
         sops.secrets = {
-          ${common.passwordSecret}.sopsFile =
-            inputs.secrets + "/${common.passwordFile name}";
+          ${common.passwordSecretName} = {
+            sopsFile = inputs.secrets + "/${common.passwordFile name}";
+            key = common.passwordSecret;
+          };
 
           ${common.privateKeySecret} = {
             sopsFile = inputs.secrets + "/${common.userSecretsFile name}";

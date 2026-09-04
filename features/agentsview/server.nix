@@ -11,7 +11,6 @@
 # host record identifies each one. This file contains no list of them.
 {
   config,
-  inputs,
   lib,
 }: let
   common = import ./common.nix {
@@ -36,6 +35,8 @@ in {
   systemManager = {
     config,
     exposePodman,
+    hostConfig,
+    inputs,
     lib,
     pkgs,
     quadlet,
@@ -43,6 +44,8 @@ in {
     ...
   }: let
     cfg = config.dotfiles.agentsviewServer;
+
+    secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
     proxy = config.dotfiles.containers.edgeProxy;
 
@@ -60,9 +63,11 @@ in {
     pgSocketDir = database.socketDir;
     postgresql = database.package;
 
-    # This network holds the database and the dashboard. Thus the dashboard
-    # is the only service on this host that reaches the database.
-    network = "agentsviewnet";
+    # This network carries the database and the dashboard, and nothing else,
+    # so the dashboard is the only service on this host that reaches the
+    # database.
+    networkName = "agentsviewnet";
+    network = config.virtualisation.quadlet.networks.${networkName}.ref;
 
     dataVolume = "agentsview-db-state";
     dashboardVolume = "agentsview-state";
@@ -99,16 +104,17 @@ in {
     configPath = "${dataDir}/config.toml";
     configTemplate = "agentsview-config.toml";
 
-    # AgentsView reads this file from its data directory. sops renders it,
-    # thus the password stays out of the store.
+    # AgentsView reads this file from its data directory. sops renders it, so
+    # the password stays out of the store.
     #
     # AgentsView makes an auth token and a cursor secret for itself at the
-    # first start and writes both into this file. The file is read-only,
-    # thus both values come from the secrets repository.
+    # first start and writes both into this file. A rendered file is
+    # read-only, so both values come from the secrets repository.
     #
-    # The proxy holds the certificate that the machines check. It decrypts
-    # the traffic and sends it on. Thus the last part of the path is in the
-    # container network and has no TLS. AgentsView asks you to confirm this.
+    # The dashboard connects to the database over the network the two of them
+    # share, in plain text: the certificate the pushing machines check belongs
+    # to the proxy, and it terminates TLS before passing the connection on.
+    # `allow_insecure` is AgentsView asking to be told that is deliberate.
     configContent = ''
       auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
       cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
@@ -258,9 +264,8 @@ in {
 
         GRANT ALL ON DATABASE ${cfg.database} TO ${group};
 
-        -- AgentsView holds the vectors of its semantic search in this
-        -- extension and asks for it at each push. Only a superuser can
-        -- create it, thus it happens here.
+        -- Only a superuser can create an extension, and the role a push
+        -- connects as is not one, so pgvector is created here.
         CREATE EXTENSION IF NOT EXISTS vector;
 
         -- `initdb` sets this password at the first run. This statement
@@ -296,7 +301,7 @@ in {
         image = config.virtualisation.quadlet.images.${databaseName}.ref;
 
         networks =
-          ["${network}.network"]
+          [network]
           ++ lib.optional reachableFromProxy "${serviceNetwork databaseName}.network";
 
         # The container uses the host ids. It runs as its own user and has
@@ -351,6 +356,12 @@ in {
         After = ["network-online.target" "sops-install-secrets.service"];
         Wants = ["network-online.target" "sops-install-secrets.service"];
       };
+
+      # Podman's quadlet generator emits no `TimeoutStopSec`, and
+      # quadlet-nix's per-container defaults supply only `Restart` and
+      # `TimeoutStartSec`, so systemd would kill the container 30 seconds
+      # into the 120 podman allows the checkpoint above.
+      serviceConfig.TimeoutStopSec = 180;
     };
 
     dashboardContainer = {
@@ -361,7 +372,7 @@ in {
 
         userns = "auto";
 
-        networks = ["${network}.network"];
+        networks = [network];
 
         entrypoint = "${agentsview}/bin/agentsview";
 
@@ -433,7 +444,7 @@ in {
             assertion = withoutCertificate == [];
             message = ''
               These machines push their agent sessions and have no
-              certificate, thus the database refuses them:
+              certificate, so the database refuses them:
               ${lib.concatStringsSep ", " withoutCertificate}.
 
               Run this command for each of them:
@@ -441,11 +452,28 @@ in {
             '';
           }
           {
+            assertion = builtins.pathExists secretsFile;
+            message = ''
+              The AgentsView server has no ${cfg.secretsFile} in the secrets
+              repository. It needs four keys:
+
+                agentsview_superuser_password
+                agentsview_dashboard_password
+                ${common.authTokenSecret}
+                ${common.cursorSecret}
+
+              Write them with:
+
+                just generate-agentsview-secrets ${hostConfig.name}
+            '';
+          }
+          {
             assertion = proxy.enable;
             message = ''
-              dotfiles.agentsviewServer needs a proxy on this host. The
-              proxy holds the certificate that the machines check, and it
-              serves the dashboard.
+              dotfiles.agentsviewServer needs a proxy on this host, which is
+              what sets dotfiles.containers.edgeProxy.enable. The proxy holds
+              the certificate that the machines check, and it serves the
+              dashboard.
             '';
           }
         ];
@@ -454,6 +482,10 @@ in {
         # database files on the volume. `systemd-sysusers` gives out system
         # ids from 999 down. This entry keeps that id and gives the files a
         # name on the host. No process runs as this user.
+        #
+        # `virtualisation.containers.idRanges` reserves ranges a container
+        # maps into a namespace of its own, and this container runs with the
+        # host's ids, so its one id is claimed here.
         environment.etc."sysusers.d/${databaseName}.conf".text = ''
           u ${databaseName} ${toString databaseId} "AgentsView database" /nonexistent /usr/sbin/nologin
         '';
@@ -485,10 +517,10 @@ in {
         sops = {
           secrets =
             {
-              ${superuserSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
-              ${dashboardSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
-              ${common.authTokenSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
-              ${common.cursorSecret}.sopsFile = inputs.secrets + "/${cfg.secretsFile}";
+              ${superuserSecret}.sopsFile = secretsFile;
+              ${dashboardSecret}.sopsFile = secretsFile;
+              ${common.authTokenSecret}.sopsFile = secretsFile;
+              ${common.cursorSecret}.sopsFile = secretsFile;
             }
             # The password of each machine that pushes. The roles unit
             # applies the passwords that the secrets repository holds.
@@ -525,7 +557,7 @@ in {
         };
 
         virtualisation.quadlet = {
-          networks.${network} = {};
+          networks.${networkName} = {};
 
           volumes = {
             ${dataVolume} = {};

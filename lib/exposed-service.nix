@@ -10,7 +10,7 @@
     domain = lib.mkOption {
       type = lib.types.str;
       example = "thing.example.org";
-      description = "Public host name the service answers to.";
+      description = "The domain the service answers to.";
     };
 
     auth = lib.mkOption {

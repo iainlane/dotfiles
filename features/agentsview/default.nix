@@ -47,7 +47,7 @@ in {
 
     features = {
       agentsview = import ./client.nix {inherit config inputs lib;};
-      agentsview-server = import ./server.nix {inherit config inputs lib;};
+      agentsview-server = import ./server.nix {inherit config lib;};
     };
   };
 }
