@@ -15,6 +15,10 @@
 
   systemClassFor = os: systemClasses.${os};
 
+  # The kernel a host runs, taken from the last component of its Nix system
+  # string. NixOS and the Linux hosts system-manager builds share `linux`.
+  kernelFor = system: lib.last (lib.splitString "-" system);
+
   # An evaluated `flake.features` entry. The entries are plain submodule
   # configs, so the check looks for the attributes every entry has.
   featureType = lib.mkOptionType {
@@ -71,12 +75,14 @@
   # The modules of class `class` from `features` and everything they include.
   #
   # Each feature contributes, in order: its `<class>` module, its `system`
-  # module when `class` is the module system that builds this OS, and its
-  # `os.<os>.<class>` module. The module system's merge functions and
-  # priorities decide which definition of an option wins; this order does not.
+  # module when `class` is the module system that builds this OS, its
+  # `kernel.<kernel>.<class>` module, and its `os.<os>.<class>` module. The
+  # module system's merge functions and priorities decide which definition of
+  # an option wins; this order does not.
   modulesFor = {
     class,
     os,
+    kernel,
     features,
   }: let
     systemClass = systemClassFor os;
@@ -85,7 +91,10 @@
       lib.filter (module: module != null) (
         [feature.${class}]
         ++ lib.optional (class == systemClass) feature.system
-        ++ [(lib.attrByPath ["os" os class] null feature)]
+        ++ [
+          (lib.attrByPath ["kernel" kernel class] null feature)
+          (lib.attrByPath ["os" os class] null feature)
+        ]
       );
   in
     lib.concatMap modulesOf (closure {inherit features os;});
@@ -97,5 +106,6 @@
     modulesFor {
       inherit class;
       inherit (hostConfig) os features;
+      kernel = kernelFor hostConfig.system;
     };
 }

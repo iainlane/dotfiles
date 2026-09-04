@@ -1,36 +1,22 @@
 # Checks feature resolution against fixtures, and the class-module merge
-# against the live registry.
+# against the option type this flake declares.
 #
 # The fixtures are attribute sets shaped like evaluated `flake.features`
-# entries. Each assertion compares the complete module list the resolver
+# entries, children included: a child is a feature value whose name carries
+# its parent's. Each assertion compares the complete module list the resolver
 # returns, including its order. Which definition of an option wins after
 # resolution is decided by the module system and is not tested here.
 #
-# The live assertion reads the `ai` feature, whose Home Manager class is
-# defined in three files, and checks that every file's definitions reach the
-# merged module tagged with the file that made them.
+# The merge assertion evaluates two fixture files against the real type of
+# `flake.features`, so it covers the declaration in
+# `flake/parts/features.nix` without depending on how any feature happens to
+# be split across files today.
 #
 # Each assertion is a `{ name; pass; }` attribute set so the check can report
 # all failures together.
-{
-  config,
-  inputs,
-  ...
-}: let
+{inputs, ...}: let
   inherit (inputs.nixpkgs) lib;
   helpers = import ../../../lib/helpers.nix {inherit inputs;};
-
-  # A module imported as a directory records the directory as its file, so
-  # the comparison is on the directory of each defining `default.nix`.
-  aiHomeManager = config.flake.features.ai.homeManager;
-  definingDirectory = module:
-    lib.removeSuffix "/default.nix" (lib.head (lib.splitString ", via option " module._file));
-  aiDefiningDirectories = lib.sort lib.lessThan (lib.unique (map definingDirectory aiHomeManager.imports));
-  expectedAiDirectories = lib.sort lib.lessThan (map toString [
-    ../../../modules/ai
-    ../../../modules/ai/claude-code
-    ../../../modules/ai/codex
-  ]);
 
   mkFeature = name: attrs:
     {
@@ -42,13 +28,26 @@
       homeManager = null;
       system = null;
       os = {};
+      kernel = {};
+      provides = {};
     }
     // attrs;
+
+  # The resolver reads the kernel from the host's system string, so each OS
+  # in the fixtures gets the system its hosts have.
+  systemFor = {
+    nixos = "x86_64-linux";
+    linux = "x86_64-linux";
+    darwin = "aarch64-darwin";
+  };
 
   resolve = class: os: features:
     helpers.resolveFeatures {
       inherit class;
-      hostConfig = {inherit os features;};
+      hostConfig = {
+        inherit os features;
+        system = systemFor.${os};
+      };
     };
 
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr true)).success;
@@ -70,6 +69,52 @@
     homeManager = "base-home";
     os.nixos.includes = [borgmatic];
   };
+
+  # A feature and the children it provides. `shell` carries `zsh` everywhere
+  # and `openssh` on NixOS; `fzf` is a child nothing includes by default.
+  zsh = mkFeature "shell.zsh" {homeManager = "shell-zsh-home";};
+  openssh = mkFeature "shell.openssh" {nixos = "shell-openssh-nixos";};
+  fzf = mkFeature "shell.fzf" {homeManager = "shell-fzf-home";};
+  shell = mkFeature "shell" {
+    includes = [zsh];
+    homeManager = "shell-home";
+    os.nixos.includes = [openssh];
+  };
+
+  terminal = mkFeature "terminal" {
+    homeManager = "terminal-home";
+    kernel = {
+      linux.homeManager = "terminal-linux";
+      darwin.homeManager = "terminal-darwin";
+    };
+  };
+
+  # Two files defining one class of one feature, evaluated against the real
+  # declaration in `flake/parts/features.nix`, so the merge and the file
+  # tagging are the ones the flake uses.
+  mergedClassFiles = let
+    evaluated = lib.evalModules {
+      specialArgs = {inherit inputs;};
+      modules = [
+        ../features.nix
+        {
+          options.dotfiles.operatingSystems = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = ["nixos" "linux" "darwin"];
+          };
+        }
+        {
+          _file = "first.nix";
+          flake.features.demo.homeManager = {home.first = true;};
+        }
+        {
+          _file = "second.nix";
+          flake.features.demo.homeManager = {home.second = true;};
+        }
+      ];
+    };
+  in
+    map (module: module._file) evaluated.config.flake.features.demo.homeManager.imports;
 
   assertions = [
     {
@@ -116,8 +161,61 @@
         throws (resolve "nixos" "nixos" [alpha]);
     }
     {
+      name = "a child its parent includes is resolved before the parent";
+      pass = resolve "homeManager" "darwin" [shell] == ["shell-zsh-home" "shell-home"];
+    }
+    {
+      name = "a child under os.<os>.includes is resolved only on that OS";
+      pass =
+        resolve "nixos" "nixos" [shell]
+        == ["shell-openssh-nixos"]
+        && resolve "nixos" "darwin" [shell] == [];
+    }
+    {
+      name = "a child its parent does not include is resolved when something else lists it";
+      pass =
+        resolve "homeManager" "darwin" [fzf shell]
+        == ["shell-fzf-home" "shell-zsh-home" "shell-home"];
+    }
+    {
+      name = "children are named by their parent and appear in featureNames";
+      pass =
+        helpers.featureNames {
+          features = [shell];
+          os = "nixos";
+        }
+        == ["shell.zsh" "shell.openssh" "shell"];
+    }
+    {
+      name = "kernel-scoped Home Manager content follows the host's kernel, not its OS";
+      pass =
+        resolve "homeManager" "nixos" [terminal]
+        == ["terminal-home" "terminal-linux"]
+        && resolve "homeManager" "linux" [terminal] == ["terminal-home" "terminal-linux"]
+        && resolve "homeManager" "darwin" [terminal] == ["terminal-home" "terminal-darwin"];
+    }
+    {
+      name = "hasFeature answers over the names closure produces";
+      pass = let
+        hostConfig = {
+          featureNames = helpers.featureNames {
+            features = [base];
+            os = "darwin";
+          };
+        };
+      in
+        helpers.hasFeature hostConfig "base"
+        && helpers.hasFeature hostConfig "git"
+        && !(helpers.hasFeature hostConfig "borgmatic");
+    }
+    {
       name = "a class defined in several files merges every file's modules, each tagged with its file";
-      pass = aiDefiningDirectories == expectedAiDirectories;
+      pass =
+        mergedClassFiles
+        == [
+          "first.nix, via option flake.features.demo.homeManager"
+          "second.nix, via option flake.features.demo.homeManager"
+        ];
     }
   ];
 

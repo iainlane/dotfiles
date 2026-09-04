@@ -4,6 +4,12 @@
 # the features it includes. Hosts and other features refer to entries by
 # value, so a reference to a feature that does not exist fails at the
 # reference.
+#
+# A feature also carries the concerns that only it uses, as children under
+# `provides`. A child has every field a feature has and its name is qualified
+# by its parent's, so `closure` and `hasFeature` treat it like any other
+# feature. Registering a child does not apply it: something has to list it in
+# `includes`.
 {
   config,
   inputs,
@@ -52,13 +58,24 @@
     };
   };
 
-  featureModule = {name, ...}: {
+  kernelScope = lib.types.submodule {
+    options = {
+      homeManager = classOption "Home Manager module applied only on hosts with this kernel.";
+    };
+  };
+
+  featureModule = parentName: {name, ...}: let
+    qualifiedName =
+      if parentName == null
+      then name
+      else "${parentName}.${name}";
+  in {
     options = {
       name = lib.mkOption {
         type = lib.types.str;
         readOnly = true;
-        default = name;
-        description = "The feature's key in `flake.features`.";
+        default = qualifiedName;
+        description = "The feature's key in `flake.features`, prefixed with its parent's name when it is a child.";
       };
 
       includes = includesOption;
@@ -80,11 +97,29 @@
         default = {};
         description = "Modules and includes that apply only to hosts with this OS.";
       };
+
+      kernel = lib.mkOption {
+        type = lib.types.submodule {
+          options = lib.genAttrs ["linux" "darwin"] (_:
+            lib.mkOption {
+              type = kernelScope;
+              default = {};
+            });
+        };
+        default = {};
+        description = "Modules that apply only to hosts with this kernel. NixOS and the Linux hosts system-manager builds share the `linux` scope.";
+      };
+
+      provides = lib.mkOption {
+        type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule qualifiedName));
+        default = {};
+        description = "Features this one carries. A child is applied where a feature lists it in `includes`, not by registering it here.";
+      };
     };
   };
 in {
   options.flake.features = lib.mkOption {
-    type = lib.types.lazyAttrsOf (lib.types.submodule featureModule);
+    type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule null));
     default = {};
     description = "Features that hosts list and that other features include.";
   };
