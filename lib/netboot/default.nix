@@ -4,20 +4,19 @@
   withSystem,
 }: let
   inherit (inputs.nixpkgs) lib;
+  inherit (import ../channels.nix {inherit inputs;}) channelFor;
 
-  mkHostNixpkgs = hostConfig:
-    if hostConfig.channel == "stable"
-    then inputs.nixpkgs-stable
-    else inputs.nixpkgs;
+  # The nixpkgs and package set a host's channel selects, from a pair of
+  # package sets.
+  channelForHost = pkgs: pkgs-stable: hostConfig:
+    channelFor {
+      inherit (hostConfig) channel;
+      inherit pkgs pkgs-stable;
+    };
 
-  # Select the pre-computed pkgs matching a host's channel.
-  pkgsForHost = pkgs: pkgs-stable: hostConfig:
-    if hostConfig.channel == "stable"
-    then pkgs-stable
-    else pkgs;
-
-  mkNetbootInstaller = hostPkgs: hostname: hostConfig: let
-    hostNixpkgs = mkHostNixpkgs hostConfig;
+  mkNetbootInstaller = hostChannel: hostname: hostConfig: let
+    hostNixpkgs = hostChannel.nixpkgs;
+    hostPkgs = hostChannel.primary;
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
     installer = hostNixpkgs.lib.nixosSystem {
       inherit (hostConfig) system;
@@ -62,8 +61,9 @@
       }
     ];
 
-  mkIsoInstallerConfig = hostPkgs: hostname: hostConfig: let
-    hostNixpkgs = mkHostNixpkgs hostConfig;
+  mkIsoInstallerConfig = hostChannel: hostname: hostConfig: let
+    hostNixpkgs = hostChannel.nixpkgs;
+    hostPkgs = hostChannel.primary;
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
     hostToplevel = config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel;
   in {
@@ -154,14 +154,14 @@
   # `withSystem`, so the installer and the host share a single nixpkgs
   # instantiation. This matters most when building cross, e.g. an
   # x86_64-linux installer from aarch64-darwin.
-  mkHostPkgs = hostConfig:
+  mkHostChannel = hostConfig:
     withSystem hostConfig.system (
       {
         pkgs,
         pkgs-stable,
         ...
       }:
-        pkgsForHost pkgs pkgs-stable hostConfig
+        channelForHost pkgs pkgs-stable hostConfig
     );
 
   # Evaluate the target installer once per host. Each build system still uses
@@ -169,7 +169,7 @@
   isoConfigs =
     lib.mapAttrs (
       hostname: hostConfig:
-        mkIsoInstallerConfig (mkHostPkgs hostConfig) hostname hostConfig
+        mkIsoInstallerConfig (mkHostChannel hostConfig) hostname hostConfig
     )
     nixosHosts;
 in {
@@ -183,7 +183,7 @@ in {
     lib.mapAttrs'
     (
       hostname: hostConfig:
-        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller (mkHostPkgs hostConfig) hostname hostConfig)
+        lib.nameValuePair "${hostname}-netboot-installer" (mkNetbootInstaller (mkHostChannel hostConfig) hostname hostConfig)
     )
     systemHosts
     // lib.mapAttrs'
@@ -195,7 +195,7 @@ in {
     // lib.mapAttrs'
     (
       hostname: hostConfig: let
-        buildPkgs = pkgsForHost pkgs pkgs-stable hostConfig;
+        buildPkgs = (channelForHost pkgs pkgs-stable hostConfig).primary;
       in
         lib.nameValuePair "${hostname}-iso" (mkLocalIso buildPkgs isoConfigs.${hostname} hostname)
     )

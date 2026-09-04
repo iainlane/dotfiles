@@ -7,6 +7,7 @@
 }: let
   features = import ../../lib/features.nix {inherit lib;};
   home = import ../../lib/home.nix {inherit inputs lib;};
+  channels = import ../../lib/channels.nix {inherit inputs;};
   operatingSystems = ["nixos" "generic-linux" "darwin"];
   inherit (config.flake) username;
   outerConfig = config;
@@ -68,23 +69,20 @@
   # The standalone output must build from the same channel as the host's
   # system configuration, so that applying it directly produces the packages
   # the system build would.
-  mkStandaloneHome = hostname: hostConfig: let
-    onStable = hostConfig.channel == "stable";
-
-    home-manager =
-      if onStable
-      then inputs.home-manager-stable
-      else inputs.home-manager;
-  in
+  mkStandaloneHome = hostname: hostConfig:
     withSystem hostConfig.system (
-      args: let
-        inherit (args.config._module.args) pkgs pkgs-stable;
+      {
+        pkgs,
+        pkgs-stable,
+        ...
+      }: let
+        channel = channels.channelFor {
+          inherit (hostConfig) channel;
+          inherit pkgs pkgs-stable;
+        };
       in
-        home-manager.lib.homeManagerConfiguration {
-          pkgs =
-            if onStable
-            then pkgs-stable
-            else pkgs;
+        channel.home-manager.lib.homeManagerConfiguration {
+          pkgs = channel.primary;
           inherit (homeDefinitions.${hostname}) modules extraSpecialArgs;
         }
     );
@@ -126,6 +124,16 @@
       channel = lib.mkOption {
         type = lib.types.enum ["stable" "unstable"];
         default = "unstable";
+        description = ''
+          Which of the two locked nixpkgs and Home Manager pairs this host
+          builds from. It selects the package set the system configuration
+          and both forms of the Home Manager configuration are built from,
+          the nixpkgs the host's netboot installer is built from, and the
+          MCP server set the AI features configure. On a `generic-linux`
+          host it does not select the nixpkgs the system configuration is
+          evaluated against: system-manager uses the nixpkgs its own flake
+          input follows.
+        '';
       };
       stateVersion = lib.mkOption {
         type = lib.types.nullOr lib.types.str;

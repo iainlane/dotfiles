@@ -9,26 +9,7 @@
   sops = import ../../lib/sops.nix {inherit inputs lib;};
   home = import ../../lib/home.nix {inherit inputs lib;};
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
-
-  channelPkgs = {
-    pkgs,
-    pkgs-stable,
-  }:
-    if hostConfig.channel == "stable"
-    then {
-      primary = pkgs-stable;
-      stable = pkgs-stable;
-      unstable = pkgs;
-      nixpkgs = inputs.nixpkgs-stable;
-      home-manager = inputs.home-manager-stable;
-    }
-    else {
-      primary = pkgs;
-      stable = pkgs-stable;
-      unstable = pkgs;
-      inherit (inputs) nixpkgs;
-      inherit (inputs) home-manager;
-    };
+  inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
 
   result = withSystem hostConfig.system (
     {
@@ -37,7 +18,8 @@
       pkgs-stable,
       ...
     }: let
-      channel = channelPkgs {
+      channel = channelFor {
+        inherit (hostConfig) channel;
         inherit pkgs pkgs-stable;
       };
       homeSpecialArgs =

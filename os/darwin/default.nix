@@ -9,20 +9,29 @@
   sops = import ../../lib/sops.nix {inherit inputs lib;};
   home = import ../../lib/home.nix {inherit inputs lib;};
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
+  inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
 
   result = withSystem hostConfig.system (
-    args: let
-      inherit (args.config._module.args) mcpByChannel pkgs pkgs-stable;
+    {
+      mcpByChannel,
+      pkgs,
+      pkgs-stable,
+      ...
+    }: let
+      channel = channelFor {
+        inherit (hostConfig) channel;
+        inherit pkgs pkgs-stable;
+      };
       homeSpecialArgs = {
         mcp = mcpByChannel.${hostConfig.channel};
-        pkgs-unstable = pkgs;
+        pkgs-unstable = channel.unstable;
       };
     in {
       inherit homeSpecialArgs;
       mkSystemConfig = homeDefinition:
         inputs.nix-darwin.lib.darwinSystem {
           inherit (hostConfig) system;
-          inherit pkgs;
+          pkgs = channel.primary;
           modules =
             [
               sops.systemSopsModule
@@ -37,18 +46,18 @@
             }
             ++ [
               hostConfig.systemModule
-              inputs.home-manager.darwinModules.home-manager
+              channel.home-manager.darwinModules.home-manager
               (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
           specialArgs = {
             inherit
               inputs
               hostConfig
-              pkgs-stable
               username
               ;
             mcp = mcpByChannel.${hostConfig.channel};
-            pkgs-unstable = pkgs;
+            pkgs-stable = channel.stable;
+            pkgs-unstable = channel.unstable;
           };
         };
     }
