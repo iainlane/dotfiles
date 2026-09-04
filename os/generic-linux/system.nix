@@ -95,8 +95,11 @@
       auto-optimise-store = true;
     };
 
-    # Systemd service to set capabilities on network monitoring tools
-    # This replaces security.wrappers which is not supported by system-manager
+    # bandwhich and netdiscover reach the user through the Home Manager
+    # profile and are run from there by name. `security.wrappers` grants
+    # capabilities to copies under /run/wrappers/bin, which nothing on these
+    # hosts puts on PATH, so the capabilities go on the store paths the
+    # profile links to.
     systemd.services.set-network-capabilities = {
       description = "Set capabilities on network monitoring tools";
       wantedBy = ["multi-user.target"];

@@ -104,9 +104,10 @@ in {
         # just pulled.
         podman-prune.after = ["system-manager.target"];
 
-        # Rootless podman needs newuidmap/newgidmap with setuid privileges.
-        # system-manager does not expose security.wrappers, so install
-        # helpers into /usr/local/libexec/podman at boot.
+        # Rootless podman maps ids through setuid newuidmap and newgidmap.
+        # /usr/local/libexec/podman is the first of podman's compiled-in
+        # `helper_binaries_dir` entries, so setuid copies installed there are
+        # the ones it finds.
         install-rootless-uidmap-wrappers = {
           description = "Install setuid uidmap helpers for rootless containers";
           wantedBy = ["sysinit.target"];

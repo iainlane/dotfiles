@@ -31,7 +31,7 @@
   );
 in {
   options.virtualisation.containers.idRanges = lib.mkOption {
-    type = lib.types.attrsOf (lib.types.submodule (range: {
+    type = lib.types.attrsOf (lib.types.submodule ({config, ...}: {
       options = {
         start = lib.mkOption {
           type = lib.types.ints.unsigned;
@@ -68,7 +68,7 @@ in {
       };
 
       config = let
-        span = "0:${toString range.config.start}:${toString range.config.size}";
+        span = "0:${toString config.start}:${toString config.size}";
       in {
         uidMaps = [span];
         gidMaps = [span];
@@ -90,8 +90,9 @@ in {
       a file one writes is one the other can read; `--userns=auto` draws a
       fresh range per container and cannot give them that.
 
-      Ranges are asserted to be distinct, so a reservation made here cannot
-      collide with one made anywhere else.
+      No two ranges declared here may cover the same id, which an assertion
+      checks. The assertion does not compare these ranges with ids allocated
+      anywhere else.
     '';
   };
 

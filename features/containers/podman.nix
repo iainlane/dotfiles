@@ -58,10 +58,17 @@
 
       firewall.backend = lib.mkOption {
         type = lib.types.enum ["iptables" "nftables" "firewalld"];
-        default = "nftables";
+        default =
+          if config.networking.nftables.enable
+          then "nftables"
+          else "iptables";
+        defaultText = lib.literalExpression ''
+          if config.networking.nftables.enable then "nftables" else "iptables"
+        '';
         description = ''
           Firewall backend the host uses, which podman consults when choosing
-          how to configure container networking.
+          how to configure container networking. It follows
+          `networking.nftables.enable`, as it does on NixOS.
         '';
       };
     };

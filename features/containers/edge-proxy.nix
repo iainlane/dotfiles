@@ -7,12 +7,12 @@
 # definition.
 #
 # Each service gets its own network, with just that service and the proxy on
-# it. Podman cannot filter traffic within a network, so two services sharing
+# it. podman cannot filter traffic within a network, so two services sharing
 # one could open connections to each other.
 #
 # The options live here, alongside the container runtime: a host can then run a
 # service with or without a proxy present and still evaluate. `enable` is set by
-# whichever profile provides the proxy, and a service that is never wrapped is
+# whichever feature provides the proxy, and a service that is never wrapped is
 # never exposed.
 {
   config,
@@ -26,11 +26,12 @@ in {
       type = lib.types.bool;
       default = false;
       description = ''
-        Whether a reverse proxy is present on this host. Set by the profile
-        providing the proxy, not by hand. A service tests it before wrapping a
-        container: joining a network no profile declares leaves a quadlet naming
-        a network podman cannot find, which fails when the container starts
-        rather than when the configuration is built.
+        Whether a reverse proxy is present on this host. Set by the feature
+        providing the proxy, not by hand. A service tests it before attaching a
+        container to the proxy network. Without that test the quadlet would
+        reference an undeclared network, and the failure would appear when
+        podman starts the container, after the configuration had built
+        successfully.
       '';
     };
 
@@ -38,7 +39,7 @@ in {
       type = lib.types.str;
       default = "edge";
       description = ''
-        Podman network holding the proxy's own addresses, which is how the
+        podman network holding the proxy's own addresses, which is how the
         outside reaches it. The networks it shares with the services it fronts
         are named after this one.
       '';
