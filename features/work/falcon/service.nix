@@ -231,7 +231,7 @@ in {
 
     systemd.services.falcon-sensor = {
       description = "CrowdStrike Falcon Sensor";
-      after = ["local-fs.target" "network.target" "sops-nix.service"];
+      after = ["local-fs.target" "network.target" "sops-install-secrets.service"];
       wantedBy = ["multi-user.target"];
       conflicts = ["shutdown.target"];
       before = ["shutdown.target"];

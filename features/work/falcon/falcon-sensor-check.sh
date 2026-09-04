@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Check the health and status of the CrowdStrike Falcon sensor on NixOS.
-# Displays service status, sensor configuration, cloud connectivity,
-# and Reduced Functionality Mode (RFM) state.
+# Check the CrowdStrike Falcon sensor on NixOS: what is installed, the
+# sensor's identity, its Reduced Functionality Mode state, backend and
+# tags, the systemd unit, and the log file.
 
 INSTALL_DIR="/opt/CrowdStrike"
 FALCONCTL="${INSTALL_DIR}/falconctl"
