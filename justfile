@@ -215,3 +215,10 @@ generate-agentsview-secrets *hosts:
     ./scripts/with-secrets-repo.bash "{{ secrets_repo }}" \
         "agentsview: add the missing secrets" \
         ./scripts/generate-agentsview-secrets.bash {{ hosts }}
+
+# Generate the restic R2 secrets for every host that backs up, or those named.
+# Pass --rotate to replace a host's bucket token and repository password.
+generate-restic-secrets *hosts:
+    ./scripts/with-secrets-repo.bash "{{ secrets_repo }}" \
+        "restic: add the missing R2 credentials" \
+        ./scripts/generate-restic-secrets.bash {{ hosts }}
