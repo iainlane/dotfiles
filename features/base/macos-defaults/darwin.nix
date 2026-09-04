@@ -10,21 +10,8 @@
         DSDontWriteNetworkStores = true;
         DSDontWriteUSBStores = true;
       };
-      "com.apple.finder" = {
-        _FXSortFoldersFirst = true;
-        # SCcf = "Search Current Folder"
-        FXDefaultSearchScope = "SCcf";
-        ShowExternalHardDrivesOnDesktop = true;
-        ShowHardDrivesOnDesktop = false;
-        ShowMountedServersOnDesktop = true;
-        ShowRemovableMediaOnDesktop = true;
-      };
       # Prevent Photos from opening automatically
       "com.apple.ImageCapture".disableHotPlug = true;
-      "com.apple.screencapture" = {
-        location = "~/Pictures/Screenshots";
-        type = "png";
-      };
       "com.apple.SoftwareUpdate" = {
         AutomaticCheckEnabled = true;
         # Check for software updates daily (1 = daily).
@@ -54,9 +41,8 @@
       AppleMeasurementUnits = "Centimeters";
       AppleMetricUnits = 1;
       AppleTemperatureUnit = "Celsius";
-      # Keep keyboard repeat snappy.
-      InitialKeyRepeat = 25;
-      KeyRepeat = 5;
+      InitialKeyRepeat = 15;
+      KeyRepeat = 2;
       NSAutomaticCapitalizationEnabled = false;
       NSAutomaticDashSubstitutionEnabled = true;
       NSAutomaticPeriodSubstitutionEnabled = false;
@@ -71,13 +57,24 @@
     };
     finder = {
       _FXShowPosixPathInTitle = true;
+      _FXSortFoldersFirst = true;
+      # SCcf = "Search Current Folder"
+      FXDefaultSearchScope = "SCcf";
       FXEnableExtensionChangeWarning = false;
       FXPreferredViewStyle = "Nlsv";
       AppleShowAllExtensions = true;
       AppleShowAllFiles = true;
       QuitMenuItem = true;
+      ShowExternalHardDrivesOnDesktop = true;
+      ShowHardDrivesOnDesktop = false;
+      ShowMountedServersOnDesktop = true;
       ShowPathbar = true;
+      ShowRemovableMediaOnDesktop = true;
       ShowStatusBar = true;
+    };
+    screencapture = {
+      location = "~/Pictures/Screenshots";
+      type = "png";
     };
     menuExtraClock = {
       ShowAMPM = true;

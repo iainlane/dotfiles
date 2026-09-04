@@ -23,11 +23,7 @@ in {
       };
 
       targets.darwin.defaults = {
-        NSGlobalDomain = {
-          AppleShowAllExtensions = true;
-          InitialKeyRepeat = 15;
-          KeyRepeat = 2;
-        };
+        NSGlobalDomain.AppleShowAllExtensions = true;
       };
     };
   };
