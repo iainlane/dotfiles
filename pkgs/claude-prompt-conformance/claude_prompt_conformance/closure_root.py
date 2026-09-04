@@ -5,13 +5,15 @@ throughout its lifetime, such as the pinned clients and the evidence MCP
 server, are executed from the Nix store on every process start. An indirect
 garbage-collector root on the runtime configuration pins that whole closure.
 
-The root's user-side link lives in a session-scoped directory: releasing the
-root is deleting the link, the operating system deletes the directory when
-the session ends, and Nix prunes the then-dangling automatic root at its next
-collection. A run that dies without cleaning up therefore pins nothing beyond
-the session.
+The root's user-side link lives under `XDG_RUNTIME_DIR`, which the operating
+system clears when the session ends, or under the per-user temporary directory
+where there is no such variable, as on macOS. Releasing the root is deleting the
+link, and Nix prunes the then-dangling automatic root at its next collection.
+A run killed before it can clean up leaves its link behind, so entering the
+directory sweeps the links of processes which no longer exist.
 """
 
+import os
 import subprocess
 import tempfile
 from collections.abc import Callable, Generator, Mapping
@@ -50,6 +52,22 @@ def nix_store_program(nix_program: str) -> str:
     return str(Path(nix_program).with_name("nix-store"))
 
 
+def sweep_dead_roots(directory: Path) -> None:
+    """Delete the links of runs whose process no longer exists."""
+
+    for link in directory.glob("run-*"):
+        try:
+            os.kill(int(link.name.removeprefix("run-")), 0)
+        except ValueError:
+            continue
+        except ProcessLookupError:
+            link.unlink(missing_ok=True)
+        except PermissionError:
+            continue
+        except OSError:
+            continue
+
+
 def _execute(command: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(command, capture_output=True, check=False)
 
@@ -76,6 +94,7 @@ def pinned_closure(
     link = directory / identifier
     try:
         directory.mkdir(parents=True, exist_ok=True)
+        sweep_dead_roots(directory)
         result = runner((program, "--add-root", str(link), "-r", str(configuration)))
     except OSError as error:
         raise ClosureRootCreateError(link, str(error)) from error

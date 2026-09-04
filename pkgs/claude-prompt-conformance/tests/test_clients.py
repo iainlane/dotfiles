@@ -985,6 +985,7 @@ def test_claude_candidate_applies_budgets_only_to_api_usage(
                     "LC_ALL": "C.UTF-8",
                     "PATH": "/bin",
                     "TZ": "UTC",
+                    "SSL_CERT_FILE": str(configuration.codex.tls_certificate_bundle),
                     "AUTH": "instance-auth",
                     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
                     "CLAUDE_CODE_ENTRYPOINT": "local-agent",

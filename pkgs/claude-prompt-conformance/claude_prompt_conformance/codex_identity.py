@@ -20,7 +20,7 @@ import httpx
 import msgspec
 from watchfiles import watch
 
-from .credential_lock import CodexCredentialStorageLock
+from .credential_lock import STORAGE_PUBLISH_ATTEMPTS, CodexCredentialStorageLock
 from .errors import CodexRuntimeError
 from .models import SecretFileDescriptor
 from .ports import CancellationSignal, CredentialLock
@@ -399,7 +399,7 @@ class CodexCredential:
     """Typed subscription fields plus the complete host document to preserve."""
 
     document: dict[str, object] = field(repr=False)
-    tokens: CodexTokenData
+    tokens: CodexTokenData = field(repr=False)
     last_refresh: str
 
     @classmethod
@@ -474,7 +474,10 @@ class CodexFileCredentialStore:
 
     source: Path
     lock: Callable[[Path], CredentialLock] = field(
-        default=CodexCredentialStorageLock,
+        default=lambda directory: CodexCredentialStorageLock(
+            directory,
+            acquisition_attempts=STORAGE_PUBLISH_ATTEMPTS,
+        ),
         repr=False,
     )
 
@@ -627,7 +630,7 @@ class CodexHostIdentity:
 
     store: CodexFileCredentialStore
     refresher: CodexOAuthRefresher
-    credential: CodexCredential
+    credential: CodexCredential = field(repr=False)
     clock: Callable[[], datetime] = field(
         default=lambda: datetime.now(UTC),
         repr=False,

@@ -551,9 +551,11 @@ def test_darwin_backend_materialises_a_repository_with_runtime_access(
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    certificate_bundle = control / "ca-bundle.crt"
+    certificate_bundle.write_text("")
     runner = DarwinProcessRunner("/usr/bin/sandbox-exec", ProcessSupervisor())
 
-    GitRepositoryMaterialiser(runner, git_program).materialise(
+    GitRepositoryMaterialiser(runner, git_program, certificate_bundle).materialise(
         RepositorySpec(source.as_uri(), revision),
         workspace,
         control,

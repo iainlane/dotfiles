@@ -12,6 +12,7 @@ from .claude_storage import ClaudeSecureStorage
 from .clients import ClaudeCandidateAgent, CodexJudge, CodexPromptImprover
 from .codex_identity import CodexHostIdentity, RunCancellation
 from .credential_lock import (
+    STORAGE_PUBLISH_ATTEMPTS,
     ClaudeCredentialRefreshLock,
     ClaudeCredentialStorageLock,
 )
@@ -117,19 +118,22 @@ class ApplicationFactory:
         processes = ProcessSupervisor(self.authentication.cancellation)
         runner = process_runner(configuration, processes)
         instances = DirectoryInstanceFactory()
+        certificate_bundle = configuration.codex.tls_certificate_bundle
         return Application(
             suite=ConformanceSuite(
                 instances=instances,
                 repositories=GitRepositoryMaterialiser(
-                    runner, configuration.git_program
+                    runner,
+                    configuration.git_program,
+                    certificate_bundle,
                 ),
                 overlay=LinkedWorkspaceOverlay(configuration.workspace_overlay),
-                preparer=CommandWorkspacePreparer(runner),
+                preparer=CommandWorkspacePreparer(runner, certificate_bundle),
                 candidate=ClaudeCandidateAgent(
                     configuration, runner, self.authentication.claude
                 ),
                 inspector=GitWorkspaceInspector(runner, configuration.git_program),
-                verifier=CommandVerifier(runner),
+                verifier=CommandVerifier(runner, certificate_bundle),
                 judge=CodexJudge(
                     configuration,
                     runner,
@@ -207,7 +211,10 @@ def platform_claude_credentials(
     storage = ClaudeSecureStorage.from_environment(os.environ, Path.home())
     configuration_directory = storage.directory
     lock = ClaudeCredentialRefreshLock(configuration_directory)
-    storage_lock = ClaudeCredentialStorageLock(configuration_directory)
+    storage_lock = ClaudeCredentialStorageLock(
+        configuration_directory,
+        acquisition_attempts=STORAGE_PUBLISH_ATTEMPTS,
+    )
     isolation = configuration.isolation
     if isolation.backend == "darwin":
         namespace = claude_keychain_namespace(

@@ -208,9 +208,15 @@ class DirectoryInstanceFactory:
 class GitRepositoryMaterialiser:
     """Fetch exact revisions using private Git configuration and identity."""
 
-    def __init__(self, runner: ProcessRunner, git_program: str) -> None:
+    def __init__(
+        self,
+        runner: ProcessRunner,
+        git_program: str,
+        certificate_bundle: Path,
+    ) -> None:
         self._runner = runner
         self._git_program = git_program
+        self._certificate_bundle = certificate_bundle
 
     def materialise(
         self,
@@ -226,7 +232,7 @@ class GitRepositoryMaterialiser:
         global_config.write_text("")
         hooks = control / "hooks"
         hooks.mkdir()
-        environment = clean_environment(environment_path) | {
+        environment = clean_environment(environment_path, self._certificate_bundle) | {
             "HOME": str(home),
             "XDG_CONFIG_HOME": str(home / ".config"),
             "GIT_CONFIG_NOSYSTEM": "1",
@@ -766,10 +772,25 @@ def _append_untracked_patch(patch: TextIO, contents: str) -> None:
         raise WorkspaceUntrackedPatchError(Path(str(patch.name)), error) from error
 
 
-def clean_environment(environment_path: str) -> dict[str, str]:
-    return {
+def clean_environment(
+    environment_path: str,
+    certificate_bundle: Path | None = None,
+) -> dict[str, str]:
+    """Build the environment every isolated process starts from.
+
+    A process that reaches the network needs `certificate_bundle`: the sandbox
+    binds `/etc/ssl` as a directory, and on a Nix host its entries are symlinks
+    into trees the sandbox does not bind, so the host's default trust location
+    resolves to nothing inside it. The packaged bundle lives in the store,
+    which every isolated process can already read.
+    """
+
+    environment = {
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": environment_path,
         "TZ": "UTC",
     }
+    if certificate_bundle is not None:
+        environment["SSL_CERT_FILE"] = str(certificate_bundle)
+    return environment

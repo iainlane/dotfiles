@@ -391,10 +391,12 @@ class CodexStructuredAgent:
             case _:
                 raise CodexRoleUnconfiguredError(request.role)
         environment = (
-            clean_environment(request.environment_path)
+            clean_environment(
+                request.environment_path,
+                self._configuration.codex.tls_certificate_bundle,
+            )
             | self._identity.environment(instance.judge_state)
             | {
-                "SSL_CERT_FILE": str(self._configuration.codex.tls_certificate_bundle),
                 "TMPDIR": str(instance.judge_temp),
                 "XDG_CACHE_HOME": str(instance.judge_cache),
             }
@@ -795,6 +797,10 @@ def codex_isolated_features() -> dict[str, bool]:
         # with no tools at all.
         "code_mode_host": True,
         "computer_use": False,
+        # A `request_user_input` call arrives as a server request, and the
+        # session ends the child on a server request. The judge has no
+        # operator to answer one.
+        "default_mode_request_user_input": False,
         "goals": False,
         "hooks": False,
         "image_generation": False,

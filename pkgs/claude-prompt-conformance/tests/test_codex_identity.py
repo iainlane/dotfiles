@@ -637,3 +637,17 @@ def test_codex_identity_rejects_a_different_host_account(tmp_path: Path) -> None
         "subscription-account",
         "other-account",
     )
+
+
+def test_the_codex_credential_keeps_its_tokens_out_of_a_repr(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "auth.json"
+    source.write_text(
+        json.dumps(credential_document("access-secret", "refresh-secret"))
+    )
+    broker = identity(source, httpx.MockTransport(lambda _: httpx.Response(500)))
+
+    rendered = (repr(broker.credential), repr(broker), repr(broker.store))
+
+    assert tuple("secret" in value for value in rendered) == (False, False, False)

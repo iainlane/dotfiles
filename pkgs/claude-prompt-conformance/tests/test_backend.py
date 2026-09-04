@@ -885,7 +885,9 @@ def test_a_failed_gate_is_retried_once_before_it_counts(
     instance = FakeInstances().create("candidate", artefacts)
     runner = ScriptedRunner(list(return_codes))
 
-    (result,) = CommandVerifier(runner).verify(fixture, instance, artefacts)
+    (result,) = CommandVerifier(runner, tmp_path / "ca-bundle.crt").verify(
+        fixture, instance, artefacts
+    )
 
     assert (
         result.passed,
@@ -905,7 +907,9 @@ def test_verification_keeps_its_evidence_out_of_the_command_s_reach(
     instance = FakeInstances().create("candidate", artefacts)
     runner = ScriptedRunner([0])
 
-    CommandVerifier(runner).verify(fixture, instance, artefacts)
+    CommandVerifier(runner, tmp_path / "ca-bundle.crt").verify(
+        fixture, instance, artefacts
+    )
 
     (invocation,) = runner.invocations
     assert invocation.capabilities == models.ProcessCapabilities(

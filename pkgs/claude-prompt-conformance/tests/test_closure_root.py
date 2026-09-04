@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -72,6 +73,30 @@ def test_pinned_closure_roots_a_store_configuration_and_releases_it(
         True,
         False,
     )
+
+
+def test_pinned_closure_sweeps_the_links_of_runs_which_have_gone(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    directory = tmp_path / "runtime"
+    directory.mkdir()
+    abandoned = directory / "run-2147483647"
+    abandoned.symlink_to(store / "old-configuration.json")
+    unrelated = directory / "note.txt"
+    unrelated.write_text("kept\n")
+
+    with pinned_closure(
+        store / "abc-configuration.json",
+        "nix-store",
+        directory,
+        f"run-{os.getpid()}",
+        runner=RecordingRunner(),
+        store=store,
+    ):
+        remaining = tuple(sorted(path.name for path in directory.iterdir()))
+
+    assert remaining == ("note.txt", f"run-{os.getpid()}")
 
 
 def test_pinned_closure_skips_a_configuration_outside_the_store(

@@ -34,8 +34,9 @@ class WorkspacePreparationCommandError(ConformanceError):
 class CommandVerifier:
     """Execute the typed verification commands declared by a fixture."""
 
-    def __init__(self, runner: ProcessRunner) -> None:
+    def __init__(self, runner: ProcessRunner, certificate_bundle: Path) -> None:
         self._runner = runner
+        self._certificate_bundle = certificate_bundle
 
     def verify(
         self,
@@ -79,7 +80,10 @@ class CommandVerifier:
             ProcessInvocation(
                 command=check.command,
                 cwd=instance.workspace / check.working_directory,
-                environment=clean_environment(fixture.environment_path)
+                environment=clean_environment(
+                    fixture.environment_path,
+                    self._certificate_bundle,
+                )
                 | {
                     "HOME": str(instance.control / "verification-home"),
                     "TMPDIR": str(instance.candidate_temp),
@@ -112,8 +116,9 @@ class CommandVerifier:
 class CommandWorkspacePreparer:
     """Run the preparation commands a fixture declares in its checkout."""
 
-    def __init__(self, runner: ProcessRunner) -> None:
+    def __init__(self, runner: ProcessRunner, certificate_bundle: Path) -> None:
         self._runner = runner
+        self._certificate_bundle = certificate_bundle
 
     def prepare(
         self,
@@ -128,7 +133,10 @@ class CommandWorkspacePreparer:
                 ProcessInvocation(
                     command=command.command,
                     cwd=instance.workspace / command.working_directory,
-                    environment=clean_environment(fixture.environment_path)
+                    environment=clean_environment(
+                        fixture.environment_path,
+                        self._certificate_bundle,
+                    )
                     | {
                         "HOME": str(instance.control / "preparation-home"),
                         "TMPDIR": str(instance.candidate_temp),

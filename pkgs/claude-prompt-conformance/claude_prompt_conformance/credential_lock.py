@@ -76,6 +76,12 @@ _STORAGE_STALE_SECONDS = 15
 _UPDATE_SECONDS = 5
 _ACQUISITION_ATTEMPTS = 6
 _STORAGE_ACQUISITION_ATTEMPTS = 11
+# The client-matching schedule gives up after 7.5 seconds, before an abandoned
+# lock becomes reclaimable at _STORAGE_STALE_SECONDS. A publish that follows a
+# token exchange has already spent its refresh token, and abandoning that
+# publish costs the operator a fresh login. Give it enough attempts to wait
+# past the point where a stale lock can be taken.
+STORAGE_PUBLISH_ATTEMPTS = 21
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -314,7 +320,7 @@ class _CredentialDirectoryLock:
 
 
 class ClaudeCredentialRefreshLock(_CredentialDirectoryLock):
-    """Serialize OAuth refresh ownership with the pinned Claude client."""
+    """Serialise OAuth refresh ownership with the pinned Claude client."""
 
     def __init__(
         self,
@@ -342,7 +348,7 @@ class ClaudeCredentialRefreshLock(_CredentialDirectoryLock):
 
 
 class ClaudeCredentialStorageLock(_CredentialDirectoryLock):
-    """Serialize credential document writes with the pinned Claude client."""
+    """Serialise credential document writes with the pinned Claude client."""
 
     def __init__(
         self,
@@ -370,7 +376,7 @@ class ClaudeCredentialStorageLock(_CredentialDirectoryLock):
 
 
 class CodexCredentialStorageLock(_CredentialDirectoryLock):
-    """Serialize `auth.json` rotations against an ordinary Codex client."""
+    """Serialise `auth.json` rotations against an ordinary Codex client."""
 
     def __init__(
         self,

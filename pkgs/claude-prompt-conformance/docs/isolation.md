@@ -3,12 +3,20 @@
 Every agent process runs in a sandbox built from an explicit declaration of what
 it may touch. The domain layer declares readable paths, writable paths, hidden
 paths, and network access; the platform adapters expose only runtime system
-paths and those declared capabilities.
+paths and those declared capabilities. Both adapters mediate filesystem and
+network access; every other class of operation is left to the platform's own
+default, which for Seatbelt is `(allow default)` under the imported system
+policy.
 
 On macOS, Seatbelt applies each declaration directly. On Linux, Bubblewrap
 starts from an empty root and mounts only the declared paths, so undeclared host
 paths remain hidden without additional deny rules. Bubblewrap also supplies
 private PID, IPC, UTS, and device namespaces.
+
+A process granted public network access keeps the host network namespace on
+Linux, so abstract-namespace unix sockets on the host stay reachable from it.
+Seatbelt denies undeclared unix sockets on macOS, so the two adapters differ
+here.
 
 ## Seatbelt
 
@@ -80,10 +88,13 @@ instance-specific MCP server supplies the suite's evaluation or improvement
 evidence. The host sandbox permits the Codex client itself to reach the model
 service, while its evidence tree remains read-only.
 
-Nix supplies Codex with an explicit CA bundle through `SSL_CERT_FILE`, and that
-bundle is also declared as a readable capability. This keeps model TLS
-independent of macOS Security services, which the sandbox denies to prevent
-credential access.
+Nix supplies an explicit CA bundle through `SSL_CERT_FILE`, to Codex and to
+every other process that reaches the network. This keeps model TLS independent
+of macOS Security services, which the sandbox denies to prevent credential
+access, and it gives Git, the candidate and a fixture's preparation commands a
+trust store the sandbox can resolve: the bundle is in the Nix store, which every
+isolated process can read, while the host's `/etc/ssl` entries can be symlinks
+into trees the sandbox does not expose.
 
 Codex reads the host-managed configuration required by the client. The instance
 configuration records an explicit disabled entry for every managed MCP server

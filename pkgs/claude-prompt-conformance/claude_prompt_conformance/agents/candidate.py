@@ -205,7 +205,10 @@ class ClaudeCandidateAgent:
         git_config = instance.control / "candidate-gitconfig"
         git_config.write_text("")
         environment = (
-            clean_environment(fixture.environment_path)
+            clean_environment(
+                fixture.environment_path,
+                self._configuration.codex.tls_certificate_bundle,
+            )
             | self._identity.environment(instance.candidate_state)
             | {
                 "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
