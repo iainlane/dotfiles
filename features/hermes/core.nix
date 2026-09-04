@@ -28,8 +28,6 @@ in {
       ++ cfg.extraPackages;
 
     dotfiles.hermes = {
-      extraDependencyGroups = ["messaging"];
-
       agentPackages = [pkgs.curl pkgs.wget];
 
       settings = {
@@ -38,14 +36,6 @@ in {
 
         checkpoints.enabled = lib.mkDefault true;
         display.busy_input_mode = lib.mkDefault "steer";
-
-        # Single owner of the `plugins` allow/deny lists, merging the two
-        # sources (context-engine's enable, host-level disables) into one
-        # `settings.plugins` definition.
-        plugins = lib.filterAttrs (_: v: v != []) {
-          enabled = cfg.enabledPlugins;
-          disabled = cfg.disabledPlugins;
-        };
       };
     };
 
@@ -70,6 +60,11 @@ in {
           lib.toList cfg.container.network
           ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
         publishPorts = cfg.container.ports;
+
+        # On stop the agent closes its platform connections, waits for the
+        # turn in flight and writes its session state, and podman's own
+        # `stopTimeout` then allows a further wait before the kill. Systemd's
+        # 90-second default would cut all of that short.
         serviceConfig.TimeoutStopSec = 210;
       };
     };

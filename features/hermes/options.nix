@@ -23,6 +23,11 @@ in {
     package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = null;
+      description = ''
+        Hermes package to run. Null builds the one from the `hermes-agent`
+        input with `extraDependencyGroups` and `extraPythonPackages` applied,
+        which a package given here does not get.
+      '';
     };
 
     profilePicture = lib.mkOption {
@@ -35,16 +40,36 @@ in {
     settings = lib.mkOption {
       inherit (yaml) type;
       default = {};
+      example = lib.literalExpression ''{model.provider = "openai-codex";}'';
+      description = ''
+        The agent's `config.yaml`, mounted read-only from the store. Several
+        modules here write into it and the host writes the rest; the format's
+        type merges them by key, so two modules may set different keys under
+        one table.
+      '';
     };
 
     environment = lib.mkOption {
       type = with lib.types; attrsOf str;
       default = {};
+      example = {HERMES_LOG_LEVEL = "debug";};
+      description = ''
+        Environment variables written into the agent's `.env` before every
+        file in `environmentFiles`, so a variable set in both takes the value
+        from the file. The value reaches the world-readable store; a secret
+        belongs in `secretEnv`.
+      '';
     };
 
     environmentFiles = lib.mkOption {
       type = with lib.types; listOf str;
       default = [];
+      description = ''
+        Files whose contents are appended to the agent's `.env` at startup, in
+        the order the modules defining them are resolved, so the last file
+        setting a variable is the one the agent reads. This is how each
+        platform hands the agent its sops-rendered secrets.
+      '';
     };
 
     environmentFromState = lib.mkOption {
@@ -85,11 +110,23 @@ in {
     extraArgs = lib.mkOption {
       type = with lib.types; listOf str;
       default = [];
+      example = ["--verbose"];
+      description = "Arguments appended to the gateway's `hermes gateway run` command line.";
     };
 
     extraDependencyGroups = lib.mkOption {
       type = with lib.types; listOf str;
       default = [];
+      example = ["matrix"];
+      description = ''
+        Optional dependency groups from the package's `pyproject.toml` built
+        into the agent, on top of the `all` group it always gets. A platform
+        or backend that needs a Python client names its group here: the Matrix
+        platform adds `matrix`, and the Exa web-search backend `exa`.
+
+        This list replaces the package's default dependency groups, so a group
+        absent from both this list and `all` is not installed.
+      '';
     };
 
     extraPackages = lib.mkOption {
@@ -110,28 +147,6 @@ in {
       description = ''
         Directory-based plugin source trees to symlink into the Hermes plugin
         directory. Each entry must contain `plugin.yaml` at its root.
-      '';
-    };
-
-    enabledPlugins = lib.mkOption {
-      type = with lib.types; listOf str;
-      default = [];
-      example = ["hermes-lcm"];
-      description = ''
-        Plugin names to add to the agent's `plugins.enabled` allow-list.
-        Plugins are opt-in: a plugin must appear here before the agent loads
-        it.
-      '';
-    };
-
-    disabledPlugins = lib.mkOption {
-      type = with lib.types; listOf str;
-      default = [];
-      example = ["raft-platform"];
-      description = ''
-        Plugin names to add to the agent's `plugins.disabled` list. A disabled
-        plugin is skipped during discovery, which also suppresses any
-        startup probing it would otherwise perform.
       '';
     };
 
@@ -162,16 +177,32 @@ in {
       name = lib.mkOption {
         type = lib.types.str;
         default = "hermes-agent";
+        description = ''
+          Name of the gateway's podman container, and the name the other
+          containers and the host CLI reach it by.
+        '';
       };
 
       network = lib.mkOption {
         type = with lib.types; either str (listOf str);
         default = [];
+        example = ["hermesnet.network"];
+        description = ''
+          podman networks the gateway, the dashboard and the profile-picture
+          helper join, as quadlet writes them. The signal-cli network is added
+          on top wherever the Signal platform is composed.
+        '';
       };
 
       ports = lib.mkOption {
         type = with lib.types; listOf str;
         default = [];
+        example = ["127.0.0.1:8000:8000"];
+        description = ''
+          Ports the gateway container publishes on the host, as podman takes
+          them. Nothing here is published by default: the agent is reached
+          through the host CLI and the platforms it connects out to.
+        '';
       };
 
       extraVolumes = lib.mkOption {
@@ -190,6 +221,11 @@ in {
       extraPodmanArgs = lib.mkOption {
         type = with lib.types; listOf str;
         default = [];
+        example = ["--shm-size=1g"];
+        description = ''
+          Arguments passed straight to `podman run` for each Hermes container,
+          for settings that quadlet does not expose.
+        '';
       };
 
       noNewPrivileges = lib.mkOption {

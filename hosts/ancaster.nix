@@ -101,11 +101,6 @@ in {
           };
           # Pull in exa-py so the native web_search Exa backend has its client.
           extraDependencyGroups = ["exa"];
-          # `raft-platform` is a bundled gateway adapter we do not use; without it
-          # disabled the agent probes for the absent `raft` CLI on startup.
-          # `google_chat-platform` registers a Platform value the gateway does
-          # not define, so it fails to load and warns on every startup.
-          disabledPlugins = ["raft-platform" "google_chat-platform"];
           secretEnvFile = "ancaster/host-hermes.yaml";
           secretEnv = {
             GROQ_API_KEY = "groq_api_key";
@@ -118,6 +113,13 @@ in {
             VOICE_TOOLS_OPENAI_KEY = "openrouter_api_key";
           };
           settings = {
+            # `raft-platform` is a bundled gateway adapter we do not use;
+            # without it disabled the agent probes for the absent `raft` CLI
+            # on startup. `google_chat-platform` registers a Platform value the
+            # gateway does not define, so it fails to load and warns on every
+            # startup.
+            plugins.disabled = ["raft-platform" "google_chat-platform"];
+
             model = {
               provider = "openai-codex";
             };

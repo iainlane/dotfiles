@@ -54,10 +54,9 @@ in {
       description = ''
         Path, relative to the `secrets` flake input, of the sops file holding
         `matrix_password` (the bot account's password, which the homeserver
-        creates the account with and the agent logs in with),
+        creates the account with and the agent logs in with) and
         `matrix_allowed_users` (comma-separated user IDs allowed to talk to
-        the bot) and `matrix_registration_token` (the token that gates
-        registration, entered in a Matrix client to create accounts).
+        the bot).
       '';
     };
 

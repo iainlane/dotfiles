@@ -71,6 +71,19 @@ in {
     {
       dotfiles.hermes.dashboard.present = true;
 
+      assertions = [
+        {
+          assertion = dashboard.expose == null || dashboard.expose.auth;
+          message = ''
+            dotfiles.hermes.dashboard.expose.auth is off. Hermes makes anyone
+            reaching a non-loopback bind sign in, and then serves anyone the
+            identity provider recognises, so the proxy's `allow` list is what
+            decides who gets in. Without it the dashboard is served to every
+            account the provider will authenticate.
+          '';
+        }
+      ];
+
       virtualisation.quadlet.containers.${dashboard.containerName} =
         if exposed
         then exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})

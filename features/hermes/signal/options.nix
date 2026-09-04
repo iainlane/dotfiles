@@ -19,8 +19,13 @@ in {
 
     httpUrl = lib.mkOption {
       type = lib.types.str;
-      default = "http://signal-cli:8080";
-      description = "URL at which Hermes reaches the signal-cli daemon.";
+      default = "http://${cfg.signal.containerName}:8080";
+      defaultText = lib.literalExpression ''"http://''${config.dotfiles.hermes.signal.containerName}:8080"'';
+      description = ''
+        URL at which Hermes reaches the signal-cli daemon. The two share a
+        podman network, so the default is the container's own name and the
+        port the daemon is started on.
+      '';
     };
 
     network = lib.mkOption {

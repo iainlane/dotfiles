@@ -307,9 +307,10 @@
               source.quadletVolume = hermesCacheVolume;
               target = "/data/.hermes/cache";
             }
-            # config.yaml and SOUL.md come straight from the Nix store, read
-            # only. Hermes never writes them, and a change flips the store path,
-            # so the unit changes and the container restarts to pick it up.
+            # config.yaml, SOUL.md and AGENTS.md come straight from the Nix
+            # store, read only. Hermes never writes them, and a change flips
+            # the store path, so the unit changes and the container restarts
+            # to pick it up.
             {
               source.bind = generatedConfigFile;
               target = "/data/.hermes/config.yaml";

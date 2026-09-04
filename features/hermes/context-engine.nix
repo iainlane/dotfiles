@@ -21,8 +21,10 @@ in {
           pkgs.python312Packages.regex
         ]
         ++ lib.optional cfg.embeddings.present pkgs.python312Packages.numpy;
-      enabledPlugins = ["hermes-lcm"];
-      settings.context.engine = "lcm";
+      settings = {
+        context.engine = "lcm";
+        plugins.enabled = ["hermes-lcm"];
+      };
 
       environment = lib.mkIf cfg.embeddings.present (
         {
