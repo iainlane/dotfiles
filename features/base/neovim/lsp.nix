@@ -3,34 +3,32 @@
   inputs,
   system,
 }: {
-  # This file keeps Neovim's Nix-managed LSP mapping in one place. It lets us
-  # install language tools via Nix. From this we generate a JSON file which we
-  # load into Neovim to disable Mason installs for these tools.
+  # Every language server Nix installs for Neovim, keyed by nixpkgs attribute
+  # name. `features/base/neovim/home-manager.nix` puts each package in
+  # `programs.neovim.extraPackages` and writes two lists to a JSON file that
+  # `nvim/lua/plugins/nix-managed-mason.lua` reads:
   #
-  # Map of Nix package name -> LSP/Mason metadata.
+  # - `lsp_servers`: server names lspconfig is given with `mason = false`
+  # - `mason_packages`: names dropped from Mason's `ensure_installed`
   #
-  # This is normalised in `features/base/neovim/home-manager.nix` into:
-  # - `lsp_servers`: server names that should be configured with `mason = false`
-  # - `mason_packages`: Mason package names to exclude from Mason auto-installs
+  # A value says how the server name and the Mason package name differ from the
+  # nixpkgs name:
   #
-  # Value formats:
-  #
-  # - `null`: both the LSP server name and Mason package name are the same as
-  #    the Nix package name:
+  # - `null`: neither differs.
   #
   #   ```nix
   #   "pyright" = null;
   #   ```
   #
-  # - `"lspName"`: the LSP server name is different from the Nix package name,
-  #    but the Mason package name is the same as the Nix package name:
+  # - a string: the server name. The Mason package name does not differ.
   #
   #   ```nix
   #   "lua-language-server" = "lua_ls";
   #   ```
   #
-  # - `{ lsp = ...; masonPackages = ...; }`: fully custom form, for when both
-  #   the LSP server name and Mason package name differ from the Nix package name:
+  # - an attribute set with `lsp`, `masonPackages` or both, each a name or a
+  #   list of names. A field left out means that name is the nixpkgs attribute
+  #   name.
   #
   #   ```nix
   #   "vscode-langservers-extracted" = {
@@ -39,11 +37,10 @@
   #   };
   #   ```
   #
-  # Set `masonPackages = []` when no Mason package exclusion is needed for that
-  # entry (for example when there is no matching Mason package name).
+  # Write `masonPackages = []` when Mason has no package of that name.
   #
-  # Set `pkg` to provide the package directly, for packages removed from or
-  # unavailable in the host's primary nixpkgs channel.
+  # An attribute set may also carry `pkg`, the package itself, for a package
+  # the host's primary nixpkgs channel does not have.
   "ansible-language-server" = {
     lsp = "ansiblels";
     pkg = pkgs-unstable.ansible-language-server;

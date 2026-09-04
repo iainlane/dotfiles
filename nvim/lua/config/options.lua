@@ -17,12 +17,11 @@ opt.hlsearch = false
 
 -- search settings
 opt.ignorecase = true -- ignore case when searching
-opt.smartcase = true -- if you include mixed case in your search, assumes you want case-sensitive
+opt.smartcase = true -- unless the pattern has an upper-case character in it
 
 opt.cursorline = true
 
--- turn on termguicolors for tokyonight colorscheme to work
--- (have to use iterm2 or any other true color terminal)
+-- 24-bit colour, which catppuccin needs. The terminal has to support it.
 opt.termguicolors = true
 opt.signcolumn = "yes" -- show sign column so that text doesn't shift
 
@@ -43,19 +42,24 @@ vim.g.maplocalleader = ","
 vim.g.lazyvim_rust_diagnostics = "bacon-ls"
 
 vim.g.netrw_liststyle = 3
+
+-- The files that mark the root of one language module. `config/autocmds.lua`
+-- reads this too.
+vim.g.language_module_markers = {
+  "go.work",
+  "go.mod",
+  "Cargo.toml",
+  "pyproject.toml",
+  "package.json",
+}
+
 -- In monorepos, prefer the nearest language-module root over the outer
 -- `.git` so pickers, grep and project tools scope to the submodule being
 -- edited. LazyVim treats an inner array as "any of these markers, equal
 -- priority", so no further nesting is needed here.
 vim.g.root_spec = {
   "lsp",
-  {
-    "go.work",
-    "go.mod",
-    "Cargo.toml",
-    "pyproject.toml",
-    "package.json",
-  },
+  vim.g.language_module_markers,
   { ".git", "lua" },
   "cwd",
 }

@@ -5,13 +5,7 @@
 -- LSP `root_dir` is decided independently from the buffer's path at attach
 -- time, so this does not change which server attaches; it only aligns shell and
 -- quickfix tooling with the module.
-local markers = {
-  "go.work",
-  "go.mod",
-  "Cargo.toml",
-  "pyproject.toml",
-  "package.json",
-}
+local markers = vim.g.language_module_markers
 
 vim.api.nvim_create_autocmd("BufWinEnter", {
   group = vim.api.nvim_create_augroup("monorepo_lcd", { clear = true }),
