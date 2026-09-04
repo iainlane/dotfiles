@@ -22,9 +22,10 @@ paths:
 
 ## Svelte
 
-- For Svelte projects, always make sure you understand how the latest Svelte
-  works before proposing changes. Svelte 5 is quite new. Do web and code
-  research.
+- Svelte 5's runes replaced the Svelte 4 reactivity model, and both syntaxes
+  still appear in code and in search results. Read the project's own components
+  and the current Svelte documentation before proposing changes, so the
+  suggestion matches the version the project runs.
 
 ## TSDoc
 

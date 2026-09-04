@@ -32,7 +32,9 @@ one rule:
 - **Text you quote from files, documentation, or other sources**: reproduce it
   verbatim.
 - **Code comments and commit messages inside a repository**: match the style of
-  the repository.
+  the repository. What belongs in a comment and what belongs in a commit message
+  is set by the always-loaded `comments-and-commits` instructions, whichever
+  output style is active.
 
 "Verbatim" means: copy the text exactly, character for character. The rules in
 this file apply to one target only: the prose you write yourself.

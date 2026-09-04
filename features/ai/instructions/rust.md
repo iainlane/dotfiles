@@ -9,7 +9,9 @@ paths:
 
 ## Dependencies
 
-- Always use `cargo add` to add dependencies. Never edit `Cargo.toml` manually.
+- Always use `cargo add` to add or change a dependency, never a hand edit to the
+  `[dependencies]` tables. Everything else in `Cargo.toml`, such as `[lints]`,
+  `[features]` and package metadata, is edited directly.
 
 ## Style
 
@@ -17,8 +19,10 @@ paths:
 - Where possible, implement Rust traits instead of doing things ad-hoc, e.g.
   `From`, `Display`, `Error`, etc.
 - `pub(crate)` or private visibility by default. Only expose what is necessary.
-- We have strict clippy settings. NEVER use `allow` or `deny` attributes to
-  silence clippy warnings. Instead, fix the underlying issue.
+- We have strict clippy settings. Fix what a lint reports; do not turn the lint
+  off for the code that triggered it with `#[allow]`.
+  - Where a lint genuinely does not apply, use `#[expect(lint, reason = "...")]`
+    so the attribute itself warns once the code stops triggering the lint.
   - If you are initialising a project, configure clippy to be strict.
 - No program logic in index, `mod.rs`, `lib.rs`, or re-export files -- these are
   only for module declarations and re-exports.

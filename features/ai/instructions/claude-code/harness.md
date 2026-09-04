@@ -14,11 +14,13 @@ Guidance specific to the Claude Code harness.
 
 ## Command output
 
-- Run commands bare and read their full output. Never pipe through `tail`,
-  `head`, `grep -m` or similar to shorten what the tool returns. This applies to
-  every `Bash` call, foreground or background, and regardless of your reason:
-  even when you believe that you only need part of the output. A pipe can hide
-  errors and cause wasted re-runs.
+- Run commands bare and read their full output. Never truncate it: no `tail`,
+  `head`, `grep -m` or similar to cut a command's output down to a length you
+  find comfortable. This applies to every `Bash` call, foreground or background,
+  and regardless of your reason: even when you believe that you only need part
+  of the output. Truncation hides errors and causes wasted re-runs. Searching a
+  large file for the lines you want, with `grep` or `rg`, is a different thing
+  and is fine.
 - The user's terminal shows at most a few lines of a command's output. If the
   user needs to read any of it, put it in your reply.
 - The harness handles long output. Foreground output is truncated safely, and

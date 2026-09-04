@@ -1,13 +1,19 @@
 # General Guidelines
 
 - Follow the project's existing formatting, naming, structure, framework
-  choices, typing conventions, and architectural patterns.
+  choices, typing conventions, and architectural patterns. Where that conflicts
+  with a per-language rule in these instructions, the project wins: the
+  per-language rules describe what to reach for in new code and in a project
+  that has not already chosen otherwise. Say in your summary which rule you set
+  aside and why.
 - Treat existing code conventions and existing prose differently:
   - Existing code is authoritative for naming, terminology, formatting,
     structure, architecture, APIs, and documentation layout.
   - For comments, documentation, commit messages, and other prose, follow the
-    active output style. Do not reproduce awkward prose merely because similar
-    wording already exists in the repository.
+    active output style for the wording and `comments-and-commits` for what
+    belongs in a comment and what belongs in a commit message. Do not reproduce
+    awkward prose merely because similar wording already exists in the
+    repository.
 - Write idiomatic code for the language, libraries and frameworks used.
 - Do deep research into the particular language, libraries and frameworks used
   in the project. Understand thoroughly how they work and how to use them
@@ -77,7 +83,8 @@
 ## Commits
 
 - Before writing a commit message, inspect the recent commit history and follow
-  the repository's subject format and other commit conventions.
+  the repository's subject format and other commit conventions. See
+  `comments-and-commits` for what the message has to explain.
 - Wrap commit messages at 72 characters unless the repository uses another
   convention.
 - If there is no pre-commit check, run the relevant linters and formatters
@@ -95,8 +102,8 @@
   Do not dismiss or deprioritise a finding based only on your own judgement of
   severity. Understand the intent behind a rule's existence and fix the spirit
   as well as the letter. Example: a rule which forbids more than a certain
-  number of function parameters could be satisfied by putting all parameters in
-  to a single struct in all cases, but that would often be a superficial
+  number of function parameters could be satisfied by putting all parameters
+  into a single struct in all cases, but that would often be a superficial
   workaround to a more fundamental design problem.
 - When a finding conflicts with another project rule, flag the conflict to the
   user rather than choosing which rule to follow yourself.
