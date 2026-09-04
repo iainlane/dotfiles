@@ -235,7 +235,15 @@ class ClaudeCandidateAgent:
                         instance.candidate_temp,
                     ),
                     network=NetworkAccess.PUBLIC,
-                    readable_paths=(instance.control,),
+                    # The rules and output styles are symlinked into the
+                    # private Claude home, and the overlay is symlinked into
+                    # the workspace, so both trees have to be readable where
+                    # they really live.
+                    readable_paths=(
+                        instance.control,
+                        self._configuration.candidate_context,
+                        self._configuration.workspace_overlay,
+                    ),
                 ),
                 stdout=transcript,
                 stderr=stderr,

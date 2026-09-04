@@ -685,6 +685,56 @@ def test_darwin_backend_uses_an_explicit_tls_certificate_bundle(
     ) == (ProcessResult(0), TlsProbeResult(tls=True), "")
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="requires macOS Seatbelt")
+@pytest.mark.host_integration
+@pytest.mark.parametrize(
+    ("declared", "expected"),
+    [
+        pytest.param(True, (ProcessResult(0), "Be precise.\n"), id="declared"),
+        pytest.param(False, (ProcessResult(1), ""), id="undeclared"),
+    ],
+)
+def test_darwin_backend_reads_a_rule_through_the_installed_symlink(
+    tmp_path: Path,
+    declared: bool,
+    expected: tuple[ProcessResult, str],
+) -> None:
+    context = tmp_path / "candidate-context"
+    (context / "rules").mkdir(parents=True)
+    (context / "rules" / "global.md").write_text("Be precise.\n")
+    state = tmp_path / "candidate-state"
+    (state / ".claude").mkdir(parents=True)
+    (state / ".claude" / "rules").symlink_to(
+        context / "rules",
+        target_is_directory=True,
+    )
+    control = tmp_path / "control"
+    control.mkdir()
+    process = ProcessInvocation(
+        command=(
+            sys.executable,
+            "-c",
+            "import sys\nsys.stdout.write(open(sys.argv[1]).read())\n",
+            str(state / ".claude" / "rules" / "global.md"),
+        ),
+        cwd=control,
+        environment={"PATH": os.environ["PATH"]},
+        capabilities=ProcessCapabilities(
+            writable_paths=(state,),
+            readable_paths=(control, *((context,) if declared else ())),
+            network=NetworkAccess.NONE,
+        ),
+        stdout=control / "rule.stdout",
+        stderr=control / "rule.stderr",
+    )
+
+    result = DarwinProcessRunner("/usr/bin/sandbox-exec", ProcessSupervisor()).run(
+        process
+    )
+
+    assert (result, process.stdout.read_text()) == expected
+
+
 def _run_git(git_program: str, repository: Path, *arguments: str) -> str:
     result = subprocess.run(
         (git_program, "-C", str(repository), *arguments),

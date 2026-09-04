@@ -1007,7 +1007,11 @@ def test_claude_candidate_applies_budgets_only_to_api_usage(
                         instance.candidate_temp,
                     ),
                     network=NetworkAccess.PUBLIC,
-                    readable_paths=(instance.control,),
+                    readable_paths=(
+                        instance.control,
+                        configuration.candidate_context,
+                        configuration.workspace_overlay,
+                    ),
                 ),
                 stdout=artefacts / "claude-events.jsonl",
                 stderr=artefacts / "claude.stderr",
