@@ -72,27 +72,30 @@ module system, named after the module system that evaluates it:
 | `systemManager` | system-manager, on Linux hosts that are not NixOS |
 | `homeManager`   | Home Manager                                      |
 | `system`        | whichever of the first three builds the host      |
+| `provides`      | features this one carries, applied when included  |
 
 Each field takes a module, or a list of modules. Several files may define the
 same field of the same feature; the definitions merge into one module.
 
 A feature includes the features it depends on, and hosts get those too. Home
-Manager content and includes can be scoped to one host OS under `os.<os>`:
+Manager content and includes can be scoped to one host OS under `os.<os>`, and
+Home Manager content that is the same on every Linux host, NixOS included, to
+one kernel under `kernel.<linux|darwin>`:
 
 ```nix
-# modules/git/default.nix
+# features/git/default.nix
 {
   flake.features.git = {
     homeManager = ./home-manager.nix;
     os = {
-      darwin.homeManager = ./credential-darwin.nix;
-      linux.homeManager = [./credential-linux.nix ./gitsign.nix];
-      nixos.homeManager = [./credential-linux.nix ./gitsign.nix];
+      darwin.homeManager = ./home-manager-darwin.nix;
+      "generic-linux".homeManager = [./home-manager-linux.nix ./gitsign.nix];
+      nixos.homeManager = [./home-manager-linux.nix ./gitsign.nix];
     };
   };
 }
 
-# profiles/adsb/default.nix
+# features/adsb/default.nix
 {config, ...}: {
   flake.features.adsb = {
     includes = [config.flake.features.containers];
@@ -106,10 +109,60 @@ Manager content and includes can be scoped to one host OS under `os.<os>`:
 
 The system classes need no OS scoping because each one already implies an OS.
 
-The features a host lists directly live in `profiles/<name>/default.nix`, and
-the features those include live in `modules/<name>/default.nix`. Both
-directories are discovered automatically, and only a `default.nix` one level
-down is loaded, so helper files beside it are not modules.
+### Top-level features and children
+
+A feature is top-level when a host lists it or when another feature includes it
+because it depends on that feature's options. Every other concern is a child of
+the feature that carries it, registered under that feature's `provides`. A child
+has every field a feature has, including its own `provides`, and its name is
+qualified by its parent's, so `base`'s zsh configuration is `base.zsh` and
+appears under that name in `featureNames`.
+
+Registering a child does not apply it. Something has to list it in `includes`,
+so a parent names the children it always carries and puts the conditional ones
+under `os.<os>.includes`:
+
+```nix
+# features/base/default.nix
+{config, ...}: let
+  inherit (config.flake) features;
+  children = features.base.provides;
+in {
+  imports = [./zsh ./neovim ./nix ./sudo ./openssh ./restic];
+
+  flake.features.base = {
+    includes = with children; [zsh neovim nix sudo features.git];
+    os.nixos.includes = with children; [restic openssh];
+    homeManager = ./home-manager.nix;
+  };
+}
+
+# features/base/zsh/default.nix
+{
+  flake.features.base.provides.zsh = {
+    homeManager = ./home-manager.nix;
+    os."generic-linux".homeManager = ./home-manager-linux.nix;
+  };
+}
+```
+
+A child with only system-class fields is still scoped under `os.<os>.includes`,
+although its class already implies the OS: the scope is what keeps the child out
+of `featureNames` on the other OSes, so `hasFeature` never claims
+`desktop.gnome` on a darwin host.
+
+A child its parent includes must not include the parent, which the resolver
+reports as a cycle. A child the parent does not include has to bring whatever
+declares the options it uses: `ai.claude-desktop` and
+`work.claude-managed-settings` both include `ai` for that reason.
+
+Every feature lives in `features/<name>/default.nix`. The directory is
+discovered automatically, and only a `default.nix` one level down is loaded, so
+helper files beside it are not modules. Module files are named after the module
+system they are for: `nixos.nix`, `darwin.nix`, `system-manager.nix`,
+`home-manager.nix`, with `home-manager-linux.nix` for the kernel scope and
+`home-manager-nixos.nix` or `home-manager-generic-linux.nix` for the OS scope.
+Packages live under `pkgs/`, even when one feature is their only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after the
@@ -159,5 +212,6 @@ flake imports as `helpers`:
 | `lib/discovery.nix` | filesystem discovery (hosts/features/pkgs)            |
 | `lib/features.nix`  | feature resolution: includes, ordering, class modules |
 | `lib/home.nix`      | Home Manager module + `specialArgs` assembly          |
+| `lib/nixbuild.nix`  | the nixbuild.net account constants, read by CI too    |
 | `lib/sops.nix`      | sops-nix module fragments                             |
 | `lib/projects.nix`  | project shell / direnv generation                     |

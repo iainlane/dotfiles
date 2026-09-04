@@ -30,53 +30,53 @@ For a fuller walk through `host → features → OS adapter → outputs`, see
 
 ### Features
 
-Every feature registers itself under `flake.features.<name>`. The features a
-host lists directly live under `profiles/`; the features they include live under
-`modules/`. Both directories are discovered automatically, and only a
-`<name>/default.nix` inside them is loaded.
+Every feature lives in one directory under `features/` and registers itself
+under `flake.features.<name>`. The directories are discovered automatically, and
+only a `<name>/default.nix` one level down is loaded.
 
-Some of the features under `profiles/`:
+A feature is top-level when a host lists it or when another feature includes it.
+Everything else is a child of the feature that carries it, registered under that
+feature's `provides` and named after it, such as `base.zsh` or `desktop.gnome`.
+A child is applied where something lists it in `includes`, so a parent names the
+children it always carries and scopes the rest by OS. Anything can list one
+child on its own: `hosts/bonington` takes
+`features.work.provides.claude-managed-settings` without the rest of the work
+machine's NixOS configuration changing.
+
+The twenty top-level features:
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
+  Children: `zsh`, `neovim`, `gh`, `ssh`, `starship`, `cli-tools`, `catppuccin`,
+  `motd`, `scripts`, `nix`, `sudo`, and per OS `openssh`, `restic`,
+  `system-manager-shell`, `homebrew` and `macos-defaults`.
+- `desktop`: GUI and desktop tooling. Children: the terminals, the editors,
+  `chrome`, `fonts`, `gpg-agent`, and per OS `gnome`, `usbguard`, `plymouth`,
+  `console`, `tailscale`, `wine` and the rest.
+- `development`: Personal development project shells and language toolchains.
+  Children: `debuginfod`, `orbstack`.
+- `work`: Work-specific project shells, identity defaults, and tooling.
+  Children: `falcon`, `kolide`, `claude-managed-settings`.
+- `home`: Personal identity and, on non-NixOS Linux, the `debian` child with the
+  Debian, Ubuntu and GNOME project directories.
+- `ai`: The shared MCP servers, skills and instructions, with one child per
+  harness (`claude-code`, `codex`, `pi`, `opencode`, ...), plus `claude-desktop`
+  and `cloudflare-mcp`, which other features list.
+- `git`: Git defaults, aliases, signing, and ignore behaviour.
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
 - `containers`: Linux rootless container prerequisites (`newuidmap`/`newgidmap`
   wrappers and nodocker marker).
-- `desktop`: GUI and desktop tooling, including terminals, editor integration,
-  and fonts.
-- `development`: Personal development project shells and language toolchains.
-- `home`: Linux-focused personal project-directory shells (Debian/Ubuntu/GNOME
-  workflows).
+- `inference`: A local model server, with `ollama` and `open-webui` as children
+  so a host can run one without the other.
 - `nixbuild-builder`: nixbuild.net remote build configuration, including
   build-machine registration and cross-architecture build support.
 - `nixbuild-substituter`: nixbuild.net SSH substituter configuration without
   registering the host as a remote-build client.
-- `work`: Work-specific project shells, identity defaults, and tooling.
+- `agentsview` and `agentsview-server`: the archive of agent sessions on a
+  machine that runs agents, and the shared database behind it.
+- `adsb`, `caddy`, `dex`, `hermes`, `matrix`, `unifi`: the services on ancaster.
 
-The hosts under `hosts/` show the rest, which are mostly services on ancaster.
-Some of the features under `modules/`:
-
-- `ai`: AI tooling modules and shared MCP wiring.
-- `borgmatic`: Borg backups via borgmatic, with credentials from the secrets
-  repository (NixOS hosts).
-- `catppuccin`: Catppuccin theming for supported programs.
-- `cli-tools`: Common CLI programs and terminal utilities, including `direnv`
-  integration.
-- `falcon`: CrowdStrike Falcon sensor (NixOS hosts).
-- `gh`: GitHub CLI configuration and extensions, including the gh-dash dashboard
-  and the gh-enhance GitHub Actions viewer.
-- `ghostty`: Ghostty terminal configuration.
-- `git`: Git defaults, aliases, signing, and ignore behaviour.
-- `gnome`: GNOME desktop configuration, including USBGuard (NixOS hosts).
-- `kitty`: Kitty terminal configuration and theme integration.
-- `motd`: Message of the day taken from the host record.
-- `neovim`: Neovim runtime, settings, and plugin configuration.
-- `scripts`: Custom shell scripts installed into the environment.
-- `secure-boot`: Secure Boot via lanzaboote (NixOS hosts).
-- `ssh`: SSH client configuration.
-- `starship`: Starship prompt configuration.
-- `vm-host`: libvirt and virt-manager virtualisation support (NixOS hosts).
-- `zed-editor`: Zed editor settings and extensions.
-- `zsh`: Zsh shell configuration, plugins, and functions.
+The Neovim configuration is `nvim/` at the repository root, which `base.neovim`
+installs.
 
 ### Hosts
 

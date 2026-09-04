@@ -163,7 +163,7 @@
     enabled = true;
   };
 
-  # Same role assignments as `modules/ai/ccstatusline.nix`, so Pi's footer
+  # Same role assignments as `features/ai/claude-code/ccstatusline`, so Pi's footer
   # reads like Claude Code's statusline at a glance.
   piFooterConfig = {
     version = 1;

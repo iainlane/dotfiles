@@ -97,7 +97,7 @@
   stableRelease = (lib.importJSON (inputs.home-manager-stable + "/release.json")).release;
 
   widgetCommands = assert lib.assertMsg (stableRelease == "26.05") ''
-    modules/cli-tools/fzf.nix carries a compatibility shim for home-manager
+    features/base/cli-tools/fzf.nix carries a compatibility shim for home-manager
     stable 26.05, which still uses the flat `programs.fzf.fileWidgetCommand`.
     The `home-manager-stable` input is now on ${stableRelease}, which has the
     renamed nested `fileWidget.command`. Drop this shim and set the nested
