@@ -408,6 +408,7 @@ class RuntimeInputs:
             variant=msgspec.structs.replace(
                 declaration.variant,
                 nix_program="nix",
+                nixpkgs="nixpkgs",
                 expression="variant-expression",
                 prompt_environment="variant-prompt-environment",
                 prompt_source="prompt-source",

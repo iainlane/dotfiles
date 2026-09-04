@@ -161,11 +161,10 @@ class NixPromptVariantBuilder:
             raise PromptVariantBuildError(result.return_code, stderr)
 
         output = nix_output_path(stdout)
-        retained_configuration = (
-            RuntimeInputs.load(output / "configuration.json")
-            .materialise(artefacts / "inputs")
-            .configuration
+        runtime = RuntimeInputs.load(output / "configuration.json").materialise(
+            artefacts / "inputs"
         )
+        retained_configuration = refresh_execution(runtime, configuration).configuration
         try:
             atomic_write(root, identity, proposal_digest.encode())
         except OSError as error:

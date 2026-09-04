@@ -310,6 +310,40 @@ def test_variant_builder_reuses_only_the_same_proposal_and_base_prompt(
     )
 
 
+def test_a_freshly_built_variant_runs_the_current_harness(tmp_path: Path) -> None:
+    retained = (
+        runtime_inputs(tmp_path / "base")
+        .materialise(tmp_path / "base-retained")
+        .configuration
+    )
+    current = replace(
+        retained,
+        codex=replace(
+            retained.codex,
+            mcp_program="/nix/store/current-harness/bin/mcp",
+        ),
+    )
+    built = runtime_inputs(tmp_path / "built", prompt="variant prompt")
+    proposal = PromptProposal(
+        False,
+        "clarify evidence reporting",
+        ("Handoffs contradict recorded checks.",),
+        "Require handoffs to report recorded checks.",
+        "The report can be verified against retained evidence.",
+        (),
+        "--- a/instructions/a.md\n+++ b/instructions/a.md\n@@ -1 +1 @@\n-a\n+b\n",
+    )
+
+    variant = NixPromptVariantBuilder(
+        SuccessfulVariantRunner(built, tmp_path / "built-output")
+    ).build(current, proposal, tmp_path / "run" / "variant", tmp_path)
+
+    assert (variant.codex.mcp_program, variant.prompt_context.read_text()) == (
+        "/nix/store/current-harness/bin/mcp",
+        built.prompt_context.contents.decode(),
+    )
+
+
 def test_variant_cleanup_does_not_follow_an_intermediate_symlink(
     tmp_path: Path,
 ) -> None:

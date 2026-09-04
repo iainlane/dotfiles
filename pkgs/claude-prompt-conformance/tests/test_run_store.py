@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import stat
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from claude_prompt_conformance.inputs import (
     RuntimeInputs,
     RuntimeInputSnapshotDocumentMismatchError,
 )
+from claude_prompt_conformance.protocols.configuration import RuntimeConfigurationInput
 from claude_prompt_conformance.run_store import (
     OutputMarkerDecodeError,
     OutputPathUnmarkedError,
@@ -732,6 +734,52 @@ def test_run_identity_covers_every_class_of_controlled_input(tmp_path: Path) -> 
         False,
         False,
     )
+
+
+def moved_git(declaration: RuntimeConfigurationInput) -> RuntimeConfigurationInput:
+    return msgspec.structs.replace(
+        declaration,
+        git_program="/nix/store/rebuilt-git/bin/git",
+    )
+
+
+def moved_codex(declaration: RuntimeConfigurationInput) -> RuntimeConfigurationInput:
+    return msgspec.structs.replace(
+        declaration,
+        codex=msgspec.structs.replace(
+            declaration.codex,
+            program="/nix/store/rebuilt-codex/bin/codex",
+        ),
+    )
+
+
+def moved_nixpkgs(declaration: RuntimeConfigurationInput) -> RuntimeConfigurationInput:
+    return msgspec.structs.replace(
+        declaration,
+        variant=msgspec.structs.replace(
+            declaration.variant,
+            nixpkgs="/nix/store/rebuilt-nixpkgs",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "rebuild",
+    [
+        pytest.param(moved_git, id="git-program"),
+        pytest.param(moved_codex, id="codex-program"),
+        pytest.param(moved_nixpkgs, id="variant-nixpkgs"),
+    ],
+)
+def test_run_identity_ignores_a_path_a_harness_rebuild_moves(
+    tmp_path: Path,
+    rebuild: Callable[[RuntimeConfigurationInput], RuntimeConfigurationInput],
+) -> None:
+    inputs = runtime_inputs(tmp_path)
+
+    rebuilt = replace(inputs, declaration=rebuild(inputs.declaration))
+
+    assert rebuilt.fingerprint() == inputs.fingerprint()
 
 
 def test_run_identity_is_stable_after_materialising_its_snapshot(
