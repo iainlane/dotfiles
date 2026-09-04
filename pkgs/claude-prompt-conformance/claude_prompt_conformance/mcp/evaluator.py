@@ -1,6 +1,7 @@
 """Read-only MCP capabilities for one candidate evaluation."""
 
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
@@ -15,16 +16,17 @@ from ..protocols.claude import (
     CandidateToolUse,
 )
 from ..protocols.mcp import EvaluatorDescriptor, EvaluatorVerification
+from ..storage import append_line
 from .configuration import McpConfigurationFormatError
 from .files import (
     McpDocumentReadError,
     list_files,
-    list_workspace_files,
     read_page,
     read_text,
     relative_path,
     resolved_child,
 )
+from .files import list_workspace_files as page_workspace_files
 from .models import (
     Action,
     ActionDetails,
@@ -61,7 +63,10 @@ class McpUnknownCheckError(ConformanceError):
     available: tuple[str, ...]
 
     def __str__(self) -> str:
-        return f"unknown verification check {self.name!r}"
+        return (
+            f"unknown verification check {self.name!r}; "
+            f"the fixture declares {self.available!r}"
+        )
 
 
 @dataclass(eq=True)
@@ -91,6 +96,11 @@ EVALUATION_BRIEF_TOOL = "get_evaluation_brief"
 BRIEF_TEXT_LIMIT = 20_000
 BRIEF_TOOL_CALL_LIMIT = 200
 INDEX_INPUT_LIMIT = 2_000
+SEARCH_FILE_COUNT_LIMIT = 10_000
+# A repository can contain a checked-in binary or a generated bundle of any
+# size, so skip a file above this many bytes and bound the work one search
+# does.
+SEARCH_FILE_LIMIT = 1_000_000
 
 
 class EvaluatorEvidence:
@@ -104,8 +114,7 @@ class EvaluatorEvidence:
 
         destination = Path(self._configuration.access_record)
         try:
-            with destination.open("a", encoding="utf-8") as stream:
-                stream.write(f"{tool}\n")
+            append_line(destination, tool)
         except OSError as error:
             raise McpAccessRecordWriteError(destination, error) from error
 
@@ -125,7 +134,7 @@ class EvaluatorEvidence:
 
     def candidate_summary(self) -> CandidateSummary:
         repository = self._configuration.repository
-        actions = self._actions()
+        actions = self._actions
         return CandidateSummary(
             response=read_text(Path(self._configuration.response)),
             repository_url=repository.url,
@@ -150,7 +159,7 @@ class EvaluatorEvidence:
         )
 
     def action_details(self, offsets: tuple[int, ...]) -> ActionDetails:
-        actions = self._actions()
+        actions = self._actions
         for offset in offsets:
             if offset >= len(actions):
                 raise McpUnknownActionError(offset, len(actions))
@@ -202,7 +211,7 @@ class EvaluatorEvidence:
         root = Path(self._configuration.workspace)
         relative = relative_path(root, prefix)
         source = resolved_child(root, relative)
-        files, next_offset = list_workspace_files(
+        files, next_offset = page_workspace_files(
             source, PurePosixPath(prefix), offset, limit
         )
         return FileListing(
@@ -232,29 +241,39 @@ class EvaluatorEvidence:
         relative = relative_path(root, prefix)
         source = resolved_child(root, relative)
         matches: list[SearchMatch] = []
-        paths, next_offset = list_workspace_files(
-            source, PurePosixPath(prefix), 0, 10_000
+        paths, next_offset = page_workspace_files(
+            source, PurePosixPath(prefix), 0, SEARCH_FILE_COUNT_LIMIT
         )
         for path in paths:
             candidate = resolved_child(root, relative_path(root, path))
             try:
-                lines = candidate.read_text(errors="replace").splitlines()
+                if candidate.stat().st_size > SEARCH_FILE_LIMIT:
+                    continue
+                with candidate.open(encoding="utf-8", errors="replace") as stream:
+                    lines = enumerate(stream, start=1)
+                    for line_number, line in lines:
+                        if query not in line:
+                            continue
+                        matches.append(
+                            SearchMatch(
+                                path=path,
+                                line=line_number,
+                                text=line.rstrip("\n"),
+                            )
+                        )
+                        if len(matches) == limit:
+                            return SearchResults(
+                                query=query, matches=tuple(matches), truncated=True
+                            )
             except OSError as error:
                 raise McpDocumentReadError(candidate, error) from error
-            for line_number, line in enumerate(lines, start=1):
-                if query not in line:
-                    continue
-                matches.append(SearchMatch(path=path, line=line_number, text=line))
-                if len(matches) == limit:
-                    return SearchResults(
-                        query=query, matches=tuple(matches), truncated=True
-                    )
         return SearchResults(
             query=query,
             matches=tuple(matches),
             truncated=next_offset is not None,
         )
 
+    @cached_property
     def _actions(self) -> tuple[CandidateAction, ...]:
         source = Path(self._configuration.actions)
         try:
@@ -265,7 +284,7 @@ class EvaluatorEvidence:
             raise McpConfigurationFormatError(source, error) from error
 
     def _tool_calls(self) -> tuple[CandidateToolCall, ...]:
-        actions = self._actions()
+        actions = self._actions
         results: dict[str, tuple[int, CandidateToolResult]] = {}
         for offset, value in enumerate(actions):
             match value:
@@ -326,7 +345,11 @@ def create_evaluator_server(evidence: EvaluatorEvidence) -> FastMCP[None]:
 
     @server.tool()
     def get_candidate_action_details(offsets: ActionOffsets) -> ActionDetails:
-        """Return exact payloads for selected offsets from the compact tool-call index."""
+        """Return the payloads at chosen offsets of the compact tool-call index.
+
+        A payload longer than the per-action limit arrives cut short, with the
+        action's `truncated` field set.
+        """
 
         evidence.record("get_candidate_action_details")
         return evidence.action_details(offsets)
@@ -390,7 +413,10 @@ def create_evaluator_server(evidence: EvaluatorEvidence) -> FastMCP[None]:
         prefix: str = "",
         limit: Annotated[int, Field(ge=1, le=200)] = 50,
     ) -> SearchResults:
-        """Find a literal string in repository text files below a directory."""
+        """Find a literal string in the workspace's files below a directory.
+
+        Files above a byte cap are skipped, and undecodable bytes are replaced.
+        """
 
         evidence.record("search_workspace")
         return evidence.search_workspace(query, prefix, limit)

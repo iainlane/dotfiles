@@ -361,6 +361,18 @@ def reset_file(root: Path, destination: Path) -> None:
         os.close(descriptor)
 
 
+def append_line(destination: Path, value: str) -> None:
+    """Add one line to a run-owned record, rejecting a symlink at the destination."""
+
+    descriptor = os.open(
+        destination,
+        os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW,
+        0o600,
+    )
+    with open(descriptor, "a", encoding="utf-8") as stream:
+        stream.write(f"{value}\n")
+
+
 def open_owned_output(destination: Path) -> IO[bytes]:
     """Open a file the supervisor writes on a child's behalf, rejecting a symlink.
 

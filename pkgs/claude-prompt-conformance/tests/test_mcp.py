@@ -15,9 +15,10 @@ from claude_prompt_conformance.mcp import (
 from claude_prompt_conformance.mcp.evaluator import (
     EvaluatorEvidence,
     McpUnknownActionError,
+    McpUnknownCheckError,
     action,
 )
-from claude_prompt_conformance.mcp.files import McpPathOutsideRootError
+from claude_prompt_conformance.mcp.files import McpPathOutsideRootError, read_page
 from claude_prompt_conformance.mcp.improver import ImproverEvidence
 from claude_prompt_conformance.mcp.models import (
     ActionDetails,
@@ -35,6 +36,7 @@ from claude_prompt_conformance.mcp.models import (
     FileListing,
     ImprovementOverview,
     PromptDocument,
+    PromptFileListing,
     SearchMatch,
     SearchResults,
     Task,
@@ -614,10 +616,8 @@ def test_improver_capabilities_expose_failures_selectively(tmp_path: Path) -> No
                 "The prompt does not connect evidence to the handoff.",
             ),
         ),
-        FileListing(
+        PromptFileListing(
             root="prompt-source",
-            offset=0,
-            next_offset=None,
             files=("instructions/AGENTS.md", "output-style/plain.md"),
             truncated=False,
         ),
@@ -640,3 +640,48 @@ def test_improver_capabilities_expose_failures_selectively(tmp_path: Path) -> No
         Path(configuration.prompt_root),
         "prompt-conformance/fixtures/reserved/task.txt",
     )
+
+
+@pytest.mark.parametrize(
+    ("offset", "limit", "text", "next_offset"),
+    [
+        pytest.param(0, 4, "abcd", 4, id="first-page"),
+        pytest.param(4, 4, "efgh", 8, id="middle-page"),
+        pytest.param(8, 4, "ij", None, id="last-page"),
+        pytest.param(10, 4, "", None, id="past-the-end"),
+    ],
+)
+def test_a_page_names_the_offset_the_next_page_starts_at(
+    tmp_path: Path,
+    offset: int,
+    limit: int,
+    text: str,
+    next_offset: int | None,
+) -> None:
+    source = tmp_path / "document.txt"
+    source.write_text("abcdefghij")
+
+    assert read_page(source, offset, limit) == TextPage(
+        path="document.txt",
+        offset=offset,
+        next_offset=next_offset,
+        text=text,
+    )
+
+
+def test_an_unknown_check_names_the_checks_the_fixture_declares(
+    tmp_path: Path,
+) -> None:
+    evidence = EvaluatorEvidence(evaluator_configuration(tmp_path))
+
+    with pytest.raises(McpUnknownCheckError) as raised:
+        evidence.check("lint", 0, 20_000)
+
+    assert (raised.value, str(raised.value)) == (
+        McpUnknownCheckError("lint", ("unit tests",)),
+        "unknown verification check 'lint'; the fixture declares ('unit tests',)",
+    )
+
+
+def test_the_mcp_server_reports_an_unusable_configuration(tmp_path: Path) -> None:
+    assert main((str(tmp_path / "absent.json"),)) == 2

@@ -1,6 +1,7 @@
 """Read-only MCP capabilities for one prompt-improvement proposal."""
 
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
@@ -21,8 +22,8 @@ from .models import (
     FailureDetail,
     FailureListing,
     FailureReference,
-    FileListing,
     ImprovementOverview,
+    PromptFileListing,
     TextPage,
     VerificationOutcome,
     WorkingExamplesSummary,
@@ -44,6 +45,7 @@ class McpUnknownFailureError(ConformanceError):
 PageOffset = Annotated[int, Field(ge=0)]
 PageLimit = Annotated[int, Field(ge=1, le=20_000)]
 PROMPT_DIRECTORIES = ("instructions", "output-style")
+PROMPT_FILE_LIMIT = 1_000
 
 
 class ImproverEvidence:
@@ -86,24 +88,30 @@ class ImproverEvidence:
             raise McpUnknownFailureError(sample, fixture) from error
         return failure_detail(sample, outcome)
 
-    def prompt_files(self) -> FileListing:
+    @cached_property
+    def _eligible(self) -> tuple[tuple[str, ...], bool]:
         root = Path(self._configuration.prompt_root)
-        files, truncated = eligible_prompt_files(root, 1_000)
-        return FileListing(
+        return eligible_prompt_files(root, PROMPT_FILE_LIMIT)
+
+    def prompt_files(self) -> PromptFileListing:
+        files, truncated = self._eligible
+        return PromptFileListing(
             root="prompt-source",
-            offset=0,
-            next_offset=None,
             files=files,
             truncated=truncated,
         )
 
     def prompt_file(self, path: str, offset: int, limit: int) -> TextPage:
         root = Path(self._configuration.prompt_root)
-        source = logical_child(root, path)
-        permitted, _ = eligible_prompt_files(root, 1_000_000)
+        permitted, _ = self._eligible
         if path not in permitted:
             raise McpPathOutsideRootError(root, path)
-        return read_page(source, offset, limit, display_path=path)
+        return read_page(
+            logical_child(root, path),
+            offset,
+            limit,
+            display_path=path,
+        )
 
 
 def create_improver_server(evidence: ImproverEvidence) -> FastMCP[None]:
@@ -119,13 +127,13 @@ def create_improver_server(evidence: ImproverEvidence) -> FastMCP[None]:
 
     @server.tool()
     def get_improvement_overview() -> ImprovementOverview:
-        """Return working-example totals and outcomes of earlier proposals."""
+        """Return working-example totals and per-criterion pass counts."""
 
         return evidence.overview()
 
     @server.tool()
     def list_failures() -> FailureListing:
-        """List failed or invalid working-example outcomes."""
+        """List working outcomes which failed, were invalid, or missed a criterion."""
 
         return evidence.failures()
 
@@ -139,7 +147,7 @@ def create_improver_server(evidence: ImproverEvidence) -> FastMCP[None]:
         return evidence.failure(sample, fixture)
 
     @server.tool()
-    def list_prompt_files() -> FileListing:
+    def list_prompt_files() -> PromptFileListing:
         """List prompt instruction and output-style files eligible for changes."""
 
         return evidence.prompt_files()

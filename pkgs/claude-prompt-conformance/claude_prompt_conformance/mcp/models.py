@@ -42,9 +42,19 @@ class TextPage(Model):
 
 
 class FileListing(Model):
+    """One page of a workspace listing; `truncated` means more pages follow."""
+
     root: str
     offset: int
     next_offset: int | None
+    files: tuple[str, ...]
+    truncated: bool
+
+
+class PromptFileListing(Model):
+    """Eligible prompt files; `truncated` means the limit cut the listing off."""
+
+    root: str
     files: tuple[str, ...]
     truncated: bool
 

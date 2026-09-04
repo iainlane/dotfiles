@@ -27,10 +27,15 @@ class McpDocumentReadError(ConformanceError):
 
 
 def read_text(path: Path) -> str:
-    """Read a UTF-8 evidence document and retain its typed failure cause."""
+    """Read an evidence document, retaining its typed failure cause.
+
+    A candidate's diff can carry any byte a file in its checkout carries, so
+    undecodable bytes become replacement characters here as they do in
+    `search_workspace`, and only the read itself can fail.
+    """
 
     try:
-        return path.read_text()
+        return path.read_text(errors="replace")
     except OSError as error:
         raise McpDocumentReadError(path, error) from error
 
@@ -87,7 +92,11 @@ def resolved_child(root: Path, relative: PurePosixPath) -> Path:
 def list_files(
     root: Path, display_prefix: PurePosixPath, limit: int
 ) -> tuple[tuple[str, ...], bool]:
-    """List regular files beneath a capability root with a deterministic bound."""
+    """List regular files under a root in order, stopping at the limit.
+
+    A root which is itself a regular file lists as the display prefix. The
+    second element of the result says whether the limit cut the listing short.
+    """
 
     if root.is_file():
         return (str(display_prefix),), False
@@ -108,7 +117,11 @@ def list_workspace_files(
     offset: int,
     limit: int,
 ) -> tuple[tuple[str, ...], int | None]:
-    """Page repository files without traversing generated or control trees."""
+    """Page the workspace's regular files, skipping symlinks and build trees.
+
+    The second element of the result is the offset the next page starts at, or
+    `None` when the listing reached the end.
+    """
 
     ignored_directories = {".claude", ".direnv", ".git", "node_modules", "target"}
     selected: list[str] = []

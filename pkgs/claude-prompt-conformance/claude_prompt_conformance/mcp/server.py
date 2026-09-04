@@ -5,6 +5,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import anyio
 from mcp.server.fastmcp import FastMCP
 
 from ..errors import ConformanceError
@@ -39,6 +40,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _main(argv)
     except KeyboardInterrupt:
         return 130
+    except (BrokenPipeError, anyio.BrokenResourceError, anyio.ClosedResourceError):
+        # The model process owns this server's lifetime and ends it by closing
+        # the pipe, which is not a failure of the evidence it served.
+        print("the MCP client closed the connection", file=sys.stderr)
+        return 3
 
 
 def _main(argv: Sequence[str] | None = None) -> int:
