@@ -42,6 +42,21 @@ strip_hash() {
 	sed 's/^[a-z0-9]*-//'
 }
 
+# Print the lines on stdin, or a placeholder when there are none. A `grep`
+# that matches nothing exits 1, so each caller runs its pipeline in a subshell
+# with `pipefail` off. The pipeline then succeeds and produces no lines.
+print_or_none() {
+	local lines
+	lines="$(cat)"
+
+	if [[ -z "${lines}" ]]; then
+		echo "  (none found)"
+		return 0
+	fi
+
+	printf '%s\n' "${lines}"
+}
+
 cmd_summary() {
 	echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 	echo -e "${BOLD}                    Nix Store Summary${NC}"
@@ -128,21 +143,30 @@ cmd_roots() {
 	echo
 
 	echo -e "${CYAN}nix-direnv environments:${NC}"
-	nix-store --gc --print-roots 2>/dev/null | grep -E '\.direnv|direnv' | head -20 || echo "  (none found)"
+	(
+		set +o pipefail
+		nix-store --gc --print-roots 2>/dev/null | grep -E '\.direnv|direnv' | head -20
+	) | print_or_none
 	echo
 
 	echo -e "${CYAN}System profiles:${NC}"
-	nix-store --gc --print-roots 2>/dev/null | grep -E '/nix/var/nix/profiles/(system|default)' | head -10 || echo "  (none found)"
+	(
+		set +o pipefail
+		nix-store --gc --print-roots 2>/dev/null | grep -E '/nix/var/nix/profiles/(system|default)' | head -10
+	) | print_or_none
 	echo
 
 	echo -e "${CYAN}Other roots:${NC}"
-	nix-store --gc --print-roots 2>/dev/null |
-		grep -v "^/proc/" |
-		grep -v '\.direnv' |
-		grep -v 'profiles/home-manager' |
-		grep -v 'profiles/system' |
-		grep -v 'profiles/default' |
-		head -20
+	(
+		set +o pipefail
+		nix-store --gc --print-roots 2>/dev/null |
+			grep -v "^/proc/" |
+			grep -v '\.direnv' |
+			grep -v 'profiles/home-manager' |
+			grep -v 'profiles/system' |
+			grep -v 'profiles/default' |
+			head -20
+	) | print_or_none
 }
 
 cmd_direnv() {
@@ -151,22 +175,33 @@ cmd_direnv() {
 
 	echo -e "${CYAN}Active direnv profiles:${NC}"
 
-	declare -A seen_projects
-	nix-store --gc --print-roots 2>/dev/null |
-		grep '\.direnv' |
-		while IFS=' -> ' read -r root_path store_path; do
-			local project_dir
-			project_dir=${root_path%/.direnv/*}
+	(
+		set +o pipefail
 
-			[[ -n ${seen_projects[${project_dir}]:-} ]] && continue
-			seen_projects[${project_dir}]=1
+		declare -A seen_projects
 
-			if [[ -n "${store_path}" ]]; then
-				local size
-				size=$(nix path-info -S "${store_path}" 2>/dev/null | awk '{print $2}' || echo "0")
+		nix-store --gc --print-roots 2>/dev/null |
+			grep '\.direnv' |
+			while IFS= read -r root; do
+				# The root and the store path are separated by " -> ", and
+				# both halves contain hyphens of their own, so split on the
+				# whole arrow. `IFS` would split on each of its characters.
+				[[ "${root}" == *" -> "* ]] || continue
+
+				local root_path store_path project_dir size
+				root_path="${root%% -> *}"
+				store_path="${root#* -> }"
+				project_dir=${root_path%/.direnv/*}
+
+				[[ -n ${seen_projects[${project_dir}]:-} ]] && continue
+				seen_projects[${project_dir}]=1
+
+				size=$(nix path-info -S "${store_path}" 2>/dev/null | awk '{print $2}')
+				[[ -n "${size}" ]] || size=0
+
 				printf "  ${BLUE}%-50s${NC} ${GREEN}%10s${NC}\n" "${project_dir}" "$(human_size "${size}")"
-			fi
-		done
+			done
+	)
 
 	echo
 	echo -e "${CYAN}Finding flake.nix files in common locations...${NC}"
@@ -223,7 +258,11 @@ resolve_path() {
 	fi
 
 	local found
-	found=$(nix path-info --all 2>/dev/null | grep "${path}" | head -1)
+	found=$(
+		set +o pipefail
+		nix path-info --all 2>/dev/null | grep "${path}" | head -1
+	)
+
 	if [[ -n "${found}" ]]; then
 		echo "${found}"
 		return 0
@@ -260,11 +299,18 @@ cmd_deps() {
 		set +o pipefail
 		nix-store --query --requisites "${path}" 2>/dev/null |
 			while read -r dep; do
-				local name size
+				local size
+				size=$(nix path-info -S "${dep}" 2>/dev/null | awk '{print $2}')
+				[[ -n "${size}" ]] || size=0
+
+				echo "${size} ${dep}"
+			done |
+			sort -rn | head -30 |
+			while read -r size dep; do
+				local name
 				name=$(basename "${dep}" | strip_hash)
-				size=$(nix path-info -S "${dep}" 2>/dev/null | awk '{print $2}' || echo "0")
 				printf "${GREEN}%10s${NC}  %s\n" "$(human_size "${size}")" "${name}"
-			done | sort -rh | head -30
+			done
 	)
 }
 
@@ -284,7 +330,11 @@ cmd_gc_preview() {
 
 	local dead_paths dead_count
 	dead_paths=$(nix-store --gc --print-dead 2>/dev/null)
-	dead_count=$(echo "${dead_paths}" | grep -c . || echo "0")
+
+	dead_count=0
+	if [[ -n "${dead_paths}" ]]; then
+		dead_count=$(printf '%s\n' "${dead_paths}" | wc -l | tr -d ' ')
+	fi
 
 	if [[ "${dead_count}" -eq 0 ]]; then
 		echo -e "${GREEN}No garbage to collect!${NC}"
@@ -323,15 +373,23 @@ cmd_search() {
 	echo -e "${BOLD}Searching for:${NC} ${pattern}"
 	echo
 
-	nix path-info --all 2>/dev/null |
-		grep -i "${pattern}" |
-		while read -r path; do
-			local name size
-			name=$(basename "${path}" | strip_hash)
-			size=$(nix path-info -S "${path}" 2>/dev/null | awk '{print $2}' || echo "0")
-			printf "${GREEN}%10s${NC}  %s\n" "$(human_size "${size}")" "${name}"
-			echo -e "           ${BLUE}${path}${NC}"
-		done
+	local matches
+	matches=$(nix path-info --all 2>/dev/null | grep -i "${pattern}") || true
+
+	if [[ -z "${matches}" ]]; then
+		echo "  No store path matches ${pattern}"
+		return 0
+	fi
+
+	while read -r path; do
+		local name size
+		name=$(basename "${path}" | strip_hash)
+		size=$(nix path-info -S "${path}" 2>/dev/null | awk '{print $2}')
+		[[ -n "${size}" ]] || size=0
+
+		printf "${GREEN}%10s${NC}  %s\n" "$(human_size "${size}")" "${name}"
+		echo -e "           ${BLUE}${path}${NC}"
+	done <<<"${matches}"
 }
 
 case "${1:-summary}" in
