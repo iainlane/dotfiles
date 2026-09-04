@@ -33,8 +33,10 @@ in {
 
   systemManager = {
     config,
+    exposePodman,
     lib,
     pkgs,
+    serviceNetwork,
     ...
   }: let
     cfg = config.dotfiles.agentsviewServer;
@@ -295,7 +297,7 @@ in {
 
         networks =
           ["${network}.network"]
-          ++ lib.optional reachableFromProxy "${proxy.serviceNetwork databaseName}.network";
+          ++ lib.optional reachableFromProxy "${serviceNetwork databaseName}.network";
 
         # The container uses the host ids. It runs as its own user and has
         # no capabilities. An escape from the container gets an id that owns
@@ -546,7 +548,7 @@ in {
             ${databaseName} = databaseContainer;
 
             ${dashboardName} =
-              proxy.exposePodman dashboardName dashboardContainer
+              exposePodman dashboardName dashboardContainer
               (cfg.expose // {inherit (cfg) port;});
           };
         };

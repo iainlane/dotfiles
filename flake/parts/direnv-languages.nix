@@ -79,19 +79,17 @@ in {
         on a project definition rather than replicating shell glue.
       '';
     };
-
-    mkLanguageShell = mkOption {
-      type = types.unspecified;
-      readOnly = true;
-      description = ''
-        Helper `pkgs -> os -> [name] -> attrs` that merges `direnvLanguages`
-        fragments (and any matching `os.<name>` overlay) for a list of
-        language names into a single mkShell argument set. The `os` is the
-        kernel name passed in by the per-system caller, so the resolver does
-        no platform detection of its own.
-      '';
-    };
   };
+
+  # `pkgs -> os -> [name] -> attrs`, merging the `direnvLanguages` fragments
+  # for a list of language names (and any matching `os.<name>` overlay) into a
+  # single mkShell argument set. The `os` is the kernel name the per-system
+  # caller passes in, so the resolver does no platform detection of its own.
+  config._module.args.mkLanguageShell = pkgs: os: names:
+    lib.foldl'
+    mergeShellAttrs
+    {}
+    (map (name: fragmentFor pkgs os name) names);
 
   config.flake = {
     direnvLanguages = {
@@ -197,11 +195,5 @@ in {
         ];
       };
     };
-
-    mkLanguageShell = pkgs: os: names:
-      lib.foldl'
-      mergeShellAttrs
-      {}
-      (map (name: fragmentFor pkgs os name) names);
   };
 }

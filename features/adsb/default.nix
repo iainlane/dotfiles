@@ -10,6 +10,7 @@
 
     systemManager = {
       config,
+      exposePodman,
       hostConfig,
       inputs,
       lib,
@@ -95,7 +96,7 @@
             containers = {
               ${ultrafeederName} =
                 if exposeUltrafeeder
-                then config.dotfiles.containers.edgeProxy.exposePodman ultrafeederName ultrafeederContainer (cfg.expose // {port = 80;})
+                then exposePodman ultrafeederName ultrafeederContainer (cfg.expose // {port = 80;})
                 else ultrafeederContainer;
               piaware = piawareContainer;
               fr24 = fr24Container;

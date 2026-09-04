@@ -8,9 +8,8 @@
 # single address that cannot be delegated, so it is published instead.
 #
 # What to serve is discovered from the containers themselves: anything wrapped
-# in `config.dotfiles.containers.edgeProxy.exposePodman` has labels saying which name it
-# answers to and whether it needs signing in first. This feature never names an
-# individual service.
+# in `exposePodman` has labels saying which name it answers to and whether it
+# needs signing in first. This feature never names an individual service.
 {config, ...}: let
   inherit (config.flake) features;
   children = features.caddy.provides;
@@ -25,6 +24,7 @@ in {
       inputs,
       lib,
       pkgs,
+      serviceNetwork,
       ...
     }: let
       cfg = config.dotfiles.caddy;
@@ -174,9 +174,9 @@ in {
       # The sign-in service gets one too: the proxy asks it about a request
       # before serving it.
       serviceNetworks =
-        map proxy.serviceNetwork (lib.attrNames exposed)
-        ++ map proxy.serviceNetwork (lib.attrNames proxy.streams)
-        ++ lib.optional cfg.auth.present (proxy.serviceNetwork cfg.auth.containerName);
+        map serviceNetwork (lib.attrNames exposed)
+        ++ map serviceNetwork (lib.attrNames proxy.streams)
+        ++ lib.optional cfg.auth.present (serviceNetwork cfg.auth.containerName);
 
       # A client of the identity provider fetches its discovery document, its
       # keys, and the tokens it issues, all from the provider's public name.
@@ -638,7 +638,7 @@ in {
             ${cfg.auth.containerName} = lib.mkIf cfg.auth.present {
               containerConfig = {
                 image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
-                networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];
+                networks = ["${serviceNetwork cfg.auth.containerName}.network"];
                 entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
                 exec = "--config ${authConfigPath} --alpha-config ${authAlphaConfigPath}";
 

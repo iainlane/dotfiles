@@ -93,8 +93,8 @@ in {
     type = lib.types.submodule {
       options = {
         substitutersModule = lib.mkOption {
-          type = lib.types.nullOr lib.types.unspecified;
-          default = null;
+          type = lib.types.deferredModule;
+          description = "Module setting the substituters and their public keys, applied by each OS adapter to whichever module system builds the host.";
         };
         substituterConfig = lib.mkOption {
           type = lib.types.nullOr lib.types.str;

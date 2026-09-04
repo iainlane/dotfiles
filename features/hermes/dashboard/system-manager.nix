@@ -7,6 +7,7 @@
 # `allow` list is what limits that.
 {
   config,
+  exposePodman,
   inputs,
   lib,
   pkgs,
@@ -72,7 +73,7 @@ in {
 
       virtualisation.quadlet.containers.${dashboard.containerName} =
         if exposed
-        then config.dotfiles.containers.edgeProxy.exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})
+        then exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})
         else dashboardContainer;
     }
 

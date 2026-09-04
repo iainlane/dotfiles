@@ -11,6 +11,7 @@
 
     systemManager = {
       config,
+      exposePodman,
       inputs,
       lib,
       pkgs,
@@ -196,7 +197,7 @@
 
             containers.${cfg.containerName} =
               if expose
-              then config.dotfiles.containers.edgeProxy.exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;})
+              then exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;})
               else dexContainer;
           };
         }

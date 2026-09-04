@@ -1,11 +1,11 @@
 {
   inputs,
   config,
+  mkLanguageShell,
   withSystem,
   ...
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
-  inherit (config.flake) mkLanguageShell;
   children = config.flake.features.development.provides;
 
   # Base dev directory with common tools
