@@ -87,8 +87,8 @@
               class = "nixos";
               inherit hostConfig;
             }
-            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
             ++ [
+              hostConfig.systemModule
               channel.home-manager.nixosModules.home-manager
               (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];

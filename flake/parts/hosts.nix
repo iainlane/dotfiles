@@ -149,14 +149,14 @@
         description = "Where this flake is checked out on the host. `nh` builds from that checkout, and the Neovim lock file is a symlink into it, so plugin updates are written to the working tree.";
       };
       homeModule = lib.mkOption {
-        type = lib.types.nullOr lib.types.deferredModule;
-        default = null;
-        description = "Home Manager module for this host only.";
+        type = lib.types.deferredModule;
+        default = {};
+        description = "Home Manager module for this host only. Several files may define it, and the module system merges them.";
       };
       systemModule = lib.mkOption {
-        type = lib.types.nullOr lib.types.deferredModule;
-        default = null;
-        description = "Module for this host only, for whichever of NixOS, nix-darwin or system-manager builds it.";
+        type = lib.types.deferredModule;
+        default = {};
+        description = "Module for this host only, for whichever of NixOS, nix-darwin or system-manager builds it. Several files may define it, and the module system merges them.";
       };
 
       # Computed

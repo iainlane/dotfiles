@@ -1,12 +1,12 @@
 {
   inputs,
-  lib,
   config,
   withSystem,
   helpers,
   username,
   overlays,
   nixpkgsConfig,
+  ...
 }: hostConfig: let
   homeExtraModules = [
     {
@@ -42,7 +42,7 @@
               class = "systemManager";
               inherit hostConfig;
             }
-            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule;
+            ++ [hostConfig.systemModule];
           specialArgs = {
             inherit
               inputs

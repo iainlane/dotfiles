@@ -16,7 +16,7 @@
   features = import ./features.nix {inherit lib;};
   sops = import ./sops.nix {inherit inputs lib;};
   home = import ./home.nix {
-    inherit inputs lib;
+    inherit inputs;
     inherit (features) resolveFeatures;
     inherit (sops) mkHomeSopsModule;
   };

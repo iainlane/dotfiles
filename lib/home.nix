@@ -5,7 +5,6 @@
 # Manager wiring itself.
 {
   inputs,
-  lib,
   resolveFeatures,
   mkHomeSopsModule,
 }: rec {
@@ -17,8 +16,8 @@
       class = "homeManager";
       inherit hostConfig;
     }
-    ++ lib.optional (hostConfig.homeModule != null) hostConfig.homeModule
     ++ [
+      hostConfig.homeModule
       {
         home = {
           inherit username;

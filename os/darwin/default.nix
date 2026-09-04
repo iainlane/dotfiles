@@ -1,6 +1,5 @@
 {
   inputs,
-  lib,
   config,
   withSystem,
   helpers,
@@ -32,8 +31,8 @@
               class = "darwin";
               inherit hostConfig;
             }
-            ++ lib.optional (hostConfig.systemModule != null) hostConfig.systemModule
             ++ [
+              hostConfig.systemModule
               inputs.home-manager.darwinModules.home-manager
               (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
