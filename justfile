@@ -210,9 +210,9 @@ generate-secureboot-secrets host secrets_dir:
 generate-borgmatic-secrets host secrets_dir:
     ./scripts/generate-borgmatic-secrets.bash "{{ host }}" "{{ secrets_dir }}"
 
-# Generate all keys and secrets for a new NixOS host
-generate-host-keys host:
-    ./scripts/generate-host-keys.bash "{{ host }}" "{{ secrets_repo }}"
+# Generate all keys and secrets for a new NixOS host, or re-key one with --rekey
+generate-host-keys host *args:
+    ./scripts/generate-host-keys.bash "{{ host }}" "{{ secrets_repo }}" {{ args }}
 
 # Generate the AgentsView secrets for every host that needs them, or those named
 generate-agentsview-secrets *hosts:
