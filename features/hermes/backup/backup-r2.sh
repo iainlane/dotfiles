@@ -37,8 +37,7 @@ rsync -a --numeric-ids \
 	--exclude='/workspace/AGENTS.md' \
 	--exclude='/.hermes/state.db*' \
 	--exclude='/.hermes/memory_store.db*' \
-	--exclude='/.hermes/kanban.db-wal' \
-	--exclude='/.hermes/kanban.db-shm' \
+	--exclude='/.hermes/kanban.db*' \
 	"${HERMES_STATE_DIR}/" "${snap}/"
 
 for db in state.db memory_store.db kanban.db; do

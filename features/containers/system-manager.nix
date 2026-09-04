@@ -84,6 +84,11 @@ in {
     virtualisation.podman = {
       enable = true;
 
+      # The helper podman calls out to for rootless networking, on podman's
+      # own PATH because it is podman that looks for it. The package already
+      # carries the rest of its helpers, `fuse-overlayfs` among them.
+      extraPackages = [pkgs.slirp4netns];
+
       # Every build tags its image with the store hash, so an image that a
       # newer build has superseded keeps its tag and stays out of reach of
       # a plain prune. `--all` collects those. The `until` filter compares

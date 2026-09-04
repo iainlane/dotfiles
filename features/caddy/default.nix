@@ -473,7 +473,10 @@ in {
       imports = [./options.nix];
 
       config = {
-        dotfiles.containers.edgeProxy.enable = true;
+        dotfiles.containers.edgeProxy = {
+          enable = true;
+          unit = "${cfg.containerName}.service";
+        };
 
         assertions = [
           {

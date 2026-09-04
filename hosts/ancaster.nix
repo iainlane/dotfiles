@@ -89,7 +89,7 @@ in {
             domain = "godfrey.orangesquash.org.uk";
             auth = true;
           };
-          context-engine = "lcm";
+          contextEngine = "lcm";
           embeddings = {
             # OpenRouter serves OpenAI-shaped embeddings, so LCM reaches it
             # through the provider proposed in hermes-lcm#519 and reads the key

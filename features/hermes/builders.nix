@@ -137,8 +137,12 @@
       program="$(basename "$0")"
 
       case "$program" in
-        hermes|hermes-agent|hermes-acp) ;;
-        *) program="hermes" ;;
+        hermes | hermes-agent | hermes-acp)
+          ;;
+
+        *)
+          program="hermes"
+          ;;
       esac
 
       tty_arg="-i"
@@ -165,10 +169,14 @@
     done
   '';
 
+  # Both writers of `.hermes/.env` quote the value and escape the quotation
+  # marks and backslashes inside it, so a value carrying a space or a quotation
+  # mark survives python-dotenv's parse. `builtins.toJSON` of a string produces
+  # exactly the double-quoted, backslash-escaped form dotenv reads.
   envFile = pkgs.writeText "hermes-env" (
     lib.concatStringsSep "\n" (
       lib.mapAttrsToList
-      (name: value: "${name}=${value}")
+      (name: value: "${name}=${builtins.toJSON value}")
       cfg.environment
     )
   );
@@ -232,14 +240,15 @@
         fi
       '')
       cfg.environmentFiles
-      # Values with spaces survive the round trip through python-dotenv
-      # because the entry is written quoted.
       + lib.concatStrings (
         lib.mapAttrsToList
         (name: path: ''
 
           if [ -f "$state/${path}" ]; then
-            printf '\n${name}="%s"\n' "$(cat "$state/${path}")" >> "$state/.hermes/.env"
+            value="$(cat "$state/${path}")"
+            value="''${value//\\/\\\\}"
+            value="''${value//\"/\\\"}"
+            printf '\n${name}="%s"\n' "$value" >> "$state/.hermes/.env"
           fi
         '')
         cfg.environmentFromState
@@ -263,6 +272,14 @@
       );
   };
 
+  # The networks every Hermes container joins. They run the same image and the
+  # same configuration, so they are given the same networks: the agent reaches
+  # signal-cli over the second one, and the profile-picture helper sets the
+  # avatar through the same daemon.
+  hermesNetworks =
+    lib.toList cfg.container.network
+    ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
+
   # Both the gateway and the dashboard are the same image and the same
   # `hermes` binary run with a different sub-command. This builds the shared
   # container definition; callers vary only the sub-command, ports, and a
@@ -270,7 +287,7 @@
   mkHermesContainer = {
     description,
     exec,
-    networks ? [],
+    networks ? hermesNetworks,
     publishPorts ? [],
     environments ? {},
     environmentFiles ? [],
@@ -376,6 +393,7 @@ in {
     hermesCacheVolume
     profilePictureContainerPath
     hermesImage
+    hermesNetworks
     hardening
     hostCliPackage
     mkHermesContainer

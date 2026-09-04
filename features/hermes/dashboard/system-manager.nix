@@ -18,7 +18,9 @@
 
   idp = config.dotfiles.containers.identityProvider;
 
-  exposed = dashboard.expose != null && config.dotfiles.containers.edgeProxy.enable;
+  proxy = config.dotfiles.containers.edgeProxy;
+
+  exposed = dashboard.expose != null && proxy.enable;
 
   publicUrl = "https://${dashboard.expose.domain}";
 
@@ -46,10 +48,6 @@
       "--skip-build"
     ];
 
-    networks =
-      lib.toList cfg.container.network
-      ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
-
     environments = lib.optionalAttrs exposed {
       # Where someone is sent back to after signing in. The request reaches
       # Hermes from the proxy and does not carry the name it was asked for,
@@ -64,7 +62,7 @@
     after =
       ["${cfg.container.name}.service"]
       # It reaches the provider by the name the proxy answers to.
-      ++ lib.optional exposed "${config.dotfiles.caddy.containerName}.service";
+      ++ lib.optional exposed proxy.unit;
   };
 in {
   config = lib.mkMerge [

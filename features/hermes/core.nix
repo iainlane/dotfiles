@@ -19,13 +19,7 @@
     ;
 in {
   config = {
-    environment.systemPackages =
-      [
-        hostCliPackage
-        pkgs.fuse-overlayfs
-        pkgs.slirp4netns
-      ]
-      ++ cfg.extraPackages;
+    environment.systemPackages = [hostCliPackage] ++ cfg.extraPackages;
 
     dotfiles.hermes = {
       agentPackages = [pkgs.curl pkgs.wget];
@@ -56,9 +50,6 @@ in {
         exec =
           lib.concatStringsSep " "
           (["gateway" "run" "--replace"] ++ cfg.extraArgs);
-        networks =
-          lib.toList cfg.container.network
-          ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
         publishPorts = cfg.container.ports;
 
         # On stop the agent closes its platform connections, waits for the

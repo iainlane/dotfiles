@@ -1,3 +1,8 @@
+# Everything a host says about the Hermes agent: which package to run, what
+# goes into its configuration and environment, how its container is
+# configured, and which of the feature's children are composed. Each child
+# declares its own options under this root, beside the presence option the rest
+# of the feature reads.
 {
   hostConfig,
   lib,
@@ -261,7 +266,7 @@ in {
     embeddings.present = presence.option "semantic and hybrid retrieval in the LCM context engine";
     backup.present = presence.option "encrypted backups of the agent state, uploaded to Cloudflare R2";
 
-    context-engine = lib.mkOption {
+    contextEngine = lib.mkOption {
       type = lib.types.enum ["compressor" "lcm"];
       default = "compressor";
       description = "Context engine to use for conversation context management.";

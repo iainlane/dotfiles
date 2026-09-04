@@ -6,6 +6,8 @@
 # logged and skipped, and the rotation marker only advances once the chosen
 # image has actually been applied everywhere.
 
+set -euo pipefail
+
 source_path="${PROFILE_PICTURE_SOURCE}"
 state_dir="${PROFILE_PICTURE_STATE_DIR}"
 current_hash_file="${state_dir}/current.sha256"
@@ -76,14 +78,19 @@ update_matrix() {
 # daemon reads the path itself, so the same image is mounted into its container.
 update_signal() {
 	local image="$1"
-	local request response
+	local ready="" request response
 
 	for _ in $(seq 1 30); do
 		if curl -fsS "${SIGNAL_HTTP_URL}/api/v1/check" >/dev/null 2>&1; then
+			ready=1
 			break
 		fi
 		sleep 2
 	done
+	if [ -z "${ready}" ]; then
+		echo "profile-picture: signal-cli daemon not reachable, skipping" >&2
+		return 1
+	fi
 
 	request="$(jq -n --arg account "${SIGNAL_ACCOUNT}" --arg avatar "${image}" \
 		'{jsonrpc: "2.0", id: "profile-picture", method: "updateProfile", params: {account: $account, avatar: $avatar}}')"

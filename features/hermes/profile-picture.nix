@@ -15,6 +15,7 @@
     mkNixImage
     hermesUser
     hermesNss
+    hermesNetworks
     hardening
     profilePictureContainerPath
     ;
@@ -47,9 +48,6 @@
   profilePictureEnvFiles =
     lib.optionals cfg.matrix.present [config.sops.templates."hermes-matrix.env".path]
     ++ lib.optionals cfg.signal.present [config.sops.templates."hermes-signal.env".path];
-  profilePictureNetworks =
-    lib.toList cfg.container.network
-    ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
 in {
   config = lib.mkIf (cfg.profilePicture != null && (cfg.matrix.present || cfg.signal.present)) {
     virtualisation.quadlet = {
@@ -70,7 +68,7 @@ in {
             image = config.virtualisation.quadlet.images.${profilePictureContainerName}.ref;
             user = hermesUser;
             entrypoint = "${profilePictureScript}/bin/hermes-profile-picture";
-            networks = profilePictureNetworks;
+            networks = hermesNetworks;
             volumes = quadlet.mounts [
               {
                 source.quadletVolume = profilePictureStateVolume;

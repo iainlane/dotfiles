@@ -35,6 +35,17 @@ in {
       '';
     };
 
+    unit = lib.mkOption {
+      type = lib.types.str;
+      readOnly = true;
+      description = ''
+        The systemd unit the proxy runs as, defined by the feature providing
+        it. A service that has to reach a name the proxy answers to orders
+        itself after this. It has no value on a host without a proxy, so read
+        it only where `enable` is true.
+      '';
+    };
+
     network = lib.mkOption {
       type = lib.types.str;
       default = "edge";

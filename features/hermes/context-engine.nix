@@ -9,7 +9,7 @@
 }: let
   cfg = config.dotfiles.hermes;
 in {
-  config = lib.mkIf (cfg."context-engine" == "lcm") {
+  config = lib.mkIf (cfg.contextEngine == "lcm") {
     dotfiles.hermes = {
       extraPlugins.hermes-lcm = inputs.hermes-lcm;
       # hermes-lcm uses tiktoken for exact token counts and regex for
