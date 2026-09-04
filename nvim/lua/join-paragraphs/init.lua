@@ -129,10 +129,10 @@ local function perform_join_on_range(start_line, end_line)
 
     added_blank = true
 
-    -- Run the join command on the original range. Use end_line - 1 because the
-    -- join logic (`.,/^\s*$/-1`) stops before a blank line. Since we added one,
-    -- we need to make sure the global command still considers the *original*
-    -- last line.
+    -- Join over the original range. Each `:join` runs `.,/^\s*$/-1`, which
+    -- stops on the line before the next blank one. The blank line added at
+    -- `end_line + 1` is where the last paragraph's join stops, so no join
+    -- runs past the requested range.
     local range_prefix = string.format("%d,%d", start_line, end_line)
     local cmd = string.format([[ %sglobal /\v^./ .,/\v^\s*$/-1 join ]], range_prefix)
     local ok, err_join = pcall(api.nvim_command, "silent! " .. cmd)
@@ -396,11 +396,11 @@ end
 local M = {}
 
 ---@class (exact) KeyMaps
----@field join_paragraphs string Keymap for joining paragraphs (e.g., "<Leader>jj").
----@field paste_join string Keymap for paste-and-join (e.g.,
+---@field join_paragraphs string Keymap for joining paragraphs (e.g. "<Leader>jj").
+---@field paste_join string Keymap for paste-and-join (e.g. "<Leader>jp").
 
 ---@class (exact) Options
----@field keymaps? KeyMaps Keymap configuration. Set to `nil` to disable keymap creation
+---@field keymaps? KeyMaps|false Keymap configuration. Set to `false` to create no keymaps.
 
 ---@type Options
 M.defaults = {

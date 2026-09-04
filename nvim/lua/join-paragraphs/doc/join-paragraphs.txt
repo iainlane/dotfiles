@@ -73,9 +73,8 @@ command name is fixed as `Rj`.
 ------------------------------------------------------------------------------
 MAPPINGS                                          *join-paragraphs-mappings*
 
-If the |join-paragraphs-options| `keymaps` table is provided during setup (it is
-by default), the following mappings are created based on the values in that
-table:
+The |join-paragraphs-options| `keymaps` option is a table of key sequences.
+The mappings below are created from its values, unless it is set to `false`.
 
 Base Join Mapping                               *join-paragraphs-base-map*
 
@@ -139,7 +138,7 @@ Example using `lazy.nvim` (in your lazy setup): >
         paste_join = "<Leader>P",       -- Example: Change paste-join mapping
       },
       -- To disable all default keymap creation:
-      -- keymaps = nil,
+      -- keymaps = false,
     },
 
     config = function(_, opts)
@@ -157,11 +156,13 @@ OPTIONS                                           *join-paragraphs-options*
 
 The `setup` function accepts an optional options table.
 
-`keymaps`              *(table | nil)*
+`keymaps`              *(table | false)*
                         Default: `{ join_paragraphs = "<Leader>jj", paste_join = "<Leader>jp" }`
                         A table configuring the keymaps created by the plugin.
-                        If this option is set to `nil`, no keymaps will be created
+                        If this option is set to `false`, no keymaps will be created
                         by this plugin, allowing you to define them manually.
+                        `nil` does not work: `setup` merges the options with
+                        |vim.tbl_deep_extend()|, which cannot see an absent key.
                         If the table is provided (or the default is used), it
                         should contain the following string keys:
 

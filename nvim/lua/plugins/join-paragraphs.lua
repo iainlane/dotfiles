@@ -4,8 +4,8 @@ return {
   cmd = { "JoinParagraphs", "Rj" },
 
   keys = {
-    { "<Leader>jj", desc = "Join Paragraphs" },
-    { "<Leader>jp", desc = "Paste and Join Paragraphs" },
+    { "<Leader>jj", mode = { "n", "x" }, desc = "Join Paragraphs" },
+    { "<Leader>jp", mode = { "n", "x" }, desc = "Paste and Join Paragraphs" },
   },
 
   config = function()
