@@ -11,7 +11,7 @@
 # `flake.agentsviewServer.domain`, which the host with the server feature
 # sets beside its host record. To add a machine, give it the feature.
 {lib}: let
-  helpers = import ./features.nix {inherit lib;};
+  helpers = import ../../lib/features.nix {inherit lib;};
 
   clientFeature = "agentsview";
   serverFeature = "agentsview-server";
@@ -66,7 +66,7 @@
   # The certificate of a machine is beside its host record. The path comes
   # from the hostname, so the server finds each certificate itself. No list of
   # them is necessary.
-  certificatePath = hostname: ../hosts + "/${hostname}/agentsview.pem";
+  certificatePath = hostname: ../../hosts + "/${hostname}/agentsview.pem";
 
   hasCertificate = hostname: builtins.pathExists (certificatePath hostname);
 

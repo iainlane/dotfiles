@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  common = import ../../lib/agentsview.nix {inherit lib;};
+  common = import ./common.nix {inherit lib;};
 in {
   options.services.agentsview-server = {
     enable = lib.mkOption {

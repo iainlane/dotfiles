@@ -1,0 +1,34 @@
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  hostConfig,
+  ...
+}: let
+  nixbuild = import ../../lib/nixbuild.nix {inherit (inputs.nixpkgs) lib;};
+
+  x86Config = let
+    targetSystem = "aarch64-linux";
+    binfmtMagics = import (pkgs.path + "/nixos/lib/binfmt-magics.nix");
+    targetMagic = binfmtMagics.${targetSystem};
+    targetPlatform = lib.systems.elaborate {system = targetSystem;};
+    interpreter = targetPlatform.emulator pkgs.pkgsStatic;
+  in
+    lib.mkIf (hostConfig.arch == "x86_64") {
+      environment.etc."binfmt.d/aarch64-linux.conf".text = ":${targetSystem}:M::${targetMagic.magicOrExtension}:${targetMagic.mask}:${interpreter}:FPC";
+
+      environment.systemPackages = [pkgs.pkgsStatic.qemu-user];
+
+      nix.settings.extra-platforms = ["aarch64-linux"];
+    };
+in {
+  config = lib.mkMerge [
+    {
+      environment.etc."nix/machines".text =
+        nixbuild.machineLines nixbuild.systems
+        config.sops.secrets.nixbuild-private-key.path;
+    }
+    x86Config
+  ];
+}

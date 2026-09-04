@@ -14,9 +14,8 @@
   config,
   inputs,
   lib,
-  ...
 }: let
-  common = import ../../lib/agentsview.nix {inherit lib;};
+  common = import ./common.nix {inherit lib;};
 
   server = common.serverSettings {
     inherit (config.flake) hosts;
@@ -237,171 +236,158 @@
     ];
   };
 in {
-  options.flake.agentsviewHosts = lib.mkOption {
-    type = lib.types.attrsOf (lib.types.enum ["server" "client" "local"]);
-    description = ''
-      What each machine with the AgentsView feature does with its archive.
-      `just generate-agentsview-secrets` reads this to decide which secrets
-      each machine needs.
-    '';
-  };
+  homeManager = {
+    config,
+    hostConfig,
+    hostname,
+    lib,
+    system,
+    ...
+  }: let
+    cfg = config.programs.agentsview;
 
-  config.flake.agentsviewHosts = common.kinds config.flake.hosts;
+    syncing = cfg.enable && cfg.sync.enable;
 
-  config.flake.features.agentsview = {
-    homeManager = {
-      config,
-      hostConfig,
-      hostname,
-      lib,
-      system,
-      ...
-    }: let
-      cfg = config.programs.agentsview;
-
-      syncing = cfg.enable && cfg.sync.enable;
-
-      # Codex writes its sessions under `CODEX_HOME`, which the Codex module
-      # sets when the home prefers XDG directories. Reading that variable
-      # means AgentsView looks where Codex actually writes.
-      codexHome =
-        config.home.sessionVariables.CODEX_HOME
+    # Codex writes its sessions under `CODEX_HOME`, which the Codex module
+    # sets when the home prefers XDG directories. Reading that variable
+    # means AgentsView looks where Codex actually writes.
+    codexHome =
+      config.home.sessionVariables.CODEX_HOME
         or "${config.home.homeDirectory}/.codex";
 
-      # Setting `codex_sessions_dirs` replaces both of the directories
-      # AgentsView searches by default, so the archived one is listed here
-      # too.
-      codexSessionsDirs = [
-        "${codexHome}/sessions"
-        "${codexHome}/archived_sessions"
-      ];
-    in {
-      imports = [./options.nix skillsModule];
+    # Setting `codex_sessions_dirs` replaces both of the directories
+    # AgentsView searches by default, so the archived one is listed here
+    # too.
+    codexSessionsDirs = [
+      "${codexHome}/sessions"
+      "${codexHome}/archived_sessions"
+    ];
+  in {
+    imports = [./client-options.nix skillsModule];
 
-      config = lib.mkMerge [
-        {programs.agentsview.sync.enable = common.pushes hostConfig;}
+    config = lib.mkMerge [
+      {programs.agentsview.sync.enable = common.pushes hostConfig;}
 
-        (lib.mkIf cfg.enable {
-          home.packages = [(agentsviewFor system)];
-        })
+      (lib.mkIf cfg.enable {
+        home.packages = [(agentsviewFor system)];
+      })
 
-        (lib.mkIf cfg.enable {
-          assertions = [
-            {
-              assertion =
-                builtins.pathExists (inputs.secrets + "/${common.userSecretsFile hostname}");
-              message = ''
-                ${hostname} keeps an archive of its agent sessions. AgentsView
-                generates its auth token and cursor secret at the first start,
-                but Nix renders its configuration read-only, so both values
-                come from the secrets repository instead.
+      (lib.mkIf cfg.enable {
+        assertions = [
+          {
+            assertion =
+              builtins.pathExists (inputs.secrets + "/${common.userSecretsFile hostname}");
+            message = ''
+              ${hostname} keeps an archive of its agent sessions. AgentsView
+              generates its auth token and cursor secret at the first start,
+              but Nix renders its configuration read-only, so both values
+              come from the secrets repository instead.
 
-                This command writes each one that ${hostname} does not have
-                yet:
+              This command writes each one that ${hostname} does not have
+              yet:
 
-                  just generate-agentsview-secrets ${hostname}
+                just generate-agentsview-secrets ${hostname}
 
-                It writes them to:
+              It writes them to:
 
-                  ${common.userSecretsFile hostname}
-                    ${common.authTokenSecret}: authenticates a caller to the
-                      API of the dashboard.
-                    ${common.cursorSecret}: signs the cursors of the
-                      dashboard.
-              '';
-            }
-          ];
-        })
+                ${common.userSecretsFile hostname}
+                  ${common.authTokenSecret}: authenticates a caller to the
+                    API of the dashboard.
+                  ${common.cursorSecret}: signs the cursors of the
+                    dashboard.
+            '';
+          }
+        ];
+      })
 
-        (lib.mkIf syncing {
-          assertions = [
-            {
-              assertion = server != null;
-              message = ''
-                ${hostname} pushes its agent sessions. No machine has the
-                `agentsview-server` feature, so there is no server to push
-                to.
-              '';
-            }
-            {
-              assertion =
-                builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}")
-                && common.hasCertificate hostname;
-              message = ''
-                ${hostname} pushes its agent sessions, so it also needs a
-                database role and a certificate. This command writes each one
-                that ${hostname} does not have yet:
+      (lib.mkIf syncing {
+        assertions = [
+          {
+            assertion = server != null;
+            message = ''
+              ${hostname} pushes its agent sessions. No machine has the
+              `agentsview-server` feature, so there is no server to push
+              to.
+            '';
+          }
+          {
+            assertion =
+              builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}")
+              && common.hasCertificate hostname;
+            message = ''
+              ${hostname} pushes its agent sessions, so it also needs a
+              database role and a certificate. This command writes each one
+              that ${hostname} does not have yet:
 
-                  just generate-agentsview-secrets ${hostname}
+                just generate-agentsview-secrets ${hostname}
 
-                It writes the certificate to
-                `hosts/${hostname}/agentsview.pem`. Commit that file. It
-                writes the rest to the secrets repository:
+              It writes the certificate to
+              `hosts/${hostname}/agentsview.pem`. Commit that file. It
+              writes the rest to the secrets repository:
 
-                  ${common.passwordFile hostname}
-                    ${common.passwordSecret}: the password of the database
-                      role.
-                  ${common.userSecretsFile hostname}
-                    ${common.privateKeySecret}: the key of the certificate.
-              '';
-            }
-          ];
-        })
+                ${common.passwordFile hostname}
+                  ${common.passwordSecret}: the password of the database
+                    role.
+                ${common.userSecretsFile hostname}
+                  ${common.privateKeySecret}: the key of the certificate.
+            '';
+          }
+        ];
+      })
 
-        (lib.mkIf cfg.enable {
-          sops = {
-            secrets = let
-              userSecrets = inputs.secrets + "/${common.userSecretsFile hostname}";
-            in {
-              ${common.authTokenSecret}.sopsFile = userSecrets;
-              ${common.cursorSecret}.sopsFile = userSecrets;
-            };
+      (lib.mkIf cfg.enable {
+        sops = {
+          secrets = let
+            userSecrets = inputs.secrets + "/${common.userSecretsFile hostname}";
+          in {
+            ${common.authTokenSecret}.sopsFile = userSecrets;
+            ${common.cursorSecret}.sopsFile = userSecrets;
+          };
 
-            # The tokens and the database password are secret; the rest of
-            # the file is plain text. sops renders the result and makes it
-            # unreadable to other users.
-            templates.${configTemplate} = {
-              path = "${cfg.dataDir}/config.toml";
+          # The tokens and the database password are secret; the rest of
+          # the file is plain text. sops renders the result and makes it
+          # unreadable to other users.
+          templates.${configTemplate} = {
+            path = "${cfg.dataDir}/config.toml";
 
-              content = configContent {
-                inherit codexSessionsDirs;
+            content = configContent {
+              inherit codexSessionsDirs;
 
-                authToken = config.sops.placeholder.${common.authTokenSecret};
-                cursorSecret = config.sops.placeholder.${common.cursorSecret};
+              authToken = config.sops.placeholder.${common.authTokenSecret};
+              cursorSecret = config.sops.placeholder.${common.cursorSecret};
 
-                url =
-                  if syncing && haveServer
-                  then
-                    dsn {
-                      inherit hostname;
-                      password = config.sops.placeholder.${common.passwordSecret};
-                      certificate = common.certificatePath hostname;
-                      key = config.sops.secrets.${common.privateKeySecret}.path;
-                    }
-                  else null;
-              };
+              url =
+                if syncing && haveServer
+                then
+                  dsn {
+                    inherit hostname;
+                    password = config.sops.placeholder.${common.passwordSecret};
+                    certificate = common.certificatePath hostname;
+                    key = config.sops.secrets.${common.privateKeySecret}.path;
+                  }
+                else null;
             };
           };
-        })
+        };
+      })
 
-        (lib.mkIf (syncing && haveServer) {
-          sops.secrets = {
-            ${common.passwordSecret}.sopsFile =
-              inputs.secrets + "/${common.passwordFile hostname}";
+      (lib.mkIf (syncing && haveServer) {
+        sops.secrets = {
+          ${common.passwordSecret}.sopsFile =
+            inputs.secrets + "/${common.passwordFile hostname}";
 
-            ${common.privateKeySecret} = {
-              sopsFile = inputs.secrets + "/${common.userSecretsFile hostname}";
-              mode = "0400";
-            };
+          ${common.privateKeySecret} = {
+            sopsFile = inputs.secrets + "/${common.userSecretsFile hostname}";
+            mode = "0400";
           };
-        })
-      ];
-    };
+        };
+      })
+    ];
+  };
 
-    os = {
-      "generic-linux".homeManager = systemdModule;
-      nixos.homeManager = systemdModule;
-      darwin.homeManager = launchdModule;
-    };
+  os = {
+    "generic-linux".homeManager = systemdModule;
+    nixos.homeManager = systemdModule;
+    darwin.homeManager = launchdModule;
   };
 }

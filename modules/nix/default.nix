@@ -1,6 +1,6 @@
 {lib, ...}: let
   cacheSettings = import ../../lib/nix/cache-settings.nix;
-  nixbuild = import ../../profiles/nixbuild-common.nix {inherit lib;};
+  nixbuild = import ../../lib/nixbuild.nix {inherit lib;};
 
   cacheEntries =
     lib.mapAttrsToList

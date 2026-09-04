@@ -9,7 +9,7 @@
 }: let
   cfg = config.services.agentsview-server;
 
-  database = import ./database.nix {inherit pkgs;};
+  database = import ./server-database.nix {inherit pkgs;};
 
   r2Backup = import ../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
