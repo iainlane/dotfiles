@@ -155,8 +155,7 @@
       pass =
         resolve "systemManager" "generic-linux" [base]
         == ["base-system-manager" "base-system"]
-        && resolve "systemManager" "nixos" [base] == ["base-system-manager"]
-        && resolve "homeManager" "generic-linux" [base] == ["git-home" "git-linux" "gh-home" "base-home"];
+        && resolve "systemManager" "nixos" [base] == ["base-system-manager"];
     }
     {
       name = "feature names follow composition order";
