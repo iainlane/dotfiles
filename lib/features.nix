@@ -130,9 +130,10 @@
 
   featureNames = args: map (feature: feature.name) (closure args).ordered;
 
-  # Whether the host has the feature called `name`, directly or through an
-  # include.
-  hasFeature = hostConfig: name: lib.elem name hostConfig.featureNames;
+  # Whether the host has the feature, directly or through an include. The
+  # feature is an entry of `flake.features`, so a name the registry does not
+  # have is an evaluation error where the caller writes it.
+  hasFeature = hostConfig: feature: lib.elem feature.name hostConfig.featureNames;
 
   # The modules of class `class` from `ordered`, a closure's feature list.
   #

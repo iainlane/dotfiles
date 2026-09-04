@@ -15,7 +15,10 @@
   inputs,
   lib,
 }: let
-  common = import ./common.nix {inherit lib;};
+  common = import ./common.nix {
+    inherit lib;
+    inherit (config.flake) features;
+  };
 
   server = common.serverSettings {
     inherit (config.flake) hosts;

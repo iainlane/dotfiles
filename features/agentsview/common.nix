@@ -10,14 +10,24 @@
 # Which machines push is read from the host records. Where they push to is
 # `flake.agentsviewServer.domain`, which the host with the server feature
 # sets beside its host record. To add a machine, give it the feature.
-{lib}: let
+#
+# `features` is `config.flake.features`. The predicates take the three
+# features they test for from it, so a rename that misses one of them is an
+# evaluation error here. With bare names, a missing feature would simply not
+# match: a wrong client name stops every machine pushing, and a wrong work
+# name makes the work machines push.
+{
+  features,
+  lib,
+}: let
   helpers = import ../../lib/features.nix {inherit lib;};
 
-  clientFeature = "agentsview";
-  serverFeature = "agentsview-server";
+  clientFeature = features.agentsview;
+  serverFeature = features."agentsview-server";
+  workFeature = features.work;
 
   # A work machine keeps its archive on the machine. It does not push.
-  pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host "work";
+  pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host workFeature;
 
   syncingHosts = hosts: lib.filterAttrs (_: pushes) hosts;
 
@@ -57,7 +67,7 @@
     if found == []
     then null
     else if domain == null
-    then throw "Host '${lib.head found}' has the ${serverFeature} feature but does not set flake.agentsviewServer.domain"
+    then throw "Host '${lib.head found}' has the ${serverFeature.name} feature but does not set flake.agentsviewServer.domain"
     else {
       inherit domain;
       inherit (serverDefaults) database;
@@ -106,7 +116,6 @@ in {
   inherit
     authTokenSecret
     certificatePath
-    clientFeature
     cursorSecret
     hasCertificate
     kinds
@@ -118,7 +127,6 @@ in {
     pushes
     role
     serverDefaults
-    serverFeature
     serverSettings
     syncingHosts
     ;

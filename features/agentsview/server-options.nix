@@ -1,10 +1,14 @@
-{
+# The options of the machine that holds the shared archive.
+#
+# `common` is `common.nix`, applied by `server.nix`: this file is a
+# system-manager module, and the flake configuration `common.nix` needs is
+# not among a system module's arguments.
+{common}: {
   hostConfig,
   lib,
   options,
   ...
 }: let
-  common = import ./common.nix {inherit lib;};
   presence = import ../../lib/presence.nix {inherit lib;};
 in {
   options.dotfiles.agentsviewServer = {

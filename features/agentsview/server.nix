@@ -14,7 +14,10 @@
   inputs,
   lib,
 }: let
-  common = import ./common.nix {inherit lib;};
+  common = import ./common.nix {
+    inherit lib;
+    inherit (config.flake) features;
+  };
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
   pushers = common.syncingHosts config.flake.hosts;
@@ -422,7 +425,7 @@ in {
       };
     };
   in {
-    imports = [./server-options.nix];
+    imports = [(import ./server-options.nix {inherit common;})];
 
     config = lib.mkMerge [
       (lib.mkIf (serverDomain != null) {dotfiles.agentsviewServer.domain = serverDomain;})

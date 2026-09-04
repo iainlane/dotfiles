@@ -219,9 +219,9 @@
           };
         };
       in
-        resolver.hasFeature hostConfig "base"
-        && resolver.hasFeature hostConfig "git"
-        && !(resolver.hasFeature hostConfig "borgmatic");
+        resolver.hasFeature hostConfig base
+        && resolver.hasFeature hostConfig git
+        && !(resolver.hasFeature hostConfig borgmatic);
     }
     {
       name = "an excluded child is dropped and its parent still resolves";
@@ -254,9 +254,9 @@
           };
         };
       in
-        resolver.hasFeature hostConfig "editor"
-        && !(resolver.hasFeature hostConfig "editor.prompt")
-        && !(resolver.hasFeature hostConfig "editor.direnv");
+        resolver.hasFeature hostConfig editor
+        && !(resolver.hasFeature hostConfig prompt)
+        && !(resolver.hasFeature hostConfig direnv);
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";
