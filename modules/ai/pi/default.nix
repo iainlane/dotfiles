@@ -1,12 +1,12 @@
 # Configure Pi (badlogic/pi-mono via numtide/llm-agents) with the shared MCP
 # servers, instructions, and skills.
 #
-# Pi reads its config from `~/.pi/agent/`, which this module owns. Pinned
-# extensions come in through `home.file` symlinks to Nix-built derivations
-# (see `./extensions.nix`), so `pi update` has nothing to fetch at runtime
-# and `pi-mcp-adapter` picks up `~/.config/mcp/mcp.json` (written by
-# `programs.mcp`) automatically. Logging in is interactive: `/login` covers
-# both ChatGPT Plus/Pro and Claude Pro/Max.
+# Pi reads its config from `~/.pi/agent/`, which this module owns. Published
+# extensions are packaged under `pkgs/` and come in through `home.file`
+# symlinks, so `pi update` has nothing to fetch at runtime, and the few written
+# here live in `./extensions/`. `pi-mcp-adapter` picks up
+# `~/.config/mcp/mcp.json` (written by `programs.mcp`) automatically. Logging in
+# is interactive: `/login` covers both ChatGPT Plus/Pro and Claude Pro/Max.
 {
   pkgs,
   config,
@@ -20,20 +20,25 @@
   # The extensions to install, each packaged under `pkgs/<name>/` and bumped by
   # `nix run .#update-<name>`.
   piExtensions = lib.genAttrs [
-    "checkpoint-pi"
-    "lsp-pi"
-    "pi-claude-permissions"
     "pi-footer"
+    "pi-lens"
     "pi-mcp-adapter"
-    "pi-memory"
     "pi-notify"
+    "pi-pretty"
     "pi-prompt-template-model"
+    "pi-service-tier"
     "pi-simplify"
     "pi-sub-core"
     "pi-subagents"
     "pi-system-theme"
     "pi-web-access"
+    "rpiv-btw"
+    "rpiv-todo"
   ] (name: pkgs.${name});
+
+  # Extensions written here, kept in `./extensions/`. Pi discovers
+  # `~/.pi/agent/extensions/*/index.ts` on its own, so these need no setting.
+  localExtensions = ["quota-status" "service-tier-status"];
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -51,6 +56,34 @@
       "PI_TELEMETRY"
       "0"
     ];
+  };
+
+  # Anthropic serves the subscription quota windows from an endpoint that only
+  # accepts an OAuth token, so an API key cannot read them and `pi-sub-core`
+  # shows nothing. Claude Code stores a token with the scope that endpoint
+  # wants, so hand Pi a copy when one is there to read.
+  piWithQuotaToken = pkgs.writeShellApplication {
+    name = "pi";
+
+    runtimeInputs = [pkgs.jq];
+
+    text = ''
+      credentials="''${CLAUDE_CONFIG_DIR:-''${HOME}/.claude}/.credentials.json"
+
+      if [[ -z "''${ANTHROPIC_OAUTH_TOKEN:-}" && -r "''${credentials}" ]]; then
+        token="$(jq --raw-output '
+          .claudeAiOauth
+          | select((.scopes // []) | index("user:profile"))
+          | .accessToken // empty
+        ' "''${credentials}" 2>/dev/null || true)"
+
+        if [[ -n "''${token}" ]]; then
+          export ANTHROPIC_OAUTH_TOKEN="''${token}"
+        fi
+      fi
+
+      exec ${lib.getExe wrappedPi} "$@"
+    '';
   };
 
   piSettings = {
@@ -74,10 +107,10 @@
       "gpt-5.4-mini"
     ];
 
-    # Resting theme that matches the system Catppuccin flavor.
-    # `pi-system-theme` still overrides this when GNOME reports an
-    # explicit `prefer-dark`/`prefer-light`; when GNOME reports
-    # `default` (no preference), Pi stays on this value.
+    # Resting theme, matching the system Catppuccin flavour. `pi-system-theme`
+    # overrides it whenever the desktop reports light or dark, reading
+    # `AppleInterfaceStyle` on macOS and `color-scheme` on GNOME. Pi keeps this
+    # value when neither reports a preference, and when detection fails.
     theme = "catppuccin-${config.catppuccin.flavor}";
 
     quietStartup = true;
@@ -111,24 +144,12 @@
     packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions;
 
     extensions = [];
-    skills = ["skills"];
     prompts = ["prompts/*.md"];
     themes = ["themes/*.json"];
     enableSkillCommands = true;
 
     subagents = {
       disableBuiltins = false;
-    };
-
-    piClaudePermissions = {
-      defaultMode = "bypassPermissions";
-      allowCatastrophic = false;
-      shiftTabOptions = [
-        "default"
-        "plan"
-        "acceptEdits"
-        "bypassPermissions"
-      ];
     };
   };
 
@@ -193,6 +214,49 @@
           raw = true;
           fg = "pi:bashMode";
           text = " used";
+        })
+      ]
+      # Second line, matching what ccstatusline shows for Claude Code: where
+      # the working tree stands on the left, and what the session is costing
+      # on the right.
+      [
+        (piFooterWidget "git-branch" "git-branch" {
+          raw = true;
+          fg = "pi:success";
+          hideWhenEmpty = true;
+        })
+        (piFooterWidget "git-status" "git-status" {
+          icon = " ";
+          fg = "pi:warning";
+          hideWhenEmpty = true;
+        })
+        (piFooterWidget "git-ahead-behind" "git-ahead-behind" {
+          icon = " ";
+          fg = "pi:warning";
+          hideWhenEmpty = true;
+        })
+        (piFooterWidget "gap" "flex-separator" {})
+        # Published by `./extensions/quota-status` from pi-sub-core's data.
+        (piFooterWidget "quota" "event" {
+          widgetId = "quota";
+          icon = " ";
+          fg = "pi:thinkingHigh";
+          hideWhenEmpty = true;
+        })
+        # Published by `./extensions/service-tier-status` from pi-service-tier.
+        (piFooterWidget "service-tier" "event" {
+          widgetId = "service-tier";
+          icon = " ";
+          fg = "pi:warning";
+          hideWhenEmpty = true;
+        })
+        (piFooterWidget "session-cost" "cost" {
+          icon = " ";
+          fg = "pi:bashMode";
+        })
+        (piFooterWidget "session-elapsed" "elapsed" {
+          icon = " ";
+          fg = "pi:bashMode";
         })
       ]
     ];
@@ -262,9 +326,18 @@
         source = "${drv}/${drv.packageRoot}";
       })
     piExtensions;
+
+  localExtensionFiles =
+    lib.listToAttrs
+    (map
+      (name:
+        lib.nameValuePair ".pi/agent/extensions/${name}/index.ts" {
+          source = ./extensions + "/${name}/index.ts";
+        })
+      localExtensions);
 in {
   home = {
-    packages = [wrappedPi];
+    packages = [piWithQuotaToken];
 
     file =
       {
@@ -278,6 +351,7 @@ in {
       }
       // themeFiles
       // promptFiles
-      // extensionFiles;
+      // extensionFiles
+      // localExtensionFiles;
   };
 }

@@ -4,5 +4,9 @@ callPackage ../build-support/pi-extension.nix {
   npmName = "pi-footer";
   source = ./source.json;
   npmRoot = ./npm-deps;
-  description = "Configurable, Ultimate multi-line footer/statusline extension for pi";
+  gitHub = {
+    owner = "wobondar";
+    repo = "pi-footer";
+  };
+  description = "Configurable multiline footer and status line for pi";
 }

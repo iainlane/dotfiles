@@ -88,17 +88,28 @@
       '';
     };
 
-  # Bump a Pi extension packaged from its npm registry tarball. It reads the
-  # latest version from the registry, writes that version and the new tarball
-  # hash to `source.json`, and regenerates the lockfile under `npm-deps/` that
-  # `importNpmLock` resolves `node_modules` from, so a version bump needs no
-  # hand editing.
+  # Bump a Pi extension: rewrite `source.json` with the new version and source
+  # hash, and refresh the `npm-deps/` lockfile the build resolves from, so a
+  # version bump needs no hand editing.
+  #
+  # The registry decides which version to move to in both cases, because that
+  # is the version Pi's own installer would resolve.
+  #
+  # With `gitHub`, the source is that version's release tag, and the lockfile
+  # is whatever upstream committed there. Without it, the source is the
+  # registry tarball, which carries no lockfile, so npm resolves the tarball's
+  # manifest here instead.
   mkPiExtensionUpdater = {
     npmName,
     pname,
+    # `{owner, repo}` of the source repository, or null for a registry tarball.
+    gitHub ? null,
+    # The release tag's prefix before the version.
+    tagPrefix ? "v",
     # Replacement version ranges, applied to the manifest's `dependencies`
     # before resolving, for a dependency whose declared range admits a version
-    # the extension cannot use.
+    # the extension cannot use. Meaningless with `gitHub`, which takes
+    # upstream's resolution as it stands.
     npmDependencies ? {},
   }:
     writeShellApplication {
@@ -121,8 +132,9 @@
         version="$(npm view ${npmName} version)"
         current="$(jq -r .version source.json)"
 
-        # A change to `npmDependencies` needs a new lockfile without a new
-        # upstream version, which `--force` asks for.
+        # Some changes need the lockfile rebuilt without a version bump:
+        # moving a package to a GitHub source, or editing `npmDependencies`.
+        # `--force` asks for that.
         if [[ "''${version}" == "''${current}" ]]; then
           if [[ "''${1:-}" != "--force" ]]; then
             echo "${pname} is already on the latest version (''${version}); pass --force to resolve it again" >&2
@@ -134,29 +146,62 @@
           echo "Bumping ${pname}: ''${current} -> ''${version}" >&2
         fi
 
-        tarball="''${tmpdir}/${pname}.tgz"
-        download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
+        ${
+          if gitHub != null
+          then ''
+            tag="${tagPrefix}''${version}"
+            url="https://github.com/${gitHub.owner}/${gitHub.repo}/archive/refs/tags/''${tag}.tar.gz"
 
-        tar -xzf "''${tarball}" -C "''${tmpdir}" package/package.json
+            # `fetchFromGitHub` records the hash of the unpacked tree, so
+            # `--unpack` is what produces a matching value. It prints base32,
+            # which `nix hash convert` turns into the SRI form Nix expects.
+            hash="$(nix hash convert --hash-algo sha256 --to sri \
+              "$(nix-prefetch-url --unpack --type sha256 "''${url}")")"
 
-        ${lib.optionalString (npmDependencies != {}) ''
-          manifest="''${tmpdir}/package/package.json"
-          jq --argjson deps '${builtins.toJSON npmDependencies}' \
-            '.dependencies += $deps' "''${manifest}" >"''${manifest}.new"
-          mv "''${manifest}.new" "''${manifest}"
-        ''}
+            tarball="''${tmpdir}/${pname}.tar.gz"
+            download "''${url}" "''${tarball}"
 
-        # npm resolves beside the manifest, but only the lockfile is
-        # committed: the build reads what it needs from the lockfile's root
-        # record. `--ignore-scripts` because this run wants a lockfile alone,
-        # and npm would otherwise run the package's `prepare` script.
-        (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
-        cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
+            # GitHub wraps the archive in one directory named after the repo
+            # and tag. Strip that level and match by wildcard, so the tag
+            # naming scheme does not have to be spelled out here.
+            tar -xzf "''${tarball}" -C "''${tmpdir}" --strip-components=1 \
+              --wildcards '*/package-lock.json'
 
-        jq -n --sort-keys \
-          --arg version "''${version}" \
-          --arg hash "$(hash_file "''${tarball}")" \
-          '{version: $version, tarballHash: $hash}' >source.json
+            cp "''${tmpdir}/package-lock.json" npm-deps/package-lock.json
+
+            jq -n --sort-keys \
+              --arg version "''${version}" \
+              --arg tag "''${tag}" \
+              --arg hash "''${hash}" \
+              '{version: $version, tag: $tag, hash: $hash}' >source.json
+          ''
+          else ''
+            tarball="''${tmpdir}/${pname}.tgz"
+            download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
+
+            tar -xzf "''${tarball}" -C "''${tmpdir}" package/package.json
+
+            ${lib.optionalString (npmDependencies != {}) ''
+              manifest="''${tmpdir}/package/package.json"
+              jq --argjson deps '${builtins.toJSON npmDependencies}' \
+                --from-file ${./promote-npm-dependencies.jq} \
+                "''${manifest}" >"''${manifest}.new"
+              mv "''${manifest}.new" "''${manifest}"
+            ''}
+
+            # npm resolves beside the manifest, but only the lockfile is
+            # committed: the build reads what it needs from the lockfile's root
+            # record. `--ignore-scripts` because this run wants a lockfile alone,
+            # and npm would otherwise run the package's `prepare` script.
+            (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
+            cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
+
+            jq -n --sort-keys \
+              --arg version "''${version}" \
+              --arg hash "$(hash_file "''${tarball}")" \
+              '{version: $version, tarballHash: $hash}' >source.json
+          ''
+        }
 
         echo "Updated ${pname} to ''${version}." >&2
       '';

@@ -1,36 +1,65 @@
 # The shared builder for the Pi extensions packaged under `pkgs/`. Each
 # extension's `package.nix` calls it with `callPackage`.
 #
-# The source is the published registry tarball. It contains the built
-# extension and no lockfile, so `nix run .#update-<name>` resolves one from the
-# tarball's manifest and writes it to `npm-deps/`, alongside the pin in
-# `source.json`.
+# An extension is an npm package, so building one means resolving its
+# dependencies to exact versions. `importNpmLock` does that from a
+# `package-lock.json`, which pairs every dependency with a version and an
+# integrity hash, so each package under `pkgs/` commits one in `npm-deps/`.
 #
-# `./project-pi-npm-package.nix` adapts that lockfile for `importNpmLock`,
-# which resolves `node_modules` from the integrity hashes it records.
+# Where that lockfile comes from decides which dependency versions the
+# extension runs against, and there are two cases. `source.json` records which
+# one applies, and `nix run .#update-<name>` rewrites it and the lockfile
+# together.
+#
+# A project that tags its releases and commits a lockfile has already published
+# a set of versions it tested against. For those, the build takes its source
+# from the release tag and the updater copies the lockfile out of it unchanged.
+#
+# The rest are built from the published registry tarball, because npm removes
+# `package-lock.json` when it packs one. With no lockfile to copy, the updater
+# resolves the manifest's version ranges itself, giving the newest version each
+# range permitted on the day it ran.
+#
+# Either lockfile then passes through `./project-pi-npm-package.nix`, which
+# removes the records npm writes with a `resolved` URL but no `integrity` hash.
+# `importNpmLock` cannot verify a dependency it has no hash for, so it fails on
+# such a record.
 {
   buildNpmPackage,
+  fetchFromGitHub,
   fetchurl,
   importNpmLock,
+  jq,
   lib,
-  stdenv,
   updaters,
   # The npm package name, scope included.
   npmName,
-  # The version and tarball hash, in the file the updater rewrites.
+  # The pin the updater rewrites: a version, and either a GitHub tag and tree
+  # hash or the registry tarball's hash.
   source,
   # The directory holding the lockfile.
   npmRoot,
+  # `{owner, repo}` for a package built from a GitHub release tag, or null to
+  # build from the registry tarball. `tagPrefix` is what the tag puts before
+  # the version; a monorepo usually puts the package name there.
+  gitHub ? null,
+  tagPrefix ? "v",
   # `meta.description`, which the lockfile does not record.
   description,
-  # Inputs for an extension with a dependency that compiles against a system
-  # library, which `npm rebuild` builds during the configure phase.
-  nativeBuildInputs ? [],
-  buildInputs ? [],
   # Replacement version ranges for the updater to apply to the manifest
   # before it resolves the lockfile. Use one when a dependency's declared
-  # range admits a version the extension cannot use.
+  # range admits a version the extension cannot use. Only a registry-tarball
+  # package needs this: a GitHub source takes upstream's own resolution.
   npmDependencies ? {},
+  # A native binary reaches npm as one package per platform, listed as the
+  # optional dependencies of a wrapper package. npm installs whichever one
+  # matches the machine running the install, so keeping them ties the result to
+  # the system that built it.
+  #
+  # Most extensions are TypeScript, which Pi loads directly, so the default
+  # omits them and every system gets the same output. Set this false for an
+  # extension that does not work without its binary.
+  omitOptional ? true,
 }: let
   pin = lib.importJSON source;
 
@@ -55,100 +84,91 @@
     inherit packageLock;
   };
 in
-  buildNpmPackage {
-    inherit pname nativeBuildInputs buildInputs;
-    inherit (pin) version;
+  buildNpmPackage ({
+      inherit pname;
+      inherit (pin) version;
 
-    src = fetchurl {
-      url = "https://registry.npmjs.org/${npmName}/-/${pname}-${pin.version}.tgz";
-      hash = pin.tarballHash;
-    };
+      nativeBuildInputs = lib.optional (npmDependencies != {}) jq;
 
-    # The npm tarball layout puts everything under `package/`.
-    sourceRoot = "package";
+      # The updater applied `npmDependencies` to the manifest it resolved, so
+      # the lockfile already accounts for them. npm installs from the manifest
+      # in the source, though, which still declares what upstream declared, so
+      # apply the same edit here for the two to agree.
+      postPatch = lib.optionalString (npmDependencies != {}) ''
+        jq --argjson deps ${lib.escapeShellArg (builtins.toJSON npmDependencies)} \
+          --from-file ${./promote-npm-dependencies.jq} \
+          package.json >package.json.new
+        mv package.json.new package.json
+      '';
 
-    npmDeps = importNpmLock {
-      inherit npmRoot;
-      inherit (projected) package packageLock;
-    };
+      src =
+        if gitHub != null
+        then
+          fetchFromGitHub {
+            inherit (gitHub) owner repo;
+            inherit (pin) hash;
+            tag = "${tagPrefix}${pin.version}";
+          }
+        else
+          fetchurl {
+            url = "https://registry.npmjs.org/${npmName}/-/${pname}-${pin.version}.tgz";
+            hash = pin.tarballHash;
+          };
 
-    inherit (importNpmLock) npmConfigHook;
-
-    # The extension is installed prebuilt, so its dev tree is unused, and
-    # omitting optional dependencies keeps platform-specific native binaries
-    # out, making the result identical on every system.
-    npmInstallFlags = [
-      "--omit=dev"
-      "--omit=optional"
-    ];
-
-    dontNpmBuild = true;
-
-    # The manifest keeps its dev dependencies, so a prune resolves them and
-    # tries to fetch what the install omitted. Nothing needs pruning: the dev
-    # tree was never installed.
-    dontNpmPrune = true;
-
-    # `npmInstallHook` lists the files to install with `npm pack --dry-run`,
-    # which runs `prepack`. That rebuilds the extension with tools the install
-    # omits, and its output is in the tarball already.
-    npmPackFlags = ["--ignore-scripts"];
-
-    # `buildNpmPackage` turns stripping off as too slow for a typical
-    # node_modules tree. A native addon has to be stripped: its debug
-    # information names the `-dev` output of every library it was compiled
-    # against, which would otherwise stay in the runtime closure.
-    dontStrip = false;
-
-    # ld records a fresh UUID in each Mach-O it links, so the addon differs
-    # between two builds of the same source.
-    env.NIX_LDFLAGS = lib.optionalString stdenv.hostPlatform.isDarwin "-no_uuid";
-
-    # With the dev tree omitted, an extension whose dependencies are all dev
-    # installs no node_modules, and `npmInstallHook` copies that directory
-    # without checking it exists. Creating the destination first makes the hook
-    # skip the copy.
-    preInstall = lib.optionalString (manifest.dependencies or {} == {}) ''
-      mkdir -p $out/${packageRoot}/node_modules
-    '';
-
-    postInstall = ''
-      # Remove build artifacts that bloat the closure: node-gyp's leavings
-      # contain absolute paths to the compiler, the SDK and the `-dev` outputs
-      # it built against. `gyp-mac-tool`, which gyp writes on Darwin only, is a
-      # Python script whose patched shebang pulls in python3.
-      find $out/lib/node_modules \( \
-        -name config.gypi \
-        -o -name .deps \
-        -o -name '*Makefile' \
-        -o -name '*.target.mk' \
-        -o -name gyp-mac-tool \
-      \) -exec rm -r {} +
-
-      # Loading the addon does not need the object files it was compiled from,
-      # and the empty archive beside them records a timestamp that changes
-      # between builds.
-      find $out/lib/node_modules -path '*/build/Release/*' \
-        \( -name '*.o' -o -name '*.a' \) -delete
-
-      find $out/lib/node_modules -type d -empty -delete
-    '';
-
-    passthru = {
-      inherit packageRoot;
-
-      updateScript = updaters.mkPiExtensionUpdater {
-        inherit npmName pname npmDependencies;
+      npmDeps = importNpmLock {
+        inherit npmRoot;
+        inherit (projected) package packageLock;
       };
-    };
 
-    meta =
-      {
-        inherit description;
-        homepage = "https://www.npmjs.com/package/${npmName}";
-        platforms = lib.platforms.unix;
-      }
-      // lib.optionalAttrs (license != null) {
-        inherit license;
+      inherit (importNpmLock) npmConfigHook;
+
+      # The extension is installed prebuilt, so nothing needs its dev tree.
+      npmInstallFlags =
+        ["--omit=dev"]
+        ++ lib.optional omitOptional "--omit=optional";
+
+      dontNpmBuild = true;
+
+      # The manifest keeps its dev dependencies, so a prune resolves them and
+      # tries to fetch what the install omitted. Nothing needs pruning: the dev
+      # tree was never installed.
+      dontNpmPrune = true;
+
+      # `npmInstallHook` lists the files to install with `npm pack --dry-run`,
+      # which runs `prepack`. That rebuilds the extension with tools the install
+      # omits, and its output is in the tarball already.
+      npmPackFlags = ["--ignore-scripts"];
+
+      # With the dev tree omitted, an extension whose dependencies are all dev
+      # installs no node_modules, and `npmInstallHook` copies that directory
+      # without checking it exists. Creating the destination first makes the hook
+      # skip the copy.
+      preInstall = lib.optionalString (manifest.dependencies or {} == {}) ''
+        mkdir -p $out/${packageRoot}/node_modules
+      '';
+
+      passthru = {
+        inherit packageRoot;
+
+        updateScript = updaters.mkPiExtensionUpdater {
+          inherit npmName pname npmDependencies gitHub tagPrefix;
+        };
       };
-  }
+
+      meta =
+        {
+          inherit description;
+          homepage =
+            if gitHub != null
+            then "https://github.com/${gitHub.owner}/${gitHub.repo}"
+            else "https://www.npmjs.com/package/${npmName}";
+          platforms = lib.platforms.unix;
+        }
+        // lib.optionalAttrs (license != null) {
+          inherit license;
+        };
+    }
+    // lib.optionalAttrs (gitHub == null) {
+      # The npm tarball layout puts everything under `package/`.
+      sourceRoot = "package";
+    })
