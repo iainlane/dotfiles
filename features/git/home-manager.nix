@@ -48,7 +48,10 @@
   # global configuration and for each per-directory include.
   signingSettings = scfg:
     if scfg ? none
-    then {}
+    then {
+      commit.gpgsign = false;
+      tag.gpgsign = false;
+    }
     else
       {
         commit.gpgsign = true;
@@ -147,9 +150,10 @@ in {
           };
 
           alias = {
-            # Fetch a GitLab merge request by ID.
+            # Fetch the head of a GitLab merge request: `git mr <remote> <id>`.
             mr = "!sh -c 'git fetch $0 merge-requests/$1/head'";
-            # Pull a branch named like the current branch from origin.
+            # Fetch a branch from origin into a local branch of the same
+            # name: `git pb <branch>`.
             pb = "!sh -c 'git fetch origin \"$0:$0\"'";
             # Show the diff against the upstream tracking branch.
             du = "diff '@{u}'";
@@ -196,7 +200,8 @@ in {
 
           interactive.diffFilter = "delta --color-only";
 
-          # Rewrite SSH GitHub URLs to HTTPS for pushes.
+          # Talk to GitHub over HTTPS even when a remote is written as an
+          # SSH URL.
           "url \"https://github.com/\"".insteadOf = [
             "git@github.com:"
             "ssh://git@github.com/"
