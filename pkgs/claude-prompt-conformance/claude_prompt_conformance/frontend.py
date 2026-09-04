@@ -1,3 +1,5 @@
+"""Terminal and structured presentation of suite events and fixture selection."""
+
 import json
 import threading
 from dataclasses import dataclass
@@ -96,7 +98,7 @@ class JsonFrontend:
         self._tasks.observe(root)
 
     def announce(self, message: str) -> None:
-        """Accept an urgent notice; JSON consumers see the typed events."""
+        """Drop an urgent notice: a JSON consumer reads the typed events."""
 
     def _write(self, value: Any) -> None:
         value = msgspec.to_builtins(value, enc_hook=encode_special)

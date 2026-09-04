@@ -60,12 +60,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "2f64f6f6778af971339346447ba3299b0019bbd4"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -88,7 +83,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/underwhelmingperformance/wrapscallion.git",
-        "revision": "2f64f6f6778af971339346447ba3299b0019bbd4"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

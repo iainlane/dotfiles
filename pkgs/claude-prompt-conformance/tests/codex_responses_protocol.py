@@ -244,7 +244,11 @@ class McpToolCall(msgspec.Struct, frozen=True):
 
 
 def mcp_tool_calls(transcript: bytes) -> tuple[str, ...]:
-    """List every tool the evaluator MCP server was actually asked to run."""
+    """List every tool an instance MCP server was actually asked to run.
+
+    Both endpoint tests use this, so the transcript may belong to the
+    evaluator's server or the improver's.
+    """
 
     calls = []
     for line in transcript.splitlines():

@@ -68,12 +68,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "ea6ad9426f3a989d89aa2d026f3b7f77ae9a2b16"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -95,7 +90,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/underwhelmingperformance/cupboard.git",
-        "revision": "ea6ad9426f3a989d89aa2d026f3b7f77ae9a2b16"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

@@ -53,12 +53,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "6f7e99d5908575d5faaddb5a688f83430ba989b1"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -81,7 +76,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/sigstore/sigstore-go.git",
-        "revision": "6f7e99d5908575d5faaddb5a688f83430ba989b1"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

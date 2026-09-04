@@ -26,5 +26,9 @@ int main(void) {
   CFRelease(query);
   printf("%d\n", (int)status);
 
+  // The sandbox is meant to deny this call outright. errSecItemNotFound means
+  // the Keychain processed this deliberately unmatched query, which is the
+  // escape this probe exists to catch, so exit 1 for that status and 0 for
+  // every other one.
   return status == errSecItemNotFound;
 }

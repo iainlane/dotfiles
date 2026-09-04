@@ -794,7 +794,7 @@ def raise_directory_error(error: OSError) -> None:
 
 
 def materialised_files(root: Path) -> tuple[Path, ...]:
-    """List regular files without following links out of a retained snapshot."""
+    """List the regular files of a retained snapshot, rejecting any link in it."""
 
     files: list[Path] = []
     try:

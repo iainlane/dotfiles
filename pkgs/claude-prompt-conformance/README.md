@@ -2,6 +2,8 @@
 
 ![A demo run][demo]
 
+[demo]: docs/demo.webp
+
 This suite measures how changes to the repository's assembled agent prompt
 affect real repository work. The prompt under test is the one Nix builds for
 this repository: the shared Claude rules, the installed output styles, and the
@@ -57,8 +59,6 @@ second Ctrl-C kills every agent process group and exits immediately.
 `--keep-workspaces` retains the checkouts alongside the evidence, and
 `--unlink-first` removes a previous run store and starts again.
 
-[demo]: docs/demo.webp
-
 ## Prompt improvement
 
 ```console
@@ -66,24 +66,31 @@ nix run .#claude-prompt-conformance -- \
   ./prompt-results --all --improve
 ```
 
-An improvement run races three competing prompt drafts, measures each over five
-fresh samples per fixture, and accepts a draft only on a decisive improvement
-with no matching decline. The production prompt is never changed: a successful
-experiment writes `tries/winner.patch`, which can be inspected and applied
-separately. [docs/improvement.md] describes the tournament, the acceptance rule,
-and the reserved regression checks.
+An improvement run races three competing prompt drafts and measures each over
+five fresh samples per fixture. A draft must either gain at least three of those
+samples on one criterion or clear every gate failure on the current prompt. In
+both cases no criterion may lose two or more samples. The production prompt is
+never changed: a successful experiment writes `tries/winner.patch`, which can be
+inspected and applied separately. [docs/improvement.md] describes the
+tournament, the acceptance rule, and the reserved regression checks.
 
 [docs/improvement.md]: docs/improvement.md
 
 ## Fixtures
 
-Each directory under `fixtures` contains `task.txt`, `case.json`, a vetted
-positive response, and a negative response. `case.json` declares the repository,
-a short catalogue description, the task kind, selection metadata, typed
-criteria, preparation commands, deterministic commands, and calibration
-revisions. Review fixtures can declare a comparison revision independently of
-the checked-out revision. A process criterion sets `calibrate` to `false` when
-its evidence exists only during a live agent run.
+Each directory under `fixtures` contains `task.txt`, `case.json`, and one
+response file for each calibration entry the case declares: at least a vetted
+positive and a negative one, and a partial response where the fixture calibrates
+a partially correct reference. Any other file in the directory becomes the
+fixture's own source tree, such as the pinned dependency lock the Python
+environment installs from. `case.json` declares the repository, a short
+catalogue description, the task kind, selection metadata, typed criteria,
+preparation commands, deterministic commands, and calibration revisions. Write
+`@baseRevision@` in a verification argument or a calibration entry that should
+use the base revision, and the package resolves it to the declared revision.
+Review fixtures can declare a comparison revision independently of the
+checked-out revision. A process criterion sets `calibrate` to `false` when its
+evidence exists only during a live agent run.
 
 Fixture tasks contain the original problem evidence and a natural request to
 investigate it. Solution constraints and output-style expectations belong to the

@@ -52,8 +52,8 @@ memory, but the pinned clients, the evidence MCP server, and the fixture
 toolchains are executed from the Nix store throughout the run. Startup therefore
 registers an indirect garbage-collector root on the runtime configuration and
 releases it on exit. The root's link lives in the session's runtime directory,
-so a run which dies without cleaning up stops pinning when that directory is
-cleaned, and Nix prunes the dangling automatic root at its next collection.
+where the next run to start sweeps the links of runs whose process is gone, and
+Nix prunes the then-dangling indirect root at its next collection.
 
 ## Progress
 

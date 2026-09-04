@@ -49,12 +49,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "d5fcac478a8270ade8a005df33017ae06891af79"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -93,7 +88,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/iainlane/setup-rust-toolchain.git",
-        "revision": "d5fcac478a8270ade8a005df33017ae06891af79"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

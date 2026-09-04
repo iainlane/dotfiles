@@ -142,23 +142,47 @@
     (builtins.readDir fixturesDirectory)
   );
   loadFixture = name: let
-    path = fixturesDirectory + "/${name}";
-    case = builtins.fromJSON (builtins.readFile (path + "/case.json"));
+    directory = fixturesDirectory + "/${name}";
+    case = builtins.fromJSON (builtins.readFile (directory + "/case.json"));
     environmentPath =
       environments.${case.environment}
       or (throw "fixture ${name} has an unknown environment");
+    # A case declares its base revision once, under `repository`. A verification
+    # argument or a reference subject that needs the same revision writes this
+    # token, so the three cannot drift apart.
+    resolveRevision = value:
+      if value == "@baseRevision@"
+      then case.repository.revision
+      else value;
+    verification =
+      map (check: check // {command = map resolveRevision check.command;})
+      case.verification;
     calibration = map (candidate:
       candidate
       // {
-        response = path + "/${candidate.response}";
+        repository =
+          candidate.repository
+          // {revision = resolveRevision candidate.repository.revision;};
+        response = directory + "/${candidate.response}";
       })
     case.calibration;
+    # The case, the task and the reference answers reach a run under names of
+    # their own, so the fixture's source tree is whatever else the directory
+    # contains, and no file is carried and hashed twice.
+    declared =
+      ["case.json" "task.txt"]
+      ++ map (candidate: candidate.response) case.calibration;
+    path = builtins.path {
+      name = "prompt-conformance-fixture-${name}";
+      path = directory;
+      filter = file: _type: !(builtins.elem (baseNameOf file) declared);
+    };
   in
     case
     // {
-      inherit name path environmentPath calibration;
+      inherit name path environmentPath calibration verification;
       comparisonRevision = case.comparisonRevision or case.repository.revision;
-      task = path + "/task.txt";
+      task = directory + "/task.txt";
     };
   fixtures = map loadFixture fixtureNames;
   expectedCatalogue =

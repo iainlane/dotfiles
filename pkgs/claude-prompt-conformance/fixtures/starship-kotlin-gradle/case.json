@@ -48,12 +48,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "a559d4305e27c53b90c4cd4e053f5d8b3febd8f1"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -75,7 +70,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/starship/starship.git",
-        "revision": "a559d4305e27c53b90c4cd4e053f5d8b3febd8f1"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

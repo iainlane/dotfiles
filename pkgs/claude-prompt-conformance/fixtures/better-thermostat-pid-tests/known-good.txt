@@ -19,5 +19,5 @@ window is held at the previous value, a change past the big-change threshold
 passes through, a changed target temperature passes through even when the
 change is small, and `min_hold_time_s=0.0` disables the blocking entirely.
 
-I committed the change as `test(pid): repair against the reworked controller
-and cover hold-time`; `tests/test_pid.py` is 19 passed.
+I committed the change as `Fix PID tests and add Hold-Time tests`. All 19
+tests in `tests/test_pid.py` passed.

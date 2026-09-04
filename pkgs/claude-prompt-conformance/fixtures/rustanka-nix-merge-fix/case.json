@@ -44,12 +44,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "a06e9030bf3699ae5d83bc95cd4a885d9b6d0799"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -71,7 +66,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/grafana/rustanka.git",
-        "revision": "a06e9030bf3699ae5d83bc95cd4a885d9b6d0799"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

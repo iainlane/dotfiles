@@ -58,12 +58,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "96ff4eef926bf83abad7b1b92d5a0e35411fc469"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -85,7 +80,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/KartoffelToby/better_thermostat.git",
-        "revision": "96ff4eef926bf83abad7b1b92d5a0e35411fc469"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

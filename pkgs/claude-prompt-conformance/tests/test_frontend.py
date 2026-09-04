@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from dataclasses import replace
 from io import StringIO
@@ -61,6 +62,27 @@ def fixtures(tmp_path: Path) -> tuple[Fixture, ...]:
     return (
         make_fixture(tmp_path, name="one", category="clarity", tags=("actors",)),
         make_fixture(tmp_path, name="two", category="precision", tags=("shell",)),
+    )
+
+
+def rendered_rows(output: str) -> tuple[tuple[str, ...], ...]:
+    """Reduce a painted frame to the fields of each row.
+
+    Column padding and the width of the progress bar follow the terminal
+    layout, which the fold tests do not describe: they are about which rows
+    appear and what each one says.
+    """
+
+    return tuple(
+        tuple(
+            field
+            for field in (
+                re.sub(r"[━─]+$", "", part).strip()
+                for part in re.split(r"\s{2,}", line.strip())
+            )
+            if field
+        )
+        for line in output.splitlines()
     )
 
 
@@ -934,10 +956,16 @@ def test_folded_rows_render_the_strip_and_the_latest_activity() -> None:
 
     console.print(render_frame(evaluation_with_samples(), 120, 4, lambda: 4.0))
 
-    assert stream.getvalue().splitlines() == [
-        "⠋  Prompt improvement               ━━━─────────────────────          0/3   0:00:04                            Searching",
-        "⠋  └── Test the current prom… ✓✓◐◐◐ ━━━━━━━━━───────────────          2/5   0:00:03   Bash: fixture work 5 · active 0:02",
-    ]
+    assert rendered_rows(stream.getvalue()) == (
+        ("⠋", "Prompt improvement", "0/3", "0:00:04", "Searching"),
+        (
+            "⠋",
+            "└── Test the current prom… ✓✓◐◐◐",
+            "2/5",
+            "0:00:03",
+            "Bash: fixture work 5 · active 0:02",
+        ),
+    )
 
 
 def test_frames_taller_than_the_shallowest_layout_drop_tail_rows() -> None:
@@ -978,13 +1006,13 @@ def test_frames_taller_than_the_shallowest_layout_drop_tail_rows() -> None:
 
     console.print(render_frame(root, 120, 6, lambda: 4.0))
 
-    assert stream.getvalue().splitlines() == [
-        "⠋  Prompt conformance               ────────────────────────          0/6   0:00:03                              Running",
-        "⠋  ├── Fixture 0                    ────────────────────────          0/1   0:00:02                              Running",
-        "⠋  ├── Fixture 1                    ────────────────────────          0/1   0:00:02                              Running",
-        "⠋  ├── Fixture 2                    ────────────────────────          0/1   0:00:02                              Running",
-        "… 3 more",
-    ]
+    assert rendered_rows(stream.getvalue()) == (
+        ("⠋", "Prompt conformance", "0/6", "0:00:03", "Running"),
+        ("⠋", "├── Fixture 0", "0/1", "0:00:02", "Running"),
+        ("⠋", "├── Fixture 1", "0/1", "0:00:02", "Running"),
+        ("⠋", "├── Fixture 2", "0/1", "0:00:02", "Running"),
+        ("… 3 more",),
+    )
 
 
 def test_result_presentation_shows_correction_only_for_failures(

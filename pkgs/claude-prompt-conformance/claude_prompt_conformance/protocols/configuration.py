@@ -36,6 +36,9 @@ class CalibrationInput(msgspec.Struct, frozen=True, rename="camel"):
     repository: RepositoryInput
     response: str
     expected_criteria: dict[str, bool]
+    # What the reference subject is, for a reader of the case; the suite does
+    # not use it.
+    comment: str = ""
 
 
 class FixtureInput(msgspec.Struct, frozen=True, rename="camel"):

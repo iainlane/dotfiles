@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import msgspec
@@ -6,10 +7,15 @@ import pytest
 from claude_prompt_conformance.codex_agent_session import (
     CodexAgentNotificationIdentityError,
     CodexAgentNotificationPhaseError,
+    CodexAgentProtocolRecordDecodeError,
+    CodexAgentProtocolResponseError,
+    CodexAgentProtocolUnexpectedResponseError,
     CodexAgentResponseMissingError,
     CodexAgentResponsePhaseError,
     CodexAgentSession,
+    CodexInitializeResultDecodeError,
     CodexTurnTerminalStatusError,
+    CodexUnexpectedServerRequestError,
 )
 from claude_prompt_conformance.models import ProcessExchange, ProcessOutputRecord
 from claude_prompt_conformance.protocols.codex_app_server import (
@@ -86,6 +92,56 @@ def advance_to_running(agent: CodexAgentSession, tmp_path: Path) -> None:
         {"id": 4, "result": {"turn": {"id": "turn-1"}}},
     ):
         agent.receive(record(value))
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param(
+            b"not an app-server record\n",
+            lambda path: CodexAgentProtocolRecordDecodeError(path / "events.jsonl"),
+            id="undecodable-record",
+        ),
+        pytest.param(
+            msgspec.json.encode({"id": 1, "error": {"code": -32601}}) + b"\n",
+            lambda _: CodexAgentProtocolResponseError(1, -32601),
+            id="json-rpc-error",
+        ),
+        pytest.param(
+            msgspec.json.encode({"id": 9}) + b"\n",
+            lambda _: CodexAgentProtocolUnexpectedResponseError(1, 9),
+            id="unexpected-response",
+        ),
+        pytest.param(
+            msgspec.json.encode({"id": 3, "method": "item/review"}) + b"\n",
+            lambda _: CodexUnexpectedServerRequestError("item/review"),
+            id="server-request",
+        ),
+        pytest.param(
+            msgspec.json.encode({"id": 1, "result": {"userAgent": "codex"}}) + b"\n",
+            lambda path: CodexInitializeResultDecodeError(path / "events.jsonl"),
+            id="incomplete-initialize-result",
+        ),
+        pytest.param(
+            msgspec.json.encode({"id": 1}) + b"\n",
+            lambda path: CodexInitializeResultDecodeError(path / "events.jsonl"),
+            id="missing-initialize-result",
+        ),
+    ],
+)
+def test_codex_agent_session_reports_each_protocol_failure(
+    tmp_path: Path,
+    value: bytes,
+    expected: Callable[[Path], Exception],
+) -> None:
+    agent = session(tmp_path)
+    agent.initial_input()
+    failure = expected(tmp_path)
+
+    with pytest.raises(type(failure)) as raised:
+        agent.receive(ProcessOutputRecord(value, 0.0))
+
+    assert raised.value == failure
 
 
 def test_codex_agent_session_drives_external_auth_and_refresh(tmp_path) -> None:

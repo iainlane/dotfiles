@@ -2,7 +2,7 @@
   "description": "Review an initial Nix package against the repository's packaging conventions.",
   "kind": "review",
   "use": "working",
-  "category": "repository-change",
+  "category": "code-review",
   "tags": ["nix", "review", "packaging", "repository-conventions"],
   "environment": "llm-agents",
   "repository": {
@@ -58,7 +58,7 @@
       "name": "known-good",
       "repository": {
         "url": "https://github.com/numtide/llm-agents.nix.git",
-        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+        "revision": "@baseRevision@"
       },
       "response": "known-good.txt",
       "expectedCriteria": {
@@ -74,7 +74,7 @@
       "comment": "Authored reference, not a historical response. The findings it does make follow the upstream follow-up commit 2aca632c, which acted on all four; this subject omits the last one.",
       "repository": {
         "url": "https://github.com/numtide/llm-agents.nix.git",
-        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+        "revision": "@baseRevision@"
       },
       "response": "middling.txt",
       "expectedCriteria": {
@@ -89,7 +89,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/numtide/llm-agents.nix.git",
-        "revision": "e7679e9aaa2955761174449ce5fed2b9762ae8c9"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

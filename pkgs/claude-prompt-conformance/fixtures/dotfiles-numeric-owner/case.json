@@ -40,12 +40,7 @@
     },
     {
       "name": "clean patch",
-      "command": [
-        "git",
-        "diff",
-        "--check",
-        "92487e2f1bc0a44d0ef4c3e478ba8ea1cffa6733"
-      ]
+      "command": ["git", "diff", "--check", "@baseRevision@"]
     }
   ],
   "calibration": [
@@ -65,7 +60,7 @@
       "name": "unchanged-base",
       "repository": {
         "url": "https://github.com/iainlane/dotfiles.git",
-        "revision": "92487e2f1bc0a44d0ef4c3e478ba8ea1cffa6733"
+        "revision": "@baseRevision@"
       },
       "response": "unchanged-base.txt",
       "expectedCriteria": {

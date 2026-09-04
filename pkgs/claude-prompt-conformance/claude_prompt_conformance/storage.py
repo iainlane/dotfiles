@@ -173,11 +173,12 @@ def directory_exists(root: Path, directory: Path) -> bool:
 
 
 def remove_tree(name: str | Path, parent: int | None = None) -> None:
-    """Remove a directory tree, making read-only directories deletable.
+    """Remove a directory tree, restoring write permission if that is refused.
 
     Toolchains write read-only trees into run-owned directories: Go marks its
     module cache directories 0555, so their children cannot be unlinked until
-    the directories are writable again.
+    the directories are writable again. The permissions are repaired only after
+    a first removal has been refused, so the ordinary case walks the tree once.
     """
 
     try:
