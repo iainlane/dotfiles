@@ -134,7 +134,8 @@ in {
 
     # Who can connect, and how. `initdb` writes rules for the loopback
     # addresses only. The dashboard and the proxy arrive from a podman
-    # network, thus this file gives a rule for that range.
+    # network, so this file gives a rule for every range podman draws one
+    # from.
     #
     # The roles unit uses the socket, and the database trusts it. Everything
     # else arrives over the network and gives a password.
@@ -143,12 +144,8 @@ in {
       local   all       all                   trust
       host    all       all   127.0.0.1/32    scram-sha-256
       host    all       all   ::1/128         scram-sha-256
-      host    all       all   ${containerRange}  scram-sha-256
+      ${lib.concatMapStringsSep "\n" (range: "host    all       all   ${range}  scram-sha-256") config.dotfiles.containers.subnetPools}
     '';
-
-    # Podman gives the networks of this host their addresses from this
-    # range.
-    containerRange = "10.89.0.0/16";
 
     # The first start makes the data directory. The script then runs the
     # database in the foreground, thus the unit reports the output of the

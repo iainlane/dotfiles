@@ -76,10 +76,18 @@ in {
       authConfigPath = "/etc/oauth2-proxy.cfg";
       authAlphaConfigPath = "/etc/oauth2-proxy.yaml";
 
-      # The identity of a signed-in visitor, as the sign-in service answers
-      # with it. Under the structured configuration these are stated rather
-      # than implied, so the header a site's allow-list is matched against is
-      # named in the same place it is decided.
+      # The identity of a signed-in visitor: which claim the sign-in service
+      # answers with under which header. The sign-in service is configured
+      # from this and the proxy copies the same headers onto the request it
+      # passes on, so the header a site's allow-list is matched against is
+      # named once.
+      identityClaims = {
+        "X-Auth-Request-User" = "user";
+        "X-Auth-Request-Email" = "email";
+        "X-Auth-Request-Preferred-Username" = "preferred_username";
+        "X-Auth-Request-Groups" = "groups";
+      };
+
       authResponseHeader = header: claim: {
         name = header;
         values = [{claimSource = {inherit claim;};}];
@@ -115,12 +123,7 @@ in {
           }
         ];
 
-        injectResponseHeaders = [
-          (authResponseHeader "X-Auth-Request-User" "user")
-          (authResponseHeader "X-Auth-Request-Email" "email")
-          (authResponseHeader "X-Auth-Request-Preferred-Username" "preferred_username")
-          (authResponseHeader "X-Auth-Request-Groups" "groups")
-        ];
+        injectResponseHeaders = lib.mapAttrsToList authResponseHeader identityClaims;
       };
 
       # Keys are the sign-in service's own option names, with underscores for
@@ -170,6 +173,10 @@ in {
         (_: container: (container.containerConfig.labels or {}) ? "edge-proxy.domain")
         config.virtualisation.quadlet.containers;
 
+      authenticated = lib.filterAttrs (_: container: container.containerConfig.labels."edge-proxy.auth" == "true") exposed;
+
+      authenticatedSites = lib.mapAttrsToList (_: container: container.containerConfig.labels."edge-proxy.domain") authenticated;
+
       # One network per service, with just that service and the proxy on it.
       # The sign-in service gets one too: the proxy asks it about a request
       # before serving it.
@@ -203,12 +210,7 @@ in {
       # answer onto the request that goes on to the service. Each header is
       # dropped first, so one supplied by the visitor cannot survive, and set
       # again only when the answer actually carried it.
-      identityHeaders = [
-        "X-Auth-Request-User"
-        "X-Auth-Request-Email"
-        "X-Auth-Request-Preferred-Username"
-        "X-Auth-Request-Groups"
-      ];
+      identityHeaders = lib.attrNames identityClaims;
 
       copyIdentityHeader = header: let
         answered = "{http.reverse_proxy.header.${header}}";
@@ -326,7 +328,7 @@ in {
       };
 
       # A service with its own protocol. The handshake gives the name of
-      # that protocol, thus the service shares the port of the web and gets
+      # that protocol, so the service shares the port of the web and gets
       # the connection decrypted.
       #
       # These services have no sign-in. The certificate of the client
@@ -404,10 +406,11 @@ in {
       # Connections from these addresses are served without being asked for a
       # certificate. Policies are tried in order, so this one has to come first
       # for those addresses to reach the host at all.
-      # Podman allocates the per-service networks from this range. A service
-      # calling the identity provider comes from one, and holds no certificate
-      # from Cloudflare to present; nothing off this host can send from them.
-      containerSources = ["10.89.0.0/16"];
+      #
+      # A service calling the identity provider comes from a per-service
+      # network, and holds no certificate from Cloudflare to present, so every
+      # range podman draws a network from is exempt as well.
+      containerSources = config.dotfiles.containers.subnetPools;
 
       directPolicy = {match.remote_ip.ranges = cfg.originAuth.directSources ++ containerSources;};
 
@@ -435,9 +438,7 @@ in {
             listener_wrappers = listenerWrappers;
           }
           // lib.optionalAttrs cfg.originAuth.present {
-            tls_connection_policies =
-              lib.optional (cfg.originAuth.directSources != []) directPolicy
-              ++ [originPolicy];
+            tls_connection_policies = [directPolicy originPolicy];
 
             # Caddy turns this on by itself once a client certificate is asked
             # for, and says so in a warning. Setting it is the same thing said
@@ -467,7 +468,7 @@ in {
           };
       };
 
-      configFile = pkgs.writeText "caddy-config.json" (builtins.toJSON caddyConfig);
+      configFile = (pkgs.formats.json {}).generate "caddy-config.json" caddyConfig;
     in {
       imports = [./options.nix];
 
@@ -476,8 +477,21 @@ in {
 
         assertions = [
           {
-            assertion = cfg.auth.present || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
-            message = "dotfiles.caddy: a site asks to be behind single sign-on, but the caddy.auth feature is not composed on this host, so it would be served to anyone.";
+            assertion = cfg.auth.present || authenticatedSites == [];
+            message = ''
+              These sites ask to be behind single sign-on: ${lib.concatStringsSep ", " authenticatedSites}.
+              The caddy.auth feature is not composed on this host, so they
+              would be served to anyone who asks.
+            '';
+          }
+          {
+            assertion = !cfg.auth.present || (idp.enable && idp.issuer != null);
+            message = ''
+              The caddy.auth feature is composed on this host and no feature
+              provides an identity provider, so the sign-in service would be
+              given a null issuer URL and restart on every start. Compose dex,
+              or drop caddy.auth and the `auth` setting of every site.
+            '';
           }
           {
             assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
@@ -488,10 +502,10 @@ in {
             message = let
               empty = lib.attrNames (lib.filterAttrs (_: stream: stream.trustedClients == []) proxy.streams);
             in ''
-              These streams have no client certificates, thus nothing
-              connects to them: ${lib.concatStringsSep ", " empty}. Add the
-              certificate of each machine that must reach them to
-              `trustedClients`.
+              A stream serves whichever clients its certificate list names, and
+              these list none, so every connection to them is refused:
+              ${lib.concatStringsSep ", " empty}. Add the certificate of each
+              machine that must reach them to `trustedClients`.
             '';
           }
         ];
@@ -502,10 +516,7 @@ in {
         dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.present && idp.enable) {
           ${cfg.auth.clientId} = {
             displayName = "Sign in";
-            redirectURIs =
-              lib.mapAttrsToList
-              (_: container: "https://${container.containerConfig.labels."edge-proxy.domain"}/oauth2/callback")
-              (lib.filterAttrs (_: container: container.containerConfig.labels."edge-proxy.auth" == "true") exposed);
+            redirectURIs = map (domain: "https://${domain}/oauth2/callback") authenticatedSites;
             inherit (cfg.auth) secretsFile;
             secretKey = cfg.auth.clientSecretKey;
           };
@@ -555,22 +566,19 @@ in {
               };
             };
 
-          # `optionalAttrs` rather than `mkIf`: an attribute defined as
-          # `mkIf false` still exists, leaving quadlet-nix to render an
-          # object with nothing set.
-          images =
-            {
-              ${cfg.containerName}.imageConfig = {
-                image = "docker-archive:${caddyImage}";
-                tag = "localhost/${cfg.containerName}:${caddyImage.imageTag}";
-              };
-            }
-            // lib.optionalAttrs cfg.auth.present {
-              ${cfg.auth.containerName}.imageConfig = {
+          images = {
+            ${cfg.containerName}.imageConfig = {
+              image = "docker-archive:${caddyImage}";
+              tag = "localhost/${cfg.containerName}:${caddyImage.imageTag}";
+            };
+
+            ${cfg.auth.containerName} = lib.mkIf cfg.auth.present {
+              imageConfig = {
                 image = "docker-archive:${authImage}";
                 tag = "localhost/${cfg.auth.containerName}:${authImage.imageTag}";
               };
             };
+          };
 
           containers = {
             ${cfg.containerName} = {
@@ -598,11 +606,11 @@ in {
                 volumes =
                   quadlet.mounts [
                     {
-                      source.podmanVolume = "caddy-data";
+                      source.quadletVolume = "caddy-data";
                       target = "/data";
                     }
                     {
-                      source.podmanVolume = "caddy-config";
+                      source.quadletVolume = "caddy-config";
                       target = "/config";
                     }
                     {

@@ -27,8 +27,9 @@ in {
           default = "10.90.0.0/24";
           description = ''
             Private IPv4 range for the proxy's own network. The addresses never
-            leave the host. Outside podman's own pool, so its allocator cannot
-            hand the same range to another network.
+            leave the host. It falls inside the pools podman allocates from,
+            and what keeps the allocator off it is podman's own check for a
+            range already in use.
           '';
         };
 
@@ -105,7 +106,11 @@ in {
     secretsFile = lib.mkOption {
       type = lib.types.str;
       default = "${hostConfig.name}/host-caddy.yaml";
-      description = "Filename within the secrets input holding the proxy's own secrets.";
+      description = ''
+        Path, relative to the `secrets` flake input, of the sops file holding
+        the Cloudflare API token named by `dnsTokenKey`. The proxy runs as a
+        system service, so this file is encrypted to the host key.
+      '';
     };
 
     dnsTokenKey = lib.mkOption {

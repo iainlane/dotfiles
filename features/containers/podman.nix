@@ -24,6 +24,17 @@
   ];
 
   options = {
+    dotfiles.containers.subnetPools = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      description = ''
+        The ranges podman allocates a network's addresses from, which are
+        its compiled-in `default_subnet_pools`. A peer whose address falls in
+        one of them is a container on this host, and nothing off the host can
+        send from them.
+      '';
+    };
+
     systemd.user.sockets = lib.mkOption {
       type = lib.types.attrs;
       default = {};
@@ -74,9 +85,21 @@
     };
   };
 
-  config = lib.mkIf config.virtualisation.podman.enable {
-    # system-manager declares `boot` to absorb kernel settings, without a
-    # value. Podman reads `boot.supportedFilesystems` to find the ZFS tools.
-    boot = lib.mkDefault {};
-  };
+  config = lib.mkMerge [
+    {
+      dotfiles.containers.subnetPools = [
+        "10.89.0.0/16"
+        "10.90.0.0/15"
+        "10.92.0.0/14"
+        "10.96.0.0/11"
+        "10.128.0.0/9"
+      ];
+    }
+
+    (lib.mkIf config.virtualisation.podman.enable {
+      # system-manager declares `boot` to absorb kernel settings, without a
+      # value. Podman reads `boot.supportedFilesystems` to find the ZFS tools.
+      boot = lib.mkDefault {};
+    })
+  ];
 }

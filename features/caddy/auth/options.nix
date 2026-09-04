@@ -38,7 +38,11 @@ in {
       type = lib.types.str;
       default = cfg.secretsFile;
       defaultText = lib.literalExpression "config.dotfiles.caddy.secretsFile";
-      description = "Filename within the secrets input holding the OAuth client credentials.";
+      description = ''
+        Path, relative to the `secrets` flake input, of the sops file holding
+        the keys named by `clientSecretKey` and `cookieSecretKey`. The
+        identity provider reads the client secret from the same file.
+      '';
     };
 
     cookieSecretKey = lib.mkOption {
