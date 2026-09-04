@@ -1,6 +1,6 @@
-# Regenerates docs/demo.webp. Run from modules/ai/prompt-conformance:
+# Regenerates docs/demo.webp. Run from pkgs/claude-prompt-conformance:
 #
-#   PC_BIN="$(nix build --no-link --print-out-paths ../../..#claude-prompt-conformance)/bin" \
+#   PC_BIN="$(nix build --no-link --print-out-paths ../..#claude-prompt-conformance)/bin" \
 #     vhs docs/demo.tape
 #   gif2webp -min_size -mixed docs/demo.gif -o docs/demo.webp
 #   rm docs/demo.gif

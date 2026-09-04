@@ -6,7 +6,18 @@ build-backend = "setuptools.build_meta"
 name = "claude-prompt-conformance"
 version = "0.2.0"
 requires-python = ">=3.12"
-dependencies = ["httpx", "mcp", "msgspec", "psygnal", "pydantic", "rich", "tomli-w", "unidiff", "watchfiles"]
+dependencies = [
+  "httpx",
+  "mcp",
+  "msgspec",
+  "psygnal",
+  "pydantic",
+  "pyobjc-framework-Security; sys_platform == 'darwin'",
+  "rich",
+  "tomli-w",
+  "unidiff",
+  "watchfiles",
+]
 
 [project.scripts]
 claude-prompt-conformance = "claude_prompt_conformance.cli:main"
@@ -26,7 +37,7 @@ timeout_method = "thread"
 
 [tool.basedpyright]
 include = ["claude_prompt_conformance", "tests"]
-pythonVersion = "3.14"
+pythonVersion = "3.12"
 typeCheckingMode = "standard"
 
 [tool.ruff.lint.isort]

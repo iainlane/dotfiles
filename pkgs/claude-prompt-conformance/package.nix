@@ -16,6 +16,8 @@
       modules = [../../features/ai/claude-code/managed-settings-common.nix];
       specialArgs = {inherit defaultModels inputs pkgs;};
     }).config.dotfiles.claudeCode.managedSettings;
+  # Dropped: the settings that would change the measured prompt, and the
+  # settings that need host services the isolated candidate is denied.
   suiteManagedSettings = removeAttrs managedSettings [
     "enabledPlugins"
     "extraKnownMarketplaces"
@@ -23,6 +25,9 @@
     "statusLine"
     "voiceEnabled"
   ];
+  # The distribution and its tests, and nothing else, so that editing the
+  # documentation or regenerating the demo recording leaves the pytest suite and
+  # both endpoint checks cached.
   source = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [
@@ -320,7 +325,7 @@
 
   pythonApplication = pkgs.python3Packages.buildPythonApplication {
     pname = "prompt-conformance";
-    version = "0.2.0";
+    inherit ((lib.importTOML ./pyproject.toml).project) version;
     src = source;
     pyproject = true;
     build-system = [pkgs.python3Packages.setuptools];
