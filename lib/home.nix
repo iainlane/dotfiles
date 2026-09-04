@@ -1,13 +1,13 @@
 # Home Manager assembly: gather the Home Manager modules and special args for a
 # host in one place so the standalone `homeConfigurations` output and the
-# embedded configurations stay in sync. `resolveFeatures` and
-# `mkHomeSopsModule` (secrets) are injected so this module only owns the Home
-# Manager wiring itself.
+# embedded configurations stay in sync.
 {
   inputs,
-  resolveFeatures,
-  mkHomeSopsModule,
-}: rec {
+  lib,
+}: let
+  inherit (import ./features.nix {inherit lib;}) resolveFeatures;
+  inherit (import ./sops.nix {inherit inputs lib;}) mkHomeSopsModule;
+in rec {
   mkHomeModules = {
     hostConfig,
     username,

@@ -1,13 +1,16 @@
 {
   inputs,
+  lib,
   config,
   withSystem,
-  helpers,
   username,
   overlays,
   nixpkgsConfig,
   ...
 }: hostConfig: let
+  sops = import ../../lib/sops.nix {inherit inputs lib;};
+  inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
+
   homeExtraModules = [
     {
       nix.gc = {
@@ -32,13 +35,13 @@
           inherit overlays;
           modules =
             [
-              helpers.systemSopsModule
-              helpers.linuxSystemSopsModule
+              sops.systemSopsModule
+              sops.linuxSystemSopsModule
               ./system.nix
               inputs.sops-nix.nixosModules.sops
               config.flake.nix.substitutersModule
             ]
-            ++ helpers.resolveFeatures {
+            ++ resolveFeatures {
               class = "systemManager";
               inherit hostConfig;
             }

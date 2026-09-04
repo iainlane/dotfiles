@@ -9,7 +9,7 @@
   withSystem,
   ...
 }: let
-  helpers = import ../../../lib/helpers.nix {inherit inputs;};
+  inherit (import ../../../lib/projects.nix {inherit (inputs.nixpkgs) lib;}) mkProjectShells;
   inherit (inputs.nixpkgs) lib;
 
   projects = let
@@ -67,7 +67,7 @@
       }
     );
 
-  projectShells = helpers.mkProjectShells {
+  projectShells = mkProjectShells {
     inherit config withSystem mkShell projects;
   };
 in {

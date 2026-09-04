@@ -3,10 +3,13 @@
   lib,
   config,
   withSystem,
-  helpers,
   username,
   ...
 }: hostConfig: let
+  sops = import ../../lib/sops.nix {inherit inputs lib;};
+  home = import ../../lib/home.nix {inherit inputs lib;};
+  inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
+
   channelPkgs = {
     pkgs,
     pkgs-stable,
@@ -14,7 +17,6 @@
     if hostConfig.channel == "stable"
     then {
       primary = pkgs-stable;
-      secondary = pkgs;
       stable = pkgs-stable;
       unstable = pkgs;
       nixpkgs = inputs.nixpkgs-stable;
@@ -22,7 +24,6 @@
     }
     else {
       primary = pkgs;
-      secondary = pkgs-stable;
       stable = pkgs-stable;
       unstable = pkgs;
       inherit (inputs) nixpkgs;
@@ -41,7 +42,6 @@
       };
       homeSpecialArgs =
         {
-          inherit (channel) secondary;
           inherit inputs;
           mcp = mcpByChannel.${hostConfig.channel};
           pkgs-stable = channel.stable;
@@ -73,8 +73,8 @@
           pkgs = channel.primary;
           modules =
             [
-              helpers.systemSopsModule
-              helpers.linuxSystemSopsModule
+              sops.systemSopsModule
+              sops.linuxSystemSopsModule
               ../../hosts/${hostConfig.name}/hardware.nix
               ../../hosts/${hostConfig.name}/disks.nix
               ./system.nix
@@ -83,14 +83,14 @@
               inputs.lanzaboote.nixosModules.lanzaboote
               config.flake.nix.substitutersModule
             ]
-            ++ helpers.resolveFeatures {
+            ++ resolveFeatures {
               class = "nixos";
               inherit hostConfig;
             }
             ++ [
               hostConfig.systemModule
               channel.home-manager.nixosModules.home-manager
-              (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
+              (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
           specialArgs = {
             inherit

@@ -5,7 +5,7 @@
   withSystem,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  inherit (import ../../lib/projects.nix {inherit (inputs.nixpkgs) lib;}) mkProjectShells;
   children = config.flake.features.development.provides;
 
   # Base dev directory with common tools
@@ -50,7 +50,7 @@
         packages = (langShell.packages or []) ++ extra;
       });
 
-  projectShells = helpers.mkProjectShells {
+  projectShells = mkProjectShells {
     inherit config withSystem mkShell projects;
   };
 in {

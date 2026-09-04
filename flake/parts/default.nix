@@ -1,5 +1,5 @@
 {inputs, ...}: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  discovery = import ../../lib/discovery.nix {inherit (inputs.nixpkgs) lib;};
 in {
   imports =
     [
@@ -17,7 +17,7 @@ in {
       ./treefmt.nix
       ./updaters.nix
     ]
-    ++ map (name: ./checks + "/${name}") (helpers.fileNames ./checks ".nix")
-    ++ helpers.discoverModuleFiles ../../hosts
-    ++ helpers.discoverModules ../../features;
+    ++ map (name: ./checks + "/${name}") (discovery.fileNames ./checks ".nix")
+    ++ discovery.discoverModuleFiles ../../hosts
+    ++ discovery.discoverModules ../../features;
 }

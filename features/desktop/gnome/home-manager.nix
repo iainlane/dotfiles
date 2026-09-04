@@ -1,11 +1,10 @@
 {
   lib,
-  inputs,
   pkgs,
   ...
 }: let
-  helpers = import ../../../lib/helpers.nix {inherit inputs;};
-  extensionConfigs = helpers.importNixFiles ./extensions {inherit lib pkgs;};
+  inherit (import ../../../lib/discovery.nix {inherit lib;}) importNixFiles;
+  extensionConfigs = importNixFiles ./extensions {inherit lib pkgs;};
   exts = map (extension: extension.package) extensionConfigs;
   extensionSettings =
     lib.foldl' (

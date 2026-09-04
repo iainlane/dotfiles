@@ -1,17 +1,16 @@
 {
   config,
-  inputs,
   pkgs,
   lib,
   ...
 }: let
-  helpers = import ../../../lib/helpers.nix {inherit inputs;};
+  inherit (import ../../../lib/discovery.nix {inherit lib;}) fileNames;
   pluginSpecs = import ./plugins.nix;
   zstylesPre = builtins.readFile ./zstyles-before.zsh;
   zstylesPost = builtins.readFile ./zstyles-after.zsh;
 
   pluginsDir = ./plugins;
-  localPlugins = helpers.fileNames pluginsDir ".plugin.zsh";
+  localPlugins = fileNames pluginsDir ".plugin.zsh";
 
   # Colourise manpages with `bat`. man renders bold/underline as backspace
   # overstrikes and may emit ANSI colour codes; strip both so `bat` can

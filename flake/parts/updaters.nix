@@ -10,12 +10,11 @@
 # to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
 {
   config,
-  inputs,
   lib,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
-  packageNames = helpers.discoverPackages ../../pkgs;
+  discovery = import ../../lib/discovery.nix {inherit lib;};
+  packageNames = discovery.discoverPackages ../../pkgs;
 
   # Flake inputs pinned to an immutable release tag, each bumped by a generated
   # updater named `update-<input>`.

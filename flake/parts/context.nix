@@ -4,14 +4,14 @@
   config,
   ...
 }: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
+  inherit (import ../../lib/discovery.nix {inherit lib;}) importNixFiles;
 
   inherit (config.flake) username;
 
   # Common overlays used across all systems.
   # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
   # and instantiated with the shared `{ inputs }` contract.
-  overlays = helpers.importNixFiles ../../overlays {inherit inputs;};
+  overlays = importNixFiles ../../overlays {inherit inputs;};
 
   # Common nixpkgs configuration used across all systems
   nixpkgsConfig = {

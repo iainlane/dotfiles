@@ -16,7 +16,7 @@
 # all failures together.
 {inputs, ...}: let
   inherit (inputs.nixpkgs) lib;
-  helpers = import ../../../lib/helpers.nix {inherit inputs;};
+  resolver = import ../../../lib/features.nix {inherit lib;};
 
   mkFeature = name: attrs:
     {
@@ -42,7 +42,7 @@
   };
 
   resolveExcluding = excludes: class: os: features:
-    helpers.resolveFeatures {
+    resolver.resolveFeatures {
       inherit class;
       hostConfig = {
         name = "fixture";
@@ -161,7 +161,7 @@
     {
       name = "feature names follow composition order";
       pass =
-        helpers.featureNames {
+        resolver.featureNames {
           features = [base];
           os = "nixos";
         }
@@ -195,7 +195,7 @@
     {
       name = "children are named by their parent and appear in featureNames";
       pass =
-        helpers.featureNames {
+        resolver.featureNames {
           features = [shell];
           os = "nixos";
         }
@@ -213,15 +213,15 @@
       name = "hasFeature answers over the names closure produces";
       pass = let
         hostConfig = {
-          featureNames = helpers.featureNames {
+          featureNames = resolver.featureNames {
             features = [base];
             os = "darwin";
           };
         };
       in
-        helpers.hasFeature hostConfig "base"
-        && helpers.hasFeature hostConfig "git"
-        && !(helpers.hasFeature hostConfig "borgmatic");
+        resolver.hasFeature hostConfig "base"
+        && resolver.hasFeature hostConfig "git"
+        && !(resolver.hasFeature hostConfig "borgmatic");
     }
     {
       name = "an excluded child is dropped and its parent still resolves";
@@ -247,16 +247,16 @@
       name = "hasFeature answers over a closure with an exclusion";
       pass = let
         hostConfig = {
-          featureNames = helpers.featureNames {
+          featureNames = resolver.featureNames {
             features = [editor];
             os = "darwin";
             excludes = [prompt];
           };
         };
       in
-        helpers.hasFeature hostConfig "editor"
-        && !(helpers.hasFeature hostConfig "editor.prompt")
-        && !(helpers.hasFeature hostConfig "editor.direnv");
+        resolver.hasFeature hostConfig "editor"
+        && !(resolver.hasFeature hostConfig "editor.prompt")
+        && !(resolver.hasFeature hostConfig "editor.direnv");
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";

@@ -2,13 +2,9 @@
 # they can be built directly with `nix build .#<name>`. The underlying
 # derivations are added to nixpkgs by `overlays/local-pkgs.nix`; this module
 # surfaces them on the flake.
-{
-  inputs,
-  lib,
-  ...
-}: let
-  helpers = import ../../lib/helpers.nix {inherit inputs;};
-  names = helpers.discoverPackages ../../pkgs;
+{lib, ...}: let
+  discovery = import ../../lib/discovery.nix {inherit lib;};
+  names = discovery.discoverPackages ../../pkgs;
 in {
   perSystem = {pkgs, ...}: {
     packages =

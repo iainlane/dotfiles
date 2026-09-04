@@ -1,11 +1,15 @@
 {
   inputs,
+  lib,
   config,
   withSystem,
-  helpers,
   username,
   ...
 }: hostConfig: let
+  sops = import ../../lib/sops.nix {inherit inputs lib;};
+  home = import ../../lib/home.nix {inherit inputs lib;};
+  inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
+
   result = withSystem hostConfig.system (
     args: let
       inherit (args.config._module.args) mcpByChannel pkgs pkgs-stable;
@@ -21,20 +25,20 @@
           inherit pkgs;
           modules =
             [
-              helpers.systemSopsModule
+              sops.systemSopsModule
               ./system.nix
               config.flake.nix.substitutersModule
               inputs.determinate.darwinModules.default
               inputs.sops-nix.darwinModules.sops
             ]
-            ++ helpers.resolveFeatures {
+            ++ resolveFeatures {
               class = "darwin";
               inherit hostConfig;
             }
             ++ [
               hostConfig.systemModule
               inputs.home-manager.darwinModules.home-manager
-              (helpers.mkEmbeddedHomeManager {inherit username homeDefinition;})
+              (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
           specialArgs = {
             inherit

@@ -2,10 +2,10 @@
 # is exposed as `pkgs.<name>`, so packages defined in this repository can be
 # consumed from modules in the same way as nixpkgs can.
 {inputs}: let
-  helpers = import ../lib/helpers.nix {inherit inputs;};
+  discovery = import ../lib/discovery.nix {inherit (inputs.nixpkgs) lib;};
   inherit (inputs.nixpkgs) lib;
   pkgsDir = ../pkgs;
-  names = helpers.discoverPackages pkgsDir;
+  names = discovery.discoverPackages pkgsDir;
 in
   final: _prev: let
     # `melange` pins a newer upstream than nixpkgs-stable carries and must be

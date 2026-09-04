@@ -18,28 +18,15 @@
   # `mkIf config.nix.enable` and nothing enabled it.
   disabledModules = ["${inputs.system-manager}/nix/modules/upstream/nixpkgs/nix.nix"];
 
-  # Define NixOS-specific options for home-manager compatibility with system-manager
-  options = {
-    i18n.glibcLocales = lib.mkOption {
-      type = lib.types.package;
-      default = pkgs.glibcLocales;
-      description = "Glibc locales package for home-manager compatibility";
-    };
-
-    fonts.fontconfig.enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Enable fontconfig for home-manager compatibility";
-    };
-
-    # nixpkgs' config/nix.nix hides the nixbld users from display managers.
-    # system-manager imports that module without the display-manager one, so
-    # the option has to exist for the definition to merge. Nothing reads it.
-    services.displayManager.hiddenUsers = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [];
-      description = "Ignored; declared so nixpkgs' config/nix.nix evaluates under system-manager";
-    };
+  # nixpkgs' `config/nix.nix` hides the nixbld users from display managers with
+  # `services.displayManager.hiddenUsers`. system-manager imports that module
+  # without the display-manager one that declares the option, so the
+  # declaration has to come from here for that definition to merge. Nothing
+  # reads the value.
+  options.services.displayManager.hiddenUsers = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [];
+    description = "Ignored; declared so nixpkgs' config/nix.nix evaluates under system-manager.";
   };
 
   config = {
