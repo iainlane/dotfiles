@@ -1,11 +1,16 @@
+# Compares the cupboard target set with a snapshot kept by hand. Adding or
+# removing a host means editing the list below, and the check prints the
+# difference so the edit is obvious.
 {
   config,
   lib,
   ...
 }: let
+  inherit (config.flake) username;
+
   targets = config.flake.cupboardOutputs;
   targetShape = target: removeAttrs target ["rootDrvPath"];
-  sortTargets = lib.sort (left: right: builtins.lessThan left.attr right.attr);
+  sortTargets = lib.sortOn (target: target.attr);
 
   actual = sortTargets (map targetShape targets);
   expected = sortTargets [
@@ -64,7 +69,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ".#deploy.nodes.ancaster.profiles.laney.path";
+      attr = ".#deploy.nodes.ancaster.profiles.${username}.path";
       bestEffort = true;
       cohort = "aarch64-linux";
       os = "ubuntu-latest";
@@ -73,7 +78,7 @@
       system = "aarch64-linux";
     }
     {
-      attr = ".#deploy.nodes.bonington.profiles.laney.path";
+      attr = ".#deploy.nodes.bonington.profiles.${username}.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -82,7 +87,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ".#deploy.nodes.cripps.profiles.laney.path";
+      attr = ".#deploy.nodes.cripps.profiles.${username}.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -91,7 +96,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ".#deploy.nodes.florence.profiles.laney.path";
+      attr = ".#deploy.nodes.florence.profiles.${username}.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -100,7 +105,7 @@
       system = "x86_64-linux";
     }
     {
-      attr = ".#deploy.nodes.melton.profiles.laney.path";
+      attr = ".#deploy.nodes.melton.profiles.${username}.path";
       bestEffort = true;
       cohort = "aarch64-darwin";
       os = "macos-latest";
@@ -109,7 +114,7 @@
       system = "aarch64-darwin";
     }
     {
-      attr = ".#deploy.nodes.sherwood.profiles.laney.path";
+      attr = ".#deploy.nodes.sherwood.profiles.${username}.path";
       bestEffort = true;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
@@ -125,33 +130,27 @@ in {
     pkgs,
     system,
     ...
-  }: let
-    systemTargets = lib.filter (target: target.system == system) targets;
-
-    mkRootDrvPathCheck = target: let
-      targetName = lib.last (lib.splitString "/" target.rootSuffix);
-      checkName = "cupboard-target-${targetName}";
-      validRootDrvPath =
-        target ? rootDrvPath
-        && lib.isString target.rootDrvPath
-        && lib.hasPrefix "/nix/store/" target.rootDrvPath
-        && lib.hasSuffix ".drv" target.rootDrvPath;
-    in
-      lib.nameValuePair checkName (
-        if validRootDrvPath
-        then pkgs.runCommandLocal checkName {} "touch $out"
-        else throw "Cupboard target ${target.attr} lacks a derivation path"
-      );
-
-    rootDrvPathChecks = builtins.listToAttrs (map mkRootDrvPathCheck systemTargets);
-
-    targetSetCheck = lib.optionalAttrs (system == targetSetCheckSystem) {
+  }: {
+    checks = lib.optionalAttrs (system == targetSetCheckSystem) {
       cupboard-targets =
-        if actual == expected
-        then pkgs.runCommandLocal "cupboard-targets" {} "touch $out"
-        else throw "Cupboard target set differs from the configured hosts";
+        pkgs.runCommandLocal "cupboard-targets" {
+          expected = builtins.toJSON expected;
+          actual = builtins.toJSON actual;
+          nativeBuildInputs = [pkgs.jq];
+        }
+        ''
+          printf '%s' "$expected" | jq --sort-keys . >expected.json
+          printf '%s' "$actual" | jq --sort-keys . >actual.json
+
+          if ! diff --unified expected.json actual.json; then
+            echo >&2
+            echo "The cupboard targets differ from the list in flake/parts/checks/cupboard.nix." >&2
+            echo "Lines marked - are expected and missing; lines marked + are new." >&2
+            exit 1
+          fi
+
+          touch "$out"
+        '';
     };
-  in {
-    checks = targetSetCheck // rootDrvPathChecks;
   };
 }
