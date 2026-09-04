@@ -105,6 +105,6 @@ in {
         };
       };
 
-      xdg.configFile."zsh/functions".source = ../../modules/zsh/functions;
+      xdg.configFile."zsh/functions".source = ../../features/base/zsh/functions;
     };
 }

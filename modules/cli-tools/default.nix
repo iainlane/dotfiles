@@ -1,7 +1,0 @@
-{
-  flake.features."cli-tools" = {
-    homeManager = ./home-manager.nix;
-    os."generic-linux".homeManager = ./linux.nix;
-    os.nixos.homeManager = ./linux.nix;
-  };
-}
