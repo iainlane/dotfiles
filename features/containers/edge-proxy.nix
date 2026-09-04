@@ -19,9 +19,9 @@
   lib,
   ...
 }: let
-  cfg = config.services.edge-proxy;
+  cfg = config.dotfiles.containers.edgeProxy;
 in {
-  options.services.edge-proxy = {
+  options.dotfiles.containers.edgeProxy = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -133,7 +133,7 @@ in {
     };
   };
 
-  config.services.edge-proxy = {
+  config.dotfiles.containers.edgeProxy = {
     serviceNetwork = name: "${cfg.network}-${name}";
 
     exposePodman = name: container: settings: let

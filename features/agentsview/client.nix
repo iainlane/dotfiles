@@ -126,7 +126,7 @@
     system,
     ...
   }: let
-    cfg = config.programs.agentsview;
+    cfg = config.dotfiles.agentsview;
   in {
     config = lib.mkMerge [
       (lib.mkIf (!cfg.sync.enable) {
@@ -182,7 +182,7 @@
     system,
     ...
   }: let
-    cfg = config.programs.agentsview;
+    cfg = config.dotfiles.agentsview;
 
     # launchd keeps no record of the output of a job. These files are that
     # record, and they are the first place to look when an agent stops.
@@ -242,7 +242,7 @@ in {
   }: let
     inherit (hostConfig) name;
 
-    cfg = config.programs.agentsview;
+    cfg = config.dotfiles.agentsview;
 
     syncing = cfg.sync.enable;
 
@@ -264,7 +264,7 @@ in {
     imports = [./client-options.nix skillsModule];
 
     config = lib.mkMerge [
-      {programs.agentsview.sync.enable = common.pushes hostConfig;}
+      {dotfiles.agentsview.sync.enable = common.pushes hostConfig;}
 
       {home.packages = [(agentsviewFor system)];}
 

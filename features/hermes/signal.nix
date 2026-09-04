@@ -7,7 +7,7 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
   inherit
     (import ./builders.nix {inherit config inputs lib pkgs;})
@@ -51,7 +51,7 @@ in {
       '';
     };
 
-    services.hermes-agent = {
+    dotfiles.hermes = {
       environment.SIGNAL_HTTP_URL = cfg.signal.httpUrl;
       environmentFiles = [config.sops.templates."hermes-signal.env".path];
     };

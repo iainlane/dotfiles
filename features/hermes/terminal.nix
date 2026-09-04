@@ -3,7 +3,7 @@
   pkgs,
   ...
 }: {
-  services.hermes-agent = {
+  dotfiles.hermes = {
     environment.TERMINAL_LOCAL_PERSISTENT = lib.mkDefault "true";
 
     agentPackages = with pkgs; [

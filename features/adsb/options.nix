@@ -3,7 +3,7 @@
   lib,
   ...
 }: {
-  options.services.adsb = {
+  options.dotfiles.adsb = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
       default = "${hostConfig.name}/host-adsb.yaml";

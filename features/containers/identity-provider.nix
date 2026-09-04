@@ -9,7 +9,7 @@
 # be configured with or without a provider present and still evaluate, and
 # neither profile has to reach into the other's options.
 {lib, ...}: {
-  options.services.identity-provider = {
+  options.dotfiles.containers.identityProvider = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

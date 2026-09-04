@@ -1,5 +1,5 @@
 {lib, ...}: {
-  options.services.unifi = {
+  options.dotfiles.unifi = {
     webPort = lib.mkOption {
       type = lib.types.port;
       default = 11443;

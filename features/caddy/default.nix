@@ -8,7 +8,7 @@
 # single address that cannot be delegated, so it is published instead.
 #
 # What to serve is discovered from the containers themselves: anything wrapped
-# in `config.services.edge-proxy.exposePodman` has labels saying which name it
+# in `config.dotfiles.containers.edgeProxy.exposePodman` has labels saying which name it
 # answers to and whether it needs signing in first. This feature never names an
 # individual service.
 {config, ...}: {
@@ -22,9 +22,9 @@
       pkgs,
       ...
     }: let
-      cfg = config.services.caddy-proxy;
-      proxy = config.services.edge-proxy;
-      idp = config.services.identity-provider;
+      cfg = config.dotfiles.caddy;
+      proxy = config.dotfiles.containers.edgeProxy;
+      idp = config.dotfiles.containers.identityProvider;
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
       quadlet = import ../../lib/quadlet.nix {inherit lib;};
@@ -467,16 +467,16 @@
       imports = [./options.nix];
 
       config = {
-        services.edge-proxy.enable = true;
+        dotfiles.containers.edgeProxy.enable = true;
 
         assertions = [
           {
             assertion = cfg.auth.enable || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
-            message = "services.caddy-proxy: a site asks to be behind single sign-on, but services.caddy-proxy.auth is not enabled, so it would be served to anyone.";
+            message = "dotfiles.caddy: a site asks to be behind single sign-on, but dotfiles.caddy.auth is not enabled, so it would be served to anyone.";
           }
           {
             assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
-            message = "services.caddy-proxy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
+            message = "dotfiles.caddy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
           }
           {
             assertion = lib.all (stream: stream.trustedClients != []) (lib.attrValues proxy.streams);
@@ -494,7 +494,7 @@
         # The sign-in service answers under each protected site, so it comes
         # back to whichever one it started at. Every site is listed, and the
         # list follows whatever is exposed.
-        services.identity-provider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
+        dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
           ${cfg.auth.clientId} = {
             displayName = "Sign in";
             redirectURIs =

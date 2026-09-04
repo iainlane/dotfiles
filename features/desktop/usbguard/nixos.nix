@@ -5,7 +5,7 @@
   ...
 }: let
   cfg = config.services.usbguard;
-  inherit (config.dotfiles.desktop.usbguard) staticRules;
+  inherit (config.dotfiles.usbguard) staticRules;
 
   ruleFolder = "/etc/usbguard/rules.d/";
 

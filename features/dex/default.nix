@@ -16,9 +16,9 @@
       pkgs,
       ...
     }: let
-      cfg = config.services.dex;
+      cfg = config.dotfiles.dex;
 
-      idp = config.services.identity-provider;
+      idp = config.dotfiles.containers.identityProvider;
 
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
@@ -138,13 +138,13 @@
         };
       };
 
-      expose = config.services.edge-proxy.enable;
+      expose = config.dotfiles.containers.edgeProxy.enable;
     in {
       imports = [./options.nix];
 
       config = lib.mkMerge [
         {
-          services.identity-provider = {
+          dotfiles.containers.identityProvider = {
             enable = true;
             inherit issuer;
           };
@@ -153,7 +153,7 @@
             {
               assertion = !cfg.expose.auth;
               message = ''
-                services.dex.expose.auth is on, so signing in would be gated
+                dotfiles.dex.expose.auth is on, so signing in would be gated
                 behind signing in.
               '';
             }
@@ -196,7 +196,7 @@
 
             containers.${cfg.containerName} =
               if expose
-              then config.services.edge-proxy.exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;})
+              then config.dotfiles.containers.edgeProxy.exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;})
               else dexContainer;
           };
         }

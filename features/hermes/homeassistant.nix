@@ -6,7 +6,7 @@
   lib,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   hassSecretsFile = inputs.secrets + "/${cfg.homeassistant.secretsFile}";
 in {
   config = lib.mkIf cfg.homeassistant.enable {
@@ -22,7 +22,7 @@ in {
       '';
     };
 
-    services.hermes-agent.environmentFiles = [
+    dotfiles.hermes.environmentFiles = [
       config.sops.templates."hermes-homeassistant.env".path
     ];
   };

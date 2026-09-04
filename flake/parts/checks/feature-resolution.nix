@@ -113,7 +113,7 @@
       modules = [
         ../features.nix
         {
-          options.dotfiles.operatingSystems = lib.mkOption {
+          options.flake.operatingSystems = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = ["nixos" "generic-linux" "darwin"];
           };

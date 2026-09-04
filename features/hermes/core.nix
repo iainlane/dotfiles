@@ -7,7 +7,7 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   inherit
     (import ./builders.nix {inherit config inputs lib pkgs;})
     hostCliPackage
@@ -27,7 +27,7 @@ in {
       ]
       ++ cfg.extraPackages;
 
-    services.hermes-agent.settings = {
+    dotfiles.hermes.settings = {
       # The agent's terminal working directory, inside the container.
       terminal.cwd = "/data/workspace";
 

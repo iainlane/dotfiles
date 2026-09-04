@@ -7,9 +7,9 @@
 }: let
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
   yaml = pkgs.formats.yaml {};
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
 in {
-  options.services.hermes-agent = {
+  options.dotfiles.hermes = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
       default = "${hostConfig.name}/host-hermes.yaml";
@@ -220,7 +220,7 @@ in {
       secretsFile = lib.mkOption {
         type = lib.types.str;
         default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
+        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file
           holding `signal_account`, `signal_allowed_users` and
@@ -300,7 +300,7 @@ in {
       secretsFile = lib.mkOption {
         type = lib.types.str;
         default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
+        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file holding
           `matrix_password` (the bot account's password, which the homeserver
@@ -382,7 +382,7 @@ in {
       secretsFile = lib.mkOption {
         type = lib.types.str;
         default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
+        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file
           holding the dashboard's half of the secret it shares with the
@@ -409,7 +409,7 @@ in {
       secretsFile = lib.mkOption {
         type = lib.types.str;
         default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
+        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file holding
           `hass_token` (a Home Assistant long-lived access token) and `hass_url`

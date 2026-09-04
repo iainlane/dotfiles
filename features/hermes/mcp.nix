@@ -6,14 +6,14 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
 
   withSampling =
     lib.mapAttrs (_: server:
       lib.recursiveUpdate {sampling.enabled = lib.mkDefault true;} server);
 in {
   config = lib.mkIf cfg.mcp.enable {
-    services.hermes-agent.settings.mcp_servers = withSampling {
+    dotfiles.hermes.settings.mcp_servers = withSampling {
       exa = {
         url = "https://mcp.exa.ai/mcp";
         # Authenticate with the Exa key (off the free tier). Hermes

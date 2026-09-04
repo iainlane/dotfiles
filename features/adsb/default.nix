@@ -16,7 +16,7 @@
       pkgs,
       ...
     }: let
-      cfg = config.services.adsb;
+      cfg = config.dotfiles.adsb;
       rtlBlacklist = builtins.readFile ./rtl-blacklist.conf;
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
       ultrafeederEnvFile = config.sops.templates."adsb-ultrafeeder.env".path;
@@ -37,7 +37,7 @@
         inherit hostConfig lib network pkgs;
         envFile = ultrafeederEnvFile;
       };
-      exposeUltrafeeder = cfg.expose != null && config.services.edge-proxy.enable;
+      exposeUltrafeeder = cfg.expose != null && config.dotfiles.containers.edgeProxy.enable;
       piawareContainer = import ./piaware-container.nix {
         inherit network ultrafeederService;
         envFile = feederEnvFile;
@@ -95,7 +95,7 @@
             containers = {
               ${ultrafeederName} =
                 if exposeUltrafeeder
-                then config.services.edge-proxy.exposePodman ultrafeederName ultrafeederContainer (cfg.expose // {port = 80;})
+                then config.dotfiles.containers.edgeProxy.exposePodman ultrafeederName ultrafeederContainer (cfg.expose // {port = 80;})
                 else ultrafeederContainer;
               piaware = piawareContainer;
               fr24 = fr24Container;

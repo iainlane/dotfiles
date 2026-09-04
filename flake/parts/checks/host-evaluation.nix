@@ -17,7 +17,7 @@
   lib,
   ...
 }: let
-  inherit (config.dotfiles) username;
+  inherit (config.flake) username;
 
   adapters = {
     nixos = {

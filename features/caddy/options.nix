@@ -4,9 +4,9 @@
   lib,
   ...
 }: let
-  cfg = config.services.caddy-proxy;
+  cfg = config.dotfiles.caddy;
 in {
-  options.services.caddy-proxy = {
+  options.dotfiles.caddy = {
     ipv4Address = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -207,7 +207,7 @@ in {
       secretsFile = lib.mkOption {
         type = lib.types.str;
         default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.services.caddy-proxy.secretsFile";
+        defaultText = lib.literalExpression "config.dotfiles.caddy.secretsFile";
         description = "Filename within the secrets input holding the OAuth client credentials.";
       };
 

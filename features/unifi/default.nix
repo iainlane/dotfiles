@@ -13,7 +13,7 @@
       pkgs,
       ...
     }: let
-      cfg = config.services.unifi;
+      cfg = config.dotfiles.unifi;
 
       # The installer ships an OCI archive inside its own firmware image, which
       # the package unpacks at build time and a quadlet loads from the store.
@@ -38,7 +38,7 @@
 
       config = lib.mkMerge [
         {
-          services.unifi = {
+          dotfiles.unifi = {
             serverVersion = imagePath.version;
             firmwarePlatform =
               if pkgs.stdenv.hostPlatform.isAarch64

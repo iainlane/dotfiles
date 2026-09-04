@@ -7,7 +7,7 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.agentsview-server;
+  cfg = config.dotfiles.agentsviewServer;
 
   database = import ./server-database.nix {inherit pkgs;};
 

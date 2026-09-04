@@ -3,7 +3,7 @@
   lib,
   ...
 }: {
-  options.services.dex = {
+  options.dotfiles.dex = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
       default = "${hostConfig.name}/host-dex.yaml";

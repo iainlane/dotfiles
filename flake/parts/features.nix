@@ -88,7 +88,7 @@
 
       os = lib.mkOption {
         type = lib.types.submodule {
-          options = lib.genAttrs config.dotfiles.operatingSystems (_:
+          options = lib.genAttrs config.flake.operatingSystems (_:
             lib.mkOption {
               type = osScope;
               default = {};

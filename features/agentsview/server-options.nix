@@ -5,7 +5,7 @@
 }: let
   common = import ./common.nix {inherit lib;};
 in {
-  options.services.agentsview-server = {
+  options.dotfiles.agentsviewServer = {
     domain = lib.mkOption {
       type = lib.types.str;
       example = "pg.example.com";

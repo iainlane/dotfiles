@@ -27,7 +27,7 @@ in {
       ];
 
       config = {
-        services.hermes-agent.settings = {
+        dotfiles.hermes.settings = {
           model.default = lib.mkDefault defaultModels.openai;
           fallback_providers = lib.mkDefault [
             {

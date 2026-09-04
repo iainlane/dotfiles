@@ -12,12 +12,12 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   inherit (cfg) dashboard;
 
-  idp = config.services.identity-provider;
+  idp = config.dotfiles.containers.identityProvider;
 
-  exposed = dashboard.expose != null && config.services.edge-proxy.enable;
+  exposed = dashboard.expose != null && config.dotfiles.containers.edgeProxy.enable;
 
   publicUrl = "https://${dashboard.expose.domain}";
 
@@ -63,19 +63,19 @@
     after =
       ["${cfg.container.name}.service"]
       # It reaches the provider by the name the proxy answers to.
-      ++ lib.optional exposed "${config.services.caddy-proxy.containerName}.service";
+      ++ lib.optional exposed "${config.dotfiles.caddy.containerName}.service";
   };
 in {
   config = lib.mkIf dashboard.enable (lib.mkMerge [
     {
       virtualisation.quadlet.containers.${dashboard.containerName} =
         if exposed
-        then config.services.edge-proxy.exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})
+        then config.dotfiles.containers.edgeProxy.exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})
         else dashboardContainer;
     }
 
     (lib.mkIf exposed {
-      services.identity-provider.clients.${clientId} = {
+      dotfiles.containers.identityProvider.clients.${clientId} = {
         displayName = "Hermes";
         redirectURIs = ["${publicUrl}/auth/callback"];
         inherit (dashboard) secretsFile;

@@ -26,13 +26,13 @@ in {
     ];
 
     systemModule = {
-      services = {
+      dotfiles = {
         adsb = {
           secretsFile = "adsb.yaml";
           expose.domain = "adsb.orangesquash.org.uk";
         };
 
-        agentsview-server.expose = {
+        agentsviewServer.expose = {
           domain = "agents.orangesquash.org.uk";
           auth = true;
         };
@@ -42,7 +42,7 @@ in {
           auth = false;
         };
 
-        continuwuity = {
+        matrix = {
           serverName = "orangesquash.org.uk";
           botUsername = "godfrey";
           users.iain = {
@@ -55,7 +55,7 @@ in {
           };
         };
 
-        hermes-agent = {
+        hermes = {
           profilePicture = ./ancaster/godfrey;
           signal.enable = true;
           matrix = {
@@ -168,7 +168,7 @@ in {
           };
         };
 
-        caddy-proxy = {
+        caddy = {
           # The spare address routed here, not the one the LAN answers on.
           ipv4Address = "81.187.184.100";
           # Delegated from the /64 routed to this host, so the proxy is reached

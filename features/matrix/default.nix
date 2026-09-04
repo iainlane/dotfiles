@@ -14,7 +14,7 @@
       pkgs,
       ...
     }: let
-      cfg = config.services.continuwuity;
+      cfg = config.dotfiles.matrix;
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
       package =
@@ -114,7 +114,7 @@
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
       };
 
-      expose = cfg.expose != null && config.services.edge-proxy.enable;
+      expose = cfg.expose != null && config.dotfiles.containers.edgeProxy.enable;
     in {
       imports = [./options.nix];
 
@@ -124,7 +124,7 @@
             {
               assertion = lib.length supportUsers <= 1;
               message = ''
-                services.continuwuity publishes one support contact, and
+                dotfiles.matrix publishes one support contact, and
                 ${lib.concatStringsSep ", " supportUsers} are all marked
                 `supportUser`.
               '';
@@ -236,7 +236,7 @@
 
             containers.${cfg.containerName} =
               if expose
-              then config.services.edge-proxy.exposePodman cfg.containerName matrixContainer (cfg.expose // {inherit (cfg) port;})
+              then config.dotfiles.containers.edgeProxy.exposePodman cfg.containerName matrixContainer (cfg.expose // {inherit (cfg) port;})
               else matrixContainer;
           };
         }

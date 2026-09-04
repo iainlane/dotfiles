@@ -8,7 +8,7 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
   inherit
     (import ./builders.nix {inherit config inputs lib pkgs;})

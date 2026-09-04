@@ -3,7 +3,7 @@
   lib,
   ...
 }: {
-  options.services.continuwuity = {
+  options.dotfiles.matrix = {
     serverName = lib.mkOption {
       type = lib.types.str;
       example = "matrix.orangesquash.org.uk";

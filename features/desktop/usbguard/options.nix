@@ -1,5 +1,5 @@
 {lib, ...}: {
-  options.dotfiles.desktop.usbguard.staticRules = lib.mkOption {
+  options.dotfiles.usbguard.staticRules = lib.mkOption {
     type = lib.types.attrsOf lib.types.lines;
     default = {};
     description = ''

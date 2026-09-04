@@ -7,7 +7,7 @@
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
   operatingSystems = ["nixos" "generic-linux" "darwin"];
-  inherit (config.dotfiles) username;
+  inherit (config.flake) username;
   outerConfig = config;
   inherit (config._module.args.context) overlays nixpkgsConfig;
 
@@ -104,7 +104,7 @@
         description = "The host's key in `flake.hosts`. The secrets repository, the AgentsView roles and everything else that needs a short name for the machine use it.";
       };
       os = lib.mkOption {
-        type = lib.types.enum outerConfig.dotfiles.operatingSystems;
+        type = lib.types.enum outerConfig.flake.operatingSystems;
       };
       arch = lib.mkOption {
         type = lib.types.enum ["x86_64" "aarch64"];
@@ -180,7 +180,7 @@
   };
 in {
   options = {
-    dotfiles.operatingSystems = lib.mkOption {
+    flake.operatingSystems = lib.mkOption {
       type = with lib.types; listOf str;
       default = operatingSystems;
       readOnly = true;

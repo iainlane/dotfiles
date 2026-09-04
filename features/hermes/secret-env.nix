@@ -6,7 +6,7 @@
   lib,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
 in {
   config = lib.mkIf (cfg.secretEnvFile != null && cfg.secretEnv != {}) {
     sops = {
@@ -28,7 +28,7 @@ in {
         + "\n";
     };
 
-    services.hermes-agent.environmentFiles = [
+    dotfiles.hermes.environmentFiles = [
       config.sops.templates."hermes-secret.env".path
     ];
   };

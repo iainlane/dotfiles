@@ -37,9 +37,9 @@ in {
     pkgs,
     ...
   }: let
-    cfg = config.services.agentsview-server;
+    cfg = config.dotfiles.agentsviewServer;
 
-    proxy = config.services.edge-proxy;
+    proxy = config.dotfiles.containers.edgeProxy;
 
     database = import ./server-database.nix {inherit pkgs;};
 
@@ -423,7 +423,7 @@ in {
     imports = [./server-options.nix ./server-backup.nix];
 
     config = lib.mkMerge [
-      (lib.mkIf (serverDomain != null) {services.agentsview-server.domain = serverDomain;})
+      (lib.mkIf (serverDomain != null) {dotfiles.agentsviewServer.domain = serverDomain;})
 
       {
         assertions = [
@@ -441,7 +441,7 @@ in {
           {
             assertion = proxy.enable;
             message = ''
-              services.agentsview-server needs a proxy on this host. The
+              dotfiles.agentsviewServer needs a proxy on this host. The
               proxy holds the certificate that the machines check, and it
               serves the dashboard.
             '';
@@ -471,7 +471,7 @@ in {
         # The database uses the same port as the web. The protocol tells
         # the two apart. Only the machines with a certificate in this list
         # get through. The stream starts when there is one such machine.
-        services.edge-proxy.streams = lib.mkIf reachableFromProxy {
+        dotfiles.containers.edgeProxy.streams = lib.mkIf reachableFromProxy {
           ${databaseName} = {
             inherit (cfg) domain;
             alpn = "postgresql";

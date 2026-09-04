@@ -8,7 +8,7 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   inherit (import ./builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
   r2Backup = import ../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};

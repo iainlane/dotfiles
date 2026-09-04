@@ -7,10 +7,10 @@
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
 in {
   config = lib.mkIf (cfg."context-engine" == "lcm") {
-    services.hermes-agent = {
+    dotfiles.hermes = {
       extraPlugins.hermes-lcm = inputs.hermes-lcm;
       # hermes-lcm uses tiktoken for exact token counts and regex for
       # message ignore patterns. The vector store imports numpy lazily to

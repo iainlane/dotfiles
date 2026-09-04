@@ -1,4 +1,5 @@
 {
+  config,
   inputs,
   lib,
   pkgs,
@@ -74,7 +75,7 @@
     '';
   };
 in {
-  services.hermes-agent = {
+  dotfiles.hermes = {
     agentPackages = [
       agentBrowser
       chromium
@@ -86,7 +87,7 @@ in {
     environment.AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
   };
 
-  virtualisation.quadlet.containers.${cfg.container.name}.containerConfig = {
+  virtualisation.quadlet.containers.${config.dotfiles.hermes.container.name}.containerConfig = {
     entrypoint = lib.mkForce (lib.getExe gateway);
     environments.BROWSER_CDP_URL = cdpUrl;
   };

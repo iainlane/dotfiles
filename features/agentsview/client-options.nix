@@ -3,7 +3,7 @@
   lib,
   ...
 }: {
-  options.programs.agentsview = {
+  options.dotfiles.agentsview = {
     port = lib.mkOption {
       type = lib.types.port;
       default = 8080;

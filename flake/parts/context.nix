@@ -6,7 +6,7 @@
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
 
-  inherit (config.dotfiles) username;
+  inherit (config.flake) username;
 
   # Common overlays used across all systems.
   # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
@@ -18,7 +18,7 @@
     allowUnfree = true;
   };
 in {
-  options.dotfiles.username = lib.mkOption {
+  options.flake.username = lib.mkOption {
     type = lib.types.str;
     default = "laney";
     description = "Primary user account managed across all hosts.";

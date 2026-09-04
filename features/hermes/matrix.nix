@@ -14,7 +14,7 @@
   lib,
   ...
 }: let
-  cfg = config.services.hermes-agent;
+  cfg = config.dotfiles.hermes;
   matrixSecretsFile = inputs.secrets + "/${cfg.matrix.secretsFile}";
   usingRecoveryKey = cfg.matrix.encryption.enable && cfg.matrix.encryption.recoveryKeyKey != null;
 
@@ -27,7 +27,7 @@
   recoveryKeyStatePath = ".hermes/matrix-recovery-key";
 in {
   config = lib.mkIf cfg.matrix.enable {
-    services.hermes-agent = {
+    dotfiles.hermes = {
       extraDependencyGroups = ["matrix"];
       settings.display.platforms.matrix.streaming = lib.mkDefault true;
       environment =

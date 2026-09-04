@@ -26,7 +26,7 @@
   lib,
   ...
 }: let
-  inherit (config.dotfiles) username;
+  inherit (config.flake) username;
   inherit (config.flake) deploy hosts homeConfigurations;
 
   baseFor = system: {
