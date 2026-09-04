@@ -1,3 +1,9 @@
+# The per-language fragments that make up a project's direnv shell, and the
+# helper that merges them.
+#
+# This is flake-level data, read by the project-shell helper in
+# `lib/projects.nix`, not configuration for any host, so it lives beside the
+# other flake parts.
 {
   config,
   lib,
@@ -62,10 +68,6 @@
   in
     mergeShellAttrs base overlay;
 in {
-  imports = [
-    ./linux.nix
-  ];
-
   options.flake = {
     direnvLanguages = mkOption {
       type = types.attrsOf languageSubmodule;
@@ -134,16 +136,57 @@ in {
         ];
       };
 
-      typescript.shell = pkgs: {
-        packages = with pkgs; [
-          bun
-          corepack
-          deno
-          nodejs
-          pnpm
-          typescript
-          pkgs."typescript-language-server"
-        ];
+      typescript = {
+        shell = pkgs: {
+          packages = with pkgs; [
+            bun
+            corepack
+            deno
+            nodejs
+            pnpm
+            typescript
+            pkgs."typescript-language-server"
+          ];
+        };
+
+        # Playwright's prebuilt Chromium is a glibc-built binary that runs
+        # under nix-ld on NixOS. The system-wide nix-ld config only ships
+        # libraries that everything needs; everything else must come through
+        # `NIX_LD_LIBRARY_PATH` in the shell that launches the browser, so
+        # prepend the Chromium runtime libraries here for any direnv that opts
+        # into the typescript language.
+        os.linux.shell = pkgs: let
+          chromiumLibraries = with pkgs; [
+            alsa-lib
+            at-spi2-core
+            cairo
+            cups
+            dbus
+            expat
+            gdk-pixbuf
+            glib
+            gtk3
+            libdrm
+            libgbm
+            libx11
+            libxcb
+            libxcomposite
+            libxdamage
+            libxext
+            libxfixes
+            libxkbcommon
+            libxrandr
+            libxshmfence
+            nspr
+            nss
+            pango
+            systemd
+          ];
+        in {
+          shellHook = ''
+            export NIX_LD_LIBRARY_PATH="${lib.makeLibraryPath chromiumLibraries}''${NIX_LD_LIBRARY_PATH:+:$NIX_LD_LIBRARY_PATH}"
+          '';
+        };
       };
 
       lua.shell = pkgs: {

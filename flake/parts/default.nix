@@ -7,6 +7,7 @@ in {
       ./context.nix
       ./cupboard.nix
       ./deploy.nix
+      ./direnv-languages.nix
       ./direnvs.nix
       ./features.nix
       ./git-hooks.nix
@@ -18,6 +19,5 @@ in {
     ]
     ++ map (name: ./checks + "/${name}") (helpers.fileNames ./checks ".nix")
     ++ helpers.discoverModuleFiles ../../hosts
-    ++ helpers.discoverModules ../../features
-    ++ helpers.discoverModules ../../modules;
+    ++ helpers.discoverModules ../../features;
 }
