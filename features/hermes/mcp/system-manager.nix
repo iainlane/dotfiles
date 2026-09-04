@@ -1,18 +1,17 @@
 # The default MCP server set the agent can call: Exa, Cloudflare, Context7 and
 # a local mcp-nixos.
 {
-  config,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.dotfiles.hermes;
-
   withSampling =
     lib.mapAttrs (_: server:
       lib.recursiveUpdate {sampling.enabled = lib.mkDefault true;} server);
 in {
-  config = lib.mkIf cfg.mcp.enable {
+  config = {
+    dotfiles.hermes.mcp.present = true;
+
     dotfiles.hermes.settings.mcp_servers = withSampling {
       exa = {
         url = "https://mcp.exa.ai/mcp";

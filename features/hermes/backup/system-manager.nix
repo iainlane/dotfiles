@@ -9,8 +9,8 @@
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  inherit (import ./builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
-  r2Backup = import ../../lib/r2-backup.nix;
+  inherit (import ../builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
+  r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";
   # The script reads its config from the environment, so it stays a plain
@@ -26,7 +26,7 @@
   # long as it takes to write over what they are reading.
   stateUnits =
     ["${cfg.container.name}.service"]
-    ++ lib.optional cfg.dashboard.enable "${cfg.dashboard.containerName}.service";
+    ++ lib.optional cfg.dashboard.present "${cfg.dashboard.containerName}.service";
 
   # A restore is started by a person at a shell, so the script carries the
   # values it needs and reads the credentials from the sops env file itself.
@@ -43,8 +43,10 @@
     text = builtins.readFile ./restore-r2.sh;
   };
 in {
-  config = lib.mkIf cfg.backup.enable (lib.mkMerge [
+  config = lib.mkMerge [
     {
+      dotfiles.hermes.backup.present = true;
+
       sops = r2Backup.sopsFragment {
         inherit config;
         secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
@@ -114,5 +116,5 @@ in {
         };
       };
     })
-  ]);
+  ];
 }

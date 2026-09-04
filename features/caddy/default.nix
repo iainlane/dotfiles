@@ -11,9 +11,14 @@
 # in `config.dotfiles.containers.edgeProxy.exposePodman` has labels saying which name it
 # answers to and whether it needs signing in first. This feature never names an
 # individual service.
-{config, ...}: {
+{config, ...}: let
+  inherit (config.flake) features;
+  children = features.caddy.provides;
+in {
+  imports = [./auth ./origin-auth];
+
   flake.features.caddy = {
-    includes = [config.flake.features.containers];
+    includes = [features.containers] ++ (with children; [auth origin-auth]);
 
     systemManager = {
       config,
@@ -171,7 +176,7 @@
       serviceNetworks =
         map proxy.serviceNetwork (lib.attrNames exposed)
         ++ map proxy.serviceNetwork (lib.attrNames proxy.streams)
-        ++ lib.optional cfg.auth.enable (proxy.serviceNetwork cfg.auth.containerName);
+        ++ lib.optional cfg.auth.present (proxy.serviceNetwork cfg.auth.containerName);
 
       # A client of the identity provider fetches its discovery document, its
       # keys, and the tokens it issues, all from the provider's public name.
@@ -429,7 +434,7 @@
           // lib.optionalAttrs (listenerWrappers != []) {
             listener_wrappers = listenerWrappers;
           }
-          // lib.optionalAttrs cfg.originAuth.enable {
+          // lib.optionalAttrs cfg.originAuth.present {
             tls_connection_policies =
               lib.optional (cfg.originAuth.directSources != []) directPolicy
               ++ [originPolicy];
@@ -471,8 +476,8 @@
 
         assertions = [
           {
-            assertion = cfg.auth.enable || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
-            message = "dotfiles.caddy: a site asks to be behind single sign-on, but dotfiles.caddy.auth is not enabled, so it would be served to anyone.";
+            assertion = cfg.auth.present || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
+            message = "dotfiles.caddy: a site asks to be behind single sign-on, but the caddy.auth feature is not composed on this host, so it would be served to anyone.";
           }
           {
             assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
@@ -494,7 +499,7 @@
         # The sign-in service answers under each protected site, so it comes
         # back to whichever one it started at. Every site is listed, and the
         # list follows whatever is exposed.
-        dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
+        dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.present && idp.enable) {
           ${cfg.auth.clientId} = {
             displayName = "Sign in";
             redirectURIs =
@@ -511,7 +516,7 @@
             {
               ${cfg.dnsTokenKey}.sopsFile = secretsFile;
             }
-            // lib.optionalAttrs cfg.auth.enable {
+            // lib.optionalAttrs cfg.auth.present {
               ${cfg.auth.clientSecretKey}.sopsFile = authSecretsFile;
               ${cfg.auth.cookieSecretKey}.sopsFile = authSecretsFile;
             };
@@ -522,7 +527,7 @@
                 ${tokenEnvVar}=${config.sops.placeholder.${cfg.dnsTokenKey}}
               '';
             }
-            // lib.optionalAttrs cfg.auth.enable {
+            // lib.optionalAttrs cfg.auth.present {
               "oauth2-proxy.env".content = ''
                 ${authClientSecretEnv}=${config.sops.placeholder.${cfg.auth.clientSecretKey}}
                 OAUTH2_PROXY_COOKIE_SECRET=${config.sops.placeholder.${cfg.auth.cookieSecretKey}}
@@ -560,7 +565,7 @@
                 tag = "localhost/${cfg.containerName}:${caddyImage.imageTag}";
               };
             }
-            // lib.optionalAttrs cfg.auth.enable {
+            // lib.optionalAttrs cfg.auth.present {
               ${cfg.auth.containerName}.imageConfig = {
                 image = "docker-archive:${authImage}";
                 tag = "localhost/${cfg.auth.containerName}:${authImage.imageTag}";
@@ -606,7 +611,7 @@
                       readOnly = true;
                     }
                   ]
-                  ++ lib.optionals cfg.originAuth.enable (quadlet.mounts [
+                  ++ lib.optionals cfg.originAuth.present (quadlet.mounts [
                     {
                       source.bind = cfg.originAuth.caFile;
                       target = originPullCaPath;
@@ -630,7 +635,7 @@
               };
             };
 
-            ${cfg.auth.containerName} = lib.mkIf cfg.auth.enable {
+            ${cfg.auth.containerName} = lib.mkIf cfg.auth.present {
               containerConfig = {
                 image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
                 networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];

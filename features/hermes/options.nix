@@ -1,13 +1,13 @@
 {
-  config,
   hostConfig,
   lib,
+  options,
   pkgs,
   ...
 }: let
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  presence = import ../../lib/presence.nix {inherit lib;};
   yaml = pkgs.formats.yaml {};
-  cfg = config.dotfiles.hermes;
 in {
   options.dotfiles.hermes = {
     secretsFile = lib.mkOption {
@@ -214,297 +214,34 @@ in {
       };
     };
 
-    signal = {
-      enable = lib.mkEnableOption "the Signal platform, backed by a signal-cli daemon sidecar";
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
-        description = ''
-          Path, relative to the `secrets` flake input, of the sops file
-          holding `signal_account`, `signal_allowed_users` and
-          `signal_home_channel`.
-        '';
-      };
-
-      httpUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "http://signal-cli:8080";
-        description = "URL at which Hermes reaches the signal-cli daemon.";
-      };
-
-      network = lib.mkOption {
-        type = lib.types.str;
-        default = "hermesnet";
-        description = "Podman network shared between Hermes and signal-cli.";
-      };
-
-      package = lib.mkOption {
-        type = lib.types.nullOr lib.types.package;
-        default = null;
-        description = "signal-cli package to run. Defaults to `pkgs.signal-cli`.";
-      };
-
-      containerName = lib.mkOption {
-        type = lib.types.str;
-        default = "signal-cli";
-        description = "Name of the signal-cli podman container.";
-      };
-    };
-
-    matrix = {
-      enable = lib.mkEnableOption "the Matrix platform";
-
-      serverName = lib.mkOption {
-        type = lib.types.str;
-        example = "example.org";
-        description = ''
-          Domain suffix of the bot's user ID (`@<username>:<serverName>`). This
-          is the homeserver's `server_name`, which is its identity and is not
-          necessarily the name it is reached at; `httpUrl` is that.
-        '';
-      };
-
-      username = lib.mkOption {
-        type = lib.types.str;
-        default = "hermes";
-        description = ''
-          Local part of the bot's Matrix user ID; the full ID is
-          `@<username>:<serverName>`. The bootstrap step creates this account
-          and the agent logs in as it.
-        '';
-      };
-
-      displayName = lib.mkOption {
-        type = with lib.types; nullOr str;
-        default = null;
-        example = "Godfrey";
-        description = ''
-          Display name set on the bot's Matrix profile. Null leaves whatever the
-          account already has (the lowercase local part from account creation).
-        '';
-      };
-
-      homeRoom = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        example = "!abcdef:matrix.orangesquash.org.uk";
-        description = ''
-          Optional room ID for cron and notification delivery. Left empty the
-          bot still works in DMs and threads; set it once you have a room you
-          want unsolicited output to land in.
-        '';
-      };
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
-        description = ''
-          Path, relative to the `secrets` flake input, of the sops file holding
-          `matrix_password` (the bot account's password, which the homeserver
-          creates the account with and the agent logs in with),
-          `matrix_allowed_users` (comma-separated user IDs allowed to talk to
-          the bot) and `matrix_registration_token` (the token that gates
-          registration, entered in a Matrix client to create accounts).
-        '';
-      };
-
-      encryption = {
-        enable = lib.mkEnableOption "end-to-end encryption for the bot's Matrix account";
-
-        deviceId = lib.mkOption {
-          type = lib.types.str;
-          default = "hermes-agent";
-          description = ''
-            Fixed device ID for the bot, so the same device (and its E2EE keys)
-            is reused on every login and persists across restarts.
-          '';
-        };
-
-        recoveryKeyKey = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          example = "matrix_recovery_key";
-          description = ''
-            Key in `secretsFile` holding the cross-signing recovery key. Left
-            null, the bot bootstraps cross-signing on its first encrypted run
-            and keeps the generated recovery key in its state volume, from
-            which later runs read it back to re-sign the device after key
-            rotation. Set this to source the key from the secrets file.
-          '';
-        };
-      };
-
-      httpUrl = lib.mkOption {
-        type = lib.types.str;
-        example = "https://matrix.example.org";
-        description = ''
-          URL at which Hermes reaches the homeserver's client-server API. The
-          agent is an ordinary client of the homeserver, so this is the public
-          name it is served at.
-        '';
-      };
-    };
-
-    dashboard = {
-      enable = lib.mkEnableOption "the Hermes web dashboard, in a separate container";
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 9119;
-        description = "Port the dashboard listens on.";
-      };
-
-      address = lib.mkOption {
-        type = lib.types.str;
-        default = "127.0.0.1";
-        description = ''
-          Address the dashboard binds to when it is not exposed. On loopback
-          nothing outside the container reaches it. Setting `expose` binds
-          every address instead, and configures the sign-in that Hermes then
-          requires.
-        '';
-      };
-
-      expose = lib.mkOption {
-        type = lib.types.nullOr (lib.types.submodule (import ../../lib/exposed-service.nix));
-        default = null;
-        description = ''
-          How the reverse proxy serves the dashboard. Hermes makes people
-          sign in, but serves anyone the identity provider recognises, so
-          `auth` belongs on: the proxy's `allow` list is the only thing that
-          limits who gets in.
-        '';
-      };
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
-        description = ''
-          Path, relative to the `secrets` flake input, of the sops file
-          holding the dashboard's half of the secret it shares with the
-          identity provider. The provider reads the same file.
-        '';
-      };
-
-      clientSecretKey = lib.mkOption {
-        type = lib.types.str;
-        default = "dashboard_oidc_client_secret";
-        description = "Key in `dashboard.secretsFile` holding that secret.";
-      };
-
-      containerName = lib.mkOption {
-        type = lib.types.str;
-        default = "hermes-dashboard";
-        description = "Name of the dashboard podman container.";
-      };
-    };
-
-    homeassistant = {
-      enable = lib.mkEnableOption "the Home Assistant integration (event platform plus device-control tools)";
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
-        description = ''
-          Path, relative to the `secrets` flake input, of the sops file holding
-          `hass_token` (a Home Assistant long-lived access token) and `hass_url`
-          (the Home Assistant base URL, e.g. `http://homeassistant.local:8123`).
-        '';
-      };
-    };
-
-    soul = {
-      enable = lib.mkEnableOption "installing a read-only SOUL.md identity file";
-
-      file = lib.mkOption {
-        type = lib.types.path;
-        default = ./soul.md;
-        description = "Markdown file installed as the agent's SOUL.md identity.";
-      };
-    };
-
-    agents = {
-      enable = lib.mkEnableOption "installing a read-only AGENTS.md operating-instructions file";
-
-      file = lib.mkOption {
-        type = lib.types.path;
-        default = ./agents.md;
-        description = ''
-          Markdown file installed as AGENTS.md in the agent's working
-          directory, loaded as workspace context alongside SOUL.md.
-        '';
-      };
-    };
-
-    mcp = {
-      enable = lib.mkEnableOption "the default MCP server set (exa, context7, nixos, cloudflare)";
-    };
+    signal.present = presence.option "the Signal platform, backed by a signal-cli daemon sidecar";
+    matrix.present = presence.option "the Matrix platform";
+    dashboard.present = presence.option "the Hermes web dashboard, in a container of its own";
+    homeassistant.present = presence.option "the Home Assistant integration, an event platform and device-control tools";
+    soul.present = presence.option "the read-only SOUL.md identity file";
+    agents.present = presence.option "the read-only AGENTS.md operating-instructions file";
+    mcp.present = presence.option "the default MCP server set: Exa, Cloudflare, Context7 and a local mcp-nixos";
+    embeddings.present = presence.option "semantic and hybrid retrieval in the LCM context engine";
+    backup.present = presence.option "encrypted backups of the agent state, uploaded to Cloudflare R2";
 
     context-engine = lib.mkOption {
       type = lib.types.enum ["compressor" "lcm"];
       default = "compressor";
       description = "Context engine to use for conversation context management.";
     };
-
-    embeddings = {
-      enable = lib.mkEnableOption ''
-        semantic and hybrid retrieval in the LCM context engine. LCM reaches
-        these only through `/lcm embed warmup` and `/lcm embed backfill`, so
-        this also enables the `/lcm` operator command
-      '';
-
-      provider = lib.mkOption {
-        type = lib.types.str;
-        default = "openai-compatible";
-        example = "voyage";
-        description = ''
-          Embedding provider. `openai-compatible` targets any endpoint that
-          serves OpenAI's `/v1/embeddings`; `voyage`, `ollama` and `fastembed`
-          are the other providers LCM knows.
-        '';
-      };
-
-      model = lib.mkOption {
-        type = lib.types.str;
-        example = "baai/bge-m3";
-        description = "Embedding model, named as the configured endpoint names it.";
-      };
-
-      baseUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        example = "https://openrouter.ai/api/v1";
-        description = ''
-          API root for the `openai-compatible` provider, to which LCM appends
-          `/embeddings`.
-        '';
-      };
-
-      apiKeyVariable = lib.mkOption {
-        type = lib.types.str;
-        default = "LCM_EMBEDDING_API_KEY";
-        example = "OPENROUTER_API_KEY";
-        description = ''
-          Environment variable the `openai-compatible` provider reads the API
-          key from. Naming a variable rather than the key itself lets a key
-          already in `secretEnv` serve both the agent and the embedding
-          endpoint.
-        '';
-      };
-    };
-
-    backup = lib.mkOption {
-      type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
-        defaultPrefix = "hermes";
-        defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
-      });
-      default = {};
-      description = "Encrypted backups of the agent state, uploaded to Cloudflare R2.";
-    };
   };
+
+  config.assertions =
+    presence.assertions options
+    (map (child: ["dotfiles" "hermes" child "present"]) [
+      "signal"
+      "matrix"
+      "dashboard"
+      "homeassistant"
+      "soul"
+      "agents"
+      "mcp"
+      "embeddings"
+      "backup"
+    ]);
 }

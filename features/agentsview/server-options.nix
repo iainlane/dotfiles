@@ -1,9 +1,11 @@
 {
   hostConfig,
   lib,
+  options,
   ...
 }: let
   common = import ./common.nix {inherit lib;};
+  presence = import ../../lib/presence.nix {inherit lib;};
 in {
   options.dotfiles.agentsviewServer = {
     domain = lib.mkOption {
@@ -58,18 +60,11 @@ in {
       description = "The port of the dashboard inside its container.";
     };
 
-    backup = lib.mkOption {
-      type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
-        defaultPrefix = "agentsview";
-        defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
-      });
-      default = {};
-      description = ''
-        Encrypted backups of the session database, uploaded to Cloudflare R2.
-        `pg_dump` reads the database while it is serving, so the machines keep
-        pushing while a backup runs.
-      '';
-    };
+    backup.present = presence.option ''
+      encrypted backups of the session database, uploaded to Cloudflare R2.
+      `pg_dump` reads the database while it is serving, so the machines keep
+      pushing while a backup runs
+    '';
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
@@ -95,4 +90,6 @@ in {
       '';
     };
   };
+
+  config.assertions = presence.assertions options [["dotfiles" "agentsviewServer" "backup" "present"]];
 }

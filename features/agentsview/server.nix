@@ -29,7 +29,7 @@
     (hostname: builtins.readFile (common.certificatePath hostname))
     (lib.attrNames (lib.filterAttrs (hostname: _: common.hasCertificate hostname) pushers));
 in {
-  includes = [config.flake.features.containers];
+  includes = [config.flake.features.containers config.flake.features.agentsview-server.provides.backup];
 
   systemManager = {
     config,
@@ -420,7 +420,7 @@ in {
       };
     };
   in {
-    imports = [./server-options.nix ./server-backup.nix];
+    imports = [./server-options.nix];
 
     config = lib.mkMerge [
       (lib.mkIf (serverDomain != null) {dotfiles.agentsviewServer.domain = serverDomain;})

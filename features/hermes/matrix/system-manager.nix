@@ -16,17 +16,19 @@
 }: let
   cfg = config.dotfiles.hermes;
   matrixSecretsFile = inputs.secrets + "/${cfg.matrix.secretsFile}";
-  usingRecoveryKey = cfg.matrix.encryption.enable && cfg.matrix.encryption.recoveryKeyKey != null;
+  usingRecoveryKey = cfg.matrix.encryption && cfg.matrix.recoveryKeyKey != null;
 
   # With no recovery key in the secrets file, the bot bootstraps cross-signing
   # itself: on the first encrypted run it writes the generated recovery key
   # here (a path inside the state volume, mounted at /data in the container),
   # and every later start reads it back into MATRIX_RECOVERY_KEY so the bot
   # can re-sign its device after key rotation.
-  bootstrappingKeys = cfg.matrix.encryption.enable && !usingRecoveryKey;
+  bootstrappingKeys = cfg.matrix.encryption && !usingRecoveryKey;
   recoveryKeyStatePath = ".hermes/matrix-recovery-key";
 in {
-  config = lib.mkIf cfg.matrix.enable {
+  config = {
+    dotfiles.hermes.matrix.present = true;
+
     dotfiles.hermes = {
       extraDependencyGroups = ["matrix"];
       settings.display.platforms.matrix.streaming = lib.mkDefault true;
@@ -38,9 +40,9 @@ in {
         // lib.optionalAttrs (cfg.matrix.homeRoom != "") {
           MATRIX_HOME_ROOM = cfg.matrix.homeRoom;
         }
-        // lib.optionalAttrs cfg.matrix.encryption.enable {
+        // lib.optionalAttrs cfg.matrix.encryption {
           MATRIX_E2EE_MODE = "required";
-          MATRIX_DEVICE_ID = cfg.matrix.encryption.deviceId;
+          MATRIX_DEVICE_ID = cfg.matrix.deviceId;
         }
         // lib.optionalAttrs bootstrappingKeys {
           MATRIX_RECOVERY_KEY_OUTPUT_FILE = "/data/${recoveryKeyStatePath}";
@@ -67,7 +69,7 @@ in {
         // lib.optionalAttrs usingRecoveryKey {
           hermes_matrix_recovery_key = {
             sopsFile = matrixSecretsFile;
-            key = cfg.matrix.encryption.recoveryKeyKey;
+            key = cfg.matrix.recoveryKeyKey;
           };
         };
 

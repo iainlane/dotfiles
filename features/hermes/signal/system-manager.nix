@@ -8,9 +8,9 @@
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  quadlet = import ../../../lib/quadlet.nix {inherit lib;};
   inherit
-    (import ./builders.nix {inherit config inputs lib pkgs;})
+    (import ../builders.nix {inherit config inputs lib pkgs;})
     mkNixImage
     hermesUser
     hermesNss
@@ -34,7 +34,9 @@
   ];
   signalImageUnit = "${cfg.signal.containerName}-image.service";
 in {
-  config = lib.mkIf cfg.signal.enable {
+  config = {
+    dotfiles.hermes.signal.present = true;
+
     environment.systemPackages = [signalCliPackage];
 
     sops = {

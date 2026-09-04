@@ -9,9 +9,9 @@
 }: let
   cfg = config.dotfiles.agentsviewServer;
 
-  database = import ./server-database.nix {inherit pkgs;};
+  database = import ../server-database.nix {inherit pkgs;};
 
-  r2Backup = import ../../lib/r2-backup.nix;
+  r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
 
   envTemplate = "agentsview-backup.env";
@@ -27,8 +27,10 @@
     text = builtins.readFile ./backup-r2.sh;
   };
 in {
-  config = lib.mkIf cfg.backup.enable (lib.mkMerge [
+  config = lib.mkMerge [
     {
+      dotfiles.agentsviewServer.backup.present = true;
+
       sops = r2Backup.sopsFragment {
         inherit config;
         secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
@@ -106,5 +108,5 @@ in {
         };
       };
     })
-  ]);
+  ];
 }

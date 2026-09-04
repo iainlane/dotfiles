@@ -9,7 +9,20 @@
   cfg = config.dotfiles.hermes;
   hassSecretsFile = inputs.secrets + "/${cfg.homeassistant.secretsFile}";
 in {
-  config = lib.mkIf cfg.homeassistant.enable {
+  options.dotfiles.hermes.homeassistant.secretsFile = lib.mkOption {
+    type = lib.types.str;
+    default = cfg.secretsFile;
+    defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
+    description = ''
+      Path, relative to the `secrets` flake input, of the sops file holding
+      `hass_token` (a Home Assistant long-lived access token) and `hass_url`
+      (the Home Assistant base URL, e.g. `http://homeassistant.local:8123`).
+    '';
+  };
+
+  config = {
+    dotfiles.hermes.homeassistant.present = true;
+
     sops = {
       secrets = {
         hass_token.sopsFile = hassSecretsFile;

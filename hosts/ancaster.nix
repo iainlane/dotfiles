@@ -57,29 +57,19 @@ in {
 
         hermes = {
           profilePicture = ./ancaster/godfrey;
-          signal.enable = true;
           matrix = {
-            enable = true;
             serverName = "orangesquash.org.uk";
             httpUrl = "https://matrix.orangesquash.org.uk";
             username = "godfrey";
             displayName = "Godfrey";
-            encryption.enable = true;
+            encryption = true;
           };
-          dashboard = {
-            enable = true;
-            expose = {
-              domain = "godfrey.orangesquash.org.uk";
-              auth = true;
-            };
+          dashboard.expose = {
+            domain = "godfrey.orangesquash.org.uk";
+            auth = true;
           };
-          homeassistant.enable = true;
-          soul.enable = true;
-          agents.enable = true;
-          mcp.enable = true;
           context-engine = "lcm";
           embeddings = {
-            enable = true;
             # OpenRouter serves OpenAI-shaped embeddings, so LCM reaches it
             # through the provider proposed in hermes-lcm#519 and reads the key
             # from the variable `secretEnv` already sets for the agent's models.
@@ -184,18 +174,14 @@ in {
           };
           ipv6Address = "2001:8b0:df29:1a0:c::1";
           email = "iain@orangesquash.org.uk";
-          originAuth = {
-            enable = true;
-            # The LAN and the IoT VLAN reach these addresses directly, so they
-            # hold no certificate from Cloudflare to present.
-            directSources = [
-              "192.168.1.0/24"
-              "192.168.2.0/24"
-              "2001:8b0:df29::/48"
-            ];
-          };
+          # The LAN and the IoT VLAN reach these addresses directly, so they
+          # hold no certificate from Cloudflare to present.
+          originAuth.directSources = [
+            "192.168.1.0/24"
+            "192.168.2.0/24"
+            "2001:8b0:df29::/48"
+          ];
           auth = {
-            enable = true;
             cookieDomain = ".orangesquash.org.uk";
             secretsFile = "ancaster/host-oauth2-proxy.yaml";
             allow = ["iainlane"];

@@ -20,11 +20,11 @@ in {
           pkgs.python312Packages.tiktoken
           pkgs.python312Packages.regex
         ]
-        ++ lib.optional cfg.embeddings.enable pkgs.python312Packages.numpy;
+        ++ lib.optional cfg.embeddings.present pkgs.python312Packages.numpy;
       enabledPlugins = ["hermes-lcm"];
       settings.context.engine = "lcm";
 
-      environment = lib.mkIf cfg.embeddings.enable (
+      environment = lib.mkIf cfg.embeddings.present (
         {
           LCM_EMBEDDINGS_ENABLED = "true";
           LCM_EMBEDDING_PROVIDER = cfg.embeddings.provider;

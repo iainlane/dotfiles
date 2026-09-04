@@ -30,7 +30,7 @@
     then "0.0.0.0"
     else dashboard.address;
 
-  inherit (import ./builders.nix {inherit config inputs lib pkgs;}) mkHermesContainer;
+  inherit (import ../builders.nix {inherit config inputs lib pkgs;}) mkHermesContainer;
 
   dashboardContainer = mkHermesContainer {
     description = "Hermes Agent Web Dashboard";
@@ -47,7 +47,7 @@
 
     networks =
       lib.toList cfg.container.network
-      ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
+      ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
 
     environments = lib.optionalAttrs exposed {
       # Where someone is sent back to after signing in. The request reaches
@@ -66,8 +66,10 @@
       ++ lib.optional exposed "${config.dotfiles.caddy.containerName}.service";
   };
 in {
-  config = lib.mkIf dashboard.enable (lib.mkMerge [
+  config = lib.mkMerge [
     {
+      dotfiles.hermes.dashboard.present = true;
+
       virtualisation.quadlet.containers.${dashboard.containerName} =
         if exposed
         then config.dotfiles.containers.edgeProxy.exposePodman dashboard.containerName dashboardContainer (dashboard.expose // {inherit (dashboard) port;})
@@ -90,5 +92,5 @@ in {
         '';
       };
     })
-  ]);
+  ];
 }

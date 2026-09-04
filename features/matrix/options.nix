@@ -1,8 +1,11 @@
 {
   hostConfig,
   lib,
+  options,
   ...
-}: {
+}: let
+  presence = import ../../lib/presence.nix {inherit lib;};
+in {
   options.dotfiles.matrix = {
     serverName = lib.mkOption {
       type = lib.types.str;
@@ -71,38 +74,7 @@
       '';
     };
 
-    backup = lib.mkOption {
-      type = lib.types.submodule [
-        ((import ../../lib/r2-backup.nix).options {
-          defaultPrefix = "matrix";
-          defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
-        })
-        {
-          options = {
-            keep = lib.mkOption {
-              type = lib.types.int;
-              default = 3;
-              description = ''
-                How many backups the homeserver retains on disk before deleting
-                the oldest. Each is uploaded as it is taken; this is what stays
-                locally.
-              '';
-            };
-
-            timeout = lib.mkOption {
-              type = lib.types.int;
-              default = 1800;
-              description = ''
-                Seconds to wait for a backup to appear after asking for one,
-                before giving up and failing the unit.
-              '';
-            };
-          };
-        }
-      ];
-      default = {};
-      description = "Online database backups, uploaded to Cloudflare R2.";
-    };
+    backup.present = presence.option "online database backups, uploaded to Cloudflare R2";
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
@@ -156,4 +128,6 @@
       description = "Port the homeserver's client-server API listens on inside the container.";
     };
   };
+
+  config.assertions = presence.assertions options [["dotfiles" "matrix" "backup" "present"]];
 }

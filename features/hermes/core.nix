@@ -62,7 +62,7 @@ in {
           (["gateway" "run" "--replace"] ++ cfg.extraArgs);
         networks =
           lib.toList cfg.container.network
-          ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
+          ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
         publishPorts = cfg.container.ports;
         serviceConfig.TimeoutStopSec = 210;
       };

@@ -4,8 +4,10 @@
 # talks to it. Clients reach it at its public name, which is also how the agent
 # on this host reaches it.
 {config, ...}: {
+  imports = [./backup];
+
   flake.features.matrix = {
-    includes = [config.flake.features.containers];
+    includes = [config.flake.features.containers config.flake.features.matrix.provides.backup];
 
     systemManager = {
       config,
@@ -23,22 +25,13 @@
         else pkgs.matrix-continuwuity;
 
       databasePath = "/var/lib/continuwuity";
-      backupPath = "/var/lib/continuwuity-backup";
       configPath = "/etc/continuwuity.toml";
       adminConfigPath = "/etc/continuwuity-admin.toml";
       stateVolume = "matrix-state";
-      backupVolume = "matrix-backup";
-      backupUnit = "${cfg.containerName}-backup";
+
+      backup = import ./backup/paths.nix;
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
-
-      r2Backup = import ../../lib/r2-backup.nix;
-      r2Tool = r2Backup.tool {inherit pkgs;};
-      backupScript = pkgs.writeShellApplication {
-        name = "matrix-backup";
-        runtimeInputs = [pkgs.coreutils];
-        text = builtins.readFile ./backup.sh;
-      };
 
       image = mkNixImage cfg.containerName [
         package
@@ -84,8 +77,8 @@
             trusted_servers = [];
           }
           // lib.optionalAttrs (wellKnown != {}) {well_known = wellKnown;}
-          // lib.optionalAttrs cfg.backup.enable {
-            database_backup_path = backupPath;
+          // lib.optionalAttrs cfg.backup.present {
+            database_backup_path = backup.path;
             database_backups_to_keep = cfg.backup.keep;
             # SIGUSR2 runs these, which is how the timer asks for a backup.
             admin_signal_execute = ["server backup-database"];
@@ -109,7 +102,7 @@
         );
 
       matrixContainer = import ./container.nix {
-        inherit adminConfigPath backupPath backupVolume configFile configPath databasePath cfg lib pkgs package stateVolume;
+        inherit adminConfigPath backup configFile configPath databasePath cfg lib pkgs package stateVolume;
         adminConfigFile = config.sops.templates."continuwuity-admin.toml".path;
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
       };
@@ -131,103 +124,31 @@
             }
           ];
 
-          sops = lib.mkMerge [
-            (lib.mkIf cfg.backup.enable (r2Backup.sopsFragment {
-              inherit config;
-              secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
-              templateName = "matrix-backup.env";
-            }))
-            {
-              secrets =
-                {
-                  matrix_password.sopsFile = secretsFile;
-                  matrix_registration_token.sopsFile = secretsFile;
-                }
-                // lib.mapAttrs' (
-                  _: user: lib.nameValuePair user.passwordKey {sopsFile = secretsFile;}
-                )
-                (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
+          sops = {
+            secrets =
+              {
+                matrix_password.sopsFile = secretsFile;
+                matrix_registration_token.sopsFile = secretsFile;
+              }
+              // lib.mapAttrs' (
+                _: user: lib.nameValuePair user.passwordKey {sopsFile = secretsFile;}
+              )
+              (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
 
-              # A config overlay carrying the secret-bearing settings. Living in a
-              # mode-restricted file keeps the passwords out of the world-readable
-              # store and out of process arguments.
-              templates."continuwuity-admin.toml" = {
-                content = ''
-                  [global]
-                  registration_token = ${builtins.toJSON config.sops.placeholder.matrix_registration_token}
-                  admin_execute = ${builtins.toJSON adminCommands}
-                '';
-              };
-            }
-          ];
-
-          systemd = lib.mkIf cfg.backup.enable {
-            services.${backupUnit} = {
-              description = "Back the Continuwuity database up to Cloudflare R2";
-              requires = ["${cfg.containerName}.service" "sops-install-secrets.service"];
-              after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
-              wants = ["network-online.target"];
-              path = [config.virtualisation.podman.package r2Tool];
-              serviceConfig = r2Backup.withScratchDirectory backupUnit {
-                Type = "oneshot";
-                EnvironmentFile = config.sops.templates."matrix-backup.env".path;
-                Environment = [
-                  "MATRIX_CONTAINER=${cfg.containerName}"
-                  "MATRIX_BACKUP_VOLUME=${backupVolume}"
-                  "MATRIX_BACKUP_TIMEOUT=${toString cfg.backup.timeout}"
-                  "BACKUP_NAME=${cfg.containerName}"
-                  "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
-                  "BACKUP_PREFIX=${cfg.backup.prefix}"
-                  "BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
-                ];
-                ExecStart = "${backupScript}/bin/matrix-backup";
-              };
-            };
-
-            timers.${backupUnit} = {
-              description = "Schedule the Continuwuity backup";
-              wantedBy = ["timers.target"];
-              timerConfig = {
-                OnCalendar = cfg.backup.schedule;
-                Persistent = true;
-                RandomizedDelaySec = "15m";
-              };
-            };
-
-            services."${backupUnit}-verify" = lib.mkIf cfg.backup.verify.enable {
-              description = "Check the Continuwuity R2 backup arrived";
-              requires = ["sops-install-secrets.service"];
-              after = ["network-online.target" "sops-install-secrets.service"];
-              wants = ["network-online.target"];
-              serviceConfig = {
-                Type = "oneshot";
-                EnvironmentFile = config.sops.templates."matrix-backup.env".path;
-                Environment = [
-                  "BACKUP_NAME=${cfg.containerName}"
-                  "BACKUP_PREFIX=${cfg.backup.prefix}"
-                  "BACKUP_MAX_AGE_HOURS=${toString cfg.backup.verify.maxAgeHours}"
-                  "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
-                  "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
-                ];
-                ExecStart = "${r2Tool}/bin/r2 verify";
-              };
-            };
-
-            timers."${backupUnit}-verify" = lib.mkIf cfg.backup.verify.enable {
-              description = "Schedule the Continuwuity backup check";
-              wantedBy = ["timers.target"];
-              timerConfig = {
-                OnCalendar = cfg.backup.verify.schedule;
-                Persistent = true;
-                RandomizedDelaySec = "15m";
-              };
+            # A config overlay carrying the secret-bearing settings. Living in a
+            # mode-restricted file keeps the passwords out of the world-readable
+            # store and out of process arguments.
+            templates."continuwuity-admin.toml" = {
+              content = ''
+                [global]
+                registration_token = ${builtins.toJSON config.sops.placeholder.matrix_registration_token}
+                admin_execute = ${builtins.toJSON adminCommands}
+              '';
             };
           };
 
           virtualisation.quadlet = {
-            volumes =
-              {${stateVolume} = {};}
-              // lib.optionalAttrs cfg.backup.enable {${backupVolume} = {};};
+            volumes.${stateVolume} = {};
 
             images.${cfg.containerName}.imageConfig = {
               image = "docker-archive:${image}";

@@ -10,110 +10,100 @@ let
 in {
   inherit recipient;
 
-  # Options a service exposes for the host to fill in, as a submodule.
+  # Options a service exposes for the host to fill in, as an attribute set of
+  # declarations the backup feature splices under its own root.
   options = {
     defaultPrefix,
     defaultSecretsFile,
-  }: {lib, ...}: {
-    options = {
+    lib,
+  }: {
+    secretsFile = lib.mkOption {
+      type = lib.types.str;
+      default = defaultSecretsFile;
+      description = ''
+        Path, relative to the `secrets` input, of the sops file holding
+        `r2_bucket`, `r2_endpoint`, `r2_access_key_id`, and
+        `r2_secret_access_key`. One bucket serves every backup, so the
+        default is a file shared by everything decrypting with the same key.
+      '';
+    };
+
+    ageRecipient = lib.mkOption {
+      type = lib.types.str;
+      default = recipient;
+      description = ''
+        age public key the backup is encrypted to, defaulting to the shared
+        one. Keep the matching private key offline; a restore needs it.
+      '';
+    };
+
+    schedule = lib.mkOption {
+      type = lib.types.str;
+      default = "*-*-* 04:00:00";
+      description = "systemd `OnCalendar` schedule for the backup.";
+    };
+
+    keepDays = lib.mkOption {
+      type = lib.types.int;
+      default = 30;
+      description = "Delete remote backups older than this many days.";
+    };
+
+    prefix = lib.mkOption {
+      type = lib.types.str;
+      default = defaultPrefix;
+      description = "Path prefix within the R2 bucket.";
+    };
+
+    verify = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
         description = ''
-          Whether to upload scheduled, encrypted backups to Cloudflare R2.
-          This is on by default: a service holding state that cannot be
-          rebuilt should be backed up as soon as a host runs it.
-        '';
-      };
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = defaultSecretsFile;
-        description = ''
-          Path, relative to the `secrets` input, of the sops file holding
-          `r2_bucket`, `r2_endpoint`, `r2_access_key_id`, and
-          `r2_secret_access_key`. One bucket serves every backup, so the
-          default is a file shared by everything decrypting with the same key.
-        '';
-      };
-
-      ageRecipient = lib.mkOption {
-        type = lib.types.str;
-        default = recipient;
-        description = ''
-          age public key the backup is encrypted to, defaulting to the shared
-          one. Keep the matching private key offline; a restore needs it.
+          Check on a timer that a backup reached the bucket. The private key
+          is offline, so this looks at the remote objects alone: how old the
+          newest one is, how big it is, and how many are held. A check that
+          does not pass fails its unit.
         '';
       };
 
       schedule = lib.mkOption {
         type = lib.types.str;
-        default = "*-*-* 04:00:00";
-        description = "systemd `OnCalendar` schedule for the backup.";
+        default = "*-*-* 06:00:00";
+        description = ''
+          systemd `OnCalendar` schedule for the check. It runs on a timer of
+          its own so that a backup which never started is noticed as well,
+          which means it wants to be an hour or two after `schedule`.
+        '';
       };
 
-      keepDays = lib.mkOption {
+      maxAgeHours = lib.mkOption {
         type = lib.types.int;
-        default = 30;
-        description = "Delete remote backups older than this many days.";
+        default = 48;
+        description = ''
+          Fail if the newest backup in the bucket is older than this many
+          hours. The default leaves a daily backup room to miss a single run
+          before it counts as a problem.
+        '';
       };
 
-      prefix = lib.mkOption {
-        type = lib.types.str;
-        default = defaultPrefix;
-        description = "Path prefix within the R2 bucket.";
+      minSizeBytes = lib.mkOption {
+        type = lib.types.int;
+        default = 65536;
+        description = ''
+          Fail if the newest backup is smaller than this many bytes, which
+          catches an archive taken of an empty or half-mounted source.
+        '';
       };
 
-      verify = {
-        enable = lib.mkOption {
-          type = lib.types.bool;
-          default = true;
-          description = ''
-            Check on a timer that a backup reached the bucket. The private key
-            is offline, so this looks at the remote objects alone: how old the
-            newest one is, how big it is, and how many are held. A check that
-            does not pass fails its unit.
-          '';
-        };
-
-        schedule = lib.mkOption {
-          type = lib.types.str;
-          default = "*-*-* 06:00:00";
-          description = ''
-            systemd `OnCalendar` schedule for the check. It runs on a timer of
-            its own so that a backup which never started is noticed as well,
-            which means it wants to be an hour or two after `schedule`.
-          '';
-        };
-
-        maxAgeHours = lib.mkOption {
-          type = lib.types.int;
-          default = 48;
-          description = ''
-            Fail if the newest backup in the bucket is older than this many
-            hours. The default leaves a daily backup room to miss a single run
-            before it counts as a problem.
-          '';
-        };
-
-        minSizeBytes = lib.mkOption {
-          type = lib.types.int;
-          default = 65536;
-          description = ''
-            Fail if the newest backup is smaller than this many bytes, which
-            catches an archive taken of an empty or half-mounted source.
-          '';
-        };
-
-        minCount = lib.mkOption {
-          type = lib.types.int;
-          default = 1;
-          description = ''
-            Fail if the bucket holds fewer than this many backups. Raising it
-            towards what `keepDays` should have accumulated checks that the
-            history is there, and not only the newest copy.
-          '';
-        };
+      minCount = lib.mkOption {
+        type = lib.types.int;
+        default = 1;
+        description = ''
+          Fail if the bucket holds fewer than this many backups. Raising it
+          towards what `keepDays` should have accumulated checks that the
+          history is there, and not only the newest copy.
+        '';
       };
     };
   };

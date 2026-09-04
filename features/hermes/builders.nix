@@ -115,7 +115,7 @@
       hermesNss
     ]
     ++ agentToolDrvs
-    ++ lib.optional cfg.mcp.enable pkgs.mcp-nixos
+    ++ lib.optional cfg.mcp.present pkgs.mcp-nixos
     ++ lib.optional (cfg.extraPlugins != {}) extraPluginPaths
   );
 
@@ -316,14 +316,14 @@
               readOnly = true;
             }
           ]
-          ++ lib.optionals cfg.soul.enable (quadlet.mounts [
+          ++ lib.optionals cfg.soul.present (quadlet.mounts [
             {
               source.bind = cfg.soul.file;
               target = "/data/.hermes/SOUL.md";
               readOnly = true;
             }
           ])
-          ++ lib.optionals cfg.agents.enable (quadlet.mounts [
+          ++ lib.optionals cfg.agents.present (quadlet.mounts [
             {
               source.bind = cfg.agents.file;
               target = "/data/workspace/AGENTS.md";

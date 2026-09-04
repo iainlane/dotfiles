@@ -3,10 +3,28 @@
   lib,
   ...
 }: let
+  inherit (config.flake) features;
+  children = features.hermes.provides;
   defaultModels = import ../ai/models.nix;
 in {
+  imports = [
+    ./agents
+    ./backup
+    ./dashboard
+    ./embeddings
+    ./homeassistant
+    ./matrix
+    ./mcp
+    ./signal
+    ./soul
+  ];
+
   flake.features.hermes = {
-    includes = [config.flake.features.containers];
+    # Each platform adds its rendered secrets to `environmentFiles`, and
+    # `builders.nix` concatenates those files into the agent's `.env` in the
+    # order they resolve here. Two platforms that define the same variable
+    # therefore depend on this order.
+    includes = [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
 
     systemManager = {
       imports = [
@@ -15,15 +33,9 @@ in {
         ./models.nix
         ./terminal.nix
         ./browser.nix
-        ./dashboard.nix
-        ./signal.nix
-        ./matrix.nix
         ./profile-picture.nix
-        ./homeassistant.nix
         ./secret-env.nix
-        ./mcp.nix
         ./context-engine.nix
-        ./backup.nix
       ];
 
       config = {

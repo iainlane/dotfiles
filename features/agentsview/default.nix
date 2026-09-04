@@ -13,6 +13,8 @@
 }: let
   common = import ./common.nix {inherit lib;};
 in {
+  imports = [./server-backup];
+
   options.flake = {
     agentsviewServer.domain = lib.mkOption {
       type = lib.types.nullOr lib.types.str;

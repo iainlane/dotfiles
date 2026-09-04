@@ -1,7 +1,6 @@
 {
   adminConfigFile,
-  backupPath,
-  backupVolume,
+  backup,
   cfg,
   configFile,
   configPath,
@@ -45,10 +44,10 @@ in {
           readOnly = true;
         }
       ]
-      ++ lib.optionals cfg.backup.enable (quadlet.mounts [
+      ++ lib.optionals cfg.backup.present (quadlet.mounts [
         {
-          source.quadletVolume = backupVolume;
-          target = backupPath;
+          source.quadletVolume = backup.volume;
+          target = backup.path;
           ownership = "idmap";
         }
       ]);

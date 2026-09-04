@@ -1,10 +1,10 @@
 {
-  config,
   hostConfig,
   lib,
+  options,
   ...
 }: let
-  cfg = config.dotfiles.caddy;
+  presence = import ../../lib/presence.nix {inherit lib;};
 in {
   options.dotfiles.caddy = {
     ipv4Address = lib.mkOption {
@@ -137,89 +137,16 @@ in {
       description = "Name of the Caddy podman container.";
     };
 
-    originAuth = {
-      enable = lib.mkEnableOption ''
-        refusing connections that did not arrive through the content delivery
-        network in front of this host. The network holds a client certificate
-        and presents it when connecting, so someone who has found the host's
-        own address cannot reach the services behind it directly
-      '';
-
-      caFile = lib.mkOption {
-        type = lib.types.path;
-        default = ./cloudflare-origin-pull-ca.pem;
-        description = ''
-          Authority the client certificate must be signed by. Defaults to a
-          copy of Cloudflare's origin pull authority, published at
-          <https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem>
-          and replaced when Cloudflare rotates it.
-        '';
-      };
-
-      directSources = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [];
-        example = ["192.168.1.0/24" "2001:db8::/48"];
-        description = ''
-          Addresses served without being asked for a certificate. Clients on
-          these networks reach the host directly, so they hold no certificate
-          and would otherwise be refused along with everyone else.
-        '';
-      };
-    };
+    originAuth.present = presence.option ''
+      refusing connections that did not arrive through the content delivery
+      network in front of this host
+    '';
 
     auth = {
-      enable = lib.mkEnableOption ''
-        single sign-on for sites that ask for it, provided by one oauth2-proxy
-        the whole host shares. Sites opt in individually: some must stay
-        reachable unauthenticated, and a proxy that quietly authenticates them
-        breaks them in ways that are hard to attribute
+      present = presence.option ''
+        single sign-on for the sites that ask for it, provided by one
+        oauth2-proxy the whole host shares
       '';
-
-      clientId = lib.mkOption {
-        type = lib.types.str;
-        default = "oauth2-proxy";
-        description = ''
-          Name the sign-in service registers with the identity provider, and
-          gives when it asks who somebody is.
-        '';
-      };
-
-      clientSecretKey = lib.mkOption {
-        type = lib.types.str;
-        default = "oidc_client_secret";
-        description = ''
-          Key in `auth.secretsFile` holding the secret shared with the identity
-          provider. The provider reads the same file, so the value is written
-          once.
-        '';
-      };
-
-      cookieDomain = lib.mkOption {
-        type = lib.types.str;
-        example = ".example.org";
-        description = ''
-          Domain the session cookie is scoped to. Must be a parent of every
-          protected site, so that signing in at one is recognised at the rest.
-        '';
-      };
-
-      secretsFile = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.secretsFile;
-        defaultText = lib.literalExpression "config.dotfiles.caddy.secretsFile";
-        description = "Filename within the secrets input holding the OAuth client credentials.";
-      };
-
-      cookieSecretKey = lib.mkOption {
-        type = lib.types.str;
-        default = "cookie_secret";
-        description = ''
-          Key in `auth.secretsFile` holding the secret that signs session
-          cookies. Must be 16, 24 or 32 bytes; `openssl rand -base64 32 | tr -- '+/' '-_'`
-          produces an acceptable one.
-        '';
-      };
 
       allow = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -253,4 +180,8 @@ in {
       };
     };
   };
+
+  config.assertions =
+    presence.assertions options
+    (map (child: ["dotfiles" "caddy" child "present"]) ["auth" "originAuth"]);
 }

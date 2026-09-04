@@ -45,13 +45,13 @@
   ];
   profilePictureImageUnit = "${profilePictureContainerName}-image.service";
   profilePictureEnvFiles =
-    lib.optionals cfg.matrix.enable [config.sops.templates."hermes-matrix.env".path]
-    ++ lib.optionals cfg.signal.enable [config.sops.templates."hermes-signal.env".path];
+    lib.optionals cfg.matrix.present [config.sops.templates."hermes-matrix.env".path]
+    ++ lib.optionals cfg.signal.present [config.sops.templates."hermes-signal.env".path];
   profilePictureNetworks =
     lib.toList cfg.container.network
-    ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
+    ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
 in {
-  config = lib.mkIf (cfg.profilePicture != null && (cfg.matrix.enable || cfg.signal.enable)) {
+  config = lib.mkIf (cfg.profilePicture != null && (cfg.matrix.present || cfg.signal.present)) {
     virtualisation.quadlet = {
       volumes.${profilePictureStateVolume} = {};
 
@@ -87,15 +87,15 @@ in {
                 PROFILE_PICTURE_SOURCE = profilePictureContainerPath;
                 PROFILE_PICTURE_STATE_DIR = "/state";
               }
-              // lib.optionalAttrs cfg.matrix.enable {
+              // lib.optionalAttrs cfg.matrix.present {
                 MATRIX_PROFILE_PICTURE_ENABLED = "true";
                 MATRIX_HOMESERVER = cfg.matrix.httpUrl;
                 MATRIX_USER_ID = "@${cfg.matrix.username}:${cfg.matrix.serverName}";
               }
-              // lib.optionalAttrs (cfg.matrix.enable && cfg.matrix.displayName != null) {
+              // lib.optionalAttrs (cfg.matrix.present && cfg.matrix.displayName != null) {
                 MATRIX_DISPLAY_NAME = cfg.matrix.displayName;
               }
-              // lib.optionalAttrs cfg.signal.enable {
+              // lib.optionalAttrs cfg.signal.present {
                 SIGNAL_PROFILE_PICTURE_ENABLED = "true";
                 SIGNAL_HTTP_URL = cfg.signal.httpUrl;
               };
@@ -106,10 +106,10 @@ in {
           Description = "Hermes messaging profile picture rotation";
           After =
             ["network-online.target" "sops-install-secrets.service" profilePictureImageUnit]
-            ++ lib.optional cfg.signal.enable "${cfg.signal.containerName}.service";
+            ++ lib.optional cfg.signal.present "${cfg.signal.containerName}.service";
           Wants =
             ["network-online.target" "sops-install-secrets.service" profilePictureImageUnit]
-            ++ lib.optional cfg.signal.enable "${cfg.signal.containerName}.service";
+            ++ lib.optional cfg.signal.present "${cfg.signal.containerName}.service";
         };
 
         serviceConfig.Restart = "no";
