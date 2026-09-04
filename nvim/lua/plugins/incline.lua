@@ -1,5 +1,3 @@
-local Path = require("plenary.path")
-
 --- Construct our preferred colours from some built-in highlight groups, taking
 --- only their foreground attributes: the window supplies the background.
 local function setup_incline_highlights()
@@ -25,41 +23,41 @@ local function setup_incline_highlights()
   })
 end
 
---- Pretty print a path for the incline.nvim statusline. First, the path is made
---- relative to the root directory if possible (if it is under it). If not, it's
---- made relative to the home directory, represented as a `~`. Otherwise, the
---- full path is used. The path is then split up into compnents. If there are
---- more than 3 (`len`) components, the middle ones are elided and replaced with
---- an ellipsis. The last one - the filename - is rendered using the `Bold`
---- highlight group when the buffer is unmodified, or the `MatchParen` highlight
---- group if it is. This is to match LazyVim's `lualine` appearance.
+--- Pretty print a path for the incline.nvim statusline. The path is shown
+--- relative to the working directory, with the home directory as `~`, or in
+--- full when it is under neither. If LazyVim's root module is loaded and the
+--- file is under the project root, the path relative to that root is used
+--- instead, calculated from the file's own name. It is split into
+--- components, and when there are more than 3 (`len`) the middle ones are
+--- replaced with an ellipsis. The last component, the filename, is rendered
+--- with the `Bold` highlight group when the buffer is unmodified and with
+--- `MatchParen` when it is, to match LazyVim's `lualine` appearance.
 ---@param buf integer The number of our buffer
 ---@return table # A table of components to be displayed in the window statusline
 local function incline_pretty_path(buf)
   local filename = vim.api.nvim_buf_get_name(buf)
-  local display_path = vim.fn.fnamemodify(filename, ":~:.")
-  local path = Path:new(display_path)
-  local modified = vim.bo[buf].modified
 
   -- Skip for unnamed buffers
-  if not path.filename or path.filename == "" then
+  if filename == "" then
     return { { "[no name]" } }
   end
 
+  local modified = vim.bo[buf].modified
+  local display_path = vim.fn.fnamemodify(filename, ":~:.")
+
   -- See if we can make it relative to the LazyVim project root.
   if package.loaded["lazyvim.util.root"] then
-    local LazyRoot = require("lazyvim.util.root")
-    local root = LazyRoot.get()
+    local root = require("lazyvim.util.root").get()
 
     if root then
-      path = Path:new(path:make_relative(root))
+      display_path = vim.fs.relpath(root, filename) or display_path
     end
   end
 
   -- What follows is mostly borrowed from LazyVim's `pretty_path` function.
   -- https://github.com/LazyVim/LazyVim/blob/ec5981dfb1222c3bf246d9bcaa713d5cfa486fbd/lua/lazyvim/util/lualine.lua#L82
 
-  local parts = vim.split(path.filename, "[\\/]")
+  local parts = vim.split(display_path, "[\\/]")
 
   -- If the path is longer then `len` components, abbreviate the middle parts
   -- with an ellipsis.
@@ -104,7 +102,6 @@ return {
     event = "BufReadPre",
 
     dependencies = {
-      "plenary.nvim",
       "nvim-tree/nvim-web-devicons",
     },
 
