@@ -1,7 +1,8 @@
 # Build outputs for the cupboard publish workflow.
 #
-# `flake.cupboardOutputs` is the publication manifest consumed by the workflow.
-# Each entry below targets a deploy-rs profile. A system profile contains the
+# `flake.cupboardOutputs` is the list of build targets the cupboard publish
+# workflow reads. Each entry below names a deploy-rs profile. A system profile
+# contains the
 # NixOS, nix-darwin or system-manager closure for one host. A home profile
 # contains its Home Manager generation. Both profile types include the
 # activation files that deploy-rs copies to the host.
@@ -27,7 +28,7 @@
   ...
 }: let
   inherit (config.flake) username;
-  inherit (config.flake) deploy hosts homeConfigurations;
+  inherit (config.flake) deploy hosts;
 
   baseFor = system: {
     inherit system;
@@ -50,21 +51,19 @@
       rootSuffix = "${host.system}/${host.os}-${name}";
     };
 
-  homeEntry = homeName: let
-    hostname = lib.last (lib.splitString "@" homeName);
-    inherit (hosts.${hostname}) system;
-    profile = deploy.nodes.${hostname}.profiles.${username}.path;
+  homeEntry = name: host: let
+    profile = deploy.nodes.${name}.profiles.${username}.path;
   in
-    baseFor system
+    baseFor host.system
     // {
-      attr = ".#deploy.nodes.${hostname}.profiles.${username}.path";
+      attr = ".#deploy.nodes.${name}.profiles.${username}.path";
       rootDrvPath = profile.drvPath;
-      rootSuffix = "${system}/home-${hostname}";
+      rootSuffix = "${host.system}/home-${name}";
     };
 
   profileEntries =
     lib.mapAttrsToList systemEntry hosts
-    ++ map homeEntry (lib.attrNames homeConfigurations);
+    ++ lib.mapAttrsToList homeEntry hosts;
 in {
   flake.cupboardOutputs = profileEntries;
 }

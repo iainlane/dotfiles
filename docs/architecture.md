@@ -286,8 +286,8 @@ The adapters feed the flake outputs:
 - `systemConfigs.<host>` — system-manager (non-NixOS Linux) hosts,
 - `homeConfigurations.<user>@<host>` — standalone Home Manager for every host,
 - `direnvs` / `devShells.direnvs-*` — per-directory development shells,
-- `cupboardOutputs` — the flattened build matrix consumed by the cache-publish
-  workflow.
+- `cupboardOutputs` — the list of build targets the cupboard publish workflow
+  reads.
 
 `deploy` (deploy-rs) nodes are derived from the host set so each host can be
 pushed with `deploy .#<host>`.
