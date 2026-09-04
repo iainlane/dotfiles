@@ -71,7 +71,7 @@ class CandidateInitialisationMissingError(ConformanceError):
 
 @dataclass(eq=True)
 class CandidateOutputStyleError(ConformanceError):
-    actual: object
+    actual: str | None
     expected: str
 
     def __str__(self) -> str:

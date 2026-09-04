@@ -9,7 +9,9 @@ applied separately.
 
 The search is one round of three competing proposals, each measured over five
 fresh samples per prompt evaluation. `--proposals COUNT` and `--samples COUNT`
-can reduce those limits.
+can reduce those limits, down to one proposal and three samples. A criterion has
+to gain three samples to count as a decisive improvement, so a run with fewer
+samples could never meet that threshold.
 
 Three fresh improvers read the same working-example results at the same time,
 each asked to look from a different angle: instruction clarity, process and
@@ -40,10 +42,12 @@ general unified diff or an explicit decision that no prompt change is warranted.
 ## Acceptance
 
 A draft is accepted when one fixture criterion gains at least three of its five
-samples and no criterion loses two or more. Five samples make a single changed
-sample uninformative, so one lost sample anywhere is treated as noise; the
-second half of the rule stops a proposal from buying one decisive gain with a
-broad, shallow decline.
+samples, or when every gate failure the current prompt produced disappears, and
+no criterion loses two or more. Five samples make a single changed sample
+uninformative, so one lost sample anywhere is treated as noise; the regression
+half of the rule stops a proposal from buying one decisive gain with a broad,
+shallow decline. Incomplete evidence, and a gate failure the current prompt did
+not produce, reject the draft on their own.
 
 Each `acceptance.json` records, for every fixture criterion, the pass counts on
 both sides, the net change, and whether the criterion was already unstable on

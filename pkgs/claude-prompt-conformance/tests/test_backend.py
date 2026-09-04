@@ -16,6 +16,7 @@ from claude_prompt_conformance.agents.codex import (
 )
 from claude_prompt_conformance.agents.judge import JudgementEvidenceUnreadError
 from claude_prompt_conformance.backend import (
+    CalibrationCandidatesMissingError,
     ConformanceSuite,
     FixtureRun,
     RunRequest,
@@ -589,7 +590,7 @@ def test_suite_orchestrates_capabilities_and_calibrates_the_judge(
         for path in output.rglob("*")
         if path.is_file()
     } == {
-        ".claude-prompt-conformance": (
+        ".claude-prompt-conformance-sample": (
             '{"promptContext": "prompt-context.json", '
             '"runMetadata": "run-metadata.json"}\n'
         ),
@@ -1612,6 +1613,33 @@ def test_suite_classifies_judge_failures_as_invalid_evidence(
     )
 
 
+def test_a_fixture_without_reference_subjects_is_invalid(tmp_path: Path) -> None:
+    fixture = replace(make_fixture(tmp_path / "fixtures"), calibration=())
+    output = tmp_path / "results"
+    error = CalibrationCandidatesMissingError()
+
+    summary = suite(tmp_path / "run.json", RecordingEvents()).run(
+        RunRequest(output, (fixture,), calibrate=True)
+    )
+
+    assert summary == RunSummary(
+        passed=0,
+        failed=0,
+        invalid=1,
+        stale=0,
+        results=(
+            FixtureRun(
+                fixture,
+                Status.INVALID,
+                output / fixture.name,
+                (str(error),),
+                None,
+                error,
+            ),
+        ),
+    )
+
+
 def test_suite_classifies_candidate_process_failure_as_invalid_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1742,7 +1770,7 @@ def test_prepare_output_resumes_a_marked_output(tmp_path: Path) -> None:
     prepare_output(output, metadata, prompt_context)
 
     assert tuple(sorted(path.name for path in output.iterdir())) == (
-        ".claude-prompt-conformance",
+        ".claude-prompt-conformance-sample",
         "prompt-context.json",
         "run-metadata.json",
         "stale",
@@ -1785,7 +1813,7 @@ def test_prepare_output_recovers_an_interrupted_nested_store(tmp_path: Path) -> 
         (path.name, path.read_text()) for path in sorted(output.iterdir())
     ) == (
         (
-            ".claude-prompt-conformance",
+            ".claude-prompt-conformance-sample",
             '{"promptContext": "prompt-context.json", "runMetadata": "run-metadata.json"}\n',
         ),
         ("prompt-context.json", '{"prompt": 2}\n'),

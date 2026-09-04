@@ -36,7 +36,6 @@ class CodexPromptImprover:
         host_configuration: CodexHostConfiguration,
         transport: CodexModelTransport | None = None,
     ) -> None:
-        self._configuration = configuration
         self._agent = CodexStructuredAgent(
             configuration, runner, identity, host_configuration, transport
         )

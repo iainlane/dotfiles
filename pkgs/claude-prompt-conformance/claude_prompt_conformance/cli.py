@@ -78,7 +78,9 @@ def parser() -> argparse.ArgumentParser:
         "configuration",
         type=Path,
         metavar="CONFIGURATION",
-        help="runtime configuration assembled by Nix",
+        # The Nix wrapper appends the assembled configuration to every
+        # invocation, so the usage line must not ask an operator for it.
+        help=argparse.SUPPRESS,
     )
     result.add_argument(
         "output",
@@ -156,7 +158,10 @@ def parser() -> argparse.ArgumentParser:
         type=positive_integer,
         default=5,
         metavar="COUNT",
-        help="run COUNT fresh samples for each prompt evaluation (maximum: 5)",
+        help=(
+            "run COUNT fresh samples for each prompt evaluation "
+            "(minimum: 3, maximum: 5)"
+        ),
     )
     result.add_argument(
         "--format",

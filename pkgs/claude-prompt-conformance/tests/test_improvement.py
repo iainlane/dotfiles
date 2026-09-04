@@ -424,6 +424,26 @@ def proposal(index: int) -> PromptProposal:
     )
 
 
+def unusable_proposal(index: int) -> PromptProposal:
+    """Build one draft proposal whose patch names a file outside the prompt."""
+
+    return PromptProposal(
+        no_change=False,
+        title=f"draft {index}",
+        observations=(f"Draft {index} observed contradictory handoffs.",),
+        change=f"Apply draft {index}.",
+        reasoning="The final report can be checked against the action evidence.",
+        risks=(),
+        patch=(
+            "--- a/README.md\n"
+            "+++ b/README.md\n"
+            "@@ -1 +1 @@\n"
+            "-Original\n"
+            f"+Draft {index}\n"
+        ),
+    )
+
+
 def no_change_proposal() -> PromptProposal:
     return PromptProposal(
         no_change=True,
@@ -593,8 +613,8 @@ def test_improvement_progress_reserves_the_current_prompt_drafts_and_checks() ->
     [
         (0, 5, ImprovementProposalLimitError(0, 1, 3)),
         (4, 5, ImprovementProposalLimitError(4, 1, 3)),
-        (3, 0, ImprovementSampleLimitError(0, 1, 5)),
-        (3, 6, ImprovementSampleLimitError(6, 1, 5)),
+        (3, 2, ImprovementSampleLimitError(2, 3, 5)),
+        (3, 6, ImprovementSampleLimitError(6, 3, 5)),
     ],
 )
 def test_the_search_is_bounded_to_three_drafts_and_five_samples(
@@ -867,7 +887,7 @@ def test_every_draft_is_written_at_the_same_time(tmp_path: Path) -> None:
         ),
     )
 
-    summary = world.run(proposals=3, samples=1)
+    summary = world.run(proposals=3, samples=3)
 
     assert summary.attempted_proposals == 3
 
@@ -888,9 +908,27 @@ def test_concurrent_improver_runs_stay_within_the_run_slot_pool(
         slots=slots,
     )
 
-    world.run(proposals=3, samples=1)
+    world.run(proposals=3, samples=3)
 
     assert (slots.peak, slots.held, slots.active) == (2, 3, 0)
+
+
+def test_an_unusable_patch_rejects_only_its_own_draft(tmp_path: Path) -> None:
+    world = tournament(
+        tmp_path,
+        passes={"base-source": {"working": 0}, "draft 2-source": {"working": 5}},
+        proposals=(unusable_proposal(1), proposal(2), proposal(3)),
+    )
+
+    summary = world.run(proposals=3, samples=3)
+
+    draft = world.output / "tries" / "draft-01"
+    assert (
+        summary.attempted_proposals,
+        tuple(report.draft for report in summary.reports),
+        summary.winner,
+        (draft / ".prompt-proposal-complete").exists(),
+    ) == (3, ("draft-02", "draft-03"), "draft-02", False)
 
 
 def test_no_change_from_every_draft_leaves_no_winner(tmp_path: Path) -> None:
@@ -900,7 +938,7 @@ def test_no_change_from_every_draft_leaves_no_winner(tmp_path: Path) -> None:
         proposals=(no_change_proposal(), no_change_proposal(), no_change_proposal()),
     )
 
-    summary = world.run(proposals=3, samples=1)
+    summary = world.run(proposals=3, samples=3)
 
     assert (
         summary,
@@ -913,10 +951,14 @@ def test_no_change_from_every_draft_leaves_no_winner(tmp_path: Path) -> None:
         (ImprovementFinished(0, 0, False, world.output, None),),
         [
             ("base-source", "current-prompt/sample-01", True),
+            ("base-source", "current-prompt/sample-02", False),
+            ("base-source", "current-prompt/sample-03", False),
             ("base-source", "reserved-checks/original/sample-01", True),
+            ("base-source", "reserved-checks/original/sample-02", False),
+            ("base-source", "reserved-checks/original/sample-03", False),
         ],
         (
-            ".claude-prompt-conformance",
+            ".claude-prompt-conformance-sample",
             "current-prompt",
             "improvement-summary.json",
             "prompt-context.json",

@@ -59,10 +59,14 @@ class RunLeaseReleaseError(ConformanceError):
 
 
 OUTPUT_MARKER = ".claude-prompt-conformance"
+# The evaluation directories nested inside a run store are not run stores, and
+# their marker contains a different document, so it has a different name.
+SAMPLE_MARKER = ".claude-prompt-conformance-sample"
 STATE_DIRECTORY = ".claude-prompt-conformance-state"
 RESERVED_RUN_NAMES = frozenset(
     {
         OUTPUT_MARKER,
+        SAMPLE_MARKER,
         STATE_DIRECTORY,
         "current-prompt",
         "improvement-summary.json",

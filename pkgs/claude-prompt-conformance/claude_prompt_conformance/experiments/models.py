@@ -67,19 +67,19 @@ class CriterionComparison:
 
     @property
     def decisive(self) -> bool:
-        """Return whether the criterion improved by more than sampling noise."""
+        """Return whether the criterion gained at least three samples."""
 
         return self.change >= DECISIVE_IMPROVEMENT
 
     @property
     def regressed(self) -> bool:
-        """Return whether the criterion lost more passes than noise explains."""
+        """Return whether the loss exceeds the configured noise tolerance."""
 
         return self.change < -NOISE_TOLERANCE
 
     @property
     def noise(self) -> bool:
-        """Return whether the criterion lost exactly as much as noise explains."""
+        """Return whether a loss falls within the configured noise tolerance."""
 
         return -NOISE_TOLERANCE <= self.change < 0
 

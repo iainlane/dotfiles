@@ -30,6 +30,7 @@ from .backend import (
 )
 from .errors import ConformanceError
 from .experiments.models import (
+    DECISIVE_IMPROVEMENT,
     AcceptanceFailure,
     AcceptanceReport,
     CriterionComparison,
@@ -39,7 +40,7 @@ from .experiments.models import (
 )
 from .mcp import write_configuration
 from .mcp.evaluator import McpPromptFileLimitError
-from .mcp.improver import eligible_prompt_files
+from .mcp.improver import PROMPT_DIRECTORIES, eligible_prompt_files
 from .models import (
     Fixture,
     FixtureUse,
@@ -86,8 +87,12 @@ class PromptProposalCheckpointWriteError(ConformanceError):
         return f"could not retain prompt proposal checkpoint {self.destination}: {self.cause}"
 
 
+class PromptPatchError(ConformanceError):
+    """A proposal whose patch cannot be applied to the prompt sources."""
+
+
 @dataclass(eq=True)
-class PromptPatchPathsError(ConformanceError):
+class PromptPatchPathsError(PromptPatchError):
     paths: tuple[Path, ...]
 
     def __str__(self) -> str:
@@ -95,7 +100,7 @@ class PromptPatchPathsError(ConformanceError):
 
 
 @dataclass(eq=True)
-class PromptPatchPrefixError(ConformanceError):
+class PromptPatchPrefixError(PromptPatchError):
     endpoints: tuple[str, ...]
 
     def __str__(self) -> str:
@@ -106,7 +111,7 @@ class PromptPatchPrefixError(ConformanceError):
 
 
 @dataclass(eq=True)
-class PromptPatchFormatError(ConformanceError):
+class PromptPatchFormatError(PromptPatchError):
     cause: Exception
 
     def __str__(self) -> str:
@@ -114,7 +119,7 @@ class PromptPatchFormatError(ConformanceError):
 
 
 @dataclass(eq=True)
-class PromptPatchEmptyError(ConformanceError):
+class PromptPatchEmptyError(PromptPatchError):
     def __str__(self) -> str:
         return "the prompt proposal contains no file changes"
 
@@ -173,6 +178,10 @@ class ImprovementEvidenceReadError(ConformanceError):
 
 
 CHECK_OUTPUT_LIMIT = 20_000
+# A criterion counts as decisively improved only when it gains
+# DECISIVE_IMPROVEMENT samples, so a run cannot be given fewer samples than
+# that.
+MINIMUM_SAMPLES = DECISIVE_IMPROVEMENT
 MAXIMUM_SAMPLES = 5
 PATCH_PREFIXES = ("a/", "b/")
 PROMPT_FILE_LIMIT = 1_000
@@ -469,6 +478,10 @@ class PromptImprovementSuite:
 
         root.set_detail(describe_drafting(request.proposals))
         ensure_directory(request.output, request.output / "tries")
+        descriptor = improver_mcp_configuration(
+            configuration.variant.prompt_source,
+            current_results,
+        )
         executor = ThreadPoolExecutor(
             max_workers=request.proposals,
             thread_name_prefix="prompt-drafts",
@@ -480,6 +493,7 @@ class PromptImprovementSuite:
                 index,
                 configuration,
                 current_results,
+                descriptor,
                 working,
                 request,
             ): index
@@ -504,6 +518,7 @@ class PromptImprovementSuite:
         index: int,
         configuration: RuntimeConfiguration,
         current_results: tuple[RunSummary, ...],
+        descriptor: ImproverDescriptor,
         fixtures: tuple[Fixture, ...],
         request: ImprovementRequest,
     ) -> DraftOutcome:
@@ -530,10 +545,7 @@ class PromptImprovementSuite:
             evidence = write_configuration(
                 request.output,
                 artefacts / "improver-mcp.json",
-                improver_mcp_configuration(
-                    configuration.variant.prompt_source,
-                    current_results,
-                ),
+                descriptor,
             )
             application = self._applications(configuration, self._events)
             proposal = self._propose(
@@ -554,7 +566,15 @@ class PromptImprovementSuite:
                 task.finish(TaskOutcome.PASSED, "No change proposed")
                 return DraftOutcome(index, identifier, proposal, None, None)
 
-            validate_prompt_patch(proposal.patch)
+            if not usable_proposal(proposal):
+                # Rejecting this draft leaves its siblings, which may already
+                # have been evaluated, to finish the round.
+                task.complete_child("build", "No build possible")
+                task.complete_child("proposed-prompt", "No evaluation possible")
+                task.complete_child("compare", "No comparison possible")
+                task.finish(TaskOutcome.FAILED, "Unusable prompt patch")
+                return DraftOutcome(index, identifier, proposal, None, None)
+
             task.set_detail("Building the proposed prompt")
             variant = application.variants.build(
                 configuration,
@@ -610,7 +630,12 @@ class PromptImprovementSuite:
                 existing if existing.is_symlink() else completed
             )
         if completed.is_file():
-            return PromptProposal.from_file(existing)
+            # A checkpoint written before this check existed can name a patch
+            # that cannot be applied, which would fail the same way on every
+            # resume. Draft again.
+            retained = PromptProposal.from_file(existing)
+            if usable_proposal(retained):
+                return retained
 
         fixture, *_ = fixtures
         instance = application.instances.create("prompt-improver", artefacts)
@@ -624,10 +649,13 @@ class PromptImprovementSuite:
                     artefacts,
                     angle,
                 )
-            try:
-                atomic_write(root, completed, b"")
-            except OSError as error:
-                raise PromptProposalCheckpointWriteError(completed, error) from error
+            if usable_proposal(proposal):
+                try:
+                    atomic_write(root, completed, b"")
+                except OSError as error:
+                    raise PromptProposalCheckpointWriteError(
+                        completed, error
+                    ) from error
             return proposal
         finally:
             application.instances.clean(instance)
@@ -822,12 +850,12 @@ def improvement_children(proposals: int) -> FixedTaskChildren:
 
 
 def winning_draft(drafts: tuple[DraftOutcome, ...]) -> DraftOutcome | None:
-    """Select the accepted draft which improved the most criteria decisively."""
+    """Select the accepted draft with the largest total decisive gain."""
 
     accepted = tuple(
         (draft, draft.report.acceptance)
         for draft in drafts
-        if draft.report is not None and draft.report.acceptance.accepted
+        if draft.accepted and draft.report is not None
     )
     if not accepted:
         return None
@@ -869,8 +897,12 @@ def describe_drafting(count: int) -> str:
 def validate_bounds(request: ImprovementRequest) -> None:
     if not 1 <= request.proposals <= len(IMPROVER_ANGLES):
         raise ImprovementProposalLimitError(request.proposals, 1, len(IMPROVER_ANGLES))
-    if not 1 <= request.samples <= MAXIMUM_SAMPLES:
-        raise ImprovementSampleLimitError(request.samples, 1, MAXIMUM_SAMPLES)
+    if not MINIMUM_SAMPLES <= request.samples <= MAXIMUM_SAMPLES:
+        raise ImprovementSampleLimitError(
+            request.samples,
+            MINIMUM_SAMPLES,
+            MAXIMUM_SAMPLES,
+        )
 
 
 def fixtures_by_use(
@@ -889,6 +921,23 @@ def validate_fixture_sets(
         raise ImprovementWorkingExamplesEmptyError
     if not fixture_sets[FixtureUse.RESERVED]:
         raise ImprovementReservedChecksEmptyError
+
+
+def validate_proposal(proposal: PromptProposal) -> None:
+    """Check the patch's diff syntax and paths, unless the proposal changes nothing."""
+
+    if not proposal.no_change:
+        validate_prompt_patch(proposal.patch)
+
+
+def usable_proposal(proposal: PromptProposal) -> bool:
+    """Report whether a retained proposal still carries an applicable patch."""
+
+    try:
+        validate_proposal(proposal)
+    except PromptPatchError:
+        return False
+    return True
 
 
 def validate_prompt_patch(patch: str) -> None:
@@ -930,10 +979,10 @@ def prompt_patch_path(value: str) -> Path:
 
 
 def is_supported_prompt_path(path: Path) -> bool:
-    """Constrain proposals to the two existing prompt source directories."""
+    """Constrain proposals to the prompt source directories the improver lists."""
 
     match path.parts:
-        case ("instructions" | "output-style", *relative):
+        case (directory, *relative) if directory in PROMPT_DIRECTORIES:
             return bool(relative) and ".." not in relative
         case _:
             return False
@@ -982,12 +1031,14 @@ def compare_results(
     current: tuple[RunSummary, ...],
     proposed: tuple[RunSummary, ...],
 ) -> AcceptanceReport:
-    """Accept a prompt which wins a criterion decisively and loses none.
+    """Accept a prompt that improves a criterion decisively or clears every gate.
 
-    One criterion improving by at least three of five samples is treated as a
-    real effect, while a single lost sample anywhere is treated as noise. A
-    criterion which loses two or more samples rejects the prompt outright, so a
-    proposal cannot buy one decisive gain with a broad, shallow decline.
+    A criterion passing in at least three more samples counts as a real
+    effect, and so does a run whose gate failures all disappear. A single lost
+    sample is treated as noise. A criterion passing in two or more fewer
+    samples rejects the prompt, so a proposal cannot buy one decisive gain
+    with a broad, shallow decline. Incomplete evidence and a gate failure the
+    baseline did not have also reject the prompt.
     """
 
     comparisons = criterion_comparisons(current, proposed)
@@ -1169,16 +1220,18 @@ def write_improvement_summary(
         path,
         msgspec.json.encode(
             summary,
-            enc_hook=encode_path,
+            enc_hook=encode_summary_path,
         ),
     )
 
 
-def encode_path(value: object) -> str:
+def encode_summary_path(value: object) -> str:
     """Encode path-like domain values at the JSON artefact boundary."""
 
     if not isinstance(value, Path):
-        raise TypeError
+        raise TypeError(
+            f"the improvement summary contains an unencodable {type(value)}"
+        )
     return value.as_posix()
 
 

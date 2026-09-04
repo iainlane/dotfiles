@@ -324,6 +324,14 @@ class CodexRole(StrEnum):
     IMPROVER = "prompt_improver"
 
 
+@dataclass(eq=True)
+class CodexRoleUnconfiguredError(CodexRuntimeError):
+    role: CodexRole
+
+    def __str__(self) -> str:
+        return f"the runtime configuration names no Codex agent for {self.role}"
+
+
 @dataclass(frozen=True)
 class CodexRequest:
     """All role-specific inputs to one isolated Codex invocation."""
@@ -380,6 +388,8 @@ class CodexStructuredAgent:
                 role_configuration = self._configuration.codex.judge
             case CodexRole.IMPROVER:
                 role_configuration = self._configuration.codex.improver
+            case _:
+                raise CodexRoleUnconfiguredError(request.role)
         environment = (
             clean_environment(request.environment_path)
             | self._identity.environment(instance.judge_state)

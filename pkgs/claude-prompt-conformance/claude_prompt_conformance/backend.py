@@ -1,5 +1,6 @@
 """Frontend-independent orchestration for repository prompt conformance."""
 
+import asyncio
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import AbstractContextManager
@@ -58,10 +59,11 @@ from .run_store import (
     OutputPathNotDirectoryError,
     OutputPathUnmarkedError,
     OutputSnapshotMismatchError,
-    ProtectedOutputPathError,
+    protect_output_path,
 )
 from .storage import (
-    OUTPUT_MARKER,
+    SAMPLE_MARKER,
+    RetainedPathUnsafeError,
     atomic_write,
     directory_exists,
     directory_identity,
@@ -118,6 +120,23 @@ class PromptContextSnapshotError(ConformanceError):
 class CalibrationCriteriaMissingError(ConformanceError):
     def __str__(self) -> str:
         return "the fixture has no criteria available for calibration"
+
+
+@dataclass(eq=True)
+class CandidateResponseWriteError(ConformanceError):
+    destination: Path
+    cause: Exception
+
+    def __str__(self) -> str:
+        return (
+            f"could not retain the candidate response {self.destination}: {self.cause}"
+        )
+
+
+@dataclass(eq=True)
+class CalibrationCandidatesMissingError(ConformanceError):
+    def __str__(self) -> str:
+        return "the fixture declares no reference subjects to calibrate against"
 
 
 @dataclass(frozen=True)
@@ -407,7 +426,7 @@ class ConformanceSuite:
             if request.calibrate:
                 calibration = self._calibration(fixture, artefacts, context, task)
             task.set_detail("Asking the candidate agent")
-            candidate = self._run_candidate(fixture, instance, artefacts)
+            candidate = self._run_candidate(fixture, instance, artefacts, store_root)
             task.set_detail("Capturing the candidate work")
             evidence = self._inspect(fixture, instance, artefacts)
             task.set_detail("Running deterministic checks")
@@ -453,7 +472,10 @@ class ConformanceSuite:
         except ConformanceError as error:
             retain_instance = True
             return self._abandon(fixture, artefacts, TestStatus.INVALID, error, task)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            # A fixture runs on a worker thread, which Python never delivers a
+            # signal to: an interrupt reaches it as the RunCancelled the
+            # supervisor raises, and that subclasses CancelledError.
             retain_instance = True
             raise
         finally:
@@ -633,7 +655,11 @@ class ConformanceSuite:
             task.finish(TaskOutcome.COMPLETED, "Checkout prepared")
 
     def _run_candidate(
-        self, fixture: Fixture, instance: InstancePaths, artefacts: Path
+        self,
+        fixture: Fixture,
+        instance: InstancePaths,
+        artefacts: Path,
+        store_root: Path,
     ) -> CandidateResult:
         description = "Asking the candidate agent"
         with self._tasks.task(
@@ -647,7 +673,11 @@ class ConformanceSuite:
             with self._slots.hold():
                 task.set_detail(description)
                 result = self._candidate.run(fixture, instance, artefacts, task)
-            (artefacts / "response.md").write_text(result.response)
+            response = artefacts / "response.md"
+            try:
+                atomic_write(store_root, response, result.response.encode())
+            except (OSError, RetainedPathUnsafeError) as error:
+                raise CandidateResponseWriteError(response, error) from error
             task.finish(TaskOutcome.COMPLETED, "Candidate response received")
             return result
 
@@ -796,6 +826,8 @@ class ConformanceSuite:
         )
         if not calibrated_fixture.criteria:
             raise CalibrationCriteriaMissingError
+        if not fixture.calibration:
+            raise CalibrationCandidatesMissingError
 
         calibration_task.set_detail(
             describe_reference_subjects(len(fixture.calibration))
@@ -1189,13 +1221,7 @@ def prepare_output(
     """Create or resume a marked result directory with matching snapshots."""
 
     resolved = output.resolve()
-    protected_paths = {
-        Path(resolved.anchor),
-        Path.cwd().resolve(),
-        Path.home().resolve(),
-    }
-    if resolved in protected_paths:
-        raise ProtectedOutputPathError(resolved)
+    protect_output_path(resolved)
     exists = (
         directory_exists(root.resolve(), resolved)
         if root is not None
@@ -1204,7 +1230,7 @@ def prepare_output(
     if exists:
         if not resolved.is_dir():
             raise OutputPathNotDirectoryError(resolved)
-        if not (resolved / OUTPUT_MARKER).is_file():
+        if not (resolved / SAMPLE_MARKER).is_file():
             if root is None:
                 raise OutputPathUnmarkedError(resolved)
 
@@ -1252,9 +1278,9 @@ def prepare_output(
         + "\n"
     )
     if root is None:
-        (resolved / OUTPUT_MARKER).write_text(marker)
+        (resolved / SAMPLE_MARKER).write_text(marker)
     else:
-        atomic_write(root.resolve(), resolved / OUTPUT_MARKER, marker.encode())
+        atomic_write(root.resolve(), resolved / SAMPLE_MARKER, marker.encode())
 
 
 def validate_output_snapshots(
