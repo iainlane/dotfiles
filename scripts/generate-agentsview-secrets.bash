@@ -104,10 +104,10 @@ add_password_rule() {
 # The auth token and the cursor secret every machine needs, and for a machine
 # that pushes, the key of its certificate as well.
 #
-# The certificate key goes in when the file is created. Creating an encrypted
-# file needs only the public keys, whereas adding a key to an existing file
-# means decrypting it first, which works only on a machine that a rule in
-# `.sops.yaml` covers.
+# The certificate key goes in when the file is created, which needs only the
+# public keys. A certificate re-issued for a host that already has the file
+# is added to that file, which means decrypting it first, and that works only
+# on a machine that a rule in `.sops.yaml` covers.
 generate_user_secrets() {
 	local host="${1}"
 	local client_key="${2:-}"
@@ -250,6 +250,25 @@ mapfile -t roles < <(agentsview_hosts)
 
 if ((${#roles[@]} == 0)); then
 	die "No host has the agentsview profile."
+fi
+
+# Refuse a name that matches no host. Filtering by it would give the run
+# nothing to do and no sign of the typo.
+if ((${#requested[@]} > 0)); then
+	known=()
+	for role in "${roles[@]}"; do
+		read -r _ role_host <<<"${role}"
+		known+=("${role_host}")
+	done
+
+	unknown=()
+	for name in "${requested[@]}"; do
+		printf '%s\n' "${known[@]}" | grep -qxF "${name}" || unknown+=("${name}")
+	done
+
+	if ((${#unknown[@]} > 0)); then
+		die "no host with the agentsview feature is named: ${unknown[*]}"
+	fi
 fi
 
 cd "${secrets_dir}"
