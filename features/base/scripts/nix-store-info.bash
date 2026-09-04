@@ -42,6 +42,27 @@ strip_hash() {
 	sed 's/^[a-z0-9]*-//'
 }
 
+# The total size in bytes of the store paths given one per line. `du` reports
+# what it could measure and still exits 1 when a path has gone from under it,
+# which happens while another process collects garbage, so read the grand
+# total and treat a missing one as zero.
+total_size_of_paths() {
+	local paths="${1}"
+	local total
+
+	if [[ -z "${paths}" ]]; then
+		echo 0
+		return 0
+	fi
+
+	total=$(
+		set +o pipefail
+		printf '%s\n' "${paths}" | xargs -r du -scb 2>/dev/null | tail -1 | cut -f1
+	)
+
+	printf '%s\n' "${total:-0}"
+}
+
 # Print the lines on stdin, or a placeholder when there are none. A `grep`
 # that matches nothing exits 1, so each caller runs its pipeline in a subshell
 # with `pipefail` off. The pipeline then succeeds and produces no lines.
@@ -79,7 +100,7 @@ cmd_summary() {
 	echo -e "${YELLOW}Calculating live/dead paths (this may take a moment)...${NC}"
 	local gc_count dead_size
 	gc_count=$(nix-store --gc --print-dead 2>/dev/null | wc -l)
-	dead_size=$(nix-store --gc --print-dead 2>/dev/null | xargs -r du -scb 2>/dev/null | tail -1 | cut -f1 || echo "0")
+	dead_size=$(total_size_of_paths "$(nix-store --gc --print-dead 2>/dev/null)")
 	echo -e "${CYAN}Dead paths (garbage):${NC} ${gc_count} paths ($(human_size "${dead_size}") reclaimable)"
 
 	echo
@@ -342,7 +363,7 @@ cmd_gc_preview() {
 	fi
 
 	local dead_size
-	dead_size=$(echo "${dead_paths}" | xargs -r du -scb 2>/dev/null | tail -1 | cut -f1 || echo "0")
+	dead_size=$(total_size_of_paths "${dead_paths}")
 
 	echo -e "${CYAN}Reclaimable:${NC} $(human_size "${dead_size}") across ${dead_count} paths"
 	echo
