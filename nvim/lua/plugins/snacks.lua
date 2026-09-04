@@ -28,7 +28,7 @@ return {
       -- context. Off by default; toggle with `<leader>uD`.
       dim = {},
 
-      -- Distraction-free writing mode (`<leader>z`).
+      -- Distraction-free writing mode (`<leader>z`, `<leader>uz`).
       zen = {},
 
       -- Project-scoped scratch buffers (`<leader>.` toggles, `<leader>S` lists).
@@ -79,32 +79,6 @@ return {
           Snacks.scratch.select()
         end,
         desc = "Select Scratch Buffer",
-      },
-      {
-        "<leader>z",
-        function()
-          Snacks.zen()
-        end,
-        desc = "Toggle Zen Mode",
-      },
-      {
-        "<leader>Z",
-        function()
-          Snacks.zen.zoom()
-        end,
-        desc = "Toggle Zoom",
-      },
-      {
-        "<leader>uD",
-        function()
-          vim.g.snacks_dim = not vim.g.snacks_dim
-          if vim.g.snacks_dim then
-            Snacks.dim.enable()
-          else
-            Snacks.dim.disable()
-          end
-        end,
-        desc = "Toggle Dim",
       },
     },
   },
