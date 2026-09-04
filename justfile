@@ -1,15 +1,19 @@
 #!/usr/bin/env just --justfile
 # Nix dotfiles management commands
 
-set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; eval \"$1\"", "-"]
+# `gh auth token` prints nothing when nobody is logged in, and just exports a
+# variable whatever its value, so drop an empty GITHUB_TOKEN here and leave the
+# environment as the caller had it.
+set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; [ -n \"${GITHUB_TOKEN:-}\" ] || unset GITHUB_TOKEN; eval \"$1\"", "-"]
 
 # GitHub token for private repo access (appended to NIX_CONFIG for all recipes)
 
 gh-token := `gh auth token 2>/dev/null || true`
 export GITHUB_TOKEN := gh-token
+token-config := if gh-token != '' { "access-tokens = github.com=" + gh-token + "\nimpure-env = GITHUB_TOKEN=" + gh-token } else { "" }
 nix-config-base := env('NIX_CONFIG', '')
-nix-config-sep := if nix-config-base != '' { "\n" } else { "" }
-export NIX_CONFIG := nix-config-base + nix-config-sep + "access-tokens = github.com=" + gh-token + "\nimpure-env = GITHUB_TOKEN=" + gh-token
+nix-config-sep := if nix-config-base != '' { if token-config != '' { "\n" } else { "" } } else { "" }
+export NIX_CONFIG := nix-config-base + nix-config-sep + token-config
 # Secrets repository URL (cloned for key management)
 
 secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
