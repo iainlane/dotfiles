@@ -4,7 +4,7 @@ in {
   flake.features.desktop = {
     os.nixos = {
       includes = [features.gnome features.vm-host features.secure-boot];
-      homeManager = features.desktop.os.linux.homeManager;
+      homeManager = features.desktop.os."generic-linux".homeManager;
     };
 
     nixos = {

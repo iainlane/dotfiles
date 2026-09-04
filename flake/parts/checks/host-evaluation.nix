@@ -28,7 +28,7 @@
       outputName = "darwinConfigurations";
       drvPath = configuration: configuration.config.system.build.toplevel.drvPath;
     };
-    linux = {
+    "generic-linux" = {
       outputName = "systemConfigs";
       drvPath = configuration: configuration.config.build.toplevel.drvPath;
     };

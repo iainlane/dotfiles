@@ -15,7 +15,7 @@
       cohort = "aarch64-linux";
       os = "ubuntu-latest";
       remote = true;
-      rootSuffix = "aarch64-linux/linux-ancaster";
+      rootSuffix = "aarch64-linux/generic-linux-ancaster";
       system = "aarch64-linux";
     }
     {
@@ -33,7 +33,7 @@
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
-      rootSuffix = "x86_64-linux/linux-cripps";
+      rootSuffix = "x86_64-linux/generic-linux-cripps";
       system = "x86_64-linux";
     }
     {
@@ -42,7 +42,7 @@
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
-      rootSuffix = "x86_64-linux/linux-florence";
+      rootSuffix = "x86_64-linux/generic-linux-florence";
       system = "x86_64-linux";
     }
     {
@@ -60,7 +60,7 @@
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
-      rootSuffix = "x86_64-linux/linux-sherwood";
+      rootSuffix = "x86_64-linux/generic-linux-sherwood";
       system = "x86_64-linux";
     }
     {

@@ -19,7 +19,7 @@
                 deployLib.activate.nixos
                 config.flake.nixosConfigurations.${hostname};
             };
-            linux = {
+            "generic-linux" = {
               user = "root";
               path =
                 deployLib.activate.custom
@@ -55,7 +55,7 @@
             };
           };
         }
-        // lib.optionalAttrs (hostConfig.os == "linux") {
+        // lib.optionalAttrs (hostConfig.os == "generic-linux") {
           # `sudo-rs` on some Linux hosts does not preserve a PATH that includes
           # Nix binaries; run as a login shell so root picks up nix-daemon profile.
           sudo = "sudo -S -i -u";

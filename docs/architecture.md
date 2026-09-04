@@ -33,7 +33,7 @@ configuration that applies to this host alone:
 in {
   flake.hosts.example = {
     hostname = "example.local";
-    os = "linux"; # or "nixos" / "darwin"
+    os = "generic-linux"; # or "nixos" / "darwin"
     arch = "x86_64";
     motd = "Welcome to example";
     features = [features.base features.desktop features.nixbuild-builder];
@@ -126,8 +126,8 @@ the right system builder:
 - `os/nixos` → `nixpkgs.lib.nixosSystem` (also embeds Home Manager, and grafts
   the unstable `lib.hm` onto stable hosts so unstable HM modules evaluate),
 - `os/darwin` → `nix-darwin.lib.darwinSystem` (embeds Home Manager),
-- `os/linux` → `system-manager.lib.makeSystemConfig` (Home Manager is deployed
-  standalone rather than embedded).
+- `os/generic-linux` → `system-manager.lib.makeSystemConfig` (Home Manager is
+  deployed standalone rather than embedded).
 
 Shared plumbing (feature resolution, Home Manager assembly, sops fragments)
 lives in `lib/` so the three adapters only own the parts that genuinely differ

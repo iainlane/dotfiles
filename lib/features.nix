@@ -9,7 +9,7 @@
   # host record's `os`.
   systemClasses = {
     nixos = "nixos";
-    linux = "systemManager";
+    "generic-linux" = "systemManager";
     darwin = "darwin";
   };
 

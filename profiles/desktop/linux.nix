@@ -1,5 +1,5 @@
 {
-  flake.features.desktop.os.linux.homeManager = {pkgs, ...}: {
+  flake.features.desktop.os."generic-linux".homeManager = {pkgs, ...}: {
     home.packages =
       (with pkgs; [
         code-cursor-fhs

@@ -1,5 +1,5 @@
 {
-  flake.features.base.os.linux.homeManager = {
+  flake.features.base.os."generic-linux".homeManager = {
     lib,
     pkgs,
     ...

@@ -3,7 +3,7 @@
   halls = import ../lib/halls.nix;
 in {
   flake.hosts.sherwood = {
-    os = "linux";
+    os = "generic-linux";
     arch = "x86_64";
     motd = halls.sherwood;
     features = [

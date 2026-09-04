@@ -37,7 +37,7 @@
   # in the fixtures gets the system its hosts have.
   systemFor = {
     nixos = "x86_64-linux";
-    linux = "x86_64-linux";
+    "generic-linux" = "x86_64-linux";
     darwin = "aarch64-darwin";
   };
 
@@ -54,7 +54,7 @@
 
   git = mkFeature "git" {
     homeManager = "git-home";
-    os.linux.homeManager = "git-linux";
+    os."generic-linux".homeManager = "git-linux";
   };
   gh = mkFeature "gh" {
     includes = [git];
@@ -100,7 +100,7 @@
         {
           options.dotfiles.operatingSystems = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = ["nixos" "linux" "darwin"];
+            default = ["nixos" "generic-linux" "darwin"];
           };
         }
         {
@@ -124,7 +124,7 @@
     {
       name = "OS-scoped Home Manager content applies only on that OS";
       pass =
-        resolve "homeManager" "linux" [git]
+        resolve "homeManager" "generic-linux" [git]
         == ["git-home" "git-linux"]
         && resolve "homeManager" "darwin" [git] == ["git-home"];
     }
@@ -133,15 +133,15 @@
       pass =
         resolve "nixos" "nixos" [base]
         == ["borgmatic-nixos" "base-nixos" "base-system"]
-        && resolve "nixos" "linux" [base] == ["base-nixos"];
+        && resolve "nixos" "generic-linux" [base] == ["base-nixos"];
     }
     {
       name = "system content goes to the class that builds the host";
       pass =
-        resolve "systemManager" "linux" [base]
+        resolve "systemManager" "generic-linux" [base]
         == ["base-system-manager" "base-system"]
         && resolve "systemManager" "nixos" [base] == ["base-system-manager"]
-        && resolve "homeManager" "linux" [base] == ["git-home" "git-linux" "gh-home" "base-home"];
+        && resolve "homeManager" "generic-linux" [base] == ["git-home" "git-linux" "gh-home" "base-home"];
     }
     {
       name = "feature names follow composition order";
@@ -191,7 +191,7 @@
       pass =
         resolve "homeManager" "nixos" [terminal]
         == ["terminal-home" "terminal-linux"]
-        && resolve "homeManager" "linux" [terminal] == ["terminal-home" "terminal-linux"]
+        && resolve "homeManager" "generic-linux" [terminal] == ["terminal-home" "terminal-linux"]
         && resolve "homeManager" "darwin" [terminal] == ["terminal-home" "terminal-darwin"];
     }
     {

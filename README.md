@@ -90,7 +90,7 @@ flake-parts module that sets `flake.hosts.<name>`:
 in {
   flake.hosts.example = {
     hostname = "hostname.example.com";
-    os = "linux";
+    os = "generic-linux";
     arch = "x86_64";
     motd = "Welcome to example";
     features = [
@@ -257,7 +257,7 @@ Create `hosts/HOSTNAME.nix` to add a new host:
 {config, ...}: {
   flake.hosts.HOSTNAME = {
     hostname = "hostname.example.com";
-    os = "darwin";  # or "linux" (system-manager) or "nixos"
+    os = "darwin";  # or "generic-linux" (system-manager) or "nixos"
     arch = "aarch64";  # or "x86_64"
     motd = "Welcome to HOSTNAME";
     features = [config.flake.features.base];

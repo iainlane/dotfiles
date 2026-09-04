@@ -71,7 +71,7 @@
   };
 in {
   imports = [projectShells.flakeModule];
-  flake.features.home.os.linux.homeManager = {config, ...} @ args:
+  flake.features.home.os."generic-linux".homeManager = {config, ...} @ args:
     lib.recursiveUpdate
     (projectShells.homeManagerModule args)
     {

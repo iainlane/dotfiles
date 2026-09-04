@@ -6,7 +6,7 @@
   ...
 }: let
   helpers = import ../../lib/helpers.nix {inherit inputs;};
-  operatingSystems = ["nixos" "linux" "darwin"];
+  operatingSystems = ["nixos" "generic-linux" "darwin"];
   inherit (config.dotfiles) username;
   outerConfig = config;
   inherit (config._module.args.context) overlays nixpkgsConfig;
@@ -26,7 +26,7 @@
 
   osModules = {
     nixos = import ../../os/nixos osArgs;
-    linux = import ../../os/linux osArgs;
+    "generic-linux" = import ../../os/generic-linux osArgs;
     darwin = import ../../os/darwin osArgs;
   };
 
@@ -190,7 +190,7 @@ in {
 
     systemConfigs =
       lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: hosts.${n}.os == "linux") hostResults);
+      (lib.filterAttrs (n: _: hosts.${n}.os == "generic-linux") hostResults);
 
     darwinConfigurations =
       lib.mapAttrs (_: r: r.systemConfig)

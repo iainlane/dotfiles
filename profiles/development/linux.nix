@@ -1,5 +1,5 @@
 {
-  flake.features.development.os.linux.homeManager = {pkgs, ...}: {
+  flake.features.development.os."generic-linux".homeManager = {pkgs, ...}: {
     home.packages = import ./linux-packages.nix pkgs;
 
     home.file.".gdbinit".text = ''

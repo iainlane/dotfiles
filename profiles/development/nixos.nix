@@ -1,3 +1,3 @@
 {config, ...}: {
-  flake.features.development.os.nixos.homeManager = config.flake.features.development.os.linux.homeManager;
+  flake.features.development.os.nixos.homeManager = config.flake.features.development.os."generic-linux".homeManager;
 }

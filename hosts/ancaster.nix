@@ -8,7 +8,7 @@ in {
   flake.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
 
   flake.hosts.ancaster = {
-    os = "linux";
+    os = "generic-linux";
     arch = "aarch64";
     motd = halls.ancaster;
     features = [

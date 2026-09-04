@@ -4,7 +4,7 @@
 in {
   flake.hosts.florence = {
     hostname = "florence.local";
-    os = "linux";
+    os = "generic-linux";
     arch = "x86_64";
     motd = halls.florence;
     features = [

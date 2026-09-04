@@ -399,7 +399,7 @@ in {
     };
 
     os = {
-      linux.homeManager = systemdModule;
+      "generic-linux".homeManager = systemdModule;
       nixos.homeManager = systemdModule;
       darwin.homeManager = launchdModule;
     };
