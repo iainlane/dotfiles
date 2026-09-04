@@ -33,6 +33,7 @@
             name = "nix fmt";
             entry = "nix fmt";
             language = "system";
+            require_serial = true;
             before = ["flake-check"];
           };
 
