@@ -14,8 +14,8 @@ so a formatter or generator invoked during verification cannot rewrite the
 candidate evidence.
 
 The candidate must be the requested model: its initialisation event is checked
-against the configured Claude Opus model. The model chosen for each role and the
-pinned client versions are recorded with every run.
+against the model the managed settings select. The model chosen for each role
+and the pinned client versions are recorded with every run.
 
 ## Judging
 

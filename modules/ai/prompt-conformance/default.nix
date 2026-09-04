@@ -22,7 +22,8 @@
 
   claudePackage = inputs.llm-agents.packages.${system}.claude-code;
   codexPackage = inputs.llm-agents.packages.${system}.codex;
-  claudeModel = "claude-opus-5";
+  # The candidate is the model the managed settings select for daily use.
+  claudeModel = suiteManagedSettings.model;
   claudeEffort = "medium";
   claudeApiBudget = "0.75";
   # Public OAuth values from the pinned Claude client, retained with its version.
@@ -436,8 +437,8 @@
       jq --compact-output --sort-keys . catalogue.json >catalogue.normalised.json
       jq --compact-output --sort-keys . ${expectedCatalogue} >expected.normalised.json
       cmp catalogue.normalised.json expected.normalised.json
-      jq --exit-status '
-        .claude.model == "claude-opus-5" and
+      jq --exit-status --slurpfile settings ${managedSettingsFile} '
+        .claude.model == $settings[0].model and
         .codex.judge == {"contextWindow":272000,"effort":"high","model":"gpt-5.6-terra","serviceTier":"fast","verbosity":"low"} and
         .codex.improver == {"contextWindow":272000,"effort":"high","model":"gpt-5.6-sol","serviceTier":"fast","verbosity":"low"} and
         .codex.tlsCertificateBundle == "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" and
