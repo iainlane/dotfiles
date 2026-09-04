@@ -32,4 +32,5 @@ changes, so the file changes and direnv treats the existing cache as stale. The
 Home Manager `onChange` hook allows the new contents without pulling the dev
 shell into the system closure.
 
-See `lib/helpers.nix` for `mkProjectShells` which wires this up.
+`lib/projects.nix` defines `mkProjectShells`, which builds these shells and the
+Home Manager module that writes the `.envrc` files.

@@ -28,9 +28,9 @@
   # at evaluation time.
   osFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
 
-  # Create nested attribute structure for the direnvs output. Each node can have:
-  #   - shell: the devShell for this directory (optional)
-  #   - subdirectories: nested directory nodes (default {})
+  # The nested attribute set the `direnvs` output takes. Each node may carry
+  # a `shell`, the devShell for that directory, and `subdirectories`, the
+  # nodes below it.
   mkNestedShells = {
     pkgs,
     os,
@@ -78,33 +78,27 @@
       projectDefinitions
     );
 
-  # Build direnv shells and devShells for a set of project directories, returning
-  # both the flake-parts module and the directories configuration.
-  #
-  # This is used by features that define project-specific development environments.
-  # The feature imports the returned module and uses the directories configuration
-  # in its `homeManager` module.
-  #
-  # The direnv system automatically generates .envrc files that set up per-directory
-  # development environments with custom environment variables (email, git config, etc).
-  # This is particularly useful for managing multiple work contexts (personal, work, FOSS)
-  # with different identities and tooling.
+  # Build the direnv shells and devShells for a set of project directories.
+  # A feature imports the returned flake-parts module and puts the returned
+  # Home Manager module in its `homeManager` field, which writes the `.envrc`
+  # that loads each shell. That is how one checkout carries several identities
+  # and toolchains, one per directory.
   #
   # Arguments:
-  #   config:      The flake-parts config, needed for config.systems
-  #   withSystem:  flake-parts' withSystem function for per-system evaluation
-  #   projects:    Attrset of project directories with their configurations
-  #                Each project should define at minimum: directory
-  #   mkShell:     Function (pkgs -> os -> projectDef -> derivation) that builds
-  #                a shell for a project. `os` is the kernel name (e.g. "linux",
-  #                "darwin") derived from the build system, so callers can pick
-  #                the matching `os.<name>` overlay without runtime conditionals.
-  #                This is where you set environment variables and add packages
-  #                specific to your projects.
+  #   config:      the flake-parts config, for `config.systems`
+  #   withSystem:  flake-parts' per-system evaluation function
+  #   projects:    the project directories, each defining at least `directory`
+  #   mkShell:     `pkgs -> os -> projectDef -> derivation`, building one
+  #                project's shell. `os` is the kernel name ("linux",
+  #                "darwin") taken from the build system, so it can select the
+  #                matching `os.<name>` overlay without a runtime test. This is
+  #                where the environment variables and extra packages go.
   #
-  # Returns: An attrset with:
-  #   - homeManagerModule: A home-manager module fragment for project-directories config
-  #   - flakeModule: A flake-parts module that contributes direnvs and devShells
+  # Returns:
+  #   homeManagerModule: the Home Manager module configuring
+  #                      `programs.projectDirectories`
+  #   flakeModule:       the flake-parts module contributing `direnvs` and
+  #                      `devShells`
   mkProjectShells = {
     config,
     withSystem,
@@ -132,13 +126,10 @@
       flake.direnvs = lib.genAttrs config.systems (
         system:
           withSystem system (
-            {config, ...}: let
-              projectPkgs = config._module.args.pkgs;
-            in
+            {pkgs, ...}:
               mkNestedShells {
-                pkgs = projectPkgs;
+                inherit pkgs mkShell projectDefinitions;
                 os = osFromSystem system;
-                inherit mkShell projectDefinitions;
               }
           )
       );
@@ -146,16 +137,13 @@
       # Export flat devShells for manual `nix develop` usage. Useful for testing
       # or entering a project environment without direnv.
       perSystem = {
-        config,
+        pkgs,
         system,
         ...
-      }: let
-        projectPkgs = config._module.args.pkgs;
-      in {
+      }: {
         devShells = mkFlatShells {
-          pkgs = projectPkgs;
+          inherit pkgs mkShell projectDefinitions;
           os = osFromSystem system;
-          inherit mkShell projectDefinitions;
         };
       };
     };
