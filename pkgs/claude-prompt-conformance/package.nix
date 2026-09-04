@@ -296,6 +296,9 @@
       workspaceOverlay
       ;
     gitProgram = lib.getExe pkgs.gitMinimal;
+    # Every isolated process is given this bundle: the sandbox cannot resolve
+    # the host's own trust location, and the store is readable to all of them.
+    tlsCertificateBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
     claude = {
       program = lib.getExe claudePackage;
       shell = lib.getExe pkgs.bash;
@@ -326,7 +329,6 @@
       };
       schema = judgeSchema;
       proposalSchema = promptProposalSchema;
-      tlsCertificateBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       oauthTokenUrl = codexOauthTokenUrl;
       oauthClientId = codexOauthClientId;
     };
@@ -482,7 +484,7 @@
         .claude.model == $settings[0].model and
         .codex.judge == {"contextWindow":272000,"effort":"high","model":$judgeModel,"serviceTier":"fast","verbosity":"low"} and
         .codex.improver == {"contextWindow":272000,"effort":"high","model":$improverModel,"serviceTier":"fast","verbosity":"low"} and
-        .codex.tlsCertificateBundle == "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" and
+        .tlsCertificateBundle == "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" and
         .codex.oauthTokenUrl == "${codexOauthTokenUrl}" and
         .codex.oauthClientId == "${codexOauthClientId}"
       ' ${configuration} >/dev/null

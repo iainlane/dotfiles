@@ -201,6 +201,7 @@ def build_configuration(
         candidate_context=context,
         workspace_overlay=root / "overlay",
         git_program="git",
+        tls_certificate_bundle=certificates,
         claude=ClaudeConfiguration(
             program="claude",
             shell="sh",
@@ -219,7 +220,6 @@ def build_configuration(
             improver=agent,
             schema=schema,
             proposal_schema=proposal_schema,
-            tls_certificate_bundle=certificates,
             oauth_token_url="https://codex.invalid/oauth/token",
             oauth_client_id="codex-client",
         ),

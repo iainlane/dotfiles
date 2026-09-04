@@ -118,7 +118,7 @@ class ApplicationFactory:
         processes = ProcessSupervisor(self.authentication.cancellation)
         runner = process_runner(configuration, processes)
         instances = DirectoryInstanceFactory()
-        certificate_bundle = configuration.codex.tls_certificate_bundle
+        certificate_bundle = configuration.tls_certificate_bundle
         return Application(
             suite=ConformanceSuite(
                 instances=instances,
@@ -132,7 +132,11 @@ class ApplicationFactory:
                 candidate=ClaudeCandidateAgent(
                     configuration, runner, self.authentication.claude
                 ),
-                inspector=GitWorkspaceInspector(runner, configuration.git_program),
+                inspector=GitWorkspaceInspector(
+                    runner,
+                    configuration.git_program,
+                    certificate_bundle,
+                ),
                 verifier=CommandVerifier(runner, certificate_bundle),
                 judge=CodexJudge(
                     configuration,

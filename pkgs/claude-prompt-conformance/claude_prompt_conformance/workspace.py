@@ -322,9 +322,15 @@ def ensure_overlay_parent(workspace: Path, parent: Path) -> None:
 class GitWorkspaceInspector:
     """Capture Git status, patch, commits, revision, and changed paths."""
 
-    def __init__(self, runner: ProcessRunner, git_program: str) -> None:
+    def __init__(
+        self,
+        runner: ProcessRunner,
+        git_program: str,
+        certificate_bundle: Path,
+    ) -> None:
         self._runner = runner
         self._git_program = git_program
+        self._certificate_bundle = certificate_bundle
 
     def inspect(
         self,
@@ -441,7 +447,10 @@ class GitWorkspaceInspector:
         invocation = ProcessInvocation(
             command=(self._git_program, "-C", str(workspace), *arguments),
             cwd=workspace,
-            environment=clean_environment(environment_path),
+            environment=clean_environment(
+                environment_path,
+                self._certificate_bundle,
+            ),
             capabilities=ProcessCapabilities(
                 (), NetworkAccess.NONE, readable_paths=(workspace,)
             ),
@@ -774,23 +783,21 @@ def _append_untracked_patch(patch: TextIO, contents: str) -> None:
 
 def clean_environment(
     environment_path: str,
-    certificate_bundle: Path | None = None,
+    certificate_bundle: Path,
 ) -> dict[str, str]:
     """Build the environment every isolated process starts from.
 
-    A process that reaches the network needs `certificate_bundle`: the sandbox
-    binds `/etc/ssl` as a directory, and on a Nix host its entries are symlinks
-    into trees the sandbox does not bind, so the host's default trust location
-    resolves to nothing inside it. The packaged bundle lives in the store,
-    which every isolated process can already read.
+    The sandbox binds `/etc/ssl` as a directory, and on a Nix host its entries
+    are symlinks into trees the sandbox does not bind, so those symlink targets
+    are unavailable inside the sandbox. Every isolated process is therefore
+    given the packaged bundle, which lives in the Nix store and is already
+    readable to all of them.
     """
 
-    environment = {
+    return {
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": environment_path,
+        "SSL_CERT_FILE": str(certificate_bundle),
         "TZ": "UTC",
     }
-    if certificate_bundle is not None:
-        environment["SSL_CERT_FILE"] = str(certificate_bundle)
-    return environment

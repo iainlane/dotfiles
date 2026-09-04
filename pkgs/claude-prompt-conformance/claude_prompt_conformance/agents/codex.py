@@ -393,7 +393,7 @@ class CodexStructuredAgent:
         environment = (
             clean_environment(
                 request.environment_path,
-                self._configuration.codex.tls_certificate_bundle,
+                self._configuration.tls_certificate_bundle,
             )
             | self._identity.environment(instance.judge_state)
             | {
@@ -432,7 +432,7 @@ class CodexStructuredAgent:
                 *request.readable_paths,
                 request.schema,
                 request.mcp_configuration,
-                self._configuration.codex.tls_certificate_bundle,
+                self._configuration.tls_certificate_bundle,
             ),
             network=NetworkAccess.PUBLIC,
             writable_files=(),

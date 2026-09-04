@@ -360,6 +360,7 @@ def configuration(
         candidate_context=candidate_context,
         workspace_overlay=tmp_path / "overlay",
         git_program="git",
+        tls_certificate_bundle=tmp_path / "ca-bundle.crt",
         claude=ClaudeConfiguration(
             "claude",
             "bash",
@@ -378,7 +379,6 @@ def configuration(
             CodexAgentConfiguration("gpt-5.6-sol", "high", "fast", "low", 272000),
             tmp_path / "schema.json",
             tmp_path / "proposal-schema.json",
-            tmp_path / "ca-bundle.crt",
             "https://codex.invalid/oauth/token",
             "codex-client",
         ),

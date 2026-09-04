@@ -115,6 +115,7 @@ def build_configuration(root: Path, claude: str) -> RuntimeConfiguration:
         candidate_context=context,
         workspace_overlay=root / "overlay",
         git_program="git",
+        tls_certificate_bundle=root / "ca-bundle.crt",
         claude=ClaudeConfiguration(
             program=claude,
             shell=os.environ.get("SHELL", "/bin/sh"),
@@ -133,7 +134,6 @@ def build_configuration(root: Path, claude: str) -> RuntimeConfiguration:
             improver=agent,
             schema=root / "judgement.json",
             proposal_schema=root / "proposal.json",
-            tls_certificate_bundle=root / "ca-bundle.crt",
             oauth_token_url="https://codex.invalid/oauth/token",
             oauth_client_id="codex-client",
         ),

@@ -337,7 +337,7 @@ class RuntimeInputs:
             judge_schema=MemoryFile.load(Path(declaration.codex.schema)),
             proposal_schema=MemoryFile.load(Path(declaration.codex.proposal_schema)),
             tls_certificate_bundle=MemoryFile.load(
-                Path(declaration.codex.tls_certificate_bundle)
+                Path(declaration.tls_certificate_bundle)
             ),
             variant_source=MemoryTree.load(Path(declaration.variant.expression).parent),
             candidate_context=MemoryTree.load(Path(declaration.candidate_context)),
@@ -385,6 +385,7 @@ class RuntimeInputs:
             candidate_context="candidate-context",
             workspace_overlay="workspace-overlay",
             git_program="git",
+            tls_certificate_bundle="tls-certificate-bundle",
             claude=msgspec.structs.replace(
                 declaration.claude,
                 program="claude",
@@ -397,7 +398,6 @@ class RuntimeInputs:
                 mcp_program="conformance-mcp",
                 schema="judge-schema",
                 proposal_schema="proposal-schema",
-                tls_certificate_bundle="tls-certificate-bundle",
             ),
             isolation=msgspec.structs.replace(
                 declaration.isolation,
@@ -571,6 +571,7 @@ class RuntimeInputs:
             prompt_context=str(paths.prompt_context),
             candidate_context=str(paths.candidate_context),
             workspace_overlay=str(paths.workspace_overlay),
+            tls_certificate_bundle=str(paths.tls_certificate_bundle),
             claude=msgspec.structs.replace(
                 self.declaration.claude,
                 settings=str(paths.claude_settings),
@@ -579,7 +580,6 @@ class RuntimeInputs:
                 self.declaration.codex,
                 schema=str(paths.judge_schema),
                 proposal_schema=str(paths.proposal_schema),
-                tls_certificate_bundle=str(paths.tls_certificate_bundle),
             ),
             variant=msgspec.structs.replace(
                 self.declaration.variant,

@@ -346,7 +346,6 @@ class CodexConfiguration:
     improver: CodexAgentConfiguration
     schema: Path
     proposal_schema: Path
-    tls_certificate_bundle: Path
     oauth_token_url: str
     oauth_client_id: str
 
@@ -378,6 +377,7 @@ class RuntimeConfiguration:
     candidate_context: Path
     workspace_overlay: Path
     git_program: str
+    tls_certificate_bundle: Path
     claude: ClaudeConfiguration
     codex: CodexConfiguration
     isolation: IsolationConfiguration
@@ -410,6 +410,7 @@ class RuntimeConfiguration:
                 candidate_context=Path(value.candidate_context),
                 workspace_overlay=Path(value.workspace_overlay),
                 git_program=value.git_program,
+                tls_certificate_bundle=Path(value.tls_certificate_bundle),
                 claude=ClaudeConfiguration(
                     value.claude.program,
                     value.claude.shell,
@@ -440,7 +441,6 @@ class RuntimeConfiguration:
                     ),
                     Path(value.codex.schema),
                     Path(value.codex.proposal_schema),
-                    Path(value.codex.tls_certificate_bundle),
                     value.codex.oauth_token_url,
                     value.codex.oauth_client_id,
                 ),

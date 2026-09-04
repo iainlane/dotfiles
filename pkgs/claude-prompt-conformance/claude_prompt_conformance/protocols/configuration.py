@@ -86,7 +86,6 @@ class CodexConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
     improver: CodexAgentConfigurationInput
     schema: str
     proposal_schema: str
-    tls_certificate_bundle: str
     oauth_token_url: str
     oauth_client_id: str
 
@@ -111,6 +110,7 @@ class RuntimeConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
     candidate_context: str
     workspace_overlay: str
     git_program: str
+    tls_certificate_bundle: str
     claude: ClaudeConfigurationInput
     codex: CodexConfigurationInput
     isolation: IsolationConfigurationInput

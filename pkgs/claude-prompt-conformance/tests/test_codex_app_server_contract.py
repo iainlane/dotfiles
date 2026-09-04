@@ -115,6 +115,8 @@ def test_pinned_codex_app_server_reports_the_protocol_contract(
     (control / ".claude-prompt-conformance-root").touch()
     evidence = tmp_path / "evidence.json"
     evidence.write_text("{}")
+    certificate_bundle = tmp_path / "ca-bundle.crt"
+    certificate_bundle.write_text("")
     request = CodexRequest(
         role=CodexRole.EVALUATOR,
         prompt=tmp_path / "prompt.md",
@@ -140,7 +142,7 @@ def test_pinned_codex_app_server_reports_the_protocol_contract(
     invocation = ProcessInvocation(
         command=(codex, "app-server", "--stdio"),
         cwd=control,
-        environment=clean_environment(os.environ["PATH"])
+        environment=clean_environment(os.environ["PATH"], certificate_bundle)
         | {"CODEX_HOME": str(codex_home), "HOME": str(tmp_path)},
         capabilities=ProcessCapabilities((), NetworkAccess.NONE),
         stdout=transcript,

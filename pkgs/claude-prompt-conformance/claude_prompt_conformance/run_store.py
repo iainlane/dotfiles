@@ -407,12 +407,12 @@ def refresh_execution(
     configuration = replace(
         retained,
         git_program=execution.git_program,
+        tls_certificate_bundle=retained.tls_certificate_bundle,
         claude=replace(execution.claude, settings=retained.claude.settings),
         codex=replace(
             execution.codex,
             schema=retained.codex.schema,
             proposal_schema=retained.codex.proposal_schema,
-            tls_certificate_bundle=retained.codex.tls_certificate_bundle,
         ),
         isolation=execution.isolation,
         variant=replace(

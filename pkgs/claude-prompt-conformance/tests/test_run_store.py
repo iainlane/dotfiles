@@ -18,6 +18,10 @@ from claude_prompt_conformance.inputs import (
     RuntimeInputs,
     RuntimeInputSnapshotDocumentMismatchError,
 )
+from claude_prompt_conformance.models import (
+    RuntimeConfiguration,
+    RuntimeConfigurationFormatError,
+)
 from claude_prompt_conformance.protocols.configuration import RuntimeConfigurationInput
 from claude_prompt_conformance.run_store import (
     OutputMarkerDecodeError,
@@ -220,6 +224,7 @@ def runtime_inputs(
                 "candidateContext": str(candidate_context),
                 "workspaceOverlay": str(workspace_overlay),
                 "gitProgram": "/nix/store/git/bin/git",
+                "tlsCertificateBundle": str(source / "ca-bundle.crt"),
                 "claude": {
                     "program": "/nix/store/claude/bin/claude",
                     "shell": "/nix/store/bash/bin/bash",
@@ -250,7 +255,6 @@ def runtime_inputs(
                     },
                     "schema": str(source / "judgement-schema.json"),
                     "proposalSchema": str(source / "proposal-schema.json"),
-                    "tlsCertificateBundle": str(source / "ca-bundle.crt"),
                     "oauthTokenUrl": "https://codex.invalid/oauth/token",
                     "oauthClientId": "codex-client",
                 },
@@ -328,7 +332,7 @@ def test_run_store_materialises_every_document_after_sources_disappear(
                 configuration.claude.settings,
                 configuration.codex.schema,
                 configuration.codex.proposal_schema,
-                configuration.codex.tls_certificate_bundle,
+                configuration.tls_certificate_bundle,
                 configuration.variant.expression,
                 configuration.variant.prompt_source,
                 fixture.path,
@@ -734,6 +738,29 @@ def test_run_identity_covers_every_class_of_controlled_input(tmp_path: Path) -> 
         False,
         False,
     )
+
+
+def test_the_certificate_bundle_is_read_from_the_configuration_root(
+    tmp_path: Path,
+) -> None:
+    runtime_inputs(tmp_path)
+    source = tmp_path / "nix-inputs" / "configuration.json"
+    document = json.loads(source.read_text())
+    bundle = document.pop("tlsCertificateBundle")
+    beside_codex = tmp_path / "beside-codex.json"
+    beside_codex.write_text(
+        json.dumps(
+            document | {"codex": document["codex"] | {"tlsCertificateBundle": bundle}}
+        )
+    )
+
+    with pytest.raises(RuntimeConfigurationFormatError) as raised:
+        RuntimeConfiguration.from_file(beside_codex)
+
+    assert (
+        RuntimeConfiguration.from_file(source).tls_certificate_bundle,
+        raised.value.source,
+    ) == (Path(bundle), beside_codex)
 
 
 def moved_git(declaration: RuntimeConfigurationInput) -> RuntimeConfigurationInput:

@@ -43,7 +43,9 @@ def test_inspector_retains_untracked_files_without_following_links(
     artefacts.mkdir()
 
     evidence = GitWorkspaceInspector(
-        DirectProcessRunner(ProcessSupervisor()), _git_program()
+        DirectProcessRunner(ProcessSupervisor()),
+        _git_program(),
+        _certificate_bundle(artefacts),
     ).inspect(workspace, base_revision, artefacts, "/bin:/usr/bin")
 
     snapshots = artefacts / "untracked-files"
@@ -297,7 +299,9 @@ def test_inspector_excludes_deleted_children_beneath_untracked_symlinks(
     artefacts.mkdir()
 
     evidence = GitWorkspaceInspector(
-        DirectProcessRunner(ProcessSupervisor()), _git_program()
+        DirectProcessRunner(ProcessSupervisor()),
+        _git_program(),
+        _certificate_bundle(artefacts),
     ).inspect(workspace, base_revision, artefacts, "/bin:/usr/bin")
     snapshot = artefacts / "workspace-snapshot"
     entries = tuple(
@@ -362,3 +366,11 @@ def _git_program() -> str:
         pytest.fail("Git is required for workspace tests")
 
     return program
+
+
+def _certificate_bundle(artefacts: Path) -> Path:
+    """Write an empty certificate bundle for workspace tests."""
+
+    bundle = artefacts / "ca-bundle.crt"
+    bundle.write_text("")
+    return bundle

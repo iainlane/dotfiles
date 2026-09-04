@@ -155,7 +155,7 @@ def test_codex_configuration_write_failure_stays_inside_typed_boundary(
 ) -> None:
     configuration = runtime_configuration(tmp_path)
     configuration.codex.schema.write_text("{}")
-    configuration.codex.tls_certificate_bundle.write_text("certificate")
+    configuration.tls_certificate_bundle.write_text("certificate")
     instance = FakeInstances().create("candidate", tmp_path / "instances")
     artefacts = instance.root / "artefacts"
     artefacts.mkdir()
@@ -771,6 +771,7 @@ def runtime_configuration(tmp_path: Path) -> RuntimeConfiguration:
         candidate_context=candidate_context,
         workspace_overlay=tmp_path / "overlay",
         git_program="/nix/git",
+        tls_certificate_bundle=tmp_path / "ca-bundle.crt",
         claude=ClaudeConfiguration(
             program="/nix/claude",
             shell="/nix/bash",
@@ -793,7 +794,6 @@ def runtime_configuration(tmp_path: Path) -> RuntimeConfiguration:
             ),
             schema=tmp_path / "schema.json",
             proposal_schema=tmp_path / "proposal-schema.json",
-            tls_certificate_bundle=tmp_path / "ca-bundle.crt",
             oauth_token_url="https://codex.invalid/oauth/token",
             oauth_client_id="codex-client",
         ),
@@ -821,7 +821,7 @@ def isolated_codex_request(
 
     configuration = runtime_configuration(tmp_path)
     configuration.codex.schema.write_text("{}")
-    configuration.codex.tls_certificate_bundle.write_text("certificate")
+    configuration.tls_certificate_bundle.write_text("certificate")
     instance = FakeInstances().create("candidate", tmp_path / "instances")
     artefacts = instance.root / "artefacts"
     artefacts.mkdir()
@@ -985,7 +985,7 @@ def test_claude_candidate_applies_budgets_only_to_api_usage(
                     "LC_ALL": "C.UTF-8",
                     "PATH": "/bin",
                     "TZ": "UTC",
-                    "SSL_CERT_FILE": str(configuration.codex.tls_certificate_bundle),
+                    "SSL_CERT_FILE": str(configuration.tls_certificate_bundle),
                     "AUTH": "instance-auth",
                     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
                     "CLAUDE_CODE_ENTRYPOINT": "local-agent",
@@ -1601,7 +1601,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
 ) -> None:
     configuration = runtime_configuration(tmp_path)
     configuration.codex.schema.write_text("{}")
-    configuration.codex.tls_certificate_bundle.write_text("certificate")
+    configuration.tls_certificate_bundle.write_text("certificate")
     instance = FakeInstances().create("candidate", tmp_path)
     artefacts = tmp_path / "artefacts"
     artefacts.mkdir()
@@ -1811,7 +1811,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     "LANG": "C.UTF-8",
                     "LC_ALL": "C.UTF-8",
                     "PATH": "/bin",
-                    "SSL_CERT_FILE": str(configuration.codex.tls_certificate_bundle),
+                    "SSL_CERT_FILE": str(configuration.tls_certificate_bundle),
                     "TMPDIR": str(instance.judge_temp),
                     "TZ": "UTC",
                     "XDG_CACHE_HOME": str(instance.judge_cache),
@@ -1826,7 +1826,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     readable_paths=(
                         configuration.codex.schema,
                         mcp_configuration,
-                        configuration.codex.tls_certificate_bundle,
+                        configuration.tls_certificate_bundle,
                     ),
                     network=NetworkAccess.PUBLIC,
                 ),
