@@ -17,7 +17,14 @@ return {
 
       cssls = {},
       emmet_language_server = {},
-      gh_actions_ls = {},
+
+      -- nixpkgs has no `gh-actions-language-server`, so this server runs only
+      -- when the binary is on `PATH` some other way. `mason = false` keeps
+      -- Mason from downloading a copy of its own.
+      gh_actions_ls = {
+        enabled = vim.fn.executable("gh-actions-language-server") == 1,
+        mason = false,
+      },
     },
   },
 }

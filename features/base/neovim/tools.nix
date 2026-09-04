@@ -4,7 +4,6 @@
     alejandra
     ansible-lint
     bacon
-    biome
     deadnix
     delve
     gofumpt

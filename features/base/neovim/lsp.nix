@@ -58,6 +58,11 @@
     pkg = inputs.bacon-ls.defaultPackage.${system};
   };
   "bash-language-server" = "bashls";
+  # Biome is also the `biome-check` formatter that LazyVim's biome extra
+  # gives conform. An entry in `tools.nix` only removes it from Mason's tool
+  # list; Mason would still install its own copy for the language server, so
+  # the entry is here.
+  "biome" = null;
   # C/C++/Objective-C.
   "clang-tools" = {
     lsp = "clangd";
