@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 
 # Run `just` via Nix so it doesn't have to be installed.
-# Uses the pinned nh from our flake's home-manager configuration.
+# `nh` comes from this flake's unstable package set.
 
 set -euo pipefail
 
 ulimit -n 4096
 
 cd "$(dirname "$0")"
-
-nh_package=".#hostPrograms.$(hostname -s).nh.package"
 
 exec nix shell \
   nixpkgs#age \
@@ -22,5 +20,5 @@ exec nix shell \
   nixpkgs#sops \
   nixpkgs#ssh-to-age \
   nixpkgs#yq-go \
-  "$nh_package" \
+  .#nh \
   --command just "$@"

@@ -34,19 +34,6 @@ in {
         ;
     };
 
-    # Make packages available under:
-    #
-    #   .#hostPrograms.<hostname>.nh.package
-    #
-    # and then external consumers like `./just` can run the same versions using
-    # `nix run`.
-    flake.hostPrograms =
-      lib.mapAttrs (
-        hostname: _:
-          config.flake.homeConfigurations."${username}@${hostname}".config.programs
-      )
-      config.flake.hosts;
-
     perSystem = {system, ...}: let
       mkPkgs = nixpkgs:
         import nixpkgs {
@@ -57,6 +44,9 @@ in {
       pkgs-stable = mkPkgs inputs.nixpkgs-stable;
     in {
       _module.args = {inherit pkgs pkgs-stable;};
+
+      # `./just` runs `nh` from this flake's unstable package set.
+      packages.nh = pkgs.nh;
     };
   };
 }
