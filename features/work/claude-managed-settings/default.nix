@@ -6,9 +6,9 @@
     # it brings what declares those options itself.
     includes = [config.flake.features.ai];
 
-    nixos = [
+    system = [
       ./mcp-servers.nix
-      ./nixos.nix
+      ./system.nix
     ];
   };
 }
