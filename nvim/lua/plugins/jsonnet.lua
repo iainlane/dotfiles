@@ -1,6 +1,29 @@
 -- Enhance Jsonnet support. Mason/LSP integration is configured via
 -- `plugins/nix-managed-mason.lua` and `nix-managed-lsp.json`.
 
+---Answers from `is_tanka_project`, keyed by root directory. The probe runs a
+---subprocess and waits for it, which blocks the editor, and the language
+---server is started once per workspace and per restart.
+---@type table<string, boolean>
+local tanka_projects = {}
+
+---Whether `tk` can resolve a jpath for `fname`, which it can do only inside a
+---Tanka project. Tanka is not packaged here, so the caller checks for `tk`
+---first; `vim.system` raises when the executable is missing.
+---@param fname string Absolute path of the file the server is starting for
+---@param root_dir string Directory to run `tk` in
+---@return boolean
+local function is_tanka_project(fname, root_dir)
+  if tanka_projects[root_dir] == nil then
+    local ok, result = pcall(function()
+      return vim.system({ "tk", "tool", "jpath", fname }, { cwd = root_dir, text = true }):wait(2000)
+    end)
+    tanka_projects[root_dir] = ok and result.code == 0
+  end
+
+  return tanka_projects[root_dir]
+end
+
 return {
   {
     "nvim-treesitter/nvim-treesitter",
@@ -37,28 +60,13 @@ return {
           ---@param config vim.lsp.ClientConfig
           ---@return vim.lsp.rpc.PublicClient
           cmd = function(dispatchers, config)
-            ---Run a command and return details about its success
-            ---@param args string[] Command and arguments to execute
-            ---@param cwd string|nil Working directory for the command
-            ---@return boolean ok True if command exits with code 0, false otherwise
-            local function cmd_ok(args, cwd)
-              local res = vim.system(args, { cwd = cwd }):wait()
-              return res and res.code == 0
-            end
-
             local cmd_args = { "jsonnet-language-server", "--lint" }
 
-            -- Enable Tanka mode if we're in a Tanka project
-            if config.root_dir then
-              local bufnr = vim.api.nvim_get_current_buf()
-              local fname = vim.api.nvim_buf_get_name(bufnr)
+            local fname = vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())
+            local probe = vim.fn.executable("tk") == 1 and config.root_dir ~= nil and fname ~= ""
 
-              if fname ~= "" then
-                local jpath_cmd = { "tk", "tool", "jpath", fname }
-                if cmd_ok(jpath_cmd, config.root_dir) then
-                  table.insert(cmd_args, "--tanka")
-                end
-              end
+            if probe and is_tanka_project(fname, config.root_dir) then
+              table.insert(cmd_args, "--tanka")
             end
 
             return vim.lsp.rpc.start(cmd_args, dispatchers, {})
