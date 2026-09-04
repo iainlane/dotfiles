@@ -114,8 +114,7 @@ end
 
 return {
   {
-    "stevearc/conform.nvim",
-    optional = true,
+    "conform.nvim",
 
     ---@param opts conform.setupOpts
     opts = function(_, opts)

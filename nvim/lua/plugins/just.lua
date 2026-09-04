@@ -14,8 +14,7 @@ return {
     },
   },
   {
-    "stevearc/conform.nvim",
-    optional = true,
+    "conform.nvim",
     opts = {
       formatters_by_ft = {
         just = { "just" },

@@ -58,9 +58,9 @@ local format_args = function()
   return { "-c", config_path, "-l", lang }
 end
 
--- @type LazySpec
+---@type LazySpec
 return {
-  "stevearc/conform.nvim",
+  "conform.nvim",
   opts = {
     formatters_by_ft = formatters_by_ft,
     formatters = {
