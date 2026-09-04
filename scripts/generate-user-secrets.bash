@@ -26,15 +26,25 @@ log_step "Setting login password for ${host}"
 while true; do
 	IFS= read -r -s -p "Enter passphrase for ${USER}@${host}: " pass
 	echo
+
+	if [[ -z "${pass}" ]]; then
+		log_warn "an empty passphrase lets anyone log in, try again"
+		continue
+	fi
+
 	IFS= read -r -s -p "Confirm passphrase: " pass2
 	echo
+
 	if [[ "${pass}" == "${pass2}" ]]; then
 		break
 	fi
+
 	log_warn "passphrases do not match, try again"
 done
 
-hashed="$(mkpasswd -m sha-512 "${pass}")"
+# `-s` makes mkpasswd read the passphrase from stdin, which keeps it out of
+# the process list. /proc/<pid>/cmdline is world readable on Linux.
+hashed="$(printf '%s\n' "${pass}" | mkpasswd -m sha-512 -s)"
 
 password_plaintext="$(make_secret_temp_file)"
 echo "user-password-hash: ${hashed}" >"${password_plaintext}"
