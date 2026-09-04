@@ -52,9 +52,7 @@ die() {
 }
 
 ensure_repo_root() {
-	if ! cd "${REPO_ROOT}"; then
-		exit 1
-	fi
+	cd "${REPO_ROOT}" || die "cannot enter the repository root ${REPO_ROOT}"
 }
 
 make_temp_dir() {
@@ -96,10 +94,14 @@ register_exit_handler() {
 	_EXIT_HANDLERS+=("$1")
 }
 
+# sops selects a creation rule by matching a file name against `.sops.yaml`.
+# The plaintext is in a temporary file whose name matches no rule, so pass the
+# ciphertext output path as `--filename-override`. Supply a different override
+# for a file written somewhere other than the path its creation rule covers.
 encrypt_yaml_file() {
 	local plaintext_path="${1}"
 	local output_path="${2}"
-	local filename_override="${3}"
+	local filename_override="${3:-${output_path}}"
 
 	sops --encrypt --input-type yaml --output-type yaml --filename-override "${filename_override}" "${plaintext_path}" >"${output_path}"
 }

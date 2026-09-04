@@ -30,5 +30,5 @@ plaintext="$(make_secret_temp_file)"
 	printf '%s\n' "${pcr_public}" | sed 's/^/    /'
 } >"${plaintext}"
 
-encrypt_yaml_file "${plaintext}" "${host}/host-secure-boot.yaml" "${host}/host-secure-boot.yaml"
+encrypt_yaml_file "${plaintext}" "${host}/host-secure-boot.yaml"
 echo "    Created ${host}/host-secure-boot.yaml"

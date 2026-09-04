@@ -35,7 +35,7 @@ hashed="$(mkpasswd -m sha-512 "${pass}")"
 
 password_plaintext="$(make_secret_temp_file)"
 echo "user-password-hash: ${hashed}" >"${password_plaintext}"
-encrypt_yaml_file "${password_plaintext}" "${host}/host-user-password.yaml" "${host}/host-user-password.yaml"
+encrypt_yaml_file "${password_plaintext}" "${host}/host-user-password.yaml"
 echo "    Created ${host}/host-user-password.yaml"
 
 log_step "Encrypting user SSH private key"
@@ -45,7 +45,7 @@ ssh_key_plaintext="$(make_secret_temp_file)"
 	echo "ssh-private-key: |"
 	sed 's/^/    /' "${keys_dir}/id_ed25519"
 } >"${ssh_key_plaintext}"
-encrypt_yaml_file "${ssh_key_plaintext}" "${host}/user-ssh-key.yaml" "${host}/user-ssh-key.yaml"
+encrypt_yaml_file "${ssh_key_plaintext}" "${host}/user-ssh-key.yaml"
 echo "    Created ${host}/user-ssh-key.yaml"
 
 log_step "Adding user SSH key to GitHub"

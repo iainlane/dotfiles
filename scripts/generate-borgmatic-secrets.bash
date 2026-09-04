@@ -22,5 +22,5 @@ borg_passphrase="$(openssl rand -base64 32)"
 
 plaintext="$(make_secret_temp_file)"
 echo "encryption_passphrase: ${borg_passphrase}" >"${plaintext}"
-encrypt_yaml_file "${plaintext}" "${host}/host-borgmatic.yaml" "${host}/host-borgmatic.yaml"
+encrypt_yaml_file "${plaintext}" "${host}/host-borgmatic.yaml"
 echo "    Created ${host}/host-borgmatic.yaml"

@@ -147,7 +147,7 @@ generate_user_secrets() {
 			yq -i '.agentsview_client_key = strenv(CLIENT_KEY)' "${plaintext}"
 	fi
 
-	encrypt_yaml_file "${plaintext}" "${user_file}" "${user_file}"
+	encrypt_yaml_file "${plaintext}" "${user_file}"
 	echo "    Created ${user_file}"
 }
 
@@ -192,7 +192,7 @@ generate_client_secrets() {
 	else
 		plaintext="$(make_secret_temp_file)"
 		PASSWORD="$(openssl rand -hex 32)" yq -n '.password = strenv(PASSWORD)' >"${plaintext}"
-		encrypt_yaml_file "${plaintext}" "${password_file}" "${password_file}"
+		encrypt_yaml_file "${plaintext}" "${password_file}"
 		echo "    Created ${password_file}"
 	fi
 
@@ -241,7 +241,7 @@ generate_server_secrets() {
 			yq -i '.[strenv(SECRET_KEY)] = strenv(SECRET_VALUE)' "${plaintext}"
 	done
 
-	encrypt_yaml_file "${plaintext}" "${server_file}" "${server_file}"
+	encrypt_yaml_file "${plaintext}" "${server_file}"
 	echo "    Created ${server_file}"
 }
 
