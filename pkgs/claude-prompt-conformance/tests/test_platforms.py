@@ -474,6 +474,22 @@ def test_darwin_process_runner_maps_a_profile_directory_create_failure(
     assert raised.value.directory == blocked / "instance"
 
 
+def test_darwin_process_runner_will_not_write_a_profile_through_a_planted_link(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.write_text("retained\n")
+    process = invocation(tmp_path, NetworkAccess.NONE)
+    profile = process.stdout.with_suffix(".sb")
+    profile.symlink_to(outside)
+    runner = DarwinProcessRunner("/usr/bin/sandbox-exec", FakeProcesses())
+
+    with pytest.raises(IsolationProfileWriteError) as raised:
+        runner.run(process)
+
+    assert (raised.value.destination, outside.read_text()) == (profile, "retained\n")
+
+
 def test_darwin_process_runner_maps_a_profile_write_failure(tmp_path: Path) -> None:
     process = invocation(tmp_path, NetworkAccess.NONE)
     profile = process.stdout.with_suffix(".sb")

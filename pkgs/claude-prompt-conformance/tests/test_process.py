@@ -200,6 +200,40 @@ class ProcessIoFailure(StrEnum):
     STANDARD_INPUT = "standard-input"
 
 
+@pytest.mark.parametrize(
+    ("stream", "expected_error"),
+    [
+        pytest.param("stdout", ProcessStandardOutputOpenError, id="standard-output"),
+        pytest.param("stderr", ProcessStandardErrorOpenError, id="standard-error"),
+    ],
+)
+def test_process_supervisor_will_not_write_output_through_a_planted_link(
+    tmp_path: Path,
+    stream: str,
+    expected_error: type[Exception],
+) -> None:
+    outside = tmp_path / "outside"
+    outside.write_text("retained\n")
+    planted = tmp_path / stream
+    planted.symlink_to(outside)
+    invocation = ProcessInvocation(
+        command=(sys.executable, "-c", "print('written')"),
+        cwd=tmp_path,
+        environment=dict(os.environ),
+        capabilities=ProcessCapabilities((), NetworkAccess.NONE),
+        stdout=tmp_path / "stdout",
+        stderr=tmp_path / "stderr",
+    )
+
+    with pytest.raises(expected_error) as raised:
+        ProcessSupervisor().run(invocation, invocation.command)
+
+    assert (raised.value, outside.read_text()) == (
+        expected_error(invocation.command, planted, errno.ELOOP),
+        "retained\n",
+    )
+
+
 @pytest.mark.parametrize("failure", tuple(ProcessIoFailure))
 def test_process_supervisor_reports_typed_io_failures(
     tmp_path: Path,

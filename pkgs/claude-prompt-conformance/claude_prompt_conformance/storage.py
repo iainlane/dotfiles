@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import IO, Self
 
 from .errors import ConformanceError, RetainedStateError
 
@@ -355,6 +355,23 @@ def reset_file(root: Path, destination: Path) -> None:
             dir_fd=parent,
         )
         os.close(descriptor)
+
+
+def open_owned_output(destination: Path) -> IO[bytes]:
+    """Open a file the supervisor writes on a child's behalf, rejecting a symlink.
+
+    An isolated process can have write access to the directory and leave a
+    symlink under the name the supervisor is about to open. `O_NOFOLLOW`
+    rejects a symbolic link at that final component, so the open fails instead
+    of writing through the link from outside the sandbox.
+    """
+
+    descriptor = os.open(
+        destination,
+        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+        0o600,
+    )
+    return open(descriptor, "wb")
 
 
 class RunLease:

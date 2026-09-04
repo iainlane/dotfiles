@@ -19,6 +19,7 @@ import msgspec
 from .errors import ConformanceError, ProcessExecutionError
 from .models import ProcessInvocation, ProcessOutputRecord, ProcessResult
 from .ports import CancellationSignal, ProcessSession
+from .storage import open_owned_output
 
 
 @dataclass(eq=True)
@@ -717,7 +718,7 @@ class ProcessSupervisor:
 
         with ExitStack() as stack:
             try:
-                stdout = stack.enter_context(invocation.stdout.open("wb"))
+                stdout = stack.enter_context(open_owned_output(invocation.stdout))
             except OSError as error:
                 raise ProcessStandardOutputOpenError(
                     command,
@@ -726,7 +727,7 @@ class ProcessSupervisor:
                 ) from error
 
             try:
-                stderr = stack.enter_context(invocation.stderr.open("wb"))
+                stderr = stack.enter_context(open_owned_output(invocation.stderr))
             except OSError as error:
                 raise ProcessStandardErrorOpenError(
                     command,

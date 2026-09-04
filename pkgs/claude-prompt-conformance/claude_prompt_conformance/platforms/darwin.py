@@ -22,6 +22,7 @@ from ..models import (
     ProcessResult,
 )
 from ..ports import CredentialLock, IsolatedChildProcesses, Keychain, ProcessSession
+from ..storage import open_owned_output
 
 
 @dataclass(eq=True)
@@ -166,7 +167,8 @@ class DarwinProcessRunner:
         except OSError as error:
             raise IsolationProfileDirectoryCreateError(profile.parent, error) from error
         try:
-            profile.write_text(seatbelt_profile(invocation))
+            with open_owned_output(profile) as file:
+                file.write(seatbelt_profile(invocation).encode())
         except OSError as error:
             raise IsolationProfileWriteError(profile, error) from error
         command = (
