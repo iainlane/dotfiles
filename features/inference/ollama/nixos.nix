@@ -1,4 +1,6 @@
 {pkgs-unstable, ...}: {
+  hardware.graphics.enable = true;
+
   services.ollama = {
     enable = true;
     package = pkgs-unstable.ollama-vulkan;
