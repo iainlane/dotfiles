@@ -17,6 +17,10 @@ in {
     "programs/opencode.nix"
   ];
 
+  # Import the modules explicitly. A path in `imports` keeps the module key
+  # that `disabledModules` matches on, so listing the paths here would disable
+  # these copies too and leave `programs.claude-code`, `programs.codex`,
+  # `programs.mcp` and `programs.opencode` undeclared.
   imports = map (f: import "${hmPrograms}/${f}") [
     "antigravity-cli.nix"
     "claude-code"
