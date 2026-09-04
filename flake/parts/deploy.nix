@@ -64,28 +64,45 @@
 
   deploy = {inherit nodes;};
 
-  # Run `deploy-rs` checks only for hosts matching the current system, avoiding
-  # cross-compilation during `nix flake check`.
-  checks = let
-    targetSystems = lib.unique (map (h: h.system) (builtins.attrValues hosts));
-    # Only check systems we can build for natively. In pure eval mode
-    # (builtins.currentSystem unavailable), skip checks entirely.
-    supportedSystems =
-      if builtins ? currentSystem
-      then lib.filter (system: system == builtins.currentSystem) targetSystems
-      else [];
-    mkChecks = system: {
-      ${system} = inputs.deploy-rs.lib.${system}.deployChecks deploy;
-    };
-  in
-    lib.foldl' (acc: system: acc // (mkChecks system)) {} supportedSystems;
+  # `deploy-schema` serialises the node set into a JSON file and validates it.
+  # A profile path carries the string context of the closure it names, and the
+  # serialised file would inherit it, so validating the definitions would build
+  # every host on every system. Discard the context: the schema reads the path
+  # as a string.
+  schemaNodes =
+    lib.mapAttrs (
+      _: node:
+        node
+        // {
+          profiles =
+            lib.mapAttrs (
+              _: profile:
+                profile
+                // {
+                  path = builtins.unsafeDiscardStringContext "${profile.path}";
+                }
+            )
+            node.profiles;
+        }
+    )
+    nodes;
+
+  mkChecks = system: let
+    inherit (inputs.deploy-rs.lib.${system}) deployChecks;
+    # `deploy-activate` builds each profile to look for its activation script,
+    # so it gets the hosts this system builds and no others.
+    nativeNodes =
+      lib.filterAttrs (hostname: _: hosts.${hostname}.system == system) nodes;
+  in {
+    inherit (deployChecks {nodes = schemaNodes;}) deploy-schema;
+    inherit (deployChecks {nodes = nativeNodes;}) deploy-activate;
+  };
 in {
   flake = {
     inherit deploy;
   };
 
-  # Add deploy-rs checks to the per-system checks
   perSystem = {system, ...}: {
-    checks = checks.${system} or {};
+    checks = mkChecks system;
   };
 }
