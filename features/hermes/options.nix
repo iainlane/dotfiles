@@ -89,7 +89,7 @@ in {
 
     extraDependencyGroups = lib.mkOption {
       type = with lib.types; listOf str;
-      default = ["messaging"];
+      default = [];
     };
 
     extraPackages = lib.mkOption {
@@ -151,9 +151,10 @@ in {
       default = [];
       example = lib.literalExpression "[pkgs.jq pkgs.fd]";
       description = ''
-        Programs the agent can run inside the container, in addition to the
+        Programs the agent can run inside the container, on top of the
         package's own runtime tools (git, node, ripgrep, ffmpeg, ...). They
-        are baked into the image and put on the container PATH.
+        are baked into the image and put on the container PATH so they
+        resolve by name. `core.nix` adds curl and wget.
       '';
     };
 

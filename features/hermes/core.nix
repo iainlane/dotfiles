@@ -27,19 +27,25 @@ in {
       ]
       ++ cfg.extraPackages;
 
-    dotfiles.hermes.settings = {
-      # The agent's terminal working directory, inside the container.
-      terminal.cwd = "/data/workspace";
+    dotfiles.hermes = {
+      extraDependencyGroups = ["messaging"];
 
-      checkpoints.enabled = lib.mkDefault true;
-      display.busy_input_mode = lib.mkDefault "steer";
+      agentPackages = [pkgs.curl pkgs.wget];
 
-      # Single owner of the `plugins` allow/deny lists, merging the two
-      # sources (context-engine's enable, host-level disables) into one
-      # `settings.plugins` definition.
-      plugins = lib.filterAttrs (_: v: v != []) {
-        enabled = cfg.enabledPlugins;
-        disabled = cfg.disabledPlugins;
+      settings = {
+        # The agent's terminal working directory, inside the container.
+        terminal.cwd = "/data/workspace";
+
+        checkpoints.enabled = lib.mkDefault true;
+        display.busy_input_mode = lib.mkDefault "steer";
+
+        # Single owner of the `plugins` allow/deny lists, merging the two
+        # sources (context-engine's enable, host-level disables) into one
+        # `settings.plugins` definition.
+        plugins = lib.filterAttrs (_: v: v != []) {
+          enabled = cfg.enabledPlugins;
+          disabled = cfg.disabledPlugins;
+        };
       };
     };
 

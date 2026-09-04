@@ -7,7 +7,6 @@
     environment.TERMINAL_LOCAL_PERSISTENT = lib.mkDefault "true";
 
     agentPackages = with pkgs; [
-      curl
       fd
       gh
       gnutar
@@ -18,7 +17,6 @@
       rsync
       unzip
       uv
-      wget
       xz
       zip
     ];

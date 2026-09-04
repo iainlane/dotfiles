@@ -79,7 +79,7 @@ in {
             model = "baai/bge-m3";
           };
           # Pull in exa-py so the native web_search Exa backend has its client.
-          extraDependencyGroups = ["messaging" "exa"];
+          extraDependencyGroups = ["exa"];
           # `raft-platform` is a bundled gateway adapter we do not use; without it
           # disabled the agent probes for the absent `raft` CLI on startup.
           # `google_chat-platform` registers a Platform value the gateway does
