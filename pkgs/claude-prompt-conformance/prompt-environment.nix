@@ -60,11 +60,23 @@
       })
       instructions.outputStyles)
   );
+  # The part of the run metadata that identifies the prompt. A variant recomputes
+  # it from its own instruction set and keeps the rest of the base metadata.
+  promptDigests = {
+    prompt =
+      lib.mapAttrs (_: content: builtins.hashString "sha256" content)
+      instructions.files;
+    outputStyles =
+      lib.mapAttrs (_: style: builtins.hashFile "sha256" style.file)
+      instructions.outputStyles;
+    defaultOutputStyle = managedSettings.outputStyle;
+  };
 in {
   inherit
     candidateContext
     managedSettingsFile
     promptContext
+    promptDigests
     workspaceOverlay
     ;
 }

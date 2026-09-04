@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -32,10 +34,21 @@ from claude_prompt_conformance.variants import (
     PromptVariantMetadataDecodeError,
     PromptVariantOutputsError,
     PromptVariantResultCountError,
+    nix_expression,
     nix_output_path,
 )
 
 from .test_run_store import runtime_inputs
+
+VARIANT_STUB_EXPRESSION = """\
+{patch, ...}:
+derivation {
+  name = "prompt-conformance-variant-stub";
+  system = builtins.currentSystem;
+  builder = "/bin/sh";
+  args = ["-c" "cp \\"${patch}\\" \\"$out\\""];
+}
+"""
 
 
 @dataclass(frozen=True)
@@ -364,6 +377,57 @@ def test_prompt_patch_path_rejects_an_endpoint_without_a_prefix() -> None:
         prompt_patch_path("instructions/AGENTS.md")
 
     assert raised.value == PromptPatchPrefixError(("instructions/AGENTS.md",))
+
+
+@pytest.mark.host_integration
+def test_variant_expression_keys_the_build_on_the_patch_contents(
+    tmp_path: Path,
+) -> None:
+    nix_program = shutil.which("nix")
+    if nix_program is None:
+        pytest.fail("Nix is required for the variant expression host integration test")
+
+    nixpkgs = tmp_path / "nixpkgs"
+    nixpkgs.mkdir()
+    (nixpkgs / "default.nix").write_text("_: {}\n")
+    expression = tmp_path / "variant-expression" / "variant.nix"
+    expression.parent.mkdir()
+    expression.write_text(VARIANT_STUB_EXPRESSION)
+    base = runtime_inputs(tmp_path).materialise(tmp_path / "base").configuration
+    configuration = replace(
+        base,
+        variant=replace(base.variant, nixpkgs=nixpkgs, expression=expression),
+    )
+    patch = tmp_path / "prompt.patch"
+
+    def output_path(program: str, contents: str) -> str:
+        patch.write_text(contents)
+        result = subprocess.run(
+            (
+                program,
+                "build",
+                "--dry-run",
+                "--impure",
+                "--json",
+                "--no-link",
+                "--expr",
+                nix_expression(configuration, patch),
+            ),
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        (built,) = json.loads(result.stdout)
+        return built["outputs"]["out"]
+
+    first = output_path(
+        nix_program, "--- a/instructions/a.md\n+++ b/instructions/a.md\n"
+    )
+    second = output_path(
+        nix_program, "--- a/instructions/b.md\n+++ b/instructions/b.md\n"
+    )
+
+    assert (first == second, first.startswith("/nix/store/")) == (False, True)
 
 
 def test_prompt_patch_accepts_the_declared_source_directories() -> None:

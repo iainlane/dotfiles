@@ -178,25 +178,46 @@ class NixPromptVariantBuilder:
 
 
 def nix_expression(configuration: RuntimeConfiguration, patch: Path) -> str:
-    """Construct a Nix expression using JSON quoting for every host path."""
+    """Construct a Nix expression that copies the variant inputs into the store.
 
-    paths = {
-        "baseConfiguration": str(configuration.source.resolve()),
-        "expression": str(configuration.variant.expression.resolve()),
-        "nixpkgs": str(configuration.variant.nixpkgs.resolve()),
-        "patch": str(patch.resolve()),
-        "promptEnvironment": str(configuration.variant.prompt_environment.resolve()),
-        "promptSource": str(configuration.variant.prompt_source.resolve()),
+    Nixpkgs is imported from its existing store path and is not copied.
+    """
+
+    # `builtins.path` copies the argument and returns a store path whose hash
+    # covers the contents, so the variant derivation is keyed on the prompt's
+    # contents, and the build reads its sources from the store. The store name
+    # is fixed per argument so that a run store and a Nix store yield the same
+    # path for the same contents.
+    inputs = {
+        "baseConfiguration": ("configuration.json", configuration.source),
+        "expression": ("variant.nix", configuration.variant.expression),
+        "patch": ("prompt.patch", patch),
+        "promptEnvironment": (
+            "prompt-environment.nix",
+            configuration.variant.prompt_environment,
+        ),
+        "promptSource": ("prompt-source", configuration.variant.prompt_source),
     }
-    quoted = {name: json.dumps(value) for name, value in paths.items()}
+    stored = {
+        argument: (
+            "builtins.path { "
+            f"name = {json.dumps(name)}; "
+            f"path = {json.dumps(str(path.resolve()))}; "
+            "}"
+        )
+        for argument, (name, path) in inputs.items()
+    }
+    # Nixpkgs is a store path already and is only imported, so a second copy
+    # would rehash the whole tree for no change in what the build sees.
+    nixpkgs = json.dumps(str(configuration.variant.nixpkgs.resolve()))
     return (
-        f"let pkgs = import (builtins.toPath {quoted['nixpkgs']}) {{}}; "
-        f"in import (builtins.toPath {quoted['expression']}) {{ "
+        f"let pkgs = import {nixpkgs} {{}}; "
+        f"in import ({stored['expression']}) {{ "
         f"inherit pkgs; "
-        f"baseConfiguration = builtins.toPath {quoted['baseConfiguration']}; "
-        f"patch = builtins.toPath {quoted['patch']}; "
-        f"promptEnvironment = builtins.toPath {quoted['promptEnvironment']}; "
-        f"promptSource = builtins.toPath {quoted['promptSource']}; "
+        f"baseConfiguration = {stored['baseConfiguration']}; "
+        f"patch = {stored['patch']}; "
+        f"promptEnvironment = {stored['promptEnvironment']}; "
+        f"promptSource = {stored['promptSource']}; "
         "}"
     )
 

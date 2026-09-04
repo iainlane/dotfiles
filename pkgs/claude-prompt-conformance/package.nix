@@ -218,9 +218,8 @@
     '';
   judgeSchema = makeResponseSchema "judgement";
   promptProposalSchema = makeResponseSchema "proposal";
-  runMetadata =
-    pkgs.writeText "prompt-conformance-run.json"
-    (builtins.toJSON {
+  runMetadataValue =
+    {
       claude = {
         inherit (claudePackage) version;
         model = claudeModel;
@@ -243,14 +242,11 @@
           contextWindow = codexContextWindow;
         };
       };
-      prompt =
-        lib.mapAttrs (_: content: builtins.hashString "sha256" content)
-        instructions.files;
-      outputStyles = lib.mapAttrs (_: style:
-        builtins.hashFile "sha256" style.file)
-      instructions.outputStyles;
-      defaultOutputStyle = suiteManagedSettings.outputStyle;
-    });
+    }
+    // promptEnvironment.promptDigests;
+  runMetadata =
+    pkgs.writeText "prompt-conformance-run.json"
+    (builtins.toJSON runMetadataValue);
   isolation =
     if pkgs.stdenv.hostPlatform.isDarwin
     then {

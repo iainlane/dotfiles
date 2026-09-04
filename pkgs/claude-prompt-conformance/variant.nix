@@ -5,6 +5,7 @@
   promptEnvironment,
   promptSource,
 }: let
+  inherit (pkgs) lib;
   variantSource = pkgs.applyPatches {
     name = "prompt-conformance-variant-source";
     src = promptSource;
@@ -12,42 +13,22 @@
   };
   instructions =
     (import (variantSource + "/agent-instructions.nix") {
-      inherit (pkgs) lib;
+      inherit lib;
       source = variantSource;
     }).harnesses.claudeCode;
-  # The decoded values are edited as plain data. Their original store
-  # dependencies remain attached to the configuration written below.
-  baseText = builtins.readFile baseConfiguration;
-  baseContext = builtins.getContext baseText;
-  base = builtins.fromJSON (builtins.unsafeDiscardStringContext baseText);
-  managedSettings = builtins.fromJSON (
-    builtins.unsafeDiscardStringContext (
-      builtins.readFile (builtins.appendContext base.claude.settings baseContext)
-    )
-  );
+  # `builtins.readFile` returns a string with no context, so the store paths the
+  # base configuration names are plain text here and stay plain text in the
+  # configuration written below. The run's garbage-collector root over the base
+  # configuration is what keeps the programs both configurations name alive.
+  base = builtins.fromJSON (builtins.readFile baseConfiguration);
+  managedSettings = builtins.fromJSON (builtins.readFile base.claude.settings);
   environment = import promptEnvironment {
-    inherit instructions managedSettings pkgs;
-    inherit (pkgs) lib;
+    inherit instructions lib managedSettings pkgs;
   };
-  baseRunMetadata = builtins.fromJSON (
-    builtins.unsafeDiscardStringContext (
-      builtins.readFile (builtins.appendContext base.runMetadata baseContext)
-    )
-  );
-  runMetadata = pkgs.writeText "prompt-conformance-variant-run.json" (
-    builtins.toJSON (
-      baseRunMetadata
-      // {
-        prompt =
-          pkgs.lib.mapAttrs (_: content: builtins.hashString "sha256" content)
-          instructions.files;
-        outputStyles = pkgs.lib.mapAttrs (_: style:
-          builtins.hashFile "sha256" style.file)
-        instructions.outputStyles;
-        defaultOutputStyle = managedSettings.outputStyle;
-      }
-    )
-  );
+  baseRunMetadata = builtins.fromJSON (builtins.readFile base.runMetadata);
+  runMetadata =
+    pkgs.writeText "prompt-conformance-variant-run.json"
+    (builtins.toJSON (baseRunMetadata // environment.promptDigests));
   configurationValue =
     base
     // {
@@ -65,11 +46,9 @@
           promptSource = variantSource;
         };
     };
-  configuration = pkgs.writeText "prompt-conformance-variant-configuration.json" (
-    builtins.appendContext
-    (builtins.toJSON configurationValue)
-    (builtins.getContext baseText)
-  );
+  configuration =
+    pkgs.writeText "prompt-conformance-variant-configuration.json"
+    (builtins.toJSON configurationValue);
 in
   pkgs.linkFarm "prompt-conformance-variant" [
     {
