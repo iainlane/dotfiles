@@ -7,6 +7,26 @@
 }: let
   inherit (import ./features.nix {inherit lib;}) resolveFeatures;
   inherit (import ./sops.nix {inherit inputs lib;}) mkHomeSopsModule;
+  inherit (import ./channels.nix {inherit inputs;}) channelFor;
+
+  # The unstable home-manager program modules grafted on by
+  # features/ai/unstable-hm-modules.nix are written against unstable's
+  # `lib.hm`, which carries helpers (such as
+  # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
+  # does not yet have. Build an extended lib whose `lib.hm` comes from
+  # unstable and hand it to the home-manager modules on stable hosts through
+  # the special args, so both the embedded and standalone configurations
+  # receive it. Special args take precedence over the home-manager module's
+  # own `lib`, so this overrides it without rebuilding the stable source.
+  unstableHmLib = pkgs-stable:
+    pkgs-stable.lib.extend (
+      self: super: let
+        hmLib = import "${inputs.home-manager}/modules/lib" {lib = self;};
+      in {
+        hm = hmLib;
+        maintainers = super.maintainers // hmLib.maintainers;
+      }
+    );
 in rec {
   mkHomeModules = {
     hostConfig,
@@ -26,23 +46,33 @@ in rec {
       }
     ];
 
-  # Construct the specialArgs attrset passed to home-manager modules. Provides
-  # access to flake inputs, host metadata, and the canonical flake path.
+  # The special arguments every Home Manager module receives, whether it is
+  # evaluated in the standalone configuration or in the one embedded in a
+  # system configuration. Each OS adapter builds this set for its host, so a
+  # module written for one OS finds the same arguments on the others.
+  #
+  # `pkgs` and `pkgs-stable` are the package sets flake-parts instantiated for
+  # the host's system.
   mkHomeSpecialArgs = {
     hostConfig,
-    system,
-    inputs,
-    extraArgs ? {},
-  }:
+    mcpByChannel,
+    pkgs,
+    pkgs-stable,
+  }: let
+    channel = channelFor {
+      inherit (hostConfig) channel;
+      inherit pkgs pkgs-stable;
+    };
+  in
     {
-      inherit
-        inputs
-        system
-        hostConfig
-        ;
-      inherit (hostConfig) flakePath;
+      inherit inputs hostConfig;
+      inherit (hostConfig) system flakePath;
+      mcp = mcpByChannel.${hostConfig.channel};
+      pkgs-unstable = channel.unstable;
     }
-    // extraArgs;
+    // lib.optionalAttrs (hostConfig.channel == "stable") {
+      lib = unstableHmLib channel.stable;
+    };
 
   # The home-manager settings module shared by the NixOS and nix-darwin
   # embeddings.
@@ -62,10 +92,9 @@ in rec {
   # Home Manager configuration.
   mkHomeDefinition = {
     hostConfig,
-    system,
     username,
     extraModules ? [],
-    extraSpecialArgs ? {},
+    extraSpecialArgs,
   }: {
     modules =
       mkHomeModules {inherit hostConfig username;}
@@ -74,13 +103,6 @@ in rec {
         (mkHomeSopsModule {inherit hostConfig;})
       ]
       ++ extraModules;
-    extraSpecialArgs = mkHomeSpecialArgs {
-      inherit
-        hostConfig
-        system
-        ;
-      inherit inputs;
-      extraArgs = extraSpecialArgs;
-    };
+    inherit extraSpecialArgs;
   };
 }

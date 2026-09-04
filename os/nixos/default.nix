@@ -22,33 +22,10 @@
         inherit (hostConfig) channel;
         inherit pkgs pkgs-stable;
       };
-      homeSpecialArgs =
-        {
-          inherit inputs;
-          mcp = mcpByChannel.${hostConfig.channel};
-          pkgs-stable = channel.stable;
-          pkgs-unstable = channel.unstable;
-        }
-        // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
-      # The unstable home-manager program modules grafted on by
-      # features/ai/unstable-hm-modules.nix are written against unstable's
-      # `lib.hm`, which carries helpers (such as
-      # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
-      # does not yet have. Build an extended lib whose `lib.hm` comes from
-      # unstable and hand it to the home-manager modules on stable hosts via
-      # `homeSpecialArgs`, so both the embedded and standalone configurations
-      # receive it. Special args take precedence over the home-manager module's
-      # own `lib`, so this overrides it without rebuilding the stable source.
-      unstableHmLib = channel.stable.lib.extend (
-        self: super: let
-          hmLib = import "${inputs.home-manager}/modules/lib" {lib = self;};
-        in {
-          hm = hmLib;
-          maintainers = super.maintainers // hmLib.maintainers;
-        }
-      );
     in {
-      inherit homeSpecialArgs;
+      homeSpecialArgs = home.mkHomeSpecialArgs {
+        inherit hostConfig mcpByChannel pkgs pkgs-stable;
+      };
       mkSystemConfig = homeDefinition:
         channel.nixpkgs.lib.nixosSystem {
           inherit (hostConfig) system;

@@ -48,7 +48,6 @@
             hostConfig
             username
             ;
-          inherit (hostConfig) system;
           extraModules = adapter.extraHomeModules or [];
           extraSpecialArgs = adapter.homeSpecialArgs;
         }

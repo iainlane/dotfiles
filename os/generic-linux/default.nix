@@ -9,6 +9,7 @@
   ...
 }: hostConfig: let
   sops = import ../../lib/sops.nix {inherit inputs lib;};
+  home = import ../../lib/home.nix {inherit inputs lib;};
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
 
@@ -33,9 +34,8 @@
         inherit pkgs pkgs-stable;
       };
     in {
-      homeSpecialArgs = {
-        mcp = mcpByChannel.${hostConfig.channel};
-        pkgs-unstable = channel.unstable;
+      homeSpecialArgs = home.mkHomeSpecialArgs {
+        inherit hostConfig mcpByChannel pkgs pkgs-stable;
       };
       mkSystemConfig = _:
         inputs.system-manager.lib.makeSystemConfig {

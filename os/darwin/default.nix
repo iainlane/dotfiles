@@ -22,12 +22,10 @@
         inherit (hostConfig) channel;
         inherit pkgs pkgs-stable;
       };
-      homeSpecialArgs = {
-        mcp = mcpByChannel.${hostConfig.channel};
-        pkgs-unstable = channel.unstable;
-      };
     in {
-      inherit homeSpecialArgs;
+      homeSpecialArgs = home.mkHomeSpecialArgs {
+        inherit hostConfig mcpByChannel pkgs pkgs-stable;
+      };
       mkSystemConfig = homeDefinition:
         inputs.nix-darwin.lib.darwinSystem {
           inherit (hostConfig) system;
