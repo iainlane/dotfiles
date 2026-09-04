@@ -1,4 +1,4 @@
-DIR=$(sed "s/\.orig\.tar\.gz//" "${1}" | sed 's/_/-/')
+DIR="${${1%.orig.tar.gz}/_/-}"
 if ! [ -d "${DIR}" ]; then
   mkdir "${DIR}"
 fi

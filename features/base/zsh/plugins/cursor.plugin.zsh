@@ -24,8 +24,11 @@ function update-cursor-style {
   printf '\e[%s q' ${style}
 }
 
-zle -N zle-line-init update-cursor-style
-zle -N zle-keymap-select update-cursor-style
+# zephyr's editor plugin calls a widget of this name from its zle-line-init
+# and zle-keymap-select widgets. Redefining the widget replaces zephyr's
+# cursor handling and leaves those widgets in place, so the terminal still
+# enters application mode before ZLE reads a line.
+zle -N update-cursor-style
 
 # Reset the cursor to the default style when the shell exits.
 function cleanup-cursor {
