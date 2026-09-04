@@ -33,7 +33,7 @@ in {
   projectRootFile = "flake.nix";
 
   settings = {
-    global.excludes = ["**/lazy-lock.json"];
+    excludes = ["**/lazy-lock.json"];
 
     formatter = {
       zizmor.options = ["--persona" "pedantic"];

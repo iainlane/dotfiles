@@ -1,11 +1,15 @@
 {inputs, ...}: {
-  perSystem = {pkgs, ...}: let
+  perSystem = {
+    config,
+    pkgs,
+    ...
+  }: let
     inherit (pkgs) lib;
-    treefmtConfig = import ../treefmt-config.nix {inherit pkgs;};
+
     statixIgnoreArgs =
       lib.concatMapStringsSep " "
       (pattern: "--ignore ${lib.escapeShellArg pattern}")
-      (treefmtConfig.settings.global.excludes or []);
+      config.treefmt.settings.excludes;
   in {
     checks.statix =
       pkgs.runCommandLocal "statix-check" {}
