@@ -67,8 +67,6 @@
     }
   );
 in {
-  homeBaseDir = "/home";
-  systemSuffix = "linux";
   extraHomeModules = homeExtraModules;
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

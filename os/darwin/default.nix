@@ -63,7 +63,5 @@
     }
   );
 in {
-  homeBaseDir = "/Users";
-  systemSuffix = "darwin";
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

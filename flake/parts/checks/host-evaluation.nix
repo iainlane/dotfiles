@@ -18,28 +18,19 @@
   ...
 }: let
   inherit (config.flake) username;
+  inherit (import ../../../lib/features.nix {inherit lib;}) operatingSystems;
 
-  adapters = {
-    nixos = {
-      outputName = "nixosConfigurations";
-      drvPath = configuration: configuration.config.system.build.toplevel.drvPath;
-    };
-    darwin = {
-      outputName = "darwinConfigurations";
-      drvPath = configuration: configuration.config.system.build.toplevel.drvPath;
-    };
-    "generic-linux" = {
-      outputName = "systemConfigs";
-      drvPath = configuration: configuration.config.build.toplevel.drvPath;
-    };
+  # The top-level derivation of each kind of system configuration. The OS
+  # table names the flake output the configuration is read from.
+  drvPathFor = {
+    nixos = configuration: configuration.config.system.build.toplevel.drvPath;
+    darwin = configuration: configuration.config.system.build.toplevel.drvPath;
+    "generic-linux" = configuration: configuration.config.build.toplevel.drvPath;
   };
 
-  traceEvaluated = outputName: configurationName: value:
-    builtins.deepSeq value (
-      builtins.traceVerbose
-      "host-evaluation: evaluated ${outputName}.${configurationName}"
-      value
-    );
+  traceEvaluating = outputName: configurationName:
+    builtins.traceVerbose
+    "host-evaluation: evaluating ${outputName}.${configurationName}";
 in {
   perSystem = {
     pkgs,
@@ -51,21 +42,21 @@ in {
     mkCheck = checkName: outputName: configurationName: drvPath:
       lib.nameValuePair checkName (
         builtins.deepSeq
-        (traceEvaluated outputName configurationName drvPath)
+        (traceEvaluating outputName configurationName drvPath)
         (pkgs.runCommandLocal checkName {} "touch $out")
       );
 
     systemChecks =
       lib.mapAttrs' (
         hostname: hostConfig: let
-          adapter = adapters.${hostConfig.os};
-          configuration = config.flake.${adapter.outputName}.${hostname};
+          inherit (operatingSystems.${hostConfig.os}) outputName;
+          configuration = config.flake.${outputName}.${hostname};
         in
           mkCheck
           "host-evaluation-${hostConfig.os}-${hostname}"
-          adapter.outputName
+          outputName
           hostname
-          (adapter.drvPath configuration)
+          (drvPathFor.${hostConfig.os} configuration)
       )
       hosts;
 

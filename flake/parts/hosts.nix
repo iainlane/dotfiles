@@ -8,7 +8,7 @@
   features = import ../../lib/features.nix {inherit lib;};
   home = import ../../lib/home.nix {inherit inputs lib;};
   channels = import ../../lib/channels.nix {inherit inputs;};
-  operatingSystems = ["nixos" "generic-linux" "darwin"];
+  inherit (features) operatingSystems;
   inherit (config.flake) username;
   outerConfig = config;
   inherit (config._module.args.context) overlays nixpkgsConfig;
@@ -25,11 +25,9 @@
     config = outerConfig;
   };
 
-  osModules = {
-    nixos = import ../../os/nixos osArgs;
-    "generic-linux" = import ../../os/generic-linux osArgs;
-    darwin = import ../../os/darwin osArgs;
-  };
+  osModules =
+    lib.genAttrs (lib.attrNames operatingSystems)
+    (os: import (../../os + "/${os}") osArgs);
 
   inherit (outerConfig.flake) hosts;
 
@@ -57,12 +55,10 @@
     )
     hosts;
 
-  hostResults =
+  systemConfigurations =
     lib.mapAttrs (
-      hostname: adapter: {
-        inherit (adapter) homeBaseDir systemSuffix;
-        systemConfig = adapter.mkSystemConfig homeDefinitions.${hostname};
-      }
+      hostname: adapter:
+        adapter.mkSystemConfig homeDefinitions.${hostname}
     )
     hostAdapters;
 
@@ -91,9 +87,7 @@
     name,
     config,
     ...
-  }: let
-    result = hostResults.${name};
-  in {
+  }: {
     options = {
       name = lib.mkOption {
         type = lib.types.str;
@@ -177,21 +171,34 @@
       homeDirectory = lib.mkOption {
         type = lib.types.str;
         readOnly = true;
-        default = "${result.homeBaseDir}/${username}";
+        default = "${operatingSystems.${config.os}.homeBaseDir}/${username}";
+        description = "Where the user's home directory is on this host.";
       };
       system = lib.mkOption {
         type = lib.types.str;
         readOnly = true;
-        default = "${config.arch}-${result.systemSuffix}";
+        default = "${config.arch}-${operatingSystems.${config.os}.systemSuffix}";
+        description = "The Nix system string the host builds for.";
       };
     };
   };
+
+  # Each operating system's hosts go to the flake output the OS table names.
+  systemOutputs =
+    lib.mapAttrs' (
+      os: entry:
+        lib.nameValuePair entry.outputName (
+          lib.filterAttrs (hostname: _: hosts.${hostname}.os == os) systemConfigurations
+        )
+    )
+    operatingSystems;
 in {
   options = {
     flake.operatingSystems = lib.mkOption {
-      type = with lib.types; listOf str;
-      default = operatingSystems;
+      type = lib.types.listOf lib.types.str;
+      default = lib.attrNames operatingSystems;
       readOnly = true;
+      description = "The operating systems a host record can name, from the table in `lib/features.nix`.";
     };
 
     flake.hosts = lib.mkOption {
@@ -201,28 +208,17 @@ in {
     };
   };
 
-  config.flake = {
-    # Route system configs to the right flake output per OS
-    nixosConfigurations =
-      lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: hosts.${n}.os == "nixos") hostResults);
-
-    systemConfigs =
-      lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: hosts.${n}.os == "generic-linux") hostResults);
-
-    darwinConfigurations =
-      lib.mapAttrs (_: r: r.systemConfig)
-      (lib.filterAttrs (n: _: hosts.${n}.os == "darwin") hostResults);
-
-    # Standalone home-manager configurations for all hosts
-    homeConfigurations =
-      lib.mapAttrs' (
-        hostname: hostConfig:
-          lib.nameValuePair "${username}@${hostname}" (
-            mkStandaloneHome hostname hostConfig
-          )
-      )
-      hosts;
-  };
+  config.flake =
+    systemOutputs
+    // {
+      # Standalone home-manager configurations for all hosts
+      homeConfigurations =
+        lib.mapAttrs' (
+          hostname: hostConfig:
+            lib.nameValuePair "${username}@${hostname}" (
+              mkStandaloneHome hostname hostConfig
+            )
+        )
+        hosts;
+    };
 }

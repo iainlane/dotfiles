@@ -1,19 +1,40 @@
-# Turns a host's feature list into the modules for one module system.
+# The table of operating systems, and the resolver that turns a host's
+# feature list into the modules for one module system.
 #
 # A feature is a set of modules, at most one for each of NixOS, nix-darwin,
 # system-manager and Home Manager, and a list of features it includes.
 # `closure` expands the includes into an ordered list and `modulesFor` reads
 # one class of module from that list.
 {lib}: rec {
-  # The module system that builds a host's system configuration, keyed by the
-  # host record's `os`.
-  systemClasses = {
-    nixos = "nixos";
-    "generic-linux" = "systemManager";
-    darwin = "darwin";
+  # Everything that varies by operating system and is not code: the module
+  # system that builds the host's system configuration, the flake output that
+  # configuration appears under, the directory the user's home lives in, and
+  # the second half of the host's Nix system string. Adding an operating
+  # system means adding an entry here and an adapter under `os/`.
+  operatingSystems = {
+    nixos = {
+      systemClass = "nixos";
+      outputName = "nixosConfigurations";
+      homeBaseDir = "/home";
+      systemSuffix = "linux";
+    };
+
+    "generic-linux" = {
+      systemClass = "systemManager";
+      outputName = "systemConfigs";
+      homeBaseDir = "/home";
+      systemSuffix = "linux";
+    };
+
+    darwin = {
+      systemClass = "darwin";
+      outputName = "darwinConfigurations";
+      homeBaseDir = "/Users";
+      systemSuffix = "darwin";
+    };
   };
 
-  systemClassFor = os: systemClasses.${os};
+  systemClassFor = os: operatingSystems.${os}.systemClass;
 
   # The kernel a host runs, taken from the last component of its Nix system
   # string. NixOS and the Linux hosts system-manager builds share `linux`.

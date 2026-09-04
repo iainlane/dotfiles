@@ -6,31 +6,30 @@
 }: let
   inherit (config.flake) username;
   inherit (config.flake) hosts;
+  inherit (import ../../lib/features.nix {inherit lib;}) operatingSystems;
 
   nodes =
     lib.mapAttrs (
       hostname: hostConfig: let
         deployLib = inputs.deploy-rs.lib.${hostConfig.system};
+        configuration =
+          config.flake.${operatingSystems.${hostConfig.os}.outputName}.${hostname};
         systemProfile =
           {
             nixos = {
               user = "root";
-              path =
-                deployLib.activate.nixos
-                config.flake.nixosConfigurations.${hostname};
+              path = deployLib.activate.nixos configuration;
             };
             "generic-linux" = {
               user = "root";
               path =
                 deployLib.activate.custom
-                config.flake.systemConfigs.${hostname}.config.build.toplevel
+                configuration.config.build.toplevel
                 "$PROFILE/bin/activate";
             };
             darwin = {
               user = "root";
-              path =
-                deployLib.activate.darwin
-                config.flake.darwinConfigurations.${hostname};
+              path = deployLib.activate.darwin configuration;
             };
           }
           .${
