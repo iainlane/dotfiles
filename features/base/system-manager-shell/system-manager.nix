@@ -1,6 +1,5 @@
 {
   config,
-  lib,
   pkgs,
   ...
 }: let
@@ -38,7 +37,6 @@ in {
       };
     };
 
-    pathsToLink = lib.mkAfter ["/share/terminfo"];
     systemPackages = [pkgs.ghostty.terminfo];
   };
 }
