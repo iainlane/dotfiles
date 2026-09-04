@@ -39,10 +39,12 @@
     binName = "copilot";
   };
 in {
-  home.packages = [wrappedCopilot];
+  home = {
+    packages = [wrappedCopilot];
 
-  home.file.".copilot/copilot-instructions.md".text = instructions.concatenated;
-
-  # Point Copilot CLI at the generated config file.
-  xdg.configFile."mcp-config.json".source = copilotMcpConfig;
+    file = {
+      ".copilot/copilot-instructions.md".text = instructions.concatenated;
+      ".copilot/mcp-config.json".source = copilotMcpConfig;
+    };
+  };
 }
