@@ -32,7 +32,6 @@ in {
       enable = true;
       package = pkgs.antidote;
       plugins = pluginSpecs;
-      useFriendlyNames = false;
     };
 
     autosuggestion = {
@@ -44,9 +43,8 @@ in {
     };
 
     completionInit = ''
-      # Use cached completion dump, regenerated on home-manager activation
       autoload -Uz compinit
-      compinit -C -d "${config.xdg.cacheHome}/zsh/.zcompdump"
+      compinit -d "${config.xdg.cacheHome}/zsh/.zcompdump"
     '';
 
     defaultKeymap = "emacs";
@@ -163,7 +161,7 @@ in {
 
   home.activation.zshCompletionDump = lib.hm.dag.entryAfter ["writeBoundary"] ''
     $DRY_RUN_CMD mkdir -p "${config.xdg.cacheHome}/zsh"
-    $DRY_RUN_CMD ${pkgs.zsh}/bin/zsh -c '
+    $DRY_RUN_CMD ${config.programs.zsh.package}/bin/zsh -c '
       autoload -Uz compinit
       compinit -u -d "${config.xdg.cacheHome}/zsh/.zcompdump"
       zcompile "${config.xdg.cacheHome}/zsh/.zcompdump"
