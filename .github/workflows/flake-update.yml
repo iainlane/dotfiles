@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # push the flake-update branch with the relocked inputs
-      pull-requests: write # open or refresh the flake-update pull request
+      pull-requests: write # close any earlier flake-update PR and open a new one
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           nix flake update
 
-      - name: Open or update the pull request
+      - name: Open a pull request for the relocked inputs
         env:
           GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
         run: |
