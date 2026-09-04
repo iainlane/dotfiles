@@ -381,9 +381,8 @@ in {
     ];
   };
 
-  os = {
-    "generic-linux".homeManager = systemdModule;
-    nixos.homeManager = systemdModule;
+  kernel = {
+    linux.homeManager = systemdModule;
     darwin.homeManager = launchdModule;
   };
 }

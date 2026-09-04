@@ -38,10 +38,7 @@ in {
     ];
 
     os = {
-      nixos = {
-        includes = with children; [restic openssh];
-        homeManager = ./home-manager-nixos.nix;
-      };
+      nixos.includes = with children; [restic openssh];
 
       "generic-linux" = {
         includes = [children.system-manager-shell];
@@ -53,6 +50,8 @@ in {
         homeManager = ./home-manager-darwin.nix;
       };
     };
+
+    kernel.linux.homeManager = ./home-manager-linux.nix;
 
     homeManager = ./home-manager.nix;
   };

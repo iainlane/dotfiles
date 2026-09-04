@@ -1,11 +1,5 @@
-{
-  lib,
-  pkgs,
-  ...
-}: {
+{lib, ...}: {
   home = {
-    packages = import ./linux-packages.nix pkgs;
-
     # deploy-rs activate-rs invokes `nix-env` by name on remote hosts.
     # Ensure non-interactive SSH sessions can resolve Nix CLI binaries. It
     # goes last so it never shadows the user's own directories.

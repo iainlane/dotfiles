@@ -1,0 +1,5 @@
+{
+  home.sessionPath = [
+    "/snap/bin"
+  ];
+}

@@ -63,11 +63,9 @@ in {
   flake.features.development = {
     includes = [children.debuginfod];
 
-    os = {
-      darwin.includes = [children.orbstack];
-      "generic-linux".homeManager = ./home-manager-linux.nix;
-      nixos.homeManager = ./home-manager-linux.nix;
-    };
+    kernel.linux.homeManager = ./home-manager-linux.nix;
+
+    os.darwin.includes = [children.orbstack];
 
     homeManager = [
       projectShells.homeManagerModule
