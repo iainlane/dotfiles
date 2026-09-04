@@ -96,6 +96,10 @@
   mkPiExtensionUpdater = {
     npmName,
     pname,
+    # Replacement version ranges, applied to the manifest's `dependencies`
+    # before resolving, for a dependency whose declared range admits a version
+    # the extension cannot use.
+    npmDependencies ? {},
   }:
     writeShellApplication {
       name = "update-${pname}";
@@ -117,17 +121,30 @@
         version="$(npm view ${npmName} version)"
         current="$(jq -r .version source.json)"
 
+        # A change to `npmDependencies` needs a new lockfile without a new
+        # upstream version, which `--force` asks for.
         if [[ "''${version}" == "''${current}" ]]; then
-          echo "${pname} is already on the latest version (''${version})" >&2
-          exit 0
-        fi
+          if [[ "''${1:-}" != "--force" ]]; then
+            echo "${pname} is already on the latest version (''${version}); pass --force to resolve it again" >&2
+            exit 0
+          fi
 
-        echo "Bumping ${pname}: ''${current} -> ''${version}" >&2
+          echo "Resolving ${pname} ''${version} again" >&2
+        else
+          echo "Bumping ${pname}: ''${current} -> ''${version}" >&2
+        fi
 
         tarball="''${tmpdir}/${pname}.tgz"
         download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
 
         tar -xzf "''${tarball}" -C "''${tmpdir}" package/package.json
+
+        ${lib.optionalString (npmDependencies != {}) ''
+          manifest="''${tmpdir}/package/package.json"
+          jq --argjson deps '${builtins.toJSON npmDependencies}' \
+            '.dependencies += $deps' "''${manifest}" >"''${manifest}.new"
+          mv "''${manifest}.new" "''${manifest}"
+        ''}
 
         # npm resolves beside the manifest, but only the lockfile is
         # committed: the build reads what it needs from the lockfile's root

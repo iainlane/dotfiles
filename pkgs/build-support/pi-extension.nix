@@ -27,6 +27,10 @@
   # library, which `npm rebuild` builds during the configure phase.
   nativeBuildInputs ? [],
   buildInputs ? [],
+  # Replacement version ranges for the updater to apply to the manifest
+  # before it resolves the lockfile. Use one when a dependency's declared
+  # range admits a version the extension cannot use.
+  npmDependencies ? {},
 }: let
   pin = lib.importJSON source;
 
@@ -134,7 +138,7 @@ in
       inherit packageRoot;
 
       updateScript = updaters.mkPiExtensionUpdater {
-        inherit npmName pname;
+        inherit npmName pname npmDependencies;
       };
     };
 
