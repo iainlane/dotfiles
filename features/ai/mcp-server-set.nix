@@ -1,6 +1,5 @@
 {
   declareSopsSecrets ? true,
-  excludedServers ? [],
   secretPath ? null,
 }: {
   config,
@@ -19,9 +18,7 @@
     secretPath = resolvedSecretPath;
   };
 
-  servers =
-    mcp.excludeServers excludedServers
-    (mcp.servers // secretServers.servers);
+  servers = mcp.servers // secretServers.servers;
 in {
   options.dotfiles.ai.mcpServers = mcp.mcpServersOption;
 

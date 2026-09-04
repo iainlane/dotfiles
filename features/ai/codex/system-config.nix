@@ -5,6 +5,7 @@
   config,
   defaultModels,
   hostConfig,
+  mcp,
   ...
 }: let
   systemConfig = {
@@ -39,7 +40,7 @@
             enabled = !(server.disabled or false);
           }
       )
-      config.dotfiles.ai.mcpServers;
+      (mcp.excludeServers ["codex"] config.dotfiles.ai.mcpServers);
     model = defaultModels.openai;
     model_reasoning_effort = "high";
     personality = "pragmatic";
@@ -54,7 +55,6 @@ in {
   imports = [
     (import ../mcp-server-set.nix {
       declareSopsSecrets = false;
-      excludedServers = ["codex"];
       secretPath = name: "${hostConfig.homeDirectory}/.config/sops-nix/secrets/${name}";
     })
   ];
