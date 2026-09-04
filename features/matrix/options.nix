@@ -75,7 +75,7 @@
       type = lib.types.submodule [
         ((import ../../lib/r2-backup.nix).options {
           defaultPrefix = "matrix";
-          defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
+          defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
         })
         {
           options = {
@@ -106,7 +106,7 @@
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      example = "ancaster/host-matrix.yaml";
+      default = "${hostConfig.name}/host-matrix.yaml";
       description = ''
         Path, relative to the `secrets` flake input, of the sops file holding
         `matrix_password` (the password the agent's account is created with),

@@ -71,7 +71,7 @@ in {
     backup = lib.mkOption {
       type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
         defaultPrefix = "agentsview";
-        defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
+        defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
       });
       default = {};
       description = ''
@@ -83,7 +83,7 @@ in {
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      example = "ancaster/host-agentsview.yaml";
+      default = "${hostConfig.name}/host-agentsview.yaml";
       description = ''
         The file in the secrets repository that holds the secrets of this
         machine. It needs four keys:

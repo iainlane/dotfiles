@@ -4,7 +4,7 @@
   secretPath ? null,
 }: {
   config,
-  hostname,
+  hostConfig,
   lib,
   mcp,
   ...
@@ -15,7 +15,7 @@
     else name: config.sops.secrets.${name}.path;
   secretServers = mcp.hostSecretServers {
     inherit declareSopsSecrets;
-    inherit hostname;
+    hostname = hostConfig.name;
     secretPath = resolvedSecretPath;
   };
 

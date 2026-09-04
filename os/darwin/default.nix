@@ -6,7 +6,7 @@
   helpers,
   username,
   ...
-}: hostname: hostConfig: let
+}: hostConfig: let
   result = withSystem hostConfig.system (
     args: let
       inherit (args.config._module.args) mcpByChannel pkgs pkgs-stable;
@@ -40,7 +40,6 @@
           specialArgs = {
             inherit
               inputs
-              hostname
               hostConfig
               pkgs-stable
               username

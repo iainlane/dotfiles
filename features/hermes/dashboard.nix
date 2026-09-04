@@ -75,17 +75,6 @@ in {
     }
 
     (lib.mkIf exposed {
-      assertions = [
-        {
-          assertion = dashboard.secretsFile != null;
-          message = ''
-            services.hermes-agent.dashboard is exposed, so it signs people in
-            and needs `dashboard.secretsFile` for the secret it shares with
-            the identity provider.
-          '';
-        }
-      ];
-
       services.identity-provider.clients.${clientId} = {
         displayName = "Hermes";
         redirectURIs = ["${publicUrl}/auth/callback"];

@@ -31,25 +31,17 @@
   # access to flake inputs, host metadata, and the canonical flake path.
   mkHomeSpecialArgs = {
     hostConfig,
-    hostname,
     system,
     inputs,
     extraArgs ? {},
-  }: let
-    defaultFlakePath = "${hostConfig.homeDirectory}/dev/random/dotfiles";
-    flakePath =
-      if (hostConfig.flakePath or null) != null
-      then hostConfig.flakePath
-      else defaultFlakePath;
-  in
+  }:
     {
       inherit
-        hostname
         inputs
         system
         hostConfig
-        flakePath
         ;
+      inherit (hostConfig) flakePath;
     }
     // extraArgs;
 
@@ -71,7 +63,6 @@
   # Home Manager configuration.
   mkHomeDefinition = {
     hostConfig,
-    hostname,
     system,
     username,
     extraModules ? [],
@@ -87,7 +78,6 @@
     extraSpecialArgs = mkHomeSpecialArgs {
       inherit
         hostConfig
-        hostname
         system
         ;
       inherit inputs;

@@ -1,8 +1,12 @@
-{lib, ...}: {
+{
+  hostConfig,
+  lib,
+  ...
+}: {
   options.services.dex = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      example = "ancaster/host-dex.yaml";
+      default = "${hostConfig.name}/host-dex.yaml";
       description = ''
         Path, relative to the `secrets` flake input, of the sops file holding
         the credentials for the connector and for every client. Dex runs as a

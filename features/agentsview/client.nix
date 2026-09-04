@@ -239,11 +239,12 @@ in {
   homeManager = {
     config,
     hostConfig,
-    hostname,
     lib,
     system,
     ...
   }: let
+    inherit (hostConfig) name;
+
     cfg = config.programs.agentsview;
 
     syncing = cfg.enable && cfg.sync.enable;
@@ -276,21 +277,21 @@ in {
         assertions = [
           {
             assertion =
-              builtins.pathExists (inputs.secrets + "/${common.userSecretsFile hostname}");
+              builtins.pathExists (inputs.secrets + "/${common.userSecretsFile name}");
             message = ''
-              ${hostname} keeps an archive of its agent sessions. AgentsView
+              ${name} keeps an archive of its agent sessions. AgentsView
               generates its auth token and cursor secret at the first start,
               but Nix renders its configuration read-only, so both values
               come from the secrets repository instead.
 
-              This command writes each one that ${hostname} does not have
+              This command writes each one that ${name} does not have
               yet:
 
-                just generate-agentsview-secrets ${hostname}
+                just generate-agentsview-secrets ${name}
 
               It writes them to:
 
-                ${common.userSecretsFile hostname}
+                ${common.userSecretsFile name}
                   ${common.authTokenSecret}: authenticates a caller to the
                     API of the dashboard.
                   ${common.cursorSecret}: signs the cursors of the
@@ -305,30 +306,30 @@ in {
           {
             assertion = server != null;
             message = ''
-              ${hostname} pushes its agent sessions. No machine has the
+              ${name} pushes its agent sessions. No machine has the
               `agentsview-server` feature, so there is no server to push
               to.
             '';
           }
           {
             assertion =
-              builtins.pathExists (inputs.secrets + "/${common.passwordFile hostname}")
-              && common.hasCertificate hostname;
+              builtins.pathExists (inputs.secrets + "/${common.passwordFile name}")
+              && common.hasCertificate name;
             message = ''
-              ${hostname} pushes its agent sessions, so it also needs a
+              ${name} pushes its agent sessions, so it also needs a
               database role and a certificate. This command writes each one
-              that ${hostname} does not have yet:
+              that ${name} does not have yet:
 
-                just generate-agentsview-secrets ${hostname}
+                just generate-agentsview-secrets ${name}
 
               It writes the certificate to
-              `hosts/${hostname}/agentsview.pem`. Commit that file. It
+              `hosts/${name}/agentsview.pem`. Commit that file. It
               writes the rest to the secrets repository:
 
-                ${common.passwordFile hostname}
+                ${common.passwordFile name}
                   ${common.passwordSecret}: the password of the database
                     role.
-                ${common.userSecretsFile hostname}
+                ${common.userSecretsFile name}
                   ${common.privateKeySecret}: the key of the certificate.
             '';
           }
@@ -338,7 +339,7 @@ in {
       (lib.mkIf cfg.enable {
         sops = {
           secrets = let
-            userSecrets = inputs.secrets + "/${common.userSecretsFile hostname}";
+            userSecrets = inputs.secrets + "/${common.userSecretsFile name}";
           in {
             ${common.authTokenSecret}.sopsFile = userSecrets;
             ${common.cursorSecret}.sopsFile = userSecrets;
@@ -360,9 +361,9 @@ in {
                 if syncing && haveServer
                 then
                   dsn {
-                    inherit hostname;
+                    hostname = name;
                     password = config.sops.placeholder.${common.passwordSecret};
-                    certificate = common.certificatePath hostname;
+                    certificate = common.certificatePath name;
                     key = config.sops.secrets.${common.privateKeySecret}.path;
                   }
                 else null;
@@ -374,10 +375,10 @@ in {
       (lib.mkIf (syncing && haveServer) {
         sops.secrets = {
           ${common.passwordSecret}.sopsFile =
-            inputs.secrets + "/${common.passwordFile hostname}";
+            inputs.secrets + "/${common.passwordFile name}";
 
           ${common.privateKeySecret} = {
-            sopsFile = inputs.secrets + "/${common.userSecretsFile hostname}";
+            sopsFile = inputs.secrets + "/${common.userSecretsFile name}";
             mode = "0400";
           };
         };

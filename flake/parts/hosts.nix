@@ -34,8 +34,8 @@
 
   hostAdapters =
     lib.mapAttrs (
-      hostname: hostConfig:
-        osModules.${hostConfig.os} hostname hostConfig
+      _: hostConfig:
+        osModules.${hostConfig.os} hostConfig
     )
     hosts;
 
@@ -47,7 +47,6 @@
         helpers.mkHomeDefinition {
           inherit
             hostConfig
-            hostname
             username
             ;
           inherit (hostConfig) system;
@@ -98,6 +97,12 @@
     result = hostResults.${name};
   in {
     options = {
+      name = lib.mkOption {
+        type = lib.types.str;
+        readOnly = true;
+        default = name;
+        description = "The host's key in `flake.hosts`. The secrets repository, the AgentsView roles and everything else that needs a short name for the machine use it.";
+      };
       os = lib.mkOption {
         type = lib.types.enum outerConfig.dotfiles.operatingSystems;
       };
@@ -134,8 +139,9 @@
         type = lib.types.str;
       };
       flakePath = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
+        type = lib.types.str;
+        default = "${config.homeDirectory}/dev/random/dotfiles";
+        description = "Where this flake is checked out on the host. `nh` builds from that checkout, and the Neovim lock file is a symlink into it, so plugin updates are written to the working tree.";
       };
       homeModule = lib.mkOption {
         type = lib.types.nullOr lib.types.deferredModule;

@@ -6,7 +6,7 @@
   helpers,
   username,
   ...
-}: hostname: hostConfig: let
+}: hostConfig: let
   channelPkgs = {
     pkgs,
     pkgs-stable,
@@ -75,8 +75,8 @@
             [
               helpers.systemSopsModule
               helpers.linuxSystemSopsModule
-              ../../hosts/${hostname}/hardware.nix
-              ../../hosts/${hostname}/disks.nix
+              ../../hosts/${hostConfig.name}/hardware.nix
+              ../../hosts/${hostConfig.name}/disks.nix
               ./system.nix
               inputs.disko.nixosModules.disko
               inputs.sops-nix.nixosModules.sops
@@ -95,7 +95,6 @@
           specialArgs = {
             inherit
               inputs
-              hostname
               hostConfig
               username
               ;

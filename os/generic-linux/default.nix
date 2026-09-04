@@ -7,7 +7,7 @@
   username,
   overlays,
   nixpkgsConfig,
-}: hostname: hostConfig: let
+}: hostConfig: let
   homeExtraModules = [
     {
       nix.gc = {
@@ -46,7 +46,6 @@
           specialArgs = {
             inherit
               inputs
-              hostname
               hostConfig
               username
               nixpkgsConfig

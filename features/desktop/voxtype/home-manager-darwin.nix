@@ -1,6 +1,6 @@
 {
   config,
-  hostname,
+  hostConfig,
   inputs,
   lib,
   pkgs,
@@ -13,7 +13,7 @@
   appBinary = "/Applications/Voxtype.app/Contents/MacOS/voxtype-bin";
   bundleIdentifier = "io.voxtype.daemon";
   logsDirectory = "${config.home.homeDirectory}/Library/Logs/voxtype";
-  secretsFile = inputs.secrets + "/${hostname}/user-voxtype.yaml";
+  secretsFile = inputs.secrets + "/${hostConfig.name}/user-voxtype.yaml";
   identitySecret = config.sops.secrets.voxtype-signing-identity-p12.path;
   passwordSecret = config.sops.secrets.voxtype-signing-identity-password.path;
   activationScript = pkgs.writeShellApplication {

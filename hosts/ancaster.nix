@@ -32,26 +32,19 @@ in {
           expose.domain = "adsb.orangesquash.org.uk";
         };
 
-        agentsview-server = {
-          expose = {
-            domain = "agents.orangesquash.org.uk";
-            auth = true;
-          };
-          secretsFile = "ancaster/host-agentsview.yaml";
+        agentsview-server.expose = {
+          domain = "agents.orangesquash.org.uk";
+          auth = true;
         };
 
-        dex = {
-          secretsFile = "ancaster/host-dex.yaml";
-          expose = {
-            domain = "auth.orangesquash.org.uk";
-            auth = false;
-          };
+        dex.expose = {
+          domain = "auth.orangesquash.org.uk";
+          auth = false;
         };
 
         continuwuity = {
           serverName = "orangesquash.org.uk";
           botUsername = "godfrey";
-          secretsFile = "ancaster/host-matrix.yaml";
           users.iain = {
             admin = true;
             supportUser = true;
@@ -64,31 +57,23 @@ in {
 
         hermes-agent = {
           profilePicture = ./ancaster/godfrey;
-          signal = {
-            enable = true;
-            secretsFile = "ancaster/host-hermes.yaml";
-          };
+          signal.enable = true;
           matrix = {
             enable = true;
             serverName = "orangesquash.org.uk";
             httpUrl = "https://matrix.orangesquash.org.uk";
             username = "godfrey";
             displayName = "Godfrey";
-            secretsFile = "ancaster/host-hermes.yaml";
             encryption.enable = true;
           };
           dashboard = {
             enable = true;
-            secretsFile = "ancaster/host-hermes.yaml";
             expose = {
               domain = "godfrey.orangesquash.org.uk";
               auth = true;
             };
           };
-          homeassistant = {
-            enable = true;
-            secretsFile = "ancaster/host-hermes.yaml";
-          };
+          homeassistant.enable = true;
           soul.enable = true;
           agents.enable = true;
           mcp.enable = true;
@@ -199,7 +184,6 @@ in {
           };
           ipv6Address = "2001:8b0:df29:1a0:c::1";
           email = "iain@orangesquash.org.uk";
-          secretsFile = "ancaster/host-caddy.yaml";
           originAuth = {
             enable = true;
             # The LAN and the IoT VLAN reach these addresses directly, so they

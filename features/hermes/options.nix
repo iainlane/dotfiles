@@ -1,4 +1,5 @@
 {
+  config,
   hostConfig,
   lib,
   pkgs,
@@ -6,9 +7,20 @@
 }: let
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
   yaml = pkgs.formats.yaml {};
+  cfg = config.services.hermes-agent;
 in {
   options.services.hermes-agent = {
     enable = lib.mkEnableOption "Hermes Agent gateway service";
+
+    secretsFile = lib.mkOption {
+      type = lib.types.str;
+      default = "${hostConfig.name}/host-hermes.yaml";
+      description = ''
+        Path, relative to the `secrets` flake input, of the sops file holding
+        the agent's secrets. Each platform reads its own keys from it and
+        defaults to this file.
+      '';
+    };
 
     package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
@@ -209,7 +221,8 @@ in {
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
-        example = "ancaster/user-hermes.yaml";
+        default = cfg.secretsFile;
+        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file
           holding `signal_account`, `signal_allowed_users` and
@@ -288,7 +301,8 @@ in {
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
-        example = "ancaster/user-hermes.yaml";
+        default = cfg.secretsFile;
+        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file holding
           `matrix_password` (the bot account's password, which the homeserver
@@ -368,9 +382,9 @@ in {
       };
 
       secretsFile = lib.mkOption {
-        type = with lib.types; nullOr str;
-        default = null;
-        example = "ancaster/host-hermes.yaml";
+        type = lib.types.str;
+        default = cfg.secretsFile;
+        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file
           holding the dashboard's half of the secret it shares with the
@@ -396,7 +410,8 @@ in {
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
-        example = "ancaster/user-hermes.yaml";
+        default = cfg.secretsFile;
+        defaultText = lib.literalExpression "config.services.hermes-agent.secretsFile";
         description = ''
           Path, relative to the `secrets` flake input, of the sops file holding
           `hass_token` (a Home Assistant long-lived access token) and `hass_url`
@@ -488,7 +503,7 @@ in {
     backup = lib.mkOption {
       type = lib.types.submodule ((import ../../lib/r2-backup.nix).options {
         defaultPrefix = "hermes";
-        defaultSecretsFile = "${hostConfig.hostname}/host-r2.yaml";
+        defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
       });
       default = {};
       description = "Encrypted backups of the agent state, uploaded to Cloudflare R2.";

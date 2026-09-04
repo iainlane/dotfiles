@@ -7,7 +7,7 @@
   lib,
 }: {
   mkHomeSopsModule = {hostConfig}: let
-    sshKeyFile = inputs.secrets + "/${hostConfig.hostname}/user-ssh-key.yaml";
+    sshKeyFile = inputs.secrets + "/${hostConfig.name}/user-ssh-key.yaml";
   in
     lib.recursiveUpdate
     {

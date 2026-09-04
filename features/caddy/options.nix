@@ -1,4 +1,11 @@
-{lib, ...}: {
+{
+  config,
+  hostConfig,
+  lib,
+  ...
+}: let
+  cfg = config.services.caddy-proxy;
+in {
   options.services.caddy-proxy = {
     enable = lib.mkEnableOption "the Caddy reverse proxy fronting container services";
 
@@ -99,6 +106,7 @@
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
+      default = "${hostConfig.name}/host-caddy.yaml";
       description = "Filename within the secrets input holding the proxy's own secrets.";
     };
 
@@ -200,6 +208,8 @@
 
       secretsFile = lib.mkOption {
         type = lib.types.str;
+        default = cfg.secretsFile;
+        defaultText = lib.literalExpression "config.services.caddy-proxy.secretsFile";
         description = "Filename within the secrets input holding the OAuth client credentials.";
       };
 
