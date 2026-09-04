@@ -68,7 +68,15 @@
         {
           # The DVB kernel drivers claim the SDR unless they are kept away
           # from it.
-          environment.etc."modprobe.d/exclusions-rtl2832.conf".source = ./rtl-blacklist.conf;
+          #
+          # `builtins.path` copies this one file to a store path of its own.
+          # Using `./rtl-blacklist.conf` directly would refer to a path inside
+          # the flake's own source tree, so the rendered /etc entry would
+          # change with every commit to the repository.
+          environment.etc."modprobe.d/exclusions-rtl2832.conf".source = builtins.path {
+            path = ./rtl-blacklist.conf;
+            name = "rtl-blacklist.conf";
+          };
 
           # rtl-sdr's own rules give the device node to the `plugdev` group,
           # and carry the ids of every dongle the library supports.
