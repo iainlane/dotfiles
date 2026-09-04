@@ -28,7 +28,8 @@ project_dirs="$(
             if builtins.substring 0 1 path == "/"
             then path
             else config.home.homeDirectory + "/" + path)
-          (builtins.attrNames config.programs.projectDirectories.directories)
+          # A host without any project shells never has the option declared.
+          (builtins.attrNames (config.programs.projectDirectories.directories or {}))
       )
   ' ".#homeConfigurations.\"${USER}@${hostname}\".config"
 )"
