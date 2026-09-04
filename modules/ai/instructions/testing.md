@@ -9,9 +9,16 @@
   - Add new tests for your changes, and make sure they pass when you're done.
   - Don't make excuses for your tests failing. If they fail, fix them. Tests
     must be reliable.
-  - If it is possible, use TDD. First, write a test for the behaviour you are
-    about to implement. Run it and make sure it fails. Then implement the
-    behaviour and make the test pass.
+  - Use red/green TDD wherever the change allows it. Before implementing a
+    behaviour or fixing a bug, write a test that describes the behaviour, run
+    it, and confirm that it fails for the expected reason. Then implement the
+    change and make the test pass. For a bug, the failing test is the evidence
+    that the actual problem has been reproduced; a fix made without it may
+    address a different problem.
+- Size new tests like the neighbouring test files: roughly one focused test per
+  behaviour the task states. Scratch scripts and quick checks are fine while
+  working and need not be kept. Do not turn them into additional permanent test
+  files.
 - Use structural assertions on full objects. Output should be deterministic, so
   this ought to be possible. Don't repeatedly assert on the same value in tests
   -- assign it to a variable instead.
@@ -21,9 +28,8 @@
 
 ## Verification
 
-- After making code changes, execute the project-specific build, formatting,
-  linting and type-checking commands (e.g. `tsc`, `npm run lint`,
-  `ruff check .`, `cargo clippy`) that you have identified for this project (or
-  obtained from the user). This ensures code quality and adherence to standards.
-  If unsure about these commands, you can ask the user if they'd like you to run
-  them and if so how to.
+- After making code changes, run the project's build, formatting, linting and
+  type-checking commands (e.g. `tsc`, `npm run lint`, `ruff check .`,
+  `cargo clippy`). Find them in the project: its CI configuration, task runner,
+  package manifest, or contributor documentation. If the project has none, say
+  so in your summary. Do not stop to ask which commands to run.

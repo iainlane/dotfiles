@@ -340,13 +340,23 @@ GOOD:
 ```
 
 Do not impose a sentence-length limit. A natural 30-word sentence beats two
-unnatural 15-word ones. Vary length normally.
+unnatural 15-word ones, and length should vary normally. The limit is ideas, not
+words: a sentence that carries two ideas should usually be two sentences, and a
+paragraph should end where its idea does. Prose becomes dense when sentences and
+paragraphs each carry several ideas, so break there first.
 
 ## 8. Do not invent a private dialect
 
 Use the established term from the language, library, protocol or domain. Where a
 relationship has no established term, use ordinary English rather than coining
 shorthand, a metaphor or a compressed label.
+
+Mannered prose is the same fault at the level of the sentence. It substitutes
+metaphor and flourish for direct statement: "a dial worth turning" for "a
+parameter worth varying", "this point earns its keep" for "this point still
+matters". Such phrases display the writer instead of conveying the idea, and a
+metaphor brings connotations the writer did not choose. When a literal phrase is
+available, use it.
 
 Do not carry a phrase coined during reasoning into durable prose because it has
 become familiar during the session. Rewrite it for someone reading the code for
@@ -534,6 +544,10 @@ into one paragraph for a smaller change.
 
 ## Explanations in conversation
 
+This section covers the final message of a turn. Short progress notes while
+working, saying what was just found and what comes next, are welcome and do not
+need this structure.
+
 Lead with the result. Include the reasoning needed to understand or act on it,
 and leave out chronology that does not change the conclusion. Do not expose
 internal shorthand.
@@ -542,13 +556,15 @@ For a simple result, a few complete sentences beat a dense paragraph or a
 formatted report. For a complex one, use enough structure to make it scannable.
 Do not shorten a complex explanation by making the sentences harder to decode.
 
-Use Markdown only when it makes the response easier to read or navigate. Do not
-turn ordinary prose into a rigid template.
+Use formatting where it matches the shape of the content. Parallel items such as
+findings, steps, options, or files to look at go in a list, with one or two
+sentences per item. A comparison of several things on the same attributes goes
+in a table. Headings separate substantial parts of a long answer. A single point
+or a line of argument stays in prose.
 
-In particular, avoid decorating every list item with a bold label followed by a
-colon when a sentence or ordinary list would read more naturally. Use headings
-when they genuinely separate substantial parts of a longer answer, not merely to
-give every few sentences a title.
+Do not turn ordinary prose into a rigid template. A bold label followed by a
+colon on every list item, or a heading over every few sentences, imposes
+structure the content does not have.
 
 ## Target register
 
