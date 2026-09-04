@@ -1,4 +1,8 @@
-{pkgs, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
   programs.zed-editor = {
     enable = true;
 
@@ -70,7 +74,7 @@
         Nix = {
           formatter.external = {
             arguments = ["--quiet" "--"];
-            command = "${pkgs.nixfmt}/bin/nixfmt";
+            command = lib.getExe pkgs.alejandra;
           };
           language_servers = ["nixd"];
         };
@@ -78,7 +82,7 @@
       };
 
       lsp = {
-        nixd.binary.path_lookup = true;
+        nixd.binary.path = lib.getExe pkgs.nixd;
         rust-analyzer.initialization_options = {
           check.command = "clippy";
           diagnostics.styleLints.enable = true;
