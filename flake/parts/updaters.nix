@@ -19,6 +19,7 @@
   # Flake inputs pinned to an immutable release tag, each bumped by a generated
   # updater named `update-<input>`.
   flakeInputs = {
+    catppuccin-palette.repo = "catppuccin/palette";
     gh-stack-skill.repo = "github/gh-stack";
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
@@ -55,10 +56,25 @@ in {
 
     updaters = packageUpdaters // flakeInputUpdaters;
 
+    # Run every updater so one upstream failure does not stop the others.
+    # Report the failures together and exit nonzero.
     updateAll = pkgs.writeShellApplication {
       name = "update-all";
-      runtimeInputs = lib.attrValues updaters;
-      text = lib.concatMapStringsSep "\n" lib.getExe (lib.attrValues updaters);
+      text = ''
+        failed=()
+
+        ${
+          lib.concatStringsSep "\n"
+          (lib.mapAttrsToList
+            (name: updater: ''${lib.getExe updater} || failed+=("update-${name}")'')
+            updaters)
+        }
+
+        if ((''${#failed[@]} > 0)); then
+          printf 'These updaters failed: %s\n' "''${failed[*]}" >&2
+          exit 1
+        fi
+      '';
     };
 
     toApp = name: updater: {

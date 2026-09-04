@@ -84,7 +84,15 @@
           pairs+=("''${system}=${urlTemplate}")
         done
 
-        write_sources "''${version}" "''${pairs[@]}" >sources.json
+        # The downloads happen inside `write_sources`, so writing straight to
+        # `sources.json` would truncate it and leave it empty if one of them
+        # failed. Keep the temporary file beside the destination so the final
+        # rename stays atomic.
+        staged="$(mktemp sources.json.XXXXXX)"
+        trap 'rm -f "''${staged}"' EXIT
+
+        write_sources "''${version}" "''${pairs[@]}" >"''${staged}"
+        mv "''${staged}" sources.json
 
         echo "Updated sources.json to ${pname} ''${version}." >&2
       '';
@@ -144,12 +152,15 @@
         source "${./prefetch.sh}"
 
         tmpdir="$(mktemp -d)"
-        trap 'rm -rf "''${tmpdir}"' EXIT
+        # Keep the temporary file beside `source.json` so the rename below
+        # stays atomic.
+        staged="$(mktemp source.json.XXXXXX)"
+        trap 'rm -rf "''${tmpdir}" "''${staged}"' EXIT
 
         # Leave the caller's npm cache alone; this run only reads metadata.
         export npm_config_cache="''${tmpdir}/npm-cache"
 
-        version="$(npm view ${npmName} version)"
+        version="$(npm view "${npmName}" version)"
         current="$(jq -r .version source.json)"
 
         # Some changes need the lockfile rebuilt without a version bump:
@@ -193,7 +204,7 @@
               --arg version "''${version}" \
               --arg tag "''${tag}" \
               --arg hash "''${hash}" \
-              '{version: $version, tag: $tag, hash: $hash}' >source.json
+              '{version: $version, tag: $tag, hash: $hash}' >"''${staged}"
           ''
           else ''
             tarball="''${tmpdir}/${pname}.tgz"
@@ -216,12 +227,19 @@
             (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
             cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
 
+            # A failing `hash_file` inside the `jq` arguments would not
+            # change `jq`'s exit status, so `source.json` would be written
+            # with an empty `tarballHash`. Assign the hash first so errexit
+            # stops the script.
+            hash="$(hash_file "''${tarball}")"
+
             jq -n --sort-keys \
               --arg version "''${version}" \
-              --arg hash "$(hash_file "''${tarball}")" \
-              '{version: $version, tarballHash: $hash}' >source.json
+              --arg hash "''${hash}" \
+              '{version: $version, tarballHash: $hash}' >"''${staged}"
           ''
         }
+        mv "''${staged}" source.json
 
         echo "Updated ${pname} to ''${version}." >&2
       '';
@@ -243,7 +261,7 @@
         cd "$(git rev-parse --show-toplevel)"
 
         if ! latest_tag="$(gh api "repos/${repo}/releases/latest" --jq .tag_name)"; then
-          echo "could not fetch the latest ${input} release from GitHub" >&2
+          echo "Could not fetch the latest ${input} release from GitHub" >&2
           exit 1
         fi
 
