@@ -8,7 +8,7 @@
 }: let
   cfg = config.services.hermes-agent;
 in {
-  config = lib.mkIf (cfg.enable && cfg.secretEnvFile != null && cfg.secretEnv != {}) {
+  config = lib.mkIf (cfg.secretEnvFile != null && cfg.secretEnv != {}) {
     sops = {
       secrets =
         lib.mapAttrs' (

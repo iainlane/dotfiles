@@ -9,7 +9,7 @@
 }: let
   cfg = config.services.hermes-agent;
 in {
-  config = lib.mkIf (cfg.enable && cfg."context-engine" == "lcm") {
+  config = lib.mkIf (cfg."context-engine" == "lcm") {
     services.hermes-agent = {
       extraPlugins.hermes-lcm = inputs.hermes-lcm;
       # hermes-lcm uses tiktoken for exact token counts and regex for

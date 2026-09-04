@@ -1,10 +1,14 @@
-{config, ...}: let
+{
+  config,
+  lib,
+  ...
+}: let
   defaultModels = import ../ai/models.nix;
 in {
   flake.features.hermes = {
     includes = [config.flake.features.containers];
 
-    systemManager = {lib, ...}: {
+    systemManager = {
       imports = [
         ./options.nix
         ./core.nix
@@ -23,18 +27,14 @@ in {
       ];
 
       config = {
-        # Giving a host the feature is enough to run the agent.
-        services.hermes-agent = {
-          enable = lib.mkDefault true;
-          settings = {
-            model.default = lib.mkDefault defaultModels.openai;
-            fallback_providers = lib.mkDefault [
-              {
-                provider = "openrouter";
-                model = "openai/${defaultModels.openai}";
-              }
-            ];
-          };
+        services.hermes-agent.settings = {
+          model.default = lib.mkDefault defaultModels.openai;
+          fallback_providers = lib.mkDefault [
+            {
+              provider = "openrouter";
+              model = "openai/${defaultModels.openai}";
+            }
+          ];
         };
 
         # Reserved for the agent, the dashboard and signal-cli, which share

@@ -1,12 +1,9 @@
 {
-  config,
   inputs,
   lib,
   pkgs,
   ...
 }: let
-  cfg = config.services.hermes-agent;
-
   # Chromium cannot use Nixpkgs' SUID helper inside the mapped-user container.
   # Podman supplies the isolation boundary for the unsandboxed browser process.
   chromium = pkgs.chromium.override {
@@ -77,22 +74,20 @@
     '';
   };
 in {
-  config = lib.mkIf cfg.enable {
-    services.hermes-agent = {
-      agentPackages = [
-        agentBrowser
-        chromium
-        gateway
-        # Fontconfig reads /etc/fonts; its default output only supplies tools.
-        pkgs.fontconfig.out
-      ];
+  services.hermes-agent = {
+    agentPackages = [
+      agentBrowser
+      chromium
+      gateway
+      # Fontconfig reads /etc/fonts; its default output only supplies tools.
+      pkgs.fontconfig.out
+    ];
 
-      environment.AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
-    };
+    environment.AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
+  };
 
-    virtualisation.quadlet.containers.${cfg.container.name}.containerConfig = {
-      entrypoint = lib.mkForce (lib.getExe gateway);
-      environments.BROWSER_CDP_URL = cdpUrl;
-    };
+  virtualisation.quadlet.containers.${cfg.container.name}.containerConfig = {
+    entrypoint = lib.mkForce (lib.getExe gateway);
+    environments.BROWSER_CDP_URL = cdpUrl;
   };
 }

@@ -7,8 +7,6 @@
   cfg = config.services.caddy-proxy;
 in {
   options.services.caddy-proxy = {
-    enable = lib.mkEnableOption "the Caddy reverse proxy fronting container services";
-
     ipv4Address = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;

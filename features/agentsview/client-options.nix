@@ -4,17 +4,6 @@
   ...
 }: {
   options.programs.agentsview = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = ''
-        Whether this machine keeps an archive of its agent sessions and
-        shows a dashboard of it. The archive is a SQLite database under
-        `~/.agentsview`. AgentsView makes the archive from the session files
-        of each agent and updates it as the agents write.
-      '';
-    };
-
     port = lib.mkOption {
       type = lib.types.port;
       default = 8080;

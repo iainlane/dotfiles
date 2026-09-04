@@ -27,7 +27,7 @@
     text = builtins.readFile ./backup-r2.sh;
   };
 in {
-  config = lib.mkIf (cfg.enable && cfg.backup.enable) (lib.mkMerge [
+  config = lib.mkIf cfg.backup.enable (lib.mkMerge [
     {
       sops = r2Backup.sopsFragment {
         inherit config;

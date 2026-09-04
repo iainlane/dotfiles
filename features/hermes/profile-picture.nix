@@ -51,7 +51,7 @@
     lib.toList cfg.container.network
     ++ lib.optional cfg.signal.enable "${cfg.signal.network}.network";
 in {
-  config = lib.mkIf (cfg.enable && cfg.profilePicture != null && (cfg.matrix.enable || cfg.signal.enable)) {
+  config = lib.mkIf (cfg.profilePicture != null && (cfg.matrix.enable || cfg.signal.enable)) {
     virtualisation.quadlet = {
       volumes.${profilePictureStateVolume} = {};
 

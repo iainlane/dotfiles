@@ -41,18 +41,15 @@
   # `dotfiles.claudeCode` options, exist only on a host that also composes
   # the `ai` feature.
   skillsModule = {
-    config,
     lib,
     options,
     system,
     ...
   }: {
-    config = lib.optionalAttrs (options ? dotfiles && options.dotfiles ? ai) (
-      lib.mkIf config.programs.agentsview.enable {
-        dotfiles.ai.skills.agentsview = skillsFor system "agents";
-        dotfiles.claudeCode.skills.agentsview = skillsFor system "claude";
-      }
-    );
+    config = lib.optionalAttrs (options ? dotfiles && options.dotfiles ? ai) {
+      dotfiles.ai.skills.agentsview = skillsFor system "agents";
+      dotfiles.claudeCode.skills.agentsview = skillsFor system "claude";
+    };
   };
 
   # The database uses the same port as the web. The protocol in the handshake
@@ -132,7 +129,7 @@
     cfg = config.programs.agentsview;
   in {
     config = lib.mkMerge [
-      (lib.mkIf (cfg.enable && !cfg.sync.enable) {
+      (lib.mkIf (!cfg.sync.enable) {
         systemd.user.services.agentsview = {
           Unit = {
             Description = "Agent session archive and dashboard";
@@ -151,7 +148,7 @@
       })
 
       # A copy of the unit that `agentsview pg service install` writes.
-      (lib.mkIf (cfg.enable && cfg.sync.enable && haveServer) {
+      (lib.mkIf (cfg.sync.enable && haveServer) {
         systemd.user.services.agentsview-push = {
           Unit = {
             Description = "agentsview PostgreSQL auto-push";
@@ -192,7 +189,7 @@
     logDir = "${config.home.homeDirectory}/Library/Logs";
   in {
     config = lib.mkMerge [
-      (lib.mkIf (cfg.enable && !cfg.sync.enable) {
+      (lib.mkIf (!cfg.sync.enable) {
         launchd.agents.agentsview = {
           enable = true;
           config = {
@@ -214,7 +211,7 @@
       })
 
       # A copy of the job that `agentsview pg service install` writes.
-      (lib.mkIf (cfg.enable && cfg.sync.enable && haveServer) {
+      (lib.mkIf (cfg.sync.enable && haveServer) {
         launchd.agents.agentsview-push = {
           enable = true;
           config = {
@@ -247,7 +244,7 @@ in {
 
     cfg = config.programs.agentsview;
 
-    syncing = cfg.enable && cfg.sync.enable;
+    syncing = cfg.sync.enable;
 
     # Codex writes its sessions under `CODEX_HOME`, which the Codex module
     # sets when the home prefers XDG directories. Reading that variable
@@ -269,11 +266,9 @@ in {
     config = lib.mkMerge [
       {programs.agentsview.sync.enable = common.pushes hostConfig;}
 
-      (lib.mkIf cfg.enable {
-        home.packages = [(agentsviewFor system)];
-      })
+      {home.packages = [(agentsviewFor system)];}
 
-      (lib.mkIf cfg.enable {
+      {
         assertions = [
           {
             assertion =
@@ -299,7 +294,7 @@ in {
             '';
           }
         ];
-      })
+      }
 
       (lib.mkIf syncing {
         assertions = [
@@ -336,7 +331,7 @@ in {
         ];
       })
 
-      (lib.mkIf cfg.enable {
+      {
         sops = {
           secrets = let
             userSecrets = inputs.secrets + "/${common.userSecretsFile name}";
@@ -370,7 +365,7 @@ in {
             };
           };
         };
-      })
+      }
 
       (lib.mkIf (syncing && haveServer) {
         sops.secrets = {

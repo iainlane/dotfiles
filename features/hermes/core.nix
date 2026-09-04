@@ -18,7 +18,7 @@
     mkHermesContainer
     ;
 in {
-  config = lib.mkIf cfg.enable {
+  config = {
     environment.systemPackages =
       [
         hostCliPackage

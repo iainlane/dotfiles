@@ -425,7 +425,7 @@ in {
     config = lib.mkMerge [
       (lib.mkIf (serverDomain != null) {services.agentsview-server.domain = serverDomain;})
 
-      (lib.mkIf cfg.enable {
+      {
         assertions = [
           {
             assertion = withoutCertificate == [];
@@ -550,7 +550,7 @@ in {
               (cfg.expose // {inherit (cfg) port;});
           };
         };
-      })
+      }
     ];
   };
 }

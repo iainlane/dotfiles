@@ -34,7 +34,7 @@
   ];
   signalImageUnit = "${cfg.signal.containerName}-image.service";
 in {
-  config = lib.mkIf (cfg.enable && cfg.signal.enable) {
+  config = lib.mkIf cfg.signal.enable {
     environment.systemPackages = [signalCliPackage];
 
     sops = {

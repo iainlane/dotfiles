@@ -6,16 +6,6 @@
   common = import ./common.nix {inherit lib;};
 in {
   options.services.agentsview-server = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = ''
-        Whether this machine holds the shared archive of agent sessions and
-        shows a dashboard of it. The machines with the `agentsview` feature
-        push to this machine.
-      '';
-    };
-
     domain = lib.mkOption {
       type = lib.types.str;
       example = "pg.example.com";

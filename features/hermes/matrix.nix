@@ -26,7 +26,7 @@
   bootstrappingKeys = cfg.matrix.encryption.enable && !usingRecoveryKey;
   recoveryKeyStatePath = ".hermes/matrix-recovery-key";
 in {
-  config = lib.mkIf (cfg.enable && cfg.matrix.enable) {
+  config = lib.mkIf cfg.matrix.enable {
     services.hermes-agent = {
       extraDependencyGroups = ["matrix"];
       settings.display.platforms.matrix.streaming = lib.mkDefault true;

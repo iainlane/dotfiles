@@ -10,8 +10,6 @@
   cfg = config.services.hermes-agent;
 in {
   options.services.hermes-agent = {
-    enable = lib.mkEnableOption "Hermes Agent gateway service";
-
     secretsFile = lib.mkOption {
       type = lib.types.str;
       default = "${hostConfig.name}/host-hermes.yaml";

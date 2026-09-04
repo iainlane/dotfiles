@@ -466,223 +466,219 @@
     in {
       imports = [./options.nix];
 
-      config = lib.mkMerge [
-        {services.caddy-proxy.enable = lib.mkDefault true;}
+      config = {
+        services.edge-proxy.enable = true;
 
-        (lib.mkIf cfg.enable {
-          services.edge-proxy.enable = true;
+        assertions = [
+          {
+            assertion = cfg.auth.enable || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
+            message = "services.caddy-proxy: a site asks to be behind single sign-on, but services.caddy-proxy.auth is not enabled, so it would be served to anyone.";
+          }
+          {
+            assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
+            message = "services.caddy-proxy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
+          }
+          {
+            assertion = lib.all (stream: stream.trustedClients != []) (lib.attrValues proxy.streams);
+            message = let
+              empty = lib.attrNames (lib.filterAttrs (_: stream: stream.trustedClients == []) proxy.streams);
+            in ''
+              These streams have no client certificates, thus nothing
+              connects to them: ${lib.concatStringsSep ", " empty}. Add the
+              certificate of each machine that must reach them to
+              `trustedClients`.
+            '';
+          }
+        ];
 
-          assertions = [
+        # The sign-in service answers under each protected site, so it comes
+        # back to whichever one it started at. Every site is listed, and the
+        # list follows whatever is exposed.
+        services.identity-provider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
+          ${cfg.auth.clientId} = {
+            displayName = "Sign in";
+            redirectURIs =
+              lib.mapAttrsToList
+              (_: container: "https://${container.containerConfig.labels."edge-proxy.domain"}/oauth2/callback")
+              (lib.filterAttrs (_: container: container.containerConfig.labels."edge-proxy.auth" == "true") exposed);
+            inherit (cfg.auth) secretsFile;
+            secretKey = cfg.auth.clientSecretKey;
+          };
+        };
+
+        sops = {
+          secrets =
             {
-              assertion = cfg.auth.enable || !(lib.any (c: c.containerConfig.labels."edge-proxy.auth" == "true") (lib.attrValues exposed));
-              message = "services.caddy-proxy: a site asks to be behind single sign-on, but services.caddy-proxy.auth is not enabled, so it would be served to anyone.";
+              ${cfg.dnsTokenKey}.sopsFile = secretsFile;
             }
+            // lib.optionalAttrs cfg.auth.enable {
+              ${cfg.auth.clientSecretKey}.sopsFile = authSecretsFile;
+              ${cfg.auth.cookieSecretKey}.sopsFile = authSecretsFile;
+            };
+
+          templates =
             {
-              assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
-              message = "services.caddy-proxy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
-            }
-            {
-              assertion = lib.all (stream: stream.trustedClients != []) (lib.attrValues proxy.streams);
-              message = let
-                empty = lib.attrNames (lib.filterAttrs (_: stream: stream.trustedClients == []) proxy.streams);
-              in ''
-                These streams have no client certificates, thus nothing
-                connects to them: ${lib.concatStringsSep ", " empty}. Add the
-                certificate of each machine that must reach them to
-                `trustedClients`.
+              "caddy.env".content = ''
+                ${tokenEnvVar}=${config.sops.placeholder.${cfg.dnsTokenKey}}
               '';
             }
-          ];
-
-          # The sign-in service answers under each protected site, so it comes
-          # back to whichever one it started at. Every site is listed, and the
-          # list follows whatever is exposed.
-          services.identity-provider.clients = lib.mkIf (cfg.auth.enable && idp.enable) {
-            ${cfg.auth.clientId} = {
-              displayName = "Sign in";
-              redirectURIs =
-                lib.mapAttrsToList
-                (_: container: "https://${container.containerConfig.labels."edge-proxy.domain"}/oauth2/callback")
-                (lib.filterAttrs (_: container: container.containerConfig.labels."edge-proxy.auth" == "true") exposed);
-              inherit (cfg.auth) secretsFile;
-              secretKey = cfg.auth.clientSecretKey;
+            // lib.optionalAttrs cfg.auth.enable {
+              "oauth2-proxy.env".content = ''
+                ${authClientSecretEnv}=${config.sops.placeholder.${cfg.auth.clientSecretKey}}
+                OAUTH2_PROXY_COOKIE_SECRET=${config.sops.placeholder.${cfg.auth.cookieSecretKey}}
+              '';
             };
-          };
+        };
 
-          sops = {
-            secrets =
-              {
-                ${cfg.dnsTokenKey}.sopsFile = secretsFile;
-              }
-              // lib.optionalAttrs cfg.auth.enable {
-                ${cfg.auth.clientSecretKey}.sopsFile = authSecretsFile;
-                ${cfg.auth.cookieSecretKey}.sopsFile = authSecretsFile;
+        virtualisation.quadlet = {
+          # Podman allocates the per-service networks itself; nothing on them
+          # needs an address anyone has to know in advance.
+          networks =
+            lib.genAttrs serviceNetworks (_: {})
+            // {
+              ${proxy.network}.networkConfig = {
+                subnets =
+                  [cfg.network.v4.subnet]
+                  ++ lib.optional (cfg.network.v6.subnet != null) cfg.network.v6.subnet;
+                gateways =
+                  [cfg.network.v4.gateway]
+                  ++ lib.optional (cfg.network.v6.gateway != null) cfg.network.v6.gateway;
+                ipRanges =
+                  [cfg.network.v4.range]
+                  ++ lib.optional (cfg.network.v6.range != null) cfg.network.v6.range;
+                ipv6 = cfg.network.v6.subnet != null;
               };
+            };
 
-            templates =
-              {
-                "caddy.env".content = ''
-                  ${tokenEnvVar}=${config.sops.placeholder.${cfg.dnsTokenKey}}
-                '';
-              }
-              // lib.optionalAttrs cfg.auth.enable {
-                "oauth2-proxy.env".content = ''
-                  ${authClientSecretEnv}=${config.sops.placeholder.${cfg.auth.clientSecretKey}}
-                  OAUTH2_PROXY_COOKIE_SECRET=${config.sops.placeholder.${cfg.auth.cookieSecretKey}}
-                '';
+          # `optionalAttrs` rather than `mkIf`: an attribute defined as
+          # `mkIf false` still exists, leaving quadlet-nix to render an
+          # object with nothing set.
+          images =
+            {
+              ${cfg.containerName}.imageConfig = {
+                image = "docker-archive:${caddyImage}";
+                tag = "localhost/${cfg.containerName}:${caddyImage.imageTag}";
               };
-          };
-
-          virtualisation.quadlet = {
-            # Podman allocates the per-service networks itself; nothing on them
-            # needs an address anyone has to know in advance.
-            networks =
-              lib.genAttrs serviceNetworks (_: {})
-              // {
-                ${proxy.network}.networkConfig = {
-                  subnets =
-                    [cfg.network.v4.subnet]
-                    ++ lib.optional (cfg.network.v6.subnet != null) cfg.network.v6.subnet;
-                  gateways =
-                    [cfg.network.v4.gateway]
-                    ++ lib.optional (cfg.network.v6.gateway != null) cfg.network.v6.gateway;
-                  ipRanges =
-                    [cfg.network.v4.range]
-                    ++ lib.optional (cfg.network.v6.range != null) cfg.network.v6.range;
-                  ipv6 = cfg.network.v6.subnet != null;
-                };
+            }
+            // lib.optionalAttrs cfg.auth.enable {
+              ${cfg.auth.containerName}.imageConfig = {
+                image = "docker-archive:${authImage}";
+                tag = "localhost/${cfg.auth.containerName}:${authImage.imageTag}";
               };
+            };
 
-            # `optionalAttrs` rather than `mkIf`: an attribute defined as
-            # `mkIf false` still exists, leaving quadlet-nix to render an
-            # object with nothing set.
-            images =
-              {
-                ${cfg.containerName}.imageConfig = {
-                  image = "docker-archive:${caddyImage}";
-                  tag = "localhost/${cfg.containerName}:${caddyImage.imageTag}";
-                };
-              }
-              // lib.optionalAttrs cfg.auth.enable {
-                ${cfg.auth.containerName}.imageConfig = {
-                  image = "docker-archive:${authImage}";
-                  tag = "localhost/${cfg.auth.containerName}:${authImage.imageTag}";
-                };
-              };
+          containers = {
+            ${cfg.containerName} = {
+              containerConfig = {
+                image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
+                networks =
+                  [proxyNetwork]
+                  ++ map (network: "${network}.network${issuerAlias}") serviceNetworks;
+                exec = "run --config ${configPath}";
+                entrypoint = "${caddyPackage}/bin/caddy";
 
-            containers = {
-              ${cfg.containerName} = {
-                containerConfig = {
-                  image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
-                  networks =
-                    [proxyNetwork]
-                    ++ map (network: "${network}.network${issuerAlias}") serviceNetworks;
-                  exec = "run --config ${configPath}";
-                  entrypoint = "${caddyPackage}/bin/caddy";
+                # IPv6 reaches the address above directly. IPv4 is a single
+                # address on the host, which cannot be a network of its own,
+                # so it is published. UDP carries HTTP/3, which Caddy
+                # advertises through Alt-Svc.
+                publishPorts = lib.optionals (cfg.ipv4Address != null) [
+                  "${cfg.ipv4Address}:80:80"
+                  "${cfg.ipv4Address}:443:443"
+                  "${cfg.ipv4Address}:443:443/udp"
+                ];
 
-                  # IPv6 reaches the address above directly. IPv4 is a single
-                  # address on the host, which cannot be a network of its own,
-                  # so it is published. UDP carries HTTP/3, which Caddy
-                  # advertises through Alt-Svc.
-                  publishPorts = lib.optionals (cfg.ipv4Address != null) [
-                    "${cfg.ipv4Address}:80:80"
-                    "${cfg.ipv4Address}:443:443"
-                    "${cfg.ipv4Address}:443:443/udp"
-                  ];
-
-                  # The config carries no secrets, so it is mounted from the
-                  # store. Naming the store path in the quadlet means a changed
-                  # config changes the unit that mounts it.
-                  volumes =
-                    quadlet.mounts [
-                      {
-                        source.podmanVolume = "caddy-data";
-                        target = "/data";
-                      }
-                      {
-                        source.podmanVolume = "caddy-config";
-                        target = "/config";
-                      }
-                      {
-                        source.bind = configFile;
-                        target = configPath;
-                        readOnly = true;
-                      }
-                    ]
-                    ++ lib.optionals cfg.originAuth.enable (quadlet.mounts [
-                      {
-                        source.bind = cfg.originAuth.caFile;
-                        target = originPullCaPath;
-                        readOnly = true;
-                      }
-                    ]);
-
-                  environmentFiles = [config.sops.templates."caddy.env".path];
-                  environments.XDG_DATA_HOME = "/data";
-
-                  # Listening below port 1024 is the one privilege it keeps.
-                  dropCapabilities = ["ALL"];
-                  addCapabilities = ["NET_BIND_SERVICE"];
-                  noNewPrivileges = true;
-                };
-
-                unitConfig = {
-                  Description = "Caddy reverse proxy";
-                  After = ["network-online.target" "sops-install-secrets.service"];
-                  Wants = ["network-online.target" "sops-install-secrets.service"];
-                };
-              };
-
-              ${cfg.auth.containerName} = lib.mkIf cfg.auth.enable {
-                containerConfig = {
-                  image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
-                  networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];
-                  entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
-                  exec = "--config ${authConfigPath} --alpha-config ${authAlphaConfigPath}";
-
-                  volumes = quadlet.mounts [
+                # The config carries no secrets, so it is mounted from the
+                # store. Naming the store path in the quadlet means a changed
+                # config changes the unit that mounts it.
+                volumes =
+                  quadlet.mounts [
                     {
-                      source.bind = authConfigFile;
-                      target = authConfigPath;
-                      readOnly = true;
+                      source.podmanVolume = "caddy-data";
+                      target = "/data";
                     }
                     {
-                      source.bind = authAlphaConfigFile;
-                      target = authAlphaConfigPath;
+                      source.podmanVolume = "caddy-config";
+                      target = "/config";
+                    }
+                    {
+                      source.bind = configFile;
+                      target = configPath;
                       readOnly = true;
                     }
-                  ];
+                  ]
+                  ++ lib.optionals cfg.originAuth.enable (quadlet.mounts [
+                    {
+                      source.bind = cfg.originAuth.caFile;
+                      target = originPullCaPath;
+                      readOnly = true;
+                    }
+                  ]);
 
-                  # The two secrets arrive as environment, which the sign-in
-                  # service reads in preference to its config file, so they
-                  # stay out of the store.
-                  environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
+                environmentFiles = [config.sops.templates."caddy.env".path];
+                environments.XDG_DATA_HOME = "/data";
 
-                  # It listens above port 1024, so it needs nothing.
-                  dropCapabilities = ["ALL"];
-                  noNewPrivileges = true;
-                };
+                # Listening below port 1024 is the one privilege it keeps.
+                dropCapabilities = ["ALL"];
+                addCapabilities = ["NET_BIND_SERVICE"];
+                noNewPrivileges = true;
+              };
 
-                # It asks the identity provider who its keys are at startup,
-                # and reaches it by the name the proxy answers to, so the
-                # proxy is serving before it starts. The proxy needs nothing
-                # of it to start in turn: a protected site is answered 502
-                # until this is up.
-                unitConfig = {
-                  Description = "Single sign-on for the sites Caddy protects";
-                  After = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
-                  Wants = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
-                };
+              unitConfig = {
+                Description = "Caddy reverse proxy";
+                After = ["network-online.target" "sops-install-secrets.service"];
+                Wants = ["network-online.target" "sops-install-secrets.service"];
               };
             };
 
-            volumes = {
-              caddy-data = {};
-              caddy-config = {};
+            ${cfg.auth.containerName} = lib.mkIf cfg.auth.enable {
+              containerConfig = {
+                image = config.virtualisation.quadlet.images.${cfg.auth.containerName}.ref;
+                networks = ["${proxy.serviceNetwork cfg.auth.containerName}.network"];
+                entrypoint = "${pkgs.oauth2-proxy}/bin/oauth2-proxy";
+                exec = "--config ${authConfigPath} --alpha-config ${authAlphaConfigPath}";
+
+                volumes = quadlet.mounts [
+                  {
+                    source.bind = authConfigFile;
+                    target = authConfigPath;
+                    readOnly = true;
+                  }
+                  {
+                    source.bind = authAlphaConfigFile;
+                    target = authAlphaConfigPath;
+                    readOnly = true;
+                  }
+                ];
+
+                # The two secrets arrive as environment, which the sign-in
+                # service reads in preference to its config file, so they
+                # stay out of the store.
+                environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
+
+                # It listens above port 1024, so it needs nothing.
+                dropCapabilities = ["ALL"];
+                noNewPrivileges = true;
+              };
+
+              # It asks the identity provider who its keys are at startup,
+              # and reaches it by the name the proxy answers to, so the
+              # proxy is serving before it starts. The proxy needs nothing
+              # of it to start in turn: a protected site is answered 502
+              # until this is up.
+              unitConfig = {
+                Description = "Single sign-on for the sites Caddy protects";
+                After = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
+                Wants = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
+              };
             };
           };
-        })
-      ];
+
+          volumes = {
+            caddy-data = {};
+            caddy-config = {};
+          };
+        };
+      };
     };
   };
 }

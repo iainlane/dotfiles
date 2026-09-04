@@ -9,7 +9,7 @@
   cfg = config.services.hermes-agent;
   hassSecretsFile = inputs.secrets + "/${cfg.homeassistant.secretsFile}";
 in {
-  config = lib.mkIf (cfg.enable && cfg.homeassistant.enable) {
+  config = lib.mkIf cfg.homeassistant.enable {
     sops = {
       secrets = {
         hass_token.sopsFile = hassSecretsFile;

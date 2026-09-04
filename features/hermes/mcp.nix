@@ -12,7 +12,7 @@
     lib.mapAttrs (_: server:
       lib.recursiveUpdate {sampling.enabled = lib.mkDefault true;} server);
 in {
-  config = lib.mkIf (cfg.enable && cfg.mcp.enable) {
+  config = lib.mkIf cfg.mcp.enable {
     services.hermes-agent.settings.mcp_servers = withSampling {
       exa = {
         url = "https://mcp.exa.ai/mcp";

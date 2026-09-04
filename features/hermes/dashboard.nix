@@ -66,7 +66,7 @@
       ++ lib.optional exposed "${config.services.caddy-proxy.containerName}.service";
   };
 in {
-  config = lib.mkIf (cfg.enable && dashboard.enable) (lib.mkMerge [
+  config = lib.mkIf dashboard.enable (lib.mkMerge [
     {
       virtualisation.quadlet.containers.${dashboard.containerName} =
         if exposed
