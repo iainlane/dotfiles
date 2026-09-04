@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils openssl sops
+#!nix-shell -i bash -p bash coreutils findutils openssl sops
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -20,7 +20,7 @@ cd "${secrets_dir}"
 log_step "Generating borgmatic encryption passphrase"
 borg_passphrase="$(openssl rand -base64 32)"
 
-plaintext="$(make_temp_file)"
+plaintext="$(make_secret_temp_file)"
 echo "encryption_passphrase: ${borg_passphrase}" >"${plaintext}"
 encrypt_yaml_file "${plaintext}" "${host}/host-borgmatic.yaml" "${host}/host-borgmatic.yaml"
 echo "    Created ${host}/host-borgmatic.yaml"

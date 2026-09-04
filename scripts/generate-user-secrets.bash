@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils gh gnused mkpasswd sops
+#!nix-shell -i bash -p bash coreutils findutils gnused mkpasswd sops
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -33,13 +33,13 @@ done
 
 hashed="$(mkpasswd -m sha-512 "${pass}")"
 
-password_plaintext="$(make_temp_file)"
+password_plaintext="$(make_secret_temp_file)"
 echo "user-password-hash: ${hashed}" >"${password_plaintext}"
 encrypt_yaml_file "${password_plaintext}" "${host}/host-user-password.yaml" "${host}/host-user-password.yaml"
 echo "    Created ${host}/host-user-password.yaml"
 
 log_step "Encrypting user SSH private key"
-ssh_key_plaintext="$(make_temp_file)"
+ssh_key_plaintext="$(make_secret_temp_file)"
 {
 	# Store the private key as an indented YAML block scalar for sops.
 	echo "ssh-private-key: |"

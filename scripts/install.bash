@@ -26,7 +26,7 @@ if [[ -n "${keys_dir}" && -d "${keys_dir}" ]]; then
 	log_step "Found pre-generated keys in ${keys_dir}"
 
 	# nixos-anywhere can inject an ephemeral filesystem tree via --extra-files.
-	extra_files_dir="$(make_temp_dir)"
+	extra_files_dir="$(make_secret_temp_dir)"
 
 	install -d -m 0755 "${extra_files_dir}/etc/ssh"
 	install -m 0600 "${keys_dir}/ssh_host_ed25519_key" "${extra_files_dir}/etc/ssh/ssh_host_ed25519_key"

@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils gnugrep jq openssl sops yq-go
+#!nix-shell -i bash -p bash coreutils findutils gnugrep jq openssl sops yq-go
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -134,7 +134,7 @@ generate_user_secrets() {
 		return 0
 	fi
 
-	plaintext="$(make_temp_file)"
+	plaintext="$(make_secret_temp_file)"
 	AUTH_TOKEN="$(openssl rand -base64 32)" \
 	CURSOR_SECRET="$(openssl rand -base64 32)" \
 		yq -n '
@@ -168,7 +168,7 @@ generate_client_secrets() {
 	if [[ -f "${certificate}" ]]; then
 		echo "    ${certificate} is already there"
 	else
-		key_file="$(make_temp_file)"
+		key_file="$(make_secret_temp_file)"
 		mkdir -p "$(dirname "${certificate}")"
 
 		# By default, openssl writes the full curve parameters. Go rejects a
@@ -190,7 +190,7 @@ generate_client_secrets() {
 	elif [[ -f "${password_file}" ]]; then
 		add_secret "${password_file}" "password" "$(openssl rand -hex 32)"
 	else
-		plaintext="$(make_temp_file)"
+		plaintext="$(make_secret_temp_file)"
 		PASSWORD="$(openssl rand -hex 32)" yq -n '.password = strenv(PASSWORD)' >"${plaintext}"
 		encrypt_yaml_file "${plaintext}" "${password_file}" "${password_file}"
 		echo "    Created ${password_file}"
@@ -233,7 +233,7 @@ generate_server_secrets() {
 		return 0
 	fi
 
-	plaintext="$(make_temp_file)"
+	plaintext="$(make_secret_temp_file)"
 	: >"${plaintext}"
 
 	for key in "${!secrets[@]}"; do

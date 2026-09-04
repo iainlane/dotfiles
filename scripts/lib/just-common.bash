@@ -4,8 +4,9 @@
 # cleanup, and encrypted file helpers.
 #
 # This file is sourced, so the caller's `nix-shell` header must list what these
-# helpers run: coreutils throughout, findutils for `shred_tree`, and sops for
-# `encrypt_yaml_file`.
+# helpers run: coreutils throughout, findutils for `shred_tree` and for the
+# cleanup of the paths `make_secret_temp_dir` and `make_secret_temp_file`
+# hand out, and sops for `encrypt_yaml_file`.
 #
 # Usage: source scripts/lib/just-common.bash
 
@@ -30,6 +31,7 @@ else
 fi
 
 declare -ag _TEMP_PATHS=()
+declare -ag _SECRET_TEMP_PATHS=()
 declare -ag _EXIT_HANDLERS=()
 
 log_step() {
@@ -71,6 +73,25 @@ make_temp_file() {
 	printf '%s\n' "${path}"
 }
 
+# Temporary paths for cleartext private keys, passphrases and API tokens. The
+# exit handler shreds these; the paths from `make_temp_dir` and
+# `make_temp_file` it only removes.
+make_secret_temp_dir() {
+	local path
+
+	path="$(mktemp -d)"
+	_SECRET_TEMP_PATHS+=("${path}")
+	printf '%s\n' "${path}"
+}
+
+make_secret_temp_file() {
+	local path
+
+	path="$(mktemp)"
+	_SECRET_TEMP_PATHS+=("${path}")
+	printf '%s\n' "${path}"
+}
+
 register_exit_handler() {
 	_EXIT_HANDLERS+=("$1")
 }
@@ -100,9 +121,12 @@ shred_tree() {
 }
 
 _cleanup_registered_paths() {
-	if [[ ${#_TEMP_PATHS[@]} -eq 0 ]]; then
-		return 0
-	fi
+	local path
+
+	for path in "${_SECRET_TEMP_PATHS[@]}"; do
+		shred_tree "${path}"
+	done
+
 	rm -rf -- "${_TEMP_PATHS[@]}"
 }
 

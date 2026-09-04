@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils gnused openssl sops
+#!nix-shell -i bash -p bash coreutils findutils gnused openssl sops
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -21,7 +21,7 @@ log_step "Generating PCR signing keypair for secure boot"
 pcr_private="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)"
 pcr_public="$(printf '%s' "${pcr_private}" | openssl pkey -pubout 2>/dev/null)"
 
-plaintext="$(make_temp_file)"
+plaintext="$(make_secret_temp_file)"
 {
 	# Persist both halves together so the host can sign and verify PCR policies.
 	echo "pcr-signing-private.pem: |"
