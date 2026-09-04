@@ -49,7 +49,7 @@
         }
         // lib.optionalAttrs (hostConfig.channel == "stable") {lib = unstableHmLib;};
       # The unstable home-manager program modules grafted on by
-      # modules/ai/unstable-hm-modules.nix are written against unstable's
+      # features/ai/unstable-hm-modules.nix are written against unstable's
       # `lib.hm`, which carries helpers (such as
       # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
       # does not yet have. Build an extended lib whose `lib.hm` comes from
