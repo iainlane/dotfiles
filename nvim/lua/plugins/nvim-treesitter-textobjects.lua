@@ -1,62 +1,94 @@
+-- LazyVim turns `opts.move.keys` into buffer-local motions, but always against
+-- the `textobjects` query group. The scope and fold motions read the `locals`
+-- and `folds` groups, and swapping has no `opts` interface at all, so both go
+-- through the plugin's modules directly.
+
+---@param key string
+---@param method "goto_next_start"|"goto_previous_start"
+---@param query string
+---@param group string
+---@param desc string
+---@return LazyKeysSpec
+local function move(key, method, query, group, desc)
+  return {
+    key,
+    function()
+      require("nvim-treesitter-textobjects.move")[method](query, group)
+    end,
+    mode = { "n", "x", "o" },
+    desc = desc,
+    silent = true,
+  }
+end
+
+---@param key string
+---@param direction "swap_next"|"swap_previous"
+---@param query string
+---@param desc string
+---@return LazyKeysSpec
+local function swap(key, direction, query, desc)
+  return {
+    key,
+    function()
+      require("nvim-treesitter-textobjects.swap")[direction](query, "textobjects")
+    end,
+    desc = desc,
+    silent = true,
+  }
+end
+
 return {
   "nvim-treesitter/nvim-treesitter-textobjects",
 
   opts = {
-    textobjects = {
-      swap = {
-        enable = true,
-        swap_next = {
-          ["<leader>na"] = "@parameter.inner", -- swap parameters/argument with next
-          ["<leader>n:"] = "@property.outer", -- swap object property with next
-          ["<leader>nm"] = "@function.outer", -- swap function with next
-        },
-
-        swap_previous = {
-          ["<leader>Pa"] = "@parameter.inner", -- swap parameters/argument with prev
-          ["<leader>P:"] = "@property.outer", -- swap object property with prev
-          ["<leader>Pm"] = "@function.outer", -- swap function with previous
-        },
-      },
-
-      move = {
-        enable = true,
-        set_jumps = true, -- whether to set jumps in the jumplist
-
+    move = {
+      keys = {
         goto_next_start = {
-          ["]f"] = { query = "@call.outer", desc = "Next function call start" },
-          ["]m"] = { query = "@function.outer", desc = "Next method/function def start" },
-          ["]c"] = { query = "@class.outer", desc = "Next class start" },
-          ["]i"] = { query = "@conditional.outer", desc = "Next conditional start" },
-          ["]l"] = { query = "@loop.outer", desc = "Next loop start" },
-
-          ["]s"] = { query = "@scope", query_group = "locals", desc = "Next scope" },
-          ["]z"] = { query = "@fold", query_group = "folds", desc = "Next fold" },
+          ["]f"] = "@call.outer",
+          ["]m"] = "@function.outer",
+          ["]c"] = "@class.outer",
+          ["]i"] = "@conditional.outer",
+          ["]l"] = "@loop.outer",
         },
 
         goto_next_end = {
-          ["]F"] = { query = "@call.outer", desc = "Next function call end" },
-          ["]M"] = { query = "@function.outer", desc = "Next method/function def end" },
-          ["]C"] = { query = "@class.outer", desc = "Next class end" },
-          ["]I"] = { query = "@conditional.outer", desc = "Next conditional end" },
-          ["]L"] = { query = "@loop.outer", desc = "Next loop end" },
+          ["]F"] = "@call.outer",
+          ["]M"] = "@function.outer",
+          ["]C"] = "@class.outer",
+          ["]I"] = "@conditional.outer",
+          ["]L"] = "@loop.outer",
         },
 
         goto_previous_start = {
-          ["[f"] = { query = "@call.outer", desc = "Prev function call start" },
-          ["[m"] = { query = "@function.outer", desc = "Prev method/function def start" },
-          ["[c"] = { query = "@class.outer", desc = "Prev class start" },
-          ["[i"] = { query = "@conditional.outer", desc = "Prev conditional start" },
-          ["[l"] = { query = "@loop.outer", desc = "Prev loop start" },
+          ["[f"] = "@call.outer",
+          ["[m"] = "@function.outer",
+          ["[c"] = "@class.outer",
+          ["[i"] = "@conditional.outer",
+          ["[l"] = "@loop.outer",
         },
 
         goto_previous_end = {
-          ["[F"] = { query = "@call.outer", desc = "Prev function call end" },
-          ["[M"] = { query = "@function.outer", desc = "Prev method/function def end" },
-          ["[C"] = { query = "@class.outer", desc = "Prev class end" },
-          ["[I"] = { query = "@conditional.outer", desc = "Prev conditional end" },
-          ["[L"] = { query = "@loop.outer", desc = "Prev loop end" },
+          ["[F"] = "@call.outer",
+          ["[M"] = "@function.outer",
+          ["[C"] = "@class.outer",
+          ["[I"] = "@conditional.outer",
+          ["[L"] = "@loop.outer",
         },
       },
     },
+  },
+
+  keys = {
+    move("]s", "goto_next_start", "@local.scope", "locals", "Next Scope"),
+    move("[s", "goto_previous_start", "@local.scope", "locals", "Prev Scope"),
+    move("]z", "goto_next_start", "@fold", "folds", "Next Fold"),
+    move("[z", "goto_previous_start", "@fold", "folds", "Prev Fold"),
+
+    swap("<leader>na", "swap_next", "@parameter.inner", "Swap parameter with next"),
+    swap("<leader>n:", "swap_next", "@property.outer", "Swap property with next"),
+    swap("<leader>nm", "swap_next", "@function.outer", "Swap function with next"),
+    swap("<leader>Pa", "swap_previous", "@parameter.inner", "Swap parameter with previous"),
+    swap("<leader>P:", "swap_previous", "@property.outer", "Swap property with previous"),
+    swap("<leader>Pm", "swap_previous", "@function.outer", "Swap function with previous"),
   },
 }
