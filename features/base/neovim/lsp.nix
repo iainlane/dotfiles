@@ -9,7 +9,7 @@
   #
   # Map of Nix package name -> LSP/Mason metadata.
   #
-  # This is normalised in `modules/neovim/default.nix` into:
+  # This is normalised in `features/base/neovim/home-manager.nix` into:
   # - `lsp_servers`: server names that should be configured with `mason = false`
   # - `mason_packages`: Mason package names to exclude from Mason auto-installs
   #

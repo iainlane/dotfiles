@@ -2,6 +2,7 @@
   pkgs,
   pkgs-unstable,
   config,
+  flakePath,
   inputs,
   system,
   ...
@@ -73,7 +74,7 @@ in {
   };
 
   xdg = {
-    configFile."nvim".source = ./nvim;
+    configFile."nvim".source = ../../../nvim;
 
     # LazyVim's Svelte extra hardcodes the location it loads the Svelte language
     # server from. Here we symlink to our Nix-managed installation from that
@@ -82,7 +83,7 @@ in {
 
     stateFile = {
       "nvim/lazy-lock.json".source =
-        config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dev/random/dotfiles/modules/neovim/nvim/lazy-lock.json";
+        config.lib.file.mkOutOfStoreSymlink "${flakePath}/nvim/lazy-lock.json";
       "nvim/nix-managed-lsp.json".source = nixManagedLspJson;
     };
   };
