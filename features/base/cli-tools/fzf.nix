@@ -1,6 +1,5 @@
 {
   lib,
-  inputs,
   options,
   ...
 }: let
@@ -83,27 +82,14 @@
   rgSearch = "rg --files --hidden --follow --glob '!.git'";
   fdSearch = "fd --type d --hidden --follow --exclude .git";
 
-  # home-manager unstable (26.11) renamed `programs.fzf.fileWidgetCommand` and
+  # home-manager 26.11 renamed `programs.fzf.fileWidgetCommand` and
   # `changeDirWidgetCommand` to the nested `fileWidget.command` and
-  # `changeDirWidget.command`. Stable (26.05) only knows the flat names, so we
-  # speak whichever form the running home-manager declares.
-  usesNestedWidget = options.programs.fzf ? fileWidget;
-
-  # The flat branch below exists only for stable, which is on 26.05. Read the
-  # stable input's release directly so that bumping `home-manager-stable` past
-  # 26.05 fails the build: at that point stable has the rename too and this whole
-  # shim can go. Keying on the stable input makes the failure fire the moment
-  # stable is bumped.
-  stableRelease = (lib.importJSON (inputs.home-manager-stable + "/release.json")).release;
-
-  widgetCommands = assert lib.assertMsg (stableRelease == "26.05") ''
-    features/base/cli-tools/fzf.nix carries a compatibility shim for home-manager
-    stable 26.05, which still uses the flat `programs.fzf.fileWidgetCommand`.
-    The `home-manager-stable` input is now on ${stableRelease}, which has the
-    renamed nested `fileWidget.command`. Drop this shim and set the nested
-    options directly.
-  '';
-    if usesNestedWidget
+  # `changeDirWidget.command`, keeping the flat names as renamed options. A
+  # host on 26.05 has only the flat names; a host on 26.11 accepts them and
+  # warns. Set whichever form the running home-manager declares, and delete
+  # the flat branch once no host is on 26.05.
+  widgetCommands =
+    if options.programs.fzf ? fileWidget
     then {
       fileWidget.command = rgSearch;
       changeDirWidget.command = fdSearch;
