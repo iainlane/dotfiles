@@ -43,20 +43,16 @@
           )}
           ${lib.concatStrings (
             lib.mapAttrsToList (
-              header: envVar: let
-                shellEnv = "$" + envVar;
-              in ''
-                args+=(--header ${lib.escapeShellArg "${header}:"}"${shellEnv}")
+              header: envVar: ''
+                args+=(--header ${lib.escapeShellArg "${header}:\${${envVar}}"})
               ''
             )
             headerEnv
           )}
           ${
-            lib.optionalString (bearerAuthEnv != null) (let
-              shellEnv = "$" + bearerAuthEnv;
-            in ''
-              args+=(--header ${lib.escapeShellArg "Authorization: Bearer "}"${shellEnv}")
-            '')
+            lib.optionalString (bearerAuthEnv != null) ''
+              args+=(--header ${lib.escapeShellArg "Authorization: Bearer \${${bearerAuthEnv}}"})
+            ''
           }
 
           exec ${lib.escapeShellArg (lib.getExe package)} "''${args[@]}"
