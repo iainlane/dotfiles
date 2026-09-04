@@ -3,10 +3,8 @@
 
   perSystem = {config, ...}: let
     inherit (config._module.args) pkgs;
+    inherit (pkgs) lib;
 
-    # renovate: datasource=docker depName=ghcr.io/underwhelmingperformance/wrapscallion versioning=docker
-    wrapscallionTag = "v0.2.2@sha256:3cdb422e06ce2926cf2cda1c0507fcdd39eb51f0c45b1ac367ed1813669e8b72";
-    wrapscallionImage = "ghcr.io/underwhelmingperformance/wrapscallion:${wrapscallionTag}";
     promptConformanceChecks = [
       ".#claude-prompt-conformance.tests.conformance"
       ".#claude-prompt-conformance.tests.codexProtocol"
@@ -32,8 +30,8 @@
           wrapscallion = {
             enable = true;
             description = "Lint Conventional Commit messages and 72-column bodies.";
-            entry = "${wrapscallionImage} --output-format terminal --edit";
-            language = "docker_image";
+            entry = "${lib.getExe pkgs.wrapscallion} --output-format terminal --edit";
+            language = "system";
             stages = ["commit-msg"];
           };
 

@@ -1,0 +1,21 @@
+{
+  "platforms": {
+    "aarch64-darwin": {
+      "hash": "sha256-QueYXr4d77/1gEU4JdFiORE9TjJA/CSZXEB1AAYcqE8=",
+      "url": "https://github.com/underwhelmingperformance/wrapscallion/releases/download/v0.2.2/wrapscallion-0.2.2-aarch64-apple-darwin"
+    },
+    "aarch64-linux": {
+      "hash": "sha256-wEQcxPUDoftrRrdS0Dn6PVscpM7vmp5fK18W4KinDis=",
+      "url": "https://github.com/underwhelmingperformance/wrapscallion/releases/download/v0.2.2/wrapscallion-0.2.2-aarch64-unknown-linux-gnu"
+    },
+    "x86_64-darwin": {
+      "hash": "sha256-OBuK4t/ZUxy1yLr+GPZX0TMeZwqom09XB4dyYiEXBpw=",
+      "url": "https://github.com/underwhelmingperformance/wrapscallion/releases/download/v0.2.2/wrapscallion-0.2.2-x86_64-apple-darwin"
+    },
+    "x86_64-linux": {
+      "hash": "sha256-SdqMD2mFcYu3STx7uprI1XpXIsRidKdBqzCddFNIhYA=",
+      "url": "https://github.com/underwhelmingperformance/wrapscallion/releases/download/v0.2.2/wrapscallion-0.2.2-x86_64-unknown-linux-gnu"
+    }
+  },
+  "version": "0.2.2"
+}
