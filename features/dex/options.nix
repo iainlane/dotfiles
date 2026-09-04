@@ -53,7 +53,7 @@
       default = {};
       description = ''
         Extra keys merged into the generated `dex.yaml`, overriding what this
-        profile sets.
+        feature sets.
       '';
     };
 

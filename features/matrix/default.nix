@@ -72,9 +72,9 @@
             # the token, so accounts can be made from a Matrix client without the
             # password ever passing through the logs.
             allow_registration = true;
-            # The account-creation commands are idempotent: they error once the
-            # account exists. Ignoring that keeps the homeserver up on later
-            # boots.
+            # The account-creation commands run on every start and fail once
+            # the account exists. Ignoring an admin command's failure is what
+            # keeps the homeserver up on the second boot.
             admin_execute_errors_ignore = true;
             trusted_servers = [];
           }
@@ -122,6 +122,14 @@
                 dotfiles.matrix publishes one support contact, and
                 ${lib.concatStringsSep ", " supportUsers} are all marked
                 `supportUser`.
+              '';
+            }
+            {
+              assertion = cfg.expose == null || !cfg.expose.auth;
+              message = ''
+                dotfiles.matrix.expose.auth is on, so the proxy would answer
+                every Matrix client and every federating homeserver with a
+                sign-in page. Matrix authenticates its own clients.
               '';
             }
           ];

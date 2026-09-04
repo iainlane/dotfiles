@@ -22,6 +22,8 @@
 
       idp = config.dotfiles.containers.identityProvider;
 
+      proxy = config.dotfiles.containers.edgeProxy;
+
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
       package =
@@ -137,70 +139,74 @@
           Wants = ["network-online.target" "sops-install-secrets.service"];
         };
       };
-
-      expose = config.dotfiles.containers.edgeProxy.enable;
     in {
       imports = [./options.nix];
 
-      config = lib.mkMerge [
-        {
-          dotfiles.containers.identityProvider = {
-            enable = true;
-            inherit issuer;
-          };
+      config = {
+        dotfiles.containers.identityProvider = {
+          enable = true;
+          inherit issuer;
+        };
 
-          assertions = [
+        assertions = [
+          {
+            assertion = !cfg.expose.auth;
+            message = ''
+              dotfiles.dex.expose.auth is on, so signing in would be gated
+              behind signing in.
+            '';
+          }
+          {
+            assertion = proxy.enable;
+            message = ''
+              dotfiles.dex needs a proxy on this host, which is what sets
+              dotfiles.containers.edgeProxy.enable. Dex is reached at
+              ${issuer}, which every client of the identity provider fetches
+              its discovery document from, and without a proxy nothing serves
+              that name.
+            '';
+          }
+        ];
+
+        sops = {
+          secrets =
             {
-              assertion = !cfg.expose.auth;
-              message = ''
-                dotfiles.dex.expose.auth is on, so signing in would be gated
-                behind signing in.
-              '';
+              ${cfg.github.clientIdKey}.sopsFile = secretsFile;
+              ${cfg.github.clientSecretKey}.sopsFile = secretsFile;
             }
-          ];
+            // lib.mapAttrs' (
+              name: client:
+                lib.nameValuePair (clientSecretName name) {
+                  sopsFile = inputs.secrets + "/${client.secretsFile}";
+                  key = client.secretKey;
+                }
+            )
+            idp.clients;
 
-          sops = {
-            secrets =
-              {
-                ${cfg.github.clientIdKey}.sopsFile = secretsFile;
-                ${cfg.github.clientSecretKey}.sopsFile = secretsFile;
-              }
-              // lib.mapAttrs' (
-                name: client:
-                  lib.nameValuePair (clientSecretName name) {
-                    sopsFile = inputs.secrets + "/${client.secretsFile}";
-                    key = client.secretKey;
-                  }
-              )
-              idp.clients;
+          templates."dex.env".content =
+            ''
+              ${githubIdEnv}=${config.sops.placeholder.${cfg.github.clientIdKey}}
+              ${githubSecretEnv}=${config.sops.placeholder.${cfg.github.clientSecretKey}}
+            ''
+            + lib.concatStrings (
+              lib.mapAttrsToList
+              (name: _: "${clientSecretEnv name}=${config.sops.placeholder.${clientSecretName name}}\n")
+              idp.clients
+            );
+        };
 
-            templates."dex.env".content =
-              ''
-                ${githubIdEnv}=${config.sops.placeholder.${cfg.github.clientIdKey}}
-                ${githubSecretEnv}=${config.sops.placeholder.${cfg.github.clientSecretKey}}
-              ''
-              + lib.concatStrings (
-                lib.mapAttrsToList
-                (name: _: "${clientSecretEnv name}=${config.sops.placeholder.${clientSecretName name}}\n")
-                idp.clients
-              );
+        virtualisation.quadlet = {
+          volumes.${stateVolume} = {};
+
+          images.${cfg.containerName}.imageConfig = {
+            image = "docker-archive:${image}";
+            tag = "localhost/${cfg.containerName}:${image.imageTag}";
           };
 
-          virtualisation.quadlet = {
-            volumes.${stateVolume} = {};
-
-            images.${cfg.containerName}.imageConfig = {
-              image = "docker-archive:${image}";
-              tag = "localhost/${cfg.containerName}:${image.imageTag}";
-            };
-
-            containers.${cfg.containerName} =
-              if expose
-              then exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;})
-              else dexContainer;
-          };
-        }
-      ];
+          containers.${cfg.containerName} =
+            exposePodman cfg.containerName dexContainer (cfg.expose // {inherit (cfg) port;});
+        };
+      };
     };
   };
 }

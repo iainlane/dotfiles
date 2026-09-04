@@ -84,8 +84,8 @@ in {
         `matrix_password` (the password the agent's account is created with),
         `matrix_registration_token` (the token that gates registration, entered
         in a Matrix client to create accounts) and every `passwordKey` named in
-        `provisionUsers`. The homeserver runs as a system service, so this file
-        is encrypted to the host key.
+        `users`. The homeserver runs as a system service, so this file is
+        encrypted to the host key.
       '';
     };
 
@@ -95,7 +95,7 @@ in {
       example = lib.literalExpression ''{ admins_list = ["@iain:example.org"]; }'';
       description = ''
         Extra keys merged into the `[global]` table of the generated
-        `continuwuity.toml`, overriding what this profile sets.
+        `continuwuity.toml`, overriding what this feature sets.
       '';
     };
 
