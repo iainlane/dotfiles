@@ -1,11 +1,14 @@
+# voxtype, built from the fork branch this flake pins.
+# To update: nix run .#update-voxtype
 {
   lib,
   stdenv,
   rustPlatform,
   fetchFromGitHub,
   fetchurl,
-  nix-update-script,
+  gh,
   stdenvNoCC,
+  updaters,
   versionCheckHook,
   clang,
   cmake,
@@ -45,8 +48,8 @@
     xdotool
   ],
 }: let
-  version = "1.0.1";
-  revision = "df1c4e156673a5b8c185299bd6f5e65288fe5817";
+  source = lib.importJSON ./source.json;
+  inherit (source) version;
   webgpuRuntimeHash = "e7271056b10dc2fec4b1bcc5bb9ac28a5f288de0a1f9c24c389c95566a487549";
   webgpuRuntime = stdenvNoCC.mkDerivation {
     pname = "onnxruntime-webgpu";
@@ -80,8 +83,8 @@
   src = fetchFromGitHub {
     owner = "iainlane";
     repo = "voxtype";
-    rev = revision;
-    hash = "sha256-bUirk6N7yNBQkAkoOFPXg8jz0IzhK9iEvZTG75Q96gE=";
+    rev = source.revision;
+    inherit (source) hash;
   };
 in
   rustPlatform.buildRustPackage {
@@ -93,7 +96,7 @@ in
     # a symlink loop that it follows until the path is too long. importCargoLock
     # fetches the repository with fetchgit, which keeps the symlink as is.
     cargoLock = {
-      lockFile = "${src}/Cargo.lock";
+      lockFile = ./Cargo.lock;
       outputHashes = {
         "openvino-finder-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
         "openvino-genai-0.11.0" = "sha256-nQWeHNdLlRk+owh3B6VpArAG2dr66HeBI2RHfDhyvvU=";
@@ -220,7 +223,11 @@ in
     nativeInstallCheckInputs = [versionCheckHook];
     doInstallCheck = true;
 
-    passthru.update-script = nix-update-script {};
+    passthru.updateScript = updaters.mkScriptUpdater {
+      pname = "voxtype";
+      script = ./update.sh;
+      extraRuntimeInputs = [gh];
+    };
 
     meta = {
       description = "Voice-to-text with push-to-talk";
