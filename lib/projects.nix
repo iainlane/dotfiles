@@ -23,17 +23,17 @@
   normaliseProject = _name: attrs:
     attrs // {attrSegments = directorySegments attrs.directory;};
 
-  # Derive the kernel/OS name (e.g. "linux", "darwin") from a flake system
-  # string so callers can pick `os.<name>` overlays without inspecting `pkgs`
-  # at evaluation time.
-  osFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
+  # The kernel name ("linux", "darwin") of a flake system string, so a caller
+  # can select a `kernel.<name>` overlay without inspecting `pkgs` at
+  # evaluation time.
+  kernelFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
 
   # The nested attribute set the `direnvs` output takes. Each node may carry
   # a `shell`, the devShell for that directory, and `subdirectories`, the
   # nodes below it.
   mkNestedShells = {
     pkgs,
-    os,
+    kernel,
     mkShell,
     projectDefinitions,
   }:
@@ -42,7 +42,7 @@
       acc: def:
         lib.recursiveUpdate
         acc
-        (lib.setAttrByPath (treePath def.attrSegments) (mkShell pkgs os def))
+        (lib.setAttrByPath (treePath def.attrSegments) (mkShell pkgs kernel def))
     )
     {}
     (builtins.attrValues projectDefinitions);
@@ -51,7 +51,7 @@
   # For example, "dev/debian" becomes devShells.direnvs-dev-debian.
   mkFlatShells = {
     pkgs,
-    os,
+    kernel,
     mkShell,
     projectDefinitions,
   }:
@@ -59,7 +59,7 @@
       lib.mapAttrsToList (
         _: def: {
           name = "direnvs-" + lib.concatStringsSep "-" def.attrSegments;
-          value = mkShell pkgs os def;
+          value = mkShell pkgs kernel def;
         }
       )
       projectDefinitions
@@ -88,10 +88,10 @@
   #   config:      the flake-parts config, for `config.systems`
   #   withSystem:  flake-parts' per-system evaluation function
   #   projects:    the project directories, each defining at least `directory`
-  #   mkShell:     `pkgs -> os -> projectDef -> derivation`, building one
-  #                project's shell. `os` is the kernel name ("linux",
-  #                "darwin") taken from the build system, so it can select the
-  #                matching `os.<name>` overlay without a runtime test. This is
+  #   mkShell:     `pkgs -> kernel -> projectDef -> derivation`, building one
+  #                project's shell. `kernel` is "linux" or "darwin", taken
+  #                from the build system, so the shell can select the matching
+  #                `kernel.<name>` overlay without a runtime test. This is
   #                where the environment variables and extra packages go.
   #
   # Returns:
@@ -129,7 +129,7 @@
             {pkgs, ...}:
               mkNestedShells {
                 inherit pkgs mkShell projectDefinitions;
-                os = osFromSystem system;
+                kernel = kernelFromSystem system;
               }
           )
       );
@@ -143,7 +143,7 @@
       }: {
         devShells = mkFlatShells {
           inherit pkgs mkShell projectDefinitions;
-          os = osFromSystem system;
+          kernel = kernelFromSystem system;
         };
       };
     };

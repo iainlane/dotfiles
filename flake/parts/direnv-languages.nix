@@ -12,9 +12,9 @@
   inherit (lib) mkOption types;
 
   # A language fragment is a function `pkgs -> attrset` returning a partial
-  # mkShell argument set. The submodule mirrors the shape used by
-  # `flake.features`: a base value plus an `os.<name>` branch that overlays
-  # it for that platform.
+  # mkShell argument set. A fragment has a base value and a `kernel.<name>`
+  # branch that overlays it, the same shape `flake.features` uses for its own
+  # kernel scope.
   shellOption = mkOption {
     type = types.nullOr (types.functionTo types.attrs);
     default = null;
@@ -27,13 +27,12 @@
   languageSubmodule = types.submodule {
     options = {
       shell = shellOption;
-      os = mkOption {
+      kernel = mkOption {
         type = types.attrsOf (types.submodule {options.shell = shellOption;});
         default = {};
         description = ''
-          Per-OS shell fragment overlays, keyed by the host platform (`linux`,
-          `darwin`, ...). Merged into the base `shell` when building for that
-          platform.
+          Shell fragment overlays keyed by kernel name (`linux`, `darwin`),
+          merged into the base `shell` when building for that kernel.
         '';
       };
     };
@@ -61,10 +60,10 @@
     then {}
     else fn pkgs;
 
-  fragmentFor = pkgs: os: name: let
+  fragmentFor = pkgs: kernel: name: let
     lang = config.flake.direnvLanguages.${name};
     base = applyShell pkgs lang.shell;
-    overlay = applyShell pkgs (lib.attrByPath ["os" os "shell"] null lang);
+    overlay = applyShell pkgs (lib.attrByPath ["kernel" kernel "shell"] null lang);
   in
     mergeShellAttrs base overlay;
 in {
@@ -74,22 +73,23 @@ in {
       default = {};
       description = ''
         Per-language fragments contributed to direnv shells. Each entry has
-        a base `shell` function and may carry per-OS overlays under
-        `os.<name>.shell`. Features compose these by listing language names
-        on a project definition rather than replicating shell glue.
+        a base `shell` function and may carry per-kernel overlays under
+        `kernel.<name>.shell`. A feature composes these by listing language
+        names on a project definition.
       '';
     };
   };
 
-  # `pkgs -> os -> [name] -> attrs`, merging the `direnvLanguages` fragments
-  # for a list of language names (and any matching `os.<name>` overlay) into a
-  # single mkShell argument set. The `os` is the kernel name the per-system
-  # caller passes in, so the resolver does no platform detection of its own.
-  config._module.args.mkLanguageShell = pkgs: os: names:
+  # `pkgs -> kernel -> [name] -> attrs`, merging the `direnvLanguages`
+  # fragments for a list of language names, and each fragment's matching
+  # `kernel.<name>` overlay, into one mkShell argument set. The per-system
+  # caller passes the kernel name in, so this does no platform detection of
+  # its own.
+  config._module.args.mkLanguageShell = pkgs: kernel: names:
     lib.foldl'
     mergeShellAttrs
     {}
-    (map (name: fragmentFor pkgs os name) names);
+    (map (name: fragmentFor pkgs kernel name) names);
 
   config.flake = {
     direnvLanguages = {
@@ -153,7 +153,7 @@ in {
         # `NIX_LD_LIBRARY_PATH` in the shell that launches the browser, so
         # prepend the Chromium runtime libraries here for any direnv that opts
         # into the typescript language.
-        os.linux.shell = pkgs: let
+        kernel.linux.shell = pkgs: let
           chromiumLibraries = with pkgs; [
             alsa-lib
             at-spi2-core
