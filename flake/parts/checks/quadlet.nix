@@ -45,14 +45,21 @@
         == "/run/config:/etc/service:idmap,ro";
     }
     {
+      # String equality ignores context, so comparing the rendered mount with
+      # the expected one would pass even after the coercion dropped it.
       name = "a path bind preserves Nix's store-path context";
-      pass =
-        quadlet.mount {
+      pass = let
+        rendered = quadlet.mount {
           source.bind = ../../../features/hermes/soul/soul.md;
           target = "/soul.md";
           readOnly = true;
-        }
-        == "${../../../features/hermes/soul/soul.md}:/soul.md:ro";
+        };
+
+        expected = "${../../../features/hermes/soul/soul.md}:/soul.md:ro";
+      in
+        rendered
+        == expected
+        && builtins.getContext rendered == builtins.getContext expected;
     }
     {
       name = "chown ownership renders Podman's U option";
