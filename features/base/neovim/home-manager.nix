@@ -1,4 +1,5 @@
 {
+  lib,
   pkgs,
   pkgs-unstable,
   config,
@@ -14,11 +15,6 @@
     inherit pkgs;
   };
 
-  normaliseList = value:
-    if builtins.isList value
-    then value
-    else [value];
-
   normaliseLspEntry = packageName: spec: let
     entry =
       if spec == null
@@ -28,22 +24,20 @@
       else spec;
   in {
     inherit packageName;
-    pkg = entry.pkg or (builtins.getAttr packageName pkgs);
-    lspServers = normaliseList (
-      entry.lsp or packageName
-    );
+    pkg = entry.pkg or pkgs.${packageName};
+    lspServers = lib.toList (entry.lsp or packageName);
     masonPackages =
       if entry ? masonPackages
-      then normaliseList entry.masonPackages
+      then lib.toList entry.masonPackages
       else [packageName];
   };
 
-  lspEntries = map (packageName: normaliseLspEntry packageName lspSpec.${packageName}) (builtins.attrNames lspSpec);
+  lspEntries = lib.mapAttrsToList normaliseLspEntry lspSpec;
 
   nixManagedLspJson = (pkgs.formats.json {}).generate "nix-managed-lsp.json" {
-    lsp_servers = pkgs.lib.unique (builtins.concatLists (map (entry: entry.lspServers) lspEntries));
-    mason_packages = pkgs.lib.unique (
-      builtins.concatLists (map (entry: entry.masonPackages) lspEntries)
+    lsp_servers = lib.unique (lib.concatMap (entry: entry.lspServers) lspEntries);
+    mason_packages = lib.unique (
+      lib.concatMap (entry: entry.masonPackages) lspEntries
       ++ builtins.attrNames toolsSpec
     );
   };
@@ -55,7 +49,7 @@ in {
     vimAlias = true;
     package = pkgs-unstable.neovim-unwrapped;
 
-    extraPackages = pkgs.lib.unique (
+    extraPackages = lib.unique (
       (with pkgs; [
         clang
         go-jsonnet
