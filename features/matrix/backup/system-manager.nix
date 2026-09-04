@@ -25,79 +25,66 @@
     runtimeInputs = [pkgs.coreutils];
     text = builtins.readFile ./backup.sh;
   };
+  secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {
   config = {
     dotfiles.matrix.backup.present = true;
 
+    assertions = r2Backup.assertions {
+      inherit lib secretsFile;
+      secretsPath = cfg.backup.secretsFile;
+      subject = "The Continuwuity database";
+    };
+
     sops = r2Backup.sopsFragment {
-      inherit config;
-      secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+      inherit config secretsFile;
       templateName = "matrix-backup.env";
     };
 
     virtualisation.quadlet.volumes.${paths.volume} = {};
 
-    systemd = {
-      services.${unit} = {
-        description = "Back the Continuwuity database up to Cloudflare R2";
-        requires = ["${cfg.containerName}.service" "sops-install-secrets.service"];
-        after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
-        wants = ["network-online.target"];
-        path = [config.virtualisation.podman.package r2Tool];
-        serviceConfig = r2Backup.withScratchDirectory unit {
-          Type = "oneshot";
-          EnvironmentFile = config.sops.templates."matrix-backup.env".path;
-          Environment = [
-            "MATRIX_CONTAINER=${cfg.containerName}"
-            "MATRIX_BACKUP_VOLUME=${paths.volume}"
-            "MATRIX_BACKUP_TIMEOUT=${toString cfg.backup.timeout}"
-            "BACKUP_NAME=${cfg.containerName}"
-            "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
-            "BACKUP_PREFIX=${cfg.backup.prefix}"
-            "BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
-          ];
-          ExecStart = "${backupScript}/bin/matrix-backup";
-        };
-      };
+    systemd = lib.mkMerge [
+      (r2Backup.verifyUnits {
+        inherit lib pkgs;
+        inherit (cfg) backup;
+        environmentFile = config.sops.templates."matrix-backup.env".path;
+        name = cfg.containerName;
+        subject = "Continuwuity";
+      })
 
-      timers.${unit} = {
-        description = "Schedule the Continuwuity backup";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnCalendar = cfg.backup.schedule;
-          Persistent = true;
-          RandomizedDelaySec = "15m";
+      {
+        services.${unit} = {
+          description = "Back the Continuwuity database up to Cloudflare R2";
+          requires = ["${cfg.containerName}.service" "sops-install-secrets.service"];
+          after = ["${cfg.containerName}.service" "sops-install-secrets.service" "network-online.target"];
+          wants = ["network-online.target"];
+          path = [config.virtualisation.podman.package r2Tool];
+          serviceConfig = r2Backup.withScratchDirectory unit {
+            Type = "oneshot";
+            EnvironmentFile = config.sops.templates."matrix-backup.env".path;
+            Environment = [
+              "MATRIX_CONTAINER=${cfg.containerName}"
+              "MATRIX_BACKUP_VOLUME=${paths.volume}"
+              "MATRIX_BACKUP_TIMEOUT=${toString cfg.backup.timeout}"
+              "BACKUP_NAME=${cfg.containerName}"
+              "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
+              "BACKUP_PREFIX=${cfg.backup.prefix}"
+              "BACKUP_KEEP_DAYS=${toString cfg.backup.keepDays}"
+            ];
+            ExecStart = "${backupScript}/bin/matrix-backup";
+          };
         };
-      };
 
-      services."${unit}-verify" = lib.mkIf cfg.backup.verify.enable {
-        description = "Check the Continuwuity R2 backup arrived";
-        requires = ["sops-install-secrets.service"];
-        after = ["network-online.target" "sops-install-secrets.service"];
-        wants = ["network-online.target"];
-        serviceConfig = {
-          Type = "oneshot";
-          EnvironmentFile = config.sops.templates."matrix-backup.env".path;
-          Environment = [
-            "BACKUP_NAME=${cfg.containerName}"
-            "BACKUP_PREFIX=${cfg.backup.prefix}"
-            "BACKUP_MAX_AGE_HOURS=${toString cfg.backup.verify.maxAgeHours}"
-            "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
-            "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
-          ];
-          ExecStart = "${r2Tool}/bin/r2 verify";
+        timers.${unit} = {
+          description = "Schedule the Continuwuity backup";
+          wantedBy = ["timers.target"];
+          timerConfig = {
+            OnCalendar = cfg.backup.schedule;
+            Persistent = true;
+            RandomizedDelaySec = "15m";
+          };
         };
-      };
-
-      timers."${unit}-verify" = lib.mkIf cfg.backup.verify.enable {
-        description = "Schedule the Continuwuity backup check";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnCalendar = cfg.backup.verify.schedule;
-          Persistent = true;
-          RandomizedDelaySec = "15m";
-        };
-      };
-    };
+      }
+    ];
   };
 }

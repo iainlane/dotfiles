@@ -10,6 +10,7 @@
   ...
 }: let
   cfg = config.dotfiles.hermes;
+  secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
   inherit (hermesBuilders) hermesStateVolume;
   r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
@@ -48,9 +49,14 @@ in {
     {
       dotfiles.hermes.backup.present = true;
 
+      assertions = r2Backup.assertions {
+        inherit lib secretsFile;
+        secretsPath = cfg.backup.secretsFile;
+        subject = "The Hermes agent's state";
+      };
+
       sops = r2Backup.sopsFragment {
-        inherit config;
-        secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+        inherit config secretsFile;
         templateName = envTemplate;
       };
 
@@ -87,35 +93,14 @@ in {
       };
     }
 
-    (lib.mkIf cfg.backup.verify.enable {
-      systemd.services.hermes-backup-verify = {
-        description = "Check the Hermes R2 backup arrived";
-        requires = ["sops-install-secrets.service"];
-        after = ["network-online.target" "sops-install-secrets.service"];
-        wants = ["network-online.target"];
-        serviceConfig = {
-          Type = "oneshot";
-          EnvironmentFile = config.sops.templates.${envTemplate}.path;
-          Environment = [
-            "BACKUP_NAME=hermes"
-            "BACKUP_PREFIX=${cfg.backup.prefix}"
-            "BACKUP_MAX_AGE_HOURS=${toString cfg.backup.verify.maxAgeHours}"
-            "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
-            "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
-          ];
-          ExecStart = "${r2Tool}/bin/r2 verify";
-        };
+    {
+      systemd = r2Backup.verifyUnits {
+        inherit lib pkgs;
+        inherit (cfg) backup;
+        environmentFile = config.sops.templates.${envTemplate}.path;
+        name = "hermes";
+        subject = "Hermes";
       };
-
-      systemd.timers.hermes-backup-verify = {
-        description = "Schedule the Hermes R2 backup check";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnCalendar = cfg.backup.verify.schedule;
-          Persistent = true;
-          RandomizedDelaySec = "15m";
-        };
-      };
-    })
+    }
   ];
 }

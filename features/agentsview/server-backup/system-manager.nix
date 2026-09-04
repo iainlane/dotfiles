@@ -26,14 +26,20 @@
     runtimeInputs = with pkgs; [coreutils podman r2Tool];
     text = builtins.readFile ./backup-r2.sh;
   };
+  secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {
   config = lib.mkMerge [
     {
       dotfiles.agentsviewServer.backup.present = true;
 
+      assertions = r2Backup.assertions {
+        inherit lib secretsFile;
+        secretsPath = cfg.backup.secretsFile;
+        subject = "The AgentsView session database";
+      };
+
       sops = r2Backup.sopsFragment {
-        inherit config;
-        secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
+        inherit config secretsFile;
         templateName = envTemplate;
       };
 
@@ -77,36 +83,14 @@ in {
       };
     }
 
-    (lib.mkIf cfg.backup.verify.enable {
-      systemd.services.agentsview-backup-verify = {
-        description = "Check the AgentsView R2 backup arrived";
-        requires = ["sops-install-secrets.service"];
-        after = ["network-online.target" "sops-install-secrets.service"];
-        wants = ["network-online.target"];
-
-        serviceConfig = {
-          Type = "oneshot";
-          EnvironmentFile = config.sops.templates.${envTemplate}.path;
-          Environment = [
-            "BACKUP_NAME=${backupName}"
-            "BACKUP_PREFIX=${cfg.backup.prefix}"
-            "BACKUP_MAX_AGE_HOURS=${toString cfg.backup.verify.maxAgeHours}"
-            "BACKUP_MIN_SIZE=${toString cfg.backup.verify.minSizeBytes}"
-            "BACKUP_MIN_COUNT=${toString cfg.backup.verify.minCount}"
-          ];
-          ExecStart = "${r2Tool}/bin/r2 verify";
-        };
+    {
+      systemd = r2Backup.verifyUnits {
+        inherit lib pkgs;
+        inherit (cfg) backup;
+        environmentFile = config.sops.templates.${envTemplate}.path;
+        name = backupName;
+        subject = "AgentsView";
       };
-
-      systemd.timers.agentsview-backup-verify = {
-        description = "Schedule the AgentsView backup check";
-        wantedBy = ["timers.target"];
-        timerConfig = {
-          OnCalendar = cfg.backup.verify.schedule;
-          Persistent = true;
-          RandomizedDelaySec = "15m";
-        };
-      };
-    })
+    }
   ];
 }

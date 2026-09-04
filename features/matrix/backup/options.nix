@@ -7,7 +7,9 @@
     (import ../../../lib/r2-backup.nix).options {
       inherit lib;
       defaultPrefix = "matrix";
+      defaultSchedule = "*-*-* 04:00:00";
       defaultSecretsFile = "${hostConfig.name}/host-r2.yaml";
+      defaultVerifySchedule = "*-*-* 06:40:00";
     }
     // {
       keep = lib.mkOption {

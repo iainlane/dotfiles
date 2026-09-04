@@ -7,14 +7,35 @@ let
   # every host. The matching private key is kept offline, and a restore needs
   # it.
   recipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
+
+  # What the credentials file has to carry. The bucket is addressed with an S3
+  # token scoped to it, so all four are needed to reach it at all.
+  credentialKeys = [
+    "r2_bucket"
+    "r2_endpoint"
+    "r2_access_key_id"
+    "r2_secret_access_key"
+  ];
+
+  # Archives, checks, and restores: `r2 backup`, `r2 verify`, and
+  # `r2 restore list|fetch`. What a service does with a restored tree is its
+  # own business.
+  tool = {pkgs}:
+    pkgs.writeShellApplication {
+      name = "r2";
+      runtimeInputs = with pkgs; [age coreutils gnutar jq rclone zstd];
+      text = builtins.readFile ./r2.sh;
+    };
 in {
-  inherit recipient;
+  inherit credentialKeys recipient tool;
 
   # Options a service exposes for the host to fill in, as an attribute set of
   # declarations the backup feature splices under its own root.
   options = {
     defaultPrefix,
+    defaultSchedule,
     defaultSecretsFile,
+    defaultVerifySchedule,
     lib,
   }: {
     secretsFile = lib.mkOption {
@@ -39,8 +60,12 @@ in {
 
     schedule = lib.mkOption {
       type = lib.types.str;
-      default = "*-*-* 04:00:00";
-      description = "systemd `OnCalendar` schedule for the backup.";
+      default = defaultSchedule;
+      description = ''
+        systemd `OnCalendar` schedule for the backup. Each service backing
+        itself up to R2 has a default hour of its own: one host runs several
+        of them, and `zstd -T0 -9` takes every core it is given.
+      '';
     };
 
     keepDays = lib.mkOption {
@@ -69,7 +94,7 @@ in {
 
       schedule = lib.mkOption {
         type = lib.types.str;
-        default = "*-*-* 06:00:00";
+        default = defaultVerifySchedule;
         description = ''
           systemd `OnCalendar` schedule for the check. It runs on a timer of
           its own so that a backup which never started is noticed as well,
@@ -108,6 +133,43 @@ in {
     };
   };
 
+  # Check that the R2 credentials file exists and has every required key.
+  # Without this, the failure comes at activation, as sops reporting a missing
+  # file.
+  assertions = {
+    lib,
+    secretsFile,
+    secretsPath,
+    subject,
+  }: let
+    lines =
+      lib.optionals (builtins.pathExists secretsFile)
+      (lib.splitString "\n" (builtins.readFile secretsFile));
+
+    missing =
+      lib.filter
+      (key: !(lib.any (line: lib.hasPrefix "${key}:" line) lines))
+      credentialKeys;
+  in [
+    {
+      assertion = builtins.pathExists secretsFile;
+      message = ''
+        ${subject} is backed up to Cloudflare R2, and the secrets
+        repository has no ${secretsPath}. Create it with these keys, one
+        per line:
+        ${lib.concatMapStringsSep "\n" (key: "  ${key}") credentialKeys}
+      '';
+    }
+
+    {
+      assertion = missing == [];
+      message = ''
+        ${subject} is backed up to Cloudflare R2, and ${secretsPath} is
+        missing ${lib.concatStringsSep ", " missing}.
+      '';
+    }
+  ];
+
   # The R2 credentials, as sops secrets and an environment file the upload
   # script reads them from.
   sopsFragment = {
@@ -142,13 +204,52 @@ in {
       Environment = ["TMPDIR=%C/${unitName}"] ++ serviceConfig.Environment or [];
     };
 
-  # Archives, checks, and restores: `r2 backup`, `r2 verify`, and
-  # `r2 restore list|fetch`. What a service does with a restored tree is its
-  # own business.
-  tool = {pkgs}:
-    pkgs.writeShellApplication {
-      name = "r2";
-      runtimeInputs = with pkgs; [age coreutils gnutar jq rclone zstd];
-      text = builtins.readFile ./r2.sh;
+  # The timed check that a backup reached the bucket, as a `systemd` fragment
+  # the service adds to its own configuration. Every service checks its own
+  # archives the same way, so the units are written once here.
+  #
+  # `name` prefixes the units and selects the archives, and is the same
+  # `BACKUP_NAME` the upload runs under.
+  verifyUnits = {
+    backup,
+    environmentFile,
+    lib,
+    name,
+    pkgs,
+    subject,
+  }: let
+    unit = "${name}-backup-verify";
+    r2 = tool {inherit pkgs;};
+  in
+    lib.mkIf backup.verify.enable {
+      services.${unit} = {
+        description = "Check the ${subject} R2 backup arrived";
+        requires = ["sops-install-secrets.service"];
+        after = ["network-online.target" "sops-install-secrets.service"];
+        wants = ["network-online.target"];
+
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = environmentFile;
+          Environment = [
+            "BACKUP_NAME=${name}"
+            "BACKUP_PREFIX=${backup.prefix}"
+            "BACKUP_MAX_AGE_HOURS=${toString backup.verify.maxAgeHours}"
+            "BACKUP_MIN_SIZE=${toString backup.verify.minSizeBytes}"
+            "BACKUP_MIN_COUNT=${toString backup.verify.minCount}"
+          ];
+          ExecStart = "${r2}/bin/r2 verify";
+        };
+      };
+
+      timers.${unit} = {
+        description = "Schedule the ${subject} backup check";
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = backup.verify.schedule;
+          Persistent = true;
+          RandomizedDelaySec = "15m";
+        };
+      };
     };
 }
