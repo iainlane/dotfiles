@@ -26,40 +26,46 @@
       homeSpecialArgs = home.mkHomeSpecialArgs {
         inherit hostConfig mcpByChannel pkgs pkgs-stable;
       };
+      # `stateVersion` is `nullOr str` on the host record because only NixOS
+      # reads it, and `system.stateVersion` is `str`. Refuse a NixOS host that
+      # leaves it null here, where the message can name the host; the type
+      # check would report it against `os/nixos/system.nix`.
       mkSystemConfig = homeDefinition:
-        channel.nixpkgs.lib.nixosSystem {
-          inherit (hostConfig) system;
-          pkgs = channel.primary;
-          modules =
-            [
-              sops.systemSopsModule
-              sops.linuxSystemSopsModule
-              ./system.nix
-              inputs.disko.nixosModules.disko
-              inputs.sops-nix.nixosModules.sops
-              inputs.lanzaboote.nixosModules.lanzaboote
-              config.flake.nix.substitutersModule
-            ]
-            ++ resolveFeatures {
-              class = "nixos";
-              inherit hostConfig;
-            }
-            ++ [
-              hostConfig.systemModule
-              channel.home-manager.nixosModules.home-manager
-              (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
-            ];
-          specialArgs = {
-            inherit
-              inputs
-              hostConfig
-              username
-              ;
-            mcp = mcpByChannel.${hostConfig.channel};
-            pkgs-stable = channel.stable;
-            pkgs-unstable = channel.unstable;
+        assert lib.assertMsg (hostConfig.stateVersion != null)
+        "Host '${hostConfig.name}' runs NixOS, so its record must set stateVersion.";
+          channel.nixpkgs.lib.nixosSystem {
+            inherit (hostConfig) system;
+            pkgs = channel.primary;
+            modules =
+              [
+                sops.systemSopsModule
+                sops.linuxSystemSopsModule
+                ./system.nix
+                inputs.disko.nixosModules.disko
+                inputs.sops-nix.nixosModules.sops
+                inputs.lanzaboote.nixosModules.lanzaboote
+                config.flake.nix.substitutersModule
+              ]
+              ++ resolveFeatures {
+                class = "nixos";
+                inherit hostConfig;
+              }
+              ++ [
+                hostConfig.systemModule
+                channel.home-manager.nixosModules.home-manager
+                (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
+              ];
+            specialArgs = {
+              inherit
+                inputs
+                hostConfig
+                username
+                ;
+              mcp = mcpByChannel.${hostConfig.channel};
+              pkgs-stable = channel.stable;
+              pkgs-unstable = channel.unstable;
+            };
           };
-        };
     }
   );
 in {
