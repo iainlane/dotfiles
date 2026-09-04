@@ -1,6 +1,5 @@
 import os
 import shutil
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,7 +25,6 @@ from claude_prompt_conformance.codex_rpc import (
 )
 from claude_prompt_conformance.models import (
     CodexAgentConfiguration,
-    CodexHostConfiguration,
     NetworkAccess,
     ProcessCapabilities,
     ProcessExchange,
@@ -34,6 +32,7 @@ from claude_prompt_conformance.models import (
     ProcessOutputRecord,
     ProcessResult,
 )
+from claude_prompt_conformance.platforms.codex import load_codex_host_configuration
 from claude_prompt_conformance.ports import ProcessSession
 from claude_prompt_conformance.process import ProcessSupervisor
 from claude_prompt_conformance.protocols.codex_app_server import (
@@ -99,6 +98,7 @@ class ExternalLoginContractSession(ProcessSession):
 
 
 @pytest.mark.host_integration
+@pytest.mark.timeout(180)
 def test_pinned_codex_app_server_reports_the_protocol_contract(
     tmp_path: Path,
 ) -> None:
@@ -132,7 +132,7 @@ def test_pinned_codex_app_server_reports_the_protocol_contract(
         request,
         CodexAgentConfiguration("gpt-5.6-terra", "high", "fast", "low", 272000),
         "/nix/conformance-mcp",
-        CodexHostConfiguration(mcp_servers=()),
+        load_codex_host_configuration(),
     )
     (codex_home / "config.toml").write_text(tomli_w.dumps(configuration))
     transcript = tmp_path / "config-read.jsonl"
@@ -176,13 +176,7 @@ def test_pinned_codex_app_server_reports_the_protocol_contract(
         effective.permissions["conformance_judge"],
         type=CodexPermissionProfile,
     )
-    enforced_path = Path("/etc/codex/managed_config.toml")
-    enforced = (
-        tomllib.loads(enforced_path.read_text()) if enforced_path.exists() else {}
-    )
-    expected_features = codex_effective_isolated_features() | enforced.get(
-        "features", {}
-    )
+    expected_features = codex_effective_isolated_features()
     assert (
         result,
         login_result,
@@ -253,12 +247,12 @@ def test_pinned_codex_app_server_reports_the_protocol_contract(
             openai_base_url="",
             chatgpt_base_url="https://chatgpt.com/backend-api/",
         ),
-        enforced.get("web_search", "disabled"),
+        "disabled",
         (),
         "",
         "",
         None,
-        enforced.get("personality", "none"),
+        "none",
         CodexCompactionConfiguration("", None, None),
         CodexModelRequestConfiguration("fast", "low", 272000),
     )
