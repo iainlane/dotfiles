@@ -2,14 +2,14 @@
 # and the long-running gateway container.
 {
   config,
-  inputs,
+  hermesBuilders,
   lib,
   pkgs,
   ...
 }: let
   cfg = config.dotfiles.hermes;
   inherit
-    (import ./builders.nix {inherit config inputs lib pkgs;})
+    (hermesBuilders)
     hostCliPackage
     hermesStateVolume
     hermesHomeVolume

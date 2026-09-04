@@ -15,6 +15,7 @@
       inputs,
       lib,
       pkgs,
+      quadlet,
       ...
     }: let
       cfg = config.dotfiles.dex;
@@ -33,8 +34,6 @@
       stateVolume = "dex-state";
 
       issuer = "https://${cfg.expose.domain}";
-
-      quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 

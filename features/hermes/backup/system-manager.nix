@@ -3,13 +3,14 @@
 # restore.
 {
   config,
+  hermesBuilders,
   inputs,
   lib,
   pkgs,
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  inherit (import ../builders.nix {inherit config inputs lib pkgs;}) hermesStateVolume;
+  inherit (hermesBuilders) hermesStateVolume;
   r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";

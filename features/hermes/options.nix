@@ -3,9 +3,9 @@
   lib,
   options,
   pkgs,
+  quadlet,
   ...
 }: let
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
   presence = import ../../lib/presence.nix {inherit lib;};
   yaml = pkgs.formats.yaml {};
 in {

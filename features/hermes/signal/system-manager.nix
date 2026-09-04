@@ -2,15 +2,16 @@
 # over a private podman network, plus the secrets and env that point it there.
 {
   config,
+  hermesBuilders,
   inputs,
   lib,
   pkgs,
+  quadlet,
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  quadlet = import ../../../lib/quadlet.nix {inherit lib;};
   inherit
-    (import ../builders.nix {inherit config inputs lib pkgs;})
+    (hermesBuilders)
     mkNixImage
     hermesUser
     hermesNss

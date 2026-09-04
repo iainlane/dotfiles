@@ -15,6 +15,7 @@
       inputs,
       lib,
       pkgs,
+      quadlet,
       ...
     }: let
       cfg = config.dotfiles.matrix;
@@ -103,7 +104,7 @@
         );
 
       matrixContainer = import ./container.nix {
-        inherit adminConfigPath backup configFile configPath databasePath cfg lib pkgs package stateVolume;
+        inherit adminConfigPath backup configFile configPath databasePath cfg lib pkgs package quadlet stateVolume;
         adminConfigFile = config.sops.templates."continuwuity-admin.toml".path;
         image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
       };

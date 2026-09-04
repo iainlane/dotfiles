@@ -10,10 +10,10 @@
   lib,
   package,
   pkgs,
+  quadlet,
   stateVolume,
 }: let
   healthUrl = "http://127.0.0.1:${toString cfg.port}/_matrix/client/versions";
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
 in {
   autoStart = true;
 

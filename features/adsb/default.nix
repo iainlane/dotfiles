@@ -15,6 +15,7 @@
       inputs,
       lib,
       pkgs,
+      quadlet,
       ...
     }: let
       cfg = config.dotfiles.adsb;
@@ -35,7 +36,7 @@
       # public name and whether to require sign-in; the port tar1090 listens on
       # is ours to know.
       ultrafeederContainer = import ./ultrafeeder-container.nix {
-        inherit hostConfig lib network pkgs;
+        inherit hostConfig lib network pkgs quadlet;
         envFile = ultrafeederEnvFile;
       };
       exposeUltrafeeder = cfg.expose != null && config.dotfiles.containers.edgeProxy.enable;

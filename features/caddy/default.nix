@@ -24,6 +24,7 @@ in {
       inputs,
       lib,
       pkgs,
+      quadlet,
       serviceNetwork,
       ...
     }: let
@@ -32,7 +33,6 @@ in {
       idp = config.dotfiles.containers.identityProvider;
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
-      quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
       # This plugin answers the ACME DNS-01 challenge. The issuer gives a
       # certificate and connects to nothing on this host.

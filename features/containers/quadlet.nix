@@ -20,25 +20,33 @@ in {
     ./vendored/system-manager-dropin-units.nix
   ];
 
-  config = lib.mkIf config.virtualisation.podman.enable {
-    assertions = [
-      {
-        assertion = unsafeAutoUsernsVolumes == [];
-        message = ''
-          Containers using `userns=auto` must mount every named volume
-          with `idmap`:
-          ${lib.concatMapStringsSep "\n" (
-              volume: "  ${volume.container}: ${volume.mount}"
-            )
-            unsafeAutoUsernsVolumes}
-        '';
-      }
-    ];
+  config = lib.mkMerge [
+    {
+      # The typed mount helpers in `lib/quadlet.nix`, for every feature that
+      # declares a container.
+      _module.args.quadlet = quadlet;
+    }
 
-    # The quadlet generator comes from podman itself, which the podman module
-    # puts in `systemd.packages`. Naming the same package here means the
-    # command lines quadlet-nix writes into the units it generates run the
-    # podman that generated them.
-    virtualisation.quadlet.podmanPackage = config.virtualisation.podman.package;
-  };
+    (lib.mkIf config.virtualisation.podman.enable {
+      assertions = [
+        {
+          assertion = unsafeAutoUsernsVolumes == [];
+          message = ''
+            Containers using `userns=auto` must mount every named volume
+            with `idmap`:
+            ${lib.concatMapStringsSep "\n" (
+                volume: "  ${volume.container}: ${volume.mount}"
+              )
+              unsafeAutoUsernsVolumes}
+          '';
+        }
+      ];
+
+      # The quadlet generator comes from podman itself, which the podman module
+      # puts in `systemd.packages`. Naming the same package here means the
+      # command lines quadlet-nix writes into the units it generates run the
+      # podman that generated them.
+      virtualisation.quadlet.podmanPackage = config.virtualisation.podman.package;
+    })
+  ];
 }

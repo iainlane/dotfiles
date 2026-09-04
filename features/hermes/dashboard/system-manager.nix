@@ -8,9 +8,9 @@
 {
   config,
   exposePodman,
+  hermesBuilders,
   inputs,
   lib,
-  pkgs,
   ...
 }: let
   cfg = config.dotfiles.hermes;
@@ -31,7 +31,7 @@
     then "0.0.0.0"
     else dashboard.address;
 
-  inherit (import ../builders.nix {inherit config inputs lib pkgs;}) mkHermesContainer;
+  inherit (hermesBuilders) mkHermesContainer;
 
   dashboardContainer = mkHermesContainer {
     description = "Hermes Agent Web Dashboard";

@@ -1,8 +1,4 @@
-{
-  config,
-  lib,
-  ...
-}: let
+{config, ...}: let
   inherit (config.flake) features;
   children = features.hermes.provides;
   defaultModels = import ../ai/models.nix;
@@ -27,6 +23,12 @@ in {
     includes = [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
 
     systemManager = {
+      config,
+      inputs,
+      lib,
+      pkgs,
+      ...
+    }: {
       imports = [
         ./options.nix
         ./core.nix
@@ -39,6 +41,11 @@ in {
       ];
 
       config = {
+        # The image builder, the container template and the state volume names.
+        # Five modules here build on them; built once, each module takes the
+        # argument and the image is constructed one time per evaluation.
+        _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
+
         dotfiles.hermes.settings = {
           model.default = lib.mkDefault defaultModels.openai;
           fallback_providers = lib.mkDefault [

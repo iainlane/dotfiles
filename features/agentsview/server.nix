@@ -18,7 +18,6 @@
     inherit lib;
     inherit (config.flake) features;
   };
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
 
   pushers = common.syncingHosts config.flake.hosts;
 
@@ -39,6 +38,7 @@ in {
     exposePodman,
     lib,
     pkgs,
+    quadlet,
     serviceNetwork,
     ...
   }: let

@@ -4,9 +4,8 @@
   pkgs,
   envFile,
   network,
+  quadlet,
 }: let
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
-
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder versioning=docker
   tag = "latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
   image = "ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:${tag}";

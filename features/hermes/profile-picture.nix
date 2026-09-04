@@ -3,15 +3,15 @@
 # image, and updates every enabled platform from there.
 {
   config,
-  inputs,
+  hermesBuilders,
   lib,
+  quadlet,
   pkgs,
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  quadlet = import ../../lib/quadlet.nix {inherit lib;};
   inherit
-    (import ./builders.nix {inherit config inputs lib pkgs;})
+    (hermesBuilders)
     mkNixImage
     hermesUser
     hermesNss
