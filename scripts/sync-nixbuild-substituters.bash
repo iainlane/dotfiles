@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils openssh
+#!nix-shell -i bash -p bash coreutils jq openssh
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -17,14 +17,22 @@ ensure_repo_root
 
 tmp="$(make_temp_file)"
 
+binary_caches="$(nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches)"
+
 mapfile -t substituters < <(
-	nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches |
-		nix run nixpkgs#jq -- -r 'to_entries[] | (.value.substituter // ("https://" + .key))'
+	printf '%s' "${binary_caches}" |
+		jq -r 'to_entries[] | (.value.substituter // ("https://" + .key))'
 )
 mapfile -t trusted_public_keys < <(
-	nix eval --json -f ./lib/nix/cache-settings.nix binaryCaches |
-		nix run nixpkgs#jq -- -r 'to_entries[].value.publicKeys[]'
+	printf '%s' "${binary_caches}" |
+		jq -r 'to_entries[].value.publicKeys[]'
 )
+
+# The command file starts by resetting both lists, so sending it with either
+# list empty would drop the account back to nixbuild.net's own defaults.
+if ((${#substituters[@]} == 0)) || ((${#trusted_public_keys[@]} == 0)); then
+	die "lib/nix/cache-settings.nix yielded ${#substituters[@]} substituters and ${#trusted_public_keys[@]} trusted public keys; leaving the account settings alone"
+fi
 
 {
 	echo "settings substituters --reset"
