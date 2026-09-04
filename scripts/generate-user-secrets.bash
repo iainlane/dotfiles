@@ -3,8 +3,11 @@
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
-# Prompt for the user's host password, encrypt it and the user SSH key, and
-# register the SSH key with GitHub.
+# Prompt for the user's host password, hash it, and encrypt the hash and the
+# user SSH private key.
+#
+# `generate-host-keys` registers the matching public key with GitHub once the
+# secrets repository has been pushed.
 #
 # Usage: generate-user-secrets <host> <secrets_dir> <keys_dir>
 
@@ -47,7 +50,3 @@ ssh_key_plaintext="$(make_secret_temp_file)"
 } >"${ssh_key_plaintext}"
 encrypt_yaml_file "${ssh_key_plaintext}" "${host}/user-ssh-key.yaml"
 echo "    Created ${host}/user-ssh-key.yaml"
-
-log_step "Adding user SSH key to GitHub"
-gh ssh-key add "${keys_dir}/id_ed25519.pub" --title "${USER}@${host}"
-echo "    Added ${USER}@${host} to GitHub SSH keys"
