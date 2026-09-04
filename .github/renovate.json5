@@ -52,6 +52,16 @@
       ignoreUnstable: false,
       pinDigests: false,
     },
+
+    // `.github/workflows/cupboard.yml` calls this repository's own publish
+    // wrapper at `@main`, and the laney tenant's trust policy matches its
+    // `job_workflow_ref` on `refs/heads/main`. The global `pinDigests` for
+    // github-actions would rewrite that to a commit and then raise a digest
+    // update after every push to main.
+    {
+      matchPackageNames: ["iainlane/dotfiles"],
+      pinDigests: false,
+    },
   ],
 
   // Custom Managers for comment-based versioning
@@ -59,7 +69,7 @@
     {
       customType: "regex",
       description: "Update versions in YAML and Nix files using renovate comments",
-      managerFilePatterns: ["/\\.ya?ml$/", "/\\.yml$/", "/\\.nix$/"],
+      managerFilePatterns: ["/\\.ya?ml$/", "/\\.nix$/"],
       matchStrings: [
         // YAML writes `key: value` and Nix writes `key = "value";`, so the
         // separator takes surrounding space and the value stops at the quote
