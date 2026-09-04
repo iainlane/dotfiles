@@ -34,16 +34,32 @@
   # feature reached more than once appears once. The includes under
   # `os.<os>` are followed only for the host's OS. An include cycle is an
   # error: `closure` throws and names the features in the cycle.
+  #
+  # `excludes` names features to drop. A dropped feature contributes no
+  # modules and its own includes are not followed, so excluding a feature
+  # also excludes whatever only it brings in. The result is `ordered`, the
+  # features in composition order, and `excluded`, the names actually
+  # dropped, which `excludeError` reads to tell an exclude that did nothing
+  # from one that did.
   closure = {
     features,
     os,
+    excludes ? [],
   }: let
+    excludedNames = map (feature: feature.name) excludes;
+
     includesOf = feature:
       feature.includes ++ lib.attrByPath ["os" os "includes"] [] feature;
 
     walk = state: path: feature:
       if state.seen ? ${feature.name}
       then state
+      else if lib.elem feature.name excludedNames
+      then {
+        seen = state.seen // {${feature.name} = true;};
+        inherit (state) ordered;
+        excluded = state.excluded ++ [feature.name];
+      }
       else if lib.elem feature.name path
       then throw "Feature '${feature.name}' includes itself: ${lib.concatStringsSep " -> " (path ++ [feature.name])}"
       else let
@@ -55,24 +71,49 @@
       in {
         seen = withIncludes.seen // {${feature.name} = true;};
         ordered = withIncludes.ordered ++ [feature];
+        inherit (withIncludes) excluded;
       };
 
     result =
       lib.foldl' (state: feature: walk state [] feature) {
         seen = {};
         ordered = [];
+        excluded = [];
       }
       features;
-  in
-    result.ordered;
+  in {
+    inherit (result) ordered excluded;
+  };
 
-  featureNames = args: map (feature: feature.name) (closure args);
+  # The message for an `excludes` list the host's composition cannot act on,
+  # or null when it can. A feature the host also lists is asked for and
+  # refused at once; a feature the closure never reaches is a name that
+  # changes nothing, usually a typo or a leftover.
+  excludeError = {
+    name,
+    features,
+    excludes,
+    excluded,
+  }: let
+    excludedNames = map (feature: feature.name) excludes;
+
+    listed = lib.intersectLists (map (feature: feature.name) features) excludedNames;
+
+    unreached = lib.subtractLists excluded excludedNames;
+  in
+    if listed != []
+    then "Host '${name}' both lists and excludes: ${lib.concatStringsSep ", " listed}."
+    else if unreached != []
+    then "Host '${name}' excludes features nothing on it includes: ${lib.concatStringsSep ", " unreached}."
+    else null;
+
+  featureNames = args: map (feature: feature.name) (closure args).ordered;
 
   # Whether the host has the feature called `name`, directly or through an
   # include.
   hasFeature = hostConfig: name: lib.elem name hostConfig.featureNames;
 
-  # The modules of class `class` from `features` and everything they include.
+  # The modules of class `class` from `ordered`, a closure's feature list.
   #
   # Each feature contributes, in order: its `<class>` module, its `system`
   # module when `class` is the module system that builds this OS, its
@@ -83,7 +124,7 @@
     class,
     os,
     kernel,
-    features,
+    ordered,
   }: let
     systemClass = systemClassFor os;
 
@@ -97,15 +138,31 @@
         ]
       );
   in
-    lib.concatMap modulesOf (closure {inherit features os;});
+    lib.concatMap modulesOf ordered;
 
+  # The modules of class `class` for a host, refusing an `excludes` list its
+  # composition cannot act on. Every class of every host goes through here,
+  # so the refusal reaches whichever output is being built.
   resolveFeatures = {
     class,
     hostConfig,
-  }:
-    modulesFor {
-      inherit class;
-      inherit (hostConfig) os features;
-      kernel = kernelFor hostConfig.system;
+  }: let
+    resolved = closure {
+      inherit (hostConfig) features os excludes;
     };
+
+    error = excludeError {
+      inherit (hostConfig) name features excludes;
+      inherit (resolved) excluded;
+    };
+  in
+    if error != null
+    then throw error
+    else
+      modulesFor {
+        inherit class;
+        inherit (hostConfig) os;
+        inherit (resolved) ordered;
+        kernel = kernelFor hostConfig.system;
+      };
 }

@@ -118,6 +118,11 @@
         default = [];
         description = "Entries of `flake.features`. Each one brings the features it includes.";
       };
+      excludes = lib.mkOption {
+        type = lib.types.listOf helpers.featureType;
+        default = [];
+        description = "Entries of `flake.features` this host drops. An excluded feature contributes no modules and its own includes are not followed. Listing a feature and excluding it, or excluding one this host's features never reach, is an error.";
+      };
       channel = lib.mkOption {
         type = lib.types.enum ["stable" "unstable"];
         default = "unstable";
@@ -158,7 +163,7 @@
       featureNames = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         readOnly = true;
-        default = helpers.featureNames {inherit (config) features os;};
+        default = helpers.featureNames {inherit (config) features os excludes;};
         description = "The name of every feature the host has, including the ones its features include.";
       };
       homeDirectory = lib.mkOption {

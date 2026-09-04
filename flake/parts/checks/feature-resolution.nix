@@ -41,14 +41,17 @@
     darwin = "aarch64-darwin";
   };
 
-  resolve = class: os: features:
+  resolveExcluding = excludes: class: os: features:
     helpers.resolveFeatures {
       inherit class;
       hostConfig = {
-        inherit os features;
+        name = "fixture";
+        inherit os features excludes;
         system = systemFor.${os};
       };
     };
+
+  resolve = resolveExcluding [];
 
   throws = expr: !(builtins.tryEval (builtins.deepSeq expr true)).success;
 
@@ -79,6 +82,18 @@
     includes = [zsh];
     homeManager = "shell-home";
     os.nixos.includes = [openssh];
+  };
+
+  # A feature whose child includes a feature of its own, so excluding the
+  # child has to leave `direnv` out as well.
+  direnv = mkFeature "editor.direnv" {homeManager = "editor-direnv-home";};
+  prompt = mkFeature "editor.prompt" {
+    includes = [direnv];
+    homeManager = "editor-prompt-home";
+  };
+  editor = mkFeature "editor" {
+    includes = [prompt];
+    homeManager = "editor-home";
   };
 
   terminal = mkFeature "terminal" {
@@ -207,6 +222,41 @@
         helpers.hasFeature hostConfig "base"
         && helpers.hasFeature hostConfig "git"
         && !(helpers.hasFeature hostConfig "borgmatic");
+    }
+    {
+      name = "an excluded child is dropped and its parent still resolves";
+      pass = resolveExcluding [zsh] "homeManager" "darwin" [shell] == ["shell-home"];
+    }
+    {
+      name = "an excluded feature's own includes are not followed";
+      pass = resolveExcluding [prompt] "homeManager" "darwin" [editor] == ["editor-home"];
+    }
+    {
+      name = "an excluded top-level feature is dropped wherever it is reached";
+      pass = resolveExcluding [git] "homeManager" "darwin" [base] == ["gh-home" "base-home"];
+    }
+    {
+      name = "a feature both listed and excluded is refused";
+      pass = throws (resolveExcluding [base] "homeManager" "darwin" [base]);
+    }
+    {
+      name = "an exclude the closure never reaches is refused";
+      pass = throws (resolveExcluding [borgmatic] "homeManager" "darwin" [shell]);
+    }
+    {
+      name = "hasFeature answers over a closure with an exclusion";
+      pass = let
+        hostConfig = {
+          featureNames = helpers.featureNames {
+            features = [editor];
+            os = "darwin";
+            excludes = [prompt];
+          };
+        };
+      in
+        helpers.hasFeature hostConfig "editor"
+        && !(helpers.hasFeature hostConfig "editor.prompt")
+        && !(helpers.hasFeature hostConfig "editor.direnv");
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";
