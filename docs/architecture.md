@@ -170,6 +170,97 @@ features it includes, emits each feature once, and reports an include cycle by
 naming it. The check in `flake/parts/checks/feature-resolution.nix` pins that
 behaviour against fixtures.
 
+## Options
+
+Composition decides what a host runs. The module system is still where values
+live, because that is where types, defaults, merging and error messages come
+from, but a feature never asks a host to switch it on: giving the host the
+feature does that. Six rules follow, and every option this repository declares
+keeps to them.
+
+1. **Presence is the switch.** A feature or child never declares an `enable`
+   that a host sets. A module written as an ordinary NixOS service module for a
+   package keeps its own `enable` and the feature sets it, which is what
+   `services.falcon-sensor` is.
+2. **Every switch is a child feature.** A parent includes the children it
+   carries by default, and a host drops the ones it does not want through
+   `excludes`. So `hermes` includes `signal`, `matrix`, `dashboard`,
+   `homeassistant`, `soul`, `agents`, `mcp`, `embeddings` and `backup`; `caddy`
+   includes `auth` and `origin-auth`; `agentsview-server` and `matrix` include
+   `backup`.
+3. **Host values reach a feature through `hostConfig`.** No class module reads
+   `config.flake.hosts`. A module body may call `hasFeature` when one feature's
+   behaviour depends on another being present on the host, but it cannot decide
+   an `includes` list, because includes are registry-level and no host is in
+   scope there; the only host-dependent include is `os.<os>.includes`. A value
+   more than one feature needs is a typed field of the host record (`name`,
+   `hostname`, `os`, `arch`, `channel`, `stateVersion`, `motd`, `timezone`,
+   `flakePath`). A value one feature needs is that feature's option, which the
+   host sets in `systemModule` or `homeModule`. Every `secretsFile` defaults to
+   `<hostConfig.name>/host-<feature>.yaml`, and a child defaults to its
+   parent's, so a host sets one only to deviate.
+4. **One root for everything the repository declares.** Every option lives under
+   `dotfiles.<declaring feature or child>`, camelCased. A switch child nests
+   under its parent's root (`dotfiles.hermes.signal.*`,
+   `dotfiles.caddy.auth.*`); every other child has a root of its own. Options
+   that the flake-parts modules read, and that no host's class module sees, live
+   under `flake.` (`flake.username`, `flake.operatingSystems`). The exceptions
+   are modules that mirror an upstream module's shape and could be upstreamed as
+   they are: `services.falcon-sensor`, `virtualisation.quadlet` and
+   `virtualisation.containers.idRanges`.
+5. **Options hold data, not functions.** A function is a module argument.
+   `exposePodman`, `serviceNetwork` and `mkLanguageShell` are set through
+   `_module.args`.
+6. **`readOnly` marks a derived value**, never a default a host might want to
+   change.
+
+### Excludes
+
+`flake.hosts.<name>.excludes` lists features the resolver drops from that host's
+closure. A dropped feature contributes no modules and its own includes are not
+followed, so excluding a feature also leaves out whatever only it brings in.
+`closure` returns the features in composition order and the names it dropped,
+and both `featureNames` and the module list derive from it, so `hasFeature` and
+the modules cannot disagree. Two `excludes` lists are refused: a feature the
+host also lists, which asks for it and refuses it at once, and a feature the
+closure never reaches, which changes nothing.
+
+```nix
+flake.hosts.example = {
+  features = [features.base features.hermes];
+  excludes = [features.hermes.provides.signal];
+};
+```
+
+### Presence options
+
+A parent often has to know which of its children a host composed: hermes adds
+the signal network to the agent's container, its backup waits for the dashboard
+before restoring, and Caddy refuses a site that asks for sign-in when no sign-in
+service is there. The child publishes that, by defining one boolean the parent
+declares:
+
+```nix
+# features/hermes/options.nix, in the parent
+signal.present = presence.option "the Signal platform, ...";
+
+# features/hermes/signal/system-manager.nix, in the child
+dotfiles.hermes.signal.present = true;
+```
+
+The parent declares it so that the option exists on a host that excludes the
+child, where the parent reads `false`. `lib/presence.nix` defines the
+declaration and an assertion that only the child's own module defines it, so a
+host that sets one is told to change its composition.
+
+The child declares the value options nobody else reads, and the parent reaches
+those only inside a branch on the presence option, which is lazy. An option the
+parent reads while building something unconditionally stays with the parent.
+
+Where the parent needs a list or an attribute set, the child defines into an
+option of that type that the parent declares, and the module system's merge
+combines the definitions.
+
 ## OS adapters
 
 For a given host, the features resolve to a flat list of modules for each module
@@ -203,9 +294,7 @@ pushed with `deploy .#<host>`.
 
 ## Helper layout
 
-`lib/` is split by responsibility; `lib/helpers.nix` is a thin aggregator that
-wires the pieces together and re-exports the stable surface the rest of the
-flake imports as `helpers`:
+`lib/` is split by responsibility, and each caller imports the file it needs:
 
 | File                | Responsibility                                        |
 | ------------------- | ----------------------------------------------------- |
@@ -213,5 +302,6 @@ flake imports as `helpers`:
 | `lib/features.nix`  | feature resolution: includes, ordering, class modules |
 | `lib/home.nix`      | Home Manager module + `specialArgs` assembly          |
 | `lib/nixbuild.nix`  | the nixbuild.net account constants, read by CI too    |
+| `lib/presence.nix`  | the option a child feature defines to say it is there |
 | `lib/sops.nix`      | sops-nix module fragments                             |
 | `lib/projects.nix`  | project shell / direnv generation                     |
