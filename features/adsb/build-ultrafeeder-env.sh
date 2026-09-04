@@ -1,12 +1,12 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 set -euo pipefail
 
 # Build the Ultrafeeder feed settings right before start so this host always
 # uses stable IDs and sends data to all configured aggregators with a different
 # UUID for each.
 
-# This script runs in `ExecStartPre` of the `podman-ultrafeeder` unit. It builds
-# a runtime env file with UUID and ULTRAFEEDER_CONFIG derived from:
+# This script runs in `ExecStartPre` of the `ultrafeeder.service` unit. It
+# builds a runtime env file with UUID and ULTRAFEEDER_CONFIG derived from:
 #
 # 1) The per-machine ID in `/etc/machine-id`.
 # 2) `ADSB_TARGETS` sourced from `./ultrafeeder-config.nix`.
@@ -49,8 +49,10 @@ mk_uuid() {
 station_uuid="$(mk_uuid "station:${machine_id}")"
 ultrafeeder_config=""
 
-# Generate one ADS-B and one MLAT connector for every target.
-# Each target gets a deterministic UUID: <target name>:<machine-id>.
+# Generate one ADS-B and one MLAT connector for every target. Each target gets
+# a UUID of its own, hashed from "<target name>:<machine id>", so the same host
+# is a different feeder to each aggregator and keeps that identity across
+# restarts.
 IFS=';' read -r -a targets <<<"${ADSB_TARGETS}"
 for target in "${targets[@]}"; do
 	[ -n "${target}" ] || continue

@@ -4,7 +4,7 @@
   ultrafeederService,
 }: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-flightradar24 versioning=docker
-  tag = "latest";
+  tag = "latest@sha256:917e53402d5158800eef746839dfb722e30cd3b21019e3bc318abb4f3d807c03";
   image = "ghcr.io/sdr-enthusiasts/docker-flightradar24:${tag}";
 in {
   autoStart = true;
@@ -12,7 +12,6 @@ in {
   containerConfig = {
     inherit image;
     networks = [network];
-    publishPorts = ["8754:8754"];
 
     environments = {
       BEASTHOST = "ultrafeeder";

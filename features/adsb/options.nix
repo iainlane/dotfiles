@@ -2,15 +2,10 @@
   hostConfig,
   lib,
   ...
-}: {
-  options.dotfiles.adsb = {
-    secretsFile = lib.mkOption {
-      type = lib.types.str;
-      default = "${hostConfig.name}/host-adsb.yaml";
-      description = "Filename within the secrets input containing adsb secrets.";
-    };
-
-    expose = lib.mkOption {
+}: let
+  exposeOption = subject:
+    lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule (import ../../lib/exposed-service.nix));
       default = null;
       example = lib.literalExpression ''
         {
@@ -19,11 +14,29 @@
         }
       '';
       description = ''
-        Serve the tar1090 map through the host's reverse proxy. Leave null and
-        the feeder keeps to its own network, where only the containers sharing
-        it can reach the map.
+        Serve ${subject} through the host's reverse proxy. Left null, the
+        container keeps to the feeder network, where only the containers
+        sharing it reach it.
       '';
-      type = lib.types.nullOr (lib.types.submodule ../../lib/exposed-service.nix);
     };
+in {
+  options.dotfiles.adsb = {
+    secretsFile = lib.mkOption {
+      type = lib.types.str;
+      default = "${hostConfig.name}/host-adsb.yaml";
+      example = "ancaster/host-adsb.yaml";
+      description = ''
+        Path, relative to the `secrets` flake input, of the sops file holding
+        `latitude`, `longitude`, `altitude`, `piaware_feeder_id`,
+        `fr24_sharing_key` and `planewatch_api_key`. The feeders run as system
+        services, so this file is encrypted to the host key.
+      '';
+    };
+
+    expose = exposeOption "the tar1090 map";
+
+    piaware.expose = exposeOption "piaware's own status page";
+
+    fr24.expose = exposeOption "the FlightRadar24 feeder's own status page";
   };
 }

@@ -4,7 +4,7 @@
   ultrafeederService,
 }: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-piaware versioning=docker
-  tag = "latest";
+  tag = "latest@sha256:086f48dfbb31d7551e40c0d3d57a6b4727eb54aa184e5c438ca57151740e299c";
   image = "ghcr.io/sdr-enthusiasts/docker-piaware:${tag}";
 in {
   autoStart = true;
@@ -12,7 +12,6 @@ in {
   containerConfig = {
     inherit image;
     networks = [network];
-    publishPorts = ["8081:80"];
 
     environments = {
       TZ = "UTC";

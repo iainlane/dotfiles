@@ -5,6 +5,7 @@
   envFile,
   network,
   quadlet,
+  volumes,
 }: let
   # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder versioning=docker
   tag = "latest-build-897@sha256:1f99603ea0dd461622e1751c794ec5701eff944fe86455f91fb02bc27164a5aa";
@@ -20,7 +21,6 @@
   mlathubTargetsCsv = lib.concatStringsSep ";" (map (target: "${target.name},${target.host},${toString target.port},${target.protocol}") mlathubTargets);
   runtimeConfigBuilder = pkgs.writeShellScript "adsb-build-ultrafeeder-env" (builtins.readFile ./build-ultrafeeder-env.sh);
 
-  volumePrefix = "adsb-${hostConfig.hostname}";
   feederName = hostConfig.hostname;
 
   healthCheck = "curl -fsS --max-time 5 http://localhost/data/aircraft.json | jq -e '(now - .now) < 30'";
@@ -95,11 +95,11 @@ in {
         target = "/dev/bus/usb";
       }
       {
-        source.podmanVolume = "${volumePrefix}-globe-history";
+        source.quadletVolume = volumes.globeHistory;
         target = "/var/globe_history";
       }
       {
-        source.podmanVolume = "${volumePrefix}-graphs1090";
+        source.quadletVolume = volumes.graphs;
         target = "/var/lib/collectd";
       }
       {

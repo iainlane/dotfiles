@@ -49,6 +49,8 @@ in {
         adsb = {
           secretsFile = "adsb.yaml";
           expose.domain = "adsb.orangesquash.org.uk";
+          piaware.expose.domain = "piaware.orangesquash.org.uk";
+          fr24.expose.domain = "fr24.orangesquash.org.uk";
         };
 
         agentsviewServer.expose = {
