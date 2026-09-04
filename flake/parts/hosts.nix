@@ -93,13 +93,16 @@
       };
       os = lib.mkOption {
         type = lib.types.enum outerConfig.flake.operatingSystems;
+        description = "The operating system the machine runs. It decides which module system builds the host and which flake output the result appears under.";
       };
       arch = lib.mkOption {
         type = lib.types.enum ["x86_64" "aarch64"];
+        description = "The machine's CPU architecture. With the OS it makes the host's Nix system string.";
       };
       hostname = lib.mkOption {
         type = lib.types.str;
         default = name;
+        description = "The machine's network name. NixOS sets `networking.hostName` to it and the ADS-B feeder registers under it. A machine with a domain gives its fully qualified name here; `name` is the short name.";
       };
       features = lib.mkOption {
         type = lib.types.listOf features.featureType;
@@ -128,18 +131,21 @@
       stateVersion = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
+        description = "The value of `system.stateVersion`: the NixOS release whose defaults for stateful data the host keeps. Only the NixOS adapter reads it, so hosts on the other two operating systems leave it null.";
       };
       timezone = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Timezone in TZ format, e.g. 'Europe/London'. Set to null to skip timezone configuration and let `systemd-timedated` manage.";
+        description = "Timezone in TZ format, e.g. 'Europe/London'. Only the NixOS adapter reads it. Set it to null to leave the timezone to `systemd-timedated`.";
       };
       locale = lib.mkOption {
         type = lib.types.str;
         default = "en_GB.UTF-8";
+        description = "The default locale, as `i18n.defaultLocale`. Only the NixOS adapter reads it.";
       };
       motd = lib.mkOption {
         type = lib.types.str;
+        description = "The message of the day, which the base feature writes to `~/.motd` for the shell to print at login.";
       };
       flakePath = lib.mkOption {
         type = lib.types.str;
