@@ -80,9 +80,9 @@ installs.
 
 ### Hosts
 
-Hosts represent machines. A host record defines OS/architecture and the features
-the host has, with optional per-host overrides. Each file under `hosts/` is a
-flake-parts module that sets `flake.hosts.<name>`:
+Hosts represent machines. A host record defines OS/architecture, the features
+the host has, and any configuration that applies to this host alone. Each file
+under `hosts/` is a flake-parts module that sets `flake.hosts.<name>`:
 
 ```nix
 {config, ...}: let
@@ -101,7 +101,7 @@ in {
       features.work
     ];
 
-    # Optional per-host overrides
+    # Configuration for this host alone
     homeModule = {
       programs.git.settings.user.email = "work@example.com";
     };
@@ -117,14 +117,13 @@ in {
 ./bootstrap.sh
 ```
 
-Read the script. It's trivial.
+It installs Determinate Nix, adds the sudo group to `trusted-users`, and
+restarts the daemon.
 
 ### Running
 
-We provide [`just`][just] targets. Run `./just --list` to see what is available,
-then use the command below for normal maintenance:
-
-tl;dr. Run:
+We provide [`just`][just] targets. Run `./just --list` to see what is available.
+For normal maintenance, run:
 
 ```bash
 ./just update
@@ -148,6 +147,17 @@ Update flake inputs to their latest versions. Give flake names as arguments,
 e.g. `./just update-flake llm-agents` to only update those ones. That can be
 useful to not update _everything_ at once.
 
+An input pinned to a release tag in its URL, such as `hermes-agent`, does not
+move this way. `update-pkgs` moves those.
+
+#### `./just update-pkgs`
+
+Run every registered updater. A package updater refreshes that package's source
+metadata and any dependency pins it needs. A tag-pinned flake input's updater
+moves the release tag in `flake.nix` and relocks that input.
+`./just update-pkg <name>` runs a single one, for example
+`./just update-pkg chainctl` or `./just update-pkg hermes-agent`.
+
 #### `./just update-system`
 
 Update both system and home configuration.
@@ -159,7 +169,7 @@ always updates both system and home together._
 
 Update `home-manager` user-level configuration only.
 
-####  `./just build-direnvs`
+#### `./just build-direnvs`
 
 Pre-build `direnv` shells for all configured project directories. This just
 means you don't have to wait when first `cd`ing into a project directory after a
@@ -172,7 +182,7 @@ broader static analysis, and `./just lint` to run them both.
 
 ### Debugging and exploration
 
-To find packages, run `./just search <query>` and `./just info <package>`,
+To find packages, run `./just search <query>` and `./just info <package>`.
 
 Try `./just why <package>` and `./just deps <package>` to trace why something is
 installed. If a build fails, inspect logs with `./just log <package>`, and open
@@ -184,13 +194,15 @@ with `./just diff <gen1> <gen2>`.
 
 ## NixOS
 
-Some hosts in this repo are full [NixOS] hosts rather than `nix-darwin` or
-`system-manager` machines. You can find them in `hosts/` by looking for host
+Some hosts in this repo are full [NixOS][nixos] hosts rather than `nix-darwin`
+or `system-manager` machines. You can find them in `hosts/` by looking for host
 records with `os = "nixos"`.
 
 Like everything else in this repo, these systems are declarative. Since we're
 talking about a full OS install, we need a way to provision the system. The
 steps below walk through this.
+
+[nixos]: https://nixos.org/
 
 ### Generating keys
 
@@ -246,8 +258,8 @@ After the initial install, push configuration changes with:
 
 ### Cleanup
 
-Track disk usage growth with `./just size` and `./just sizes`, prune older
-version with `./just gc <days>` (defaults to 30).
+Track disk usage growth with `./just size` and `./just sizes`, and delete
+generations older than `<days>` with `./just gc <days>` (defaults to 30).
 
 ### New host
 
@@ -265,9 +277,9 @@ Create `hosts/HOSTNAME.nix` to add a new host:
 }
 ```
 
-A NixOS host is a directory instead, `hosts/HOSTNAME/`, because the NixOS
-adapter imports `hardware.nix` and `disks.nix` from beside its `default.nix`.
-`hosts/bonington/` is the example to copy.
+A host with hardware or disk configuration of its own is a directory instead,
+`hosts/HOSTNAME/`, whose `default.nix` imports the files beside it from its
+`systemModule`. `hosts/bonington/` is the example to copy.
 
 ## Secrets
 

@@ -19,10 +19,10 @@ Each stage is described below.
 ## Hosts
 
 A host is one machine. Each file under `hosts/` is a flake-parts module that
-sets `flake.hosts.<name>`. A NixOS host is a directory,
-`hosts/<name>/default.nix`, because the NixOS adapter imports `hardware.nix` and
-`disks.nix` from beside it. The files are discovered automatically, so there is
-no list to keep in sync.
+sets `flake.hosts.<name>`. A host with hardware or disk configuration of its own
+is a directory, `hosts/<name>/default.nix`, and imports the files beside it from
+its `systemModule`. The files are discovered automatically, so there is no list
+to keep in sync.
 
 A host declares its OS and architecture, the features it has, and any
 configuration that applies to this host alone:
@@ -71,26 +71,26 @@ module system, named after the module system that evaluates it:
 | `darwin`        | nix-darwin                                        |
 | `systemManager` | system-manager, on Linux hosts that are not NixOS |
 | `homeManager`   | Home Manager                                      |
-| `system`        | whichever of the first three builds the host      |
+| `system`        | whichever of the three above builds this host     |
 | `provides`      | features this one carries, applied when included  |
 
 Each field takes a module, or a list of modules. Several files may define the
 same field of the same feature; the definitions merge into one module.
 
-A feature includes the features it depends on, and hosts get those too. Home
-Manager content and includes can be scoped to one host OS under `os.<os>`, and
-Home Manager content that is the same on every Linux host, NixOS included, to
-one kernel under `kernel.<linux|darwin>`:
+A feature includes the features it depends on, and a host that lists it resolves
+those as well. Two scopes narrow what a feature contributes. `os.<os>` takes a
+Home Manager module and an `includes` list that apply only on hosts with that
+OS, and `kernel.<linux|darwin>` takes a Home Manager module for every host with
+that kernel:
 
 ```nix
 # features/git/default.nix
 {
   flake.features.git = {
     homeManager = ./home-manager.nix;
-    os = {
+    kernel = {
       darwin.homeManager = ./home-manager-darwin.nix;
-      "generic-linux".homeManager = [./home-manager-linux.nix ./gitsign.nix];
-      nixos.homeManager = [./home-manager-linux.nix ./gitsign.nix];
+      linux.homeManager = [./home-manager-linux.nix ./gitsign.nix];
     };
   };
 }
@@ -107,7 +107,14 @@ one kernel under `kernel.<linux|darwin>`:
 }
 ```
 
-The system classes need no OS scoping because each one already implies an OS.
+`nixos`, `darwin` and `systemManager` each imply an OS, so they need no OS
+scoping. `system` is the deliberate exception, and goes to whichever of the
+three builds the host.
+
+`kernel.linux` covers NixOS as well as the Linux hosts system-manager builds,
+which is why `git` above puts its Linux modules there. `os.nixos` and
+`os."generic-linux"` are the two halves of that: a NixOS host takes nothing from
+`os."generic-linux"`, and a system-manager host takes nothing from `os.nixos`.
 
 ### Top-level features and children
 
@@ -167,8 +174,8 @@ Packages live under `pkgs/`, even when one feature is their only consumer.
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after the
 features it includes, emits each feature once, and reports an include cycle by
-naming it. The check in `flake/parts/checks/feature-resolution.nix` pins that
-behaviour against fixtures.
+naming it. `flake/parts/checks/feature-resolution.nix` compares the resolver's
+module lists with fixtures covering each of those.
 
 ## Options
 
@@ -273,35 +280,61 @@ the right system builder:
 - `os/generic-linux` → `system-manager.lib.makeSystemConfig` (Home Manager is
   deployed standalone rather than embedded).
 
-Shared plumbing (feature resolution, Home Manager assembly, sops fragments)
-lives in `lib/` so the three adapters only own the parts that genuinely differ
-between the system builders.
+Shared plumbing (feature resolution, Home Manager assembly, the system special
+arguments, sops fragments) lives in `lib/`, so each adapter owns only what its
+system builder needs: the builder function, the modules it prepends, and how
+Home Manager reaches the configuration.
 
 ## Flake outputs
 
-The adapters feed the flake outputs:
+The adapters feed the configuration outputs:
 
-- `nixosConfigurations.<host>` — NixOS hosts,
-- `darwinConfigurations.<host>` — nix-darwin hosts,
-- `systemConfigs.<host>` — system-manager (non-NixOS Linux) hosts,
-- `homeConfigurations.<user>@<host>` — standalone Home Manager for every host,
-- `direnvs` / `devShells.direnvs-*` — per-directory development shells,
-- `cupboardOutputs` — the list of build targets the cupboard publish workflow
-  reads.
+- `nixosConfigurations.<host>`: NixOS hosts,
+- `darwinConfigurations.<host>`: nix-darwin hosts,
+- `systemConfigs.<host>`: system-manager (non-NixOS Linux) hosts,
+- `homeConfigurations.<user>@<host>`: standalone Home Manager for every host,
+- `deploy`: the deploy-rs nodes, derived from the host set, so a host can be
+  pushed with `deploy .#<host>`.
 
-`deploy` (deploy-rs) nodes are derived from the host set so each host can be
-pushed with `deploy .#<host>`.
+The rest of the flake carries the tooling and the data other things read:
+
+- `packages` and `apps`: what `pkgs/` builds, the tools re-exported from flake
+  inputs, the per-host netboot installers, and one `update-<name>` app per
+  updater,
+- `checks` and `formatter`: what `nix flake check` and `nix fmt` run,
+- `direnvs` and `devShells.direnvs-*`: per-directory development shells, and
+  `packages.direnv-shells`, which builds them all,
+- `cupboardOutputs` and `updaterNames`: the lists the cupboard publish and
+  package update workflows iterate,
+- `features`, `hosts`, `operatingSystems`, `username`, `direnvLanguages` and
+  `nix`: the flake-parts options this repository declares, readable from a
+  script that needs to know what is configured,
+- `agentsviewHosts` and `agentsviewServer`: the hosts that push agent sessions
+  and the server they push to, read by the secrets generator.
 
 ## Helper layout
 
 `lib/` is split by responsibility, and each caller imports the file it needs:
 
-| File                | Responsibility                                        |
-| ------------------- | ----------------------------------------------------- |
-| `lib/discovery.nix` | filesystem discovery (hosts/features/pkgs)            |
-| `lib/features.nix`  | feature resolution: includes, ordering, class modules |
-| `lib/home.nix`      | Home Manager module + `specialArgs` assembly          |
-| `lib/nixbuild.nix`  | the nixbuild.net account constants, read by CI too    |
-| `lib/presence.nix`  | the option a child feature defines to say it is there |
-| `lib/sops.nix`      | sops-nix module fragments                             |
-| `lib/projects.nix`  | project shell / direnv generation                     |
+| File                                 | Responsibility                                           |
+| ------------------------------------ | -------------------------------------------------------- |
+| `lib/channels.nix`                   | the nixpkgs and Home Manager pair a host's channel names |
+| `lib/container-image.nix`            | images built from a Nix closure                          |
+| `lib/discovery.nix`                  | filesystem discovery (hosts, features, packages)         |
+| `lib/exposed-service.nix`            | the options a service served through the proxy declares  |
+| `lib/features.nix`                   | feature resolution: includes, ordering, class modules    |
+| `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository         |
+| `lib/halls.nix`                      | the message of the day for each host                     |
+| `lib/home.nix`                       | Home Manager modules and special arguments               |
+| `lib/netboot/`                       | the PXE installer and the server that serves it          |
+| `lib/nix/`                           | the shared cache settings and a pinned nixpkgs revision  |
+| `lib/nixbuild.nix`                   | the nixbuild.net account constants, read by CI too       |
+| `lib/operating-systems.nix`          | what varies by OS and is not code                        |
+| `lib/presence.nix`                   | the option a child feature defines to say it is there    |
+| `lib/project-directories/`           | the Home Manager module that writes the `.envrc` files   |
+| `lib/projects.nix`                   | project shell and direnv generation                      |
+| `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract      |
+| `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket             |
+| `lib/r2.sh`                          | the shell half of those, with its test                   |
+| `lib/sops.nix`                       | sops-nix module fragments                                |
+| `lib/system.nix`                     | the system special arguments                             |

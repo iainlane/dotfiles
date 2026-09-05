@@ -69,13 +69,13 @@ let
   };
 
   hostSecretServers = {
-    hostname,
+    host,
     secretPath,
     declareSopsSecrets ? true,
   }: let
     availableServers =
       lib.filterAttrs
-      (_name: definition: builtins.pathExists (inputs.secrets + "/${hostname}/${definition.file}"))
+      (_name: definition: builtins.pathExists (inputs.secrets + "/${host}/${definition.file}"))
       hostSecretServerDefinitions;
   in {
     servers = lib.mapAttrs (_name: definition: definition.server (secretPath definition.key)) availableServers;
@@ -85,7 +85,7 @@ let
       (lib.mapAttrs' (
           _name: definition:
             lib.nameValuePair definition.key {
-              sopsFile = inputs.secrets + "/${hostname}/${definition.file}";
+              sopsFile = inputs.secrets + "/${host}/${definition.file}";
             }
         )
         availableServers);
