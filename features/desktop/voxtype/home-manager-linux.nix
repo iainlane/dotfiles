@@ -13,7 +13,10 @@
     .colors;
 in {
   # Stable home-manager branched before the voxtype module existed; use the
-  # module from the unstable input on both channels.
+  # module from the unstable input on both channels. Like the AI harness
+  # modules that `features/ai/unstable-hm-modules.nix` grafts in, it is
+  # written against unstable's `lib.hm`, which `lib/home.nix` hands to
+  # home-manager on stable hosts.
   disabledModules = ["services/voxtype.nix"];
   imports = [(import "${inputs.home-manager}/modules/services/voxtype.nix")];
 
