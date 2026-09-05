@@ -22,6 +22,11 @@ in {
     ];
 
     systemModule = {
+      imports = [
+        ./hardware.nix
+        ./disks.nix
+      ];
+
       dotfiles.usbguard.staticRules."10-scarlett.conf" = ''
         allow id 1235:8219 serial "S2AR8Q3350C05D"
       '';

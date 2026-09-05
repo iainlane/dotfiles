@@ -34,8 +34,6 @@
             [
               sops.systemSopsModule
               sops.linuxSystemSopsModule
-              ../../hosts/${hostConfig.name}/hardware.nix
-              ../../hosts/${hostConfig.name}/disks.nix
               ./system.nix
               inputs.disko.nixosModules.disko
               inputs.sops-nix.nixosModules.sops
