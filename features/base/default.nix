@@ -40,7 +40,7 @@ in {
     os = {
       nixos.includes = with children; [restic openssh];
 
-      "generic-linux" = {
+      generic-linux = {
         includes = [children.system-manager-shell];
         homeManager = ./home-manager-generic-linux.nix;
       };
