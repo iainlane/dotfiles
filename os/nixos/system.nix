@@ -7,7 +7,7 @@
   hostConfig,
   ...
 }: let
-  secretsFile = inputs.secrets + "/${config.networking.hostName}/host-user-password.yaml";
+  secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
 in {
   boot = {
     loader = {
@@ -46,6 +46,10 @@ in {
       };
     };
   };
+
+  # `extraGroups` below names this group, and only `base.openssh` declares it,
+  # so a NixOS host without that feature would fail to evaluate.
+  users.groups.ssh = {};
 
   users.users.${username} = {
     isNormalUser = true;
