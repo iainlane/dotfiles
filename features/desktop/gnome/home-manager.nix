@@ -15,7 +15,7 @@
 in {
   home.packages = exts;
 
-  dconf.settings =
+  dconf.settings = lib.mkMerge [
     {
       "org/gnome/desktop/background" = {
         picture-options = "zoom";
@@ -61,5 +61,6 @@ in {
         shift-overview-down = [""];
       };
     }
-    // extensionSettings;
+    extensionSettings
+  ];
 }
