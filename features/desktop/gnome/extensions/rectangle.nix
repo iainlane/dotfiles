@@ -1,4 +1,8 @@
-{pkgs, ...}: let
+{
+  lib,
+  pkgs,
+  ...
+}: let
   bindingKeys = [
     "tile-quarter-top-left"
     "tile-quarter-top-right"
@@ -72,11 +76,7 @@
   ];
 
   bindings =
-    (builtins.listToAttrs (map (name: {
-        inherit name;
-        value = [""];
-      })
-      bindingKeys))
+    lib.genAttrs bindingKeys (_: [""])
     // {
       tile-fourth-first = ["<Control><Super>Left"];
       tile-half-center-vertical = ["<Control><Super>Up"];
