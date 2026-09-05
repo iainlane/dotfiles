@@ -1,3 +1,5 @@
+local DIR
+
 DIR="${${1%.orig.tar.gz}/_/-}"
 if ! [ -d "${DIR}" ]; then
   mkdir "${DIR}"

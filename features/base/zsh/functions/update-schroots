@@ -1,3 +1,4 @@
+local chroot
 local CHROOTS=("${(@f)$(schroot -l | awk -F: '/^source:/ && !/desktop/ { print $2 }')}")
 
 for chroot in "${CHROOTS[@]}"; do
