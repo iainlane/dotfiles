@@ -3,9 +3,10 @@
   inputs,
   lib,
   pkgs,
-  voxtypeSettings,
   ...
 }: let
+  voxtypeSettings = import ./settings.nix {inherit pkgs;};
+
   palette =
     (builtins.fromJSON (builtins.readFile "${inputs.catppuccin-palette}/palette.json"))
     .${config.catppuccin.flavor}

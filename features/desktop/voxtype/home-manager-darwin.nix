@@ -4,9 +4,9 @@
   inputs,
   lib,
   pkgs,
-  voxtypeSettings,
   ...
 }: let
+  voxtypeSettings = import ./settings.nix {inherit pkgs;};
   tomlFormat = pkgs.formats.toml {};
   package = pkgs.voxtype-onnx;
   sourceBundle = "${package}/Applications/Voxtype.app";
