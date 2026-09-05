@@ -21,14 +21,7 @@
     )
     catppuccinFlavours;
 
-  mkSymbolModule = module: let
-    attrs = removeAttrs module ["symbol"];
-  in
-    {
-      format = "\$symbol";
-      inherit (module) symbol;
-    }
-    // attrs;
+  mkSymbolModule = module: {format = "\$symbol";} // module;
 
   simpleSymbolModules = {
     bun = {
@@ -125,185 +118,149 @@
 
   languageNames = lib.concatMapStrings (name: "\$${name}") (builtins.attrNames simpleSymbolModules);
 
-  osSymbols = lib.listToAttrs (
-    map
-    (entry: {
-      inherit (entry) name;
-      value = "[${entry.icon}](fg:${entry.color} bg:surface1)";
-    })
-    [
-      {
-        name = "AlmaLinux";
-        icon = "";
-        color = "text";
-      }
-      {
-        name = "Alpine";
-        icon = "";
-        color = "blue";
-      }
-      {
-        name = "Amazon";
-        icon = "";
-        color = "peach";
-      }
-      {
-        name = "Android";
-        icon = "";
-        color = "green";
-      }
-      {
-        name = "Arch";
-        icon = "󰣇";
-        color = "sapphire";
-      }
-      {
-        name = "Artix";
-        icon = "";
-        color = "sapphire";
-      }
-      {
-        name = "CentOS";
-        icon = "";
-        color = "mauve";
-      }
-      {
-        name = "Debian";
-        icon = "";
-        color = "red";
-      }
-      {
-        name = "DragonFly";
-        icon = "";
-        color = "teal";
-      }
-      {
-        name = "EndeavourOS";
-        icon = "";
-        color = "mauve";
-      }
-      {
-        name = "Fedora";
-        icon = "";
-        color = "blue";
-      }
-      {
-        name = "FreeBSD";
-        icon = "";
-        color = "red";
-      }
-      {
-        name = "Garuda";
-        icon = "";
-        color = "sapphire";
-      }
-      {
-        name = "Gentoo";
-        icon = "";
-        color = "lavender";
-      }
-      {
-        name = "Illumos";
-        icon = "";
-        color = "peach";
-      }
-      {
-        name = "Kali";
-        icon = "";
-        color = "blue";
-      }
-      {
-        name = "Linux";
-        icon = "";
-        color = "yellow";
-      }
-      {
-        name = "Macos";
-        icon = "";
-        color = "text";
-      }
-      {
-        name = "Manjaro";
-        icon = "";
-        color = "green";
-      }
-      {
-        name = "Mint";
-        icon = "󰣭";
-        color = "teal";
-      }
-      {
-        name = "NixOS";
-        icon = "";
-        color = "sky";
-      }
-      {
-        name = "OpenBSD";
-        icon = "";
-        color = "yellow";
-      }
-      {
-        name = "Pop";
-        icon = "";
-        color = "sapphire";
-      }
-      {
-        name = "Raspbian";
-        icon = "";
-        color = "maroon";
-      }
-      {
-        name = "RedHatEnterprise";
-        icon = "";
-        color = "red";
-      }
-      {
-        name = "Redhat";
-        icon = "";
-        color = "red";
-      }
-      {
-        name = "RockyLinux";
-        icon = "";
-        color = "green";
-      }
-      {
-        name = "SUSE";
-        icon = "";
-        color = "green";
-      }
-      {
-        name = "Solus";
-        icon = "";
-        color = "blue";
-      }
-      {
-        name = "Ubuntu";
-        icon = "";
-        color = "peach";
-      }
-      {
-        name = "Unknown";
-        icon = "";
-        color = "text";
-      }
-      {
-        name = "Void";
-        icon = "";
-        color = "green";
-      }
-      {
-        name = "Windows";
-        icon = "󰖳";
-        color = "sky";
-      }
-      {
-        name = "openSUSE";
-        icon = "";
-        color = "green";
-      }
-    ]
-  );
+  osIcons = {
+    AlmaLinux = {
+      icon = "";
+      color = "text";
+    };
+    Alpine = {
+      icon = "";
+      color = "blue";
+    };
+    Amazon = {
+      icon = "";
+      color = "peach";
+    };
+    Android = {
+      icon = "";
+      color = "green";
+    };
+    Arch = {
+      icon = "󰣇";
+      color = "sapphire";
+    };
+    Artix = {
+      icon = "";
+      color = "sapphire";
+    };
+    CentOS = {
+      icon = "";
+      color = "mauve";
+    };
+    Debian = {
+      icon = "";
+      color = "red";
+    };
+    DragonFly = {
+      icon = "";
+      color = "teal";
+    };
+    EndeavourOS = {
+      icon = "";
+      color = "mauve";
+    };
+    Fedora = {
+      icon = "";
+      color = "blue";
+    };
+    FreeBSD = {
+      icon = "";
+      color = "red";
+    };
+    Garuda = {
+      icon = "";
+      color = "sapphire";
+    };
+    Gentoo = {
+      icon = "";
+      color = "lavender";
+    };
+    Illumos = {
+      icon = "";
+      color = "peach";
+    };
+    Kali = {
+      icon = "";
+      color = "blue";
+    };
+    Linux = {
+      icon = "";
+      color = "yellow";
+    };
+    Macos = {
+      icon = "";
+      color = "text";
+    };
+    Manjaro = {
+      icon = "";
+      color = "green";
+    };
+    Mint = {
+      icon = "󰣭";
+      color = "teal";
+    };
+    NixOS = {
+      icon = "";
+      color = "sky";
+    };
+    OpenBSD = {
+      icon = "";
+      color = "yellow";
+    };
+    Pop = {
+      icon = "";
+      color = "sapphire";
+    };
+    Raspbian = {
+      icon = "";
+      color = "maroon";
+    };
+    RedHatEnterprise = {
+      icon = "";
+      color = "red";
+    };
+    Redhat = {
+      icon = "";
+      color = "red";
+    };
+    RockyLinux = {
+      icon = "";
+      color = "green";
+    };
+    SUSE = {
+      icon = "";
+      color = "green";
+    };
+    Solus = {
+      icon = "";
+      color = "blue";
+    };
+    Ubuntu = {
+      icon = "";
+      color = "peach";
+    };
+    Unknown = {
+      icon = "";
+      color = "text";
+    };
+    Void = {
+      icon = "";
+      color = "green";
+    };
+    Windows = {
+      icon = "󰖳";
+      color = "sky";
+    };
+    openSUSE = {
+      icon = "";
+      color = "green";
+    };
+  };
+
+  osSymbols =
+    lib.mapAttrs
+    (_name: entry: "[${entry.icon}](fg:${entry.color} bg:surface1)")
+    osIcons;
 in {
   programs.starship = {
     enable = true;
