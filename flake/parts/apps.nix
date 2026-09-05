@@ -1,6 +1,6 @@
-# Re-export tools from flake inputs so the justfile can reference pinned
-# versions with `nix run .#<app>`, and build the netboot installer and its
-# server.
+# The `nix run .#<app>` entry points: the tools the justfile runs at pinned
+# versions, whether they come from a flake input or from `pkgs/`, and the
+# netboot installer and server for each NixOS host.
 {
   inputs,
   config,
@@ -18,7 +18,6 @@
   };
 in {
   perSystem = {
-    lib,
     pkgs,
     pkgs-stable,
     system,

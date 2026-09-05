@@ -4,10 +4,10 @@
 # output. This detects evaluation failures without building the host
 # configuration.
 #
-# Each configuration has a separate check for its target system, so Nix can
-# evaluate independent configurations concurrently. Running the flake checks
-# with `--all-systems` covers every host. The checks are derived from the flake
-# outputs and therefore follow changes to the host inventory.
+# Each configuration gets its own check, under the system it is built for,
+# so a failure names the host and the output it came from. Running the flake
+# checks with `--all-systems` covers every host. The checks are derived from
+# the flake outputs and therefore follow changes to the host inventory.
 #
 # Evaluation reads the private secrets input, so CI needs its deploy key.
 # Configurations that use import from derivation also realise their imported

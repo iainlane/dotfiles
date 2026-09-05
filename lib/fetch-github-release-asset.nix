@@ -63,7 +63,7 @@ stdenvNoCC.mkDerivation {
       curl+=(--insecure)
     fi
 
-    # Look up the asset ID by release tag + filename
+    # Find the asset's API URL from the release tag and the file name
     asset_url=$(
       "''${curl[@]}" -sf \
         "https://api.github.com/repos/$repo/releases/tags/$tag" \

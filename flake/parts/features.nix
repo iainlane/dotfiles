@@ -104,7 +104,7 @@
             });
         };
         default = {};
-        description = "Modules and includes that apply only to hosts with this OS.";
+        description = "One entry per operating system, each with the Home Manager module and the includes that apply only on hosts with that OS.";
       };
 
       kernel = lib.mkOption {

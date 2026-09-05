@@ -3,7 +3,8 @@
 #
 # A feature is a set of modules, at most one for each of NixOS, nix-darwin,
 # system-manager and Home Manager, and a list of features it includes.
-# `closure` expands the includes into an ordered list and `modulesFor` reads
+# `closure` expands the includes into an ordered list, which contains the
+# features it was given as well as the ones they reach, and `modulesFor` reads
 # one class of module from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
@@ -24,9 +25,9 @@ in rec {
     merge = lib.mergeEqualOption;
   };
 
-  # Expands `features` into every feature they include, directly or through
-  # other features. Each feature comes after the features it includes, and a
-  # feature reached more than once appears once. The includes under
+  # Expands `features` into themselves and every feature they include,
+  # directly or through other features. Each feature comes after the features
+  # it includes, and a feature reached more than once appears once. The includes under
   # `os.<os>` are followed only for the host's OS. An include cycle is an
   # error: `closure` throws and names the features in the cycle.
   #
@@ -112,10 +113,12 @@ in rec {
   # The modules of class `class` from `ordered`, a closure's feature list.
   #
   # Each feature contributes, in order: its `<class>` module, its `system`
-  # module when `class` is the module system that builds this OS, its
-  # `kernel.<kernel>.<class>` module, and its `os.<os>.<class>` module. The
-  # module system's merge functions and priorities decide which definition of
-  # an option wins; this order does not.
+  # module when `class` is the module system that builds this OS, and its
+  # `kernel.<kernel>` and `os.<os>` modules for that class. Only
+  # `homeManager` is declared inside those two scopes, so the last two are
+  # empty for every other class. The module system's merge functions and
+  # priorities decide which definition of an option wins; this order does
+  # not.
   modulesFor = {
     class,
     os,

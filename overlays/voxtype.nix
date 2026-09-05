@@ -1,8 +1,7 @@
-# The locally packaged OSD frontend (pkgs/voxtype-osd-gtk4) has to match the
-# daemon's version: the daemon's `voxtype-osd` launcher and the frontend
-# communicate over a socket whose protocol is not stable across versions.
-# Build the daemon and frontend from the same local source version on every
-# channel so a single frontend version serves all Linux hosts.
+# `voxtype-onnx` is the daemon with the ONNX speech-recognition backends
+# built in. `pkgs/voxtype-osd-gtk4` takes its `src` and `cargoDeps` from this
+# attribute. The frontend and the daemon talk over a socket whose protocol
+# changes between versions, so both must be built from the same revision.
 _: final: _prev: {
   voxtype-onnx = final.voxtype.override {onnxSupport = true;};
 }

@@ -1,7 +1,8 @@
-# On Darwin, google-chrome is installed via Homebrew; the nixpkgs package's
-# updater is broken for macOS. This overlay provides a thin wrapper so
-# that anything depending on `pkgs.google-chrome` (e.g. the Playwright MCP
-# server) resolves to the system-installed Chrome at runtime.
+# On Darwin, Chrome is installed by Homebrew, because the nixpkgs package's
+# updater does not work for macOS. Replace `pkgs.google-chrome` with a script
+# that finds the installed Chrome and runs it, so a package that launches
+# `google-chrome`, such as the Playwright MCP server, starts the browser the
+# machine has.
 _: _: prev:
 prev.lib.optionalAttrs prev.stdenv.isDarwin {
   google-chrome = prev.writeShellScriptBin "google-chrome" ''

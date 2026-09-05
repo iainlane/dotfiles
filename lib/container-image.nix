@@ -9,9 +9,9 @@
 # different evaluations: Home Manager for the rootless containers, and
 # system-manager for the rootful ones.
 {pkgs}: {
-  # No `tag` is given, so buildLayeredImage derives a content-addressed
-  # `imageTag`. Referring to that tag means a changed image changes the unit
-  # that names it, and the container restarts on deploy.
+  # With `tag` unset, `buildLayeredImage` derives `imageTag` from the store
+  # hash of the image configuration. The service unit names that tag, so a
+  # changed image changes the unit and the container restarts on deploy.
   mkNixImage = name: contents:
     pkgs.dockerTools.buildLayeredImage {
       inherit name contents;

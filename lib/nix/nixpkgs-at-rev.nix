@@ -6,7 +6,7 @@
 #
 #   inherit (import ../lib/nix/nixpkgs-at-rev.nix {
 #     rev = "<40-char sha>";
-#     hash = "sha256-...";   # of the GitHub archive tarball
+#     hash = "sha256-...";   # NAR hash of the unpacked tree
 #     inherit (prev.stdenv.hostPlatform) system;
 #   }) somePackage;
 {
