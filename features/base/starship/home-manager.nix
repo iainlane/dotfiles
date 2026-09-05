@@ -4,6 +4,23 @@
   lib,
   ...
 }: let
+  # Catppuccin publishes every flavour's colours as one JSON document. Convert
+  # them to Starship's palette format, which is a set of named attributes with
+  # hex values.
+  catppuccinFlavours =
+    removeAttrs
+    (lib.importJSON (inputs.catppuccin-palette + "/palette.json"))
+    ["version"];
+
+  catppuccinPalettes =
+    lib.mapAttrs'
+    (
+      flavour: flavourData:
+        lib.nameValuePair "catppuccin_${flavour}"
+        (lib.mapAttrs (_name: colour: colour.hex) flavourData.colors)
+    )
+    catppuccinFlavours;
+
   mkSymbolModule = module: let
     attrs = removeAttrs module ["symbol"];
   in
@@ -315,28 +332,30 @@ in {
         # languages → git → shell state
         format = lib.concatStrings [
           "[](surface1)"
-          "[\${battery}\${os}](fg:white bg:surface1)"
+          "[\${battery}\${os}](fg:text bg:surface1)"
           "[](fg:surface1 bg:surface2)"
-          "[\$sudo\$username](bg:surface2)"
+          "[\$sudo\$username](fg:text bg:surface2)"
           "[](fg:surface2 bg:overlay0)"
-          "[\$hostname](bg:overlay0)"
+          "[\$hostname](fg:text bg:overlay0)"
           "[](fg:overlay0 bg:mauve)"
           "[( ${languageNames})( \$package)( \$git_branch)](fg:base bg:mauve)"
           "[](fg:mauve bg:peach)"
           "[( \${git_state}\${git_status})](fg:base bg:peach)"
           "[](fg:peach bg:yellow)"
           "[( \$container\$direnv\$nix_shell\$cmd_duration\$jobs\$shlvl)](fg:base bg:yellow)"
-          # If $status is non-empty, this means the last command failed, so
-          # we'll be showing an error status segment following this in red.
-          # Otherwise, show a success status segment in yellow.
-          "[([](fg:yellow bg:pink) \$status)](bg:pink)"
+          # After a failed command `$status` expands to one of the symbols
+          # below, red on pink, and the separator drawn in front of it turns
+          # the yellow section into the pink one. After a successful command
+          # `$status` is empty and nothing here is drawn, so `character`
+          # closes the yellow section.
+          "[([](fg:yellow bg:pink) \$status)](fg:text bg:pink)"
           # The final prompt character is either pink (error) or teal (success).
           # But we also need to draw the end of the yellow section if `status`
           # didn't do that just above. We handle that in `character`.
           "\$character"
         ];
         right_format = "[](fg:blue)[\$directory](fg:base bg:blue)";
-        palette = "catppuccin_mocha";
+        palette = "catppuccin_macchiato";
 
         battery = {
           format = "\$symbol";
@@ -435,34 +454,7 @@ in {
           version_format = "\$raw";
         };
 
-        palettes.catppuccin_mocha = {
-          base = "#1e1e2e";
-          blue = "#89b4fa";
-          crust = "#11111b";
-          flamingo = "#f2cdcd";
-          green = "#a6e3a1";
-          lavender = "#b4befe";
-          mantle = "#181825";
-          maroon = "#eba0ac";
-          mauve = "#cba6f7";
-          overlay0 = "#6c7086";
-          overlay1 = "#7f849c";
-          overlay2 = "#9399b2";
-          peach = "#fab387";
-          pink = "#f5c2e7";
-          red = "#f38ba8";
-          rosewater = "#f5e0dc";
-          sapphire = "#74c7ec";
-          sky = "#89dceb";
-          subtext0 = "#a6adc8";
-          subtext1 = "#bac2de";
-          surface0 = "#313244";
-          surface1 = "#45475a";
-          surface2 = "#585b70";
-          teal = "#94e2d5";
-          text = "#cdd6f4";
-          yellow = "#f9e2af";
-        };
+        palettes = catppuccinPalettes;
 
         shlvl = {
           disabled = false;
