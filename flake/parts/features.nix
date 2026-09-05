@@ -21,21 +21,31 @@
   # define the same class of the same feature; every definition ends up in
   # the imports of one module, each tagged with the file that defined it so
   # the module system reports errors against that file.
-  classModule = lib.mkOptionType {
-    name = "classModule";
-    description = "module, or list of modules";
-    descriptionClass = "noun";
-    check = value: lib.isList value || lib.types.deferredModule.check value;
-    merge = loc: defs: {
-      imports =
-        lib.concatMap
-        (def:
-          map
-          (lib.setDefaultModuleLocation "${def.file}, via option ${lib.showOption loc}")
-          (lib.toList def.value))
-        defs;
+  #
+  # `deferredModule` does the collecting and the tagging. It cannot be
+  # extended in place: `lib.types.coercedTo` refuses a type whose
+  # `getSubModules` is not null, and `fixupOptionType` rebuilds any type whose
+  # `getSubModules` is not null through `substSubModules`, which discards
+  # whatever was added to it. So this type is declared on its own and gives
+  # `deferredModule`'s merge one definition per module, with the list flattened
+  # first so a listed module and a module written on its own are tagged alike.
+  classModule = let
+    isModule = lib.types.deferredModule.check;
+  in
+    lib.mkOptionType {
+      name = "classModule";
+      description = "module, or list of modules";
+      descriptionClass = "noun";
+      check = value:
+        isModule value
+        || (lib.isList value && lib.all isModule value);
+      merge = loc: defs:
+        lib.types.deferredModule.merge loc (
+          lib.concatMap
+          (def: map (value: def // {inherit value;}) (lib.toList def.value))
+          defs
+        );
     };
-  };
 
   classOption = description:
     lib.mkOption {
