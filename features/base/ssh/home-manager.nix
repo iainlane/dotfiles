@@ -1,12 +1,13 @@
-{
-  config,
-  lib,
-  ...
-}: let
-  cfg = config.dotfiles.ssh;
+{lib, ...}: {
+  programs.ssh = {
+    enable = true;
 
-  defaultBlock = {
-    "*" = {
+    # Home Manager's own `*` block is deprecated and warns, so repeat its
+    # values here. Each directive is a `mkDefault` of its own, so a feature
+    # can override one without replacing the block.
+    enableDefaultConfig = false;
+
+    settings."*" = lib.mapAttrs (_directive: lib.mkDefault) {
       ForwardAgent = false;
       AddKeysToAgent = "no";
       Compression = false;
@@ -17,28 +18,6 @@
       ControlMaster = "no";
       ControlPath = "~/.ssh/master-%r@%n:%p";
       ControlPersist = "no";
-    };
-  };
-
-  allBlocks = defaultBlock // cfg.settings;
-in {
-  options.dotfiles.ssh = {
-    includes = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [];
-    };
-    settings = lib.mkOption {
-      type = lib.types.attrsOf lib.types.unspecified;
-      default = {};
-    };
-  };
-
-  config = {
-    programs.ssh = {
-      enable = true;
-      enableDefaultConfig = false;
-      inherit (cfg) includes;
-      settings = allBlocks;
     };
   };
 }

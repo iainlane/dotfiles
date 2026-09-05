@@ -11,7 +11,7 @@ in {
 
   config = lib.mkMerge [
     {
-      dotfiles.ssh.settings = nixbuild.storeMatchBlock;
+      programs.ssh.settings = nixbuild.storeMatchBlock;
     }
     (lib.mkIf config.dotfiles.nixbuild.admin {
       sops.secrets.nixbuild-admin-private-key = {
@@ -20,7 +20,7 @@ in {
         path = "${hostConfig.homeDirectory}/.ssh/id_ed25519_nixbuild_admin";
       };
 
-      dotfiles.ssh.settings = nixbuild.adminMatchBlock;
+      programs.ssh.settings = nixbuild.adminMatchBlock;
     })
   ];
 }

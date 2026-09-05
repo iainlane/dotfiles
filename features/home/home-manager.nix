@@ -1,5 +1,5 @@
 {
-  dotfiles.ssh.settings = {
+  programs.ssh.settings = {
     cripps = {
       HostName = "cripps.orangesquash.org.uk";
       User = "laney";
