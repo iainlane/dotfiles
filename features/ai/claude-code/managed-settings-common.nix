@@ -67,7 +67,6 @@ in {
   # Sort this last so that the config here _overrides_ any incoming systemwide
   # config.
   config.dotfiles.claudeCode.managedSettings = lib.mkAfter {
-    allowManagedPermissionRulesOnly = false;
     alwaysThinkingEnabled = true;
     attribution = {
       commit = "";
