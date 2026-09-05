@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 
 # Check the CrowdStrike Falcon sensor on NixOS: what is installed, the
 # sensor's identity, its Reduced Functionality Mode state, backend and
