@@ -238,7 +238,6 @@ in {
         KillMode = "control-group";
         KillSignal = "SIGTERM";
         Environment = ["LD_LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib"];
-        ReadWritePaths = [installDir "/var/log" "/run/secrets"];
         MemorySwapMax = "0";
         OOMPolicy = "stop";
         ManagedOOMPreference = "avoid";
