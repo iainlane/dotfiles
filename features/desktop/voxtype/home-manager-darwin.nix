@@ -25,7 +25,7 @@
   # Voxtype requires these tables whenever a config file exists; this mirrors
   # the base settings of home-manager's services.voxtype module.
   settings =
-    pkgs.lib.recursiveUpdate {
+    lib.recursiveUpdate {
       hotkey = {
         key = "FN";
         mode = "push_to_talk";

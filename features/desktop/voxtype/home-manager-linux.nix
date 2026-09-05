@@ -8,7 +8,7 @@
   voxtypeSettings = import ./settings.nix {inherit pkgs;};
 
   palette =
-    (builtins.fromJSON (builtins.readFile "${inputs.catppuccin-palette}/palette.json"))
+    (lib.importJSON (inputs.catppuccin-palette + "/palette.json"))
     .${config.catppuccin.flavor}
     .colors;
 in {
