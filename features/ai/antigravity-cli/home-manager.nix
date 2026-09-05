@@ -17,7 +17,6 @@
   inputs,
   lib,
   mcp,
-  skillTree,
   system,
   ...
 }: let
@@ -52,15 +51,10 @@ in {
       enable = true;
       package = wrappedAntigravity;
 
-      inherit (config.dotfiles.ai) mcpServers;
+      inherit (config.dotfiles.ai) mcpServers skills;
 
       # Shared instructions as separate context files.
       context = instructions.files;
-    };
-
-    home.file.".gemini/antigravity-cli/skills" = {
-      source = skillTree config.dotfiles.ai.skills;
-      recursive = true;
     };
 
     home.activation.antigravityCliSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
