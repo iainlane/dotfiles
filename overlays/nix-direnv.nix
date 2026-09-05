@@ -1,4 +1,4 @@
-{inputs}: _: prev: let
+{inputs}: final: prev: let
   lastReleaseBeforeGcrootFix = "3.2.0";
 in {
   nix-direnv = assert prev.lib.assertMsg
@@ -8,5 +8,5 @@ in {
     than ${lastReleaseBeforeGcrootFix}. Remove the temporary nix-direnv input
     and this overlay so hosts use the packaged release.
   '';
-    prev.callPackage inputs.nix-direnv {};
+    final.callPackage inputs.nix-direnv {};
 }

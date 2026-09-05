@@ -5,6 +5,6 @@
 # https://github.com/NixOS/nixpkgs/issues/507531
 # https://github.com/NixOS/nix/issues/6065
 _: _: prev:
-prev.lib.optionalAttrs prev.stdenv.isDarwin {
+prev.lib.optionalAttrs prev.stdenv.hostPlatform.isDarwin {
   direnv = prev.direnv.overrideAttrs (_: {doCheck = false;});
 }

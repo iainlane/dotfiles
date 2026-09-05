@@ -33,7 +33,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+      # Trust the same binary caches the hosts and the cupboard workflow do, so
+      # the evaluations below substitute rather than build.
+      - name: Trust our binary caches
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
 
       # The `secrets` input lives in the private dotfiles-secrets repo, reachable
       # only over SSH. Configure the read-only deploy key so `nix flake update`
