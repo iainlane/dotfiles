@@ -112,6 +112,25 @@ in {
   config = {
     home.packages = lib.mkIf wantsGitsign [pkgs.gitsign];
 
+    programs.delta = {
+      enable = true;
+      enableGitIntegration = true;
+
+      options = {
+        navigate = true;
+
+        catppuccin-latte = {
+          light = true;
+          syntax-theme = "Catppuccin Latte";
+        };
+
+        catppuccin-mocha = {
+          dark = true;
+          syntax-theme = "Catppuccin Mocha";
+        };
+      };
+    };
+
     programs.git = {
       enable = true;
 
@@ -177,28 +196,9 @@ in {
           pull.ff = "only";
           init.defaultBranch = "main";
 
-          pager = {
-            diff = "delta";
-            log = "delta";
-            reflog = "delta";
-            show = "delta";
-          };
-
-          delta = {
-            navigate = true;
-
-            catppuccin-latte = {
-              light = true;
-              syntax-theme = "Catppuccin Latte";
-            };
-
-            catppuccin-mocha = {
-              dark = true;
-              syntax-theme = "Catppuccin Mocha";
-            };
-          };
-
-          interactive.diffFilter = "delta --color-only";
+          # `programs.delta` sets a pager for blame, diff, log and show, and
+          # leaves `core.pager` alone, so reflog needs one of its own.
+          pager.reflog = lib.getExe config.programs.delta.package;
 
           # Talk to GitHub over HTTPS even when a remote is written as an
           # SSH URL.
