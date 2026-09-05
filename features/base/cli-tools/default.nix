@@ -1,6 +1,6 @@
 {
   flake.features.base.provides.cli-tools = {
     homeManager = ./home-manager.nix;
-    kernel.linux.homeManager = ./home-manager-linux.nix;
+    os.generic-linux.homeManager = ./home-manager-generic-linux.nix;
   };
 }
