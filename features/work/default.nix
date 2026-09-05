@@ -1,12 +1,11 @@
 {
-  inputs,
   config,
+  lib,
   mkLanguageShell,
   withSystem,
   ...
 }: let
-  inherit (import ../../lib/projects.nix {inherit (inputs.nixpkgs) lib;}) mkProjectShells;
-  inherit (inputs.nixpkgs) lib;
+  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShells;
 
   children = config.flake.features.work.provides;
 
@@ -52,9 +51,10 @@
         EMAIL = def.email;
         GIT_AUTHOR_NAME = def.name;
         GIT_AUTHOR_EMAIL = def.email;
+        GIT_COMMITTER_NAME = def.name;
         GIT_COMMITTER_EMAIL = def.email;
       }
-      // lib.optionalAttrs (def ? zshColour && def.zshColour != null) {
+      // lib.optionalAttrs ((def.zshColour or null) != null) {
         ZSH_USERNAME_COLOUR = def.zshColour;
       }
     );

@@ -4,13 +4,12 @@
 # every system. `home` lists this child only on generic-linux hosts, so only
 # those get the project directories.
 {
-  inputs,
   config,
+  lib,
   withSystem,
   ...
 }: let
-  inherit (import ../../../lib/projects.nix {inherit (inputs.nixpkgs) lib;}) mkProjectShells;
-  inherit (inputs.nixpkgs) lib;
+  inherit (import ../../../lib/projects.nix {inherit lib;}) mkProjectShells;
 
   projects = let
     defaults = {
@@ -47,11 +46,10 @@
   };
 
   mkShell = pkgs: _os: def:
-    pkgs.mkShell (
+    pkgs.mkShellNoCC (
       {
-        packages = def.packages or (_: []) pkgs;
-      }
-      // {
+        packages = (def.extraPackages or (_: [])) pkgs;
+
         NAME = def.name;
         EMAIL = def.email;
         DEBFULLNAME = def.name;
@@ -59,10 +57,11 @@
         DEBSIGN_KEYID = def.debsignKeyId;
         GIT_AUTHOR_NAME = def.name;
         GIT_AUTHOR_EMAIL = def.email;
+        GIT_COMMITTER_NAME = def.name;
         GIT_COMMITTER_EMAIL = def.email;
       }
-      // lib.optionalAttrs (def.debVendor != null) {DEB_VENDOR = def.debVendor;}
-      // lib.optionalAttrs (def ? zshColour && def.zshColour != null) {
+      // lib.optionalAttrs ((def.debVendor or null) != null) {DEB_VENDOR = def.debVendor;}
+      // lib.optionalAttrs ((def.zshColour or null) != null) {
         ZSH_USERNAME_COLOUR = def.zshColour;
       }
     );

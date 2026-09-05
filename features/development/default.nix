@@ -1,11 +1,11 @@
 {
-  inputs,
   config,
+  lib,
   mkLanguageShell,
   withSystem,
   ...
 }: let
-  inherit (import ../../lib/projects.nix {inherit (inputs.nixpkgs) lib;}) mkProjectShells;
+  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShells;
   children = config.flake.features.development.provides;
 
   # Base dev directory with common tools
