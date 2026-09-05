@@ -1,19 +1,17 @@
+# Declares `flake.username`, and exposes `overlays` and `nixpkgsConfig` as
+# module arguments. The other flake-parts modules use them when they import
+# nixpkgs.
 {
   inputs,
   lib,
-  config,
   ...
 }: let
   inherit (import ../../lib/discovery.nix {inherit lib;}) importNixFiles;
 
-  inherit (config.flake) username;
-
-  # Common overlays used across all systems.
-  # Local overlays are discovered automatically from `overlays/*.nix` (sorted)
-  # and instantiated with the shared `{ inputs }` contract.
+  # Discovered from `overlays/*.nix` in sorted order and instantiated with the
+  # shared `{inputs}` argument.
   overlays = importNixFiles ../../overlays {inherit inputs;};
 
-  # Common nixpkgs configuration used across all systems
   nixpkgsConfig = {
     allowUnfree = true;
   };
@@ -25,13 +23,8 @@ in {
   };
 
   config = {
-    _module.args.context = {
-      inherit
-        lib
-        username
-        overlays
-        nixpkgsConfig
-        ;
+    _module.args = {
+      inherit overlays nixpkgsConfig;
     };
 
     perSystem = {system, ...}: let

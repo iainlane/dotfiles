@@ -3,6 +3,8 @@
   lib,
   config,
   withSystem,
+  overlays,
+  nixpkgsConfig,
   ...
 }: let
   features = import ../../lib/features.nix {inherit lib;};
@@ -11,7 +13,6 @@
   inherit (features) operatingSystems;
   inherit (config.flake) username;
   outerConfig = config;
-  inherit (config._module.args.context) overlays nixpkgsConfig;
 
   osArgs = {
     inherit
