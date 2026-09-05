@@ -18,7 +18,7 @@
   ...
 }: let
   inherit (config.flake) username;
-  inherit (import ../../../lib/features.nix {inherit lib;}) operatingSystems;
+  operatingSystems = import ../../../lib/operating-systems.nix;
 
   # The top-level derivation of each kind of system configuration. The OS
   # table names the flake output the configuration is read from.

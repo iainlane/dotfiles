@@ -10,7 +10,7 @@
   features = import ../../lib/features.nix {inherit lib;};
   home = import ../../lib/home.nix {inherit inputs lib;};
   channels = import ../../lib/channels.nix {inherit inputs;};
-  inherit (features) operatingSystems;
+  operatingSystems = import ../../lib/operating-systems.nix;
   inherit (config.flake) username;
   outerConfig = config;
 

@@ -6,7 +6,7 @@
 }: let
   inherit (config.flake) username;
   inherit (config.flake) hosts;
-  inherit (import ../../lib/features.nix {inherit lib;}) operatingSystems;
+  operatingSystems = import ../../lib/operating-systems.nix;
 
   nodes =
     lib.mapAttrs (
