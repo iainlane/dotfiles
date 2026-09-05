@@ -79,10 +79,10 @@
     bashMode = "peach";
   };
 
-  # Catppuccin Latte's yellow `#df8e1d` against the cream base `#eff1f5`
-  # falls under WCAG AA. Swap roles that show yellow as foreground text
-  # to peach `#fe640b`, which catppuccin/delta and catppuccin/bat use for
-  # the same purpose on Latte.
+  # Catppuccin Latte's yellow `#df8e1d` on the cream base `#eff1f5` misses
+  # the WCAG AA contrast ratio. Swap the roles that show yellow as
+  # foreground text to peach `#fe640b`, which catppuccin/delta and
+  # catppuccin/bat use for the same purpose on Latte.
   flavorRoleOverrides = {
     latte = {
       warning = "peach";

@@ -27,11 +27,14 @@
       gnugrep
       gnused
       gnutar
+
+      # Text and numeric tools that macOS does not ship at all.
+      units
+      wdiff
+
       openssh
       presenterm
       python3
-      units
-      wdiff
 
       # Archive and compression tools.
       p7zip

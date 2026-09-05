@@ -8,6 +8,10 @@
 # The custom-command widgets are backed by the small helpers built below, each
 # reading the status-line JSON on stdin, the usage API, or local git state. See
 # the matching .sh files for their logic.
+#
+# Import this file directly with `pkgs` and `lib`. `callPackage` would add
+# `override` functions to the result, and `home-manager.nix` serialises that
+# result to JSON, which cannot represent a function.
 {
   pkgs,
   lib,
@@ -58,7 +62,6 @@
     runtimeInputs = with pkgs; [
       jq
       gawk
-      coreutils
     ];
 
     text = builtins.readFile ./usage-pct.sh;
@@ -189,8 +192,10 @@ in {
       }
 
       # Month-to-date extra-usage spend. This figure is absent from the stdin
-      # JSON, so its helper fetches the usage API directly and emits nothing on
-      # error or while rate-limited, so the widget hides via hideWhenEmpty.
+      # JSON, so its helper fetches the usage API directly, caches the answer,
+      # and falls back to the cached figure when the request fails or a
+      # backoff window is open. With no cached figure it prints nothing and
+      # the widget hides via hideWhenEmpty.
       {
         id = "extra-usage-spend";
         type = "custom-command";

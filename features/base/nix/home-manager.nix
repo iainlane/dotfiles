@@ -29,10 +29,11 @@
     nix-index-database.comma.enable = true;
   };
 
-  # Ensure standalone nix commands (e.g. `nix shell`) see the same nixpkgs
-  # config as our flakes, so we can use unfree packages. The `pkgs.config`
-  # object contains functions and their metadata which can't be
-  # serialised, so we filter those out.
+  # Give impure evaluations of nixpkgs (`nix-shell`, `nix-env`, `<nixpkgs>`
+  # in a repl) the same configuration as our flakes, so they can build
+  # unfree packages too. Flake commands such as `nix shell nixpkgs#hello`
+  # never read this file. `pkgs.config` contains functions and their
+  # metadata, which cannot be serialised, so they are filtered out.
   xdg.configFile."nixpkgs/config.nix".text = let
     isPlainValue = v:
       !builtins.isFunction v
