@@ -11,8 +11,8 @@
 # branches (own pushes and the flake-update PR) carry it.
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
-# merge. The configuration validation job is the strict gate: it checks how
-# profiles and features compose, then evaluates every NixOS, nix-darwin,
+# merge. The configuration validation job is the strict gate: it builds the
+# checks that need no secrets, then evaluates every NixOS, nix-darwin,
 # system-manager and standalone Home Manager configuration without building the
 # resulting host closures.
 name: cupboard
@@ -54,18 +54,27 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      # Exercise the feature resolver against its fixtures: include order,
-      # deduplication, OS scoping and cycle detection. This needs no secrets.
-      - name: Validate feature resolution
+      # Every check except the two families that evaluate a host: formatting,
+      # statix, deadnix, actionlint, shellcheck, zizmor, the feature
+      # resolver's fixtures, the quadlet contracts, the cupboard target list
+      # and the shell unit tests. Until this step existed only the local
+      # pre-commit hook ran them, which a bot pull request never does. They
+      # read no secrets, so a fork pull request runs them too.
+      - name: Build the checks
         run: |
           set -euo pipefail
 
-          nix build .#checks.x86_64-linux.feature-resolution
+          mapfile -t names < <(
+            nix eval --json .#checks.x86_64-linux --apply builtins.attrNames |
+              jq --raw-output '.[] | select((startswith("host-evaluation-") or startswith("deploy-")) | not)'
+          )
+
+          nix build "${names[@]/#/.#checks.x86_64-linux.}"
 
       # Evaluating the host and home configurations reads the private secrets
-      # input, so the adapter check needs the deploy key. Fork pull requests do
-      # not receive it and skip the check, like the closure builds in the
-      # publish path.
+      # input, so the host-evaluation checks need the deploy key. Fork pull
+      # requests do not receive it and skip those checks, as they skip the
+      # closure builds in the publish path.
       - name: Set up secrets access
         id: secrets
         env:
@@ -74,7 +83,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${DEPLOY_KEY}" ]; then
-            echo "No secrets deploy key; skipping the adapter evaluations."
+            echo "No secrets deploy key; skipping the host evaluations."
             echo "have_key=false" | tee -a "${GITHUB_OUTPUT}"
             exit 0
           fi
@@ -86,15 +95,15 @@ jobs:
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
-      # Import-from-derivation during the adapter evaluations substitutes from
-      # the nixbuild.net store.
+      # Import-from-derivation during the host evaluations substitutes from the
+      # nixbuild.net store.
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
 
-      # The generated adapter checks force the toplevel derivation of every
-      # host configuration (flake/parts/checks-adapters.nix). Forcing the
+      # The host-evaluation checks in `flake/parts/checks/host-evaluation.nix`
+      # force the toplevel derivation of every host configuration. Forcing the
       # derivation path of every check, on every system, therefore evaluates
       # every host without building any of them.
       #
