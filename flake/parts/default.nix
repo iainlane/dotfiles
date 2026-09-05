@@ -17,7 +17,7 @@ in {
       ./treefmt.nix
       ./updaters.nix
     ]
-    ++ map (name: ./checks + "/${name}") (discovery.fileNames ./checks ".nix")
+    ++ discovery.discoverModuleFiles ./checks
     ++ discovery.discoverModuleFiles ../../hosts
     ++ discovery.discoverModules ../../features;
 }

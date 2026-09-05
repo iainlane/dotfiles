@@ -1,8 +1,11 @@
 {inputs, ...}: {
   imports = [inputs.git-hooks-nix.flakeModule];
 
-  perSystem = {config, ...}: let
-    inherit (config._module.args) pkgs;
+  perSystem = {
+    config,
+    pkgs,
+    ...
+  }: let
     inherit (pkgs) lib;
   in {
     pre-commit = {
@@ -58,9 +61,6 @@
       };
     };
 
-    devShells.default = pkgs.mkShell {
-      inherit (config.pre-commit) shellHook;
-      packages = config.pre-commit.settings.enabledPackages;
-    };
+    devShells.default = config.pre-commit.devShell;
   };
 }

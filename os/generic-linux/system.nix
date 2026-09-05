@@ -16,7 +16,7 @@
   # which collides with the declarations in system-manager's shim, so drop
   # the shim. The shim's config side was inactive: it sat behind
   # `mkIf config.nix.enable` and nothing enabled it.
-  disabledModules = ["${inputs.system-manager}/nix/modules/upstream/nixpkgs/nix.nix"];
+  disabledModules = [(inputs.system-manager + "/nix/modules/upstream/nixpkgs/nix.nix")];
 
   # nixpkgs' `config/nix.nix` hides the nixbld users from display managers with
   # `services.displayManager.hiddenUsers`. system-manager imports that module

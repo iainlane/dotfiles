@@ -8,17 +8,16 @@
 }: {
   mkHomeSopsModule = {hostConfig}: let
     sshKeyFile = inputs.secrets + "/${hostConfig.name}/user-ssh-key.yaml";
-  in
-    lib.recursiveUpdate
-    {
-      sops.age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
-    }
-    (lib.optionalAttrs (builtins.pathExists sshKeyFile) {
+  in {
+    sops.age.keyFile = "${hostConfig.homeDirectory}/.config/sops/age/keys.txt";
+
+    imports = lib.optional (builtins.pathExists sshKeyFile) {
       sops.secrets.ssh-private-key = {
         sopsFile = sshKeyFile;
         path = "${hostConfig.homeDirectory}/.ssh/id_ed25519";
       };
-    });
+    };
+  };
 
   systemSopsModule = {
     sops.age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];

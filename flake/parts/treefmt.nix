@@ -1,9 +1,7 @@
 {inputs, ...}: {
   imports = [inputs.treefmt-nix.flakeModule];
 
-  perSystem = {config, ...}: let
-    inherit (config._module.args) pkgs;
-  in {
+  perSystem = {pkgs, ...}: {
     treefmt = import ./treefmt-config.nix {inherit pkgs;};
   };
 }
