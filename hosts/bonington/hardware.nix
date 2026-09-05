@@ -8,12 +8,12 @@
     inputs.nixos-hardware.nixosModules.framework-amd-ai-300-series
   ];
 
-  # Pin to 6.18 until CrowdStrike Falcon sensor supports kernel 6.19's
-  # sockaddr_unsized BPF type change (sensor 7.33 fails to load BPF probes
-  # due to BTF type mismatch: struct sockaddr * vs struct sockaddr_unsized *).
-  boot.kernelPackages = lib.mkForce pkgs.linuxPackages_6_18;
-
   boot = {
+    # Pin to 6.18 until CrowdStrike Falcon sensor supports kernel 6.19's
+    # sockaddr_unsized BPF type change (sensor 7.33 fails to load BPF probes
+    # due to BTF type mismatch: struct sockaddr * vs struct sockaddr_unsized *).
+    kernelPackages = lib.mkForce pkgs.linuxPackages_6_18;
+
     initrd.availableKernelModules = [
       "nvme"
       "xhci_pci"
@@ -58,12 +58,19 @@
     };
     tlp.enable = lib.mkForce false;
     power-profiles-daemon.enable = lib.mkForce false;
+
+    logind.settings.Login = {
+      HandleLidSwitch = "suspend";
+      HandleLidSwitchExternalPower = "suspend";
+      HandleLidSwitchDocked = "suspend";
+    };
   };
 
-  services.logind.settings.Login = {
-    HandleLidSwitch = "suspend";
-    HandleLidSwitchExternalPower = "suspend";
-    HandleLidSwitchDocked = "suspend";
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 25;
+    priority = 100;
   };
 
   environment.systemPackages = with pkgs; [
