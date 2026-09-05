@@ -12,6 +12,7 @@
   home = import ../../lib/home.nix {inherit inputs lib;};
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
+  inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
 
   result = withSystem hostConfig.system (
     {
@@ -44,16 +45,13 @@
               inherit hostConfig;
             }
             ++ [hostConfig.systemModule];
-          specialArgs = {
-            inherit
-              inputs
-              hostConfig
-              username
-              nixpkgsConfig
-              ;
-            mcp = mcpByChannel.${hostConfig.channel};
-            pkgs-unstable = channel.unstable;
-          };
+          # system-manager evaluates nixpkgs itself, and `nixpkgsConfig` is what
+          # a module needs to instantiate a package set that matches the host's.
+          specialArgs =
+            mkSystemSpecialArgs {
+              inherit hostConfig username mcpByChannel channel;
+            }
+            // {inherit nixpkgsConfig;};
         };
     }
   );

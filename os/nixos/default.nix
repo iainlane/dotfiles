@@ -10,6 +10,7 @@
   home = import ../../lib/home.nix {inherit inputs lib;};
   inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
+  inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
 
   result = withSystem hostConfig.system (
     {
@@ -55,15 +56,8 @@
                 channel.home-manager.nixosModules.home-manager
                 (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
               ];
-            specialArgs = {
-              inherit
-                inputs
-                hostConfig
-                username
-                ;
-              mcp = mcpByChannel.${hostConfig.channel};
-              pkgs-stable = channel.stable;
-              pkgs-unstable = channel.unstable;
+            specialArgs = mkSystemSpecialArgs {
+              inherit hostConfig username mcpByChannel channel;
             };
           };
     }
