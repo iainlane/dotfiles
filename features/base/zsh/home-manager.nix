@@ -70,7 +70,7 @@ in {
       path = "${config.xdg.dataHome}/zsh/zsh_history";
       save = 100000;
       share = false;
-      size = 20000;
+      size = 100000;
     };
 
     initContent = lib.mkMerge [
@@ -98,8 +98,6 @@ in {
       "PUSHD_IGNORE_DUPS"
 
       # History
-      ## Sessions append their history to the history file
-      "APPEND_HISTORY"
       ## Show command with history expansion before running it
       "HIST_VERIFY"
       ## Add commands to history as they are typed
