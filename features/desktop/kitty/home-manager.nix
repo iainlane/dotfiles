@@ -1,6 +1,12 @@
-{pkgs, ...}: {
+{
   programs.kitty = {
     enable = true;
+
+    autoThemeFiles = {
+      light = "Catppuccin-Latte";
+      dark = "Catppuccin-Mocha";
+      noPreference = "Catppuccin-Mocha";
+    };
 
     shellIntegration.enableZshIntegration = true;
 
@@ -78,17 +84,5 @@
       "super+shift+up" = "scroll_to_prompt -1";
       "super+shift+down" = "scroll_to_prompt 1";
     };
-  };
-
-  xdg.configFile = {
-    "kitty/dark-theme.auto.conf".text = ''
-      include ${pkgs.kitty-themes}/share/kitty-themes/themes/Catppuccin-Mocha.conf
-    '';
-    "kitty/light-theme.auto.conf".text = ''
-      include ${pkgs.kitty-themes}/share/kitty-themes/themes/Catppuccin-Latte.conf
-    '';
-    "kitty/no-preference-theme.auto.conf".text = ''
-      include ${pkgs.kitty-themes}/share/kitty-themes/themes/Catppuccin-Mocha.conf
-    '';
   };
 }
