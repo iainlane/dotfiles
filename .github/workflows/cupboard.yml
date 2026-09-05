@@ -11,10 +11,11 @@
 # branches (own pushes and the flake-update PR) carry it.
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
-# merge. The configuration validation job is the strict gate: it builds the
+# merge. Two jobs are the strict gate. `configuration-validation` builds the
 # checks that need no secrets, then evaluates every NixOS, nix-darwin,
 # system-manager and standalone Home Manager configuration without building the
-# resulting host closures.
+# resulting host closures. `packages` builds everything under `pkgs/` that the
+# runner can build.
 name: cupboard
 
 on:
@@ -124,6 +125,35 @@ jobs:
                   (_: builtins.mapAttrs (_: check: check.drvPath))
                   checks)
                 "ok"'
+
+  packages:
+    name: Build the packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+      - name: Trust our binary caches
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+
+      # `local-packages` covers every package under `pkgs/` that this runner
+      # can build.
+      - name: Build the packages
+        run: |
+          set -euo pipefail
+
+          nix build --no-link --print-out-paths .#local-packages
 
   publish:
     permissions:
