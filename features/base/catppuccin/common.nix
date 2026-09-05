@@ -1,6 +1,6 @@
 # Helpers shared by the home-manager and NixOS catppuccin modules.
 let
-  isStable = hostConfig: (hostConfig.channel or "unstable") == "stable";
+  isStable = hostConfig: hostConfig.channel == "stable";
 
   # The unstable channel is moving to `catppuccin.autoEnable` for port
   # enrolment, with `catppuccin.enable` becoming a global on/off toggle. Set
