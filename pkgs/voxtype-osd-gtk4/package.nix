@@ -1,16 +1,17 @@
-# nixpkgs packages the voxtype daemon but not the on-screen-display
-# frontends, which upstream only ships through its flake. Keep the version in
-# step with pkgs.voxtype-onnx: the daemon's `voxtype-osd` launcher and this
-# frontend communicate over a socket whose protocol is not stable across
-# versions.
+# nixpkgs packages the voxtype daemon but not the on-screen-display frontends,
+# which upstream only ships through its flake. The daemon's `voxtype-osd`
+# launcher and this frontend communicate over a socket whose protocol is not
+# stable across versions, so this package takes its version, source and
+# vendored crates from `voxtype-onnx` and needs no updater of its own:
+# `nix run .#update-voxtype` moves both.
 {
   alsa-lib,
   cmake,
-  git,
+  gitMinimal,
   gtk4-layer-shell,
-  openssl,
   lib,
-  llvmPackages,
+  libclang,
+  openssl,
   pkg-config,
   rustPlatform,
   voxtype-onnx,
@@ -29,7 +30,7 @@ rustPlatform.buildRustPackage {
 
   nativeBuildInputs = [
     cmake
-    git
+    gitMinimal
     pkg-config
     wrapGAppsHook4
   ];
@@ -40,7 +41,7 @@ rustPlatform.buildRustPackage {
     openssl
   ];
 
-  env.LIBCLANG_PATH = "${lib.getLib llvmPackages.libclang}/lib";
+  env.LIBCLANG_PATH = "${lib.getLib libclang}/lib";
 
   meta = {
     description = "GTK4 on-screen display frontend for voxtype";

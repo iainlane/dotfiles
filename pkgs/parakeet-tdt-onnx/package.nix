@@ -1,7 +1,11 @@
-# NVIDIA Parakeet TDT 0.6B v3 speech-recognition model, full-precision ONNX export by
-# istupakov. The file set matches what `voxtype setup --download --model
-# parakeet-tdt-0.6b-v3` fetches, so the output directory can be used
+# NVIDIA Parakeet TDT 0.6B v3 speech-recognition model, full-precision ONNX
+# export by istupakov. The file set matches what `voxtype setup --download
+# --model parakeet-tdt-0.6b-v3` fetches, so the output directory can be used
 # directly as `programs.voxtype.model.path`.
+#
+# This package has no automatic updater. When voxtype moves, check which model
+# files that version's downloader fetches, then update the revision and the
+# file hashes here to match.
 {
   fetchurl,
   lib,
