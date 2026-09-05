@@ -178,23 +178,33 @@ in
         install -Dm644 packaging/io.voxtype.Voxtype.desktop \
           "$out/share/applications/io.voxtype.Voxtype.desktop"
 
-        wrapProgram "$out/bin/voxtype" \
-          --prefix PATH : ${
-          (lib.makeBinPath (
+        wrapProgram "$out/bin/voxtype" ${
+          lib.escapeShellArgs (
             [
-              libnotify
-              which
+              "--prefix"
+              "PATH"
+              ":"
+              (lib.makeBinPath (
+                [
+                  libnotify
+                  which
+                ]
+                ++ lib.optionals vulkanSupport [pciutils]
+                ++ lib.optionals waylandSupport waylandRuntimePackages
+                ++ lib.optionals x11Support x11RuntimePackages
+              ))
             ]
-            ++ lib.optionals vulkanSupport [pciutils]
-            ++ lib.optionals waylandSupport waylandRuntimePackages
-            ++ lib.optionals x11Support x11RuntimePackages
-          ))
-          + lib.optionalString onnxSupport " \\"
+            ++ lib.optionals onnxSupport [
+              "--set"
+              "ORT_DYLIB_PATH"
+              "${lib.getLib onnxruntime}/lib/libonnxruntime.so"
+              "--prefix"
+              "LD_LIBRARY_PATH"
+              ":"
+              "${lib.getLib onnxruntime}/lib"
+            ]
+          )
         }
-          ${lib.optionalString onnxSupport ''
-          --set ORT_DYLIB_PATH "${lib.getLib onnxruntime}/lib/libonnxruntime.so" \
-          --prefix LD_LIBRARY_PATH : "${lib.getLib onnxruntime}/lib"
-        ''}
       ''
       + lib.optionalString stdenv.hostPlatform.isDarwin ''
         app="$out/Applications/Voxtype.app/Contents"
