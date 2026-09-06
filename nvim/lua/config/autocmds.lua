@@ -19,7 +19,7 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
       return
     end
 
-    local root = vim.fs.root(args.buf, { markers })
+    local root = vim.fs.root(args.buf, markers)
     if not root then
       return
     end
