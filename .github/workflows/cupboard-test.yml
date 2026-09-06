@@ -3,9 +3,9 @@
 # PR editing it never runs the edited version; this one calls the branch's own
 # copy by local path, which a pull_request event resolves to the PR head.
 #
-# The run builds every output but does not inspect or write the cache. Pushing
-# on the PR stays with the `cupboard` workflow, through the main branch's
-# destination inputs and cupboard's released workflow.
+# The run builds every output but does not inspect or write the cache. The
+# `cupboard` workflow still does the pushing for a pull request, using the main
+# branch's destination inputs and cupboard's released workflow.
 name: cupboard test
 
 on:

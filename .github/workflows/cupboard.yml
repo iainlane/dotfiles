@@ -45,8 +45,10 @@ jobs:
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
       # Trust the same binary caches the hosts use, as in the publish path.
-      # Some home configurations import from derivation while evaluating, and
-      # this lets those paths substitute from the caches during evaluation.
+      # Some home configurations import from derivation while evaluating, so
+      # Nix has to realise those outputs during evaluation. With the caches
+      # trusted, Nix substitutes the outputs they already have instead of
+      # building them.
       - name: Trust our binary caches
         run: |
           set -euo pipefail
@@ -56,12 +58,9 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      # Every check except the two families that evaluate a host: formatting,
-      # statix, deadnix, actionlint, shellcheck, zizmor, the feature
-      # resolver's fixtures, the quadlet contracts, the cupboard target list
-      # and the shell unit tests. Until this step existed only the local
-      # pre-commit hook ran them, which a bot pull request never does. They
-      # read no secrets, so a fork pull request runs them too.
+      # The `host-evaluation-*` and `deploy-*` checks evaluate host
+      # configurations, which reads the private secrets input. Exclude them
+      # here so a fork pull request can build the rest without a deploy key.
       - name: Build the checks
         run: |
           set -euo pipefail
@@ -97,8 +96,9 @@ jobs:
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
-      # Import-from-derivation during the host evaluations substitutes from the
-      # nixbuild.net store.
+      # The host evaluations import from derivation, so Nix realises those
+      # derivations mid-evaluation. nixbuild.net supplies them, as a
+      # substituter and as a remote builder for the ones it has to build.
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         with:

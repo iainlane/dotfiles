@@ -4,7 +4,8 @@ on:
   workflow_call:
     inputs:
       push:
-        description: Attest and publish results; false only builds each target.
+        description:
+          Attest and publish the results. When false, each target is only built.
         type: boolean
         default: true
         required: false
@@ -59,8 +60,8 @@ jobs:
       contents: read
       id-token: write # issue the OIDC token the cupboard cache trusts for push
 
-    # `cupboard` has a trust policy that requires the `job_workflow_ref` to be
-    # `[...]@v*`. So we can't pin by SHA here.
+    # cupboard's trust policy requires the `job_workflow_ref` to end in a
+    # `v*` tag, so this reference cannot be pinned to a commit SHA.
     uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.33 # zizmor: ignore[unpinned-uses]
     with:
       url: https://cupboard.supply/t/laney

@@ -19,15 +19,12 @@
   prConcurrentLimit: 10,
   branchConcurrentLimit: 20,
 
-  // GitHub Actions
   "github-actions": {
     enabled: true,
     pinDigests: true,
   },
 
-  // Package Rules
   packageRules: [
-    // Group all non-major updates and auto-merge them
     {
       groupName: "all non-major dependencies",
       groupSlug: "all-minor-patch",
@@ -35,7 +32,6 @@
       automerge: true,
     },
 
-    // Major updates get individual PRs with approval required
     {
       matchUpdateTypes: ["major"],
       dependencyDashboardApproval: true,
@@ -55,16 +51,15 @@
 
     // `.github/workflows/cupboard.yml` calls this repository's own publish
     // wrapper at `@main`, and the laney tenant's trust policy matches its
-    // `job_workflow_ref` on `refs/heads/main`. The global `pinDigests` for
-    // github-actions would rewrite that to a commit and then raise a digest
-    // update after every push to main.
+    // `job_workflow_ref` on `refs/heads/main`. Pinning that reference to a
+    // commit would stop it matching the policy, and Renovate would propose a
+    // digest update after every push to main.
     {
       matchPackageNames: ["iainlane/dotfiles"],
       pinDigests: false,
     },
   ],
 
-  // Custom Managers for comment-based versioning
   customManagers: [
     {
       customType: "regex",
@@ -72,23 +67,21 @@
       managerFilePatterns: ["/\\.ya?ml$/", "/\\.nix$/"],
       matchStrings: [
         // YAML writes `key: value` and Nix writes `key = "value";`, so the
-        // separator takes surrounding space and the value stops at the quote
-        // or semicolon that closes it. A trailing `@sha256:...` is read as the
-        // digest, so a pinned image is updated in one piece.
+        // pattern allows space around the separator and ends the value at the
+        // closing quote or semicolon. A trailing `@sha256:...` is captured as
+        // the digest, so a pinned image is updated in one piece.
         "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)(?: (?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?: versioning=(?<versioning>[^\\s]+?))?\\s+[A-Za-z0-9_-]+?\\s*[:=]\\s*[\"']?(?<currentValue>[^\"';]+?)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))?[\"']?;?\\s*$",
       ],
       versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
     },
   ],
 
-  // Vulnerability alerts
   osvVulnerabilityAlerts: true,
   vulnerabilityAlerts: {
     enabled: true,
     labels: ["security"],
   },
 
-  // Lockfile maintenance
   lockFileMaintenance: {
     enabled: true,
     automerge: true,

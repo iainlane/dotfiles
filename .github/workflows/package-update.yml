@@ -9,7 +9,7 @@
 #
 # The updaters run in one job: each only fetches assets and records
 # platform-independent hashes, so a single run produces correct results for
-# every system, and arm64 runners pick jobs up promptly.
+# every system. That job runs on an arm64 runner because those start promptly.
 #
 # As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
 # not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have the PR
@@ -41,8 +41,8 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the same binary caches the hosts and the cupboard workflow do, so
-      # the evaluations below substitute rather than build.
+      # Trust the same binary caches the hosts and the cupboard workflow do,
+      # so anything these steps have to realise can be substituted.
       - name: Trust our binary caches
         run: |
           set -euo pipefail

@@ -1,11 +1,10 @@
 # Relock the flake inputs on a schedule, and on demand, then open a pull
-# request with the result. Merging that PR is what lands fresh builds in the
+# request with the result. Merging that PR is what puts fresh builds in the
 # cupboard cache: the push to main triggers the `cupboard` workflow, which
 # rebuilds the updated closure and publishes it to the default cache.
 #
-# A PR opened with the default `GITHUB_TOKEN` does not trigger other workflows,
-# Instead, it presents an approval button so that a maintainer can start the
-# workflows. Merging to main uploads the closure into the default cache. Set a
+# A PR opened with the default `GITHUB_TOKEN` does not trigger other workflows.
+# Instead, it presents an approval button so a maintainer can start them. Set a
 # `FLAKE_UPDATE_TOKEN` secret (a PAT or GitHub App token) to have the PR trigger
 # CI like any other.
 name: flake update
@@ -35,8 +34,8 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the same binary caches the hosts and the cupboard workflow do, so
-      # the evaluations below substitute rather than build.
+      # Trust the same binary caches the hosts and the cupboard workflow do,
+      # so anything these steps have to realise can be substituted.
       - name: Trust our binary caches
         run: |
           set -euo pipefail
