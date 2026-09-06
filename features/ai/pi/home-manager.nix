@@ -20,22 +20,24 @@
 }: let
   # The extensions to install, each packaged under `pkgs/<name>/` and bumped by
   # `nix run .#update-<name>`.
-  piExtensions = lib.genAttrs [
-    "pi-footer"
-    "pi-lens"
-    "pi-mcp-adapter"
-    "pi-notify"
-    "pi-pretty"
-    "pi-prompt-template-model"
-    "pi-service-tier"
-    "pi-simplify"
-    "pi-sub-core"
-    "pi-subagents"
-    "pi-system-theme"
-    "pi-web-access"
-    "rpiv-btw"
-    "rpiv-todo"
-  ] (name: pkgs.${name});
+  piExtensions =
+    lib.getAttrs [
+      "pi-footer"
+      "pi-lens"
+      "pi-mcp-adapter"
+      "pi-notify"
+      "pi-pretty"
+      "pi-prompt-template-model"
+      "pi-service-tier"
+      "pi-simplify"
+      "pi-sub-core"
+      "pi-subagents"
+      "pi-system-theme"
+      "pi-web-access"
+      "rpiv-btw"
+      "rpiv-todo"
+    ]
+    pkgs;
 
   # Extensions written here, kept in `./extensions/`. Pi discovers
   # `~/.pi/agent/extensions/*/index.ts` on its own, so these need no setting.
@@ -263,9 +265,10 @@
     ];
   };
 
-  # `sub-core` renders cached quota state on startup and refreshes on its
-  # own timer. A short interval keeps the footer fresh, and refreshing on
-  # turn start catches usage that ticked over between turns.
+  # `pi-sub-core` renders cached quota state on startup and refreshes on its
+  # own timer. A short interval keeps the displayed quota close to the
+  # current usage, and refreshing at turn start also includes the usage
+  # accumulated since the previous turn.
   piSubCoreConfig = {
     version = 3;
     behavior = {
