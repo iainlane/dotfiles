@@ -8,8 +8,8 @@
       type = lib.types.port;
       default = 8080;
       description = ''
-        The port of the dashboard. It binds 127.0.0.1, thus only this
-        machine reaches it.
+        The port the local dashboard listens on. It binds 127.0.0.1, so only
+        this machine can reach it.
       '';
     };
 
@@ -17,7 +17,7 @@
       type = lib.types.str;
       default = "${config.home.homeDirectory}/.agentsview";
       description = ''
-        The directory that holds the archive, the logs and `config.toml`.
+        The directory containing the archive, the logs and `config.toml`.
         Every AgentsView command on this machine reads the same directory.
       '';
     };
@@ -33,7 +33,7 @@
           stays on this machine and only this machine reads it.
 
           The value comes from the host record. A machine with the `work`
-          feature keeps its sessions and does not push.
+          feature keeps its sessions locally and does not push.
         '';
       };
     };

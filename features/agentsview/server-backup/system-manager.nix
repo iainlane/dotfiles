@@ -18,9 +18,10 @@
 
   backupName = "agentsview";
 
-  # The script reads its config from the environment, so it stays a plain
-  # checkable shell file. The systemd service supplies the non-secret values
-  # and the sops env file supplies the R2 credentials.
+  # Nothing is substituted into the script, so it stays a plain shell file that
+  # shellcheck can run over. Every setting arrives in the environment: the
+  # systemd service supplies the non-secret values and the sops env file
+  # supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "agentsview-backup-r2";
     runtimeInputs = with pkgs; [coreutils podman r2Tool];

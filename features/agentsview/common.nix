@@ -1,8 +1,8 @@
 # The values that both AgentsView features use.
 #
 # Each machine keeps an archive of its agent sessions. Some machines push
-# their archive to a shared database. One machine holds that database and
-# shows a dashboard of it.
+# their archive to a shared database. One machine runs that database and serves
+# a dashboard of it.
 #
 # The two features must agree on three things: which machines push, where
 # they push to, and which certificate each machine presents.
@@ -26,13 +26,13 @@
   serverFeature = features."agentsview-server";
   workFeature = features.work;
 
-  # A work machine keeps its archive on the machine. It does not push.
+  # A work machine keeps its archive locally and does not push.
   pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host workFeature;
 
   syncingHosts = hosts: lib.filterAttrs (_: pushes) hosts;
 
   # What each machine with the client feature does with its archive. The
-  # machine that holds the database also pushes to it, and a machine that
+  # machine that runs the database also pushes to it, and a machine that
   # keeps its sessions to itself still shows them on its own dashboard.
   #
   # Which secrets a machine needs follows from this. The `agentsviewHosts`
@@ -50,13 +50,13 @@
   # it and the machines that push put it in their connection URL.
   database = "agentsview";
 
-  # Each machine connects as itself and has its own password. You can remove
-  # the access of one machine and the others keep theirs.
+  # Each machine connects under its own role name with its own password, so one
+  # machine's access can be revoked without touching the others.
   role = hostname: hostname;
 
   # The database's hostname and name, or null when no machine has the server
   # feature. `domain` is `flake.agentsviewServer.domain`; a server whose host
-  # has not set it is an error here, so the clients do not conclude that
+  # has not set it is an error here, so a client never silently concludes that
   # there is no server.
   serverSettings = {
     hosts,
@@ -72,50 +72,50 @@
       inherit domain database;
     };
 
-  # The certificate of a machine is beside its host record. The path comes
-  # from the hostname, so the server finds each certificate itself. No list of
-  # them is necessary.
+  # The certificate of a machine is beside its host record. The path is derived
+  # from the hostname, so the server finds each certificate itself and no list
+  # of them is needed.
   certificatePath = hostname: ../../hosts + "/${hostname}/agentsview.pem";
 
   hasCertificate = hostname: builtins.pathExists (certificatePath hostname);
 
-  # A machine that pushes needs two secrets. Both paths come from the
-  # hostname, so a machine does not state where its own secrets are.
+  # A machine that pushes needs two secrets. Both paths are derived from the
+  # hostname, so a machine does not have to say where its own secrets are.
   #
-  # The first secret is the password of the database role. The server reads
-  # the password of every machine and keeps the roles correct.
+  # The first is the password of its database role. The server reads every
+  # machine's password and applies it to that machine's role.
   #
-  # The second secret is the private key of the certificate. It belongs to the
-  # user that runs the push, so it sits with the other user secrets.
+  # The second is the private key of its certificate. That key belongs to the
+  # user who runs the push, so it is stored with the other user secrets.
   #
-  # A password goes into a connection URL. Make it with
-  # `openssl rand -hex 32`. A password that contains `/`, `#`, `?` or `:`
-  # reads as a port or a path, and the connection fails.
+  # A password goes into a connection URL, so generate it with
+  # `openssl rand -hex 32`. A password containing `/`, `#`, `?` or `:` reads as
+  # a port or a path, and the connection fails.
   passwordFile = hostname: "agentsview-postgres/${hostname}.yaml";
 
   # The key inside that file, and the name the machine declares the sops
   # secret under. The two differ because the rendered secret lands in a
-  # directory shared with every other feature's secrets, where a bare
-  # `password` would collide with any other feature declaring one.
+  # directory shared with every other feature's secrets, and a bare `password`
+  # would collide with any other feature declaring one.
   passwordSecret = "password";
   passwordSecretName = "agentsview_password";
 
   # The secrets that belong to the user on one machine. The server reads the
-  # password file above to make the roles, and it has no part in these.
+  # password file above to create the roles; it never reads these.
   userSecretsFile = hostname: "${hostname}/user-agentsview.yaml";
   privateKeySecret = "agentsview_client_key";
 
-  # AgentsView makes these two values at the first start and writes them into
-  # its own configuration. The configuration here is read-only, thus they come
-  # with it. Make each one with `openssl rand -base64 32`.
+  # AgentsView would generate these two values at first start and write them
+  # into its own configuration, but the configuration here is read-only, so
+  # both are supplied. Generate each with `openssl rand -base64 32`.
   #
-  # The first value signs the cursors of the dashboard. The second one
-  # authenticates a caller to the API of the dashboard.
+  # `cursorSecret` signs the dashboard's cursors. `authTokenSecret`
+  # authenticates a caller to the dashboard's API.
   cursorSecret = "agentsview_cursor_secret";
   authTokenSecret = "agentsview_auth_token";
 
-  # The name of a secret contains the machine that owns it. One host can hold
-  # the secrets of several machines and keep them apart.
+  # A secret's name includes the machine it belongs to, so one host can carry
+  # several machines' passwords without them colliding.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
 in {
   inherit

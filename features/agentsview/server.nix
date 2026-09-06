@@ -1,14 +1,15 @@
-# The machine that holds the shared archive of agent sessions.
+# The machine that keeps the shared archive of agent sessions.
 #
-# A Postgres database receives the pushes. AgentsView shows a read-only
-# dashboard of the sessions from all the machines.
+# A Postgres database receives the pushes, and AgentsView serves a read-only
+# dashboard of the sessions from every machine.
 #
-# The dashboard is web traffic and goes behind the proxy. The database uses
-# the same port. The protocol in the handshake tells the two apart.
+# The dashboard is web traffic and goes behind the proxy. The database is
+# served on the same port, and the ALPN name in the TLS handshake tells the two
+# apart.
 #
-# The host records give the machines that can push: each machine that has the
-# `agentsview` feature and is not a work machine. A certificate beside the
-# host record identifies each one. This file contains no list of them.
+# The machines that may push come from the host records: every host with the
+# `agentsview` feature that is not a work machine. A certificate stored beside
+# the host record identifies each one, so this file lists no machine itself.
 {
   config,
   lib,
@@ -74,12 +75,10 @@ in {
 
     dataDir = "/data";
 
-    # The location of the database files. We choose it, thus this file gives
-    # it one time.
     pgData = "/var/lib/postgresql/data";
 
-    # Postgres refuses to run as root. At start, it also reads the name of
-    # its own id. Thus it gets an id and a name of its own.
+    # Postgres refuses to run as root, and at startup it looks up the name of
+    # the id it runs as, so it needs both an id and a passwd entry for it.
     databaseUser = "postgres";
     databaseId = 999;
 
@@ -107,14 +106,14 @@ in {
     # AgentsView reads this file from its data directory. sops renders it, so
     # the password stays out of the store.
     #
-    # AgentsView makes an auth token and a cursor secret for itself at the
-    # first start and writes both into this file. A rendered file is
-    # read-only, so both values come from the secrets repository.
+    # AgentsView would generate an auth token and a cursor secret for itself at
+    # first start and write them into this file, but a rendered file is
+    # read-only, so both values come from the secrets repository instead.
     #
-    # The dashboard connects to the database over the network the two of them
-    # share, in plain text: the certificate the pushing machines check belongs
-    # to the proxy, and it terminates TLS before passing the connection on.
-    # `allow_insecure` is AgentsView asking to be told that is deliberate.
+    # The dashboard connects to the database in plain text over the network the
+    # two of them share. The certificate the pushing machines check belongs to
+    # the proxy, which terminates TLS and passes the connection on unencrypted.
+    # `allow_insecure` confirms to AgentsView that this is deliberate.
     configContent = ''
       auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
       cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
@@ -125,8 +124,8 @@ in {
       allow_insecure = true
     '';
 
-    # The proxy connects to the database to carry the pushes. If no machine
-    # pushes, only the dashboard connects to it.
+    # The proxy joins the database's network only to carry pushes. With no
+    # machine pushing, the dashboard is the only thing that connects.
     reachableFromProxy = trustedClients != [];
 
     superuserSecret = "agentsview_superuser_password";
@@ -138,13 +137,12 @@ in {
       pkgs.dockerTools.binSh
     ];
 
-    # Who can connect, and how. `initdb` writes rules for the loopback
-    # addresses only. The dashboard and the proxy arrive from a podman
-    # network, so this file gives a rule for every range podman draws one
-    # from.
+    # Who may connect, and how. `initdb` writes rules for the loopback
+    # addresses only. The dashboard and the proxy arrive from a podman network,
+    # so this file adds a rule for every range podman draws a network from.
     #
-    # The roles unit uses the socket, and the database trusts it. Everything
-    # else arrives over the network and gives a password.
+    # The roles unit connects over the unix socket, which is trusted without a
+    # password. Everything else arrives over the network and has to send one.
     hbaFile = pkgs.writeText "pg_hba.conf" ''
       # TYPE  DATABASE  USER  ADDRESS         METHOD
       local   all       all                   trust
@@ -153,9 +151,9 @@ in {
       ${lib.concatMapStringsSep "\n" (range: "host    all       all   ${range}  scram-sha-256") config.dotfiles.containers.subnetPools}
     '';
 
-    # The first start makes the data directory. The script then runs the
-    # database in the foreground, thus the unit reports the output of the
-    # database.
+    # The first start creates the data directory. The script then execs
+    # postgres in the foreground, so the container's main process is the
+    # database itself and its output reaches the unit's journal.
     databaseInit = pkgs.writeShellScriptBin "agentsview-db-init" ''
       set -eu
 
@@ -176,8 +174,8 @@ in {
         -c unix_socket_directories=${pgSocketDir}
     '';
 
-    # `initdb` makes only the default database of a cluster. The first run
-    # of this statement makes the database that holds the sessions.
+    # `initdb` creates only the cluster's default database. The first run of
+    # this statement creates the database the sessions are stored in.
     databaseSql = pkgs.writeText "agentsview-database.sql" ''
       SELECT 'CREATE DATABASE ' || quote_ident('${cfg.database}')
        WHERE NOT EXISTS (
@@ -185,9 +183,11 @@ in {
        )\gexec
     '';
 
-    # The database reports that it is healthy before this script runs. Thus
-    # a small number of attempts is sufficient. You can run the statements
-    # more than one time safely.
+    # The database has already reported itself healthy before this script
+    # runs, so ten attempts two seconds apart cover the rest of its startup.
+    # Every creation statement below checks for the object first, and the
+    # remaining statements reapply the configured state, so a retry after a
+    # partial run changes nothing that already matches.
     rolesScript = pkgs.writeShellScript "agentsview-db-roles" ''
       set -u
 
@@ -209,14 +209,16 @@ in {
       exit 1
     '';
 
-    # One shared role owns everything that the machines write. Thus each
-    # machine reads the data of the others, and no grant names a machine.
+    # One shared role owns every object the machines create, so each machine
+    # can read what the others wrote and no grant has to name an individual
+    # machine.
     group = "agentsview_push";
 
     rolesUnit = "${databaseName}-roles";
 
-    # The dashboard connects as a member of the shared role, like the
-    # machines do. The superuser makes the roles and does nothing else.
+    # The dashboard connects as a member of the shared role, as the machines
+    # do. The superuser is what the health check and the roles unit connect
+    # as; the roles unit creates the database, the extension and the roles.
     dashboardRole = "agentsview_dashboard";
     dashboardSecret = "agentsview_dashboard_password";
 
@@ -245,14 +247,14 @@ in {
 
       ALTER ROLE "${client.name}" LOGIN PASSWORD '${client.password}';
       GRANT ${group} TO "${client.name}";
-      -- The shared role owns everything that this client makes, thus the
-      -- other clients read it.
+      -- Objects this client creates are owned by the shared role, so the
+      -- other clients can read them.
       ALTER ROLE "${client.name}" SET ROLE ${group};
 
     '';
 
-    # Each start applies these statements. Thus a change to the set of
-    # machines takes effect at the next deploy.
+    # These statements run at every start, so a change to the set of machines
+    # takes effect on the next deploy.
     rolesSql =
       ''
         DO $$
@@ -268,9 +270,9 @@ in {
         -- connects as is not one, so pgvector is created here.
         CREATE EXTENSION IF NOT EXISTS vector;
 
-        -- `initdb` sets this password at the first run. This statement
-        -- sets it again at each start, thus a new password takes effect
-        -- and the cluster stays.
+        -- `initdb` sets this password on the first run only. Setting it
+        -- again at every start means a rotated password takes effect
+        -- without recreating the cluster.
         ALTER ROLE ${superuser} PASSWORD '${config.sops.placeholder.${superuserSecret}}';
 
         -- A machine that leaves the list keeps its rows and loses access.
@@ -304,21 +306,21 @@ in {
           [network]
           ++ lib.optional reachableFromProxy "${serviceNetwork databaseName}.network";
 
-        # The container uses the host ids. It runs as its own user and has
-        # no capabilities. An escape from the container gets an id that owns
-        # the database files and nothing more.
+        # The container runs with the host's ids, as its own user, with no
+        # capabilities. An escape from the container gets an id that owns the
+        # database files and nothing else.
         #
-        # In a user namespace on this host, connections to Postgres 18 stop
-        # at `authentication` and stay there. Thus the container uses host
-        # ids. The cause is still unknown.
+        # A user namespace is not used here because in one, on this host,
+        # connections to Postgres 18 hang in `authentication` and never
+        # complete. The cause is still unknown.
         user = databaseUser;
         dropCapabilities = ["ALL"];
 
         entrypoint = "${databaseInit}/bin/agentsview-db-init";
 
-        # The database user has the same host mapping at each start, so
-        # changing the volume ownership is safe here. Auto user namespaces
-        # use an ID map because their host mappings can change.
+        # The database user has the same host id at every start, so chowning
+        # the volume is stable. A container with an auto user namespace needs
+        # `idmap` instead, because the ids it maps to change between starts.
         volumes = quadlet.mounts [
           {
             source.quadletVolume = dataVolume;
@@ -327,13 +329,13 @@ in {
           }
         ];
 
-        # `notify` keeps the unit in `activating` until this check passes.
-        # Thus the units that come after it start against a database that
-        # listens.
+        # `notify` keeps the unit in `activating` until this check passes, so
+        # the units ordered after it start against a database that is
+        # listening.
         #
-        # The check uses the socket, thus the database answers for itself.
-        # Each check holds a connection while it waits. The interval is long
-        # and keeps the other connections free.
+        # The check goes over the unix socket, so it tests the database rather
+        # than the network path to it. Each check occupies a connection while
+        # it runs, and the long interval keeps that cost down.
         healthCmd = "${postgresql}/bin/pg_isready -h ${pgSocketDir} -p ${toString databasePort} -U ${superuser}";
         healthInterval = "30s";
         healthRetries = 4;
@@ -342,10 +344,10 @@ in {
 
         environmentFiles = [config.sops.templates."agentsview-db.env".path];
 
-        # A shutdown writes a checkpoint first. Podman allows ten seconds
-        # by default. After that it kills the database, and the next start
-        # reads the log back. That time increases with the size of the
-        # archive.
+        # Postgres writes a checkpoint before it shuts down, and how long that
+        # takes grows with the size of the archive. podman allows ten seconds
+        # by default, then kills the database, and the next start has to replay
+        # the write-ahead log.
         stopTimeout = 120;
 
         noNewPrivileges = true;
@@ -357,10 +359,11 @@ in {
         Wants = ["network-online.target" "sops-install-secrets.service"];
       };
 
-      # Podman's quadlet generator emits no `TimeoutStopSec`, and
+      # podman's quadlet generator emits no `TimeoutStopSec`, and
       # quadlet-nix's per-container defaults supply only `Restart` and
-      # `TimeoutStartSec`, so systemd would kill the container 30 seconds
-      # into the 120 podman allows the checkpoint above.
+      # `TimeoutStartSec`, so systemd would fall back to its 90 second default
+      # and kill the container 30 seconds before the 120 seconds `stopTimeout`
+      # allows for the checkpoint above.
       serviceConfig.TimeoutStopSec = 180;
     };
 
@@ -376,9 +379,9 @@ in {
 
         entrypoint = "${agentsview}/bin/agentsview";
 
-        # This is a flag. A non-loopback address in the configuration file
-        # makes AgentsView ask for a token of its own. The proxy in front
-        # decides who gets access.
+        # AgentsView requires its own auth token once it binds a non-loopback
+        # address. That token comes from the config file above; the proxy in
+        # front is what decides who reaches the dashboard.
         exec = lib.concatStringsSep " " [
           "pg"
           "serve"
@@ -387,9 +390,9 @@ in {
           "--port"
           (toString cfg.port)
           "--no-browser"
-          # The request comes from the proxy and does not carry the name
-          # that the browser used. This flag gives AgentsView that name,
-          # and it checks each request against it.
+          # The request arrives from the proxy without the name the browser
+          # used. This flag tells AgentsView that name, which it checks each
+          # request against.
           "--public-url"
           "https://${cfg.expose.domain}"
         ];
@@ -418,11 +421,9 @@ in {
 
       unitConfig = {
         Description = "AgentsView dashboard";
-        # The dashboard reads all of its data from the database. Thus it
-        # waits for the database and stops with it.
-        #
-        # It also waits for the roles step, which makes the role that it
-        # connects as.
+        # The dashboard reads all of its data from the database, so it waits
+        # for the database and stops with it. It also waits for the roles unit,
+        # which creates the role it connects as.
         Requires = ["${databaseName}.service" "${rolesUnit}.service"];
         After = [
           "${databaseName}.service"
@@ -471,21 +472,21 @@ in {
             assertion = proxy.enable;
             message = ''
               dotfiles.agentsviewServer needs a proxy on this host, which is
-              what sets dotfiles.containers.edgeProxy.enable. The proxy holds
-              the certificate that the machines check, and it serves the
-              dashboard.
+              what sets dotfiles.containers.edgeProxy.enable. The proxy
+              presents the certificate the pushing machines check, and it
+              serves the dashboard.
             '';
           }
         ];
 
-        # The user of the container is a host user, and it owns the
-        # database files on the volume. `systemd-sysusers` gives out system
-        # ids from 999 down. This entry keeps that id and gives the files a
-        # name on the host. No process runs as this user.
+        # The container runs with the host's ids, so the database files on the
+        # volume are owned by host id 999. `systemd-sysusers` hands out system
+        # ids from 999 downwards, so this entry reserves that id and gives the
+        # files an owner name on the host.
         #
-        # `virtualisation.containers.idRanges` reserves ranges a container
-        # maps into a namespace of its own, and this container runs with the
-        # host's ids, so its one id is claimed here.
+        # `virtualisation.containers.idRanges` reserves ranges a container maps
+        # into a namespace of its own. This container uses the host's ids, so
+        # its single id is claimed here instead.
         environment.etc."sysusers.d/${databaseName}.conf".text = ''
           u ${databaseName} ${toString databaseId} "AgentsView database" /nonexistent /usr/sbin/nologin
         '';
@@ -502,9 +503,10 @@ in {
           };
         };
 
-        # The database uses the same port as the web. The protocol tells
-        # the two apart. Only the machines with a certificate in this list
-        # get through. The stream starts when there is one such machine.
+        # The database is served on the same port as the web sites, and the
+        # ALPN name tells the two apart. Only machines whose certificate is in
+        # this list get through, and the stream is declared only when there is
+        # at least one.
         dotfiles.containers.edgeProxy.streams = lib.mkIf reachableFromProxy {
           ${databaseName} = {
             inherit (cfg) domain;
@@ -522,8 +524,8 @@ in {
               ${common.authTokenSecret}.sopsFile = secretsFile;
               ${common.cursorSecret}.sopsFile = secretsFile;
             }
-            # The password of each machine that pushes. The roles unit
-            # applies the passwords that the secrets repository holds.
+            # The password of each machine that pushes. The roles unit applies
+            # whatever the secrets repository currently has.
             // lib.mapAttrs' (hostname: _:
               lib.nameValuePair (common.passwordSecretFor hostname) {
                 sopsFile = inputs.secrets + "/${common.passwordFile hostname}";

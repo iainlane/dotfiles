@@ -1,10 +1,13 @@
-# AgentsView, as two features that are two halves of one concern.
+# Registers the two AgentsView features and declares the flake options they
+# share.
 #
 # `agentsview` runs on a machine with coding agents: it archives their session
 # files and either shows a local dashboard or pushes to the shared database.
 # `agentsview-server` runs the database and the shared dashboard. The two have
-# to agree on the role names, the secrets and the server's address, which
-# `common.nix` defines, so they are registered together.
+# to agree on the role names, the secrets and the server's address, so they
+# are registered together: `common.nix` defines the role and secret helpers,
+# and the address is the `flake.agentsviewServer.domain` option declared
+# below, which the server's host sets.
 {
   config,
   inputs,

@@ -17,8 +17,7 @@ in {
       example = "pg.example.com";
       description = ''
         The domain the database answers to. It must resolve to this host
-        directly. A CDN between the two breaks it, because the traffic is not
-        HTTP.
+        directly. A CDN in between breaks it, because the traffic is not HTTP.
 
         The feature sets this from `flake.agentsviewServer.domain`, which the
         machines that push read too. If you change it, deploy them again.
@@ -61,12 +60,13 @@ in {
       type = lib.types.str;
       default = "${hostConfig.name}/host-agentsview.yaml";
       description = ''
-        The file in the secrets repository that holds the secrets of this
+        The file in the secrets repository containing the secrets of this
         machine. It needs four keys:
 
-          agentsview_superuser_password: the account that makes the roles.
-          agentsview_dashboard_password: the role that the dashboard reads
-            the sessions as.
+          agentsview_superuser_password: the password for the database
+            superuser.
+          agentsview_dashboard_password: the password for the role the
+            dashboard reads the sessions as.
           ${common.authTokenSecret}: authenticates a caller to the API of
             the dashboard.
           ${common.cursorSecret}: signs the cursors of the dashboard.
@@ -74,10 +74,10 @@ in {
         Each machine that pushes has a role and a password of its own, under
         `agentsview-postgres/<machine>.yaml`.
 
-        The dashboard's password goes into a connection URL, so make it with
-        `openssl rand -hex 32`: one containing `/`, `#`, `?` or `:` reads as a
-        port or a path and the dashboard does not start. Make the other three
-        with `openssl rand -base64 32`.
+        The dashboard's password goes into a connection URL, so generate it
+        with `openssl rand -hex 32`: one containing `/`, `#`, `?` or `:` reads
+        as a port or a path and the dashboard does not start. Generate the
+        other three with `openssl rand -base64 32`.
       '';
     };
   };

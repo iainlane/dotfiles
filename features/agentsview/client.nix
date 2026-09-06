@@ -25,19 +25,19 @@
     inherit (config.flake.agentsviewServer) domain;
   };
 
-  # The parts that need an address wait until there is one. The assertion
-  # below then reports a machine that pushes to no server.
+  # The parts that need the server's address are guarded on this. The assertion
+  # below reports a machine that pushes with no server to push to.
   haveServer = server != null;
 
   configTemplate = "agentsview-config.toml";
 
   agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
 
-  # The package renders its skills once per harness: the `claude` render
-  # names Claude Code's Task tool, and the `agents` render is generic. Each
-  # file starts with a header holding a hash of its body, which `agentsview
-  # skills list` compares against a fresh render for that harness, so a
-  # harness has to get the render made for it.
+  # The package ships one copy of its skills per harness: the `claude` copy
+  # names Claude Code's Task tool, and the `agents` copy is generic. Each file
+  # starts with a header containing a hash of its body, and `agentsview skills
+  # list` compares that hash with the hash of the skill it generates for the
+  # harness in use, so each harness has to be given the copy built for it.
   skillsFor = system: harness: "${agentsviewFor system}/share/agentsview/skills/${harness}";
 
   # The harness modules, and with them the `dotfiles.ai` and
@@ -55,12 +55,12 @@
     };
   };
 
-  # The database answers on 443, the port the web already uses, and the proxy
-  # tells the two apart by the protocol named in the TLS handshake. That name
-  # is there only if the driver starts with TLS, which is what
-  # `sslnegotiation=direct` asks for; the default negotiates TLS through a
-  # Postgres message first, and the proxy would send the connection to the
-  # web server.
+  # The database answers on 443, the port the web sites already use, and the
+  # proxy tells the two apart by the ALPN name in the TLS handshake. That name
+  # is present only if the driver opens the connection with TLS, which is what
+  # `sslnegotiation=direct` asks for. The default negotiates TLS through a
+  # Postgres startup message first, and the proxy would hand that connection to
+  # the web server.
   dsn = {
     hostname,
     password,
@@ -101,8 +101,8 @@
       url = "${url}"
     '';
 
-  # The log of the push. `agentsview pg service logs` reads this path, thus
-  # that command works beside the units here.
+  # The log of the push. `agentsview pg service logs` reads this path, so that
+  # command works against the units declared here.
   pushLog = cfg: "${cfg.dataDir}/pg-watch.log";
 
   # The push watcher's environment. With daemon auto-start disabled the
@@ -191,7 +191,8 @@
     cfg = config.dotfiles.agentsview;
 
     # launchd keeps no record of the output of a job. These files are that
-    # record, and they are the first place to look when an agent stops.
+    # record, and they are the first place to look when one of these jobs
+    # stops.
     logDir = "${config.home.homeDirectory}/Library/Logs";
   in {
     config = lib.mkMerge [

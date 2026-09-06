@@ -1,13 +1,14 @@
 # shellcheck shell=bash
 #
-# Dump the AgentsView database and hand the result to `r2 backup`. Driven
-# entirely by the environment so it stays a plain, checkable shell script:
+# Dump the AgentsView database and hand the result to `r2 backup`. Every
+# setting arrives in the environment, so nothing is substituted into this file
+# and shellcheck can run over it:
 #
 #   AGENTSVIEW_CONTAINER   container running Postgres
 #   AGENTSVIEW_PG_DUMP     pg_dump inside that container
 #   AGENTSVIEW_DATABASE    database to dump
 #   AGENTSVIEW_SUPERUSER   role to connect as
-#   AGENTSVIEW_SOCKET_DIR  directory holding the Postgres socket
+#   AGENTSVIEW_SOCKET_DIR  directory containing the Postgres socket
 #
 # plus everything `r2 backup` reads.
 #
@@ -15,8 +16,8 @@
 # repeatable-read transaction, so the dump shows the database as it was when
 # the dump began, and the machines carry on pushing throughout.
 #
-# This dumps the one database. The roles belong to the cluster, and the roles
-# unit rebuilds them from the secrets repository at every start.
+# This dumps only that database. The roles belong to the cluster, and the roles
+# unit recreates them from the secrets repository at every start.
 set -euo pipefail
 umask 077
 
@@ -32,7 +33,7 @@ mkdir -p "${snapshot}"
 dump="${snapshot}/${AGENTSVIEW_DATABASE}.dump"
 
 # The custom format lets a restore take one table at a time and in parallel.
-# `r2 backup` compresses with zstd, thus pg_dump does none of its own.
+# `r2 backup` compresses with zstd, so pg_dump does none of its own.
 podman exec "${AGENTSVIEW_CONTAINER}" \
 	"${AGENTSVIEW_PG_DUMP}" \
 	--format=custom \
