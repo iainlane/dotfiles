@@ -40,8 +40,12 @@
         )
         paths;
     in
-      lib.filterAttrs (_: v: v != [] && v != {})
-      (lib.recursiveUpdate l r // setMerged);
+      # `setMerged` has an entry for every path named above, empty when
+      # neither side supplied one. Drop the empty entries before overlaying
+      # the set, so an empty value written elsewhere in the settings
+      # survives the merge.
+      lib.recursiveUpdate l r
+      // lib.filterAttrs (_: v: v != [] && v != {}) setMerged;
   in
     walk setMergedPaths;
 
