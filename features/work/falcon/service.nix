@@ -19,68 +19,56 @@
     ;
   cfg = config.services.falcon-sensor;
   installDir = "/opt/CrowdStrike";
-  hashKey =
+  rpmArch =
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux"
     then "x86_64"
     else if pkgs.stdenv.hostPlatform.system == "aarch64-linux"
     then "aarch64"
     else throw "Unsupported system for Falcon sensor: ${pkgs.stdenv.hostPlatform.system}";
 
-  rpmArch =
-    if hashKey == "x86_64"
-    then "x86_64"
-    else "aarch64";
-
   falconRelease =
-    if cfg.release == null
-    then null
-    else
-      cfg.release
-      // {
-        hash = cfg.release.hashes.${hashKey};
-        rpmFilename = "falcon-sensor-${cfg.release.version}.el10.${rpmArch}.rpm";
-        releaseTag = "v${cfg.release.version}";
-      };
+    cfg.release
+    // {
+      hash = cfg.release.hashes.${rpmArch};
+      rpmFilename = "falcon-sensor-${cfg.release.version}.el10.${rpmArch}.rpm";
+      releaseTag = "v${cfg.release.version}";
+    };
 
   fetchGitHubReleaseAsset = pkgs.callPackage ../../../lib/fetch-github-release-asset.nix {};
 
-  falconSensorPackage =
-    if falconRelease == null
-    then null
-    else
-      pkgs.stdenvNoCC.mkDerivation {
-        pname = "falcon-sensor";
-        inherit (falconRelease) version;
-        src = fetchGitHubReleaseAsset {
-          inherit (falconRelease) repo hash;
-          tag = falconRelease.releaseTag;
-          filename = falconRelease.rpmFilename;
-        };
-        nativeBuildInputs = with pkgs; [
-          cpio
-          patchelf
-          rpm
-        ];
-        dontUnpack = true;
-        installPhase = ''
-          runHook preInstall
+  falconSensorPackage = pkgs.stdenvNoCC.mkDerivation {
+    pname = "falcon-sensor";
+    inherit (falconRelease) version;
+    src = fetchGitHubReleaseAsset {
+      inherit (falconRelease) repo hash;
+      tag = falconRelease.releaseTag;
+      filename = falconRelease.rpmFilename;
+    };
+    nativeBuildInputs = with pkgs; [
+      cpio
+      patchelf
+      rpm
+    ];
+    dontUnpack = true;
+    installPhase = ''
+      runHook preInstall
 
-          mkdir -p "$out"
-          extract_dir="$TMPDIR/extracted"
-          mkdir -p "$extract_dir"
-          cd "$extract_dir"
-          rpm2cpio "$src" | cpio -idm --quiet
+      mkdir -p "$out"
+      extract_dir="$TMPDIR/extracted"
+      mkdir -p "$extract_dir"
+      cd "$extract_dir"
+      rpm2cpio "$src" | cpio -idm --quiet
 
-          cp -r opt "$out/"
+      cp -r opt "$out/"
 
-          interp="$(patchelf --print-interpreter ${pkgs.bash}/bin/bash)"
-          find "$out/opt/CrowdStrike" -maxdepth 1 -type f -perm -0100 -print0 | while IFS= read -r -d $'\0' binary; do
-            patchelf --set-interpreter "$interp" "$binary" 2>/dev/null || true
-          done
+      interp="$(patchelf --print-interpreter ${pkgs.bash}/bin/bash)"
+      find "$out/opt/CrowdStrike" -maxdepth 1 -type f -perm -0100 -print0 | while IFS= read -r -d $'\0' binary; do
+        patchelf --set-interpreter "$interp" "$binary" 2>/dev/null || true
+      done
 
-          runHook postInstall
-        '';
-      };
+      runHook postInstall
+    '';
+  };
 
   # The sensor writes registration state into its install directory, so it
   # must run from a mutable copy of the package. Staging in
@@ -187,7 +175,7 @@ in {
     };
 
     release = mkOption {
-      type = types.nullOr (types.submodule {
+      type = types.submodule {
         options = {
           repo = mkOption {
             type = types.str;
@@ -198,24 +186,27 @@ in {
             description = "Falcon sensor version to install.";
           };
           hashes = mkOption {
-            type = types.attrsOf types.str;
-            description = "Architecture-specific fixed-output hashes for the Falcon RPM.";
+            type = types.submodule {
+              options = {
+                x86_64 = mkOption {
+                  type = types.str;
+                  description = "Fixed-output hash of the x86_64 Falcon RPM.";
+                };
+                aarch64 = mkOption {
+                  type = types.str;
+                  description = "Fixed-output hash of the aarch64 Falcon RPM.";
+                };
+              };
+            };
+            description = "Fixed-output hashes of the Falcon RPM, by RPM architecture.";
           };
         };
-      });
-      default = null;
+      };
       description = "Pinned Falcon release metadata.";
     };
   };
 
   config = mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.release != null;
-        message = "services.falcon-sensor.release must be set.";
-      }
-    ];
-
     environment.systemPackages = [
       falconSensorCheck
     ];
