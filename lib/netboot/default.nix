@@ -6,7 +6,7 @@
   inherit (inputs.nixpkgs) lib;
   inherit (import ../channels.nix {inherit inputs;}) channelFor;
 
-  # The nixpkgs and package set a host's channel selects, from a pair of
+  # The nixpkgs and package set for a host's channel, chosen from a pair of
   # package sets.
   channelForHost = pkgs: pkgs-stable: hostConfig:
     channelFor {
@@ -88,8 +88,8 @@
     };
   };
 
-  # All x86_64-linux inputs needed by the ISO assembly. Building this
-  # derivation ensures the entire closure is materialised in the store.
+  # The contents and store paths the ISO assembly needs, collected into one
+  # derivation. Building it realises the whole closure in the local store.
   mkIsoContents = evaluated: hostname: let
     installerConfig = evaluated.installer.config;
     contentSources =

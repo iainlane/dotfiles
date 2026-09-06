@@ -9,12 +9,11 @@
   cfg = config.programs.projectDirectories;
   inherit (lib) mkOption types;
 
-  # `treePath` and `directorySegments` are the ones `mkProjectShells` builds
-  # the `direnvs` tree with, so the path this module looks a shell up at is
-  # the path that shell was put at.
+  # `mkProjectShells` builds the `direnvs` tree with these same two helpers,
+  # so this module looks a shell up under the path that shell was registered
+  # at.
   inherit (import ../projects.nix {inherit lib;}) directorySegments treePath;
 
-  # Resolve a directory path to absolute.
   toAbsolute = dirPath:
     if lib.hasPrefix "/" dirPath
     then dirPath
@@ -46,7 +45,7 @@ in {
               description = ''
                 Extra directories to prepend to PATH via direnv PATH_add. Each
                 value is written to the `.envrc` unquoted, so the shell expands
-                it and it has to be safe that way.
+                it: only use values that are safe to expand.
               '';
               example = lib.literalExpression ''["$HOME/go/bin"]'';
             };

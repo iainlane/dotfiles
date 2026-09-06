@@ -5,7 +5,8 @@
 {lib}: rec {
   # The segments of a project's directory path, which name its shell in the
   # `direnvs` tree: "dev/debian" gives ["dev" "debian"]. A segment may contain
-  # a dot, so the segments are what every consumer works from.
+  # a dot, so consumers work from the segment list and never from a dotted
+  # string.
   directorySegments = directory:
     lib.filter (segment: segment != "") (lib.splitString "/" directory);
 
@@ -109,7 +110,7 @@
     directories = mkDirectoriesConfig projectDefinitions;
   in {
     # A home-manager module fragment that features can import to configure
-    # project-directories. This reduces boilerplate.
+    # project-directories.
     homeManagerModule = _: {
       imports = [./project-directories];
 

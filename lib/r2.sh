@@ -6,13 +6,13 @@
 #
 #   r2 backup          archive a directory, encrypt it, and push it to R2,
 #                      then expire old copies
-#   r2 verify          check that a recent, plausible-looking backup is
-#                      sitting in R2
-#   r2 restore list    print the backups held, newest last
+#   r2 verify          check that a recent, plausible-looking backup is in R2
+#   r2 restore list    print the backups in the bucket, newest last
 #   r2 restore fetch   fetch one, decrypt it, and unpack it
 #
-# All four read, driven entirely by the environment so this stays a plain,
-# checkable shell script:
+# Nothing is substituted into this script, so it stays a plain shell file
+# that shellcheck can run over. Every setting arrives in the environment,
+# and all four subcommands read:
 #
 #   BACKUP_NAME           leading part of the archive's name
 #   BACKUP_PREFIX         path prefix within the bucket
@@ -26,7 +26,7 @@
 # verify also reads:
 #   BACKUP_MAX_AGE_HOURS  fail if the newest backup is older than this
 #   BACKUP_MIN_SIZE       fail if the newest backup is smaller than this
-#   BACKUP_MIN_COUNT      fail if fewer backups than this are held
+#   BACKUP_MIN_COUNT      fail if the bucket has fewer backups than this
 #
 # restore fetch also reads:
 #   BACKUP_IDENTITY_FILE  age identity file holding the private key

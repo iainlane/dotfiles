@@ -23,14 +23,13 @@ projects = {
 This module generates `~/dev/debian/.envrc` pointing to a flake shell with
 `EMAIL=laney@debian.org` set.
 
-## The derivation tracking trick
+## Keeping the `.envrc` in step with its shell
 
-The tricky bit: we want `.envrc` to update when the shell definition changes. We
-do this by embedding the shell's derivation path as a comment in the `.envrc`,
-but with its string context stripped. When the shell changes, the `.drv` path
-changes, so the file changes and direnv treats the existing cache as stale. The
-Home Manager `onChange` hook allows the new contents without pulling the dev
-shell into the system closure.
+An `.envrc` has to change when its shell definition changes. The generated file
+carries the shell's derivation path in a comment, with the string context
+stripped so the shell is not pulled into the home closure. A changed shell has a
+different `.drv` path, so the file changes and direnv treats its cache as stale.
+Home Manager's `onChange` hook then runs `direnv allow` on the new contents.
 
 `lib/projects.nix` defines `mkProjectShells`, which builds these shells and the
 Home Manager module that writes the `.envrc` files.

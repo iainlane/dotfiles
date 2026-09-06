@@ -1,8 +1,8 @@
 # How a child feature tells the rest of its parent that it is composed.
 #
 # A child defines one boolean option that its parent declares, and the parent
-# branches on that value. The parent declares it so that the option exists on
-# a host that excludes the child, where the parent reads `false`.
+# branches on that value. The parent declares it so the option exists even on
+# a host that excludes the child; there the parent reads `false`.
 #
 # The option is not a switch: the child's own module is what defines it.
 # `assertions` counts the files that define the option and refuses more than

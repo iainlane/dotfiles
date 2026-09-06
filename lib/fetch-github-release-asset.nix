@@ -1,6 +1,6 @@
-# Fetch a release asset from a private GitHub repo by tag + filename.
-# Resolves the asset URL via the GitHub API at build time, so no
-# asset IDs need to be pinned in configuration.
+# Fetch a release asset from a private GitHub repository, given the release
+# tag and the file name. The asset's API URL is resolved through the GitHub
+# API at build time, so no asset ID has to be pinned in the configuration.
 {
   lib,
   stdenvNoCC,
@@ -77,7 +77,6 @@ stdenvNoCC.mkDerivation {
       exit 1
     fi
 
-    # Download the asset binary
     "''${curl[@]}" --fail \
       -H "Accept: application/octet-stream" \
       "$asset_url" -o "$out"

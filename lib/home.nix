@@ -17,7 +17,8 @@
   # unstable and hand it to the home-manager modules on stable hosts through
   # the special args, so both the embedded and standalone configurations
   # receive it. Special args take precedence over the home-manager module's
-  # own `lib`, so this overrides it without rebuilding the stable source.
+  # own `lib`, so the extended lib replaces it without rebuilding the stable
+  # source.
   unstableHmLib = pkgs-stable:
     pkgs-stable.lib.extend (
       self: super: let

@@ -5,7 +5,7 @@
 # for software nixpkgs does not carry, such as the ADS-B feeders, are pulled
 # from their publisher instead.
 #
-# Takes `pkgs` rather than being a module, because the callers sit in
+# Takes `pkgs` rather than being a module, because its callers are in
 # different evaluations: Home Manager for the rootless containers, and
 # system-manager for the rootful ones.
 {pkgs}: {

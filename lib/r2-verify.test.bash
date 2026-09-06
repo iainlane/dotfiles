@@ -10,6 +10,7 @@ mkdir "${test_dir}/bin"
 
 # The listing is whatever the case under test wrote. A path that is not there
 # stands for a bucket rclone cannot read.
+#
 # The Nix build sandbox has no /usr/bin/env, so give the stub the running
 # bash as its interpreter.
 printf '#!%s\n' "${BASH}" >"${test_dir}/bin/rclone"

@@ -15,8 +15,8 @@ let
   # it.
   recipient = "age18peqyehsnk772uj60e35wathys8uxh9w0v9hxt6r9k92mqqhcajslmwcpg";
 
-  # What the credentials file has to carry. The bucket is addressed with an S3
-  # token scoped to it, so all four are needed to reach it at all.
+  # What the credentials file has to contain. The bucket is reached over S3
+  # with a token scoped to that bucket, so all four values are needed.
   credentialKeys = [
     "r2_bucket"
     "r2_endpoint"
@@ -25,8 +25,7 @@ let
   ];
 
   # Archives, checks, and restores: `r2 backup`, `r2 verify`, and
-  # `r2 restore list|fetch`. What a service does with a restored tree is its
-  # own business.
+  # `r2 restore list|fetch`.
   tool = {pkgs}:
     pkgs.writeShellApplication {
       name = "r2";
@@ -94,7 +93,7 @@ in {
         description = ''
           Check on a timer that a backup reached the bucket. The private key
           is offline, so this looks at the remote objects alone: how old the
-          newest one is, how big it is, and how many are held. A check that
+          newest one is, how big it is, and how many there are. A check that
           does not pass fails its unit.
         '';
       };
@@ -104,8 +103,8 @@ in {
         default = defaultVerifySchedule;
         description = ''
           systemd `OnCalendar` schedule for the check. It runs on a timer of
-          its own so that a backup which never started is noticed as well,
-          which means it wants to be an hour or two after `schedule`.
+          its own, so a backup that never started is noticed as well. Set it
+          an hour or two after `schedule`.
         '';
       };
 
@@ -132,7 +131,7 @@ in {
         type = lib.types.int;
         default = 1;
         description = ''
-          Fail if the bucket holds fewer than this many backups. Raising it
+          Fail if the bucket contains fewer than this many backups. Raising it
           towards what `keepDays` should have accumulated checks that the
           history is there, and not only the newest copy.
         '';
@@ -201,9 +200,9 @@ in {
 
   # Gives a backup unit a working directory on the root filesystem. Each
   # script builds its archive under `mktemp -d`, which honours TMPDIR. Left
-  # to the default, the archive goes under /tmp, and on a host where /tmp is
-  # a tmpfs the whole archive sits in RAM: a dump larger than the tmpfs fails
-  # outright, and a smaller one crowds out the running services.
+  # to the default, the archive goes under /tmp, and on a host whose /tmp is
+  # a tmpfs that puts the whole archive in RAM: a dump larger than the tmpfs
+  # fails outright, and a smaller one crowds out the running services.
   withScratchDirectory = unitName: serviceConfig:
     serviceConfig
     // {

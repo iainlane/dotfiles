@@ -1,11 +1,12 @@
 # The resolver that turns a host's feature list into the modules for one
 # module system.
 #
-# A feature is a set of modules, at most one for each of NixOS, nix-darwin,
-# system-manager and Home Manager, and a list of features it includes.
-# `closure` expands the includes into an ordered list, which contains the
-# features it was given as well as the ones they reach, and `modulesFor` reads
-# one class of module from that list.
+# A feature carries a module, or a list of modules, for each of NixOS,
+# nix-darwin, system-manager and Home Manager, a `system` module for whichever
+# of the three system classes builds the host, and a list of features it
+# includes. `closure` expands the includes into an ordered list, which contains
+# the features it was given as well as the ones they reach, and `modulesFor`
+# reads one class of module from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
 in rec {
@@ -25,11 +26,11 @@ in rec {
     merge = lib.mergeEqualOption;
   };
 
-  # Expands `features` into themselves and every feature they include,
-  # directly or through other features. Each feature comes after the features
-  # it includes, and a feature reached more than once appears once. The includes under
-  # `os.<os>` are followed only for the host's OS. An include cycle is an
-  # error: `closure` throws and names the features in the cycle.
+  # Resolves `features` and their transitive includes into composition order.
+  # Each feature comes after the features it includes, and a feature reached
+  # more than once appears once. The includes under `os.<os>` are followed
+  # only for the host's OS. An include cycle is an error: `closure` throws and
+  # names the features in the cycle.
   #
   # `excludes` names features to drop. A dropped feature contributes no
   # modules and its own includes are not followed, so excluding a feature
@@ -81,10 +82,11 @@ in rec {
     inherit (result) ordered excluded;
   };
 
-  # The message for an `excludes` list the host's composition cannot act on,
-  # or null when it can. A feature the host also lists is asked for and
-  # refused at once; a feature the closure never reaches is a name that
-  # changes nothing, usually a typo or a leftover.
+  # An error message for an `excludes` entry the host's composition cannot act
+  # on, or null when every entry excludes something. A feature the host also
+  # lists directly is asked for and refused at the same time. A feature the
+  # closure never includes changes nothing, and is usually a typo or a
+  # leftover.
   excludeError = {
     name,
     features,

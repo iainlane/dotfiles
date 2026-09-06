@@ -17,9 +17,9 @@
       type = lib.types.bool;
       default = true;
       description = ''
-        Require the proxy's single sign-on before the service is reached.
-        Serving something to anyone who asks is the decision worth stating, so
-        it is the one that has to be written down.
+        Require the proxy's single sign-on before a visitor can reach the
+        service. This option defaults to true, so a host that serves something
+        to anyone who asks has to set `auth = false` explicitly.
       '';
     };
   };
