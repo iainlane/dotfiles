@@ -797,8 +797,14 @@ class Phase(StrEnum):
     JUDGE = "judge"
 
 
-@dataclass(frozen=True)
-class TestFinished:
+# The structured frontend serialises these directly, so the discriminator has
+# to use the "event" key that the task records on the same stream already use.
+class TestFinished(
+    msgspec.Struct,
+    frozen=True,
+    tag="TestFinished",
+    tag_field="event",
+):
     fixture_name: str
     status: TestStatus
     summary: str
@@ -806,8 +812,12 @@ class TestFinished:
     result: TestResult | None
 
 
-@dataclass(frozen=True)
-class SuiteFinished:
+class SuiteFinished(
+    msgspec.Struct,
+    frozen=True,
+    tag="SuiteFinished",
+    tag_field="event",
+):
     passed: int
     failed: int
     invalid: int
@@ -816,15 +826,23 @@ class SuiteFinished:
     run_metadata: Path
 
 
-@dataclass(frozen=True)
-class SuiteInterrupted:
+class SuiteInterrupted(
+    msgspec.Struct,
+    frozen=True,
+    tag="SuiteInterrupted",
+    tag_field="event",
+):
     """Report the durable partial-result location after cancellation."""
 
     output: Path
 
 
-@dataclass(frozen=True)
-class ImprovementFinished:
+class ImprovementFinished(
+    msgspec.Struct,
+    frozen=True,
+    tag="ImprovementFinished",
+    tag_field="event",
+):
     """Report the bounded search outcome and its durable result location."""
 
     accepted_proposals: int
@@ -834,8 +852,12 @@ class ImprovementFinished:
     winner_patch: Path | None
 
 
-@dataclass(frozen=True)
-class ImprovementAborted:
+class ImprovementAborted(
+    msgspec.Struct,
+    frozen=True,
+    tag="ImprovementAborted",
+    tag_field="event",
+):
     """Close improvement progress before the typed failure is reported."""
 
     output: Path

@@ -91,9 +91,7 @@ class JsonFrontend:
         self._tasks = JsonTaskView(self._write)
 
     def emit(self, event: Event) -> None:
-        value = msgspec.to_builtins(event, enc_hook=encode_special)
-        value["event"] = type(event).__name__
-        self._write(value)
+        self._write(event)
 
     def observe(self, root: TaskRun) -> None:
         """Attach JSON task reporting to a new root."""
