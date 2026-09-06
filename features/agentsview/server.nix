@@ -54,16 +54,6 @@ in {
 
     dashboardName = "agentsview";
 
-    inherit
-      (database)
-      superuser
-      ;
-
-    databaseName = database.containerName;
-    databasePort = database.port;
-    pgSocketDir = database.socketDir;
-    postgresql = database.package;
-
     # Only the database and the dashboard join this network, so the dashboard
     # is the only service on this host that reaches the database.
     networkName = "agentsviewnet";
@@ -119,7 +109,7 @@ in {
       disable_update_check = true
 
       [pg]
-      url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${databaseName}:${toString databasePort}/${cfg.database}?sslmode=disable"
+      url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable"
       allow_insecure = true
     '';
 
@@ -129,8 +119,8 @@ in {
 
     superuserSecret = "agentsview_superuser_password";
 
-    databaseImage = mkNixImage databaseName [
-      postgresql
+    databaseImage = mkNixImage database.containerName [
+      database.package
       databaseInit
       databaseNss
       pkgs.dockerTools.binSh
@@ -157,20 +147,20 @@ in {
       set -eu
 
       if [ ! -s ${pgData}/PG_VERSION ]; then
-        printf '%s\n' "$POSTGRES_PASSWORD" | ${postgresql}/bin/initdb \
+        printf '%s\n' "$POSTGRES_PASSWORD" | ${database.package}/bin/initdb \
           --pgdata=${pgData} \
-          --username=${superuser} \
+          --username=${database.superuser} \
           --pwfile=/dev/stdin \
           --encoding=UTF8 \
           --locale=C.UTF-8
       fi
 
-      exec ${postgresql}/bin/postgres \
+      exec ${database.package}/bin/postgres \
         -D ${pgData} \
         -c hba_file=${hbaFile} \
         -c listen_addresses='*' \
-        -c port=${toString databasePort} \
-        -c unix_socket_directories=${pgSocketDir}
+        -c port=${toString database.port} \
+        -c unix_socket_directories=${database.socketDir}
     '';
 
     # `initdb` creates only the cluster's default database. The first run of
@@ -191,9 +181,9 @@ in {
       set -u
 
       run() {
-        podman exec -i ${databaseName} \
-          ${postgresql}/bin/psql -q -v ON_ERROR_STOP=1 \
-          -h ${pgSocketDir} -U ${superuser} "$@"
+        podman exec -i ${database.containerName} \
+          ${database.package}/bin/psql -q -v ON_ERROR_STOP=1 \
+          -h ${database.socketDir} -U ${database.superuser} "$@"
       }
 
       for _ in $(seq 10); do
@@ -213,7 +203,7 @@ in {
     # machine.
     group = "agentsview_push";
 
-    rolesUnit = "${databaseName}-roles";
+    rolesUnit = "${database.containerName}-roles";
 
     # The dashboard connects as a member of the shared role, as the machines
     # do. The superuser is what the health check and the roles unit connect
@@ -272,7 +262,7 @@ in {
         -- `initdb` sets this password on the first run only. Setting it
         -- again at every start means a rotated password takes effect
         -- without recreating the cluster.
-        ALTER ROLE ${superuser} PASSWORD '${config.sops.placeholder.${superuserSecret}}';
+        ALTER ROLE ${database.superuser} PASSWORD '${config.sops.placeholder.${superuserSecret}}';
 
         -- A machine that leaves the list keeps its rows and loses access.
         DO $$
@@ -299,16 +289,12 @@ in {
       autoStart = true;
 
       containerConfig = {
-        image = config.virtualisation.quadlet.images.${databaseName}.ref;
+        image = config.virtualisation.quadlet.images.${database.containerName}.ref;
 
         networks =
           [network]
-          ++ lib.optional reachableFromProxy "${serviceNetwork databaseName}.network";
+          ++ lib.optional reachableFromProxy "${serviceNetwork database.containerName}.network";
 
-        # The container runs with the host's ids, as its own user, with no
-        # capabilities. An escape from the container gets an id that owns the
-        # database files and nothing else.
-        #
         # A user namespace is not used here: with one, on this host,
         # connections to Postgres 18 hang in `authentication` and never
         # complete. The cause is still unknown.
@@ -335,7 +321,7 @@ in {
         # The check goes over the unix socket, so it tests the database rather
         # than the network path to it. Each check occupies a connection while
         # it runs, and the long interval keeps that cost down.
-        healthCmd = "${postgresql}/bin/pg_isready -h ${pgSocketDir} -p ${toString databasePort} -U ${superuser}";
+        healthCmd = "${database.package}/bin/pg_isready -h ${database.socketDir} -p ${toString database.port} -U ${database.superuser}";
         healthInterval = "30s";
         healthRetries = 4;
         healthStartPeriod = "60s";
@@ -358,11 +344,8 @@ in {
         Wants = ["network-online.target" "sops-install-secrets.service"];
       };
 
-      # podman's quadlet generator emits no `TimeoutStopSec`, and
-      # quadlet-nix's per-container defaults supply only `Restart` and
-      # `TimeoutStartSec`, so systemd would fall back to its 90 second default
-      # and kill the container 30 seconds before the 120 seconds `stopTimeout`
-      # allows for the checkpoint above.
+      # Systemd must allow more time than Podman's 120-second stop timeout,
+      # or it can kill the container during the database shutdown checkpoint.
       serviceConfig.TimeoutStopSec = 180;
     };
 
@@ -423,9 +406,9 @@ in {
         # The dashboard reads all of its data from the database, so it waits
         # for the database and stops with it. It also waits for the roles unit,
         # which creates the role it connects as.
-        Requires = ["${databaseName}.service" "${rolesUnit}.service"];
+        Requires = ["${database.containerName}.service" "${rolesUnit}.service"];
         After = [
-          "${databaseName}.service"
+          "${database.containerName}.service"
           "${rolesUnit}.service"
           "sops-install-secrets.service"
         ];
@@ -486,14 +469,14 @@ in {
         # `virtualisation.containers.idRanges` reserves ranges a container maps
         # into a namespace of its own. This container uses the host's ids, so
         # its single id is claimed here instead.
-        environment.etc."sysusers.d/${databaseName}.conf".text = ''
-          u ${databaseName} ${toString databaseId} "AgentsView database" /nonexistent /usr/sbin/nologin
+        environment.etc."sysusers.d/${database.containerName}.conf".text = ''
+          u ${database.containerName} ${toString databaseId} "AgentsView database" /nonexistent /usr/sbin/nologin
         '';
 
-        systemd.services."${databaseName}-user" = {
+        systemd.services."${database.containerName}-user" = {
           description = "Claim the id the AgentsView database runs as";
           wantedBy = ["system-manager.target"];
-          before = ["${databaseName}.service"];
+          before = ["${database.containerName}.service"];
 
           serviceConfig = {
             Type = "oneshot";
@@ -507,10 +490,10 @@ in {
         # this list get through, and the stream is declared only when there is
         # at least one.
         dotfiles.containers.edgeProxy.streams = lib.mkIf reachableFromProxy {
-          ${databaseName} = {
+          ${database.containerName} = {
             inherit (cfg) domain;
             alpn = "postgresql";
-            port = databasePort;
+            inherit (database) port;
             inherit trustedClients;
           };
         };
@@ -545,8 +528,8 @@ in {
 
         systemd.services.${rolesUnit} = {
           description = "Bring the AgentsView database roles into line";
-          requires = ["${databaseName}.service" "sops-install-secrets.service"];
-          after = ["${databaseName}.service" "sops-install-secrets.service"];
+          requires = ["${database.containerName}.service" "sops-install-secrets.service"];
+          after = ["${database.containerName}.service" "sops-install-secrets.service"];
           wantedBy = ["system-manager.target"];
           path = [config.virtualisation.podman.package];
 
@@ -571,14 +554,14 @@ in {
               tag = "localhost/${dashboardName}:${dashboardImage.imageTag}";
             };
 
-            ${databaseName}.imageConfig = {
+            ${database.containerName}.imageConfig = {
               image = "docker-archive:${databaseImage}";
-              tag = "localhost/${databaseName}:${databaseImage.imageTag}";
+              tag = "localhost/${database.containerName}:${databaseImage.imageTag}";
             };
           };
 
           containers = {
-            ${databaseName} = databaseContainer;
+            ${database.containerName} = databaseContainer;
 
             ${dashboardName} =
               exposePodman dashboardName dashboardContainer
