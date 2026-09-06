@@ -11,7 +11,7 @@ stdenvNoCC.mkDerivation {
     owner = "bynux-gh";
     repo = "bynfont";
     rev = "f27183da0427acf332f0c3fc718c9cda9de75637";
-    hash = "sha256:0wn32dj5bylyk4k2caas6cm9affjshb1rlj8yyn94b9gsl2s8wdx";
+    hash = "sha256-vXGkBdUvLZKs90jSHBbU0jmVKjNaKSYmmZ76VWQTw3I=";
   };
 
   installPhase = ''
