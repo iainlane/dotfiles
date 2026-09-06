@@ -25,11 +25,15 @@ import_signing_identity() {
 
 	local signing_directory
 	signing_directory=$(/usr/bin/mktemp -d "${TMPDIR:-/private/tmp}/voxtype-signing.XXXXXX")
+	# A RETURN trap outlives the function that set it, so clear it before
+	# removing the directory. Left in place, it runs again when a caller
+	# returns, after `signing_directory` has gone out of scope, and
+	# expanding the unset variable aborts the script under `set -u`.
+	trap 'trap - RETURN; /bin/rm -rf "${signing_directory}"' RETURN
 	local identity_file="${signing_directory}/identity.p12"
 	local certificate_file="${signing_directory}/certificate.pem"
 
 	if ! /usr/bin/base64 -D -i "${identity_secret}" -o "${identity_file}"; then
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
 
@@ -40,13 +44,11 @@ import_signing_identity() {
 		-clcerts \
 		-nokeys \
 		-out "${certificate_file}"; then
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
 
 	local fingerprint
 	if ! fingerprint=$(openssl x509 -in "${certificate_file}" -noout -fingerprint -sha1); then
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
 
@@ -55,27 +57,23 @@ import_signing_identity() {
 
 	if [[ ! ${signing_identity_hash} =~ ^[[:xdigit:]]{40}$ ]]; then
 		echo "Could not read the code-signing certificate fingerprint" >&2
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
 
 	local lower_identity_hash
 	if ! lower_identity_hash=$(/usr/bin/printf '%s' "${signing_identity_hash}" | /usr/bin/tr '[:upper:]' '[:lower:]'); then
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
 
 	signing_requirement="identifier \"${bundle_identifier}\" and certificate root = H\"${lower_identity_hash}\""
 
 	if /usr/bin/security find-identity -v -p codesigning "${signing_keychain}" | /usr/bin/grep -q "${signing_identity_hash}"; then
-		/bin/rm -rf "${signing_directory}"
 		return
 	fi
 
 	if ! /usr/bin/security find-identity -p codesigning "${signing_keychain}" | /usr/bin/grep -q "${signing_identity_hash}"; then
 		local identity_password
 		if ! identity_password=$(/bin/cat "${password_secret}"); then
-			/bin/rm -rf "${signing_directory}"
 			return 1
 		fi
 
@@ -83,7 +81,6 @@ import_signing_identity() {
 			-k "${signing_keychain}" \
 			-P "${identity_password}" \
 			-T /usr/bin/codesign; then
-			/bin/rm -rf "${signing_directory}"
 			return 1
 		fi
 	fi
@@ -93,11 +90,8 @@ import_signing_identity() {
 		-p codeSign \
 		-k "${signing_keychain}" \
 		"${certificate_file}"; then
-		/bin/rm -rf "${signing_directory}"
 		return 1
 	fi
-
-	/bin/rm -rf "${signing_directory}"
 
 	if /usr/bin/security find-identity -v -p codesigning "${signing_keychain}" | /usr/bin/grep -q "${signing_identity_hash}"; then
 		return
@@ -151,6 +145,7 @@ restart_voxtype() {
 install_voxtype_app() {
 	local staging_directory
 	staging_directory=$(/usr/bin/mktemp -d "/Applications/.voxtype.XXXXXX")
+	trap 'trap - RETURN; /bin/rm -rf "${staging_directory}"' RETURN
 	local staged_app="${staging_directory}/Voxtype.app"
 	local previous_app="${staging_directory}/Voxtype.previous.app"
 	local staged_binary="${staged_app}/Contents/MacOS/voxtype-bin"
@@ -158,17 +153,14 @@ install_voxtype_app() {
 	local marker="${staged_app}/Contents/Resources/NixStorePath"
 
 	if ! /usr/bin/ditto "${source_bundle}" "${staged_app}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
 	if ! /bin/chmod -R u+w "${staged_app}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
 	if ! /usr/bin/printf '%s\n' "${source_bundle}" >"${marker}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
@@ -179,7 +171,6 @@ install_voxtype_app() {
 		--identifier "${bundle_identifier}" \
 		--timestamp=none \
 		"${staged_webgpu_runtime}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
@@ -190,7 +181,6 @@ install_voxtype_app() {
 		--identifier "${bundle_identifier}" \
 		--timestamp=none \
 		"${staged_binary}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
@@ -201,7 +191,6 @@ install_voxtype_app() {
 		--identifier "${bundle_identifier}" \
 		--timestamp=none \
 		"${staged_app}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
@@ -211,19 +200,16 @@ install_voxtype_app() {
 		--strict \
 		-R="${signing_requirement}" \
 		"${staged_app}"; then
-		/bin/rm -rf "${staging_directory}"
 		return 1
 	fi
 
 	if [[ -e ${app_bundle} ]]; then
 		if ! /bin/mv "${app_bundle}" "${previous_app}"; then
-			/bin/rm -rf "${staging_directory}"
 			return 1
 		fi
 	fi
 
 	if /bin/mv "${staged_app}" "${app_bundle}"; then
-		/bin/rm -rf "${staging_directory}"
 		return
 	fi
 
@@ -231,7 +217,6 @@ install_voxtype_app() {
 		/bin/mv "${previous_app}" "${app_bundle}"
 	fi
 
-	/bin/rm -rf "${staging_directory}"
 	return 1
 }
 
