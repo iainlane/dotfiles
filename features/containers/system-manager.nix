@@ -131,10 +131,6 @@ in {
       // nixBuiltImageOverrides;
 
     environment.etc = {
-      # podman's `docker` compatibility shim prints a notice saying it is
-      # emulating docker on every invocation unless this file exists.
-      "containers/nodocker".text = "";
-
       # `newuidmap` and `newgidmap` are setuid, and open these without
       # following symlinks, so they have to be real files.
       "subuid" = {
