@@ -73,7 +73,7 @@ in {
       default = {};
       description = ''
         Per-language fragments contributed to direnv shells. Each entry has
-        a base `shell` function and may carry per-kernel overlays under
+        a base `shell` function and may have per-kernel overlays under
         `kernel.<name>.shell`. A feature composes these by listing language
         names on a project definition.
       '';

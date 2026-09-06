@@ -26,7 +26,7 @@ This module generates `~/dev/debian/.envrc` pointing to a flake shell with
 ## Keeping the `.envrc` in step with its shell
 
 An `.envrc` has to change when its shell definition changes. The generated file
-carries the shell's derivation path in a comment, with the string context
+records the shell's derivation path in a comment, with the string context
 stripped so the shell is not pulled into the home closure. A changed shell has a
 different `.drv` path, so the file changes and direnv treats its cache as stale.
 Home Manager's `onChange` hook then runs `direnv allow` on the new contents.

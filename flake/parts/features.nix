@@ -7,7 +7,7 @@
 # features refer to entries by value, so a reference to a feature that does
 # not exist fails at the reference.
 #
-# A feature also carries the concerns that only it uses, as children under
+# A feature also registers the concerns that only it uses, as children under
 # `provides`. A child has every field a feature has and its name is qualified
 # by its parent's, so `closure` and `hasFeature` treat it like any other
 # feature. Registering a child does not apply it: something has to list it in
@@ -125,7 +125,7 @@
       provides = lib.mkOption {
         type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule qualifiedName));
         default = {};
-        description = "Features this one carries. A child is applied when a feature lists it in `includes`, not by registering it here.";
+        description = "Features registered by this one. Registering a child does not apply it: a host lists it in `features`, or a feature lists it in `includes`.";
       };
     };
   };

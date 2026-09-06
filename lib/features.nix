@@ -1,12 +1,13 @@
 # The resolver that turns a host's feature list into the modules for one
 # module system.
 #
-# A feature carries a module, or a list of modules, for each of NixOS,
-# nix-darwin, system-manager and Home Manager, a `system` module for whichever
-# of those module systems builds the host, and a list of features it
-# includes. `closure` expands the includes into an ordered list, which contains
-# the features it was given as well as the ones they reach, and `modulesFor`
-# reads one class of module from that list.
+# A feature can define a module, or a list of modules, for each of NixOS,
+# nix-darwin, system-manager and Home Manager. Its `system` field contributes
+# modules to whichever of NixOS, nix-darwin and system-manager builds the
+# host, and its `includes` field names the features it pulls in. `closure`
+# expands those includes into an ordered list, which contains the features it
+# was given as well as the ones they include, and `modulesFor` selects one
+# class of module from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
 in rec {
@@ -33,11 +34,11 @@ in rec {
   # names the features in the cycle.
   #
   # `excludes` names features to drop. A dropped feature contributes no
-  # modules and its own includes are not followed, so excluding a feature
-  # also excludes whatever only it brings in. The result is `ordered`, the
-  # features in composition order, and `excluded`, the names actually
-  # dropped, which `excludeError` reads to tell an exclude that did nothing
-  # from one that did.
+  # modules, and the walk does not follow its includes, so a feature that
+  # nothing else includes is dropped with it. The result is `ordered`, the
+  # remaining features in composition order, and `excluded`, the names the
+  # walk met and dropped. `excludeError` compares `excluded` with the host's
+  # `excludes` to find an entry that dropped nothing.
   closure = {
     features,
     os,
@@ -102,7 +103,7 @@ in rec {
     if listed != []
     then "Host '${name}' both lists and excludes: ${lib.concatStringsSep ", " listed}."
     else if unreached != []
-    then "Host '${name}' excludes features nothing on it includes: ${lib.concatStringsSep ", " unreached}."
+    then "Host '${name}' excludes features not reached during feature resolution: ${lib.concatStringsSep ", " unreached}."
     else null;
 
   featureNames = args: map (feature: feature.name) (closure args).ordered;

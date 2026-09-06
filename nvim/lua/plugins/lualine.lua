@@ -12,7 +12,7 @@ return {
     -- Drop the filename component: `incline.nvim` renders the path in the
     -- window header. `pretty_path` is the bare `{ <function> }` entry;
     -- `root_dir` and the trouble symbols breadcrumb also use a function at
-    -- `[1]`, but they carry extra keys (`cond`, `color`).
+    -- `[1]`, but they have extra keys (`cond`, `color`).
     opts.sections.lualine_c = vim.tbl_filter(function(entry)
       return type(entry[1]) ~= "function" or vim.tbl_count(entry) > 1
     end, opts.sections.lualine_c)

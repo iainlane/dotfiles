@@ -34,11 +34,11 @@ Every feature lives in one directory under `features/` and registers itself
 under `flake.features.<name>`. The directories are discovered automatically, and
 only a `<name>/default.nix` one level down is loaded.
 
-A feature is top-level when a host lists it or when another feature includes it.
-Everything else is a child of the feature that carries it, registered under that
+A feature is top-level when it is a concern a host composes in its own right.
+Everything else is a child of the feature it belongs to, registered under that
 feature's `provides` and named `<parent>.<child>`, such as `base.zsh` or
 `desktop.gnome`. A child applies only when something lists it in `includes`, so
-a parent lists the children it always carries and puts the rest under the OS
+a parent lists the children that always apply and puts the rest under the OS
 scopes. Anything can list a single child on its own: `hosts/bonington` takes
 `features.work.provides.claude-managed-settings` without the rest of `work`.
 
@@ -182,10 +182,10 @@ broader static analysis, and `./just lint` to run them both.
 
 A pre-commit hook also runs the Python checks for the [prompt conformance
 suite][prompt-conformance], which measures how a change to this repository's
-assembled agent prompt affects real repository work. Building those checks takes
-minutes, so the hook only starts a build when the commit touches something the
-prompt is built from: the instructions and output styles under `features/ai/`,
-the flake inputs, or the suite itself.
+assembled agent prompt affects real repository work. The hook requests a build
+only when the commit touches an input to the checks, such as the instructions
+and output styles under `features/ai/`, the flake inputs, or the suite itself.
+Unchanged build inputs reuse the cached result.
 
 [prompt-conformance]: pkgs/claude-prompt-conformance/README.md
 

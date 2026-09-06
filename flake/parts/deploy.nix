@@ -67,10 +67,9 @@
   deploy = {inherit nodes;};
 
   # `deploy-schema` serialises the node set into a JSON file and validates it.
-  # A profile path carries the string context of the closure it names, and the
-  # serialised file would inherit it, so validating the definitions would build
-  # every host on every system. Discard the context: the schema reads the path
-  # as a string.
+  # Each profile path is a store path with string context, so the JSON file
+  # would depend on every host's closure and validation would build them all.
+  # Discard the context: the schema checks the paths as plain strings.
   schemaNodes =
     lib.mapAttrs (
       _: node:

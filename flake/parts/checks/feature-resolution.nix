@@ -2,8 +2,8 @@
 # against the option type this flake declares.
 #
 # The fixtures are attribute sets shaped like evaluated `flake.features`
-# entries, children included: a child is a feature value whose name carries
-# its parent's. Each assertion compares the complete module list the resolver
+# entries, children included: a child is a feature value whose name is
+# qualified by its parent's. Each assertion compares the complete module list the resolver
 # returns, including its order. Which definition of an option wins after
 # resolution is decided by the module system and is not tested here.
 #
@@ -75,7 +75,7 @@
     os.nixos.includes = [borgmatic];
   };
 
-  # A feature and the children it provides. `shell` carries `zsh` everywhere
+  # A feature and the children it provides. `shell` includes `zsh` everywhere
   # and `openssh` on NixOS; `fzf` is a child nothing includes by default.
   zsh = mkFeature "shell.zsh" {homeManager = "shell-zsh-home";};
   openssh = mkFeature "shell.openssh" {nixos = "shell-openssh-nixos";};

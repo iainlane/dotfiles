@@ -124,14 +124,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # `measured-boot` is our branch of lanzaboote. It teaches the boot tool
-    # and the stub to predict the boot components' TPM2 measurements, writes a
-    # systemd-pcrlock policy from them, and enrols that policy into the LUKS
-    # volumes, which is what lets bonington unlock its disk without a
+    # `measured-boot` is our branch of lanzaboote. It adds support for
+    # predicting the boot components' TPM2 measurements, generating a
+    # systemd-pcrlock policy from them, and enrolling that policy into the LUKS
+    # volumes. This is what lets bonington unlock its disk without a
     # passphrase. Upstream is taking the work in pieces, most recently
     # nix-community/lanzaboote#637. The branch needs the two NixOS commits on
     # `nixpkgs-measured-boot` below, so the two pins move together. Drop both
-    # once a lanzaboote release carries measured boot.
+    # once a lanzaboote release includes measured boot.
     lanzaboote = {
       url = "github:iainlane/lanzaboote/measured-boot";
       inputs.nixpkgs.follows = "nixpkgs-measured-boot";
@@ -199,10 +199,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Our branch of starship, carrying starship/starship#6834, which adds the
-    # zsh glitch sequences a prompt with wide characters needs, so the shell
-    # positions the cursor correctly after drawing the prompt. Drop this input
-    # when the pull request merges and reaches a release.
+    # Our branch of starship, with starship/starship#6834 applied. The patch
+    # adds zsh glitch sequences so the shell accounts for wide characters when
+    # positioning the cursor after the prompt. Drop this input when the pull
+    # request merges and reaches a release.
     starship-custom = {
       url = "github:iainlane/starship/iainlane/feat-zsh-wide-char-support";
       flake = false;

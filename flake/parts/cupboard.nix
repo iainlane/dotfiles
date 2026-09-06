@@ -8,7 +8,8 @@
 #
 # The workflow evaluates each profile's derivation graph, so packages are
 # selected by the configurations that use them rather than by the flake's
-# `packages` output. Each entry carries enough to plan, run and route its job:
+# `packages` output. Each entry has what is needed to plan, run and route its
+# job:
 #
 #   - os/remote: the runner, and whether it offloads to nixbuild.net (Linux) or
 #     builds natively (Darwin).

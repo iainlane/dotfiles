@@ -72,10 +72,14 @@ module system, named after the module system that evaluates it:
 | `systemManager` | system-manager, on Linux hosts that are not NixOS                   |
 | `homeManager`   | Home Manager                                                        |
 | `system`        | whichever of `nixos`, `darwin` and `systemManager` builds this host |
-| `provides`      | features this one carries, applied when included                    |
 
-Each field takes a module, or a list of modules. Several files may define the
-same field of the same feature; the definitions merge into one module.
+Each of those fields takes a module, or a list of modules. Several files may
+define the same field of the same feature; the definitions merge into one
+module.
+
+A feature also has a `provides` field, which is not a module. It contains an
+attribute set of child feature definitions. Declaring a child does not add it to
+a host; a feature or host must include it explicitly.
 
 A feature includes the features it depends on, and a host that lists it resolves
 those as well. Two scopes narrow what a feature contributes. `os.<os>` takes a
@@ -118,15 +122,15 @@ which is why `git` above puts its Linux modules there. `os.nixos` and
 
 ### Top-level features and children
 
-A feature is top-level when a host lists it or when another feature includes it
-because it depends on that feature's options. Every other concern is a child of
-the feature that carries it, registered under that feature's `provides`. A child
-has every field a feature has, including its own `provides`, and its name is
-qualified by its parent's, so `base`'s zsh configuration is `base.zsh` and
-appears under that name in `featureNames`.
+A feature is top-level when it is a concern a host composes in its own right,
+such as `base` or `desktop`. Every other concern is a child of the feature it
+belongs to, registered under that feature's `provides`. A child has every field
+a feature has, including its own `provides`, and its name is qualified by its
+parent's, so `base`'s zsh configuration is `base.zsh` and appears under that
+name in `featureNames`.
 
 Registering a child does not apply it. Something has to list it in `includes`,
-so a parent lists the children it always carries and puts the conditional ones
+so a parent lists the children that always apply and puts the conditional ones
 under `os.<os>.includes`:
 
 ```nix
@@ -158,18 +162,20 @@ although its class already implies the OS: the scope is what keeps the child out
 of `featureNames` on the other OSes, so `hasFeature` never claims
 `desktop.gnome` on a darwin host.
 
-A child its parent includes must not include the parent, which the resolver
-reports as a cycle. A child the parent does not include has to bring whatever
-declares the options it uses: `ai.claude-desktop` and
-`work.claude-managed-settings` both include `ai` for that reason.
+A child that its parent includes must not include the parent: the resolver
+reports that as a cycle. A child that something else selects must include the
+features that declare the options it uses, which is why `ai.claude-desktop` and
+`work.claude-managed-settings` both include `ai`.
 
-Every feature lives in `features/<name>/default.nix`. The directory is
-discovered automatically, and only a `default.nix` one level down is loaded, so
-helper files beside it are not modules. Module files are named after the module
-system they are for: `nixos.nix`, `darwin.nix`, `system-manager.nix`,
-`home-manager.nix`, with `home-manager-linux.nix` for the kernel scope and
-`home-manager-nixos.nix` or `home-manager-generic-linux.nix` for the OS scope.
-Packages live under `pkgs/`, even when one feature is their only consumer.
+Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
+it is loaded only when that `default.nix` imports it. A directory registers the
+top-level feature of its own name, and may register others whose names extend
+it: `features/nixbuild/default.nix` registers `nixbuild-substituter` and
+`nixbuild-builder`. Module files are named after the module system they are for:
+`nixos.nix`, `darwin.nix`, `system-manager.nix`, `home-manager.nix`, with
+`home-manager-linux.nix` for the kernel scope and `home-manager-nixos.nix` or
+`home-manager-generic-linux.nix` for the OS scope. Packages live under `pkgs/`,
+even when one feature is their only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after the
@@ -196,12 +202,13 @@ keeps to them.
    that a host sets. A module written as an ordinary NixOS service module for a
    package keeps its own `enable` and the feature sets it, which is what
    `services.falcon-sensor` is.
-2. **Every switch is a child feature.** A parent includes the children it
-   carries by default, and a host drops the ones it does not want through
-   `excludes`. So `hermes` includes `signal`, `matrix`, `dashboard`,
-   `homeassistant`, `soul`, `agents`, `mcp`, `embeddings` and `backup`; `caddy`
-   includes `auth` and `origin-auth`; `agentsview-server` and `matrix` include
-   `backup`.
+2. **Every switch is a child feature.** A parent lists its default children in
+   `includes`, and a host drops the ones it does not want through `excludes`. So
+   `hermes` includes `signal`, `matrix`, `dashboard`, `homeassistant`, `soul`,
+   `agents`, `mcp`, `embeddings` and `backup`; `caddy` includes `auth` and
+   `origin-auth`; `agentsview-server` and `matrix` include `backup`. A child
+   that is not a default, such as `ai.cloudflare-mcp`, is listed by whatever
+   feature or host wants it, or under `os.<os>.includes`.
 3. **Host values reach a feature through `hostConfig`.** No class module reads
    `config.flake.hosts`. A module body may call `hasFeature` when one feature's
    behaviour depends on another being present on the host, but it cannot decide
@@ -210,9 +217,10 @@ keeps to them.
    more than one feature needs is a typed field of the host record (`name`,
    `hostname`, `os`, `arch`, `channel`, `stateVersion`, `motd`, `timezone`,
    `flakePath`). A value one feature needs is that feature's option, which the
-   host sets in `systemModule` or `homeModule`. Every `secretsFile` defaults to
-   `<hostConfig.name>/host-<feature>.yaml`, and a child defaults to its
-   parent's, so a host sets one only to deviate.
+   host sets in `systemModule` or `homeModule`. A feature's `secretsFile`
+   defaults to `<hostConfig.name>/host-<feature>.yaml`. A child that shares its
+   parent's secrets defaults to the parent's file, and a backup child defaults
+   to `<hostConfig.name>/host-r2.yaml`. A host sets one only to deviate.
 4. **One root for everything the repository declares.** Every option lives under
    `dotfiles.<declaring feature or child>`, camelCased. A switch child nests
    under its parent's root (`dotfiles.hermes.signal.*`,
@@ -232,12 +240,11 @@ keeps to them.
 
 `flake.hosts.<name>.excludes` lists features the resolver drops from that host's
 closure. A dropped feature contributes no modules and its own includes are not
-followed, so excluding a feature also leaves out whatever only it brings in.
-`closure` returns the features in composition order and the names it dropped,
-and both `featureNames` and the module list derive from it, so `hasFeature` and
-the modules cannot disagree. The resolver refuses two kinds of entry: one the
-host also lists directly, which asks for the feature and refuses it at the same
-time, and one the closure never reaches, which changes nothing.
+followed, so a feature that nothing else includes is dropped with it. `closure`
+returns the features in composition order and the names it dropped, and both
+`featureNames` and the module list derive from it, so `hasFeature` and the
+modules cannot disagree. Two kinds of entry are refused: a feature the host also
+lists in `features`, and a feature the closure never reaches.
 
 ```nix
 flake.hosts.example = {
@@ -249,10 +256,10 @@ flake.hosts.example = {
 ### Presence options
 
 A parent often has to know which of its children a host composed: hermes adds
-the signal network to the agent's container, its backup waits for the dashboard
-before restoring, and Caddy refuses a site that asks for sign-in when no sign-in
-service is there. The child publishes that by defining one boolean the parent
-declares:
+the signal network to the agent's container, its restore script stops the
+dashboard before replacing the shared state, and Caddy refuses a site that asks
+for sign-in when no sign-in service is there. The child publishes that by
+defining one boolean the parent declares:
 
 ```nix
 # features/hermes/options.nix, in the parent
@@ -264,13 +271,13 @@ dotfiles.hermes.signal.present = true;
 
 The parent declares it so the option exists even on a host that excludes the
 child; there the parent reads `false`. `lib/presence.nix` defines the
-declaration and an assertion that only the child's own module defines it, so a
-host that sets one is told to change its composition.
+declaration and an assertion that counts the files defining the option and
+refuses more than one, so a host that sets it is told to change its composition.
 
-The child declares the options that matter only when the child is present. The
-parent reads them only inside a branch on the presence option, so they are never
-forced on a host without the child. An option the parent reads while building
-something unconditionally stays with the parent.
+The child declares its own settings, and the parent reads them only inside a
+branch on the presence option, so they are never forced on a host without the
+child. An option the parent reads while building something unconditionally stays
+with the parent.
 
 Where the parent needs a list or an attribute set, the child defines into an
 option of that type that the parent declares, and the module system's merge
@@ -304,7 +311,7 @@ The adapters feed the configuration outputs:
 - `deploy`: the deploy-rs nodes, derived from the host set, so a host can be
   pushed with `deploy .#<host>`.
 
-The rest of the flake carries the tooling and the data other things read:
+The rest of the flake is the tooling and the data other things read:
 
 - `packages` and `apps`: what `pkgs/` builds, the tools re-exported from flake
   inputs, the per-host netboot installers, and one `update-<name>` app per
@@ -343,6 +350,6 @@ The rest of the flake carries the tooling and the data other things read:
 | `lib/projects.nix`                   | project shell and direnv generation                       |
 | `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract       |
 | `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket              |
-| `lib/r2.sh`                          | the shell half of those, with its test                    |
+| `lib/r2.sh`                          | the backup, verify and restore script                     |
 | `lib/sops.nix`                       | sops-nix module fragments                                 |
 | `lib/system.nix`                     | the system special arguments                              |

@@ -24,7 +24,7 @@
 }: let
   # The segments of a definition's file path from the `features` directory
   # down, or null for a definition written anywhere else. The checkout may
-  # itself sit under a directory called `features`, so the last such segment
+  # itself be inside a directory called `features`, so the last such segment
   # is where the feature path starts.
   featurePath = file: let
     segments = lib.splitString "/" file;

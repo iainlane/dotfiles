@@ -48,8 +48,8 @@ in {
       type = lib.types.str;
       default = defaultSecretsFile;
       description = ''
-        Path, relative to the `secrets` input, of the sops file holding
-        `r2_bucket`, `r2_endpoint`, `r2_access_key_id`, and
+        Path, relative to the `secrets` input, of the sops file that contains
+        `r2_bucket`, `r2_endpoint`, `r2_access_key_id` and
         `r2_secret_access_key`. One bucket serves every backup, so the
         default is a file shared by everything decrypting with the same key.
       '';
