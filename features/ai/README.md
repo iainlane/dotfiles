@@ -107,6 +107,13 @@ credential-bearing servers for this host.
   directory, because the home-manager configuration has already declared the
   same secrets and a system module cannot read where it decided to put them.
 
+`cloudflare-mcp/` adds two more servers to the set: Cloudflare's account server
+and its documentation server. Cloudflare is personal infrastructure, so `ai`
+does not include this child, and a feature or a host that should reach it lists
+`ai.provides.cloudflare-mcp`, which brings `ai` with it. Both the Home Manager
+and the system level read the server set, so the same module is registered for
+each.
+
 ## Instructions, output styles and skills
 
 `skills.nix` publishes three values through `_module.args`, beside `mcp`: the
