@@ -13,8 +13,8 @@ in {
       package = pkgs-unstable.open-webui;
       host = localhost;
       port = 8080;
-      # Defining this option replaces the nixpkgs module's default, which
-      # sets the three telemetry opt-outs below. They must be repeated.
+      # Defining this option replaces the nixpkgs module's default, which sets
+      # the three telemetry opt-outs below, so they are repeated here.
       environment = {
         ANONYMIZED_TELEMETRY = "False";
         DO_NOT_TRACK = "True";

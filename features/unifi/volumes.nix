@@ -4,7 +4,7 @@
 #
 # `state` is what a rebuilt controller cannot reproduce: the site
 # configuration, the adoption keys of every device, and the mongodb database.
-# `/var/log` is listed apart because it holds none of that.
+# `/var/log` is listed separately because it contains none of that.
 rec {
   state = [
     {

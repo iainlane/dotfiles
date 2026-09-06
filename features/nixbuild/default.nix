@@ -2,7 +2,7 @@
 # host the SSH substituter and the keys for it; `nixbuild-builder` also
 # registers the account as a remote builder, so builds are offloaded to it.
 #
-# `lib/nixbuild.nix` holds the constants both features and CI read.
+# `lib/nixbuild.nix` defines the constants both features and CI read.
 {config, ...}: {
   flake.features = {
     nixbuild-substituter = {

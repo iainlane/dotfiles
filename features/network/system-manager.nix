@@ -12,11 +12,12 @@
 in {
   config = lib.mkMerge [
     {
-      # Checked whether or not this host describes any links. `unifi` and
-      # `adsb` compose this feature to read `lanAddress`; under the condition
-      # below, a host that composes one of them and describes nothing would
-      # get the module system's "used but not defined" from inside a
-      # container definition, with nothing naming the option that is missing.
+      # Checked whether or not this host describes any links. `unifi` composes
+      # this feature to read `lanAddress`. If this assertion were under the
+      # condition below, a host that composes `unifi` and describes no links
+      # would instead get the module system's "used but not defined" error from
+      # inside a container definition, which does not name the option that is
+      # missing.
       assertions = [
         {
           assertion = lib.length cfg.privateAddresses == 1;
@@ -32,8 +33,8 @@ in {
             A feature that publishes a container port binds it to that
             address and composes this feature to read it, so a host running
             one of those services describes its links under
-            dotfiles.network.systemd.network even where something else
-            already configures them.
+            dotfiles.network.systemd.network even if something else already
+            configures them.
           '';
         }
       ];

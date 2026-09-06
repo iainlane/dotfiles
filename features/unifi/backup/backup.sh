@@ -8,9 +8,10 @@
 #
 # plus everything `r2 backup` reads.
 #
-# The controller keeps its configuration in mongodb, which is copied while
-# nothing is writing to it. Stopping the container is what gives that, so the
-# archive is taken from the volume mount points while the controller is down.
+# The controller keeps its configuration in mongodb, which has to be copied
+# while nothing is writing to it. Stopping the container is what guarantees
+# that, so the archive is taken from the volume mount points while the
+# controller is down.
 set -euo pipefail
 umask 077
 

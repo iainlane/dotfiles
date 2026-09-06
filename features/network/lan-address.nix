@@ -2,7 +2,7 @@
 # carry.
 #
 # A container port published to every address is reachable from anything that
-# can route to this host, which for a host holding a routed public address means
+# can route to this host, which for a host with a routed public address means
 # the internet. A port published to this address is reachable from the LAN
 # only.
 {
@@ -16,9 +16,9 @@
 
   withoutPrefixLength = address: lib.head (lib.splitString "/" address);
 
-  # The three ranges RFC 1918 sets aside, which is what a LAN address comes
-  # from. An address with any other shape, an IPv6 one included, splits into
-  # something other than four decimal octets.
+  # A LAN address comes from one of the three ranges RFC 1918 sets aside.
+  # Require four dot-separated components first, which rules out an IPv6
+  # address, then check the first two components against those ranges.
   isPrivateIPv4 = address: let
     octets = lib.splitString "." address;
 

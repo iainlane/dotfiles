@@ -13,9 +13,9 @@
   runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
 
   # The controller's own ports, published on the host's LAN address. This host
-  # also holds a routed public address, so a publish that named every address
-  # would put the admin UI, the unencrypted inform port, RabbitMQ and syslog in
-  # front of the internet.
+  # also has a routed public address, so publishing on every address would
+  # expose the admin UI, the unencrypted inform port, RabbitMQ and syslog to
+  # the internet.
   publish = mapping: "${lanAddress}:${mapping}";
 
   defaultPorts = map publish [
@@ -43,8 +43,8 @@ in {
     networks = [network];
     publishPorts = defaultPorts ++ cfg.extraPorts;
 
-    # UniFi OS runs its own init, which wants to manage more processes than
-    # podman's default allows, and raw sockets for device discovery.
+    # UniFi OS runs its own init, which manages more processes than podman's
+    # default limit allows, and needs raw sockets for device discovery.
     pidsLimit = 65536;
     addCapabilities = ["NET_RAW" "NET_ADMIN"];
     podmanArgs = ["--systemd=always"];

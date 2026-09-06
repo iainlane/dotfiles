@@ -26,8 +26,6 @@ in {
     }: let
       cfg = config.dotfiles.unifi;
 
-      # The installer ships an OCI archive inside its own firmware image, which
-      # the package unpacks at build time and a quadlet loads from the store.
       imagePath = pkgs.unifi-os-server-image;
 
       imageName = "unifi-os";
