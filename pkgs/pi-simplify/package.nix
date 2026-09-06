@@ -1,5 +1,5 @@
 # Reviews changed code for clarity, consistency, and maintainability through
-# the /simplify command.
+# the `/simplify` command.
 #
 # To update: nix run .#update-pi-simplify
 {callPackage}:
