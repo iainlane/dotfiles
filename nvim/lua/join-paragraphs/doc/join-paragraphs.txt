@@ -1,4 +1,4 @@
-*join-paragraphs.txt*   Plugin for joining paragraphs intelligently
+*join-paragraphs.txt*   Plugin for joining the lines within paragraphs
 
 ==============================================================================
 CONTENTS                                               *join-paragraphs*
@@ -23,11 +23,11 @@ handling edge cases like the last paragraph in a file or selection. It defines
 a paragraph as a block of text separated by one or more blank lines (lines
 containing only whitespace are considered blank).
 
-In visual mode, the default `<Leader>jj` mapping intelligently expands the
-selection to encompass the full paragraphs that intersect the selection before
-performing the join.
+In visual mode, the default `<Leader>jj` mapping expands the selection to
+cover the whole of every paragraph the selection touches before performing the
+join.
 
-New features include:
+It also provides:
 - A "paste and join" mapping (`<Leader>jp` by default) that performs a paste
   operation and then joins paragraphs within the pasted text.
 - A "read and join" command (`:Rj`) that reads a file and then joins
@@ -51,7 +51,7 @@ specified line range. For example:
   :10,20JoinParagraphs     " Join paragraphs between lines 10 and 20
 
 Note: When using the command with a range, the range is *not* automatically
-expanded to full paragraphs like the visual mode mapping does. It operates
+expanded to full paragraphs as the visual mode mapping does. It operates
 strictly on the lines provided in the range.
 
 ------------------------------------------------------------------------------
@@ -107,8 +107,8 @@ Default: `<Leader>jp` (Visual Mode)
     joins paragraphs *only within the newly pasted lines*. The range is
     determined by the marks (`'[`, `']`) set by the paste command.
 
-You can customize these key sequences via the |join-paragraphs-options| or
-disable all default mappings entirely.
+You can customise these key sequences through |join-paragraphs-options|, or
+disable all the default mappings.
 
 ==============================================================================
 CONFIGURATION                                       *join-paragraphs-config*
@@ -132,7 +132,7 @@ Example using `lazy.nvim` (in your lazy setup): >
     -- keys = { "<Leader>jj", "<Leader>jp" },
 
     opts = {
-      -- Customize keymaps (or omit this 'keymaps' table to use defaults)
+      -- Customise the keymaps (or omit this 'keymaps' table for the defaults)
       keymaps = {
         join_paragraphs = "<Leader>J",  -- Example: Change base join mapping
         paste_join = "<Leader>P",       -- Example: Change paste-join mapping
@@ -146,10 +146,8 @@ Example using `lazy.nvim` (in your lazy setup): >
     end,
   }
 <
-The `require(...).setup(opts)` call initializes the plugin, creates the
-commands, and sets up mappings based on the provided options. Make sure the
-`require` path matches the filename where you saved the Lua code (e.g.,
-`join-paragraphs-enhanced` if you used that name).
+The `require(...).setup(opts)` call initialises the plugin, creates the
+commands, and sets up the mappings from the options given.
 
 ------------------------------------------------------------------------------
 OPTIONS                                           *join-paragraphs-options*
@@ -159,8 +157,8 @@ The `setup` function accepts an optional options table.
 `keymaps`              *(table | false)*
                         Default: `{ join_paragraphs = "<Leader>jj", paste_join = "<Leader>jp" }`
                         A table configuring the keymaps created by the plugin.
-                        If this option is set to `false`, no keymaps will be created
-                        by this plugin, allowing you to define them manually.
+                        If this option is set to `false`, the plugin creates no
+                        keymaps, leaving you to define them yourself.
                         `nil` does not work: `setup` merges the options with
                         |vim.tbl_deep_extend()|, which cannot see an absent key.
                         If the table is provided (or the default is used), it

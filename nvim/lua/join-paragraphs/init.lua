@@ -44,10 +44,10 @@ local function warn_msg(msg, title)
   vim.notify(msg, vim.log.levels.WARN, { title = title or "Join Paragraphs" })
 end
 
---- Execute `:global ... join` command on a calculated range. Handles
---- adding/removing a temporary blank line at the end if needed, preserving any
---- existing user mark that might collide with the temporary mark, using the
---- nvim_buf_*_mark Lua APIs.
+--- Run `:global ... join` over a range. Each join stops at the line before the
+--- next blank one, so when the last line of the range is not blank a blank line
+--- is added after it and removed again afterwards. Mark `Z` tracks that line,
+--- and any existing `Z` mark is saved and put back.
 ---@param start_line integer The 1-based starting line number for the :global command range.
 ---@param end_line integer The 1-based ending line number for the :global command range.
 ---@return boolean success True if the command executed without pcall error, false otherwise.
@@ -85,11 +85,10 @@ local function perform_join_on_range(start_line, end_line)
     return false
   end
 
-  -- Handle single line case - nothing to join
+  -- A single-line range has nothing to join. A one-line paste or read is
+  -- valid, so report success.
   if start_line == end_line then
-    -- warn_msg("Range is only a single line, nothing to join.", "Join Paragraphs")
-    -- Decided against warning, as single-line paste/read is valid.
-    return true -- Technically successful, just no work done.
+    return true
   end
 
   local view = fn.winsaveview()
@@ -115,7 +114,6 @@ local function perform_join_on_range(start_line, end_line)
       return false
     end
 
-    -- Mark the blank line we just added
     local ok_mark, err_mark = pcall(api.nvim_buf_set_mark, buf, temp_mark_char, end_line + 1, 0, {})
     if not ok_mark then
       local ok_cleanup, _ = pcall(api.nvim_buf_set_lines, buf, end_line, end_line + 1, false, {})
@@ -233,7 +231,7 @@ local function calculate_expanded_visual_range()
   -- Move cursor temporarily for search context
   fn.setpos(".", { 0, initial_start_line, 1, 0 })
 
-  -- Search backwards ('b') from current line ('') non-wrapping ('W')
+  -- Search backwards without wrapping; 'n' leaves the cursor where it is.
   local prev_blank_pos = fn.searchpos("^\\s*$", "bnW")
   fn.setpos(".", original_cursor_search) -- Restore cursor
 
@@ -246,7 +244,7 @@ local function calculate_expanded_visual_range()
     start_line = prev_blank_line + 1
   end
 
-  -- Ensure the found start_line is not blank itself, if so, find the next non-blank
+  -- If that line is blank, move down to the first line that is not.
   local current_start_content = getline_safe(start_line)
   while current_start_content ~= nil and not current_start_content:match("%S") do
     start_line = start_line + 1
@@ -260,7 +258,7 @@ local function calculate_expanded_visual_range()
   -- Go down from the end of the visual selection to find the next blank line or buffer end
   local end_line
   fn.setpos(".", { 0, initial_end_line, 1, 0 }) -- Move cursor temporarily for search context
-  local next_blank_pos = fn.searchpos("^\\s*$", "nW") -- Search forwards ('') from current line ('') non-wrapping ('W')
+  local next_blank_pos = fn.searchpos("^\\s*$", "nW")
   fn.setpos(".", original_cursor_search) -- Restore cursor
   local next_blank_line = next_blank_pos[1]
 
@@ -270,8 +268,7 @@ local function calculate_expanded_visual_range()
     end_line = buf_last_line
   end
 
-  -- Ensure the found end_line is not blank itself (unless it's the same as start_line)
-  -- If it is blank, move up one line.
+  -- If that line is blank, move up one line, unless it is the start line.
   local current_end_content = getline_safe(end_line)
   if current_end_content ~= nil and not current_end_content:match("%S") and end_line > start_line then
     end_line = end_line - 1
@@ -287,7 +284,7 @@ local function calculate_expanded_visual_range()
   return { start_line = start_line, end_line = end_line }
 end
 
---- Join whole buffer
+--- Join the paragraphs in the whole buffer.
 local function action_normal()
   local buf_last_line = api.nvim_buf_line_count(0)
   if buf_last_line == 0 then
@@ -405,9 +402,7 @@ local M = {}
 ---@type Options
 M.defaults = {
   keymaps = {
-    -- Default keymap for joining paragraphs
     join_paragraphs = "<Leader>jj",
-    -- Default keymap for paste-and-join
     paste_join = "<Leader>jp",
   },
 }
@@ -415,7 +410,6 @@ M.defaults = {
 --- Install the keymaps and create the user commands.
 ---@param opts? Options User configuration options. Merged with defaults.
 function M.setup(opts)
-  -- Merge user options with defaults
   ---@type Options
   local config = vim.tbl_deep_extend("force", {}, M.defaults, opts or {})
 
@@ -440,7 +434,7 @@ function M.setup(opts)
     action_read_and_join(args.fargs[1])
   end, {
     nargs = 1,
-    complete = "file", -- Provide file completion
+    complete = "file",
     desc = "Read file content below cursor and Join paragraphs",
   })
 
