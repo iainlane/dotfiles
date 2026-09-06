@@ -27,13 +27,13 @@
 #                                     agentsview_cursor_secret
 #
 # The flake says which machines these are, so name a host only to limit the
-# run to it. This script makes each value that a host does not have yet and
-# leaves the others alone.
+# run to it. This script generates each value that a host does not have yet
+# and leaves the others alone.
 #
-# A new file needs the public keys alone, thus you can make one for any host.
-# To add a key to a file that is already there, sops decrypts it first, so run
-# the script on a machine that the rule in `.sops.yaml` covers. Reading which
-# keys a file holds needs nothing, because sops encrypts the values and leaves
+# Creating a new file needs only the public keys, so it works for any host.
+# Adding a key to a file that is already there means sops decrypts it first,
+# so run the script on a machine that the rule in `.sops.yaml` covers. Listing
+# the keys in a file needs no decryption: sops encrypts the values and leaves
 # the keys in plain text.
 #
 # Usage: generate-agentsview-secrets [host...] <secrets_dir>
@@ -46,13 +46,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/just-common.bash"
 secrets_dir="${*: -1}"
 requested=("${@:1:$#-1}")
 
-# The server reads the password of every machine to keep the roles in line, so
-# its host key joins the user of the machine on the password file. The user
-# file needs no rule of its own, because `^<host>/user-.*\.yaml$` covers it.
+# The server reads every machine's password to keep the database roles in step,
+# so the password file is encrypted to the server's host key as well as to the
+# machine's own user key. The user file needs no rule of its own, because
+# `^<host>/user-.*\.yaml$` covers it.
 server_anchor="ancaster_host"
 
-# Whether an encrypted file already holds a key. sops encrypts the values and
-# leaves the keys in plain text, thus this reads the file as it stands.
+# Whether an encrypted file already has a key. sops encrypts the values and
+# leaves the keys in plain text, so this reads the file without decrypting it.
 has_secret() {
 	local path="${1}"
 	local key="${2}"
@@ -61,7 +62,7 @@ has_secret() {
 }
 
 # Add one key to a file that is already encrypted. sops reads the value from
-# stdin, thus the value stays out of the process list.
+# stdin, so the value stays out of the process list.
 add_secret() {
 	local path="${1}"
 	local key="${2}"
@@ -104,10 +105,10 @@ add_password_rule() {
 # The auth token and the cursor secret every machine needs, and for a machine
 # that pushes, the key of its certificate as well.
 #
-# The certificate key goes in when the file is created, which needs only the
-# public keys. A certificate re-issued for a host that already has the file
-# is added to that file, which means decrypting it first, and that works only
-# on a machine that a rule in `.sops.yaml` covers.
+# Creating the file needs only the recipients' public keys. A certificate
+# re-issued later has its new key added to the file that already exists, and
+# updating an encrypted file means decrypting it first, so run the script on a
+# machine that a rule in `.sops.yaml` covers.
 generate_user_secrets() {
 	local host="${1}"
 	local client_key="${2:-}"
@@ -199,7 +200,7 @@ generate_client_secrets() {
 	# openssl writes the key once, when it generates the certificate. If the
 	# certificate is already there, the key can only be in the user file.
 	if [[ ! -f "${user_file}" && -z "${client_key}" ]]; then
-		die "${certificate} is there and ${user_file} is not. Delete the certificate and run this again to make a matching pair."
+		die "${certificate} is there and ${user_file} is not. Delete the certificate and run this again to generate a matching pair."
 	fi
 
 	generate_user_secrets "${host}" "${client_key}"
@@ -211,8 +212,9 @@ generate_server_secrets() {
 
 	local plaintext key
 
-	# Both passwords go into a connection URL, where `/`, `#`, `?` and `:`
-	# read as a port or a path. Hex avoids them all.
+	# The dashboard's password is inserted into a connection URL, where the
+	# characters `/`, `#`, `?` and `:` are reserved. Hex avoids all of them, and
+	# the superuser password is generated the same way.
 	local -A secrets=(
 		[agentsview_superuser_password]="$(openssl rand -hex 32)"
 		[agentsview_dashboard_password]="$(openssl rand -hex 32)"
@@ -249,11 +251,11 @@ log_step "Reading the host records"
 mapfile -t roles < <(agentsview_hosts)
 
 if ((${#roles[@]} == 0)); then
-	die "No host has the agentsview profile."
+	die "No host has the agentsview feature."
 fi
 
-# Refuse a name that matches no host. Filtering by it would give the run
-# nothing to do and no sign of the typo.
+# Refuse a name that matches no host: filtering by it would select no hosts,
+# and the typo would go unreported.
 if ((${#requested[@]} > 0)); then
 	known=()
 	for role in "${roles[@]}"; do
@@ -280,7 +282,7 @@ for role in "${roles[@]}"; do
 		continue
 	fi
 
-	log_step "Making the AgentsView secrets for ${host}"
+	log_step "Generating the AgentsView secrets for ${host}"
 
 	case "${kind}" in
 	local)

@@ -9,8 +9,9 @@ fi
 
 attempts=3
 
-# Nix reports remote builder and copy failures with the same exit statuses as
-# deterministic failures, so there is no reliable transport-only classifier.
+# Nix reports a remote builder or copy failure with the same exit statuses as a
+# deterministic one, so the status does not say which of the two happened.
+# Retry every failure, up to `attempts` runs in total.
 for ((attempt = 1; attempt <= attempts; attempt += 1)); do
 	set +e
 	nix "$@"
@@ -25,8 +26,8 @@ for ((attempt = 1; attempt <= attempts; attempt += 1)); do
 		exit "${status}"
 	fi
 
-	# Realised derivations and completed store paths remain in the local store,
-	# so each attempt resumes without repeating completed work.
+	# Derivations already realised stay in the local store, so a retry does not
+	# repeat the work that succeeded.
 	delay=$((attempt * 15))
 	printf \
 		'Nix command failed (attempt %d/%d); retrying in %d seconds.\n' \

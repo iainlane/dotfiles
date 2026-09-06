@@ -114,7 +114,7 @@ cf_request() {
 
 	local response
 	response="$(curl "${args[@]}" "${api_base}${path}")" ||
-		die "no answer from ${api_base}${path}"
+		die "no response from ${api_base}${path}"
 
 	printf '%s' "${response}"
 
@@ -201,8 +201,8 @@ if ((${#hosts[@]} == 0)); then
 	die "No host backs up to R2."
 fi
 
-# Refuse a name that matches no host. Filtering by it would give the run
-# nothing to do and no sign of the typo.
+# Refuse a name that matches no host: filtering by it would select no hosts,
+# and the typo would go unreported.
 unknown=()
 for name in "${requested[@]}"; do
 	printf '%s\n' "${hosts[@]}" | grep -qxF "${name}" || unknown+=("${name}")
@@ -284,7 +284,7 @@ for host in "${hosts[@]}"; do
 	token_name="restic-${host}"
 	secrets_file="${host}/host-restic.yaml"
 
-	log_step "Making the restic secrets for ${host}"
+	log_step "Generating the restic secrets for ${host}"
 
 	existing_token_id="$(account_token_id "${token_name}")"
 

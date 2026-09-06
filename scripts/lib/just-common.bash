@@ -72,8 +72,8 @@ make_temp_file() {
 }
 
 # Temporary paths for cleartext private keys, passphrases and API tokens. The
-# exit handler shreds these, and only removes the paths that `make_temp_dir`
-# and `make_temp_file` hand out.
+# exit handler shreds these; the paths `make_temp_dir` and `make_temp_file`
+# hand out are only removed.
 make_secret_temp_dir() {
 	local path
 

@@ -6,7 +6,7 @@
 # Generate a new host's keys and secrets, update the secrets repository, and
 # register the user's SSH key with GitHub.
 #
-# Every run makes a fresh SSH host key and a fresh user age key, so running it
+# Every run generates a fresh SSH host key and a fresh user age key, so a run
 # for a host that already has secrets replaces that host's identities.
 # `write-host-secrets` refuses to do that without `--rekey`.
 #
