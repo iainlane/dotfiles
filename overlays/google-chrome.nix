@@ -4,7 +4,7 @@
 # `google-chrome`, such as the Playwright MCP server, starts the browser the
 # machine has.
 _: _: prev:
-prev.lib.optionalAttrs prev.stdenv.isDarwin {
+prev.lib.optionalAttrs prev.stdenv.hostPlatform.isDarwin {
   google-chrome = prev.writeShellScriptBin "google-chrome" ''
     app_path=$(mdfind 'kMDItemCFBundleIdentifier == "com.google.Chrome"' | head -1)
     if [ -z "$app_path" ]; then
