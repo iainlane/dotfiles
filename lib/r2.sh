@@ -29,7 +29,7 @@
 #   BACKUP_MIN_COUNT      fail if the bucket has fewer backups than this
 #
 # restore fetch also reads:
-#   BACKUP_IDENTITY_FILE  age identity file holding the private key
+#   BACKUP_IDENTITY_FILE  age identity file containing the private key
 #   BACKUP_RESTORE_DIR    directory to unpack into
 #   BACKUP_ARCHIVE        backup to fetch, defaulting to the newest
 set -euo pipefail
@@ -95,7 +95,7 @@ verify() {
 	fi
 
 	if [ "${count}" -lt "${BACKUP_MIN_COUNT}" ]; then
-		fail "${dest} holds ${count} backups, expected at least ${BACKUP_MIN_COUNT}"
+		fail "${dest} contains ${count} backups, expected at least ${BACKUP_MIN_COUNT}"
 	fi
 
 	# The name ends in a fixed-width UTC timestamp, so the newest sorts last.
@@ -110,7 +110,7 @@ verify() {
 	fi
 
 	if [ "${size}" -lt "${BACKUP_MIN_SIZE}" ]; then
-		fail "${name} is ${size} bytes, under the ${BACKUP_MIN_SIZE} byte floor"
+		fail "${name} is ${size} bytes, under the ${BACKUP_MIN_SIZE} byte threshold"
 	fi
 
 	echo "${name}: ${size} bytes, ${age_hours}h old, ${count} kept under ${dest}"

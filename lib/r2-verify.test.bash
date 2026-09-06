@@ -45,16 +45,44 @@ run_verify() {
 		bash "${r2_script}" verify
 }
 
-assert_fails() {
-	local listing="${1}" expected="${2}" output status
+report_failure() {
+	local scenario="${1}" expected="${2}" status="${3}" output="${4}"
+
+	{
+		echo "scenario: ${scenario}"
+		echo "expected output to contain: ${expected}"
+		echo "status: ${status}"
+		echo "output:"
+		echo "${output}"
+	} >&2
+
+	exit 1
+}
+
+# Runs one scenario and checks the exit status and the output against what the
+# scenario expects. `expected_status` is `zero` for a listing verify accepts
+# and `nonzero` for one it has to reject.
+assert_verify() {
+	local scenario="${1}" expected_status="${2}" expected="${3}" output status
 
 	set +e
-	output="$(run_verify "${listing}" 2>&1)"
+	output="$(run_verify "${scenario}" 2>&1)"
 	status=$?
 	set -e
 
-	[[ "${status}" -ne 0 ]]
-	[[ "${output}" == *"${expected}"* ]]
+	case "${expected_status}" in
+	zero)
+		[[ "${status}" -eq 0 ]] ||
+			report_failure "${scenario}" "${expected}" "${status}" "${output}"
+		;;
+	nonzero)
+		[[ "${status}" -ne 0 ]] ||
+			report_failure "${scenario}" "${expected}" "${status}" "${output}"
+		;;
+	esac
+
+	[[ "${output}" == *"${expected}"* ]] ||
+		report_failure "${scenario}" "${expected}" "${status}" "${output}"
 }
 
 # Out of listing order, so the newest has to be found by name.
@@ -76,18 +104,17 @@ EOF
 
 printf '[]\n' >"${test_dir}/empty.json"
 
-output="$(run_verify healthy)"
-[[ "${output}" == *'hermes-20260809T040000Z: 6000000 bytes, 2h old, 3 kept'* ]]
-
-failures=(
-	"stale|hermes-20260806T040000Z is 72h old, past the 48h threshold"
-	"small|hermes-20260809T040000Z is 1024 bytes, under the 65536 byte floor"
-	"empty|no hermes backups under"
-	"absent|cannot list"
+scenarios=(
+	"healthy|zero|hermes-20260809T040000Z: 6000000 bytes, 2h old, 3 kept"
+	"stale|nonzero|hermes-20260806T040000Z is 72h old, past the 48h threshold"
+	"small|nonzero|hermes-20260809T040000Z is 1024 bytes, under the 65536 byte threshold"
+	"empty|nonzero|no hermes backups under"
+	"absent|nonzero|cannot list"
 )
 
-for scenario in "${failures[@]}"; do
-	assert_fails "${scenario%%|*}" "${scenario#*|}"
+for scenario in "${scenarios[@]}"; do
+	IFS='|' read -r name expected_status expected <<<"${scenario}"
+	assert_verify "${name}" "${expected_status}" "${expected}"
 done
 
-min_count=5 assert_fails healthy "holds 3 backups, expected at least 5"
+min_count=5 assert_verify healthy nonzero "contains 3 backups, expected at least 5"
