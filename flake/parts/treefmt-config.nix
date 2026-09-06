@@ -58,6 +58,21 @@ in {
         ];
         includes = ["*.lua"];
       };
+
+      # shellcheck and shfmt do not read zsh, so the zsh files are checked for
+      # syntax with the shell itself. `zsh -n` takes one script per call.
+      zsh-syntax = {
+        command = lib.getExe (pkgs.writeShellScriptBin "zsh-syntax" ''
+          for file; do
+            ${lib.getExe pkgs.zsh} -n "$file"
+          done
+        '');
+        includes = [
+          "features/base/zsh/*.zsh"
+          "features/base/zsh/functions/*"
+          "features/base/zsh/plugins/*.zsh"
+        ];
+      };
     };
   };
 }
