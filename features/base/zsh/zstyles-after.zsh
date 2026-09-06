@@ -1,15 +1,15 @@
 # zstyles that need to be loaded after plugins
 
-# NOTE: don't use escape sequences (like '%F{red}%d%f') here, fzf-tab will ignore them
+# NOTE: don't use escape sequences (like '%F{red}%d%f') here: fzf-tab ignores them
 
-# set descriptions format to enable group support
+# fzf-tab groups completions only when a descriptions format is set
 zstyle ':completion:*' format '[%d]'
 zstyle ':completion:*:descriptions' format '[%d]'
 zstyle ':completion:*:messages' format '[%d]'
 zstyle ':completion:*:warnings' format '[%d]'
 zstyle ':completion:*:corrections' format '[%d (errors: %e)]'
 
-# set list-colors to enable filename colorizing
+# colour the completion list the way `ls` does, from LS_COLORS
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 # force zsh not to show completion menu, which allows fzf-tab to capture the unambiguous prefix
 zstyle ':completion:*' menu no
@@ -21,8 +21,8 @@ zstyle ':fzf-tab:*' show-group full
 zstyle ':fzf-tab:*' continuous-trigger '/'
 ## Switch group using `<` and `>`
 zstyle ':fzf-tab:*' switch-group '<' '>'
-## Explicitly set fzf flags that work well with completions
-## Note: using ~80% (with ~) for proper height handling in completion mode
+## fzf flags for the completion popup. `~80%` sizes the window to the number
+## of matches, up to 80% of the terminal.
 zstyle ':fzf-tab:*' fzf-flags --height=~80% --min-height=15 --layout=reverse --border=rounded --cycle --multi
 
 # preview file contents with bat or directory contents with eza

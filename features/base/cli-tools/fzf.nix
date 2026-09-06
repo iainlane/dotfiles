@@ -3,7 +3,9 @@
   options,
   ...
 }: let
-  # Keybindings with descriptions
+  # `description` is the text shown for a key in the header and in the `?`
+  # help. `showInHeader = false` keeps a key out of the header but leaves it
+  # in the help.
   keybindings = {
     "ctrl-/" = {
       action = "toggle-preview";
@@ -11,20 +13,20 @@
     };
     "ctrl-u" = {
       action = "preview-page-up";
-      description = "scroll up";
+      description = "preview page up";
     };
     "ctrl-d" = {
       action = "preview-page-down";
-      description = "scroll down";
+      description = "preview page down";
     };
     "ctrl-f" = {
       action = "preview-page-down";
-      description = "page forward";
+      description = "preview page down";
       showInHeader = false;
     };
     "ctrl-b" = {
       action = "preview-page-up";
-      description = "page back";
+      description = "preview page up";
       showInHeader = false;
     };
     "alt-w" = {
@@ -38,10 +40,9 @@
     };
   };
 
-  # Generate --bind options from keybindings
   bindOptions = lib.mapAttrsToList (key: value: "--bind=${key}:${value.action}") keybindings;
 
-  # Generate help text for the ? keybinding
+  # The lines the `?` binding prints in the preview window.
   helpLines =
     ["Keybindings:"]
     ++ (lib.mapAttrsToList (key: value: "  ${key}: ${value.description}") keybindings)
@@ -49,14 +50,12 @@
 
   helpText = lib.concatStringsSep "\n" helpLines;
 
-  # Generate compact header showing key bindings
   headerKeys = lib.concatStringsSep " | " (
     lib.mapAttrsToList (key: value: "${key} ${value.description}") (
       lib.filterAttrs (_k: v: v.showInHeader or true) keybindings
     )
   );
 
-  # Other options
   fzfOptions = {
     # Layout
     height = "--height=40%";
@@ -64,10 +63,8 @@
     border = "--border=rounded";
     info = "--inline-info";
 
-    # Preview window
     previewWindow = "--preview-window=right:50%:wrap";
 
-    # Header with common keybindings
     header = ''--header=\"[?] for help | ${headerKeys}\"'';
 
     # Search behaviour
@@ -76,9 +73,13 @@
     keepRight = "--keep-right";
   };
 
-  # Help keybinding (separate because it needs special handling)
+  # The `?` binding's preview command contains spaces and newlines, so the
+  # whole binding is quoted here. The plain `key:action` bindings contain
+  # neither.
   helpBinding = "--bind=\\\"?:preview:echo '${helpText}'\\\"";
 
+  # ripgrep lists files for the default command and the ctrl-t widget; fd
+  # lists directories for the alt-c widget.
   rgSearch = "rg --files --hidden --follow --glob '!.git'";
   fdSearch = "fd --type d --hidden --follow --exclude .git";
 
@@ -104,7 +105,6 @@ in {
       enable = true;
       enableZshIntegration = true;
 
-      # Use ripgrep for file search and ctrl-t; fd for ALT-C
       defaultCommand = rgSearch;
 
       defaultOptions = lib.attrValues fzfOptions ++ bindOptions ++ [helpBinding];
