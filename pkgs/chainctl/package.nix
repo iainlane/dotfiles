@@ -1,7 +1,6 @@
 # Chainguard chainctl CLI, packaged from dl.enforce.dev binary releases.
 # To update: nix run .#update-chainctl
 {
-  autoPatchelfHook,
   fetchurl,
   gnugrep,
   lib,
@@ -36,13 +35,8 @@ in
 
     dontUnpack = true;
 
-    nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [
-      autoPatchelfHook
-    ];
-
-    buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
-      stdenv.cc.cc.lib
-    ];
+    # Upstream publishes statically linked Go binaries, so there is no
+    # interpreter or RPATH for autoPatchelfHook to rewrite.
 
     installPhase = ''
       runHook preInstall

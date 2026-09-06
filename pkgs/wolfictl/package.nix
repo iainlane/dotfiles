@@ -33,7 +33,8 @@ in
 
     dontUnpack = true;
 
-    # Static Go binary (CGO_ENABLED=0), no patching needed.
+    # Upstream publishes statically linked Go binaries, so there is no
+    # interpreter or RPATH for autoPatchelfHook to rewrite.
 
     installPhase = ''
       runHook preInstall
@@ -56,7 +57,7 @@ in
       extraRuntimeInputs = [curl];
 
       discoverVersion = ''
-        echo "Fetching latest version..." >&2
+        echo "Discovering latest version..." >&2
         tag="$(curl -fsSL "https://api.github.com/repos/wolfi-dev/wolfictl/releases/latest" | jq -r .tag_name)"
         version="''${tag#v}"
       '';

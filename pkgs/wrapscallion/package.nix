@@ -87,7 +87,7 @@ in
       extraRuntimeInputs = [curl];
 
       discoverVersion = ''
-        echo "Fetching latest version..." >&2
+        echo "Discovering latest version..." >&2
         tag="$(curl -fsSL "https://api.github.com/repos/underwhelmingperformance/wrapscallion/releases/latest" | jq -r .tag_name)"
         version="''${tag#v}"
       '';
