@@ -24,8 +24,8 @@ in {
   };
 
   # Override the upstream kmsconvt@ template to add boot ordering. This
-  # drop-in applies to all instances (including those spawned reactively by
-  # logind via the autovt@ alias).
+  # drop-in applies to all instances, including the ones logind starts on
+  # demand through the autovt@ alias.
   systemd.services."kmsconvt@" = {
     after = [
       "systemd-user-sessions.service"

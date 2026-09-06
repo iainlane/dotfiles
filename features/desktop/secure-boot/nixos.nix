@@ -30,7 +30,7 @@ in {
     pcrlockEnable = lib.mkOption {
       type = lib.types.bool;
       default = true;
-      description = "Whether to enable pcrlock sharding (PCRs 0-7).";
+      description = "Whether to enable pcrlock policy generation (PCRs 0-7).";
     };
   };
 
