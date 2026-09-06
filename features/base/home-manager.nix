@@ -19,8 +19,9 @@
       rsync
       wget
 
-      # GNU versions of core utilities. macOS ships BSD variants which have
-      # incompatible flags; these provide consistent behaviour across platforms.
+      # The GNU versions of core utilities, plus util-linux's `getopt`. macOS
+      # ships BSD variants whose flags differ, so these keep the behaviour the
+      # same on every platform.
       bc
       diffutils
       getopt
