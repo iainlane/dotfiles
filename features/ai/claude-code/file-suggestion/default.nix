@@ -3,7 +3,6 @@
 # `lib.getExe`. See `file-suggestion.sh` for the selection logic.
 {
   writeShellApplication,
-  coreutils,
   fd,
   fzf,
   gawk,
@@ -14,7 +13,6 @@ writeShellApplication {
   runtimeInputs = [
     fd
     fzf
-    coreutils
     gnused
     gawk
   ];
