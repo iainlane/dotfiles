@@ -7,8 +7,8 @@
 # The default output style (see ./output-styles.nix) is part of the shared
 # set: a harness with no native style support receives the style body as an
 # ordinary instruction. Claude Code installs the styles natively and selects
-# one through its settings, so its instruction set leaves the body out; the
-# model would otherwise receive the same text twice.
+# one through its settings, so its instruction set leaves the body out and
+# the model does not receive the same text twice.
 #
 # Returns { files, concatenated, outputStyles, harnesses } where:
 #   files: { stem = content; } for each instruction, for tools that accept

@@ -12,7 +12,7 @@
 }: let
   # Claude Code receives the output styles natively (see `outputStyles`
   # below), so its instruction set leaves the default style's body out of
-  # the rule files; the model would otherwise receive the same text twice.
+  # the rule files and the model does not receive the same text twice.
   claudeCodeInstructions = instructions.harnesses.claudeCode;
 
   # Claude Code's `.mcp.json` schema: `type` of http/stdio plus `enabled`.

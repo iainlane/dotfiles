@@ -223,7 +223,7 @@
             # npm resolves beside the manifest, but only the lockfile is
             # committed: the build reads what it needs from the lockfile's root
             # record. Pass `--ignore-scripts`: only the lockfile is wanted here,
-            # and npm would otherwise run the package's `prepare` script.
+            # and a plain install runs the package's `prepare` script.
             (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
             cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
 

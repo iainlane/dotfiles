@@ -736,9 +736,9 @@ def judge_identity(run_metadata: Path) -> str:
     prompt. The document carries the judge's model, effort and client version,
     so a calibration is only ever reused by the judge which produced it, while
     the arms of one improvement run, which differ in nothing but the prompt the
-    candidate is given, share reference judgements each would otherwise pay
-    for: those subjects are fixed repository revisions prepared without the
-    candidate, and the fixture declares the verdicts they must reach.
+    candidate is given, share one set of reference judgements: those subjects
+    are fixed repository revisions prepared without the candidate, and the
+    fixture declares the verdicts they must reach.
     """
 
     try:

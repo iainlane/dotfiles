@@ -18,8 +18,10 @@
       description = ''
         Addresses served without being asked for a certificate. Clients on
         these networks reach the host directly, so they have no Cloudflare
-        certificate to present and would otherwise be refused along with
-        everyone else.
+        certificate to present. Podman container ranges from
+        `dotfiles.containers.subnetPools` are also exempt, so services can
+        contact the identity provider through the proxy. Other clients must
+        present a valid certificate signed by `caFile`.
       '';
     };
   };

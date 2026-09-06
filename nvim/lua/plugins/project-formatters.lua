@@ -21,8 +21,8 @@
 --- filetypes (`formatters_by_ft["*"]`). Nil when something else already
 --- registers it.
 ---@field filetype_condition condition? Restricts the formatter to the
---- filetypes it can handle. Needed with `register`, which would otherwise run
---- the formatter on every filetype.
+--- filetypes it can handle. Needed with `register`, which runs the formatter
+--- on every filetype unless restricted here.
 
 ---@type ProjectFormatter[]
 local project_formatters = {

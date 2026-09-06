@@ -6,8 +6,8 @@
 # Generate the secrets that a machine needs for AgentsView.
 #
 # Every machine that keeps an archive of its agent sessions needs two values
-# that AgentsView would otherwise generate for itself. Nix renders its
-# configuration read-only, so both come from here:
+# that AgentsView generates for itself when its configuration is writable.
+# Nix renders the configuration read-only, so both come from here:
 #
 #   <host>/user-agentsview.yaml       agentsview_auth_token
 #                                     agentsview_cursor_secret
