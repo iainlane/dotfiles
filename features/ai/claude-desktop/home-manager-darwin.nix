@@ -8,7 +8,7 @@
   imports = [./options.nix];
 
   home.file."Library/Application Support/Claude/claude_desktop_config.json" = {
-    # The app itself seems to manage to clobber this file.
+    # Claude Desktop rewrites this file itself, so home-manager replaces it.
     force = true;
     source = import ./config-file.nix {inherit config lib mcp pkgs;};
   };

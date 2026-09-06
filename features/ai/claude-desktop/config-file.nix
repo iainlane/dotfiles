@@ -1,5 +1,5 @@
 # The claude_desktop_config.json the app reads, rendered from the shared MCP
-# server set, dropping any servers a profile has excluded for Claude Desktop.
+# server set, dropping any servers a feature has excluded for Claude Desktop.
 {
   config,
   lib,

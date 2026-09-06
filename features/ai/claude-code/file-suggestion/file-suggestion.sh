@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Replace Claude Code's broken @ picker with fd + fzf scoring.
+# Replace Claude Code's built-in @ picker with fd and fzf scoring.
 #
 # Claude Code's built-in fuzzy finder is a bespoke subsequence matcher capped
 # at 15 results, indexed via `git ls-files`. It misses untracked files and
@@ -11,7 +11,7 @@
 # bonuses.
 #
 # `pkgs.writeShellApplication` injects `set -euo pipefail` ahead of this
-# source, which bites in two places: `fzf --filter QUERY` exits 1 on zero
+# source, which matters in two places: `fzf --filter QUERY` exits 1 on zero
 # matches, and any pipe into `head -N` triggers SIGPIPE (141) on the upstream
 # producer once it has emitted more than N lines. Either failure causes the
 # whole script to abort with no output, leaving the picker empty even when

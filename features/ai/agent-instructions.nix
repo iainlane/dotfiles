@@ -11,14 +11,13 @@
 # model would otherwise receive the same text twice.
 #
 # Returns { files, concatenated, outputStyles, harnesses } where:
-#   files        — { stem = content; } for each instruction (for tools that
-#                  accept split files, e.g. Claude Code rules, Antigravity
-#                  context)
-#   concatenated — single string with AGENTS.md first, then the rest in
-#                  lexicographic order (for tools that need one blob, e.g.
-#                  Codex, OpenCode)
-#   outputStyles — { stem = parsed style; } from ./output-styles.nix
-#   harnesses    — named instruction sets with harness-specific files merged
+#   files: { stem = content; } for each instruction, for tools that accept
+#          split files, such as Claude Code rules and Antigravity context.
+#   concatenated: one string with AGENTS.md first, then the rest in
+#                 lexicographic order, for tools that need a single blob,
+#                 such as Codex and OpenCode.
+#   outputStyles: { stem = parsed style; } from ./output-styles.nix.
+#   harnesses: named instruction sets with harness-specific files merged.
 {
   lib,
   source ? ./.,

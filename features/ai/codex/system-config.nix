@@ -1,4 +1,5 @@
-# This matches the `home-manager` module for Codex.
+# Codex's system-wide defaults, written to `/etc/codex/config.toml`. The
+# home configuration and each instance's own config override them.
 {
   pkgs,
   lib,

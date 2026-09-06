@@ -49,7 +49,6 @@ let
     inherit programs;
   };
 
-  # Pull out the computed server definitions for reuse.
   inherit (mcpServersNix.config.settings) servers;
 
   exaServer = {apiKeyFile}:
@@ -93,11 +92,11 @@ let
 
   jsonFormat = pkgs.formats.json {};
 
-  # Declaration for the MCP server set offered to the AI harnesses. Servers are
-  # held in the common shape (`url` for remote, `command`/`args` for local); a
-  # base module seeds the set and profiles contribute more, with the module
-  # system merging the definitions. Each harness applies its own transform to
-  # output in the format it needs.
+  # Declaration for the MCP server set offered to the AI harnesses. Servers
+  # use one common shape (`url` for remote, `command`/`args` for local); a
+  # base module seeds the set and features add to it, with the module system
+  # merging the definitions. Each harness applies its own transform to output
+  # in the format it needs.
   mcpServersOption = lib.mkOption {
     type = with lib.types; attrsOf (attrsOf jsonFormat.type);
     default = {};
@@ -105,11 +104,11 @@ let
   };
 
   # Remove named servers from a set. A harness uses this to drop servers a
-  # profile has excluded for it.
+  # feature has excluded for it.
   excludeServers = names: serverSet: lib.removeAttrs serverSet names;
 
-  # These language servers, formatters, and linters are made privately
-  # available to the AI tools that can use project diagnostics.
+  # These language servers, formatters and linters go on the PATH of the AI
+  # tools that can use project diagnostics, and nowhere else.
   packages = with pkgs; [
     alejandra
     bash-language-server

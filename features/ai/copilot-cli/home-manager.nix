@@ -1,8 +1,8 @@
 # Configure GitHub Copilot CLI with the shared MCP servers and instructions.
 #
-# Note: upstream global instructions support
-# (~/.copilot/copilot-instructions.md) is documented but buggy. We place the
-# file anyway as best-effort.
+# Upstream documents a global instructions file at
+# `~/.copilot/copilot-instructions.md`, but Copilot CLI does not reliably read
+# it. The file is written anyway.
 {
   pkgs,
   config,
@@ -32,7 +32,6 @@
     }
   );
 
-  # Wrap Copilot CLI to add shared tools to PATH
   wrappedCopilot = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.copilot-cli;
     binName = "copilot";

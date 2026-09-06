@@ -6,10 +6,9 @@
 #   Linux: /etc/claude-code/managed-settings.json
 #   macOS: /Library/Application Support/ClaudeCode/managed-settings.json
 #
-# On Linux, `environment.etc` maps directly to /etc which is the right
-# location. On macOS the target is /Library (not /etc), so we symlink the
-# store path into place via an activation script, the same mechanism that
-# `environment.etc` itself uses under the hood.
+# On Linux, `environment.etc` writes to /etc, which is the right location. On
+# macOS the target is under /Library, so an activation script symlinks the
+# store path into place, which is the mechanism `environment.etc` uses itself.
 {
   flake.features.ai.provides.claude-code = {
     homeManager = ./home-manager.nix;

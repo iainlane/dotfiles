@@ -24,7 +24,7 @@
   # ./file-suggestion for the rationale.
   fileSuggestionCommand = pkgs.callPackage ./file-suggestion {};
 
-  # Fields named here are merged as sets — their lists are concatenated and
+  # Fields named here are merged as sets: their lists are concatenated and
   # deduplicated, first occurrence winning for ordering. Every other field
   # follows recursive update: objects deep-merge, scalar leaves are replaced.
   setMergedPaths.permissions = lib.genAttrs ["deny" "ask" "allow"] (_: true);
@@ -68,8 +68,8 @@ in {
     '';
   };
 
-  # Sort this last so that the config here _overrides_ any incoming systemwide
-  # config.
+  # Sort this last so the values here override any incoming system-wide
+  # configuration.
   config.dotfiles.claudeCode.managedSettings = lib.mkAfter {
     alwaysThinkingEnabled = true;
     attribution = {

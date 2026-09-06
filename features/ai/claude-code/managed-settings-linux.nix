@@ -1,5 +1,5 @@
 # Linux/NixOS: write via environment.etc. Used for both NixOS and
-# system-manager-linux — both surfaces expose environment.etc.
+# system-manager-linux, because both expose environment.etc.
 {
   config,
   pkgs,

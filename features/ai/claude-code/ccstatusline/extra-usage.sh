@@ -104,8 +104,8 @@ token=$(read_token)
 mkdir -p "${cache_dir}"
 
 # A curl that outlives the render keeps writing its response, so give each run
-# files of its own. Sharing one header file let a survivor from an earlier
-# render supply the Retry-After that this one reads.
+# files of its own. Sharing one header file allowed a survivor from an earlier
+# render to supply the Retry-After that this run reads.
 body="$(mktemp "${cache_dir}/body.XXXXXX")"
 header="$(mktemp "${cache_dir}/header.XXXXXX")"
 
@@ -125,7 +125,8 @@ if [ "${code}" = "200" ]; then
 fi
 
 # Every other status opens a backoff window, so an expired token or a server
-# error is not re-tried on each render. A 429 names its own wait.
+# error is not re-tried on each status-line run. For 429, wait 300 seconds, or
+# the server's Retry-After when it sends one.
 retry=60
 
 if [ "${code}" = "429" ]; then

@@ -23,7 +23,6 @@ gitdir=$(git -C "${dir}" rev-parse --git-dir 2>/dev/null) || exit 0
 norm=${gitdir//\\//}
 
 case "${norm}" in
-# primary worktree — nothing worth showing
 .git | */.git)
 	exit 0
 	;;

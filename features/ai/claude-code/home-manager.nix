@@ -32,7 +32,7 @@ in {
       type = with lib.types; listOf str;
       default = [];
       description = ''
-        Names of shared MCP servers to drop from Claude Code. The work profile
+        Names of shared MCP servers to drop from Claude Code. The work feature
         uses this to exclude the enterprise connectors, which Claude Code
         receives from the organisation directly.
       '';
@@ -43,7 +43,7 @@ in {
       default = {};
       description = ''
         Skills for Claude Code only, in the form of `dotfiles.ai.skills`.
-        They are merged over the shared set by key, so a profile can give
+        They are merged over the shared set by key, so a feature can give
         Claude Code its own variant of a shared skill.
       '';
     };
@@ -54,7 +54,7 @@ in {
       enable = true;
       package = wrappedClaudeCode;
 
-      # Source the shared set directly, dropping any servers a profile has
+      # Source the shared set directly, dropping any servers a feature has
       # excluded for Claude Code.
       enableMcpIntegration = false;
       mcpServers =

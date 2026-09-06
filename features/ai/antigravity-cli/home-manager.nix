@@ -21,7 +21,6 @@
   system,
   ...
 }: let
-  # Wrap Antigravity CLI to add shared tools to PATH
   wrappedAntigravity = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.antigravity-cli;
     binName = "agy";

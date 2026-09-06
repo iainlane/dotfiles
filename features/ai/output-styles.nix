@@ -7,16 +7,16 @@
 # in the directory.
 #
 # Returns { styles, files, default } where:
-#   styles  — { stem = { stem, file, name, description, body }; }: `name` and
-#             `description` are the frontmatter fields, `body` is the text
-#             after the closing delimiter
-#   files   — { stem = path; } for programs.claude-code.outputStyles, which
-#             installs the files verbatim
-#   default — the parsed style that the `outputStyle` setting selects and
-#             that harnesses without native output styles receive through
-#             their shared instructions. A direct reference into `styles`,
-#             so selecting a style that has no file fails evaluation at
-#             that line rather than at whichever consumer reads it first.
+#   styles: { stem = { stem, file, name, description, body }; }. `name` and
+#           `description` are the frontmatter fields. `body` is the text
+#           after the closing delimiter.
+#   files: { stem = path; } for programs.claude-code.outputStyles, which
+#          installs the files verbatim.
+#   default: the parsed style that the `outputStyle` setting selects and that
+#            harnesses without native output styles receive through their
+#            shared instructions. A direct reference into `styles`, so
+#            selecting a style that has no file fails evaluation at that line
+#            rather than at whichever consumer reads it first.
 {lib}: let
   dir = ./output-style;
 

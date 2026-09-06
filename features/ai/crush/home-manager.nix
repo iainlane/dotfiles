@@ -25,7 +25,6 @@
     }
   );
 
-  # Wrap Crush to add shared tools to PATH
   wrappedCrush = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.crush;
     binName = "crush";
@@ -34,7 +33,6 @@ in {
   home.packages = [wrappedCrush];
 
   xdg.configFile = {
-    # Point Crush at the generated config file.
     "crush/crush.json".source = crushConfig;
 
     # Shared instructions for Crush to load via context_paths.
