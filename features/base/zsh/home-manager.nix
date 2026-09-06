@@ -75,15 +75,13 @@ in {
 
     initContent = lib.mkMerge [
       (lib.mkBefore zstylesPre)
+      # Home Manager runs `completionInit` at order 570, and bun.plugin.zsh
+      # extends `fpath` with the directory compinit has to scan.
+      (lib.mkOrder 560 (
+        lib.concatMapStringsSep "\n" (name: "source ${pluginsDir}/${name}") localPlugins
+      ))
       (lib.mkAfter zstylesPost)
     ];
-
-    plugins =
-      map (name: {
-        name = lib.removeSuffix ".plugin.zsh" name;
-        src = pluginsDir;
-      })
-      localPlugins;
 
     sessionVariables = {
       VISUAL = "nvim";
