@@ -146,7 +146,7 @@
       };
       motd = lib.mkOption {
         type = lib.types.str;
-        description = "The message of the day, which the base feature writes to `~/.motd` for the shell to print at login.";
+        description = "The message of the day, which the base feature writes to `~/.motd`. The shell does not display it at login.";
       };
       flakePath = lib.mkOption {
         type = lib.types.str;
