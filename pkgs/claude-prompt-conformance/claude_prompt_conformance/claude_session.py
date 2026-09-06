@@ -15,6 +15,7 @@ from .protocols.claude import (
     ClaudeControlRequest,
     ClaudeControlRequestRecord,
     ClaudeControlResponse,
+    ClaudeControlResponseRecord,
     ClaudeControlSuccess,
     ClaudeInitializeRequest,
     ClaudeOAuthTokenRefreshResult,
@@ -57,6 +58,14 @@ class ClaudeControlRequestUnsupportedError(ConformanceError):
         return f"Claude requested unsupported SDK control operation {self.subtype}"
 
 
+@dataclass(eq=True)
+class ClaudeInitializeRejectedError(ConformanceError):
+    reason: str
+
+    def __str__(self) -> str:
+        return f"Claude rejected the SDK initialize request: {self.reason}"
+
+
 _KIND_DECODER = msgspec.json.Decoder(ClaudeRecordKind)
 _RECORD_DECODERS = {
     "assistant": msgspec.json.Decoder(ClaudeAssistantRecord),
@@ -65,6 +74,7 @@ _RECORD_DECODERS = {
     "tool_progress": msgspec.json.Decoder(ClaudeToolProgressRecord),
     "result": msgspec.json.Decoder(ClaudeResultRecord),
     "control_request": msgspec.json.Decoder(ClaudeControlRequestRecord),
+    "control_response": msgspec.json.Decoder(ClaudeControlResponseRecord),
 }
 
 
@@ -145,6 +155,10 @@ class ClaudeSdkSession:
 
         event = decode_stream_record(record.value)
         if event is None:
+            return ProcessExchange()
+
+        if isinstance(event, ClaudeControlResponseRecord):
+            check_initialize_response(event)
             return ProcessExchange()
 
         self._track_task(event)
@@ -264,6 +278,23 @@ class ClaudeSdkSession:
             return
         if event.patch.status in _TERMINAL_TASK_STATUSES:
             self._inflight_tasks.discard(task_id)
+
+
+def check_initialize_response(record: ClaudeControlResponseRecord) -> None:
+    """Raise an error when Claude rejects this session's initialize request.
+
+    Ignore responses for other request identifiers, and responses whose
+    subtype is not "error".
+    """
+
+    response = record.response
+    if response is None or response.request_id != _INITIALIZE_REQUEST_ID:
+        return
+
+    if response.subtype != "error":
+        return
+
+    raise ClaudeInitializeRejectedError(response.error or "no reason given")
 
 
 def _line(value: msgspec.Struct) -> bytes:

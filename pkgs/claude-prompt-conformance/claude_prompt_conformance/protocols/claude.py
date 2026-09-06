@@ -34,13 +34,10 @@ class ClaudeEvent(msgspec.Struct, frozen=True):
 
 
 class ClaudeOAuth(msgspec.Struct, frozen=True, rename="camel"):
-    access_token: str = msgspec.field(name="accessToken")
-    refresh_token: str = msgspec.field(name="refreshToken")
-    expires_at: int = msgspec.field(name="expiresAt")
-    refresh_token_expires_at: int | None = msgspec.field(
-        default=None,
-        name="refreshTokenExpiresAt",
-    )
+    access_token: str
+    refresh_token: str
+    expires_at: int
+    refresh_token_expires_at: int | None = None
     scopes: tuple[str, ...] = ()
     client_id: str | None = None
     subscription_type: str | None = None
@@ -69,26 +66,13 @@ class ClaudeInitializeRequest(
     frozen=True,
     tag="initialize",
     tag_field="subtype",
-    rename="camel",
 ):
     hooks: None = None
 
 
-class ClaudeOAuthTokenRefreshRequest(
-    msgspec.Struct,
-    frozen=True,
-    tag="oauth_token_refresh",
-    tag_field="subtype",
-):
-    pass
-
-
-ClaudeControlRequestBody = ClaudeInitializeRequest | ClaudeOAuthTokenRefreshRequest
-
-
 class ClaudeControlRequest(msgspec.Struct, frozen=True, tag="control_request"):
     request_id: str
-    request: ClaudeControlRequestBody
+    request: ClaudeInitializeRequest
 
 
 class ClaudeUserMessage(msgspec.Struct, frozen=True):
@@ -170,7 +154,6 @@ class ClaudeSystemRecord(msgspec.Struct, frozen=True, tag="system", tag_field="t
     task_type: str | None = None
     patch: ClaudeTaskPatch | None = None
     tool_use_id: str | None = None
-    summary: str | None = None
 
 
 class ClaudeToolProgressRecord(
@@ -182,7 +165,6 @@ class ClaudeToolProgressRecord(
     parent_tool_use_id: str | None = None
     tool_name: str | None = None
     elapsed_time_seconds: int | None = None
-    heartbeat: bool = False
 
 
 class ClaudeResultRecord(msgspec.Struct, frozen=True, tag="result", tag_field="type"):
@@ -200,6 +182,23 @@ class ClaudeControlRequestRecord(
     request: ClaudeRequestKind | None = None
 
 
+class ClaudeControlOutcome(msgspec.Struct, frozen=True):
+    """The answer to a control request, without its subtype's payload."""
+
+    subtype: str | None = None
+    request_id: str | None = None
+    error: str | None = None
+
+
+class ClaudeControlResponseRecord(
+    msgspec.Struct,
+    frozen=True,
+    tag="control_response",
+    tag_field="type",
+):
+    response: ClaudeControlOutcome | None = None
+
+
 ClaudeStreamRecord = (
     ClaudeAssistantRecord
     | ClaudeUserRecord
@@ -207,12 +206,14 @@ ClaudeStreamRecord = (
     | ClaudeToolProgressRecord
     | ClaudeResultRecord
     | ClaudeControlRequestRecord
+    | ClaudeControlResponseRecord
 )
 
 
 class CandidateToolUse(
     msgspec.Struct,
     frozen=True,
+    rename="camel",
     tag="tool_use",
     tag_field="type",
 ):

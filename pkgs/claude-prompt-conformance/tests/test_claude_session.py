@@ -7,6 +7,7 @@ import pytest
 from claude_prompt_conformance.claude_session import (
     ClaudeControlRecordDecodeError,
     ClaudeControlRequestUnsupportedError,
+    ClaudeInitializeRejectedError,
     ClaudeSdkSession,
 )
 from claude_prompt_conformance.models import (
@@ -386,6 +387,45 @@ def test_claude_sdk_session_answers_an_unknown_control_request() -> None:
             + b"\n",
         )
     )
+
+
+def test_claude_sdk_session_fails_when_the_handshake_is_refused() -> None:
+    session = ClaudeSdkSession("task", RenewableIdentity("token", "replacement"))
+
+    with pytest.raises(ClaudeInitializeRejectedError) as raised:
+        session.receive(
+            received(
+                {
+                    "type": "control_response",
+                    "response": {
+                        "subtype": "error",
+                        "request_id": "prompt-conformance-initialize",
+                        "error": "unsupported protocol version",
+                    },
+                }
+            )
+        )
+
+    assert raised.value == ClaudeInitializeRejectedError("unsupported protocol version")
+
+
+def test_claude_sdk_session_passes_an_accepted_handshake_by() -> None:
+    session = ClaudeSdkSession("task", RenewableIdentity("token", "replacement"))
+
+    exchange = session.receive(
+        received(
+            {
+                "type": "control_response",
+                "response": {
+                    "subtype": "success",
+                    "request_id": "prompt-conformance-initialize",
+                    "response": {"commands": [], "outputStyle": "default"},
+                },
+            }
+        )
+    )
+
+    assert exchange == ProcessExchange()
 
 
 def test_claude_sdk_session_rejects_an_invalid_record() -> None:
