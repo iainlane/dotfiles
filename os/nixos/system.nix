@@ -8,6 +8,11 @@
   ...
 }: let
   secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
+
+  # lib/sops.nix states the policy for a per-host secrets file the secrets
+  # input does not have. Without this file the account has no password and can
+  # be logged into only over SSH.
+  havePassword = builtins.pathExists secretsFile;
 in {
   boot = {
     loader = {
@@ -38,12 +43,10 @@ in {
   time.timeZone = hostConfig.timezone;
   i18n.defaultLocale = hostConfig.locale;
 
-  sops = {
-    secrets = {
-      user-password-hash = {
-        sopsFile = secretsFile;
-        neededForUsers = true;
-      };
+  sops.secrets = lib.optionalAttrs havePassword {
+    user-password-hash = {
+      sopsFile = secretsFile;
+      neededForUsers = true;
     };
   };
 
@@ -56,7 +59,7 @@ in {
     home = hostConfig.homeDirectory;
     extraGroups = ["wheel" "networkmanager" "ssh"];
     shell = pkgs.zsh;
-    hashedPasswordFile = config.sops.secrets.user-password-hash.path;
+    hashedPasswordFile = lib.mkIf havePassword config.sops.secrets.user-password-hash.path;
     openssh.authorizedKeys.keys = import ./authorized-keys.nix;
   };
 
