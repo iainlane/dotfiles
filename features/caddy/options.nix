@@ -12,9 +12,11 @@ in {
       default = null;
       example = "203.0.113.10";
       description = ''
-        Public IPv4 address ports 80 and 443 are published on. The host must
-        already hold it. A single address cannot be a network of its own, so
-        IPv4 reaches the proxy by publishing rather than by routing.
+        Public IPv4 address that ports 80 and 443 are published on. The host
+        must already have it configured. There is only this one address, so no
+        IPv4 range can be delegated to Caddy's own network, and IPv4 traffic
+        arrives through the published ports. IPv6 is delegated a range and
+        routed to Caddy directly.
       '';
     };
 
@@ -26,10 +28,10 @@ in {
           type = lib.types.str;
           default = "10.90.0.0/24";
           description = ''
-            Private IPv4 range for the proxy's own network. The addresses never
-            leave the host. It falls inside the pools podman allocates from,
-            and what keeps the allocator off it is podman's own check for a
-            range already in use.
+            Private IPv4 range for the proxy's own container network.
+            The range falls inside the pools podman
+            allocates from, and podman checks for a range already in use
+            before allocating another network.
           '';
         };
 
@@ -43,10 +45,10 @@ in {
           type = lib.types.str;
           default = "10.90.0.128/25";
           description = ''
-            Part of `subnet` podman allocates from when a container asks for no
-            particular address. Addresses outside it stay free for the services
-            that are given a fixed one, which would otherwise be handed to
-            whichever container started first.
+            Part of `subnet` that podman allocates from when a container asks
+            for no particular address. Addresses outside this range stay free
+            for the containers given a fixed address, which podman would
+            otherwise hand to whichever container started first.
           '';
         };
       };
@@ -58,12 +60,12 @@ in {
           example = "2001:db8:0:0:c::/80";
           description = ''
             Public IPv6 range for the shared network, delegated from a prefix
-            routed to this host. Containers on it hold addresses reachable from
-            the internet, so the proxy is served without publishing or
-            translation.
+            routed to this host. Containers on that network get addresses
+            reachable from the internet, so the proxy is reached without
+            publishing a port or translating an address.
 
-            It must not overlap an address on another interface: podman refuses a
-            subnet it can already see on the host.
+            The range must not overlap an address on another interface: podman
+            refuses a subnet it can already see on the host.
           '';
         };
 
@@ -79,9 +81,9 @@ in {
           default = null;
           example = "2001:db8:0:0:c::100/120";
           description = ''
-            Part of `subnet` podman allocates from when a container asks for no
-            particular address. Addresses outside it stay free for the services
-            that are given a fixed one, `ipv6Address` among them.
+            Part of `subnet` that podman allocates from when a container asks
+            for no particular address. Addresses outside this range stay free
+            for the containers given a fixed address, `ipv6Address` among them.
           '';
         };
       };
@@ -92,8 +94,8 @@ in {
       default = null;
       example = "2001:db8:0:0:c::2";
       description = ''
-        Address within `network.v6.subnet` the proxy holds. This is what an AAAA
-        record points at, so it is fixed rather than allocated.
+        Address within `network.v6.subnet` given to the proxy. An AAAA record
+        points at it, so it is fixed rather than allocated.
       '';
     };
 
@@ -107,9 +109,9 @@ in {
       type = lib.types.str;
       default = "${hostConfig.name}/host-caddy.yaml";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        the Cloudflare API token named by `dnsTokenKey`. The proxy runs as a
-        system service, so this file is encrypted to the host key.
+        Path, relative to the `secrets` flake input, of the sops file
+        containing the Cloudflare API token named by `dnsTokenKey`. The proxy
+        runs as a system service, so this file is encrypted to the host key.
       '';
     };
 
@@ -117,10 +119,10 @@ in {
       type = lib.types.str;
       default = "cloudflare_dns_api_token";
       description = ''
-        Key in `secretsFile` holding a Cloudflare API token with `Zone.Zone:Read`
-        and `Zone.DNS:Edit` on the zones being certified. Caddy answers the ACME
-        DNS-01 challenge with it, so a certificate can be issued before any
-        traffic can arrive.
+        Key in `secretsFile` containing a Cloudflare API token with
+        `Zone.Zone:Read` and `Zone.DNS:Edit` on the zones being certified.
+        Caddy uses it to write the DNS-01 challenge record, so a certificate
+        can be issued before any traffic arrives.
 
         Only zones Cloudflare serves can be certified this way. A subdomain
         delegated to other nameservers needs its own arrangement.
@@ -132,7 +134,8 @@ in {
       default = null;
       description = ''
         Caddy package to run. Defaults to `pkgs.caddy` rebuilt with the
-        Cloudflare DNS plugin.
+        Cloudflare DNS plugin for certificate issuance and caddy-l4 for
+        routing non-HTTP connections on the shared TLS port.
       '';
     };
 
@@ -159,16 +162,16 @@ in {
         example = ["iainlane"];
         description = ''
           Account names allowed past the sign-in gate, matched against the
-          `X-Auth-Request-Preferred-Username` header the sign-in service
-          answers with. The proxy drops that header off an incoming request
-          and sets it only from that answer, so a visitor cannot claim to be
+          `X-Auth-Request-Preferred-Username` header oauth2-proxy returns.
+          Caddy deletes that header from the incoming request and sets it only
+          from oauth2-proxy's response, so a visitor cannot claim to be
           someone else.
 
-          A name someone gives up on the identity provider can be taken by
-          somebody else, who would then match a list still naming it.
+          A username released on the identity provider can be registered by
+          somebody else, who would then match a list that still names it.
 
-          Empty admits anyone the provider authenticates, which for a
-          provider that will sign in any account at all is no restriction.
+          An empty list admits anyone the provider authenticates, which is no
+          restriction at all if the provider will sign in any account.
         '';
       };
 

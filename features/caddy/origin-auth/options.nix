@@ -17,8 +17,9 @@
       example = ["192.168.1.0/24" "2001:db8::/48"];
       description = ''
         Addresses served without being asked for a certificate. Clients on
-        these networks reach the host directly, so they hold no certificate
-        and would otherwise be refused along with everyone else.
+        these networks reach the host directly, so they have no Cloudflare
+        certificate to present and would otherwise be refused along with
+        everyone else.
       '';
     };
   };

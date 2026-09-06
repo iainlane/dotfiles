@@ -10,8 +10,8 @@ in {
       type = lib.types.str;
       default = "oauth2-proxy";
       description = ''
-        Name the sign-in service registers with the identity provider, and
-        gives when it asks who somebody is.
+        Client ID oauth2-proxy registers with the identity provider and sends
+        on every authorisation request.
       '';
     };
 
@@ -19,9 +19,9 @@ in {
       type = lib.types.str;
       default = "oidc_client_secret";
       description = ''
-        Key in `auth.secretsFile` holding the secret shared with the identity
-        provider. The provider reads the same file, so the value is written
-        once.
+        Key in `auth.secretsFile` containing the secret shared with the
+        identity provider. The provider reads the same file, so the value is
+        written once.
       '';
     };
 
@@ -39,9 +39,9 @@ in {
       default = cfg.secretsFile;
       defaultText = lib.literalExpression "config.dotfiles.caddy.secretsFile";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        the keys named by `clientSecretKey` and `cookieSecretKey`. The
-        identity provider reads the client secret from the same file.
+        Path, relative to the `secrets` flake input, of the sops file
+        containing the keys named by `clientSecretKey` and `cookieSecretKey`.
+        The identity provider reads the client secret from the same file.
       '';
     };
 
@@ -49,7 +49,7 @@ in {
       type = lib.types.str;
       default = "cookie_secret";
       description = ''
-        Key in `auth.secretsFile` holding the secret that signs session
+        Key in `auth.secretsFile` containing the secret that signs session
         cookies. Must be 16, 24 or 32 bytes; `openssl rand -base64 32 | tr -- '+/' '-_'`
         produces an acceptable one.
       '';
