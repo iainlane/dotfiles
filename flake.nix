@@ -18,18 +18,18 @@
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
+    # The bat and bottom theme repositories, consumed directly so the
+    # `catppuccin/nix` Home Manager modules for those two ports read their
+    # themes without import from derivation. Upstream builds each port's
+    # `catppuccin.sources.<port>` with `fetchFromGitHub`, so the modules'
+    # `importTOML` and `importJSON` reads force a build during evaluation.
+    # Pointing `catppuccin.sources.bat` and `catppuccin.sources.bottom` at
+    # these natively fetched inputs keeps upstream's file-placement code and
+    # reads from a path that exists at evaluation time.
     catppuccin-bat = {
       url = "github:catppuccin/bat";
       flake = false;
     };
-
-    # Per-app theme repos consumed directly so the corresponding
-    # `catppuccin/nix` modules can read their themes without IFD. Upstream
-    # builds each port's `catppuccin.sources.<port>` from a `fetchFromGitHub`
-    # derivation, so the modules' `importTOML`/`importJSON` reads force a build
-    # during evaluation. Pointing `catppuccin.sources.<port>` at these
-    # native-fetched inputs instead keeps upstream's file-placement code but
-    # reads from a path that exists at evaluation time.
     catppuccin-bottom = {
       url = "github:catppuccin/bottom";
       flake = false;
@@ -122,6 +122,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # `measured-boot` is our branch of lanzaboote. It teaches the boot tool
+    # and the stub to predict the boot components' TPM2 measurements, writes a
+    # systemd-pcrlock policy from them, and enrols that policy into the LUKS
+    # volumes, which is what lets bonington unlock its disk without a
+    # passphrase. Upstream is taking the work in pieces, most recently
+    # nix-community/lanzaboote#637. The branch needs the two NixOS commits on
+    # `nixpkgs-measured-boot` below, so the two pins move together. Drop both
+    # once a lanzaboote release carries measured boot.
     lanzaboote = {
       url = "github:iainlane/lanzaboote/measured-boot";
       inputs.nixpkgs.follows = "nixpkgs-measured-boot";
@@ -167,6 +175,11 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+
+    # nixpkgs-unstable with two commits the lanzaboote branch above needs: the
+    # pcrlock service units and options on the tpm2 module, and the tmpfiles
+    # rules for the PCR credentials the stub deposits. Only lanzaboote
+    # evaluates against it. Drop it with the lanzaboote pin.
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
 
@@ -184,8 +197,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Custom starship with wide character support for zsh
-    # https://github.com/starship/starship/pull/6834
+    # Our branch of starship, carrying starship/starship#6834, which adds the
+    # zsh glitch sequences a prompt with wide characters needs so the shell
+    # positions the cursor correctly after it. Drop this input when the pull
+    # request merges and reaches a release.
     starship-custom = {
       url = "github:iainlane/starship/iainlane/feat-zsh-wide-char-support";
       flake = false;

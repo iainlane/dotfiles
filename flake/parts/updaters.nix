@@ -9,6 +9,7 @@
 # `flake.updaterNames` lists the updater names for the package-update workflow
 # to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
 {
+  inputs,
   config,
   lib,
   ...
@@ -24,12 +25,18 @@
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
 
+  # A key that names no input would generate an updater that rewrites nothing.
+  flakeInputsExist =
+    lib.assertMsg
+    (lib.all (name: inputs ? ${name}) (lib.attrNames flakeInputs))
+    "flake/parts/updaters.nix: flakeInputs names an input flake.nix does not have";
+
   hasUpdateScript = packages: name: (packages.${name} or null) ? updateScript;
 
   # `flake.packages` omits packages that are not available on a system, so a
   # package gets an updater when it defines an update script in at least one
   # system's package set.
-  updaterNames =
+  updaterNames = assert flakeInputsExist;
     lib.filter (
       name:
         lib.any
