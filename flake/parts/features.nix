@@ -119,7 +119,7 @@
             });
         };
         default = {};
-        description = "Modules that apply only to hosts with this kernel. NixOS and the Linux hosts system-manager builds share the `linux` scope.";
+        description = "One entry per kernel, each with the Home Manager module that applies only on hosts with that kernel. NixOS and the Linux hosts system-manager builds share the `linux` entry.";
       };
 
       provides = lib.mkOption {

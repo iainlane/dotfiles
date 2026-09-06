@@ -324,25 +324,25 @@ The rest of the flake carries the tooling and the data other things read:
 
 `lib/` is split by responsibility, and each caller imports the file it needs:
 
-| File                                 | Responsibility                                          |
-| ------------------------------------ | ------------------------------------------------------- |
-| `lib/channels.nix`                   | the nixpkgs and Home Manager pair for each host channel |
-| `lib/container-image.nix`            | images built from a Nix closure                         |
-| `lib/discovery.nix`                  | filesystem discovery (hosts, features, packages)        |
-| `lib/exposed-service.nix`            | the options declared by a service the proxy serves      |
-| `lib/features.nix`                   | feature resolution: includes, ordering, class modules   |
-| `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository        |
-| `lib/halls.nix`                      | the message of the day for each host                    |
-| `lib/home.nix`                       | Home Manager modules and special arguments              |
-| `lib/netboot/`                       | the PXE and ISO installers, and the netboot server      |
-| `lib/nix/`                           | the shared cache settings and a pinned nixpkgs revision |
-| `lib/nixbuild.nix`                   | the nixbuild.net account constants, read by CI too      |
-| `lib/operating-systems.nix`          | what varies by OS and is not code                       |
-| `lib/presence.nix`                   | the option a child feature defines to say it is there   |
-| `lib/project-directories/`           | the Home Manager module that writes the `.envrc` files  |
-| `lib/projects.nix`                   | project shell and direnv generation                     |
-| `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract     |
-| `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket            |
-| `lib/r2.sh`                          | the shell half of those, with its test                  |
-| `lib/sops.nix`                       | sops-nix module fragments                               |
-| `lib/system.nix`                     | the system special arguments                            |
+| File                                 | Responsibility                                            |
+| ------------------------------------ | --------------------------------------------------------- |
+| `lib/channels.nix`                   | the nixpkgs and Home Manager pair for each host channel   |
+| `lib/container-image.nix`            | images built from a Nix closure                           |
+| `lib/discovery.nix`                  | filesystem discovery: hosts, features, packages, overlays |
+| `lib/exposed-service.nix`            | the options declared by a service the proxy serves        |
+| `lib/features.nix`                   | feature resolution: includes, ordering, class modules     |
+| `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository          |
+| `lib/halls.nix`                      | the message of the day for each host                      |
+| `lib/home.nix`                       | Home Manager modules and special arguments                |
+| `lib/netboot/`                       | the PXE and ISO installers, and the netboot server        |
+| `lib/nix/`                           | the shared cache settings and a pinned nixpkgs revision   |
+| `lib/nixbuild.nix`                   | the nixbuild.net account constants, read by CI too        |
+| `lib/operating-systems.nix`          | what varies by OS and is not code                         |
+| `lib/presence.nix`                   | the option a child feature defines to say it is there     |
+| `lib/project-directories/`           | the Home Manager module that writes the `.envrc` files    |
+| `lib/projects.nix`                   | project shell and direnv generation                       |
+| `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract       |
+| `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket              |
+| `lib/r2.sh`                          | the shell half of those, with its test                    |
+| `lib/sops.nix`                       | sops-nix module fragments                                 |
+| `lib/system.nix`                     | the system special arguments                              |
