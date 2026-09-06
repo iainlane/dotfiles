@@ -32,7 +32,7 @@ end
 --- replaced with an ellipsis. The last component, the filename, is rendered
 --- with the `Bold` highlight group when the buffer is unmodified and with
 --- `MatchParen` when it is, to match LazyVim's `lualine` appearance.
----@param buf integer The number of our buffer
+---@param buf integer The buffer number
 ---@return table # A table of components to be displayed in the window statusline
 local function incline_pretty_path(buf)
   local filename = vim.api.nvim_buf_get_name(buf)
@@ -59,14 +59,13 @@ local function incline_pretty_path(buf)
 
   local parts = vim.split(display_path, "[\\/]")
 
-  -- If the path is longer then `len` components, abbreviate the middle parts
-  -- with an ellipsis.
+  -- If the path has more than `len` components, replace the middle ones with
+  -- an ellipsis.
   local len = 3
   if #parts > len then
     parts = { parts[1], "…", unpack(parts, #parts - len + 2, #parts) }
   end
 
-  -- Use our namespace-specific highlight groups
   local modified_hl = "InclineModified"
   local filename_hl = "InclineFilename"
   local directory_hl = "InclineDirectory"
@@ -74,9 +73,10 @@ local function incline_pretty_path(buf)
   -- Get the OS-specific path separator
   local sep = package.config:sub(1, 1)
 
-  -- Add directory components if they exist
   local result = {}
 
+  -- The directory components, with a separator between them and one after
+  -- the last.
   if #parts > 1 then
     for i = 1, #parts - 1 do
       if i > 1 then
@@ -86,11 +86,9 @@ local function incline_pretty_path(buf)
       table.insert(result, { parts[i], group = directory_hl })
     end
 
-    -- Add final separator before filename
     table.insert(result, { sep, group = directory_hl })
   end
 
-  -- Add filename with appropriate highlight
   table.insert(result, { parts[#parts], group = modified and modified_hl or filename_hl })
 
   return result

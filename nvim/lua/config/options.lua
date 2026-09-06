@@ -4,10 +4,10 @@ opt.relativenumber = true
 opt.number = not vim.g.vscode
 
 -- tabs & indentation
-opt.tabstop = 2 -- 2 spaces for tabs (prettier default)
-opt.shiftwidth = 2 -- 2 spaces for indent width
-opt.expandtab = true -- expand tab to spaces
-opt.autoindent = true -- copy indent from current line when starting new one
+opt.tabstop = 2 -- prettier's default
+opt.shiftwidth = 2
+opt.expandtab = true
+opt.autoindent = true -- copy the current line's indent when starting a new one
 opt.smartindent = true
 
 opt.tw = 80
@@ -16,23 +16,21 @@ opt.wrap = false
 opt.hlsearch = false
 
 -- search settings
-opt.ignorecase = true -- ignore case when searching
-opt.smartcase = true -- unless the pattern has an upper-case character in it
+opt.ignorecase = true
+opt.smartcase = true -- case-insensitive unless the pattern has an upper-case character
 
 opt.cursorline = true
 
 -- 24-bit colour, which catppuccin needs. The terminal has to support it.
 opt.termguicolors = true
-opt.signcolumn = "yes" -- show sign column so that text doesn't shift
+opt.signcolumn = "yes" -- always drawn, so text does not shift when a sign appears
 
--- backspace
-opt.backspace = "indent,eol,start" -- allow backspace on indent, end of line or insert mode start position
+opt.backspace = "indent,eol,start" -- backspace over indent, line ends and where insert began
 
 -- split windows
-opt.splitright = true -- split vertical window to the right
-opt.splitbelow = true -- split horizontal window to the bottom
+opt.splitright = true
+opt.splitbelow = true
 
--- turn off swapfile
 opt.swapfile = false
 
 vim.g.maplocalleader = ","

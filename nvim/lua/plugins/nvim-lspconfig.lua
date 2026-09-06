@@ -7,7 +7,8 @@ return {
           ansible = {
             validation = {
               lint = {
-                -- this is also handled by prettier, and they don't quite agree
+                -- ansible-lint's yaml rules disagree with the way prettier
+                -- formats these files, so skip those rules
                 arguments = "--skip-list=yaml",
               },
             },

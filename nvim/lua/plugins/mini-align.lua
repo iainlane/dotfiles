@@ -1,6 +1,6 @@
--- Interactive text alignment via the `mini` ecosystem (already pulled in by
--- mini.ai, mini.surround, etc.). `ga` starts alignment, `gA` starts it with
--- preview - matches the verbs used by other mini plugins.
+-- Interactive text alignment from the `mini` ecosystem (already pulled in by
+-- mini.ai, mini.surround and the rest). `ga` starts alignment and `gA` starts
+-- it with a preview, matching the verbs the other mini plugins use.
 return {
   "nvim-mini/mini.align",
   keys = {

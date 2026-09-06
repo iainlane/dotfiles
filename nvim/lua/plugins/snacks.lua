@@ -24,8 +24,7 @@ return {
       -- Inline images via the Kitty graphics protocol.
       image = { enabled = true },
 
-      -- Dim inactive scopes; pairs nicely with `mini.indentscope` and treesitter
-      -- context. Off by default; toggle with `<leader>uD`.
+      -- Dim inactive scopes. Off by default; toggle with `<leader>uD`.
       dim = {},
 
       -- Distraction-free writing mode (`<leader>z`, `<leader>uz`).

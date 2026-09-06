@@ -1,9 +1,9 @@
 -- Enhance Jsonnet support. Mason/LSP integration is configured via
 -- `plugins/nix-managed-mason.lua` and `nix-managed-lsp.json`.
 
----Answers from `is_tanka_project`, keyed by root directory. The probe runs a
----subprocess and waits for it, which blocks the editor, and the language
----server is started once per workspace and per restart.
+---Cached results from `is_tanka_project`, keyed by root directory. The probe
+---runs a subprocess and waits for it, which blocks the editor, so its result
+---is reused when the language server starts again for the same root.
 ---@type table<string, boolean>
 local tanka_projects = {}
 

@@ -3,7 +3,8 @@ return {
   "lambdalisue/vim-suda",
   event = { "BufRead", "BufNewFile" },
   config = function()
-    -- Enable smart edit mode - automatically switches to suda:// when files are not readable/writable
+    -- Smart edit mode switches to `suda://` when a file is not readable or
+    -- writable.
     vim.g.suda_smart_edit = 1
   end,
   cmd = { "SudaRead", "SudaWrite" },
