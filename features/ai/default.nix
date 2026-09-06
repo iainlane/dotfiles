@@ -1,6 +1,7 @@
 {
   inputs,
   config,
+  lib,
   ...
 }: let
   children = config.flake.features.ai.provides;
@@ -55,18 +56,19 @@ in {
     pkgs-stable,
     ...
   }: {
-    _module.args.mcpByChannel = {
-      stable = import ./mcp-servers.nix {
+    # A host's channel selects the package set its harnesses, language servers
+    # and mcp-remote are built from. The server definitions come from
+    # mcp-servers-nix evaluated against unstable on both channels, so a stable
+    # host runs stable tools against the current server set.
+    _module.args.mcpByChannel = lib.mapAttrs (_: channelPkgs:
+      import ./mcp-servers.nix {
         inherit inputs;
-        inherit (pkgs-stable) lib;
-        pkgs = pkgs-stable;
+        inherit (channelPkgs) lib;
+        pkgs = channelPkgs;
         pkgs-unstable = pkgs;
-      };
-      unstable = import ./mcp-servers.nix {
-        inherit inputs pkgs;
-        inherit (pkgs) lib;
-        pkgs-unstable = pkgs;
-      };
+      }) {
+      stable = pkgs-stable;
+      unstable = pkgs;
     };
   };
 }
