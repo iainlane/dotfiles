@@ -73,8 +73,8 @@ in {
       recursive = true;
     };
 
-    xdg.configFile."ccstatusline/settings.json".source = pkgs.writeText "ccstatusline-settings.json" (builtins.toJSON (
-      import ./ccstatusline {inherit pkgs lib;}
-    ));
+    xdg.configFile."ccstatusline/settings.json".source =
+      (pkgs.formats.json {}).generate "ccstatusline-settings.json"
+      (import ./ccstatusline {inherit pkgs lib;});
   };
 }
