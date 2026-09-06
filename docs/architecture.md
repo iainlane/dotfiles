@@ -178,6 +178,12 @@ an error naming the features in the cycle.
 `flake/parts/checks/feature-resolution.nix` compares the resolver's module lists
 with fixtures covering each of those.
 
+`flake/parts/checks/feature-registration.nix` enforces the layout rules above.
+It reads the file each definition of `flake.features` came from and fails when a
+top-level feature is registered anywhere but the `default.nix` of the directory
+its name belongs to, or when a file adds children to a feature outside that
+directory.
+
 ## Options
 
 Composition decides what a host runs. The module system is still where values

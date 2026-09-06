@@ -270,13 +270,23 @@
     }
   ];
 
-  failures = lib.filter (a: !a.pass) assertions;
-  report = lib.concatMapStringsSep "\n" (a: "  ✗ ${a.name}") failures;
+  failures = lib.filter (assertion: !assertion.pass) assertions;
+  report = lib.concatMapStringsSep "\n" (assertion: "  ✗ ${assertion.name}") failures;
 in {
   perSystem = {pkgs, ...}: {
+    # A failed assertion builds a derivation that prints the report and exits
+    # non-zero. Throwing during evaluation would take down every other check in
+    # the same `nix flake check` run.
     checks.feature-resolution =
-      if failures == []
-      then pkgs.runCommandLocal "feature-resolution" {} "touch $out"
-      else throw "feature resolution checks failed:\n${report}";
+      pkgs.runCommandLocal "feature-resolution" {inherit report;}
+      (
+        if failures == []
+        then "touch $out"
+        else ''
+          echo "feature resolution checks failed:" >&2
+          printf '%s\n' "$report" >&2
+          exit 1
+        ''
+      );
   };
 }
