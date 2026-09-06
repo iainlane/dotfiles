@@ -11,8 +11,8 @@
   # - `lsp_servers`: server names lspconfig is given with `mason = false`
   # - `mason_packages`: names dropped from Mason's `ensure_installed`
   #
-  # A value says how the server name and the Mason package name differ from the
-  # nixpkgs name:
+  # The value describes how the server name and the Mason package name
+  # differ from the nixpkgs name:
   #
   # - `null`: neither differs.
   #

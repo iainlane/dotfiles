@@ -20,7 +20,7 @@ ${BOLD}COMMANDS:${NC}
     largest [N]     Show N largest store paths (default: 20)
     roots           Show all GC roots and their sources
     direnv          Show nix-direnv managed environments
-    duplicates      Find duplicate packages (different versions)
+    duplicates      Find names with more than one store path
     why PATH        Show why a store path is kept (its roots)
     deps PATH       Show what a store path depends on
     tree PATH       Show dependency tree for a path
@@ -42,10 +42,10 @@ strip_hash() {
 	sed 's/^[a-z0-9]*-//'
 }
 
-# The total size in bytes of the store paths given one per line. `du` reports
-# what it could measure and still exits 1 when a path has gone from under it,
-# which happens while another process collects garbage, so read the grand
-# total and treat a missing one as zero.
+# The total size in bytes of the store paths given one per line. `du` prints
+# what it managed to measure and exits 1 when a path disappears while it runs,
+# which happens when another process is collecting garbage. Read the grand
+# total and treat a missing total as zero.
 total_size_of_paths() {
 	local paths="${1}"
 	local total
@@ -252,7 +252,7 @@ cmd_direnv() {
 }
 
 cmd_duplicates() {
-	echo -e "${BOLD}Duplicate packages (multiple versions):${NC}"
+	echo -e "${BOLD}Names with more than one store path:${NC}"
 	echo
 
 	(
@@ -358,7 +358,7 @@ cmd_gc_preview() {
 	fi
 
 	if [[ "${dead_count}" -eq 0 ]]; then
-		echo -e "${GREEN}No garbage to collect!${NC}"
+		echo -e "${GREEN}No garbage to collect${NC}"
 		return
 	fi
 

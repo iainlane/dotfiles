@@ -70,9 +70,9 @@ in {
   xdg = {
     configFile."nvim".source = ../../../nvim;
 
-    # LazyVim's Svelte extra hardcodes the location it loads the Svelte language
-    # server from. Here we symlink to our Nix-managed installation from that
-    # location.
+    # LazyVim's Svelte extra loads the TypeScript plugin from a fixed path
+    # under Mason's package directory. Point that path at the plugin inside
+    # the Nix-installed svelte-language-server.
     dataFile."nvim/mason/packages/svelte-language-server/node_modules/typescript-svelte-plugin".source = "${pkgs.svelte-language-server}/lib/node_modules/svelte-language-server/packages/typescript-plugin";
 
     stateFile = {

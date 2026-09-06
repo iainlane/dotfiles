@@ -10,7 +10,7 @@
         DSDontWriteNetworkStores = true;
         DSDontWriteUSBStores = true;
       };
-      # Prevent Photos from opening automatically
+      # Stop Photos opening when a camera or a phone is plugged in.
       "com.apple.ImageCapture".disableHotPlug = true;
       "com.apple.SoftwareUpdate" = {
         AutomaticCheckEnabled = true;
@@ -22,20 +22,18 @@
         CriticalUpdateInstall = 1;
       };
       "com.apple.TimeMachine".DoNotOfferNewDisksForBackup = true;
-      # Turn on App Store auto-update.
       "com.apple.commerce".AutoUpdate = true;
-      # Enable three-finger horizontal swipe between full-screen apps (2 = swipe between pages).
+      # A three-finger horizontal swipe moves between full-screen apps
+      # (2 = swipe between pages). Set for the Bluetooth and the built-in
+      # trackpad drivers.
       "com.apple.driver.AppleBluetoothMultitouch.trackpad" = {
         TrackpadThreeFingerHorizSwipeGesture = 2;
       };
-      # Enable three finger horizontal swipe between full screen apps (2 = swipe between pages)
       "com.apple.AppleMultitouchTrackpad" = {
         TrackpadThreeFingerHorizSwipeGesture = 2;
       };
     };
     NSGlobalDomain = {
-      # Prefer 24-hour time and keep the system in sync with the light/dark
-      # cycle automatically.
       AppleICUForce24HourTime = true;
       AppleInterfaceStyleSwitchesAutomatically = true;
       AppleMeasurementUnits = "Centimeters";
@@ -84,14 +82,14 @@
       ShowSeconds = false;
     };
     screensaver = {
-      # Require a password five minutes after the screensaver kicks in.
+      # The delay is in seconds: ask for a password five minutes after the
+      # screensaver starts.
       askForPassword = true;
       askForPasswordDelay = 300;
     };
     # smb.NetBIOSName = hostname;
     trackpad = {
       Clicking = true;
-      # Enable two finger right click
       TrackpadRightClick = true;
     };
     dock = {
