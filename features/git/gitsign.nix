@@ -43,7 +43,7 @@ in {
           ListenStream = gitsignCredentialCache;
           DirectoryMode = "0700";
         };
-        Install.WantedBy = ["default.target"];
+        Install.WantedBy = ["sockets.target"];
       };
     };
   };
