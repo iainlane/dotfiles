@@ -212,6 +212,9 @@ def test_claude_candidate_speaks_the_stream_contract(tmp_path: Path) -> None:
         and record.subtype == "permission_denied"
     )
     tool_errors = requested[-1].tool_results() if requested else ()
+    denied_activity = tuple(
+        kind for kind, identifier in activity.events if identifier == "toolu-denied"
+    )
     assert (
         result.response,
         unexpected,
@@ -224,6 +227,7 @@ def test_claude_candidate_speaks_the_stream_contract(tmp_path: Path) -> None:
         any(isinstance(record, ClaudeUserRecord) for record in records),
         any(isinstance(record, ClaudeResultRecord) for record in records),
         [bool(block.get("is_error")) for block in tool_errors],
+        denied_activity[:1] + denied_activity[-1:],
     ) == (
         FINAL_RESPONSE,
         (),
@@ -236,4 +240,5 @@ def test_claude_candidate_speaks_the_stream_contract(tmp_path: Path) -> None:
         True,
         True,
         [True],
+        ("started", "finished"),
     )

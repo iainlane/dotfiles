@@ -1,4 +1,5 @@
 import errno
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
@@ -210,70 +211,51 @@ class ScriptedSuite:
         return FixtureRun(fixture, status, artefacts, failures, result, None)
 
 
+def evidence_read_error(request: RunRequest) -> RunSummary:
+    """Simulate an I/O error while reading a sample's results."""
+
+    raise ImprovementEvidenceReadError(request.output, errno.EIO)
+
+
+def invalid_evidence(_request: RunRequest) -> RunSummary:
+    """Report the sample as invalid without raising."""
+
+    return RunSummary(passed=0, failed=0, invalid=1, stale=0, results=())
+
+
+def record_cancellation(marker: Path) -> None:
+    """Write a marker once the sibling's cancellation wait has finished."""
+
+    marker.write_text("cancelled\n")
+
+
+def raise_cancellation(_marker: Path) -> None:
+    """Let the cancelled sibling raise, as a real interrupted run does."""
+
+    raise RunCancelled
+
+
 @dataclass
-class CancellingSuite(ScriptedSuite):
-    """Fail one working sample while a sibling waits to observe cancellation."""
+class InterruptedSuite(ScriptedSuite):
+    """Interrupt one working sample while a sibling waits to be cancelled."""
 
     started: Event = field(default_factory=Event)
     cancellation: Event = field(default_factory=Event)
     marker: Path = Path()
+    interrupt: Callable[[RunRequest], RunSummary] = field(kw_only=True)
+    cancelled: Callable[[Path], None] = field(kw_only=True)
 
     def run(self, request: RunRequest) -> RunSummary:
         store_root = request.store_root or request.output
         relative = request.output.relative_to(store_root).as_posix()
         if relative == "current-prompt/sample-02":
             self.started.wait(WAIT_SECONDS)
-            raise ImprovementEvidenceReadError(request.output, errno.EIO)
+            return self.interrupt(request)
 
         if relative == "current-prompt/sample-03":
             self.started.set()
             self.cancellation.wait(WAIT_SECONDS)
-            self.marker.write_text("cancelled\n")
-
-        return super().run(request)
-
-
-@dataclass
-class UncalibratedSuite(ScriptedSuite):
-    """Report one sample as invalid while a sibling waits to be cancelled."""
-
-    started: Event = field(default_factory=Event)
-    cancellation: Event = field(default_factory=Event)
-    marker: Path = Path()
-
-    def run(self, request: RunRequest) -> RunSummary:
-        store_root = request.store_root or request.output
-        relative = request.output.relative_to(store_root).as_posix()
-        if relative == "current-prompt/sample-02":
-            self.started.wait(WAIT_SECONDS)
-            return RunSummary(passed=0, failed=0, invalid=1, stale=0, results=())
-
-        if relative == "current-prompt/sample-03":
-            self.started.set()
-            self.cancellation.wait(WAIT_SECONDS)
-            self.marker.write_text("cancelled\n")
-
-        return super().run(request)
-
-
-@dataclass
-class UncalibratedRaisingSuite(ScriptedSuite):
-    """Report one sample invalid while a cancelled sibling raises RunCancelled."""
-
-    started: Event = field(default_factory=Event)
-    cancellation: Event = field(default_factory=Event)
-
-    def run(self, request: RunRequest) -> RunSummary:
-        store_root = request.store_root or request.output
-        relative = request.output.relative_to(store_root).as_posix()
-        if relative == "current-prompt/sample-02":
-            self.started.wait(WAIT_SECONDS)
-            return RunSummary(passed=0, failed=0, invalid=1, stale=0, results=())
-
-        if relative == "current-prompt/sample-03":
-            self.started.set()
-            self.cancellation.wait(WAIT_SECONDS)
-            raise RunCancelled
+            self.cancelled(self.marker)
 
         return super().run(request)
 
@@ -791,7 +773,7 @@ def test_the_tournament_selects_the_most_decisive_accepted_draft(
             type=DraftReport,
         ),
         winner.read_text(),
-        sorted(world.improver.angles) == sorted(IMPROVER_ANGLES),
+        sorted(world.improver.angles),
         tuple(sorted(path.name for path in (world.output / "tries").iterdir())),
         improvement_completions(world.events),
     ) == (
@@ -805,7 +787,7 @@ def test_the_tournament_selects_the_most_decisive_accepted_draft(
             "-Original\n"
             "+Draft 2\n"
         ),
-        True,
+        sorted(IMPROVER_ANGLES),
         ("draft-01", "draft-02", "draft-03", "winner.patch"),
         (ImprovementFinished(2, 3, True, world.output, winner),),
     )
@@ -1101,57 +1083,42 @@ def test_prompt_improvement_requires_working_and_reserved_examples(
     assert raised.value == expected
 
 
-def test_sample_failure_cancels_concurrent_model_processes(tmp_path: Path) -> None:
-    started = Event()
-    cancellation = Event()
-    marker = tmp_path / "sibling-cancelled"
-    world = tournament(tmp_path, proposals=(no_change_proposal(),))
-
-    def applications(
-        current: RuntimeConfiguration,
-        scoped_events: EventSink,
-    ) -> Application:
-        return Application(
-            suite=CancellingSuite(
-                current,
-                world.events,
-                world.script,
-                started=started,
-                cancellation=cancellation,
-                marker=marker,
+@pytest.mark.parametrize(
+    ("interrupt", "cancelled", "expected", "sibling"),
+    [
+        pytest.param(
+            evidence_read_error,
+            record_cancellation,
+            lambda output: ImprovementEvidenceReadError(
+                output / "current-prompt" / "sample-02",
+                errno.EIO,
             ),
-            improver=world.improver,
-            variants=world.variants,
-            instances=FakeInstances(),
-            processes=CancellingProcesses(cancellation),
-        )
-
-    with pytest.raises(ImprovementEvidenceReadError) as raised:
-        PromptImprovementSuite(
-            applications,
-            world.events,
-            TaskScopes(world.roots),
-            world.slots,
-        ).run(
-            world.original,
-            ImprovementRequest(
-                world.output,
-                world.fixtures,
-                proposals=1,
-                samples=3,
-            ),
-        )
-
-    assert (raised.value, marker.read_text()) == (
-        ImprovementEvidenceReadError(
-            world.output / "current-prompt" / "sample-02",
-            errno.EIO,
+            "cancelled\n",
+            id="sample-fails",
         ),
-        "cancelled\n",
-    )
-
-
-def test_invalid_evidence_cancels_the_rest_of_its_evaluation(tmp_path: Path) -> None:
+        pytest.param(
+            invalid_evidence,
+            record_cancellation,
+            lambda _: ImprovementCurrentPromptInvalidError(),
+            "cancelled\n",
+            id="sample-is-invalid",
+        ),
+        pytest.param(
+            invalid_evidence,
+            raise_cancellation,
+            lambda _: ImprovementCurrentPromptInvalidError(),
+            None,
+            id="cancelled-sibling-raises",
+        ),
+    ],
+)
+def test_an_interrupted_sample_cancels_the_rest_of_its_evaluation(
+    tmp_path: Path,
+    interrupt: Callable[[RunRequest], RunSummary],
+    cancelled: Callable[[Path], None],
+    expected: Callable[[Path], Exception],
+    sibling: str | None,
+) -> None:
     started = Event()
     cancellation = Event()
     marker = tmp_path / "sibling-cancelled"
@@ -1162,13 +1129,15 @@ def test_invalid_evidence_cancels_the_rest_of_its_evaluation(tmp_path: Path) -> 
         scoped_events: EventSink,
     ) -> Application:
         return Application(
-            suite=UncalibratedSuite(
+            suite=InterruptedSuite(
                 current,
                 world.events,
                 world.script,
                 started=started,
                 cancellation=cancellation,
                 marker=marker,
+                interrupt=interrupt,
+                cancelled=cancelled,
             ),
             improver=world.improver,
             variants=world.variants,
@@ -1176,7 +1145,8 @@ def test_invalid_evidence_cancels_the_rest_of_its_evaluation(tmp_path: Path) -> 
             processes=CancellingProcesses(cancellation),
         )
 
-    with pytest.raises(ImprovementCurrentPromptInvalidError) as raised:
+    failure = expected(world.output)
+    with pytest.raises(type(failure)) as raised:
         PromptImprovementSuite(
             applications,
             world.events,
@@ -1192,50 +1162,8 @@ def test_invalid_evidence_cancels_the_rest_of_its_evaluation(tmp_path: Path) -> 
             ),
         )
 
-    assert (raised.value, marker.read_text()) == (
-        ImprovementCurrentPromptInvalidError(),
-        "cancelled\n",
-    )
-
-
-def test_a_cancelled_sibling_does_not_mask_invalid_evidence(tmp_path: Path) -> None:
-    started = Event()
-    cancellation = Event()
-    world = tournament(tmp_path, proposals=(no_change_proposal(),))
-
-    def applications(
-        current: RuntimeConfiguration,
-        scoped_events: EventSink,
-    ) -> Application:
-        return Application(
-            suite=UncalibratedRaisingSuite(
-                current,
-                world.events,
-                world.script,
-                started=started,
-                cancellation=cancellation,
-            ),
-            improver=world.improver,
-            variants=world.variants,
-            instances=FakeInstances(),
-            processes=CancellingProcesses(cancellation),
-        )
-
-    with pytest.raises(ImprovementCurrentPromptInvalidError):
-        PromptImprovementSuite(
-            applications,
-            world.events,
-            TaskScopes(world.roots),
-            world.slots,
-        ).run(
-            world.original,
-            ImprovementRequest(
-                world.output,
-                world.fixtures,
-                proposals=1,
-                samples=3,
-            ),
-        )
+    observed = marker.read_text() if marker.exists() else None
+    assert (raised.value, observed) == (failure, sibling)
 
 
 @pytest.mark.parametrize(

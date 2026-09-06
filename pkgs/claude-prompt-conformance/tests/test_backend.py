@@ -419,21 +419,21 @@ def suite(
     prompt_context = metadata.with_name("prompt-context-source.json")
     prompt_context.write_text('{"prompt":"test"}\n')
     return ConformanceSuite(
-        FakeInstances(),
-        FakeRepositories(),
-        FakeOverlay(),
-        FakePreparer(),
-        candidate or FakeCandidate(),
-        FakeInspector(),
-        verifier or FakeVerifier(),
-        judge or FakeJudge(),
-        events,
-        tasks or TaskScopes(RecordingRoots()),
-        processes or FakeProcesses(),
-        slots or RecordingSlots(),
-        results or JsonFixtureResultStore(),
-        metadata,
-        prompt_context,
+        instances=FakeInstances(),
+        repositories=FakeRepositories(),
+        overlay=FakeOverlay(),
+        preparer=FakePreparer(),
+        candidate=candidate or FakeCandidate(),
+        inspector=FakeInspector(),
+        verifier=verifier or FakeVerifier(),
+        judge=judge or FakeJudge(),
+        events=events,
+        tasks=tasks or TaskScopes(RecordingRoots()),
+        processes=processes or FakeProcesses(),
+        slots=slots or RecordingSlots(),
+        results=results or JsonFixtureResultStore(),
+        run_metadata=metadata,
+        prompt_context=prompt_context,
     )
 
 
