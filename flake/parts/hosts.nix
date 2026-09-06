@@ -197,18 +197,25 @@
     )
     operatingSystems;
 in {
-  options = {
-    flake.operatingSystems = lib.mkOption {
+  options.flake = {
+    operatingSystems = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = lib.attrNames operatingSystems;
       readOnly = true;
       description = "The operating systems a host record can name, from the table in `lib/operating-systems.nix`.";
     };
 
-    flake.hosts = lib.mkOption {
+    hosts = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule hostModule);
       default = {};
       description = "One entry per machine. The files under `hosts/` define them.";
+    };
+
+    halls = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = import ../../lib/halls.nix;
+      readOnly = true;
+      description = "A message of the day for each University of Nottingham hall of residence a host can be named after, from the table in `lib/halls.nix`. A host record sets `motd = config.flake.halls.<name>`.";
     };
   };
 

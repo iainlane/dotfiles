@@ -1,6 +1,5 @@
 {config, ...}: let
-  inherit (config.flake) features;
-  halls = import ../lib/halls.nix;
+  inherit (config.flake) features halls;
 in {
   flake.hosts.florence = {
     hostname = "florence.local";

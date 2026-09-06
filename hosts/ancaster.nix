@@ -1,6 +1,5 @@
 {config, ...}: let
-  inherit (config.flake) features;
-  halls = import ../lib/halls.nix;
+  inherit (config.flake) features halls;
 
   # Toolsets every platform gets on top of its own preset.
   sharedToolsets = ["kanban" "context_engine"];
