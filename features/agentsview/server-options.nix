@@ -76,8 +76,10 @@ in {
 
         The dashboard's password goes into a connection URL, so generate it
         with `openssl rand -hex 32`: one containing `/`, `#`, `?` or `:` reads
-        as a port or a path and the dashboard does not start. Generate the
-        other three with `openssl rand -base64 32`.
+        as a port or a path and the dashboard does not start. The superuser
+        password only ever appears in an `ALTER ROLE` statement, but
+        `generate-agentsview-secrets` produces it the same way. Generate the
+        other two with `openssl rand -base64 32`.
       '';
     };
   };
