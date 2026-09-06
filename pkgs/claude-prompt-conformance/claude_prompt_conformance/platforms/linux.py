@@ -87,13 +87,6 @@ def bubblewrap_command(
     hidden_paths = tuple(
         path.resolve() for path in invocation.capabilities.hidden_paths
     )
-    exposed_paths = (
-        readable_paths
-        + writable_paths
-        + tuple(path.parent for path in writable_files)
-        + tuple(destination for _, destination in unix_sockets)
-        + hidden_paths
-    )
     command = [
         bubblewrap_program,
         "--die-with-parent",
@@ -117,8 +110,8 @@ def bubblewrap_command(
         "--dev",
         "/dev",
     ]
-    for path in mount_parent_directories(system_paths + exposed_paths):
-        command.extend(("--dir", str(path)))
+    # Bwrap creates the parent directories of every mount destination in the
+    # private root, so the binds below need no preparatory --dir arguments.
     for path in system_paths:
         command.extend(("--ro-bind-try", str(path), str(path)))
     for path in readable_paths:
@@ -138,16 +131,3 @@ def bubblewrap_command(
         command.append("--unshare-net")
     command.extend(("--chdir", str(invocation.cwd), "--", *invocation.command))
     return tuple(command)
-
-
-def mount_parent_directories(paths: tuple[Path, ...]) -> tuple[Path, ...]:
-    """Create parents for explicit capabilities in the private root."""
-
-    directories: set[Path] = set()
-    for path in paths:
-        parent = path.parent
-        while parent != Path("/"):
-            directories.add(parent)
-            parent = parent.parent
-
-    return tuple(sorted(directories, key=lambda path: (len(path.parts), str(path))))

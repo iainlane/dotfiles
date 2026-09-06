@@ -861,20 +861,6 @@ def test_linux_backend_maps_capabilities_to_bubblewrap_arguments(
         "/run/current-system",
         "/usr",
     )
-    private_directories = {
-        Path("/etc"),
-        Path("/nix"),
-        Path("/run"),
-        tmp_path,
-        *(parent for parent in tmp_path.parents if parent != Path("/")),
-    }
-    directory_arguments = tuple(
-        argument
-        for directory in sorted(
-            private_directories, key=lambda path: (len(path.parts), str(path))
-        )
-        for argument in ("--dir", str(directory))
-    )
     system_arguments = tuple(
         argument for path in system_paths for argument in ("--ro-bind-try", path, path)
     )
@@ -893,7 +879,6 @@ def test_linux_backend_maps_capabilities_to_bubblewrap_arguments(
         "/proc",
         "--dev",
         "/dev",
-        *directory_arguments,
         *system_arguments,
         "--ro-bind",
         str(tmp_path / "readable"),
@@ -939,21 +924,6 @@ def test_linux_backend_hides_a_path_nested_inside_a_writable_path(
         "/run/current-system",
         "/usr",
     )
-    private_directories = {
-        Path("/etc"),
-        Path("/nix"),
-        Path("/run"),
-        tmp_path,
-        tmp_path / "writable",
-        *(parent for parent in tmp_path.parents if parent != Path("/")),
-    }
-    directory_arguments = tuple(
-        argument
-        for directory in sorted(
-            private_directories, key=lambda path: (len(path.parts), str(path))
-        )
-        for argument in ("--dir", str(directory))
-    )
     system_arguments = tuple(
         argument for path in system_paths for argument in ("--ro-bind-try", path, path)
     )
@@ -972,7 +942,6 @@ def test_linux_backend_hides_a_path_nested_inside_a_writable_path(
         "/proc",
         "--dev",
         "/dev",
-        *directory_arguments,
         *system_arguments,
         "--ro-bind",
         str(tmp_path / "readable"),
