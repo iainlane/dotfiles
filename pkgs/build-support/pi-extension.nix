@@ -37,7 +37,7 @@
   # The pin the updater rewrites: a version, and either a GitHub tag and tree
   # hash or the registry tarball's hash.
   source,
-  # The directory holding the lockfile.
+  # The directory containing the lockfile.
   npmRoot,
   # `{owner, repo}` for a package built from a GitHub release tag, or null to
   # build from the registry tarball. `tagPrefix` is what the tag puts before
@@ -69,14 +69,14 @@
 
   packageLock = lib.importJSON (npmRoot + "/package-lock.json");
 
-  # The lockfile's root record carries the manifest fields npm resolves
+  # The lockfile's root record repeats the manifest fields npm resolves
   # against, which is everything the build and the projection need.
   manifest = packageLock.packages."";
 
   license = lib.getLicenseFromSpdxIdOr (manifest.license or "") null;
 
-  # Pi loads an extension from the directory holding its `package.json`, which
-  # `npmInstallHook` names after the scoped npm name.
+  # Pi loads an extension from the directory containing its `package.json`.
+  # `npmInstallHook` installs that directory under the scoped npm name.
   packageRoot = "lib/node_modules/${npmName}";
 
   projected = import ./project-pi-npm-package.nix {inherit lib;} {

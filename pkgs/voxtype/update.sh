@@ -1,10 +1,11 @@
 # shellcheck shell=bash
 
 # Move voxtype to the head of the fork branch this flake pins, and refresh the
-# committed `Cargo.lock` from the same revision.
+# committed `Cargo.lock` from the same revision, so the source and the
+# dependency pins stay consistent.
 #
-# nix-update cannot do this: the branch carries no tags, and the revision is a
-# `let` binding rather than an argument of the `fetchFromGitHub` call.
+# nix-update cannot do this: the branch has no tags, and the revision lives in
+# `source.json` instead of an argument of the `fetchFromGitHub` call.
 
 OWNER="iainlane"
 REPO="voxtype"

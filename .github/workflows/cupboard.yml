@@ -1,14 +1,14 @@
 # Publish build outputs to the personal cupboard cache. Pushes to main publish
 # to the default cache with permanent retention; pull requests publish to a
 # short-lived per-PR cache so changes can be tested without touching the default
-# cache. The local reusable workflow carries the repository-specific builder
+# cache. The local reusable workflow supplies the repository-specific builder
 # configuration and delegates the work to cupboard's released flake-publish
 # workflow, whose `job_workflow_ref` the laney tenant trusts.
 #
 # The deploy key is passed on pull requests too, so the host and home closures
 # build there as well. GitHub withholds secrets from fork pull requests, so a
 # fork build receives an empty key and skips those closures; only same-repo
-# branches (own pushes and the flake-update PR) carry it.
+# branches (own pushes and the flake-update PR) receive it.
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
 # merge. Two jobs are the strict gate. `configuration-validation` builds the

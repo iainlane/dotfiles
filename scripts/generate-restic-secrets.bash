@@ -26,7 +26,7 @@
 #
 # The bootstrap credentials live at `cloudflare/api.yaml` in the secrets
 # repository, under the keys `account_id` and `api_token`. The token has to be
-# an account-owned one carrying the "Account API Tokens Write" and "Workers R2
+# an account-owned one granting the "Account API Tokens Write" and "Workers R2
 # Storage Write" permission groups, which the preflight checks before anything
 # is created.
 #
@@ -65,14 +65,14 @@ done
 
 api_base="${CLOUDFLARE_API_BASE:-https://api.cloudflare.com/client/v4}"
 
-# The permission groups the bootstrap token has to carry: one to create the
+# The permission groups the bootstrap token has to grant: one to create the
 # per-host tokens, one to create the buckets and reach their contents.
 bootstrap_groups=(
 	"Account API Tokens Write"
 	"Workers R2 Storage Write"
 )
 
-# The group a per-host token carries. It is the R2 group that applies to a
+# The group a per-host token grants. It is the R2 group that applies to a
 # named bucket; "Workers R2 Storage Write" applies to the whole account.
 bucket_group="Workers R2 Storage Bucket Item Write"
 
@@ -159,7 +159,7 @@ ensure_bucket() {
 }
 
 # Create the account API token for one bucket and print the whole response,
-# which carries the token id and the token value.
+# which contains the token id and the token value.
 create_bucket_token() {
 	local name="${1}"
 	local bucket="${2}"

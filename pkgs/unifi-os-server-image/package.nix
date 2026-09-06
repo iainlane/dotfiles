@@ -44,14 +44,14 @@ in
     installPhase = ''
       runHook preInstall
 
-      # The quadlet names the image by the tag in sources.json, which the
-      # updater reads out of the arm64 installer alone. An x86_64 installer
-      # carrying a different tag would leave the quadlet naming an image that
-      # does not exist, and podman would say so only when the container
-      # started.
+      # The updater reads the image tag from the arm64 installer alone, and the
+      # quadlet uses the tag in sources.json on both platforms. Require this
+      # installer to contain the same tag: otherwise the quadlet would refer to
+      # an image that does not exist, and podman would report it only when the
+      # container started.
       extracted_tag="$(cat extracted/image-tag)"
       if [ "$extracted_tag" != "${sources.imageTag}" ]; then
-        echo "installer carries image tag $extracted_tag, sources.json says ${sources.imageTag}" >&2
+        echo "installer image is tagged $extracted_tag, sources.json says ${sources.imageTag}" >&2
         exit 1
       fi
 
@@ -63,9 +63,10 @@ in
     '';
 
     passthru = {
-      # The tag the archive carries. The quadlet that loads the archive names
-      # the image by it, so it is read from the same file the installer URLs
-      # come from.
+      # The tag of the image in the archive. The quadlet that loads the archive
+      # names the image by this tag. Both the tag and the installer URLs come
+      # from `sources.json`, so the quadlet selects the image unpacked from
+      # those installers.
       inherit (sources) imageTag;
 
       # The platform name UniFi OS expects of itself, taken from the same entry

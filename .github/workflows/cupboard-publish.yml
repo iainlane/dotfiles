@@ -86,7 +86,7 @@ jobs:
         }}
 
     secrets:
-      # nixbuild.net authenticates with a token carried in the SSH connection
+      # nixbuild.net authenticates with a token sent in the SSH connection
       # environment.
       #
       # OpenSSH uses the first SetEnv directive from a matching block, so all

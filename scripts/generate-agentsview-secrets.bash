@@ -19,7 +19,7 @@
 #   <host>/user-agentsview.yaml       agentsview_client_key
 #   hosts/<host>/agentsview.pem       the certificate that the proxy checks
 #
-# The machine that holds the database and shows the dashboard needs four more:
+# The machine that runs the database and serves the dashboard needs four more:
 #
 #   <host>/host-agentsview.yaml       agentsview_superuser_password
 #                                     agentsview_dashboard_password
