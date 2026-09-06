@@ -81,7 +81,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          summary="$(./scripts/flake-lock-summary.bash <(git show HEAD:flake.lock) flake.lock)"
+          summary="$(nix run .#flake-lock-summary -- <(git show HEAD:flake.lock) flake.lock)"
 
           # A fresh branch per run, so a rerun opens its own PR even when an
           # earlier one is still open or already merged.

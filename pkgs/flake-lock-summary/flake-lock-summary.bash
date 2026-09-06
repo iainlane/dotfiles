@@ -1,17 +1,12 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils jq
-#!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
 # Summarise the top-level input changes between two flake.lock files as a
 # Markdown list, for the body of the automated flake-update pull request.
 #
-# Usage: flake-lock-summary.bash <before.json> <after.json>
+# Usage: flake-lock-summary <before.json> <after.json>
 
-set -euo pipefail
-
-before="${1:?usage: flake-lock-summary.bash <before> <after>}"
-after="${2:?usage: flake-lock-summary.bash <before> <after>}"
+before="${1:?usage: flake-lock-summary <before> <after>}"
+after="${2:?usage: flake-lock-summary <before> <after>}"
 
 jq -rn --slurpfile before "${before}" --slurpfile after "${after}" '
   def version($lock; $name):
