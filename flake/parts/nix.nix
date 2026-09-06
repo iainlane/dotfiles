@@ -29,13 +29,12 @@
   ciBinaryCaches =
     cacheSettings.binaryCaches // {nixbuild = nixbuild.binaryCaches.${nixbuild.builderAlias};};
 
-  # Substituters for the nixbuild.net remote builder used in CI. This can only
-  # use HTTP substituters, since the builder is not configured with any SSH
-  # keys.
-  remoteSubstituters = lib.concatStringsSep "," (
-    lib.filter (substituter: !lib.hasPrefix "ssh://" substituter)
-    (substitutersOf cacheSettings.binaryCaches)
-  );
+  # Substituters for the nixbuild.net remote builder used in CI. The builder
+  # has no SSH keys, so it gets the HTTP substituters from
+  # `cacheSettings.binaryCaches` only. The trusted keys come from
+  # `ciBinaryCaches`, which adds nixbuild's own key without adding its
+  # `ssh://` substituter.
+  remoteSubstituters = lib.concatStringsSep "," (substitutersOf cacheSettings.binaryCaches);
   remoteTrustedKeys = lib.concatStringsSep "," (trustedPublicKeysOf ciBinaryCaches);
 
   # Substituters for `nix` used on the CI system itself.
@@ -44,11 +43,7 @@
     extra-trusted-public-keys = ${lib.concatStringsSep " " (trustedPublicKeysOf ciBinaryCaches)}
   '';
 
-  substitutersModule = {
-    config,
-    lib,
-    ...
-  }: let
+  substitutersModule = {config, ...}: let
     binaryCacheType = lib.types.submodule {
       options = {
         publicKeys = lib.mkOption {
@@ -67,11 +62,12 @@
       binaryCaches = lib.mkOption {
         type = lib.types.attrsOf binaryCacheType;
         default = {};
+        description = "Extra binary caches this host trusts, beyond the ones every host and CI share.";
       };
     };
 
     config = let
-      sharedSettings = {
+      settings = {
         substituters = substitutersOf caches;
         trusted-public-keys = trustedPublicKeysOf caches;
         trusted-users = cacheSettings.trustedUsers;
@@ -79,13 +75,16 @@
         extra-experimental-features = ["configurable-impure-env"];
       };
     in {
-      _module.args.nixCacheSettings = sharedSettings;
+      # `os/darwin/system.nix` gives this to `determinateNix.customSettings`.
+      # Under Determinate Nix, nix-darwin renders `nix.settings` nowhere, so a
+      # setting every class needs goes in this set.
+      _module.args.nixCacheSettings = settings;
 
-      # On Linux, system-manager writes nix.settings to `/etc/nix/nix.conf`,
-      # which is redirected to `/etc/nix/nix.custom.conf` for Determinate Nix.
-      # On Darwin, the Determinate nix-darwin module handles this via
-      # `determinateNix.customSettings` instead.
-      nix.settings = sharedSettings;
+      # NixOS and the installer images render `nix.settings` into
+      # `/etc/nix/nix.conf` in the ordinary way. Under system-manager,
+      # `os/generic-linux/system.nix` disables the upstream nix module and
+      # writes `/etc/nix/nix.custom.conf` from this attribute itself.
+      nix.settings = settings;
     };
   };
 in {
@@ -99,10 +98,12 @@ in {
         substituterConfig = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
+          description = "`nix.conf` lines a CI job appends so the runner trusts the same caches the hosts do.";
         };
         publishInputs = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
           default = {};
+          description = "Values the cupboard publish workflow writes into its own `nix.conf` and SSH config, where no module system is available.";
         };
       };
     };
@@ -113,13 +114,13 @@ in {
     inherit substitutersModule substituterConfig;
 
     publishInputs = {
-      # The cupboard cache's public key, which the publish workflow pins so the
-      # pushed artefacts are trusted without trusting every cupboard tenant.
+      # The cupboard cache's public key. The publish workflow trusts this key
+      # alone, so a path signed by another cupboard tenant is refused.
       trustedPublicKey = lib.head cacheSettings.binaryCaches."cupboard.supply/t/laney".publicKeys;
 
-      # The remote builder line for CI, which authenticates with the nixbuild.net
-      # token in the workflow's SSH config rather than an identity file, so the
-      # key-path column stays `-`.
+      # The `/etc/nix/machines` line for CI. The workflow's SSH config carries
+      # the nixbuild.net token, so no identity file is named here and the
+      # key-path column is `-`.
       builders = "ssh://${nixbuild.hostName} ${lib.concatStringsSep "," nixbuild.systems} - ${toString nixbuild.maxJobs} ${toString nixbuild.speedFactor} ${lib.concatStringsSep "," nixbuild.supportedFeatures} -";
 
       builderKnownHosts = "${nixbuild.hostName} ${nixbuild.hostKey}";
