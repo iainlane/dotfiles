@@ -18,18 +18,20 @@
       inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
-    # The bat and bottom theme repositories, consumed directly so the
-    # `catppuccin/nix` Home Manager modules for those two ports read their
-    # themes without import from derivation. Upstream builds each port's
-    # `catppuccin.sources.<port>` with `fetchFromGitHub`, so the modules'
-    # `importTOML` and `importJSON` reads force a build during evaluation.
-    # Pointing `catppuccin.sources.bat` and `catppuccin.sources.bottom` at
-    # these natively fetched inputs keeps upstream's file-placement code while
-    # reading from a path that exists at evaluation time.
+    # The bat theme repository, read by `programs.bat.themes` in
+    # features/base/cli-tools/home-manager.nix. bat is themed through Home
+    # Manager's own bat module, not through `catppuccin/nix`.
     catppuccin-bat = {
       url = "github:catppuccin/bat";
       flake = false;
     };
+    # The bottom theme repository. features/base/catppuccin/home-manager.nix
+    # sets `catppuccin.sources.bottom` to this input's `themes` directory.
+    # Upstream builds each port's `catppuccin.sources.<port>` with
+    # `fetchFromGitHub`, so the Home Manager module's `importTOML` and
+    # `importJSON` reads of that source force a build during evaluation. This
+    # input is fetched natively and its path exists at evaluation time, so the
+    # same reads need no import from derivation.
     catppuccin-bottom = {
       url = "github:catppuccin/bottom";
       flake = false;
