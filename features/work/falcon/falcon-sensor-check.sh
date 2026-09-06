@@ -23,7 +23,6 @@ echo " CrowdStrike Falcon Sensor Check"
 echo "===================================="
 echo ""
 
-# Check binaries are installed.
 echo "--- Installation ---"
 if [[ -x "${FALCONCTL}" ]]; then
 	echo "  ${PASS}: falconctl found at ${FALCONCTL}"
@@ -42,7 +41,6 @@ else
 fi
 echo ""
 
-# Query sensor version, CID, and AID.
 echo "--- Sensor Identity ---"
 VERSION_OUTPUT=$("${FALCONCTL}" -g --version 2>&1) || true
 if [[ "${VERSION_OUTPUT}" == *"version ="* ]]; then
@@ -68,7 +66,6 @@ else
 fi
 echo ""
 
-# Check RFM state.
 echo "--- Reduced Functionality Mode ---"
 RFM_OUTPUT=$("${FALCONCTL}" -g --rfm-state 2>&1) || true
 if [[ "${RFM_OUTPUT}" == *"rfm-state=false"* ]]; then
@@ -89,7 +86,6 @@ if [[ "${RFM_REASON}" == *"rfm-reason="* && "${RFM_REASON}" != *"rfm-reason=\"\"
 fi
 echo ""
 
-# Check backend mode.
 echo "--- Backend ---"
 BACKEND_OUTPUT=$("${FALCONCTL}" -g --backend 2>&1) || true
 if [[ "${BACKEND_OUTPUT}" == *"backend=bpf"* ]]; then
@@ -102,7 +98,6 @@ else
 fi
 echo ""
 
-# Check tags.
 echo "--- Tags ---"
 TAGS_OUTPUT=$("${FALCONCTL}" -g --tags 2>&1) || true
 if [[ "${TAGS_OUTPUT}" == *"tags="* ]]; then
@@ -112,7 +107,6 @@ else
 fi
 echo ""
 
-# Check systemd service status.
 echo "--- Service Status ---"
 if systemctl is-active --quiet falcon-sensor; then
 	echo "  ${PASS}: falcon-sensor.service is active"
@@ -129,7 +123,6 @@ else
 fi
 echo ""
 
-# Check log file.
 echo "--- Log File ---"
 if [[ -L /var/log/falconctl.log ]]; then
 	echo "  ${WARN}: /var/log/falconctl.log is a symlink (should be a regular file)"
@@ -142,7 +135,6 @@ else
 fi
 echo ""
 
-# Summary.
 echo "===================================="
 if [[ "${ERRORS}" -eq 0 ]]; then
 	echo " All checks passed"

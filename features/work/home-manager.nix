@@ -14,14 +14,15 @@ in {
 
   dotfiles = {
     ai = {
-      # Home Manager tools get the enterprise connectors here.
+      # The AI tools configured through Home Manager get the work MCP servers.
       mcpServers = workMcp;
 
       # Work-only skills, alongside the shared set from features/ai.
       skills.weekly-update = ./skills/weekly-update;
     };
-    # Claude Code and Claude Desktop receive these from the
-    # organisation, so don't dupe.
+    # The organisation already supplies the work MCP servers to Claude Code
+    # and Claude Desktop, so exclude those servers from the configuration
+    # generated for each of them here.
     claudeCode.excludeMcpServers = builtins.attrNames workMcp;
     claudeDesktop.excludeMcpServers = builtins.attrNames workMcp;
 

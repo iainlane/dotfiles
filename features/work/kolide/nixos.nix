@@ -3,10 +3,10 @@
   config,
   ...
 }: let
-  # This module sets up Kolide via upstream's flake, and puts the secret in the
-  # right place for the launcher to pick up.
+  # This module enables Kolide from upstream's flake and writes the enrolment
+  # secret to /etc/kolide-k2/secret, where the launcher reads it.
   #
-  # Put the enrollment secret in:
+  # Put the enrolment secret in:
   #
   #   <dotfiles-secrets>/${config.networking.hostName}/host-kolide.yaml
   #
