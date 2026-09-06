@@ -1,4 +1,9 @@
 # wrapscallion commit message linter, packaged from GitHub release binaries.
+# This is the build the pre-commit `commit-msg` hook runs. The same release is
+# pinned again as a GitHub Action in `.github/workflows/commit-messages.yml`.
+# Renovate updates that pin independently of this package, so run the updater
+# below whenever the workflow pin changes.
+#
 # To update: nix run .#update-wrapscallion
 {
   autoPatchelfHook,

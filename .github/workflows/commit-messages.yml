@@ -22,4 +22,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Renovate updates this pin. `pkgs/wrapscallion/sources.json` pins the
+      # same release for the pre-commit hook. When merging a Renovate update,
+      # also run `nix run .#update-wrapscallion` so the hook and this job use
+      # the same version.
       - uses: underwhelmingperformance/wrapscallion@84a29c83de42c3dbb294ede1205e6ad54c3de757 # v0.2.2
