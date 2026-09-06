@@ -65,14 +65,14 @@ A feature is the configuration for one concern across the module systems that
 build a host. It is registered under `flake.features.<name>` with one field per
 module system, named after the module system that evaluates it:
 
-| Field           | Evaluated by                                      |
-| --------------- | ------------------------------------------------- |
-| `nixos`         | NixOS                                             |
-| `darwin`        | nix-darwin                                        |
-| `systemManager` | system-manager, on Linux hosts that are not NixOS |
-| `homeManager`   | Home Manager                                      |
-| `system`        | whichever of the three above builds this host     |
-| `provides`      | features this one carries, applied when included  |
+| Field           | Evaluated by                                                        |
+| --------------- | ------------------------------------------------------------------- |
+| `nixos`         | NixOS                                                               |
+| `darwin`        | nix-darwin                                                          |
+| `systemManager` | system-manager, on Linux hosts that are not NixOS                   |
+| `homeManager`   | Home Manager                                                        |
+| `system`        | whichever of `nixos`, `darwin` and `systemManager` builds this host |
+| `provides`      | features this one carries, applied when included                    |
 
 Each field takes a module, or a list of modules. Several files may define the
 same field of the same feature; the definitions merge into one module.
@@ -108,8 +108,8 @@ that kernel:
 ```
 
 `nixos`, `darwin` and `systemManager` each imply an OS, so they need no OS
-scoping. `system` is the deliberate exception, and goes to whichever of the
-three builds the host.
+scoping. `system` is the exception: it goes to whichever of those three builds
+the host.
 
 `kernel.linux` covers NixOS as well as the Linux hosts system-manager builds,
 which is why `git` above puts its Linux modules there. `os.nixos` and
@@ -126,7 +126,7 @@ qualified by its parent's, so `base`'s zsh configuration is `base.zsh` and
 appears under that name in `featureNames`.
 
 Registering a child does not apply it. Something has to list it in `includes`,
-so a parent names the children it always carries and puts the conditional ones
+so a parent lists the children it always carries and puts the conditional ones
 under `os.<os>.includes`:
 
 ```nix
@@ -173,9 +173,10 @@ Packages live under `pkgs/`, even when one feature is their only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after the
-features it includes, emits each feature once, and reports an include cycle by
-naming it. `flake/parts/checks/feature-resolution.nix` compares the resolver's
-module lists with fixtures covering each of those.
+features it includes. Each feature is emitted once, and an include cycle throws
+an error naming the features in the cycle.
+`flake/parts/checks/feature-resolution.nix` compares the resolver's module lists
+with fixtures covering each of those.
 
 ## Options
 
@@ -215,9 +216,9 @@ keeps to them.
    are modules that mirror an upstream module's shape and could be upstreamed as
    they are: `services.falcon-sensor`, `virtualisation.quadlet` and
    `virtualisation.containers.idRanges`.
-5. **Options hold data, not functions.** A function is a module argument.
-   `exposePodman`, `serviceNetwork` and `mkLanguageShell` are set through
-   `_module.args`.
+5. **An option's value is data, not a function.** A function is a module
+   argument. `exposePodman`, `serviceNetwork` and `mkLanguageShell` are set
+   through `_module.args`.
 6. **`readOnly` marks a derived value**, never a default a host might want to
    change.
 
@@ -228,9 +229,9 @@ closure. A dropped feature contributes no modules and its own includes are not
 followed, so excluding a feature also leaves out whatever only it brings in.
 `closure` returns the features in composition order and the names it dropped,
 and both `featureNames` and the module list derive from it, so `hasFeature` and
-the modules cannot disagree. Two `excludes` lists are refused: a feature the
-host also lists, which asks for it and refuses it at once, and a feature the
-closure never reaches, which changes nothing.
+the modules cannot disagree. The resolver refuses two kinds of entry: one the
+host also lists directly, which asks for the feature and refuses it at the same
+time, and one the closure never reaches, which changes nothing.
 
 ```nix
 flake.hosts.example = {
@@ -244,7 +245,7 @@ flake.hosts.example = {
 A parent often has to know which of its children a host composed: hermes adds
 the signal network to the agent's container, its backup waits for the dashboard
 before restoring, and Caddy refuses a site that asks for sign-in when no sign-in
-service is there. The child publishes that, by defining one boolean the parent
+service is there. The child publishes that by defining one boolean the parent
 declares:
 
 ```nix
@@ -255,14 +256,15 @@ signal.present = presence.option "the Signal platform, ...";
 dotfiles.hermes.signal.present = true;
 ```
 
-The parent declares it so that the option exists on a host that excludes the
-child, where the parent reads `false`. `lib/presence.nix` defines the
+The parent declares it so the option exists even on a host that excludes the
+child; there the parent reads `false`. `lib/presence.nix` defines the
 declaration and an assertion that only the child's own module defines it, so a
 host that sets one is told to change its composition.
 
-The child declares the value options nobody else reads, and the parent reaches
-those only inside a branch on the presence option, which is lazy. An option the
-parent reads while building something unconditionally stays with the parent.
+The child declares the options that matter only when the child is present. The
+parent reads them only inside a branch on the presence option, so they are never
+forced on a host without the child. An option the parent reads while building
+something unconditionally stays with the parent.
 
 Where the parent needs a list or an attribute set, the child defines into an
 option of that type that the parent declares, and the module system's merge
@@ -316,25 +318,25 @@ The rest of the flake carries the tooling and the data other things read:
 
 `lib/` is split by responsibility, and each caller imports the file it needs:
 
-| File                                 | Responsibility                                           |
-| ------------------------------------ | -------------------------------------------------------- |
-| `lib/channels.nix`                   | the nixpkgs and Home Manager pair a host's channel names |
-| `lib/container-image.nix`            | images built from a Nix closure                          |
-| `lib/discovery.nix`                  | filesystem discovery (hosts, features, packages)         |
-| `lib/exposed-service.nix`            | the options a service served through the proxy declares  |
-| `lib/features.nix`                   | feature resolution: includes, ordering, class modules    |
-| `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository         |
-| `lib/halls.nix`                      | the message of the day for each host                     |
-| `lib/home.nix`                       | Home Manager modules and special arguments               |
-| `lib/netboot/`                       | the PXE installer and the server that serves it          |
-| `lib/nix/`                           | the shared cache settings and a pinned nixpkgs revision  |
-| `lib/nixbuild.nix`                   | the nixbuild.net account constants, read by CI too       |
-| `lib/operating-systems.nix`          | what varies by OS and is not code                        |
-| `lib/presence.nix`                   | the option a child feature defines to say it is there    |
-| `lib/project-directories/`           | the Home Manager module that writes the `.envrc` files   |
-| `lib/projects.nix`                   | project shell and direnv generation                      |
-| `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract      |
-| `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket             |
-| `lib/r2.sh`                          | the shell half of those, with its test                   |
-| `lib/sops.nix`                       | sops-nix module fragments                                |
-| `lib/system.nix`                     | the system special arguments                             |
+| File                                 | Responsibility                                          |
+| ------------------------------------ | ------------------------------------------------------- |
+| `lib/channels.nix`                   | the nixpkgs and Home Manager pair for each host channel |
+| `lib/container-image.nix`            | images built from a Nix closure                         |
+| `lib/discovery.nix`                  | filesystem discovery (hosts, features, packages)        |
+| `lib/exposed-service.nix`            | the options declared by a service the proxy serves      |
+| `lib/features.nix`                   | feature resolution: includes, ordering, class modules   |
+| `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository        |
+| `lib/halls.nix`                      | the message of the day for each host                    |
+| `lib/home.nix`                       | Home Manager modules and special arguments              |
+| `lib/netboot/`                       | the PXE and ISO installers, and the netboot server      |
+| `lib/nix/`                           | the shared cache settings and a pinned nixpkgs revision |
+| `lib/nixbuild.nix`                   | the nixbuild.net account constants, read by CI too      |
+| `lib/operating-systems.nix`          | what varies by OS and is not code                       |
+| `lib/presence.nix`                   | the option a child feature defines to say it is there   |
+| `lib/project-directories/`           | the Home Manager module that writes the `.envrc` files  |
+| `lib/projects.nix`                   | project shell and direnv generation                     |
+| `lib/quadlet.nix`                    | typed container mounts and the auto-userns contract     |
+| `lib/r2-backup.nix`                  | the backup and verify units for an R2 bucket            |
+| `lib/r2.sh`                          | the shell half of those, with its test                  |
+| `lib/sops.nix`                       | sops-nix module fragments                               |
+| `lib/system.nix`                     | the system special arguments                            |
