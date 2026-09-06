@@ -16,9 +16,9 @@
         type = lib.types.int;
         default = 3;
         description = ''
-          How many backups the homeserver retains on disk before deleting
-          the oldest. Each is uploaded as it is taken; this is what stays
-          locally.
+          How many backups the homeserver retains on disk before deleting the
+          oldest. Each backup is uploaded as it is taken, so this only decides
+          how many stay on the host.
         '';
       };
 

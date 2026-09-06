@@ -12,8 +12,8 @@ in {
       example = "matrix.orangesquash.org.uk";
       description = ''
         The homeserver's `server_name`: the domain suffix of every user and room
-        ID (`@someone:<serverName>`). It is baked into all identifiers and
-        cannot be changed once accounts and rooms exist, so choose carefully.
+        ID (`@someone:<serverName>`). It appears in every identifier and cannot
+        be changed once accounts and rooms exist, so choose it carefully.
       '';
     };
 
@@ -34,12 +34,12 @@ in {
             type = lib.types.nullOr lib.types.str;
             default = null;
             description = ''
-              Key in `secretsFile` holding the password to create this account
-              with. Null for an account that already exists, or one registered
-              from a client with the registration token. The password must not
-              contain whitespace (it travels through a whitespace-split admin
-              command); anything else, such as the output of
-              `openssl rand -base64 24`, is fine.
+              Key in `secretsFile` containing the password to create this
+              account with. Null for an account that already exists, or one
+              registered from a client with the registration token. The
+              password must not contain whitespace, because it travels through
+              a whitespace-split admin command. Anything else, such as the
+              output of `openssl rand -base64 24`, is fine.
             '';
           };
 
@@ -80,12 +80,12 @@ in {
       type = lib.types.str;
       default = "${hostConfig.name}/host-matrix.yaml";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        `matrix_password` (the password the agent's account is created with),
-        `matrix_registration_token` (the token that gates registration, entered
-        in a Matrix client to create accounts) and every `passwordKey` named in
-        `users`. The homeserver runs as a system service, so this file is
-        encrypted to the host key.
+        Path, relative to the `secrets` flake input, of the sops file
+        containing `matrix_password` (the password the agent's account is
+        created with), `matrix_registration_token` (the token that gates
+        registration, entered in a Matrix client to create accounts) and every
+        `passwordKey` named in `users`. The homeserver runs as a system
+        service, so this file is encrypted to the host key.
       '';
     };
 
@@ -104,9 +104,9 @@ in {
       default = null;
       description = ''
         How the reverse proxy serves the homeserver. Clients and other
-        homeservers authenticate to Matrix itself, so `auth` belongs off here: a
-        sign-in gate in front would leave every client and all federation unable
-        to reach the API.
+        homeservers authenticate to Matrix itself, so `auth` has to be off: a
+        sign-in gate in front would stop every client and all federation
+        reaching the API.
       '';
     };
 

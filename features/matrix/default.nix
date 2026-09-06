@@ -48,10 +48,10 @@
 
       wellKnown =
         lib.optionalAttrs (cfg.expose != null) {
-          # `server_name` is the identity; the homeserver answers at
-          # `expose.domain`. These documents point one at the other. Clients
-          # and other homeservers fetch them from the identity domain, which
-          # redirects here.
+          # `server_name` identifies the homeserver, which answers at
+          # `expose.domain`. These documents tell clients and other
+          # homeservers which name to connect to, and are fetched from the
+          # identity domain, which redirects here.
           client = "https://${cfg.expose.domain}";
           server = "${cfg.expose.domain}:443";
         }
@@ -67,10 +67,10 @@
             port = [cfg.port];
             database_path = databasePath;
             allow_federation = true;
-            # Token-gated registration: the agent's account is created
-            # administratively below, and registration is open to anyone holding
-            # the token, so accounts can be made from a Matrix client without the
-            # password ever passing through the logs.
+            # Registration is gated on a token. The agent's account is created
+            # administratively below; anyone with the token can create an
+            # account from a Matrix client, so no password has to pass through
+            # the logs.
             allow_registration = true;
             # The account-creation commands run on every start and fail once
             # the account exists. Ignoring an admin command's failure is what
@@ -145,9 +145,9 @@
               )
               (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
 
-            # A config overlay carrying the secret-bearing settings. Living in a
-            # mode-restricted file keeps the passwords out of the world-readable
-            # store and out of process arguments.
+            # A config overlay carrying the settings that contain secrets.
+            # Keeping them in a mode-restricted file keeps the passwords out of
+            # the world-readable store and out of process arguments.
             templates."continuwuity-admin.toml" = {
               content = ''
                 [global]

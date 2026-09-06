@@ -58,7 +58,7 @@ in {
     noNewPrivileges = true;
 
     # Report ready only once Continuwuity answers, so the proxy and anything
-    # else ordered after the homeserver waits for it to be reachable.
+    # else ordered after the homeserver wait until it is reachable.
     notify = "healthy";
     healthCmd = "${pkgs.curl}/bin/curl -fsS ${healthUrl}";
     healthInterval = "5s";

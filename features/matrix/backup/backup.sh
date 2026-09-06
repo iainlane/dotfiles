@@ -39,8 +39,8 @@ latest() {
 
 before="$(latest)"
 
-# SIGUSR2 runs the homeserver's `admin_signal_execute` commands. It returns
-# straight away and the backup proceeds in the background.
+# SIGUSR2 runs the homeserver's `admin_signal_execute` commands. `podman kill`
+# returns straight away and the backup proceeds in the background.
 podman kill --signal USR2 "${MATRIX_CONTAINER}"
 
 waited=0
