@@ -6,7 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 
 if (( ! $+commands[edit-acl] )); then
-    echo "ERROR: edit-acl not in \$PATH. bzr branch lp:ubuntu-archive-tools" > /dev/stderr
+    echo "ERROR: edit-acl is not in \$PATH. Clone https://git.launchpad.net/ubuntu-archive-tools and add the directory containing edit-acl to \$PATH." > /dev/stderr
     return 1
 fi
 
