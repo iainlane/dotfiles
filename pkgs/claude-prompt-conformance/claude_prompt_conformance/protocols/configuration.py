@@ -91,7 +91,7 @@ class CodexConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
 
 
 class IsolationConfigurationInput(msgspec.Struct, frozen=True):
-    backend: str
+    backend: Literal["darwin", "linux"]
     program: str | None
 
 

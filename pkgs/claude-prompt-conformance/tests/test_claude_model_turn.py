@@ -22,6 +22,7 @@ from claude_prompt_conformance.models import (
     CodexAgentConfiguration,
     CodexConfiguration,
     InstancePaths,
+    IsolationBackend,
     IsolationConfiguration,
     PromptVariantConfiguration,
     RuntimeConfiguration,
@@ -137,7 +138,7 @@ def build_configuration(root: Path, claude: str) -> RuntimeConfiguration:
             oauth_token_url="https://codex.invalid/oauth/token",
             oauth_client_id="codex-client",
         ),
-        isolation=IsolationConfiguration("direct", None),
+        isolation=IsolationConfiguration(IsolationBackend.LINUX, None),
         variant=PromptVariantConfiguration(
             nix_program="nix",
             nixpkgs=root,

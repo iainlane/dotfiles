@@ -69,6 +69,7 @@ from claude_prompt_conformance.models import (
     FailureOrigin,
     Fixture,
     InstancePaths,
+    IsolationBackend,
     IsolationConfiguration,
     JudgedCriterion,
     Judgement,
@@ -797,7 +798,9 @@ def runtime_configuration(tmp_path: Path) -> RuntimeConfiguration:
             oauth_token_url="https://codex.invalid/oauth/token",
             oauth_client_id="codex-client",
         ),
-        isolation=IsolationConfiguration("darwin", "/usr/bin/sandbox-exec"),
+        isolation=IsolationConfiguration(
+            IsolationBackend.DARWIN, "/usr/bin/sandbox-exec"
+        ),
         variant=PromptVariantConfiguration(
             "/nix/nix",
             tmp_path / "nixpkgs",

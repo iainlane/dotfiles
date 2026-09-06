@@ -361,9 +361,16 @@ class PromptVariantConfiguration:
     prompt_source: Path
 
 
+class IsolationBackend(StrEnum):
+    """The sandbox that confines the child processes of a run."""
+
+    DARWIN = "darwin"
+    LINUX = "linux"
+
+
 @dataclass(frozen=True)
 class IsolationConfiguration:
-    backend: str
+    backend: IsolationBackend
     program: str | None
 
 
@@ -445,7 +452,8 @@ class RuntimeConfiguration:
                     value.codex.oauth_client_id,
                 ),
                 isolation=IsolationConfiguration(
-                    value.isolation.backend, value.isolation.program
+                    IsolationBackend(value.isolation.backend),
+                    value.isolation.program,
                 ),
                 variant=PromptVariantConfiguration(
                     value.variant.nix_program,

@@ -22,7 +22,7 @@ from .identities import (
     ClaudeFileCredentialStore,
     ClaudeOAuthIdentity,
 )
-from .models import CodexHostConfiguration, RuntimeConfiguration
+from .models import CodexHostConfiguration, IsolationBackend, RuntimeConfiguration
 from .platforms import (
     DarwinClaudeCredentialStore,
     DarwinProcessRunner,
@@ -56,18 +56,10 @@ from .workspace import (
 
 @dataclass(eq=True)
 class IsolationProgramMissingError(ConformanceError):
-    backend: str
+    backend: IsolationBackend
 
     def __str__(self) -> str:
         return f"isolation backend {self.backend!r} has no program"
-
-
-@dataclass(eq=True)
-class IsolationBackendUnknownError(ConformanceError):
-    backend: str
-
-    def __str__(self) -> str:
-        return f"unknown isolation backend {self.backend!r}"
 
 
 @dataclass(frozen=True)
@@ -200,11 +192,12 @@ def process_runner(
     isolation = configuration.isolation
     if isolation.program is None:
         raise IsolationProgramMissingError(isolation.backend)
-    if isolation.backend == "darwin":
-        return DarwinProcessRunner(isolation.program, processes)
-    if isolation.backend == "linux":
-        return LinuxProcessRunner(isolation.program, processes)
-    raise IsolationBackendUnknownError(isolation.backend)
+
+    match isolation.backend:
+        case IsolationBackend.DARWIN:
+            return DarwinProcessRunner(isolation.program, processes)
+        case IsolationBackend.LINUX:
+            return LinuxProcessRunner(isolation.program, processes)
 
 
 def platform_claude_credentials(
@@ -220,7 +213,7 @@ def platform_claude_credentials(
         acquisition_attempts=STORAGE_PUBLISH_ATTEMPTS,
     )
     isolation = configuration.isolation
-    if isolation.backend == "darwin":
+    if isolation.backend is IsolationBackend.DARWIN:
         namespace = claude_keychain_namespace(
             os.environ,
             storage,

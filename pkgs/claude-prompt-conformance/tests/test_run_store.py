@@ -20,6 +20,8 @@ from claude_prompt_conformance.inputs import (
     RuntimeInputSnapshotDocumentMismatchError,
 )
 from claude_prompt_conformance.models import (
+    IsolationBackend,
+    IsolationConfiguration,
     RuntimeConfiguration,
     RuntimeConfigurationFormatError,
 )
@@ -762,6 +764,30 @@ def test_the_certificate_bundle_is_read_from_the_configuration_root(
         RuntimeConfiguration.from_file(source).tls_certificate_bundle,
         raised.value.source,
     ) == (Path(bundle), beside_codex)
+
+
+def test_the_isolation_backend_is_one_of_the_configurable_sandboxes(
+    tmp_path: Path,
+) -> None:
+    runtime_inputs(tmp_path)
+    source = tmp_path / "nix-inputs" / "configuration.json"
+    document = json.loads(source.read_text())
+    isolation = document["isolation"]
+    unknown = tmp_path / "unknown-backend.json"
+    unknown.write_text(
+        json.dumps(document | {"isolation": isolation | {"backend": "jail"}})
+    )
+
+    with pytest.raises(RuntimeConfigurationFormatError) as raised:
+        RuntimeConfiguration.from_file(unknown)
+
+    assert (
+        RuntimeConfiguration.from_file(source).isolation,
+        raised.value.source,
+    ) == (
+        IsolationConfiguration(IsolationBackend.DARWIN, isolation["program"]),
+        unknown,
+    )
 
 
 def moved_git(declaration: RuntimeConfigurationInput) -> RuntimeConfigurationInput:

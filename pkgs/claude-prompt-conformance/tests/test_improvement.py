@@ -64,6 +64,7 @@ from claude_prompt_conformance.models import (
     FixtureUse,
     ImprovementFinished,
     InstancePaths,
+    IsolationBackend,
     IsolationConfiguration,
     PromptProposal,
     PromptVariantConfiguration,
@@ -382,7 +383,7 @@ def configuration(
             "https://codex.invalid/oauth/token",
             "codex-client",
         ),
-        isolation=IsolationConfiguration("direct", None),
+        isolation=IsolationConfiguration(IsolationBackend.LINUX, None),
         variant=PromptVariantConfiguration(
             "nix",
             tmp_path / "nixpkgs",
@@ -645,7 +646,7 @@ def test_application_factory_retains_authentication_for_the_complete_run(
             prompt_source(tmp_path / "sources", "prompt-source", "Original\n"),
             "current",
         ),
-        isolation=IsolationConfiguration("darwin", "sandbox-exec"),
+        isolation=IsolationConfiguration(IsolationBackend.DARWIN, "sandbox-exec"),
     )
     credentials = tmp_path / "claude-credentials.json"
     credentials.write_text(
