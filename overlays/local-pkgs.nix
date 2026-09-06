@@ -1,6 +1,6 @@
 # Local package overlay: any subdirectory of `pkgs/` containing a `package.nix`
-# is exposed as `pkgs.<name>`, so packages defined in this repository can be
-# consumed from modules in the same way as nixpkgs can.
+# is exposed as `pkgs.<name>`, so a module uses a package defined in this
+# repository the same way it uses one from nixpkgs.
 {inputs}: let
   discovery = import ../lib/discovery.nix {inherit (inputs.nixpkgs) lib;};
   inherit (inputs.nixpkgs) lib;

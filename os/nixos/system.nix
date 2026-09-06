@@ -62,7 +62,8 @@ in {
 
   programs.zsh.enable = true;
 
-  # Enable envfs and nix-ld to support non-nixos scripts better.
+  # envfs and nix-ld let binaries and scripts built for other distributions
+  # find `/usr/bin/env` and the dynamic loader they were linked against.
   services.envfs.enable = true;
   programs.nix-ld.enable = true;
 

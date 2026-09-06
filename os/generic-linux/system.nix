@@ -14,8 +14,8 @@
 
   # nixpkgs' config/nix.nix now declares nix.enable and nix.package itself,
   # which collides with the declarations in system-manager's shim, so drop
-  # the shim. The shim's config side was inactive: it sat behind
-  # `mkIf config.nix.enable` and nothing enabled it.
+  # the shim. The shim's config side was inactive: it was guarded by
+  # `mkIf config.nix.enable`, and nothing enabled it.
   disabledModules = [(inputs.system-manager + "/nix/modules/upstream/nixpkgs/nix.nix")];
 
   # nixpkgs' `config/nix.nix` hides the nixbld users from display managers with
@@ -109,12 +109,10 @@
         RemainAfterExit = true;
       };
       script = ''
-        # Set capabilities on bandwhich
         if [ -f "${pkgs.bandwhich}/bin/bandwhich" ]; then
           ${pkgs.libcap}/bin/setcap cap_sys_ptrace,cap_dac_read_search,cap_net_raw,cap_net_admin+ep "${pkgs.bandwhich}/bin/bandwhich" || true
         fi
 
-        # Set capabilities on netdiscover
         if [ -f "${pkgs.netdiscover}/bin/netdiscover" ]; then
           ${pkgs.libcap}/bin/setcap cap_net_raw,cap_net_admin+ep "${pkgs.netdiscover}/bin/netdiscover" || true
         fi
