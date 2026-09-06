@@ -265,13 +265,13 @@ in {
   programs.starship = {
     enable = true;
 
-    # Build a custom starship to include a Unicode wide character fix
+    # A fork of starship with a fix for the width of Unicode characters.
     package = pkgs.starship.overrideAttrs (prevAttrs: {
       src = inputs.starship-custom;
 
-      # Vendoring the fork's lock file leaves the `cargoHash` nixpkgs gives
-      # the release tarball with nothing to fetch, so it never needs updating
-      # alongside the fork.
+      # Building the vendor directory from the fork's own `Cargo.lock`
+      # replaces the one nixpkgs fetches with `cargoHash`, so that hash is
+      # unused here and does not have to be updated when the fork moves.
       cargoDeps = pkgs.rustPlatform.importCargoLock {
         lockFile = "${inputs.starship-custom}/Cargo.lock";
       };
@@ -288,9 +288,8 @@ in {
       // {
         add_newline = false;
         command_timeout = 1000;
-        # Custom prompt format with colored segments (powerline-style)
-        # Segments from left to right: battery → os → user/host →
-        # languages → git → shell state
+        # A powerline-style prompt of coloured segments, from left to right:
+        # battery, os, user/host, languages, git, shell state.
         format = lib.concatStrings [
           "[](surface1)"
           "[\${battery}\${os}](fg:text bg:surface1)"
@@ -310,9 +309,9 @@ in {
           # `$status` is empty and nothing here is drawn, so `character`
           # closes the yellow section.
           "[([](fg:yellow bg:pink) \$status)](fg:text bg:pink)"
-          # The final prompt character is either pink (error) or teal (success).
-          # But we also need to draw the end of the yellow section if `status`
-          # didn't do that just above. We handle that in `character`.
+          # `character` draws the final prompt character, pink after a failed
+          # command and teal after a successful one. Its success symbol also
+          # closes the yellow section, which `$status` left open.
           "\$character"
         ];
         right_format = "[](fg:blue)[\$directory](fg:base bg:blue)";
@@ -346,7 +345,7 @@ in {
           symbol = "󱋩";
         };
 
-        # This is on the RHS
+        # Drawn by `right_format`, at the right-hand end of the line.
         directory = {
           fish_style_pwd_dir_length = 1;
           read_only = " 󰈈";
