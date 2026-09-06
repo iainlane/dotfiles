@@ -48,7 +48,7 @@ in {
           meta.description = "Install NixOS on remote targets";
         };
       }
-      // netboot.appsForSystem pkgs
+      // netboot.appsForSystem {inherit pkgs;}
       // lib.optionalAttrs (inputs.system-manager.packages ? ${system}) {
         system-manager = {
           type = "app";

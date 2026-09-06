@@ -14,79 +14,88 @@
       inherit pkgs pkgs-stable;
     };
 
-  mkNetbootInstaller = hostChannel: hostname: hostConfig: let
+  # The installer scaffolding the netboot image and the ISO share. `profile`
+  # is a path under the nixpkgs installer modules, and each image adds the
+  # rest of its configuration through `extraModules`.
+  mkInstaller = {
+    hostChannel,
+    hostname,
+    hostConfig,
+    profile,
+    extraModules ? [],
+  }: let
     hostNixpkgs = hostChannel.nixpkgs;
     hostPkgs = hostChannel.primary;
     stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
+  in {
+    inherit hostNixpkgs hostPkgs;
     installer = hostNixpkgs.lib.nixosSystem {
       inherit (hostConfig) system;
       pkgs = hostPkgs;
-      modules = [
-        "${hostNixpkgs}/nixos/modules/installer/netboot/netboot-minimal.nix"
-        ./netboot-installer.nix
-        config.flake.nix.substitutersModule
-        {
-          networking.hostName = "${hostname}-installer";
-          system.stateVersion = stateVersion;
-        }
-      ];
+      modules =
+        [
+          "${hostNixpkgs}/nixos/modules/installer/${profile}"
+          ./netboot-installer.nix
+          config.flake.nix.substitutersModule
+          {
+            networking.hostName = "${hostname}-installer";
+            system.stateVersion = stateVersion;
+          }
+        ]
+        ++ extraModules;
       specialArgs = {
         inherit inputs;
       };
     };
+  };
+
+  mkNetbootInstaller = hostChannel: hostname: hostConfig: let
+    evaluated = mkInstaller {
+      inherit hostChannel hostname hostConfig;
+      profile = "netboot/netboot-minimal.nix";
+    };
+    inherit (evaluated) hostPkgs;
+    installerConfig = evaluated.installer.config;
   in
     hostPkgs.linkFarm "${hostname}-netboot-installer" [
       {
         name = "bzImage";
-        path = "${installer.config.system.build.kernel}/${installer.config.system.boot.loader.kernelFile}";
+        path = "${installerConfig.system.build.kernel}/${installerConfig.system.boot.loader.kernelFile}";
       }
       {
         name = "cmdline";
         path = hostPkgs.writeText "${hostname}-netboot-cmdline" (
           lib.concatStringsSep " " (
             [
-              "init=${installer.config.system.build.toplevel}/init"
+              "init=${installerConfig.system.build.toplevel}/init"
             ]
-            ++ installer.config.boot.kernelParams
+            ++ installerConfig.boot.kernelParams
           )
         );
       }
       {
         name = "initrd";
-        path = "${installer.config.system.build.netbootRamdisk}/initrd";
+        path = "${installerConfig.system.build.netbootRamdisk}/initrd";
       }
       {
         name = "netboot.ipxe";
-        path = "${installer.config.system.build.netbootIpxeScript}/netboot.ipxe";
+        path = "${installerConfig.system.build.netbootIpxeScript}/netboot.ipxe";
       }
     ];
 
-  mkIsoInstallerConfig = hostChannel: hostname: hostConfig: let
-    hostNixpkgs = hostChannel.nixpkgs;
-    hostPkgs = hostChannel.primary;
-    stateVersion = hostPkgs.lib.versions.majorMinor hostPkgs.lib.version;
-    hostToplevel = config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel;
-  in {
-    inherit hostNixpkgs hostPkgs;
-    installer = hostNixpkgs.lib.nixosSystem {
-      inherit (hostConfig) system;
-      pkgs = hostPkgs;
-      modules = [
-        "${hostNixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
-        ./netboot-installer.nix
-        config.flake.nix.substitutersModule
+  mkIsoInstallerConfig = hostChannel: hostname: hostConfig:
+    mkInstaller {
+      inherit hostChannel hostname hostConfig;
+      profile = "cd-dvd/installation-cd-minimal.nix";
+      extraModules = [
         {
-          networking.hostName = "${hostname}-installer";
-          system.stateVersion = stateVersion;
-          isoImage.storeContents = [hostToplevel];
+          isoImage.storeContents = [
+            config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel
+          ];
           isoImage.makeBiosBootable = false;
         }
       ];
-      specialArgs = {
-        inherit inputs;
-      };
     };
-  };
 
   # The contents and store paths the ISO assembly needs, collected into one
   # derivation. Building it realises the whole closure in the local store.
@@ -112,7 +121,7 @@
   # systems may differ (e.g. building on aarch64-darwin for x86_64-linux),
   # so hostPkgs is instantiated for the target while buildPkgs is for the
   # local machine.
-  mkLocalIso = buildPkgs: evaluated: _hostname: let
+  mkLocalIso = buildPkgs: evaluated: let
     installerConfig = evaluated.installer.config;
   in
     buildPkgs.callPackage "${evaluated.hostNixpkgs}/nixos/lib/make-iso9660-image.nix" {
@@ -179,6 +188,17 @@ in {
   }: let
     inherit (pkgs.stdenv.hostPlatform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
+
+    # The netboot image and the ISO contents are built for the target, so they
+    # are exported only under that host's own system. The ISO itself is
+    # assembled by the build system's package set from contents fetched from
+    # elsewhere, so `scripts/build-iso.bash` can produce a Linux host's ISO on
+    # a Mac. No NixOS host has a darwin system, so a darwin build system
+    # exports `-iso` for every host.
+    isoHosts =
+      if pkgs.stdenv.hostPlatform.isDarwin
+      then nixosHosts
+      else systemHosts;
   in
     lib.mapAttrs'
     (
@@ -197,11 +217,11 @@ in {
       hostname: hostConfig: let
         buildPkgs = (channelForHost pkgs pkgs-stable hostConfig).primary;
       in
-        lib.nameValuePair "${hostname}-iso" (mkLocalIso buildPkgs isoConfigs.${hostname} hostname)
+        lib.nameValuePair "${hostname}-iso" (mkLocalIso buildPkgs isoConfigs.${hostname})
     )
-    nixosHosts;
+    isoHosts;
 
-  appsForSystem = pkgs:
+  appsForSystem = {pkgs}:
     lib.mapAttrs'
     (
       hostname: hostConfig:
