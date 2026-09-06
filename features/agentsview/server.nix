@@ -310,7 +310,7 @@ in {
         # capabilities. An escape from the container gets an id that owns the
         # database files and nothing else.
         #
-        # A user namespace is not used here because in one, on this host,
+        # A user namespace is not used here: with one, on this host,
         # connections to Postgres 18 hang in `authentication` and never
         # complete. The cause is still unknown.
         user = databaseUser;

@@ -14,11 +14,11 @@
 
   generatedConfigFile = yaml.generate "hermes-config.yaml" cfg.settings;
 
-  # Add an extra Python package as a leaf on the agent's import path. Its
-  # propagated dependencies are dropped so they cannot duplicate packages the
-  # agent's own virtual environment already contains, which the package's
-  # collision check rejects. Shared dependencies resolve from that environment
-  # at import time; a dependency it does not contain needs its own
+  # Add an extra Python package as a leaf on the agent's import path. The
+  # agent package's collision check rejects a package that appears twice, so
+  # drop the extra package's propagated dependencies and let the shared ones
+  # resolve from the agent's own virtual environment at import time. A
+  # dependency that environment does not contain needs its own
   # `extraPythonPackages` entry.
   venvLeafPackage = pkg:
     pkg.overridePythonAttrs (_: {
