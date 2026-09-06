@@ -1,6 +1,8 @@
 # The candidate's checkout imports the Home Assistant runtime the integration
 # is written against, and runs its tests with pytest. The pin tracks the
-# fixture revision: choose the Home Assistant release current at that commit
-# when regenerating.
-homeassistant==2026.2.3
+# fixture revision: 2026.1.0 was published the same day the pinned commit
+# landed. When updating the revision, pin the Home Assistant release current
+# at the new revision and regenerate `requirements.lock` with the command in
+# its header.
+homeassistant==2026.1.0
 pytest
