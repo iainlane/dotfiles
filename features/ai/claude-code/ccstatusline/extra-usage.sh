@@ -20,8 +20,8 @@ ttl=180
 
 # ccstatusline runs a custom-command widget with a one-second timeout and
 # renders the literal string "[Timeout]" when the command overruns it, which
-# hideWhenEmpty does not hide. Keep curl well inside that second, so a render
-# that gives up prints the cached spend.
+# hideWhenEmpty does not hide. Keep curl well inside that second, so a
+# status-line run that gives up prints the cached spend.
 connect_timeout=0.3
 max_time=0.7
 
@@ -30,8 +30,9 @@ now=$(date +%s)
 body=""
 header=""
 
-# The status-line process is killed when a render overruns its budget, so the
-# response files are removed by an exit trap, which a SIGTERM also reaches.
+# The status-line process is killed when it overruns its budget. The HUP, INT
+# and TERM trap exits the shell, which runs the EXIT trap and removes the
+# response files.
 cleanup() {
 	if [ -n "${body}" ]; then
 		rm -f "${body}"
@@ -103,9 +104,10 @@ token=$(read_token)
 
 mkdir -p "${cache_dir}"
 
-# A curl that outlives the render keeps writing its response, so give each run
-# files of its own. Sharing one header file allowed a survivor from an earlier
-# render to supply the Retry-After that this run reads.
+# A curl process can go on writing its response after the status-line run that
+# started it has ended, so give each run a response file and a header file of
+# its own. With one shared header file, an earlier process can overwrite the
+# Retry-After that this run reads.
 body="$(mktemp "${cache_dir}/body.XXXXXX")"
 header="$(mktemp "${cache_dir}/header.XXXXXX")"
 
