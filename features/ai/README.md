@@ -8,8 +8,9 @@ servers][mcp].
 Every tool should talk to the same MCP servers without repeating the config. We
 do this by:
 
-1. `mcp-servers.nix` evaluates the `mcp-servers-nix` module once to get a
-   computed attrset of server definitions, per channel
+1. `mcp-server-definitions.nix` evaluates the `mcp-servers-nix` module once per
+   system to get a computed attrset of server definitions, and `mcp-servers.nix`
+   wraps that set with the helpers and tools of each channel
 2. The OS adapters pass that set to every module as the `mcp` argument.
    `mcp-server-set.nix` combines `mcp.servers` with the secret servers for the
    host and assigns the result to `dotfiles.ai.mcpServers`

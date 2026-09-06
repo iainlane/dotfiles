@@ -124,7 +124,8 @@
           builds from. It selects the package set the system configuration
           and both forms of the Home Manager configuration are built from,
           the nixpkgs the host's netboot installer is built from, and the
-          MCP server set the AI features configure. On a `generic-linux`
+          tools available to the AI harnesses. MCP server definitions use
+          unstable independently of this choice. On a `generic-linux`
           host it does not select the nixpkgs the system configuration is
           evaluated against: system-manager uses the nixpkgs its own flake
           input follows.

@@ -1,55 +1,18 @@
 {
   pkgs,
-  pkgs-unstable,
   inputs,
   lib,
+  # The server definitions from `mcp-server-definitions.nix`, evaluated once
+  # per system by `features/ai/default.nix` and passed in for both channels.
+  # Each harness either consumes them directly or mirrors them through
+  # `programs.mcp`.
+  servers,
 }:
-# Define the shared MCP server set once and let each tool consume it.
+# The per-channel half of the shared MCP server set: the tools built from this
+# channel's package set, and the helpers each harness uses to reshape the
+# servers.
 let
   mcpRemote = import ./mcp-remote.nix {inherit lib pkgs;};
-
-  # The servers every tool should talk to.
-  programs = {
-    codex = {
-      enable = true;
-      package = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex;
-    };
-
-    context7.enable = true;
-
-    fetch.enable = false;
-
-    git.enable = true;
-
-    github = {
-      enable = false;
-      package = pkgs.github-mcp-server;
-      passwordCommand = {
-        GITHUB_PERSONAL_ACCESS_TOKEN = ["gh" "auth" "token"];
-      };
-    };
-
-    nixos = {
-      enable = true;
-      # mcp-nixos checks for updates on startup, which is slow and noisy; turn
-      # it off so the server comes up quickly.
-      env.FASTMCP_CHECK_FOR_UPDATES = "off";
-    };
-
-    playwright = {
-      enable = true;
-      env.PLAYWRIGHT_HTML_OPEN = "false";
-    };
-  };
-
-  # Evaluate the mcp-servers-nix module to get a computed attrset of MCP server
-  # definitions. This gives us the shared server shape; each harness can then
-  # either consume it directly or mirror it through `programs.mcp`.
-  mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs-unstable {
-    inherit programs;
-  };
-
-  inherit (mcpServersNix.config.settings) servers;
 
   exaServer = {apiKeyFile}:
     mcpRemote.mkServer {
