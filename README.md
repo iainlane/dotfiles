@@ -180,6 +180,15 @@ wait for its shell.
 Run `./just fmt` to check and fix formatting errors, `./just check` to run
 broader static analysis, and `./just lint` to run them both.
 
+A pre-commit hook also runs the Python checks for the [prompt conformance
+suite][prompt-conformance], which measures how a change to this repository's
+assembled agent prompt affects real repository work. Building those checks takes
+minutes, so the hook only starts a build when the commit touches something the
+prompt is built from: the instructions and output styles under `features/ai/`,
+the flake inputs, or the suite itself.
+
+[prompt-conformance]: pkgs/claude-prompt-conformance/README.md
+
 ### Debugging and exploration
 
 To find packages, run `./just search <query>` and `./just info <package>`.
