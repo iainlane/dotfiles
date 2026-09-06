@@ -126,9 +126,10 @@ class StoredTestResult:
 class StoredCalibration:
     """Reference judgements plus the identity which produced and supports them.
 
-    The judgements are shared by every arm of one run store, so they name the
-    fixture attempt whose retained evidence supports them as a path relative to
-    the store root.
+    An arm is one prompt's evaluation within an improvement run. All arms of a
+    run share one run store and its reference judgements. The `artefacts` field
+    identifies the fixture attempt containing the supporting evidence, as a
+    path relative to the store root.
     """
 
     assessments: tuple[CalibrationAssessment, ...]

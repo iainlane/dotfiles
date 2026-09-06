@@ -21,8 +21,10 @@ concurrently with the others. The accepted draft with the largest decisive
 improvement wins the round; ties are settled by the fewest noise regressions and
 then by draft order, so the winner does not depend on scheduling.
 
-Draft prompt variants are built with Nix during the run, and each variant
-carries prompt hashes generated from its own source tree.
+Draft prompt variants are built with Nix during the run, and each variant embeds
+prompt hashes computed from its own source tree. Each variant's evaluation is
+one arm of the run. The arms share one run store, so the reference judgements a
+judge calibrates against are produced once and reused by every arm.
 
 ## What the improver sees
 
