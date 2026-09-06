@@ -8,9 +8,9 @@
       type = lib.types.str;
       default = "${hostConfig.name}/host-dex.yaml";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        the credentials for the connector and for every client. Dex runs as a
-        system service, so this file is encrypted to the host key.
+        Path, relative to the `secrets` flake input, of the sops file
+        containing the credentials for the connector and for every client. Dex
+        runs as a system service, so this file is encrypted to the host key.
       '';
     };
 
@@ -18,8 +18,9 @@
       type = lib.types.submodule (import ../../lib/exposed-service.nix);
       description = ''
         How the reverse proxy serves the provider. Signing in happens here, so
-        `auth` belongs off: a sign-in gate in front of the thing that answers
-        it would have nowhere to send anyone.
+        `auth` has to be off: a sign-in gate in front of Dex would stop an
+        unauthenticated visitor from reaching the provider they need in order
+        to sign in.
       '';
     };
 
@@ -27,13 +28,13 @@
       clientIdKey = lib.mkOption {
         type = lib.types.str;
         default = "dex_github_client_id";
-        description = "Key in `secretsFile` holding the GitHub OAuth app's client ID.";
+        description = "Key in `secretsFile` containing the GitHub OAuth app's client ID.";
       };
 
       clientSecretKey = lib.mkOption {
         type = lib.types.str;
         default = "dex_github_client_secret";
-        description = "Key in `secretsFile` holding the GitHub OAuth app's client secret.";
+        description = "Key in `secretsFile` containing the GitHub OAuth app's client secret.";
       };
 
       orgs = lib.mkOption {
@@ -41,9 +42,9 @@
         default = [];
         example = ["some-org"];
         description = ''
-          GitHub organisations whose members may sign in. Left empty, any
-          GitHub account can, and which of them a site serves is then decided
-          by the proxy's own list of identities.
+          GitHub organisations whose members may sign in. With the list empty,
+          any GitHub account can sign in, and which of those accounts a site
+          serves is left to the proxy's own allow-list.
         '';
       };
     };

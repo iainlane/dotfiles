@@ -1,10 +1,10 @@
-# Dex as the host's identity provider: one place that says who someone is, for
-# every service that needs to know.
+# Dex is the host's identity provider: one place that authenticates people, for
+# every service that needs to know who they are.
 #
-# Dex does not hold accounts of its own here. It hands the question to GitHub
-# and returns the answer as OpenID Connect, which is a language more things
-# speak than GitHub's own API. Whether a given person is served is decided by
-# the proxy, from the identity in the answer.
+# Dex keeps no accounts of its own here. It delegates authentication to GitHub
+# and presents the result over OpenID Connect, which more software speaks than
+# GitHub's own API. Which of those accounts a site serves is decided by the
+# proxy, from the identity Dex returns.
 {config, ...}: {
   flake.features.dex = {
     includes = [config.flake.features.containers];
@@ -57,7 +57,7 @@
 
       # Dex expands `$NAME` in a connector's config and reads a client's
       # secret from the variable `secretEnv` names, so every credential
-      # arrives in the environment and this file holds none.
+      # arrives in the environment and none is written into this file.
       configFile = (pkgs.formats.yaml {}).generate "dex.yaml" (
         {
           inherit issuer;
@@ -95,9 +95,9 @@
             })
             idp.clients;
 
-          # Consent is for letting someone hand a third party access to their
-          # account elsewhere. Every client here belongs to the same operator
-          # as the provider, so there is nothing to hand over.
+          # Issue the token without showing Dex's approval screen. Every
+          # client configured here has the same operator as Dex, so this
+          # configuration does not ask for a separate consent prompt.
           oauth2.skipApprovalScreen = true;
         }
         // cfg.settings
@@ -152,18 +152,17 @@
           {
             assertion = !cfg.expose.auth;
             message = ''
-              dotfiles.dex.expose.auth is on, so signing in would be gated
-              behind signing in.
+              dotfiles.dex.expose.auth is on, which would put the sign-in gate
+              in front of Dex itself, so nobody could ever sign in.
             '';
           }
           {
             assertion = proxy.enable;
             message = ''
-              dotfiles.dex needs a proxy on this host, which is what sets
-              dotfiles.containers.edgeProxy.enable. Dex is reached at
-              ${issuer}, which every client of the identity provider fetches
-              its discovery document from, and without a proxy nothing serves
-              that name.
+              dotfiles.dex needs a proxy on this host, and composing a proxy
+              feature is what sets dotfiles.containers.edgeProxy.enable. Every
+              client of the identity provider fetches its discovery document
+              from ${issuer}, and without a proxy nothing serves that name.
             '';
           }
         ];
