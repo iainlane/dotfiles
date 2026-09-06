@@ -12,19 +12,15 @@
 in {
   config = lib.mkMerge [
     {
-      # Checked whether or not this host describes any links. `unifi` composes
-      # this feature to read `lanAddress`. If this assertion were under the
-      # condition below, a host that composes `unifi` and describes no links
-      # would instead get the module system's "used but not defined" error from
-      # inside a container definition, which does not name the option that is
-      # missing.
+      # Keep the address assertion outside the link-unit condition: services
+      # can request lanAddress on a host that declares no links.
       assertions = [
         {
           assertion = lib.length cfg.privateAddresses == 1;
           message = ''
             dotfiles.network.lanAddress is the host's own address on the LAN:
-            the single private IPv4 address the networks under
-            dotfiles.network.systemd.network carry. They carry ${
+            the single private IPv4 address configured on the networks under
+            dotfiles.network.systemd.network. They have ${
               if cfg.privateAddresses == []
               then "none"
               else "${toString (lib.length cfg.privateAddresses)}: ${lib.concatStringsSep ", " cfg.privateAddresses}"

@@ -30,9 +30,9 @@
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
-      # A page reaches the outside only through the proxy. The host sets the
-      # public name and whether to require sign-in; the port each page is
-      # served on inside its container is set here.
+      # A page is exposed to the outside only through the proxy. The host sets
+      # the public name and whether to require sign-in, and this feature sets
+      # the port the page listens on inside its container.
       served = expose: port: container:
         if expose != null && config.dotfiles.containers.edgeProxy.enable
         then name: exposePodman name container (expose // {inherit port;})
@@ -55,8 +55,8 @@
         envFile = feederEnvFile;
       };
 
-      # The ultrafeeder's own volumes carry the host name, so more than one
-      # feeder could share a single podman installation.
+      # The ultrafeeder's own volumes are named after the host, so more than
+      # one feeder could share a single podman installation.
       volumes = {
         globeHistory = "adsb-${hostConfig.hostname}-globe-history";
         graphs = "adsb-${hostConfig.hostname}-graphs1090";
@@ -79,7 +79,7 @@
           };
 
           # rtl-sdr's own rules give the device node to the `plugdev` group,
-          # and carry the ids of every dongle the library supports.
+          # and list the ids of every dongle the library supports.
           environment.etc."udev/rules.d/60-rtl-sdr.rules".source = "${pkgs.rtl-sdr}/etc/udev/rules.d/rtl-sdr.rules";
 
           sops = {

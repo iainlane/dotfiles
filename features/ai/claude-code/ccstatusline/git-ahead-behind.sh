@@ -4,7 +4,7 @@
 # upstream or the branch is in sync.
 #
 # The working directory comes from the status-line JSON on stdin. Like the
-# worktree helper, the output carries its own separator and collapses to
+# worktree helper, the output begins with its own separator and collapses to
 # nothing, so the segment hides via hideWhenEmpty and leaves no dangling
 # separator in the git group.
 

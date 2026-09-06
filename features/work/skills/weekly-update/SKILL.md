@@ -97,7 +97,7 @@ so a slow export no longer looks like a hang.
 British spelling. No hedging, no sign-off, no headings inside the body, no
 bold-label bullets. Cut anything that only proves diligence: the reader wants
 what changed, not evidence of effort. If the summary does not fit in four
-sentences, it is carrying detail that belongs in a bullet or nowhere.
+sentences, it contains detail that belongs in a bullet or nowhere.
 
 ## Constraints
 

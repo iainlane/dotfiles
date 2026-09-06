@@ -1,10 +1,9 @@
-# The host's own address on the LAN, taken from the addresses the networks
-# carry.
+# The host's own address on the LAN, taken from the addresses configured on
+# its networks.
 #
-# A container port published to every address is reachable from anything that
-# can route to this host, which for a host with a routed public address means
-# the internet. A port published to this address is reachable from the LAN
-# only.
+# Binding a published container port to this private address keeps it from
+# listening on the host's public addresses. Routing and firewall rules still
+# determine which clients can reach it.
 {
   config,
   lib,
@@ -43,11 +42,12 @@ in {
     type = lib.types.str;
     readOnly = true;
     description = ''
-      The one private IPv4 address the networks carry, without its prefix
-      length. A service binds a published container port to it so the port is
-      reachable from the LAN and from nowhere else.
+      The single private IPv4 address configured on the networks, without its
+      prefix length. Services bind published container ports to this address
+      to avoid listening on public addresses. Routing and firewall rules
+      determine which clients can reach those ports.
 
-      A host whose networks carry no private IPv4 address, or more than one,
+      A host whose networks have no private IPv4 address, or more than one,
       leaves this undefined and fails an assertion naming the addresses found.
     '';
   };
@@ -56,8 +56,8 @@ in {
     type = lib.types.listOf lib.types.str;
     readOnly = true;
     description = ''
-      Every private IPv4 address the networks carry, which the enclosing
-      configuration asserts there is exactly one of.
+      All private IPv4 addresses configured on the networks. The enclosing
+      configuration asserts that this list contains exactly one address.
     '';
   };
 

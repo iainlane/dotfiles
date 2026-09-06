@@ -29,7 +29,7 @@
     );
 
   # Wrap OpenCode to add shared tools to PATH. OpenCode also scans
-  # `~/.claude/skills`, which holds the same skills as `~/.agents/skills`
+  # `~/.claude/skills`, which contains the same skills as `~/.agents/skills`
   # with Claude Code's variant of each, so that scan is switched off.
   wrappedOpencode = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.opencode;

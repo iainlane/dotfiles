@@ -3,7 +3,7 @@
 # from the rate_limits block Claude Code provides on stdin.
 #
 # Claude Code passes rate_limits in the status-line JSON (five_hour, seven_day,
-# ...), each carrying used_percentage and resets_at. Reading it here needs no
+# ...), each with a used_percentage and a resets_at. Reading it here needs no
 # OAuth usage API call, so it never trips the usage rate limit. A plan without
 # the window omits the bucket (used_percentage null/absent), so the helper
 # emits nothing and the widget hides via hideWhenEmpty.

@@ -4,7 +4,7 @@
 # A unit set to `asDropin` extends one whose main file comes from elsewhere,
 # such as a systemd generator at runtime. system-manager writes every unit as a
 # whole file under /etc/systemd/system, which takes precedence over
-# /run/systemd/generator, so the generated unit is replaced by one carrying only
+# /run/systemd/generator, so the generated unit is replaced by one containing only
 # the drop-in's settings and no ExecStart, which systemd refuses to load.
 #
 # The body tracks the upstream change so the two can be diffed. It is layered

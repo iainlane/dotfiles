@@ -64,9 +64,8 @@ in {
     pgSocketDir = database.socketDir;
     postgresql = database.package;
 
-    # This network carries the database and the dashboard, and nothing else,
-    # so the dashboard is the only service on this host that reaches the
-    # database.
+    # Only the database and the dashboard join this network, so the dashboard
+    # is the only service on this host that reaches the database.
     networkName = "agentsviewnet";
     network = config.virtualisation.quadlet.networks.${networkName}.ref;
 
@@ -124,7 +123,7 @@ in {
       allow_insecure = true
     '';
 
-    # The proxy joins the database's network only to carry pushes. With no
+    # The proxy joins the database's network only to pass pushes on. With no
     # machine pushing, the dashboard is the only thing that connects.
     reachableFromProxy = trustedClients != [];
 

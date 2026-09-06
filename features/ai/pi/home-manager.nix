@@ -265,10 +265,8 @@
     ];
   };
 
-  # `pi-sub-core` renders cached quota state on startup and refreshes on its
-  # own timer. A short interval keeps the displayed quota close to the
-  # current usage, and refreshing at turn start also includes the usage
-  # accumulated since the previous turn.
+  # pi-sub-core publishes cached quota state and refreshes it on its own
+  # timer. The quota-status extension displays that state through pi-footer.
   piSubCoreConfig = {
     version = 3;
     behavior = {
@@ -322,7 +320,7 @@
     catppuccin.themes;
 
   # Each extension is installed as an npm package, so the directory Pi loads
-  # is the one holding its `package.json`, not the derivation root.
+  # is the one that contains its `package.json`, not the derivation root.
   extensionFiles =
     lib.mapAttrs'
     (name: drv:

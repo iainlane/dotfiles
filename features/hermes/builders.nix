@@ -90,7 +90,7 @@
   # paths have to be in the image closure or the symlinks dangle inside the
   # container. `linkFarm` references the plugins as real build inputs, which
   # puts them in the closure `buildLayeredImage` ships; the script's own copies
-  # of the paths carry no string context.
+  # of the paths have no string context.
   extraPluginPaths = pkgs.linkFarm "hermes-extra-plugins" (
     lib.mapAttrsToList (name: path: {inherit name path;}) cfg.extraPlugins
   );

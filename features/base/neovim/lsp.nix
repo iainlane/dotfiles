@@ -39,7 +39,7 @@
   #
   # Write `masonPackages = []` when Mason has no package of that name.
   #
-  # An attribute set may also carry `pkg`, the package itself, for a package
+  # An attribute set may also have a `pkg`, the package itself, for a package
   # the host's primary nixpkgs channel does not have.
   "ansible-language-server" = {
     lsp = "ansiblels";

@@ -31,8 +31,8 @@
     ["${cfg.container.name}.service"]
     ++ lib.optional cfg.dashboard.present "${cfg.dashboard.containerName}.service";
 
-  # A restore is started by a person at a shell, so the script carries the
-  # values it needs and reads the credentials from the sops env file itself.
+  # A restore is started by a person at a shell, so the script has the values
+  # it needs baked in and reads the credentials from the sops env file itself.
   restoreScript = pkgs.writeShellApplication {
     name = "hermes-restore-r2";
     runtimeInputs = with pkgs; [coreutils findutils podman r2Tool rsync systemd];

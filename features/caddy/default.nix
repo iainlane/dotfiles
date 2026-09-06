@@ -3,13 +3,13 @@
 # and terminates TLS with certificates issued through the ACME DNS-01
 # challenge, so a certificate can be issued before any traffic arrives.
 #
-# Caddy's own network carries a public IPv6 range delegated from the prefix
-# routed to this host, which gives Caddy an address the internet reaches
-# directly. The host has a single IPv4 address, and a single address cannot be
-# delegated to a network, so ports 80 and 443 are published on it instead.
+# Caddy's own network has a public IPv6 range delegated from the prefix routed
+# to this host, so Caddy has an IPv6 address the internet routes to directly.
+# The host has only one public IPv4 address, so no IPv4 range can be delegated
+# the same way, and ports 80 and 443 are published on that address instead.
 #
 # The sites to serve come from the containers themselves: anything wrapped in
-# `exposePodman` carries labels giving the domain it answers to and whether it
+# `exposePodman` gets labels giving the domain it answers to and whether it
 # requires signing in first. This feature names no individual service.
 {config, ...}: let
   inherit (config.flake) features;
@@ -113,9 +113,10 @@ in {
 
             oidcConfig.issuerURL = idp.issuer;
 
-            # PKCE: the token request has to carry the verifier for the
+            # PKCE: the token request has to include the verifier for the
             # challenge sent with the authorisation request, so an
-            # authorisation code intercepted in flight cannot be redeemed.
+            # authorisation code intercepted in flight cannot be redeemed
+            # without that verifier.
             code_challenge_method = "S256";
 
             # No extra parameters on the authorisation request. In particular,
@@ -213,7 +214,7 @@ in {
       # The identity headers Caddy copies from oauth2-proxy's response onto the
       # request it passes to the service. Each header is deleted from the
       # incoming request first, so a visitor cannot supply their own, and set
-      # again only when oauth2-proxy's response carried it.
+      # again only when oauth2-proxy's response included it.
       identityHeaders = lib.attrNames identityClaims;
 
       copyIdentityHeader = header: let
@@ -444,9 +445,6 @@ in {
           // lib.optionalAttrs cfg.originAuth.present {
             tls_connection_policies = [directPolicy originPolicy];
 
-            # Caddy enables this by itself once a client certificate is asked
-            # for, and logs a warning when it does. Setting it here puts the
-            # behaviour in the configuration where a reader can see it.
             strict_sni_host = true;
 
             # The client address comes from the header Cloudflare sets. Every
@@ -503,7 +501,7 @@ in {
           }
           {
             assertion = cfg.ipv6Address == null || cfg.network.v6.subnet != null;
-            message = "dotfiles.caddy: an IPv6 address is set for the proxy without a subnet for the network to carry it.";
+            message = "dotfiles.caddy: an IPv6 address is set for the proxy without a subnet for the network to allocate it from.";
           }
           {
             assertion = lib.all (stream: stream.trustedClients != []) (lib.attrValues proxy.streams);
@@ -598,10 +596,11 @@ in {
                 exec = "run --config ${configPath}";
                 entrypoint = "${caddyPackage}/bin/caddy";
 
-                # IPv6 traffic reaches `ipv6Address` on the network directly.
-                # The host's single IPv4 address cannot be a network of its
-                # own, so the ports are published on it instead. The UDP port
-                # carries HTTP/3, which Caddy advertises through Alt-Svc.
+                # IPv6 traffic is routed to `ipv6Address` on the network
+                # directly. The host has one public IPv4 address and no IPv4
+                # range to delegate the same way, so these ports are published
+                # on that address. The UDP port serves HTTP/3, which Caddy
+                # advertises through Alt-Svc.
                 publishPorts = lib.optionals (cfg.ipv4Address != null) [
                   "${cfg.ipv4Address}:80:80"
                   "${cfg.ipv4Address}:443:443"

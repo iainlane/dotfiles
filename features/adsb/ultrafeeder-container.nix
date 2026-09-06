@@ -33,14 +33,14 @@ in {
 
     # The USB bus is bind-mounted so the container keeps seeing the SDR across
     # re-enumeration, which moves its bus and device numbers. A bind mount
-    # carries no cgroup device permission, so opening the node is denied until
+    # grants no cgroup device permission, so opening the node is denied until
     # the whole USB major is allowed.
     podmanArgs = ["--device-cgroup-rule=c 189:* rwm"];
 
     # readsb rewrites aircraft.json every second or so from whatever the SDR is
     # hearing, and writes it even when the sky is empty, so the file's age
     # tests the whole chain: the dongle is open, decoding is running, and the
-    # web server is serving. `notify` holds the unit inactive until that check
+    # web server is serving. `notify` keeps the unit inactive until that check
     # passes, and the relaying feeders wait for it.
     healthCmd = healthCheck;
     healthInterval = "30s";

@@ -29,7 +29,7 @@
   # evaluation time.
   kernelFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
 
-  # The nested attribute set the `direnvs` output takes. Each node may carry
+  # The nested attribute set the `direnvs` output takes. Each node may have
   # a `shell`, the devShell for that directory, and `subdirectories`, the
   # nodes below it.
   mkNestedShells = {
@@ -81,9 +81,9 @@
 
   # Build the direnv shells and devShells for a set of project directories.
   # A feature imports the returned flake-parts module and puts the returned
-  # Home Manager module in its `homeManager` field, which writes the `.envrc`
-  # that loads each shell. That is how one checkout carries several identities
-  # and toolchains, one per directory.
+  # Home Manager module in its `homeManager` field. That module writes an
+  # `.envrc` in each project directory to load that directory's shell, so one
+  # machine gets a different identity and toolchain in each of them.
   #
   # Arguments:
   #   config:      the flake-parts config, for `config.systems`

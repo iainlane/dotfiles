@@ -76,7 +76,7 @@
     + "&sslcert=${certificate}"
     + "&sslkey=${key}";
 
-  # AgentsView reads `config.toml` from its data directory. It carries the
+  # AgentsView reads `config.toml` from its data directory. It contains the
   # auth token on every machine and the database password on a machine that
   # pushes, so sops renders it and keeps it readable only by its owner.
   #

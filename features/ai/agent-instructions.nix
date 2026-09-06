@@ -1,8 +1,8 @@
 # Discover and expose shared agent instruction files from ./instructions/.
 #
-# Harnesses can also carry extra instructions. Named instruction sets merge
-# their harness directory over the shared files, so reusing a stem overrides
-# the shared file for that harness.
+# Harnesses can also have extra instructions of their own. Named instruction
+# sets merge their harness directory over the shared files, so reusing a stem
+# overrides the shared file for that harness.
 #
 # The default output style (see ./output-styles.nix) is part of the shared
 # set: a harness with no native style support receives the style body as an

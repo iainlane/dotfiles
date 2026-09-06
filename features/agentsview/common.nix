@@ -114,7 +114,7 @@
   cursorSecret = "agentsview_cursor_secret";
   authTokenSecret = "agentsview_auth_token";
 
-  # A secret's name includes the machine it belongs to, so one host can carry
+  # A secret's name includes the machine it belongs to, so one host can store
   # several machines' passwords without them colliding.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
 in {

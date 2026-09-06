@@ -145,9 +145,10 @@
               )
               (lib.filterAttrs (_: user: user.passwordKey != null) cfg.users);
 
-            # A config overlay carrying the settings that contain secrets.
-            # Keeping them in a mode-restricted file keeps the passwords out of
-            # the world-readable store and out of process arguments.
+            # A config overlay with the settings that contain secrets. sops
+            # renders the file at runtime with a restrictive mode, replacing
+            # each placeholder with the real value. The store copy therefore
+            # contains no passwords, and none are given as process arguments.
             templates."continuwuity-admin.toml" = {
               content = ''
                 [global]

@@ -8,7 +8,7 @@
 # ccstatusline's own git-worktree widget: `git rev-parse --git-dir` is ".git"
 # for the primary tree and ".git/worktrees/<name>" for a linked one.
 #
-# The output carries its own leading " · " separator and collapses to nothing
+# The output begins with its own " · " separator and collapses to nothing
 # when there is no linked worktree, so the segment hides via hideWhenEmpty and
 # leaves no dangling separator in the git group.
 

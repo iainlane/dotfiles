@@ -50,8 +50,8 @@ in {
       type = lib.types.str;
       default = "edge";
       description = ''
-        podman network carrying the proxy's own addresses, which is how the
-        outside reaches it. The networks the proxy shares with the services it
+        The podman network on which the proxy's externally reachable addresses
+        are configured. The networks the proxy shares with the services it
         fronts are named after this one.
       '';
     };

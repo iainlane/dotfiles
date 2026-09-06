@@ -100,7 +100,7 @@ in {
       };
       description = ''
         Environment variables sourced from sops, as a map of environment
-        variable name to the sops key holding its value. The values are read
+        variable name to the sops key its value comes from. The values are read
         from `secretEnvFile` and rendered into the agent's environment.
       '';
     };
