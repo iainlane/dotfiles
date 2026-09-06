@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p bash coreutils findutils gnused mkpasswd sops
+#!nix-shell -i bash -p bash coreutils findutils mkpasswd sops yq-go
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
@@ -47,16 +47,17 @@ done
 hashed="$(printf '%s\n' "${pass}" | mkpasswd -m sha-512 -s)"
 
 password_plaintext="$(make_secret_temp_file)"
-echo "user-password-hash: ${hashed}" >"${password_plaintext}"
+HASHED_PASSWORD="${hashed}" \
+	yq -n '."user-password-hash" = strenv(HASHED_PASSWORD)' >"${password_plaintext}"
 encrypt_yaml_file "${password_plaintext}" "${host}/host-user-password.yaml"
 echo "    Created ${host}/host-user-password.yaml"
 
 log_step "Encrypting user SSH private key"
 ssh_key_plaintext="$(make_secret_temp_file)"
-{
-	# Store the private key as an indented YAML block scalar for sops.
-	echo "ssh-private-key: |"
-	sed 's/^/    /' "${keys_dir}/id_ed25519"
-} >"${ssh_key_plaintext}"
+
+# Command substitution dropped the trailing newline, and an OpenSSH private
+# key file ends with one, so put it back.
+SSH_PRIVATE_KEY="$(cat "${keys_dir}/id_ed25519")" \
+	yq -n '."ssh-private-key" = strenv(SSH_PRIVATE_KEY) + "\n"' >"${ssh_key_plaintext}"
 encrypt_yaml_file "${ssh_key_plaintext}" "${host}/user-ssh-key.yaml"
 echo "    Created ${host}/user-ssh-key.yaml"
