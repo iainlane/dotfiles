@@ -1,6 +1,6 @@
 """Drive Codex app-server's model-free effective-configuration protocol."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import msgspec
@@ -114,8 +114,11 @@ class CodexConfigurationSession:
     cwd: Path
     transcript: Path
     configuration: CodexEffectiveConfiguration | None = None
-    _expected_request_id: int = _INITIALIZE_REQUEST_ID
-    _pending_configuration: CodexEffectiveConfiguration | None = None
+    _expected_request_id: int = field(default=_INITIALIZE_REQUEST_ID, init=False)
+    _pending_configuration: CodexEffectiveConfiguration | None = field(
+        default=None,
+        init=False,
+    )
 
     def initial_input(self) -> tuple[bytes, ...]:
         """Initialise the app-server protocol without starting a model thread."""

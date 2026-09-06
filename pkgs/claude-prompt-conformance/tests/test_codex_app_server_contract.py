@@ -47,11 +47,20 @@ from claude_prompt_conformance.protocols.codex_app_server import (
     CodexModelTransport,
     CodexNetworkPermissions,
     CodexPermissionProfile,
+    CodexRpcEnvelope,
     CodexSkillsConfiguration,
 )
 from claude_prompt_conformance.workspace import clean_environment
 
 from .helpers import unsigned_access_token
+
+
+@dataclass(eq=True)
+class ContractResponseError(Exception):
+    """An app-server response to the contract session reported an error."""
+
+    request_id: int | None
+    code: int
 
 
 @dataclass
@@ -65,10 +74,14 @@ class ExternalLoginContractSession(ProcessSession):
         return (codex_initialize_request(1),)
 
     def receive(self, record: ProcessOutputRecord) -> ProcessExchange:
-        envelope = msgspec.json.decode(record.value, type=dict[str, object])
-        if envelope.get("method") is not None:
+        envelope = msgspec.json.decode(record.value, type=CodexRpcEnvelope)
+        if envelope.method is not None:
             return ProcessExchange()
-        if envelope.get("id") == 1:
+
+        if envelope.error is not None:
+            raise ContractResponseError(envelope.id, envelope.error.code)
+
+        if envelope.id == 1:
             return ProcessExchange(
                 writes=(
                     codex_rpc_line(

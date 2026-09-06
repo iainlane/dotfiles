@@ -32,6 +32,7 @@ the judge. The shapes were read from the Codex source tree, in `codex-rs`:
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
@@ -206,19 +207,26 @@ class WarningNotification(msgspec.Struct, frozen=True):
     params: WarningParameters
 
 
-def warning_messages(transcript: bytes) -> tuple[str, ...]:
-    """List every warning the app-server emitted during a run."""
+def records[Record](transcript: bytes, kind: type[Record]) -> Iterator[Record]:
+    """Decode the transcript lines which match one notification schema."""
 
-    messages = []
     for line in transcript.splitlines():
         if not line.strip():
             continue
         try:
-            record = msgspec.json.decode(line, type=WarningNotification)
+            record = msgspec.json.decode(line, type=kind)
         except (msgspec.DecodeError, msgspec.ValidationError):
             continue
-        messages.append(record.params.message)
-    return tuple(messages)
+
+        yield record
+
+
+def warning_messages(transcript: bytes) -> tuple[str, ...]:
+    """List every warning the app-server emitted during a run."""
+
+    return tuple(
+        record.params.message for record in records(transcript, WarningNotification)
+    )
 
 
 def tooling_warnings(transcript: bytes) -> tuple[str, ...]:
@@ -251,13 +259,4 @@ def mcp_tool_calls(transcript: bytes) -> tuple[str, ...]:
     evaluator's server or the improver's.
     """
 
-    calls = []
-    for line in transcript.splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = msgspec.json.decode(line, type=McpToolCall)
-        except (msgspec.DecodeError, msgspec.ValidationError):
-            continue
-        calls.append(record.params.name)
-    return tuple(calls)
+    return tuple(record.params.name for record in records(transcript, McpToolCall))

@@ -147,81 +147,45 @@ def test_codex_agent_session_reports_each_protocol_failure(
 def test_codex_agent_session_drives_external_auth_and_refresh(tmp_path) -> None:
     identity = TransitioningIdentity()
     agent = session(tmp_path, identity)
-    exchanges = [decoded(agent.initial_input())]
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record(
-                    {
-                        "id": 1,
-                        "result": {
-                            "userAgent": "codex_cli_rs/0.146.0",
-                            "codexHome": str(tmp_path / "state"),
-                            "platformFamily": "unix",
-                            "platformOs": "macos",
-                        },
-                    }
-                )
-            ).writes
-        )
+    turn = (
+        {
+            "id": 1,
+            "result": {
+                "userAgent": "codex_cli_rs/0.146.0",
+                "codexHome": str(tmp_path / "state"),
+                "platformFamily": "unix",
+                "platformOs": "macos",
+            },
+        },
+        {"id": 2, "result": {"type": "chatgptAuthTokens"}},
+        {
+            "id": 91,
+            "method": "account/chatgptAuthTokens/refresh",
+            "params": {
+                "reason": "unauthorized",
+                "previousAccountId": "account-1",
+            },
+        },
+        {"id": 3, "result": {"thread": {"id": "thread-1"}}},
+        {"id": 4, "result": {"turn": {"id": "turn-1"}}},
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "item": {
+                    "type": "agentMessage",
+                    "id": "message-1",
+                    "text": '{"summary":"sound"}',
+                },
+            },
+        },
     )
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record({"id": 2, "result": {"type": "chatgptAuthTokens"}})
-            ).writes
-        )
-    )
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record(
-                    {
-                        "id": 91,
-                        "method": "account/chatgptAuthTokens/refresh",
-                        "params": {
-                            "reason": "unauthorized",
-                            "previousAccountId": "account-1",
-                        },
-                    }
-                )
-            ).writes
-        )
-    )
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record({"id": 3, "result": {"thread": {"id": "thread-1"}}})
-            ).writes
-        )
-    )
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record({"id": 4, "result": {"turn": {"id": "turn-1"}}})
-            ).writes
-        )
-    )
-    exchanges.append(
-        decoded(
-            agent.receive(
-                record(
-                    {
-                        "method": "item/completed",
-                        "params": {
-                            "threadId": "thread-1",
-                            "turnId": "turn-1",
-                            "item": {
-                                "type": "agentMessage",
-                                "id": "message-1",
-                                "text": '{"summary":"sound"}',
-                            },
-                        },
-                    }
-                )
-            ).writes
-        )
-    )
+
+    exchanges = [
+        decoded(agent.initial_input()),
+        *(decoded(agent.receive(record(value)).writes) for value in turn),
+    ]
     terminal = agent.receive(
         record(
             {

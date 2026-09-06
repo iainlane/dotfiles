@@ -1,6 +1,6 @@
 """Drive one schema-constrained Codex role through app-server."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
@@ -259,11 +259,14 @@ class CodexAgentSession:
     prompt: str
     output_schema: dict[str, object]
     response: str | None = None
-    _expected_request_id: int = _INITIALIZE_REQUEST_ID
-    _authentication: CodexAccessCredential | None = None
-    _phase: CodexAgentPhase = CodexAgentPhase.INITIALIZING
-    _thread_id: str | None = None
-    _turn_id: str | None = None
+    _expected_request_id: int = field(default=_INITIALIZE_REQUEST_ID, init=False)
+    _authentication: CodexAccessCredential | None = field(default=None, init=False)
+    _phase: CodexAgentPhase = field(
+        default=CodexAgentPhase.INITIALIZING,
+        init=False,
+    )
+    _thread_id: str | None = field(default=None, init=False)
+    _turn_id: str | None = field(default=None, init=False)
 
     def initial_input(self) -> tuple[bytes, ...]:
         """Initialise app-server before installing external authentication."""
