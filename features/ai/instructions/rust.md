@@ -24,7 +24,7 @@ paths:
   - Where a lint genuinely does not apply, use `#[expect(lint, reason = "...")]`
     so the attribute itself warns once the code stops triggering the lint.
   - If you are initialising a project, configure clippy to be strict.
-- No program logic in `mod.rs`, `lib.rs`, or other re-export files -- these are
+- No program logic in `mod.rs`, `lib.rs`, or other re-export files: these are
   only for module declarations and re-exports.
 
 ## Errors

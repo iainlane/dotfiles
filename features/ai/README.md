@@ -22,23 +22,23 @@ Different tools need different approaches:
 
 Some tools' home-manager modules accept an `mcpServers` attribute directly:
 
-- `antigravity-cli/` - Uses `programs.antigravity-cli.mcpServers`
+- `antigravity-cli/`: uses `programs.antigravity-cli.mcpServers`
 
-These are the simplest integrations - no config file generation needed.
+These are the simplest integrations: no configuration file has to be generated.
 
 ### Config file generation
 
 Other tools expect a configuration file on disk. Each of these writes its own
 file, reshaping the shared set into the schema the tool reads:
 
-- `claude-desktop/` - Generates JSON for Claude Desktop on macOS and Linux. On
+- `claude-desktop/`: generates JSON for Claude Desktop on macOS and Linux. On
   Linux it also installs the application itself (from the `llm-agents` input);
   macOS gets the app from the Homebrew cask. `desktop` lists this child, so only
   GUI hosts get it
-- `crush/` - Generates JSON for the crush config directory
-- `copilot-cli/` - Generates JSON for GitHub Copilot CLI
-- `opencode/` - Generates JSON for OpenCode
-- `opencode2/` - Generates JSON for OpenCode 2
+- `crush/`: generates JSON for the crush config directory
+- `copilot-cli/`: generates JSON for GitHub Copilot CLI
+- `opencode/`: generates JSON for OpenCode
+- `opencode2/`: generates JSON for OpenCode 2
 
 OpenCode 2 (`opencode2/`) ships as a separate `opencode2` binary but reads the
 same `~/.config/opencode` as OpenCode 1, and the two config schemas are not
@@ -66,9 +66,9 @@ interactive through `pi /login`.
 Two tools use a system-level config file so the user-level config stays free for
 interactive edits:
 
-- `claude-code/` - Writes Claude Code managed settings at the OS-specific system
+- `claude-code/`: writes Claude Code managed settings at the OS-specific system
   path
-- `codex/system-config.nix` - Writes `/etc/codex/config.toml` with shared
+- `codex/system-config.nix`: writes `/etc/codex/config.toml` with shared
   defaults and MCP servers
 
 Codex itself reads layered config files (`/etc/codex/config.toml`,

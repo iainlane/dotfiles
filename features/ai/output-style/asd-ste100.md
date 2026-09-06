@@ -1,7 +1,7 @@
 ---
 name: ASD-STE100
 description:
-  Simplified Technical English for agent output — one meaning per word, active
+  Simplified Technical English for agent output: one meaning per word, active
   voice, simple tenses, short sentences
 keep-coding-instructions: true
 ---
@@ -58,7 +58,7 @@ keep the precision.
   - "show" (not: display, present, exhibit)
   - "find" (not: locate, discover, identify)
   - "change" (not: modify, alter, adjust)
-  - "remove" (not: eliminate, delete — but keep "delete" when it names the
+  - "remove" (not: eliminate, delete, though keep "delete" when it names the
     literal operation)
   - "need" (not: require, necessitate)
 - Keep necessary technical terms (API names, tool names, domain nouns). Use each

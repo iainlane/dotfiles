@@ -17,7 +17,7 @@ paths:
   (node, bun, deno) is in use, so you know how to run commands in the project.
 - Add and change dependencies with that package manager's own command
   (`npm install`, `pnpm add`, `yarn add`), never by hand-editing `package.json`.
-- No program logic in `index.ts` or other re-export files -- these are only for
+- No program logic in `index.ts` or other re-export files: these are only for
   re-exports.
 - Avoid `any` and unchecked casts unless there is no practical alternative.
 - Use clear typed errors and never throw raw strings. Keep error messages
@@ -36,9 +36,9 @@ paths:
   TSDoc comments should be used to explain the purpose of the API and how it
   should be used, not to describe the implementation details. Never simply
   repeat the name of the function as a comment. For a function named
-  `sortArray`, the comment must not be "Sorts an array". Instead, something like
-  "Given an array of numbers, returns a new array sorted in ascending order" is
-  more like what we want.
+  `sortArray`, the comment must not be "Sorts an array". Write something like
+  "Given an array of numbers, returns a new array sorted in ascending order"
+  instead.
 
 ## Web
 
@@ -58,11 +58,11 @@ paths:
 - The whole-object assertion rule in `testing.md` looks like this in TypeScript:
 
   ```ts
-  // Bad -- hides missing or incorrect fields
+  // Bad: hides missing or incorrect fields
   expect(result).toHaveLength(3);
   expect(result.every((r) => r.status === "ok")).toBe(true);
 
-  // Good -- any drift is immediately visible
+  // Good: any drift is immediately visible
   expect(result).toStrictEqual([
     { id: "a", status: "ok", value: 10 },
     { id: "b", status: "ok", value: 20 },

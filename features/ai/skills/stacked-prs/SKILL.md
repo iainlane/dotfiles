@@ -65,8 +65,9 @@ This PR is part of a _stack_:
 
 ## Rebase
 
-GitHub usually breaks when a base branch for one PR is merged. CI will need to
-re-run and the UI may falsely report conflicts. We can fix this by rebasing.
+After a lower PR in the stack merges, GitHub re-runs CI on the remaining PRs and
+may report conflicts that are not there. Rebase the remaining branches onto
+their updated bases.
 
 If the user supplies the `--rebase` flag, then we can do the following process:
 
