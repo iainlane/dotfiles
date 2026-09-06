@@ -36,14 +36,13 @@ only a `<name>/default.nix` one level down is loaded.
 
 A feature is top-level when a host lists it or when another feature includes it.
 Everything else is a child of the feature that carries it, registered under that
-feature's `provides` and named after it, such as `base.zsh` or `desktop.gnome`.
-A child is applied where something lists it in `includes`, so a parent names the
-children it always carries and scopes the rest by OS. Anything can list one
-child on its own: `hosts/bonington` takes
-`features.work.provides.claude-managed-settings` without the rest of the work
-machine's NixOS configuration changing.
+feature's `provides` and named `<parent>.<child>`, such as `base.zsh` or
+`desktop.gnome`. A child applies only when something lists it in `includes`, so
+a parent lists the children it always carries and puts the rest under the OS
+scopes. Anything can list a single child on its own: `hosts/bonington` takes
+`features.work.provides.claude-managed-settings` without the rest of `work`.
 
-The twenty top-level features:
+The twenty-one top-level features:
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
   Children: `zsh`, `neovim`, `gh`, `ssh`, `starship`, `cli-tools`, `catppuccin`,
@@ -65,6 +64,8 @@ The twenty top-level features:
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
 - `containers`: Linux rootless container prerequisites (`newuidmap`/`newgidmap`
   wrappers and nodocker marker).
+- `network`: The systemd-networkd links of a system-manager host, and the LAN
+  address that other features bind published container ports to.
 - `inference`: A local model server, with `ollama` and `open-webui` as children
   so a host can run one without the other.
 - `nixbuild-builder`: nixbuild.net remote build configuration, including
@@ -117,8 +118,8 @@ in {
 ./bootstrap.sh
 ```
 
-It installs Determinate Nix, adds the sudo group to `trusted-users`, and
-restarts the daemon.
+It installs Determinate Nix, adds the `sudo` and `admin` groups to
+`trusted-users`, and restarts the daemon.
 
 ### Running
 
@@ -129,23 +130,22 @@ For normal maintenance, run:
 ./just update
 ```
 
-This will refresh flake inputs (update to the latest packaged versions of
-things), deploy the current system, and pre-build `direnv` shells (see
+This refreshes the flake inputs, moving packages to their latest packaged
+versions, deploys the current system, and pre-builds the `direnv` shells (see
 [above](#terms)).
 
 To deploy to a managed remote system, run `./just update-host <hostname>`. To
 deploy only the system or home deploy-rs profile, run
 `./just update-host-system <hostname>` or `./just update-host-home <hostname>`.
 
-Or, the individual steps can be run separately.
+The individual steps can also be run separately.
 
 [just]: https://just.systems/
 
 #### `./just update-flake`
 
-Update flake inputs to their latest versions. Give flake names as arguments,
-e.g. `./just update-flake llm-agents` to only update those ones. That can be
-useful to not update _everything_ at once.
+Update flake inputs to their latest versions. Name inputs as arguments to update
+only those, for example `./just update-flake llm-agents`.
 
 An input pinned to a release tag in its URL, such as `hermes-agent`, does not
 move this way. `update-pkgs` moves those.
@@ -164,16 +164,16 @@ Update both system and home configuration.
 
 #### `./just update-home`
 
-_Linux only - on MacOS, we use `nix-darwin` and its `darwin-rebuild` command
-always updates both system and home together._
+_Linux only. macOS is built with `nix-darwin`, whose `darwin-rebuild` always
+updates system and home together._
 
 Update `home-manager` user-level configuration only.
 
 #### `./just build-direnvs`
 
-Pre-build `direnv` shells for all configured project directories. This just
-means you don't have to wait when first `cd`ing into a project directory after a
-flake update.
+Pre-build `direnv` shells for all configured project directories. With them
+built, the first `cd` into a project directory after a flake update does not
+wait for its shell.
 
 ### Checks
 
@@ -198,9 +198,9 @@ Some hosts in this repo are full [NixOS][nixos] hosts rather than `nix-darwin`
 or `system-manager` machines. You can find them in `hosts/` by looking for host
 records with `os = "nixos"`.
 
-Like everything else in this repo, these systems are declarative. Since we're
-talking about a full OS install, we need a way to provision the system. The
-steps below walk through this.
+Like everything else in this repo, these systems are declarative, but a full OS
+install has to be provisioned before it can be updated. The steps below cover
+that.
 
 [nixos]: https://nixos.org/
 
@@ -241,8 +241,8 @@ Once the target is reachable over SSH, install with
 ./just install <host> <ip-or-hostname> /path/to/keys-dir
 ```
 
-The keys are cleaned up locally after a successful install. The SSH host key
-lands at `/etc/ssh/ssh_host_ed25519_key` and the user age key at
+The keys are cleaned up locally after a successful install. The SSH host key is
+installed at `/etc/ssh/ssh_host_ed25519_key` and the user age key at
 `~/.config/sops/age/keys.txt`. Without a keys directory the install proceeds but
 the host won't be able to decrypt secrets until keys are provided manually.
 

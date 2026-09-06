@@ -1,9 +1,9 @@
 #!/usr/bin/env just --justfile
 # Nix dotfiles management commands
 
-# `gh auth token` prints nothing when nobody is logged in, and just exports a
-# variable whatever its value, so drop an empty GITHUB_TOKEN here and leave the
-# environment as the caller had it.
+# `gh auth token` prints nothing when nobody is logged in, and `just` exports an
+# exported variable whatever its value, so unset an empty GITHUB_TOKEN here and
+# leave the environment as the caller had it.
 set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; [ -n \"${GITHUB_TOKEN:-}\" ] || unset GITHUB_TOKEN; eval \"$1\"", "-"]
 
 # GitHub token for private repo access (appended to NIX_CONFIG for all recipes)
@@ -52,13 +52,12 @@ update-system *args:
     if [[ -f /etc/NIXOS ]]; then
         nh os switch {{ args }} .
     else
-        # system-manager (nh doesn't support system-manager yet)
+        # nh has no system-manager support yet, so run system-manager itself.
         sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run .#system-manager -- switch --flake . {{ args }}
     fi
 
-# Rebuild and switch to the new home-manager configuration. Linux only. On mac,
-
-# home-manager is integrated into darwin-rebuild.
+# Rebuild and switch to the new home-manager configuration. Linux only: on
+# macOS, darwin-rebuild updates the home configuration as well.
 [linux]
 update-home *args:
     nh home switch . {{ args }}
@@ -165,7 +164,6 @@ install host target keys_dir="" phases="":
     ./scripts/install.bash "{{ host }}" "{{ target }}" "{{ keys_dir }}" "{{ phases }}"
 
 # Serve a PXE/netboot installer for a host using keys from ssh-agent
-
 netboot host *args:
     ./scripts/netboot.bash "{{ host }}" {{ args }}
 
