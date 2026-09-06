@@ -11,7 +11,7 @@ disable-model-invocation: true
 # `weekly-update`
 
 Write one Linear project status update per project the user worked on this week,
-and post it after approval. Everything publishes under the user's name.
+and post it after approval. Every update is posted under the user's name.
 
 Resolve the user at run time from the authenticated Linear identity. Never
 hard-code a name, a team, or an identifier.
@@ -29,13 +29,13 @@ hard-code a name, a team, or an identifier.
 
 3. Show the candidates with one line each: name, status, last update date, and
    why it qualified. Ask which to cover, with all of them as the default. This
-   is the first of the two questions this skill asks.
+   is the first of the two points where this skill stops for the user.
 
 4. For each selected project, gather the user's activity in the window across
    the project's issues, including issues grouped under its milestones: issues
    completed, issues created, state changes, and substantive comments. An issue
-   counts only when the user acted on it in the window; a touch from an
-   automation or another person does not. Note each issue's milestone, and pull
+   counts only when the user acted on it in the window; a change made by an
+   automation or by someone else does not. Note each issue's milestone, and pull
    in linked pull requests where they show what actually happened.
 
 5. Split the gathered work into non-trivial and trivial. Non-trivial work
@@ -61,10 +61,10 @@ hard-code a name, a team, or an identifier.
 
 The update body is a high-level summary of two to four sentences, then one
 bullet per piece of non-trivial work, then any closing line the reader needs
-(remaining work, or the main variable to the target). The summary is judgement,
-not the bullets restated in sentence form: say what the week added up to.
-Bullets lead with what changed, never with an issue key, and link PRs and issues
-inline on the phrase they substantiate.
+(remaining work, or the main risk to the target). The summary is judgement, not
+the bullets restated in sentence form: say what the week added up to. Bullets
+lead with what changed, never with an issue key, and link PRs and issues inline
+on the phrase they substantiate.
 
 An update in the expected shape:
 
@@ -101,7 +101,7 @@ sentences, it is carrying detail that belongs in a bullet or nowhere.
 
 ## Constraints
 
-- Ask at least twice: the project selection, and the approval gate.
+- Stop for the user twice: at the project selection and at the approval gate.
 - Health carries forward from the previous update. Only the user changes it.
 - This skill posts project status updates and nothing else. It mutates no issue,
   changes no project field, and touches no other system.
