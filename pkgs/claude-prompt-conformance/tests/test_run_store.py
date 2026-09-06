@@ -9,7 +9,8 @@ from pathlib import Path
 import msgspec
 import pytest
 
-from claude_prompt_conformance.cli import main
+from claude_prompt_conformance import cli
+from claude_prompt_conformance.cli import ImprovementCalibrationConflictError, main
 from claude_prompt_conformance.inputs import (
     CalibrationNameError,
     FixtureNameError,
@@ -880,6 +881,23 @@ def test_invalid_unlink_first_invocation_preserves_the_existing_store(
     )
 
     assert (status, before, after) == (2, before, before)
+
+
+def test_a_failure_from_a_started_run_is_not_reported_as_a_setup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runtime_inputs(tmp_path)
+    configuration = tmp_path / "nix-inputs" / "configuration.json"
+
+    def fail(*_arguments: object, **_keywords: object) -> None:
+        raise ImprovementCalibrationConflictError
+
+    monkeypatch.setattr(cli, "run_demo", fail)
+    status = main((str(configuration), "--demo", "--all", "--format", "json"))
+
+    assert (status, json.loads(capsys.readouterr().out)["event"]) == (3, "RunFailed")
 
 
 def test_unlink_first_never_claims_an_unmarked_directory(tmp_path: Path) -> None:

@@ -5,10 +5,13 @@ from typing import overload
 import pytest
 
 from claude_prompt_conformance.cli import (
+    RUN_FAILURE,
+    SETUP_FAILURE,
+    FailurePhase,
     ImprovementCalibrationConflictError,
     InterruptEscalation,
     main,
-    setup_error,
+    report_failure,
     validate_run_mode,
 )
 
@@ -77,12 +80,24 @@ def test_prompt_improvement_requires_calibrated_evidence() -> None:
     assert raised.value == ImprovementCalibrationConflictError()
 
 
-def test_json_setup_failure_has_a_structural_error(tmp_path, capsys) -> None:
+@pytest.mark.parametrize(
+    ("phase", "event", "status"),
+    [
+        (SETUP_FAILURE, "SetupFailed", 2),
+        (RUN_FAILURE, "RunFailed", 3),
+    ],
+)
+def test_a_json_failure_names_its_phase_and_error(
+    phase: FailurePhase,
+    event: str,
+    status: int,
+    capsys,
+) -> None:
     error = ImprovementCalibrationConflictError()
 
-    assert setup_error(error, "json") == 2
+    assert report_failure(phase, error, "json") == status
     assert capsys.readouterr().out == (
-        '{"event": "SetupFailed", "error": '
+        f'{{"event": "{event}", "error": '
         '{"type": "ImprovementCalibrationConflictError", '
         '"description": "--skip-calibration cannot be used during prompt improvement"}}\n'
     )

@@ -229,17 +229,33 @@ class InterruptEscalation:
         raise KeyboardInterrupt
 
 
+@dataclass(frozen=True)
+class FailurePhase:
+    """How far a run had got when it failed, and how that is reported."""
+
+    event: str
+    label: str
+    status: int
+
+
+# A caller distinguishes a suite the machine could not start from a suite that
+# started and then broke, so the two phases exit with different statuses.
+SETUP_FAILURE = FailurePhase("SetupFailed", "Setup failed", 2)
+RUN_FAILURE = FailurePhase("RunFailed", "Run failed", 3)
+
+
 def _main(argv: Sequence[str] | None = None) -> int:
     arguments = parser().parse_args(argv)
     try:
         inputs = RuntimeInputs.load(arguments.configuration)
         fixtures = inputs.source_fixtures()
     except ConformanceError as error:
-        return setup_error(error, arguments.format)
+        return report_failure(SETUP_FAILURE, error, arguments.format)
 
     rich_output = arguments.format == "rich" or (
         arguments.format == "auto" and sys.stdout.isatty()
     )
+    failure_format = "rich" if rich_output else "json"
     console = Console()
     if arguments.list:
         list_fixtures(fixtures, rich_output, console)
@@ -255,9 +271,14 @@ def _main(argv: Sequence[str] | None = None) -> int:
                 interactive=rich_output and sys.stdin.isatty(),
             )
             selected = select_fixtures(fixtures, selection)
+        except ConformanceError as error:
+            return report_failure(SETUP_FAILURE, error, failure_format)
+
+        try:
             summary = run_demo(arguments, inputs, selected, console, rich_output)
         except ConformanceError as error:
-            return setup_error(error, "rich" if rich_output else "json")
+            return report_failure(RUN_FAILURE, error, failure_format)
+
         return exit_status(summary)
 
     if arguments.output is None:
@@ -327,35 +348,38 @@ def _main(argv: Sequence[str] | None = None) -> int:
                 authentication,
                 slots,
             )
-            if arguments.improve:
-                summary = PromptImprovementSuite(
-                    applications,
-                    frontend,
-                    tasks,
-                    slots,
-                ).run(
-                    configuration,
-                    ImprovementRequest(
+            try:
+                if arguments.improve:
+                    summary = PromptImprovementSuite(
+                        applications,
+                        frontend,
+                        tasks,
+                        slots,
+                    ).run(
+                        configuration,
+                        ImprovementRequest(
+                            output=output,
+                            fixtures=selected,
+                            proposals=arguments.proposals,
+                            samples=arguments.samples,
+                            keep_workspaces=arguments.keep_workspaces,
+                        ),
+                    )
+                    return 0 if summary.winner_patch is not None else 1
+
+                application = applications(configuration, frontend)
+                summary = application.suite.run(
+                    RunRequest(
                         output=output,
                         fixtures=selected,
-                        proposals=arguments.proposals,
-                        samples=arguments.samples,
+                        calibrate=not arguments.skip_calibration,
                         keep_workspaces=arguments.keep_workspaces,
-                    ),
+                    )
                 )
-                return 0 if summary.winner_patch is not None else 1
-
-            application = applications(configuration, frontend)
-            summary = application.suite.run(
-                RunRequest(
-                    output=output,
-                    fixtures=selected,
-                    calibrate=not arguments.skip_calibration,
-                    keep_workspaces=arguments.keep_workspaces,
-                )
-            )
+            except ConformanceError as error:
+                return report_failure(RUN_FAILURE, error, failure_format)
     except ConformanceError as error:
-        return setup_error(error, "rich" if rich_output else "json")
+        return report_failure(SETUP_FAILURE, error, failure_format)
 
     return exit_status(summary)
 
@@ -516,12 +540,16 @@ def list_fixtures(
     print(json.dumps(value, sort_keys=True))
 
 
-def setup_error(error: ConformanceError, output_format: str) -> int:
+def report_failure(
+    phase: FailurePhase,
+    error: ConformanceError,
+    output_format: str,
+) -> int:
     if output_format == "json" or (output_format == "auto" and not sys.stdout.isatty()):
         print(
             json.dumps(
                 {
-                    "event": "SetupFailed",
+                    "event": phase.event,
                     "error": {
                         "type": type(error).__name__,
                         "description": str(error),
@@ -529,10 +557,10 @@ def setup_error(error: ConformanceError, output_format: str) -> int:
                 }
             )
         )
-        return 2
+        return phase.status
 
-    Console(stderr=True).print(f"[red]Setup failed:[/red] {error}")
-    return 2
+    Console(stderr=True).print(f"[red]{phase.label}:[/red] {error}")
+    return phase.status
 
 
 if __name__ == "__main__":
