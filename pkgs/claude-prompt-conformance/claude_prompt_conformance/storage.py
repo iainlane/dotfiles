@@ -4,8 +4,9 @@ import fcntl
 import os
 import shutil
 import stat
+import tempfile
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -342,6 +343,54 @@ def atomic_write(root: Path, destination: Path, contents: bytes) -> None:
                 os.unlink(pending, dir_fd=parent)
             except FileNotFoundError:
                 pass
+
+
+def replace_private_file(destination: Path, contents: bytes) -> None:
+    """Atomically install a 0600 file in a directory the suite does not own.
+
+    `atomic_write` covers run-owned paths and checks them against a run root.
+    Host credential directories are outside the run store, so this function
+    does not check the destination against a run root.
+    """
+
+    descriptor: int | None = None
+    temporary: Path | None = None
+    failure: OSError | None = None
+    try:
+        descriptor, name = tempfile.mkstemp(dir=destination.parent)
+        temporary = Path(name)
+        with os.fdopen(descriptor, "wb") as stream:
+            descriptor = None
+            stream.write(contents)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        temporary.replace(destination)
+        temporary = None
+        synchronise_directory(destination.parent)
+    except OSError as error:
+        failure = error
+    finally:
+        open_descriptor, pending = descriptor, temporary
+        if open_descriptor is not None:
+            failure = _release(lambda: os.close(open_descriptor), failure)
+        if pending is not None:
+            failure = _release(lambda: pending.unlink(missing_ok=True), failure)
+
+    if failure is not None:
+        raise failure
+
+
+def _release(action: Callable[[], None], failure: OSError | None) -> OSError | None:
+    """Run one cleanup step, retaining any earlier error."""
+
+    try:
+        action()
+    except OSError as error:
+        if failure is None:
+            return error
+
+    return failure
 
 
 def synchronise_directory(directory: Path) -> None:

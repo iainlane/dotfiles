@@ -14,7 +14,7 @@ import httpx
 import msgspec
 import pytest
 
-import claude_prompt_conformance.codex_identity as codex_runtime
+import claude_prompt_conformance.storage as storage_runtime
 from claude_prompt_conformance.codex_identity import (
     CodexCredential,
     CodexCredentialRotationDeadlineError,
@@ -603,7 +603,7 @@ def test_codex_store_publishes_a_rotation_durably(
         synchronized.append("directory" if stat.S_ISDIR(mode) else "file")
         original_fsync(descriptor)
 
-    monkeypatch.setattr(codex_runtime.os, "fsync", record_fsync)
+    monkeypatch.setattr(storage_runtime.os, "fsync", record_fsync)
 
     reconciled = store.reconcile(original, replacement)
 

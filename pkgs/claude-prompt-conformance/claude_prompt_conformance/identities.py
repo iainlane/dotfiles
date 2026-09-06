@@ -1,8 +1,6 @@
 """Model client identity capabilities for host-authenticated runs."""
 
 import asyncio
-import os
-import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -32,7 +30,7 @@ from .protocols.claude import (
     ClaudeOAuthErrorResponse,
     ClaudeOAuthRefreshResponse,
 )
-from .storage import synchronise_directory
+from .storage import replace_private_file
 
 
 @dataclass(eq=True)
@@ -248,26 +246,10 @@ class ClaudeFileCredentialStore:
         ).apply(transform)
 
     def _write(self, credential: ClaudeCredential) -> None:
-        descriptor: int | None = None
-        temporary: Path | None = None
         try:
-            descriptor, name = tempfile.mkstemp(dir=self.source.parent)
-            temporary = Path(name)
-            with os.fdopen(descriptor, "wb") as stream:
-                descriptor = None
-                stream.write(credential.encode())
-                stream.flush()
-                os.fsync(stream.fileno())
-            temporary.chmod(0o600)
-            temporary.replace(self.source)
-            synchronise_directory(self.source.parent)
+            replace_private_file(self.source, credential.encode())
         except OSError as error:
             raise ClaudeCredentialFileWriteError(self.source, error) from error
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)

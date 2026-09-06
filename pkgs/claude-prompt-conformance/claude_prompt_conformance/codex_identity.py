@@ -3,9 +3,7 @@
 import base64
 import binascii
 import errno
-import os
 import stat
-import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -34,7 +32,7 @@ from .protocols.codex_auth import (
     CodexOAuthRefreshResponse,
     CodexTokenData,
 )
-from .storage import synchronise_directory
+from .storage import replace_private_file
 
 
 @dataclass(eq=True)
@@ -517,38 +515,13 @@ class CodexFileCredentialStore:
             return reconciled
 
     def _write(self, credential: CodexCredential) -> None:
-        descriptor: int | None = None
-        temporary: Path | None = None
-        failure: OSError | None = None
         try:
-            descriptor, name = tempfile.mkstemp(dir=self.source.parent)
-            temporary = Path(name)
-            with os.fdopen(descriptor, "wb") as stream:
-                descriptor = None
-                stream.write(msgspec.json.encode(credential.document))
-                stream.flush()
-                os.fsync(stream.fileno())
-            temporary.chmod(0o600)
-            temporary.replace(self.source)
-            temporary = None
-            synchronise_directory(self.source.parent)
+            replace_private_file(
+                self.source,
+                msgspec.json.encode(credential.document),
+            )
         except OSError as error:
-            failure = error
-        finally:
-            if descriptor is not None:
-                try:
-                    os.close(descriptor)
-                except OSError as error:
-                    if failure is None:
-                        failure = error
-            if temporary is not None:
-                try:
-                    temporary.unlink(missing_ok=True)
-                except OSError as error:
-                    if failure is None:
-                        failure = error
-        if failure is not None:
-            raise CodexCredentialFileWriteError(self.source, failure) from failure
+            raise CodexCredentialFileWriteError(self.source, error) from error
 
 
 @dataclass(frozen=True)

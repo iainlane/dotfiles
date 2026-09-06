@@ -9,7 +9,7 @@ import httpx
 import msgspec
 import pytest
 
-import claude_prompt_conformance.identities as identities_runtime
+import claude_prompt_conformance.storage as storage_runtime
 from claude_prompt_conformance.codex_identity import (
     CodexCredentialStateDirectoryCreateError,
     CodexCredentialStateDirectoryUnsafeError,
@@ -872,7 +872,7 @@ def test_claude_file_store_publishes_a_rotation_durably(
         synchronized.append("directory" if stat.S_ISDIR(mode) else "file")
         original_fsync(descriptor)
 
-    monkeypatch.setattr(identities_runtime.os, "fsync", record_fsync)
+    monkeypatch.setattr(storage_runtime.os, "fsync", record_fsync)
 
     result = store.mutate(lambda _: replacement)
 
