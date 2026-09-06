@@ -1,9 +1,9 @@
 # Declares `flake.features`.
 #
-# A feature is a module for each module system it configures and a list of
-# the features it includes. Hosts and other features refer to entries by
-# value, so a reference to a feature that does not exist fails at the
-# reference.
+# A feature is a module, or a list of modules, for each module system it
+# configures, plus a list of the features it includes. Hosts and other
+# features refer to entries by value, so a reference to a feature that does
+# not exist fails at the reference.
 #
 # A feature also carries the concerns that only it uses, as children under
 # `provides`. A child has every field a feature has and its name is qualified
@@ -22,13 +22,13 @@
   # the imports of one module, each tagged with the file that defined it so
   # the module system reports errors against that file.
   #
-  # `deferredModule` does the collecting and the tagging. It cannot be
-  # extended in place: `lib.types.coercedTo` refuses a type whose
-  # `getSubModules` is not null, and `fixupOptionType` rebuilds any type whose
-  # `getSubModules` is not null through `substSubModules`, which discards
-  # whatever was added to it. So this type is declared on its own and gives
-  # `deferredModule`'s merge one definition per module, with the list flattened
-  # first so a listed module and a module written on its own are tagged alike.
+  # `deferredModule` does the collecting and the tagging, but it cannot be
+  # extended in place. `lib.types.coercedTo` refuses a source type whose
+  # `getSubModules` is not null, and `fixupOptionType` rebuilds such a type
+  # through `substSubModules`, which drops the `check` and `merge` added here.
+  # So this type is declared on its own and passes one definition per module
+  # to `deferredModule`'s merge, flattening a list first so a listed module is
+  # tagged like one written on its own.
   classModule = let
     isModule = lib.types.deferredModule.check;
   in
@@ -122,7 +122,7 @@
       provides = lib.mkOption {
         type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule qualifiedName));
         default = {};
-        description = "Features this one carries. A child is applied where a feature lists it in `includes`, not by registering it here.";
+        description = "Features this one carries. A child is applied when a feature lists it in `includes`, not by registering it here.";
       };
     };
   };

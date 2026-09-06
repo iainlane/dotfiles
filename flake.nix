@@ -24,8 +24,8 @@
     # `catppuccin.sources.<port>` with `fetchFromGitHub`, so the modules'
     # `importTOML` and `importJSON` reads force a build during evaluation.
     # Pointing `catppuccin.sources.bat` and `catppuccin.sources.bottom` at
-    # these natively fetched inputs keeps upstream's file-placement code and
-    # reads from a path that exists at evaluation time.
+    # these natively fetched inputs keeps upstream's file-placement code while
+    # reading from a path that exists at evaluation time.
     catppuccin-bat = {
       url = "github:catppuccin/bat";
       flake = false;
@@ -100,9 +100,9 @@
     # embedding provider proposed upstream as
     # stephenschoettler/hermes-lcm#519, on the fork's
     # `openai-embeddings-on-v0.20.0` branch. Semantic recall needs an
-    # embedding provider, and none of the three v0.20.0 ships suits ancaster:
-    # Voyage means a second account, Ollama means another service on the Pi,
-    # and nixpkgs marks fastembed broken on aarch64-linux. The
+    # embedding provider, and none of the three providers v0.20.0 ships suits
+    # ancaster: Voyage means a second account, Ollama means another service on
+    # the Pi, and nixpkgs marks fastembed broken on aarch64-linux. The
     # OpenAI-compatible provider reaches OpenRouter with the API key Hermes
     # already uses for its models. When #519 merges, restore the release tag
     # and add hermes-lcm to `flakeInputs` in flake/parts/updaters.nix so it
@@ -198,9 +198,9 @@
     };
 
     # Our branch of starship, carrying starship/starship#6834, which adds the
-    # zsh glitch sequences a prompt with wide characters needs so the shell
-    # positions the cursor correctly after it. Drop this input when the pull
-    # request merges and reaches a release.
+    # zsh glitch sequences a prompt with wide characters needs, so the shell
+    # positions the cursor correctly after drawing the prompt. Drop this input
+    # when the pull request merges and reaches a release.
     starship-custom = {
       url = "github:iainlane/starship/iainlane/feat-zsh-wide-char-support";
       flake = false;

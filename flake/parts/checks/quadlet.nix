@@ -46,7 +46,7 @@
     }
     {
       # String equality ignores context, so comparing the rendered mount with
-      # the expected one would pass even after the coercion dropped it.
+      # the expected one would pass even if the coercion dropped the context.
       name = "a path bind preserves Nix's store-path context";
       pass = let
         rendered = quadlet.mount {
@@ -124,7 +124,7 @@
       });
     }
     {
-      name = "an auto user namespace rejects every kind of named volume without idmap";
+      name = "every kind of named volume without idmap is reported under an auto user namespace";
       pass =
         quadlet.autoUsernsVolumesWithoutIdmap {
           dex.containerConfig = {

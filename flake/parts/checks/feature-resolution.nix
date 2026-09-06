@@ -137,7 +137,7 @@
       pass = resolve "homeManager" "darwin" [base] == ["git-home" "gh-home" "base-home"];
     }
     {
-      name = "OS-scoped Home Manager content applies only on that OS";
+      name = "an OS-scoped Home Manager module applies only on that OS";
       pass =
         resolve "homeManager" "generic-linux" [git]
         == ["git-home" "git-linux"]
@@ -151,7 +151,7 @@
         && resolve "nixos" "generic-linux" [base] == ["base-nixos"];
     }
     {
-      name = "system content goes to the class that builds the host";
+      name = "the `system` module goes to the class that builds the host";
       pass =
         resolve "systemManager" "generic-linux" [base]
         == ["base-system-manager" "base-system"]
@@ -201,7 +201,7 @@
         == ["shell.zsh" "shell.openssh" "shell"];
     }
     {
-      name = "kernel-scoped Home Manager content follows the host's kernel, not its OS";
+      name = "a kernel-scoped Home Manager module follows the host's kernel, not its OS";
       pass =
         resolve "homeManager" "nixos" [terminal]
         == ["terminal-home" "terminal-linux"]
@@ -209,7 +209,7 @@
         && resolve "homeManager" "darwin" [terminal] == ["terminal-home" "terminal-darwin"];
     }
     {
-      name = "hasFeature answers over the names closure produces";
+      name = "hasFeature is true for a listed or included feature and false for an absent one";
       pass = let
         hostConfig = {
           featureNames = resolver.featureNames {
@@ -243,7 +243,7 @@
       pass = throws (resolveExcluding [borgmatic] "homeManager" "darwin" [shell]);
     }
     {
-      name = "hasFeature answers over a closure with an exclusion";
+      name = "hasFeature is false for an excluded feature and for an include only it reached";
       pass = let
         hostConfig = {
           featureNames = resolver.featureNames {

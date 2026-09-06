@@ -40,10 +40,11 @@
           inherit (hostConfig) hostname;
           sshUser = username;
           profilesOrder = ["system" username];
-          # Every host gets its own home-manager profile so you can
-          # `deploy .#<host>.<username>` to update just your user config without
-          # touching the system. NixOS and darwin embed HM too, but this
-          # lets you iterate on dotfiles quickly.
+          # Every host gets its own home-manager profile, so
+          # `deploy .#<host>.<username>` updates the user configuration
+          # without touching the system. NixOS and darwin embed Home Manager
+          # as well, and this profile is how the home half is deployed on its
+          # own.
           profiles = {
             system = systemProfile;
             ${username} = {
@@ -55,8 +56,9 @@
           };
         }
         // lib.optionalAttrs (hostConfig.os == "generic-linux") {
-          # `sudo-rs` on some Linux hosts does not preserve a PATH that includes
-          # Nix binaries; run as a login shell so root picks up nix-daemon profile.
+          # `sudo-rs` on some Linux hosts does not preserve a PATH that
+          # includes the Nix binaries; run as a login shell so root picks up
+          # the nix-daemon profile.
           sudo = "sudo -S -i -u";
         }
     )

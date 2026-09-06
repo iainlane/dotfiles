@@ -76,8 +76,8 @@
       };
     in {
       # `os/darwin/system.nix` gives this to `determinateNix.customSettings`.
-      # Under Determinate Nix, nix-darwin renders `nix.settings` nowhere, so a
-      # setting every class needs goes in this set.
+      # Under Determinate Nix, nix-darwin ignores `nix.settings`, so a setting
+      # every class needs goes in this set.
       _module.args.nixCacheSettings = settings;
 
       # NixOS and the installer images render `nix.settings` into

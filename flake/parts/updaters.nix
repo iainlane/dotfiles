@@ -25,7 +25,9 @@
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
 
-  # A key that names no input would generate an updater that rewrites nothing.
+  # Every key must match an input in `flake.nix`. An updater generated for a
+  # key that matches none would leave `flake.nix` unchanged and report
+  # success.
   flakeInputsExist =
     lib.assertMsg
     (lib.all (name: inputs ? ${name}) (lib.attrNames flakeInputs))

@@ -186,7 +186,7 @@
     };
   };
 
-  # Each operating system's hosts go to the flake output the OS table names.
+  # Each operating system's hosts go to the flake output named in the OS table.
   systemOutputs =
     lib.mapAttrs' (
       os: entry:
@@ -201,7 +201,7 @@ in {
       type = lib.types.listOf lib.types.str;
       default = lib.attrNames operatingSystems;
       readOnly = true;
-      description = "The operating systems a host record can name, from the table in `lib/features.nix`.";
+      description = "The operating systems a host record can name, from the table in `lib/operating-systems.nix`.";
     };
 
     flake.hosts = lib.mkOption {

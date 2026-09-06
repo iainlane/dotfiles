@@ -2,15 +2,13 @@
 #
 # `flake.cupboardOutputs` is the list of build targets the cupboard publish
 # workflow reads. Each entry below names a deploy-rs profile. A system profile
-# contains the
-# NixOS, nix-darwin or system-manager closure for one host. A home profile
-# contains its Home Manager generation. Both profile types include the
+# contains the NixOS, nix-darwin or system-manager closure for one host. A home
+# profile contains its Home Manager generation. Both profile types include the
 # activation files that deploy-rs copies to the host.
 #
 # The workflow evaluates each profile's derivation graph, so packages are
 # selected by the configurations that use them rather than by the flake's
-# package export matrix. Each entry carries enough to plan, run and route its
-# job:
+# `packages` output. Each entry carries enough to plan, run and route its job:
 #
 #   - os/remote: the runner, and whether it offloads to nixbuild.net (Linux) or
 #     builds natively (Darwin).
