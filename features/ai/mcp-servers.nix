@@ -121,7 +121,7 @@ let
     lua-language-server
     marksman
     nil
-    pkgs."typescript-language-server"
+    typescript-language-server
     pyright
     rust-analyzer
     shellcheck
@@ -132,25 +132,25 @@ let
     yt-dlp
   ];
 in {
-  inherit packages mcpServersOption excludeServers mcpRemote hostSecretServers servers;
+  inherit mcpServersOption excludeServers mcpRemote hostSecretServers servers;
 
-  # Helper function to wrap an AI tool with the shared tools in PATH
+  # Wrap an AI tool so the shared tools are on its PATH. The result carries
+  # everything the package installs, its identity and its `passthru`, with the
+  # unwrapped package under `passthru.unwrapped`.
   wrapWithTools = {
     package,
     binName,
     extraWrapperArgs ? [],
-  }: let
-    wrapped =
-      pkgs.runCommand "${binName}-with-tools" {
-        nativeBuildInputs = [pkgs.makeWrapper];
-      } ''
-        makeWrapper ${package}/bin/${binName} $out/bin/${binName} \
-          --prefix PATH : ${lib.makeBinPath packages}${lib.optionalString (extraWrapperArgs != []) " \\\n          ${lib.escapeShellArgs extraWrapperArgs}"}
+  }:
+    pkgs.symlinkJoin {
+      inherit (package) pname version meta;
+      paths = [package];
+      nativeBuildInputs = [pkgs.makeWrapper];
+      postBuild = ''
+        wrapProgram "$out/bin/${binName}" \
+          --prefix PATH : ${lib.makeBinPath packages} \
+          ${lib.escapeShellArgs extraWrapperArgs}
       '';
-  in
-    wrapped
-    // {
-      inherit (package) meta name pname version;
       passthru =
         (package.passthru or {})
         // {
