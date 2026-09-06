@@ -55,6 +55,11 @@ in {
   imports = [
     (import ../mcp-server-set.nix {
       declareSopsSecrets = false;
+      # A system module cannot read the user's home-manager configuration, so
+      # the path is written out here. It has to stay equal to
+      # `sops.defaultSymlinkPath` in that configuration. No module in this
+      # repository sets that option, so it keeps sops-nix's default of
+      # `xdg.configHome` plus `sops-nix/secrets`.
       secretPath = name: "${hostConfig.homeDirectory}/.config/sops-nix/secrets/${name}";
     })
   ];
