@@ -69,7 +69,7 @@ _RECORD_DECODERS = {
 
 
 def decode_stream_record(value: bytes) -> ClaudeStreamRecord | None:
-    """Decode a record against its own schema, passing unknown kinds by."""
+    """Decode a record against its own schema, ignoring an unmodelled kind."""
 
     try:
         kind = _KIND_DECODER.decode(value)
@@ -122,7 +122,7 @@ class ClaudeSdkSession:
         )
 
     def initial_input(self) -> tuple[bytes, ...]:
-        """Initialize the SDK protocol and submit the candidate task."""
+        """Initialise the SDK protocol and submit the candidate task."""
 
         return (
             _line(

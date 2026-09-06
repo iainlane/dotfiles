@@ -64,7 +64,7 @@ def codex_rpc_line(value: object) -> bytes:
 
 
 def codex_initialize_request(request_id: int) -> bytes:
-    """Construct the common initialization request for an app-server session."""
+    """Construct the common initialisation request for an app-server session."""
 
     return codex_rpc_line(
         CodexRpcRequest(

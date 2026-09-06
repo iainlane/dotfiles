@@ -547,7 +547,11 @@ class _OutputBuffer:
 
 @dataclass
 class _OutputChannel:
-    """Transfer one output record with blocking backpressure and wakeable closure."""
+    """Carry one output record at a time between a producer and a consumer.
+
+    The producer blocks until the record is taken, and closing the channel
+    wakes a blocked wait through the wakeup descriptor.
+    """
 
     command: tuple[str, ...]
     wakeup: int
@@ -664,7 +668,7 @@ def kill_active_process_groups() -> None:
 
 
 class ProcessSupervisor:
-    """Run isolated process groups and cancel the complete active set."""
+    """Run isolated process groups and cancel every one still running."""
 
     def __init__(self, cancellation: CancellationSignal | None = None) -> None:
         self._lock = threading.Lock()

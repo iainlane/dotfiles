@@ -352,7 +352,7 @@ class PyObjCKeychain:
 
         # Keychain creates and discards an authentication context for each
         # operation unless the caller supplies one. Retaining the context for
-        # the run lets one successful authentication authorize later reads and
+        # the run lets one successful authentication authorise later reads and
         # writes of the same credential.
         framework = foundation.NSBundle.bundleWithPath_(_LOCAL_AUTHENTICATION_FRAMEWORK)
         if framework is None or not framework.load():

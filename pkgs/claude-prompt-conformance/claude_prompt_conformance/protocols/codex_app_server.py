@@ -163,7 +163,7 @@ class CodexInitializeResult(
     rename="camel",
     forbid_unknown_fields=True,
 ):
-    """Runtime identity returned by app-server initialization."""
+    """Runtime identity returned by app-server initialisation."""
 
     user_agent: str
     codex_home: str
@@ -172,7 +172,7 @@ class CodexInitializeResult(
 
 
 class CodexInitializeResponse(msgspec.Struct, frozen=True):
-    """A successful app-server initialization response."""
+    """A successful app-server initialisation response."""
 
     id: int
     result: CodexInitializeResult | None = None

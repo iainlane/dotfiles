@@ -266,7 +266,7 @@ class CodexAgentSession:
     _turn_id: str | None = None
 
     def initial_input(self) -> tuple[bytes, ...]:
-        """Initialize app-server before installing external authentication."""
+        """Initialise app-server before installing external authentication."""
 
         return (codex_initialize_request(_INITIALIZE_REQUEST_ID),)
 

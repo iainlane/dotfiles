@@ -101,7 +101,7 @@ class ResponsesRequest(msgspec.Struct, frozen=True):
 
     @property
     def tool_names(self) -> tuple[str, ...]:
-        """List every offered tool, flattening the responses-lite namespace."""
+        """List every offered tool, including the ones nested in input items."""
 
         offered = (*self.tools, *(tool for item in self.input for tool in item.tools))
         return tuple(name for tool in offered for name in tool.names)

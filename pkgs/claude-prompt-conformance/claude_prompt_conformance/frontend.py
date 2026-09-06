@@ -101,7 +101,7 @@ class JsonFrontend:
         self._tasks.observe(root)
 
     def announce(self, message: str) -> None:
-        """Drop an urgent notice: a JSON consumer reads the typed events."""
+        """Discard an urgent notice: a JSON consumer reads the typed events."""
 
     def _write(self, value: Any) -> None:
         value = msgspec.to_builtins(value, enc_hook=encode_special)

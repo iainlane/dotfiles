@@ -98,11 +98,11 @@ judge criteria, where they cannot coach the candidate.
 
 ## Further documentation
 
-- [docs/evaluation.md] — the evidence a run captures, judging and calibration,
+- [docs/evaluation.md]: the evidence a run captures, judging and calibration,
   and the result store.
-- [docs/improvement.md] — the prompt-improvement tournament.
-- [docs/isolation.md] — sandboxing and credential handling.
-- [docs/architecture.md] — code structure, checks, and the progress model.
+- [docs/improvement.md]: the prompt-improvement tournament.
+- [docs/isolation.md]: sandboxing and credential handling.
+- [docs/architecture.md]: code structure, checks, and the progress model.
 
 [docs/evaluation.md]: docs/evaluation.md
 [docs/isolation.md]: docs/isolation.md

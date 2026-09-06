@@ -124,9 +124,10 @@ def directory_descriptor(
                 try:
                     os.mkdir(part, dir_fd=current)
                 except FileExistsError:
-                    # Another arm of the same run store creating the same
-                    # parent is not a reason to fail: the open below still
-                    # refuses to follow whatever now holds the name.
+                    # Another operation may have created the same parent
+                    # first, which is no reason to fail: the open below
+                    # still requires a directory and refuses to follow a
+                    # symlink.
                     pass
                 child = os.open(part, flags, dir_fd=current)
             descriptors.append(child)

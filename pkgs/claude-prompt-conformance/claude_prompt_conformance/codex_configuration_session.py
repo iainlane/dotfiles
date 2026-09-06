@@ -118,7 +118,7 @@ class CodexConfigurationSession:
     _pending_configuration: CodexEffectiveConfiguration | None = None
 
     def initial_input(self) -> tuple[bytes, ...]:
-        """Initialize the app-server protocol without starting a model thread."""
+        """Initialise the app-server protocol without starting a model thread."""
 
         return (codex_initialize_request(_INITIALIZE_REQUEST_ID),)
 
