@@ -1,5 +1,6 @@
 # Vendored from quadlet-nix, whose system-manager module is not yet released.
-# The guts still come from the pinned input; only this module file is copied.
+# The implementation still comes from the pinned input; only this module file
+# is copied.
 # Delete once it lands upstream and import `systemManagerModules.quadlet`.
 {
   config,
@@ -45,8 +46,8 @@ in {
     # Quadlet reads [Install] and writes the .wants symlink into its own
     # output directory, beside the unit it generates, so the symlink
     # resolves. system-manager starts system-manager.target on every
-    # activation, so naming it starts services that are new since the last
-    # one.
+    # activation, so naming that target starts services that are new since the
+    # last activation.
     autoStartTarget = p:
       if builtins.isString p._autoStart
       then p._autoStart

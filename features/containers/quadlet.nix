@@ -1,10 +1,10 @@
 # Rootful podman quadlets, declared through `virtualisation.quadlet`.
 #
-# quadlet-nix supplies the module and `./podman.nix` the podman options and the
-# /etc/containers files it builds on. Both vendored pieces are noted in
-# `./vendored`. What this file adds is the podman package quadlet-nix generates
-# against: it expects the host distribution to supply podman, and these hosts
-# run the podman that Nix builds.
+# quadlet-nix supplies the module; `./podman.nix` supplies the podman options
+# and the /etc/containers files it builds on. Both vendored pieces are in
+# `./vendored`. This file sets the podman package quadlet-nix generates units
+# against. quadlet-nix expects the host distribution to supply podman, and
+# these hosts run the podman that Nix builds.
 {
   config,
   lib,

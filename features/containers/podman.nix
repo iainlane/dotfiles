@@ -5,8 +5,8 @@
 # podman package and socket, /etc/containers/policy.json, registries.conf,
 # storage.conf and containers.conf.
 #
-# Defines the options those modules reference that system-manager lacks, each
-# saying in its description what happens to what it is given.
+# Defines the options those modules reference that system-manager does not
+# have. Each description says what happens to the value it is given.
 #
 # This is shaped to be proposed to system-manager as
 # nix/modules/upstream/nixpkgs/virtualisation/podman.nix.
@@ -28,10 +28,11 @@
       type = lib.types.listOf lib.types.str;
       readOnly = true;
       description = ''
-        The ranges podman allocates a network's addresses from, which are
-        its compiled-in `default_subnet_pools`. A peer whose address falls in
-        one of them is a container on this host, and nothing off the host can
-        send from them.
+        Podman's compiled-in `default_subnet_pools`, from which it allocates
+        network addresses. The proxy and database use these ranges to permit
+        connections from containers. The ranges must match the pools Podman
+        actually uses; an address in a range does not by itself establish
+        which host sent a connection.
       '';
     };
 
@@ -40,29 +41,29 @@
       default = {};
       internal = true;
       description = ''
-        Podman defines a per-user API socket alongside the system one.
-        system-manager manages system units, so this is accepted and nothing
-        is emitted for it. Anything reaching podman over that socket, such as
-        `podman --remote` or a `DOCKER_HOST` pointing at it, needs the socket
-        creating by other means.
+        podman defines a per-user API socket alongside the system one.
+        system-manager manages system units only, so this option is accepted
+        and nothing is generated from it. Anything reaching podman over that
+        socket, such as `podman --remote` or a `DOCKER_HOST` pointing at it,
+        has to have the socket created some other way.
       '';
     };
 
     networking = {
-      # Podman passes these to its service environment.
+      # podman passes these to its service environment.
       proxy.envVars = lib.mkOption {
         type = lib.types.attrsOf lib.types.str;
         default = {};
         internal = true;
       };
 
-      # Selects netavark's firewall driver. The host owns the ruleset, so this
-      # records which driver netavark should write for, and nothing else.
+      # Selects netavark's firewall driver. The host owns the ruleset, so
+      # setting this changes only which driver netavark writes rules for.
       nftables.enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
         description = ''
-          Whether the host firewall uses nftables. Netavark is configured to
+          Whether the host firewall uses nftables. netavark is configured to
           match, through `firewall_driver` in containers.conf.
         '';
       };
@@ -97,8 +98,9 @@
     }
 
     (lib.mkIf config.virtualisation.podman.enable {
-      # system-manager declares `boot` to absorb kernel settings, without a
-      # value. Podman reads `boot.supportedFilesystems` to find the ZFS tools.
+      # system-manager declares `boot` to absorb kernel settings and gives it
+      # no default. The podman module reads `boot.supportedFilesystems` to
+      # decide whether to add the ZFS tools.
       boot = lib.mkDefault {};
     })
   ];

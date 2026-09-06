@@ -7,8 +7,8 @@
 }: let
   inherit (config.virtualisation.containers) idRanges;
 
-  # `newuidmap` reads these to decide what a user may map rootless, and
-  # nothing else on the host writes them.
+  # `newuidmap` reads /etc/subuid and /etc/subgid to decide which ids a user
+  # may map rootless. Nothing else on the host writes them.
   subordinateFile = lib.concatLines (
     lib.mapAttrsToList
     (name: range: "${name}:${toString range.start}:${toString range.size}")
@@ -32,11 +32,10 @@
   # image the current generation still wants.
   #
   # Rather than track which containers stay running, make every
-  # Nix-built image unit reassert its image whenever something depends
-  # on it, instead of trusting that its last successful pull still
-  # holds. `RemainAfterExit = false` makes the unit go inactive once
-  # the pull finishes, so `Requires=`/`After=` on a dependent unit reruns
-  # it on every start. The pull re-imports the same tag from the
+  # Nix-built image unit pull its image again whenever something
+  # depends on it. `RemainAfterExit = false` makes the unit go inactive
+  # once the pull finishes, so `Requires=`/`After=` on a dependent unit
+  # reruns it on every start. The pull re-imports the same tag from the
   # already-built store path, so repeating it costs a local copy, not a
   # network fetch.
   nixBuiltImageOverrides =
@@ -69,8 +68,8 @@ in {
     ];
 
     virtualisation.containers.idRanges = {
-      # The name `--userns=auto` looks up when it draws a range for a
-      # container that asks for one of its own.
+      # The name podman looks up in /etc/subuid when `--userns=auto` draws a
+      # range for a container.
       containers = {
         start = lib.mkDefault 1000000;
         size = lib.mkDefault 65536000;
@@ -84,9 +83,9 @@ in {
     virtualisation.podman = {
       enable = true;
 
-      # The helper podman calls out to for rootless networking, on podman's
-      # own PATH because it is podman that looks for it. The package already
-      # carries the rest of its helpers, `fuse-overlayfs` among them.
+      # The helper podman runs for rootless networking. It goes on podman's own
+      # PATH because podman is what looks for it; the podman package already
+      # includes its other helpers, `fuse-overlayfs` among them.
       extraPackages = [pkgs.slirp4netns];
 
       # Every build tags its image with the store hash, so an image that a
@@ -132,8 +131,8 @@ in {
       // nixBuiltImageOverrides;
 
     environment.etc = {
-      # Create /etc/containers/nodocker to indicate Docker isn't installed. Some
-      # container tools check for this to avoid trying to use the Docker socket.
+      # podman's `docker` compatibility shim prints a notice saying it is
+      # emulating docker on every invocation unless this file exists.
       "containers/nodocker".text = "";
 
       # `newuidmap` and `newgidmap` are setuid, and open these without

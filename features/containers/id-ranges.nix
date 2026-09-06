@@ -80,11 +80,11 @@ in {
       Every subordinate id range on this host, by name. A range covers uids
       and gids alike, since a container maps both.
 
-      A name records who holds the range. `containers` is the one podman
-      looks up when `--userns=auto` draws a range; a login name grants that
-      user ids to map rootless; any other name reserves ids for containers a
-      host runs as root, which map them directly and so need no entry to
-      claim.
+      The name records what the range is reserved for. Podman draws from the
+      `containers` entry when `--userns=auto` allocates a range. An entry
+      named after a login user permits that user to map the range in rootless
+      containers. Any other name reserves ids for containers the host runs as
+      root, which are given explicit mappings and never look the name up.
 
       Containers that share a volume take their maps from the same range, so
       a file one writes is one the other can read; `--userns=auto` draws a

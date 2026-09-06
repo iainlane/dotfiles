@@ -42,7 +42,7 @@ in {
         The systemd unit the proxy runs as, defined by the feature providing
         it. A service that has to reach a name the proxy answers to orders
         itself after this. It has no value on a host without a proxy, so read
-        it only where `enable` is true.
+        it only when `enable` is true.
       '';
     };
 
@@ -50,9 +50,9 @@ in {
       type = lib.types.str;
       default = "edge";
       description = ''
-        podman network holding the proxy's own addresses, which is how the
-        outside reaches it. The networks it shares with the services it fronts
-        are named after this one.
+        podman network carrying the proxy's own addresses, which is how the
+        outside reaches it. The networks the proxy shares with the services it
+        fronts are named after this one.
       '';
     };
 
@@ -63,10 +63,11 @@ in {
             type = lib.types.str;
             example = "pg.example.com";
             description = ''
-              The hostname that clients connect to. The proxy holds a
-              certificate for it, thus the name must point at this host. It
-              must also reach the host directly. A CDN answers the handshake
-              itself and then sends HTTP to the service, which fails.
+              The hostname that clients connect to, and the name the proxy
+              obtains a certificate for. It must resolve directly to this
+              host, so the proxy receives the TLS connection itself and
+              selects the service from it. A CDN in front would terminate the
+              handshake and forward HTTP, which this service does not speak.
             '';
           };
 
@@ -74,18 +75,18 @@ in {
             type = lib.types.str;
             example = "postgresql";
             description = ''
-              The protocol that the client asks for in the handshake. The
-              proxy uses it to tell these connections from web traffic, thus
-              the two share one port.
+              The protocol the client asks for in the TLS handshake. The proxy
+              matches on it to tell these connections from web traffic, so
+              both can use the same port.
             '';
           };
 
           port = lib.mkOption {
             type = lib.types.port;
             description = ''
-              The port of the service inside its container. The proxy uses
-              the container name and the network that the two of them
-              share.
+              The port the service listens on inside its container. The proxy
+              connects to it by container name over the network the two of
+              them share.
             '';
           };
 
@@ -100,8 +101,8 @@ in {
               certificate from this list and that machine loses access at the
               next reload.
 
-              These protocols have no sign-in, thus this list decides who
-              gets access. It cannot be empty.
+              These protocols have no sign-in, so this list is the only thing
+              deciding who gets access. It cannot be empty.
             '';
           };
         };
