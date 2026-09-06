@@ -4,8 +4,9 @@
 {
   inputs,
   lib,
+  featureResolver,
 }: let
-  inherit (import ./features.nix {inherit lib;}) resolveFeatures;
+  inherit (featureResolver) resolveFeatures;
   inherit (import ./sops.nix {inherit inputs lib;}) mkHomeSopsModule;
   inherit (import ./channels.nix {inherit inputs;}) channelFor;
 

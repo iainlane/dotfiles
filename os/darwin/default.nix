@@ -4,11 +4,12 @@
   config,
   withSystem,
   username,
+  featureResolver,
   ...
 }: hostConfig: let
   sops = import ../../lib/sops.nix {inherit inputs lib;};
-  home = import ../../lib/home.nix {inherit inputs lib;};
-  inherit (import ../../lib/features.nix {inherit lib;}) resolveFeatures;
+  home = import ../../lib/home.nix {inherit inputs lib featureResolver;};
+  inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
 

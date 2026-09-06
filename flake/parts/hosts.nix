@@ -5,10 +5,10 @@
   withSystem,
   overlays,
   nixpkgsConfig,
+  featureResolver,
   ...
 }: let
-  features = import ../../lib/features.nix {inherit lib;};
-  home = import ../../lib/home.nix {inherit inputs lib;};
+  home = import ../../lib/home.nix {inherit inputs lib featureResolver;};
   channels = import ../../lib/channels.nix {inherit inputs;};
   operatingSystems = import ../../lib/operating-systems.nix;
   inherit (config.flake) username;
@@ -22,6 +22,7 @@
       username
       overlays
       nixpkgsConfig
+      featureResolver
       ;
     config = outerConfig;
   };
@@ -106,12 +107,12 @@
         description = "The machine's network name. NixOS sets `networking.hostName` to it and the ADS-B feeder registers under it. A machine with a domain gives its fully qualified name here; `name` is the short name.";
       };
       features = lib.mkOption {
-        type = lib.types.listOf features.featureType;
+        type = lib.types.listOf featureResolver.featureType;
         default = [];
         description = "Entries of `flake.features`. Each one brings the features it includes.";
       };
       excludes = lib.mkOption {
-        type = lib.types.listOf features.featureType;
+        type = lib.types.listOf featureResolver.featureType;
         default = [];
         description = "Entries of `flake.features` this host drops. An excluded feature contributes no modules and its own includes are not followed. Listing a feature and excluding it, or excluding one this host's features never reach, is an error.";
       };
@@ -168,7 +169,7 @@
       featureNames = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         readOnly = true;
-        default = features.featureNames {inherit (config) features os excludes;};
+        default = featureResolver.featureNames {inherit (config) features os excludes;};
         description = "The name of every feature the host has, including the ones its features include.";
       };
       homeDirectory = lib.mkOption {

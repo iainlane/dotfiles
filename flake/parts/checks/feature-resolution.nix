@@ -14,10 +14,12 @@
 #
 # Each assertion is a `{ name; pass; }` attribute set so the check can report
 # all failures together.
-{inputs, ...}: let
-  inherit (inputs.nixpkgs) lib;
-  resolver = import ../../../lib/features.nix {inherit lib;};
-
+{
+  inputs,
+  lib,
+  featureResolver,
+  ...
+}: let
   mkFeature = name: attrs:
     {
       inherit name;
@@ -42,7 +44,7 @@
   };
 
   resolveExcluding = excludes: class: os: features:
-    resolver.resolveFeatures {
+    featureResolver.resolveFeatures {
       inherit class;
       hostConfig = {
         name = "fixture";
@@ -160,7 +162,7 @@
     {
       name = "feature names follow composition order";
       pass =
-        resolver.featureNames {
+        featureResolver.featureNames {
           features = [base];
           os = "nixos";
         }
@@ -194,7 +196,7 @@
     {
       name = "children are named by their parent and appear in featureNames";
       pass =
-        resolver.featureNames {
+        featureResolver.featureNames {
           features = [shell];
           os = "nixos";
         }
@@ -212,15 +214,15 @@
       name = "hasFeature is true for a listed or included feature and false for an absent one";
       pass = let
         hostConfig = {
-          featureNames = resolver.featureNames {
+          featureNames = featureResolver.featureNames {
             features = [base];
             os = "darwin";
           };
         };
       in
-        resolver.hasFeature hostConfig base
-        && resolver.hasFeature hostConfig git
-        && !(resolver.hasFeature hostConfig borgmatic);
+        featureResolver.hasFeature hostConfig base
+        && featureResolver.hasFeature hostConfig git
+        && !(featureResolver.hasFeature hostConfig borgmatic);
     }
     {
       name = "an excluded child is dropped and its parent still resolves";
@@ -246,16 +248,16 @@
       name = "hasFeature is false for an excluded feature and for an include only it reached";
       pass = let
         hostConfig = {
-          featureNames = resolver.featureNames {
+          featureNames = featureResolver.featureNames {
             features = [editor];
             os = "darwin";
             excludes = [prompt];
           };
         };
       in
-        resolver.hasFeature hostConfig editor
-        && !(resolver.hasFeature hostConfig prompt)
-        && !(resolver.hasFeature hostConfig direnv);
+        featureResolver.hasFeature hostConfig editor
+        && !(featureResolver.hasFeature hostConfig prompt)
+        && !(featureResolver.hasFeature hostConfig direnv);
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";

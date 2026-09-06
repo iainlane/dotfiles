@@ -1,4 +1,6 @@
-# Declares `flake.features`.
+# Declares `flake.features`, and publishes `lib/features.nix` as the
+# `featureResolver` module argument so every reader of the registry uses one
+# instance of it.
 #
 # A feature is a module, or a list of modules, for each module system it
 # configures, plus a list of the features it includes. Hosts and other
@@ -15,7 +17,8 @@
   lib,
   ...
 }: let
-  inherit (import ../../lib/features.nix {inherit lib;}) featureType;
+  featureResolver = import ../../lib/features.nix {inherit lib;};
+  inherit (featureResolver) featureType;
 
   # A module for one module system, or a list of them. Several files may
   # define the same class of the same feature; every definition ends up in
@@ -132,4 +135,6 @@ in {
     default = {};
     description = "Features that hosts list and that other features include.";
   };
+
+  config._module.args = {inherit featureResolver;};
 }
