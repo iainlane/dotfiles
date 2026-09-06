@@ -49,10 +49,9 @@
 
     files = filesIn dir // defaultStyle // harnessFiles;
 
-    # AGENTS first, then remaining stems in lexicographic order.
-    otherStems =
-      lib.sort (a: b: a < b)
-      (builtins.filter (s: s != "AGENTS") (lib.attrNames files));
+    # AGENTS first, then remaining stems in lexicographic order, which is the
+    # order `lib.attrNames` returns.
+    otherStems = builtins.filter (s: s != "AGENTS") (lib.attrNames files);
     order = ["AGENTS"] ++ otherStems;
 
     concatenated =

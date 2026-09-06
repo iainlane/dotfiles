@@ -4,8 +4,15 @@
 # skills published in external repositories and consumed as flake inputs,
 # and one skill per shared output style (see ./output-styles.nix), so the
 # user can adopt a style mid-session in any harness by invoking the skill
-# named after the style's stem. A profile adds skills of its own with
+# named after the style's stem. A feature adds skills of its own with
 # ordinary module merging.
+#
+# The shared instruction set (./agent-instructions.nix) and the parsed output
+# styles (./output-styles.nix) are supplied to the harness modules as the
+# module arguments `instructions` and `outputStyles`, beside `skillTree` and
+# `mcp`. System modules do not receive Home Manager module arguments, so
+# `claude-code/managed-settings-common.nix` imports `output-styles.nix`
+# directly.
 #
 # `skillTree` assembles a set of skills into one directory. The shared set
 # is linked into `~/.agents/skills`, the harness-neutral location. A harness
@@ -43,6 +50,8 @@
   external = {
     gh-stack = "${inputs.gh-stack-skill}/skills/gh-stack";
   };
+
+  instructions = import ./agent-instructions.nix {inherit lib;};
 
   outputStyles = import ./output-styles.nix {inherit lib;};
 
@@ -103,6 +112,6 @@ in {
       recursive = true;
     };
 
-    _module.args = {inherit skillTree;};
+    _module.args = {inherit instructions outputStyles skillTree;};
   };
 }

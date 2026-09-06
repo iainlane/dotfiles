@@ -2,13 +2,12 @@
 {
   config,
   inputs,
+  instructions,
   lib,
   mcp,
   system,
   ...
 }: let
-  instructions = import ../agent-instructions.nix {inherit lib;};
-
   # OpenCode's schema: `type` is remote/local, a local server's command and args
   # are a single list, and `env` becomes `environment`.
   mkMcpServer = server:

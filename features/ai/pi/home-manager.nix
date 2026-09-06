@@ -12,12 +12,12 @@
   config,
   defaultModels,
   inputs,
+  instructions,
   lib,
   mcp,
   system,
   ...
 }: let
-  instructions = import ../agent-instructions.nix {inherit lib;};
   # The extensions to install, each packaged under `pkgs/<name>/` and bumped by
   # `nix run .#update-<name>`.
   piExtensions = lib.genAttrs [

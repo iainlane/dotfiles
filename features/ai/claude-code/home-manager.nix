@@ -1,8 +1,10 @@
 {
   config,
   inputs,
+  instructions,
   lib,
   mcp,
+  outputStyles,
   pkgs,
   skillTree,
   system,
@@ -11,8 +13,7 @@
   # Claude Code receives the output styles natively (see `outputStyles`
   # below), so its instruction set leaves the default style's body out of
   # the rule files; the model would otherwise receive the same text twice.
-  instructions = (import ../agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
-  outputStyles = import ../output-styles.nix {inherit lib;};
+  claudeCodeInstructions = instructions.harnesses.claudeCode;
 
   # Claude Code's `.mcp.json` schema: `type` of http/stdio plus `enabled`.
   mkMcpServer = server:
@@ -61,7 +62,7 @@ in {
         (mcp.excludeServers config.dotfiles.claudeCode.excludeMcpServers config.dotfiles.ai.mcpServers);
 
       # Shared instructions as auto-loaded rule files.
-      rules = instructions.files;
+      rules = claudeCodeInstructions.files;
 
       # Shared output styles from ../output-style/.
       outputStyles = outputStyles.files;

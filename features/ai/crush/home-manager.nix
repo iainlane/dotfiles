@@ -3,13 +3,12 @@
   pkgs,
   config,
   inputs,
+  instructions,
   lib,
   mcp,
   system,
   ...
 }: let
-  instructions = import ../agent-instructions.nix {inherit lib;};
-
   # Crush selects its MCP transport from the required `type` field.
   mkMcpServer = server:
     server

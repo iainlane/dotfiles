@@ -13,14 +13,13 @@
 {
   config,
   inputs,
+  instructions,
   lib,
   mcp,
   pkgs,
   system,
   ...
 }: let
-  instructions = import ../agent-instructions.nix {inherit lib;};
-
   jsonFormat = pkgs.formats.json {};
 
   configDir = "opencode2";

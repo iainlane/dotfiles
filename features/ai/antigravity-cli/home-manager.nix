@@ -15,13 +15,12 @@
   config,
   defaultModels,
   inputs,
+  instructions,
   lib,
   mcp,
   system,
   ...
 }: let
-  instructions = import ../agent-instructions.nix {inherit lib;};
-
   # Wrap Antigravity CLI to add shared tools to PATH
   wrappedAntigravity = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.antigravity-cli;
