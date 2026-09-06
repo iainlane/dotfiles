@@ -37,11 +37,11 @@ in {
     # the whole USB major is allowed.
     podmanArgs = ["--device-cgroup-rule=c 189:* rwm"];
 
-    # readsb rewrites aircraft.json every second or so from whatever the SDR
-    # is hearing, and writes it even when the sky is empty, so its age is a
-    # reading of the whole chain: dongle open, decoding, web server serving.
-    # Reported through `notify`, the unit becomes active once that is true,
-    # and the relaying feeders wait for it.
+    # readsb rewrites aircraft.json every second or so from whatever the SDR is
+    # hearing, and writes it even when the sky is empty, so the file's age
+    # tests the whole chain: the dongle is open, decoding is running, and the
+    # web server is serving. `notify` holds the unit inactive until that check
+    # passes, and the relaying feeders wait for it.
     healthCmd = healthCheck;
     healthInterval = "30s";
     healthTimeout = "10s";
@@ -49,8 +49,8 @@ in {
 
     # Claiming the dongle and serving the first file takes about a second, so
     # the startup check polls quickly and hands over to the interval above on
-    # its first success. The retry count allows a minute, for a boot where USB
-    # enumeration is slower than a restart.
+    # its first success. The retry count allows a minute, which covers a boot
+    # in which USB enumeration is slower than it is after a restart.
     healthStartupCmd = healthCheck;
     healthStartupInterval = "2s";
     healthStartupTimeout = "10s";
@@ -89,7 +89,6 @@ in {
     ];
 
     volumes = quadlet.mounts [
-      # Bind-mount USB bus so re-enumerated device nodes remain visible.
       {
         source.bind = "/dev/bus/usb";
         target = "/dev/bus/usb";

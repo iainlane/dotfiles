@@ -3,7 +3,7 @@
 #
 # These run rootful. The feeders need the reverse proxy to resolve them by
 # container name, and a rootless bridge lives in a network namespace the host
-# cannot route into, so the whole stack sits on a rootful netavark bridge.
+# cannot route into, so the whole stack runs on a rootful netavark bridge.
 {config, ...}: {
   flake.features.adsb = {
     includes = [config.flake.features.containers];
@@ -25,14 +25,14 @@
 
       network = config.virtualisation.quadlet.networks.adsbnet.ref;
 
-      # Quadlet names a container's unit after its quadlet file, with no
+      # quadlet names a container's unit after its quadlet file, with no
       # prefix, so the relaying feeders order themselves against this.
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
-      # A page reaches the outside through the proxy alone. The host decides
-      # the public name and whether to require sign-in; the port each page is
-      # served on inside its container is ours to know.
+      # A page reaches the outside only through the proxy. The host sets the
+      # public name and whether to require sign-in; the port each page is
+      # served on inside its container is set here.
       served = expose: port: container:
         if expose != null && config.dotfiles.containers.edgeProxy.enable
         then name: exposePodman name container (expose // {inherit port;})
@@ -55,8 +55,8 @@
         envFile = feederEnvFile;
       };
 
-      # The ultrafeeder's own volumes carry the host name, so several feeders
-      # backed by one podman could coexist.
+      # The ultrafeeder's own volumes carry the host name, so more than one
+      # feeder could share a single podman installation.
       volumes = {
         globeHistory = "adsb-${hostConfig.hostname}-globe-history";
         graphs = "adsb-${hostConfig.hostname}-graphs1090";
@@ -66,8 +66,8 @@
 
       config = lib.mkMerge [
         {
-          # The DVB kernel drivers claim the SDR unless they are kept away
-          # from it.
+          # The DVB kernel drivers bind to the SDR if they are allowed to
+          # load, so they are blacklisted.
           #
           # `builtins.path` copies this one file to a store path of its own.
           # Using `./rtl-blacklist.conf` directly would refer to a path inside

@@ -14,9 +14,9 @@
         }
       '';
       description = ''
-        Serve ${subject} through the host's reverse proxy. Left null, the
-        container keeps to the feeder network, where only the containers
-        sharing it reach it.
+        Serve ${subject} through the host's reverse proxy. With this null, the
+        container stays on the feeder network, reachable only by the other
+        containers on it.
       '';
     };
 in {
@@ -26,8 +26,8 @@ in {
       default = "${hostConfig.name}/host-adsb.yaml";
       example = "ancaster/host-adsb.yaml";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        `latitude`, `longitude`, `altitude`, `piaware_feeder_id`,
+        Path, relative to the `secrets` flake input, of the sops file
+        containing `latitude`, `longitude`, `altitude`, `piaware_feeder_id`,
         `fr24_sharing_key` and `planewatch_api_key`. The feeders run as system
         services, so this file is encrypted to the host key.
       '';
