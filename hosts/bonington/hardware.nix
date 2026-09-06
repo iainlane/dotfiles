@@ -9,9 +9,10 @@
   ];
 
   boot = {
-    # Pin to 6.18 until CrowdStrike Falcon sensor supports kernel 6.19's
-    # sockaddr_unsized BPF type change (sensor 7.33 fails to load BPF probes
-    # due to BTF type mismatch: struct sockaddr * vs struct sockaddr_unsized *).
+    # Pin to 6.18 until the CrowdStrike Falcon sensor supports kernel 6.19's
+    # `sockaddr_unsized` BPF type change. Sensor 7.33 fails to load its BPF
+    # probes because the BTF types no longer match: it expects
+    # `struct sockaddr *` where the kernel now has `struct sockaddr_unsized *`.
     kernelPackages = lib.mkForce pkgs.linuxPackages_6_18;
 
     initrd.availableKernelModules = [
