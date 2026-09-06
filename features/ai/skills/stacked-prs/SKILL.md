@@ -1,8 +1,8 @@
 ---
 name: stacked-prs
 description: >-
-  Take a series of commits and create one PR per commit, with each depending on
-  the previous, to create a chain.
+  Turn a series of commits into a stack of pull requests, one per commit, each
+  based on the previous one.
 
 allowed-tools:
   - Bash(gh pr create --draft *)
