@@ -38,16 +38,17 @@ stdenvNoCC.mkDerivation {
       exit 1
     fi
 
-    cat > netrc <<EOF
-    machine api.github.com
-      login x-access-token
-      password $token
-    EOF
+    # Each curl invocation reads this on stdin, so the token is never written
+    # to a file in the build directory. curl drops an Authorization header set
+    # this way when a redirect leads to another host, so the asset download
+    # sends it to api.github.com only.
+    curl_config="header = \"Authorization: Bearer $token\""
 
     curlVersion=$(curl -V | head -1 | cut -d' ' -f2)
 
     curl=(
       curl
+      --config -
       --location
       --max-redirs 20
       --retry 3
@@ -56,7 +57,6 @@ stdenvNoCC.mkDerivation {
       --disable-epsv
       --cookie-jar cookies
       --user-agent "curl/$curlVersion Nixpkgs/$nixpkgsVersion"
-      --netrc-file "$PWD/netrc"
     )
 
     if ! [ -f "$SSL_CERT_FILE" ]; then
@@ -67,6 +67,7 @@ stdenvNoCC.mkDerivation {
     asset_url=$(
       "''${curl[@]}" -sf \
         "https://api.github.com/repos/$repo/releases/tags/$tag" \
+        <<<"$curl_config" \
       | jq -r \
         --arg name "$filename" \
         '.assets[] | select(.name == $name) | .url'
@@ -79,7 +80,7 @@ stdenvNoCC.mkDerivation {
 
     "''${curl[@]}" --fail \
       -H "Accept: application/octet-stream" \
-      "$asset_url" -o "$out"
+      "$asset_url" -o "$out" <<<"$curl_config"
   '';
 
   inherit repo tag filename;
