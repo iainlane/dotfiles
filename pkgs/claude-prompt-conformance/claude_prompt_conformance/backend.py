@@ -217,7 +217,7 @@ class CalibrationContext:
     retained: RetainedCalibration | None
 
     def holds_evidence(self, artefacts: Path) -> bool:
-        """Test whether one fixture attempt holds the evidence being reused."""
+        """Test whether one fixture attempt produced the evidence being reused."""
 
         retained = self.retained
         return retained is not None and retained.artefacts == artefacts.resolve()

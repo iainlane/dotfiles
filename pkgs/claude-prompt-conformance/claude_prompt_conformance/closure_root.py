@@ -38,7 +38,11 @@ class ClosureRootCreateError(ConformanceError):
 
 
 def runtime_directory(environment: Mapping[str, str]) -> Path:
-    """Return the session-scoped directory which holds closure root links."""
+    """Return the directory the closure-root links live in.
+
+    This is `XDG_RUNTIME_DIR`, or the per-user temporary directory when that
+    variable is unset.
+    """
 
     runtime = environment.get("XDG_RUNTIME_DIR")
     if runtime:

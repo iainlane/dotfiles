@@ -107,7 +107,7 @@ def parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="TAG",
-        help="run tests carrying a tag; may be repeated",
+        help="run tests with a tag; may be repeated",
     )
     result.add_argument(
         "--list",

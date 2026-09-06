@@ -168,7 +168,7 @@
     case.calibration;
     # The case, the task and the reference answers reach a run under names of
     # their own, so the fixture's source tree is whatever else the directory
-    # contains, and no file is carried and hashed twice.
+    # contains, and no file is copied and hashed twice.
     declared =
       ["case.json" "task.txt"]
       ++ map (candidate: candidate.response) case.calibration;

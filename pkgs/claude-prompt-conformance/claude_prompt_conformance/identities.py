@@ -225,7 +225,7 @@ class ClaudeFileCredentialStore:
         return ClaudeCredential.decode(value)
 
     def current(self) -> ClaudeCredential:
-        """Read the credential the host holds now."""
+        """Read the credential the host has stored now."""
 
         return self.load()
 

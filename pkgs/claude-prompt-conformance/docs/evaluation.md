@@ -50,7 +50,7 @@ first sample of every prompt evaluation. Further samples of the same evaluation
 use that evaluator configuration for independent blind judgements without
 repeating the reference calls, and a resumed run reloads the retained
 calibration without judging the references again. Calibration is a validity
-check, not model state carried between invocations.
+check, not model state retained between invocations.
 
 The reference subjects are opaque to the evaluator, so it must reach the
 expected decisions from the same evidence interface used for live work. Process
@@ -79,8 +79,8 @@ Versioned stores with a retained input snapshot are upgraded in place. Evidence
 from an older unversioned store is retained for inspection but rerun, because it
 cannot be bound to the complete fixture contract. Harness-only updates use the
 current executables without changing the retained prompt, fixtures, or other
-experiment inputs. `--unlink-first` removes only a directory carrying this
-suite's marker before starting again.
+experiment inputs. `--unlink-first` removes only a directory with this suite's
+marker before starting again.
 
 At startup the runner reads every immutable task, prompt, setting, schema,
 certificate, and prompt-variant source into memory, then writes a private

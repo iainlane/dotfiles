@@ -53,8 +53,8 @@ not produce, reject the draft on their own.
 
 Each `acceptance.json` records, for every fixture criterion, the pass counts on
 both sides, the net change, and whether the criterion was already unstable on
-the current prompt, so a result carried by a flaky criterion stays visible.
-`improvement-summary.json` carries the same evidence for every draft and names
+the current prompt, so a result produced by a flaky criterion stays visible.
+`improvement-summary.json` records the same evidence for every draft and names
 the winner.
 
 Flaky verification gates (see [evaluation.md]) are excluded from the acceptance

@@ -25,7 +25,7 @@ class CodexRpcInitializeParameters(msgspec.Struct, frozen=True, rename="camel"):
 
 
 class CodexRpcRequest(msgspec.Struct, frozen=True):
-    """JSON-RPC request carrying typed method parameters."""
+    """JSON-RPC request with typed method parameters."""
 
     id: int
     method: str
@@ -40,7 +40,7 @@ class CodexRpcParameterlessRequest(msgspec.Struct, frozen=True):
 
 
 class CodexRpcNotification(msgspec.Struct, frozen=True):
-    """JSON-RPC notification carrying typed method parameters."""
+    """JSON-RPC notification with typed method parameters."""
 
     method: str
     params: object

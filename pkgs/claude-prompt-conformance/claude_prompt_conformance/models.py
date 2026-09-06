@@ -484,7 +484,12 @@ class PromptProposal:
         self.validate()
 
     def validate(self) -> None:
-        """Reject a proposal that does not carry a complete improvement theory."""
+        """Reject an incomplete proposal, or a patch that contradicts `no_change`.
+
+        A title, observations and reasoning are always required, and a change
+        description whenever the proposal is not `no_change`. A `no_change`
+        proposal must have no patch, and every other proposal must have one.
+        """
 
         if self.no_change and self.patch:
             raise NoChangeProposalHasPatchError

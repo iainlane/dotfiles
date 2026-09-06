@@ -4,8 +4,8 @@
   managedSettings,
   pkgs,
 }: let
-  # The instruction set carries file contents; the contexts below link real
-  # files, so write each rule back out as one.
+  # The instruction set gives each rule as text; the contexts below link
+  # real files, so write each rule back out as one.
   ruleFiles =
     lib.mapAttrs
     (name: content: pkgs.writeText "${name}.md" content)

@@ -931,7 +931,7 @@ def validate_proposal(proposal: PromptProposal) -> None:
 
 
 def usable_proposal(proposal: PromptProposal) -> bool:
-    """Report whether a retained proposal still carries an applicable patch."""
+    """Report whether a retained proposal's patch still passes validation."""
 
     try:
         validate_proposal(proposal)
@@ -1033,12 +1033,12 @@ def compare_results(
 ) -> AcceptanceReport:
     """Accept a prompt that improves a criterion decisively or clears every gate.
 
-    A criterion passing in at least three more samples counts as a real
-    effect, and so does a run whose gate failures all disappear. A single lost
-    sample is treated as noise. A criterion passing in two or more fewer
-    samples rejects the prompt, so a proposal cannot buy one decisive gain
-    with a broad, shallow decline. Incomplete evidence and a gate failure the
-    baseline did not have also reject the prompt.
+    Improvement requires at least three additional passes on one criterion,
+    or the removal of all gate failures from the current prompt. In either
+    case, losing two or more passes on any criterion rejects the proposal.
+    One lost pass per criterion is tolerated as noise. Incomplete proposed
+    evidence also rejects the proposal, as do gate failures when the current
+    prompt had none.
     """
 
     comparisons = criterion_comparisons(current, proposed)

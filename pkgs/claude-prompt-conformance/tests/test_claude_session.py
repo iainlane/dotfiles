@@ -438,7 +438,7 @@ def test_claude_sdk_session_rejects_an_invalid_record() -> None:
 
 
 def test_claude_sdk_session_records_a_permission_denial_without_aborting() -> None:
-    """A denial record carries a string message, unlike conversation records."""
+    """A denial record has a string message, unlike conversation records."""
 
     activity = RecordingActivity()
     session = ClaudeSdkSession(

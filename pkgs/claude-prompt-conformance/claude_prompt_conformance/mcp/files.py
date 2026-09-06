@@ -27,11 +27,12 @@ class McpDocumentReadError(ConformanceError):
 
 
 def read_text(path: Path) -> str:
-    """Read an evidence document, retaining its typed failure cause.
+    """Read an evidence document, replacing bytes that are not valid UTF-8.
 
-    A candidate's diff can carry any byte a file in its checkout carries, so
+    A candidate's diff can contain bytes from any file in its checkout, so
     undecodable bytes become replacement characters here as they do in
-    `search_workspace`, and only the read itself can fail.
+    `search_workspace`. Only the read itself can then fail, as
+    `McpDocumentReadError`.
     """
 
     try:

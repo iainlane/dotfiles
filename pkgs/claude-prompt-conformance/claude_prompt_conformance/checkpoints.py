@@ -124,7 +124,7 @@ class StoredTestResult:
 
 @dataclass(frozen=True)
 class StoredCalibration:
-    """Reference judgements plus the identity which produced and supports them.
+    """Cached reference judgements, their configuration identity and evidence.
 
     An arm is one prompt's evaluation within an improvement run. All arms of a
     run share one run store and its reference judgements. The `artefacts` field
@@ -733,13 +733,13 @@ def calibration_verdicts(
 def judge_identity(run_metadata: Path) -> str:
     """Identify the judge whose verdicts a retained calibration represents.
 
-    Every member of the run-metadata document is hashed except the candidate
-    prompt. The document carries the judge's model, effort and client version,
-    so a calibration is only ever reused by the judge which produced it, while
-    the arms of one improvement run, which differ in nothing but the prompt the
-    candidate is given, share one set of reference judgements: those subjects
-    are fixed repository revisions prepared without the candidate, and the
-    fixture declares the verdicts they must reach.
+    Hash every member of the run-metadata document except the candidate
+    prompt. The document records the judge's model, effort and client version,
+    so a calibration is only ever reused by the judge which produced it. The
+    arms of one improvement run differ in nothing but the candidate prompt, so
+    they share one set of reference judgements. The reference subjects are
+    fixed repository revisions prepared without the candidate, and each
+    fixture declares the expected verdicts.
     """
 
     try:

@@ -1267,7 +1267,7 @@ def arm_summary(
     arm: Arm,
     sample: int,
 ) -> RunSummary:
-    """Build one sample in which the earliest samples carry the passes."""
+    """Build one sample, passing the fixtures whose pass count covers it."""
 
     runs = tuple(
         arm_run(
@@ -1293,7 +1293,7 @@ def arm_run(
     criterion_passed: bool,
     gate: GateOutcome,
 ) -> FixtureRun:
-    """Build one fixture outcome carrying a criterion verdict and gate result."""
+    """Build one fixture outcome with a criterion verdict and a gate result."""
 
     artefacts.mkdir(parents=True)
     result = Result(

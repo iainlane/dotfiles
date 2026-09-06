@@ -369,11 +369,11 @@ class _ManagedProcess:
 
     @property
     def group(self) -> int:
-        """Return the process group that carries the command being run."""
+        """Return the process group the command being run belongs to."""
 
         # A sandbox that starts its own session leaves the outer group holding
         # nothing but the sandbox program, so signals sent there never reach
-        # the command; the group the sandbox reports holds the command itself.
+        # the command; the group the sandbox reports contains the command itself.
         if self.sandbox_group is None:
             return self.process.pid
         return self.sandbox_group
@@ -414,7 +414,7 @@ class _SandboxInfo(msgspec.Struct, rename={"child_pid": "child-pid"}):
 
 @dataclass(eq=False)
 class SandboxInfoPipe:
-    """Carry a sandbox's information document back to the supervisor."""
+    """Pass a sandbox's information document back to the supervisor."""
 
     read_descriptor: int
     write_descriptor: int
@@ -547,10 +547,12 @@ class _OutputBuffer:
 
 @dataclass
 class _OutputChannel:
-    """Carry one output record at a time between a producer and a consumer.
+    """Pass one output record at a time between a producer and a consumer.
 
-    The producer blocks until the record is taken, and closing the channel
-    wakes a blocked wait through the wakeup descriptor.
+    The channel buffers a single record, so a producer sending another one
+    waits until the consumer has taken the previous record. Stopping the
+    channel wakes any blocked wait and signals the output reader through the
+    wakeup descriptor.
     """
 
     command: tuple[str, ...]
@@ -1456,7 +1458,7 @@ class ProcessSupervisor:
         for managed in processes:
             managed.finished.wait(timeout=max(0.0, deadline - time.monotonic()))
             while ProcessSupervisor._group_is_running(managed):
-                # The leader has gone but a descendant holds the group open, so
+                # The leader has gone but a descendant keeps the group open, so
                 # poll instead of spending the whole window on one observation.
                 step = min(_STOP_POLL_SECONDS, deadline - time.monotonic())
                 if step <= 0:

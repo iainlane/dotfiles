@@ -29,7 +29,7 @@ class ClaudeEvent(msgspec.Struct, frozen=True):
     errors: tuple[str, ...] = ()
     terminal_reason: str | None = None
     # A system record's message is human-readable text; conversation records
-    # carry content blocks.
+    # contain content blocks.
     message: ClaudeMessage | str | None = None
 
 

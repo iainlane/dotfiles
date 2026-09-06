@@ -136,9 +136,9 @@ class CodexConfigurationSession:
         if envelope.id is None:
             return ProcessExchange()
         if envelope.method is not None:
-            # A record carrying both an id and a method is app-server asking
-            # the client something, not answering it. Reject it before the id
-            # check, which reports an id collision as the wrong record.
+            # A record with both an id and a method is a request from the app
+            # server, not a response. Reject it before the id comparison, so
+            # an id collision is not reported as an unexpected response.
             raise CodexConfigurationProbeServerRequestError(envelope.method)
         if envelope.id != self._expected_request_id:
             raise CodexConfigurationProbeUnexpectedResponseError(
