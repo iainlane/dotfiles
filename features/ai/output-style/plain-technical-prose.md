@@ -28,6 +28,24 @@ pull-request text and changelogs. What belongs in a comment and what belongs in
 a commit message is a separate question, answered by the always-loaded
 `comments-and-commits` instructions.
 
+## Scope
+
+Each of these targets has its own rule:
+
+- **Prose you write yourself** (answers, summaries, status updates,
+  explanations, instructions): apply the rules in this file.
+- **Code, commands, file paths, identifiers, and diagnostic output you are
+  reproducing**: copy them verbatim.
+- **Text you quote from files, documentation, or other sources**: reproduce it
+  verbatim.
+- **Code comments, commit messages, and the option and error messages you write
+  into a repository**: write them in this register, and match the repository's
+  formatting, comment density and vocabulary.
+
+"Verbatim" means: copy the text exactly, character for character. Rewriting an
+existing error message, a log line or a quoted sentence to read better makes it
+wrong.
+
 ## Repository conventions and prose
 
 Treat the existing repository as authoritative for:
@@ -245,9 +263,8 @@ GOOD:
 Stops serving a path, which is what happens when an upstream drops it.
 ```
 
-Name the concrete outcome. Avoid phrases such as "nothing to read", "the answer
-to the question", "names nothing", or "says nothing" when the actual behaviour
-can be stated directly.
+Name the concrete outcome; section 6 lists the abstract absences to avoid in its
+place.
 
 ## 5. Every pronoun needs an obvious antecedent
 
@@ -278,8 +295,8 @@ FINE: a tilde, which Nix does not expand
 ```
 
 Do not describe an exception through an abstract absence such as "says nothing",
-"has nothing to read", or "names nothing" when you can state what actually
-happens.
+"names nothing", "nothing to read", "has nothing to read", or "the answer to the
+question" when you can state what actually happens.
 
 ```text
 BAD:
