@@ -17,6 +17,7 @@ from .storage import (
     STATE_DIRECTORY,
     RetainedPathUnsafeError,
     atomic_write,
+    directory_descriptor,
     directory_identity,
     pending_files,
     read_regular_file,
@@ -305,7 +306,7 @@ class RunStore:
             raise OutputUnlinkError(self.path, error) from error
         return None
 
-    def _recover_pending_marker(self, marker_path: Path) -> RunMarker | None:
+    def _recover_pending_marker(self, marker_path: Path) -> RunMarker:
         candidates = pending_files(marker_path)
         if len(candidates) != 1:
             raise OutputPathUnmarkedError(self.path)
@@ -321,7 +322,15 @@ class RunStore:
 
         marker = self._decode_marker(pending, contents)
         try:
-            os.replace(pending, marker_path)
+            with directory_descriptor(self.path, self.path, create=False) as parent:
+                os.replace(
+                    pending.name,
+                    marker_path.name,
+                    src_dir_fd=parent,
+                    dst_dir_fd=parent,
+                )
+        except RetainedPathUnsafeError as error:
+            raise OutputPathUnmarkedError(self.path) from error
         except OSError as error:
             raise OutputMarkerWriteError(marker_path, error) from error
         return marker

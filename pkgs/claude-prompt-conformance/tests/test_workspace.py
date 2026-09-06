@@ -250,6 +250,22 @@ def test_untracked_evidence_reports_patch_open_failures(tmp_path: Path) -> None:
     )
 
 
+def test_overlay_excludes_every_path_it_installed(tmp_path: Path) -> None:
+    source = tmp_path / "overlay"
+    rule = source / ".claude" / "rules" / "global.md"
+    rule.parent.mkdir(parents=True)
+    rule.write_text("Rule.\n")
+    (source / "AGENTS.md").write_text("Agents.\n")
+    workspace = tmp_path / "workspace"
+    exclude = workspace / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True)
+    exclude.write_text("*.orig\n")
+
+    LinkedWorkspaceOverlay(source).install(workspace)
+
+    assert exclude.read_text() == "*.orig\n\n/.claude/\n/AGENTS.md\n"
+
+
 def test_overlay_rejects_repository_controlled_parent_symlinks(
     tmp_path: Path,
 ) -> None:

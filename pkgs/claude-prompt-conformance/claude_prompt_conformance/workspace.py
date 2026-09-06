@@ -244,6 +244,11 @@ class GitRepositoryMaterialiser:
             ("init", "--quiet"),
             ("remote", "add", "origin", repository.url),
             ("fetch", "--quiet", "--depth=2", "origin", repository.revision),
+            *(
+                (("fetch", "--quiet", "--depth=1", "origin", comparison_revision),)
+                if comparison_revision != repository.revision
+                else ()
+            ),
             (
                 "checkout",
                 "--quiet",
@@ -258,12 +263,6 @@ class GitRepositoryMaterialiser:
             ("config", "core.hooksPath", str(hooks)),
             ("config", "credential.helper", ""),
         )
-        if comparison_revision != repository.revision:
-            commands = (
-                commands[:3]
-                + (("fetch", "--quiet", "--depth=1", "origin", comparison_revision),)
-                + commands[3:]
-            )
         for index, arguments in enumerate(commands):
             invocation = ProcessInvocation(
                 command=(self._git_program, "-C", str(destination), *arguments),
@@ -294,6 +293,7 @@ class LinkedWorkspaceOverlay:
         self._source = source
 
     def install(self, workspace: Path) -> None:
+        installed: set[str] = set()
         for source in self._source.rglob("*"):
             if source.is_dir():
                 continue
@@ -303,9 +303,12 @@ class LinkedWorkspaceOverlay:
             if destination.exists() or destination.is_symlink():
                 raise WorkspaceOverlayDestinationError(destination)
             destination.symlink_to(source)
+            root, *nested = relative.parts
+            installed.add(f"/{root}/" if nested else f"/{root}")
+
         exclude = workspace / ".git" / "info" / "exclude"
         with exclude.open("a") as file:
-            file.write("\n/.claude/\n")
+            file.write("\n" + "\n".join(sorted(installed)) + "\n")
 
 
 def ensure_overlay_parent(workspace: Path, parent: Path) -> None:
