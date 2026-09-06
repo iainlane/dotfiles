@@ -8,10 +8,6 @@
 in {
   dotfiles.nix.binaryCaches."${nixbuild.builderAlias}" = nixbuild.binaryCaches."${nixbuild.builderAlias}";
 
-  nix.settings = {
-    builders-use-substitutes = true;
-  };
-
   sops = {
     defaultSopsFile = inputs.secrets + "/nixbuild.yaml";
     secrets = {
