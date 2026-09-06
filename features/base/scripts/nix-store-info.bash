@@ -342,7 +342,7 @@ cmd_tree() {
 	echo -e "${BOLD}Dependency tree for:${NC} ${path}"
 	echo
 
-	nix path-info --recursive "${path}" 2>/dev/null | head -50
+	nix-store --query --tree "${path}"
 }
 
 cmd_gc_preview() {
