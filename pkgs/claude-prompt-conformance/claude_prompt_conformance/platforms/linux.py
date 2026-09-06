@@ -1,16 +1,34 @@
 """Linux process isolation implemented with Bubblewrap."""
 
+from dataclasses import dataclass
 from pathlib import Path
 
+from ..errors import ConformanceError
 from ..models import NetworkAccess, ProcessInvocation, ProcessResult
-from ..ports import ProcessSession
-from ..process import ProcessSupervisor, SandboxInfoPipe
+from ..ports import IsolatedChildProcesses, ProcessSession
+from ..process import SandboxInfoPipe
+
+
+@dataclass(eq=True)
+class IsolationEmptyFileWriteError(ConformanceError):
+    destination: Path
+    cause: OSError
+
+    def __str__(self) -> str:
+        return (
+            f"could not write the empty file {self.destination} used to hide "
+            f"regular files: {self.cause}"
+        )
 
 
 class LinuxProcessRunner:
     """Map process capabilities to Bubblewrap arguments and execute them."""
 
-    def __init__(self, bubblewrap_program: str, processes: ProcessSupervisor) -> None:
+    def __init__(
+        self,
+        bubblewrap_program: str,
+        processes: IsolatedChildProcesses,
+    ) -> None:
         self._bubblewrap_program = bubblewrap_program
         self._processes = processes
 
@@ -46,13 +64,27 @@ class LinuxProcessRunner:
             self._bubblewrap_program,
             invocation,
             sandbox.write_descriptor,
+            self._empty_file(invocation),
         )
+
+    def _empty_file(self, invocation: ProcessInvocation) -> Path:
+        """Create the file bound over each hidden regular file."""
+
+        empty = invocation.stdout.with_suffix(".hidden")
+        try:
+            empty.parent.mkdir(parents=True, exist_ok=True)
+            empty.write_bytes(b"")
+        except OSError as error:
+            raise IsolationEmptyFileWriteError(empty, error) from error
+
+        return empty
 
 
 def bubblewrap_command(
     bubblewrap_program: str,
     invocation: ProcessInvocation,
     info_descriptor: int,
+    empty_file: Path,
 ) -> tuple[str, ...]:
     system_paths = tuple(
         Path(path)
@@ -122,12 +154,21 @@ def bubblewrap_command(
         command.extend(("--bind", str(path), str(path)))
     for source, destination in unix_sockets:
         command.extend(("--ro-bind", str(source), str(destination)))
-    # Bwrap processes bind operations in argument order, so mounting an empty
-    # tmpfs over each hidden path after every other bind above shadows it,
-    # even when it is nested inside a writable or readable path.
+    # Bwrap processes bind operations in argument order, so shadowing each
+    # hidden path after every other bind above hides it even when it is nested
+    # inside a writable or readable path. A tmpfs can only be mounted on a
+    # directory, so a hidden regular file gets an empty read-only bind.
     for path in hidden_paths:
+        if path.is_file():
+            command.extend(("--ro-bind", str(empty_file), str(path)))
+            continue
+
         command.extend(("--tmpfs", str(path)))
     if invocation.capabilities.network is NetworkAccess.NONE:
         command.append("--unshare-net")
-    command.extend(("--chdir", str(invocation.cwd), "--", *invocation.command))
+    # Resolve the working directory to match the bind paths above. A symlink
+    # in the unresolved path may not exist inside the sandbox.
+    command.extend(
+        ("--chdir", str(invocation.cwd.resolve()), "--", *invocation.command)
+    )
     return tuple(command)

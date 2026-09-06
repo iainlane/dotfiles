@@ -1,14 +1,13 @@
 """Unconfined process execution for hermetic adapter tests."""
 
 from ..models import ProcessInvocation, ProcessResult
-from ..ports import ProcessSession
-from ..process import ProcessSupervisor
+from ..ports import IsolatedChildProcesses, ProcessSession
 
 
 class DirectProcessRunner:
     """Execute an invocation directly inside an already-hermetic test process."""
 
-    def __init__(self, processes: ProcessSupervisor) -> None:
+    def __init__(self, processes: IsolatedChildProcesses) -> None:
         self._processes = processes
 
     def run(self, invocation: ProcessInvocation) -> ProcessResult:

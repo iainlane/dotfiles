@@ -4,7 +4,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
 from types import TracebackType
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from .credentials import ClaudeCredential
 from .models import (
@@ -34,6 +34,11 @@ from .models import (
 )
 from .protocols.claude import ClaudeOAuth
 from .protocols.codex_auth import CodexAccessCredential
+
+if TYPE_CHECKING:
+    # process.py imports this module, so importing SandboxInfoPipe from it at
+    # run time would be a cycle.
+    from .process import SandboxInfoPipe
 
 
 class EventSink(Protocol):
@@ -73,12 +78,18 @@ class ProcessController(Protocol):
 
 
 class IsolatedChildProcesses(Protocol):
-    """Execute the isolated command an isolation backend has assembled."""
+    """Execute the isolated command an isolation backend has assembled.
+
+    A backend can pass the pipe on which its sandbox reports the process group
+    it created. The supervisor reads the group identifier from that pipe and
+    uses it to signal the sandboxed processes.
+    """
 
     def run(
         self,
         invocation: ProcessInvocation,
         command: tuple[str, ...],
+        sandbox: "SandboxInfoPipe | None" = None,
     ) -> ProcessResult: ...
 
     def run_interactive(
@@ -86,6 +97,7 @@ class IsolatedChildProcesses(Protocol):
         invocation: ProcessInvocation,
         command: tuple[str, ...],
         session: ProcessSession,
+        sandbox: "SandboxInfoPipe | None" = None,
     ) -> ProcessResult: ...
 
 

@@ -800,7 +800,7 @@ class ProcessSupervisor:
                 try:
                     process = subprocess.Popen(
                         command,
-                        cwd=invocation.cwd,
+                        cwd=invocation.cwd.resolve(),
                         env=environment,
                         stdin=stdin,
                         stdout=process_stdout,

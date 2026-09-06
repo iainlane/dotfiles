@@ -106,6 +106,7 @@ class TlsProbeResult(msgspec.Struct, frozen=True, forbid_unknown_fields=True):
 
 
 INFO_DESCRIPTOR = 9
+EMPTY_FILE = Path("/run/conformance/empty")
 
 
 def invocation(
@@ -405,7 +406,10 @@ class FakeProcesses:
     )
 
     def run(
-        self, invocation: ProcessInvocation, command: tuple[str, ...]
+        self,
+        invocation: ProcessInvocation,
+        command: tuple[str, ...],
+        sandbox: SandboxInfoPipe | None = None,
     ) -> ProcessResult:
         self.invocations.append((invocation, command))
         return ProcessResult(0)
@@ -415,6 +419,7 @@ class FakeProcesses:
         invocation: ProcessInvocation,
         command: tuple[str, ...],
         session: ProcessSession,
+        sandbox: SandboxInfoPipe | None = None,
     ) -> ProcessResult:
         self.invocations.append((invocation, command))
         return ProcessResult(0)
@@ -845,7 +850,12 @@ def test_linux_backend_maps_capabilities_to_bubblewrap_arguments(
     tmp_path: Path,
 ) -> None:
     process = invocation(tmp_path, NetworkAccess.NONE)
-    command = bubblewrap_command("/bin/bwrap", process, INFO_DESCRIPTOR)
+    command = bubblewrap_command(
+        "/bin/bwrap",
+        process,
+        INFO_DESCRIPTOR,
+        EMPTY_FILE,
+    )
     system_paths = (
         "/bin",
         "/etc/group",
@@ -907,7 +917,12 @@ def test_linux_backend_hides_a_path_nested_inside_a_writable_path(
     hidden = tmp_path / "writable" / "secret"
     process = invocation(tmp_path, NetworkAccess.NONE, hidden_paths=(hidden,))
 
-    command = bubblewrap_command("/bin/bwrap", process, INFO_DESCRIPTOR)
+    command = bubblewrap_command(
+        "/bin/bwrap",
+        process,
+        INFO_DESCRIPTOR,
+        EMPTY_FILE,
+    )
 
     system_paths = (
         "/bin",
@@ -960,6 +975,86 @@ def test_linux_backend_hides_a_path_nested_inside_a_writable_path(
         "--unshare-net",
         "--chdir",
         str(tmp_path),
+        "--",
+        "tool",
+        "argument",
+    )
+
+
+@pytest.mark.parametrize(
+    "directory",
+    [True, False],
+    ids=["directory", "regular-file"],
+)
+def test_linux_backend_shadows_a_hidden_path_by_its_kind(
+    tmp_path: Path,
+    directory: bool,
+) -> None:
+    hidden = tmp_path / "writable" / "secret"
+    process = invocation(tmp_path, NetworkAccess.NONE, hidden_paths=(hidden,))
+    if directory:
+        hidden.mkdir()
+    else:
+        hidden.write_text("secret\n")
+
+    command = bubblewrap_command(
+        "/bin/bwrap",
+        process,
+        INFO_DESCRIPTOR,
+        EMPTY_FILE,
+    )
+
+    start = command.index(str(tmp_path / "socket")) + 1
+    assert command[start : command.index("--unshare-net")] == (
+        ("--tmpfs", str(hidden))
+        if directory
+        else ("--ro-bind", str(EMPTY_FILE), str(hidden))
+    )
+
+
+@pytest.mark.parametrize(
+    "directory",
+    [True, False],
+    ids=["directory", "regular-file"],
+)
+def test_darwin_backend_denies_a_hidden_path_by_its_kind(
+    tmp_path: Path,
+    directory: bool,
+) -> None:
+    hidden = tmp_path / "writable" / "secret"
+    process = invocation(tmp_path, NetworkAccess.NONE, hidden_paths=(hidden,))
+    if directory:
+        hidden.mkdir()
+    else:
+        hidden.write_text("secret\n")
+
+    profile = seatbelt_profile(process)
+
+    matcher = "subpath" if directory else "literal"
+    assert tuple(
+        line for line in profile.splitlines() if line.endswith(f'"{hidden}"))')
+    ) == (
+        f'(deny file-read* ({matcher} "{hidden}"))',
+        f'(deny file-write* ({matcher} "{hidden}"))',
+    )
+
+
+def test_linux_backend_enters_the_resolved_working_directory(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(root)
+    process = replace(invocation(tmp_path, NetworkAccess.NONE), cwd=link)
+
+    command = bubblewrap_command(
+        "/bin/bwrap",
+        process,
+        INFO_DESCRIPTOR,
+        EMPTY_FILE,
+    )
+
+    assert command[command.index("--chdir") + 1 :] == (
+        str(root),
         "--",
         "tool",
         "argument",

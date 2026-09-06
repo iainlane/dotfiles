@@ -444,7 +444,7 @@ def sbpl_string(value: str) -> str:
 
     SBPL reads `\\` and `"` as escapes inside a string and every other byte as
     itself, so a JSON encoder's `\\uXXXX` form for a non-ASCII path produces a
-    rule that matches nothing.
+    rule that does not match the intended path.
     """
 
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
@@ -496,12 +496,15 @@ def seatbelt_profile(invocation: ProcessInvocation) -> str:
     )
     # Hidden paths must be denied after every read/write allow above so a
     # hidden path nested inside a writable or readable path stays hidden.
+    # `subpath` matches a directory and its contents; a regular file needs the
+    # `literal` matcher the writable-file rules above use.
     rules.extend(
         rule
         for path in capabilities.hidden_paths
+        for matcher in ("literal" if path.is_file() else "subpath",)
         for rule in (
-            f"(deny file-read* (subpath {sbpl_string(str(path.resolve()))}))",
-            f"(deny file-write* (subpath {sbpl_string(str(path.resolve()))}))",
+            f"(deny file-read* ({matcher} {sbpl_string(str(path.resolve()))}))",
+            f"(deny file-write* ({matcher} {sbpl_string(str(path.resolve()))}))",
         )
     )
     if capabilities.network is NetworkAccess.NONE:
