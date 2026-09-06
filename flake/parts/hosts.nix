@@ -138,12 +138,12 @@
       timezone = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Timezone in TZ format, e.g. 'Europe/London'. Only the NixOS adapter reads it. Set it to null to leave the timezone to `systemd-timedated`.";
+        description = "Timezone in TZ format, e.g. 'Europe/London'. NixOS sets `time.timeZone`, nix-darwin runs `systemsetup -settimezone`, and a system-manager host gets /etc/localtime pointed at the zone. Set it to null to leave the timezone unmanaged by this configuration.";
       };
       locale = lib.mkOption {
         type = lib.types.str;
         default = "en_GB.UTF-8";
-        description = "The default locale, as `i18n.defaultLocale`. Only the NixOS adapter reads it.";
+        description = "The default locale. NixOS sets `i18n.defaultLocale`; the other two operating systems have no equivalent setting, so they export it as `LANG` in the system environment.";
       };
       motd = lib.mkOption {
         type = lib.types.str;

@@ -36,7 +36,24 @@
     nix.enable = false;
 
     environment = {
+      # system-manager has no `i18n.defaultLocale`. `LANG` goes into
+      # /etc/profile.d and /etc/environment.d, which system-manager writes from
+      # this option, so login shells and user services use the locale the host
+      # record specifies. The distribution keeps its own locale in
+      # /etc/default/locale and system-manager does not own that file.
+      variables.LANG = hostConfig.locale;
+
       etc = {
+        # system-manager has no `time.timeZone` either. /etc/localtime is what
+        # glibc reads for the machine's timezone, and is the same symlink
+        # `timedatectl set-timezone` writes, so the record's zone is applied by
+        # pointing it at the zoneinfo file. The distribution's own /etc/localtime
+        # is backed up and restored when system-manager is deactivated.
+        localtime = lib.mkIf (hostConfig.timezone != null) {
+          source = "${pkgs.tzdata}/share/zoneinfo/${hostConfig.timezone}";
+          replaceExisting = true;
+        };
+
         "apparmor.d/nix-chrome".text = ''
           abi <abi/4.0>,
           include <tunables/global>
