@@ -41,8 +41,8 @@
     };
   };
 
-  mkShell = pkgs: os: def: let
-    langShell = mkLanguageShell pkgs os (def.languages or []);
+  mkShell = pkgs: kernel: def: let
+    langShell = mkLanguageShell pkgs kernel (def.languages or []);
     extra = (def.extraPackages or (_: [])) pkgs;
   in
     pkgs.mkShellNoCC (langShell
