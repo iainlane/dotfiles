@@ -2,7 +2,7 @@
 
 Guidance specific to the Claude Code harness.
 
-## Waiting for background work
+## Waiting for Background Work
 
 - The harness waits for tools natively. Do not write `sleep` or `while` polling
   loops to watch for a background process exiting. Instead:
@@ -12,7 +12,7 @@ Guidance specific to the Claude Code harness.
   - Use `Monitor` to stream events from a long-running process, such as watching
     a log file for errors or readiness markers.
 
-## Command output
+## Command Output
 
 - Run commands bare and read their full output. Never truncate it: no `tail`,
   `head`, `grep -m` or similar to cut a command's output down to a length you
