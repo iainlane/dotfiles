@@ -1,9 +1,9 @@
 #!/usr/bin/env just --justfile
 # Nix dotfiles management commands
 
-# `gh auth token` prints nothing when nobody is logged in, and `just` exports an
-# exported variable whatever its value, so unset an empty GITHUB_TOKEN here and
-# leave the environment as the caller had it.
+# `gh auth token` prints nothing when nobody is logged in, and `just` still
+# exports GITHUB_TOKEN with that empty value. The shell prefix below unsets
+# it before each linewise recipe runs.
 set shell := ["bash", "-c", "ulimit -n 4096; set -euo pipefail; [ -n \"${GITHUB_TOKEN:-}\" ] || unset GITHUB_TOKEN; eval \"$1\"", "-"]
 
 # GitHub token for private repo access (appended to NIX_CONFIG for all recipes)

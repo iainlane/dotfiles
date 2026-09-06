@@ -124,7 +124,7 @@
       });
     }
     {
-      name = "every kind of named volume without idmap is reported under an auto user namespace";
+      name = "both kinds of named volume without idmap are reported under an auto user namespace";
       pass =
         quadlet.autoUsernsVolumesWithoutIdmap {
           dex.containerConfig = {

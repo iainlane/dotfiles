@@ -3,7 +3,7 @@
 #
 # A feature carries a module, or a list of modules, for each of NixOS,
 # nix-darwin, system-manager and Home Manager, a `system` module for whichever
-# of the three system classes builds the host, and a list of features it
+# of those module systems builds the host, and a list of features it
 # includes. `closure` expands the includes into an ordered list, which contains
 # the features it was given as well as the ones they reach, and `modulesFor`
 # reads one class of module from that list.
