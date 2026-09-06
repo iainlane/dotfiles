@@ -9,7 +9,7 @@ in {
   flake.features.home = {
     includes = [features.ai.provides.cloudflare-mcp features.git];
 
-    os."generic-linux".includes = [children.debian];
+    os.generic-linux.includes = [children.debian];
 
     homeManager = ./home-manager.nix;
   };
