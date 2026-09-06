@@ -9,9 +9,9 @@
   inherit (import ./sops.nix {inherit inputs lib;}) mkHomeSopsModule;
   inherit (import ./channels.nix {inherit inputs;}) channelFor;
 
-  # The unstable home-manager program modules grafted on by
-  # features/ai/unstable-hm-modules.nix are written against unstable's
-  # `lib.hm`, which carries helpers (such as
+  # The unstable home-manager modules grafted on by
+  # features/ai/unstable-hm-modules.nix and features/desktop/voxtype are
+  # written against unstable's `lib.hm`, which has helpers (such as
   # `generators.mkDAGOrderedJsonFormat`) that the stable channel's `lib.hm`
   # does not yet have. Build an extended lib whose `lib.hm` comes from
   # unstable and hand it to the home-manager modules on stable hosts through
