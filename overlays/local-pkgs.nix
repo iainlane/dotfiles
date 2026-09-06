@@ -8,21 +8,14 @@
   names = discovery.discoverPackages pkgsDir;
 in
   final: _prev: let
-    # `melange` pins a newer upstream than nixpkgs-stable carries and must be
-    # built against the unstable `melange` derivation regardless of which
-    # channel a host consumes. Everything else can callPackage unconditionally.
-    nixpkgsUnstable = import inputs.nixpkgs {
-      inherit (final.stdenv.hostPlatform) system;
-      config.allowUnfree = true;
-    };
-    extraArgs = name:
-      if name == "melange"
-      then {inherit (nixpkgsUnstable) melange;}
-      else if name == "claude-prompt-conformance"
-      then {
-        inherit inputs;
-        pkgs = final;
-      }
+    # A package can declare additional `callPackage` arguments in
+    # `pkgs/<name>/args.nix`. That file takes `{inputs, final}` and returns the
+    # arguments the package set cannot supply.
+    extraArgs = name: let
+      argsFile = pkgsDir + "/${name}/args.nix";
+    in
+      if builtins.pathExists argsFile
+      then import argsFile {inherit final inputs;}
       else {};
   in
     {
