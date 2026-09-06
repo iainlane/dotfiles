@@ -9,7 +9,7 @@
 # `generate-host-keys` registers the matching public key with GitHub once the
 # secrets repository has been pushed.
 #
-# Usage: generate-user-secrets <host> <secrets_dir> <keys_dir>
+# Usage: generate-user-secrets <host> <keys_dir> <secrets_dir>
 
 set -euo pipefail
 
@@ -17,8 +17,8 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/just-common.bash"
 
 host="${1}"
-secrets_dir="${2}"
-keys_dir="${3}"
+keys_dir="${2}"
+secrets_dir="${3}"
 
 cd "${secrets_dir}"
 

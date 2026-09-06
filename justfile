@@ -200,8 +200,8 @@ generate-keys host keys_dir:
 
 # Prompt for a user passphrase, hash it, and encrypt with sops
 [private]
-generate-user-secrets host secrets_dir keys_dir:
-    ./scripts/generate-user-secrets.bash "{{ host }}" "{{ secrets_dir }}" "{{ keys_dir }}"
+generate-user-secrets host keys_dir secrets_dir:
+    ./scripts/generate-user-secrets.bash "{{ host }}" "{{ keys_dir }}" "{{ secrets_dir }}"
 
 # Generate secure boot PCR signing keys and encrypt with sops
 [private]

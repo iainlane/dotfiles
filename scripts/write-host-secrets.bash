@@ -82,4 +82,4 @@ mkdir -p "${host}"
 
 "${REPO_ROOT}/scripts/generate-secureboot-secrets.bash" "${host}" "${secrets_dir}"
 "${REPO_ROOT}/scripts/generate-borgmatic-secrets.bash" "${host}" "${secrets_dir}"
-"${REPO_ROOT}/scripts/generate-user-secrets.bash" "${host}" "${secrets_dir}" "${keys_dir}"
+"${REPO_ROOT}/scripts/generate-user-secrets.bash" "${host}" "${keys_dir}" "${secrets_dir}"
