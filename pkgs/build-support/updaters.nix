@@ -18,8 +18,8 @@
   writeShellApplication,
 }: {
   # Run a package's own update script from its directory in the working tree.
-  # For upstreams whose release metadata needs more than a version number and
-  # a per-platform URL, which `mkSourcesUpdater` covers.
+  # For an upstream whose release metadata needs more than the version number
+  # and per-platform URL that `mkSourcesUpdater` handles.
   mkScriptUpdater = {
     pname,
     script,
@@ -222,7 +222,7 @@
 
             # npm resolves beside the manifest, but only the lockfile is
             # committed: the build reads what it needs from the lockfile's root
-            # record. `--ignore-scripts` because this run wants a lockfile alone,
+            # record. Pass `--ignore-scripts`: only the lockfile is wanted here,
             # and npm would otherwise run the package's `prepare` script.
             (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
             cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json

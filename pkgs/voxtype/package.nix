@@ -92,9 +92,10 @@ in
     inherit version src;
 
     # Cargo.lock pins four crates from one openvino-rs Git revision, and
-    # fetchCargoVendor (cargoHash) cannot copy that checkout: a submodule holds
-    # a symlink loop that it follows until the path is too long. importCargoLock
-    # fetches the repository with fetchgit, which keeps the symlink as is.
+    # fetchCargoVendor (cargoHash) cannot copy that checkout: a submodule
+    # contains a symlink loop, and fetchCargoVendor follows it until the path
+    # is too long. importCargoLock fetches the repository with fetchgit, which
+    # keeps the symlink as is.
     cargoLock = {
       lockFile = ./Cargo.lock;
       outputHashes = {

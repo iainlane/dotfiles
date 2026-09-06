@@ -1,4 +1,4 @@
-# Chainguard chainctl CLI — packaged from dl.enforce.dev binary releases.
+# Chainguard chainctl CLI, packaged from dl.enforce.dev binary releases.
 # To update: nix run .#update-chainctl
 {
   autoPatchelfHook,

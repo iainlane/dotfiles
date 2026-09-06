@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Extract the embedded OCI image archive and its tag from a UniFi OS Server
-# installer. Run both at build time (image.nix) and by update.sh, so the
-# binwalk and tar logic lives in one place.
+# installer. Run at build time by `package.nix` and again by `update.sh`, so
+# the binwalk and tar logic lives in one place.
 #
 # Usage: extract-image.sh <installer> <output-dir>
 # Writes <output-dir>/image.tar and <output-dir>/image-tag.

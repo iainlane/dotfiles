@@ -9,8 +9,8 @@
 
   # npm records the peers nested under `@earendil-works/pi-coding-agent` with a
   # `resolved` URL and no `integrity`, which both `importNpmLock` and
-  # `fetchNpmDeps` refuse. Dropping them installs nothing differently: those
-  # peers are optional and the dev tree is omitted.
+  # `fetchNpmDeps` refuse. Dropping them changes nothing that is installed:
+  # those peers are optional and the dev tree is omitted.
   isFetchable = _: record: !(record ? resolved && !(record ? integrity));
 
   dropped = lib.filterAttrs (path: record: !isFetchable path record) packageLock.packages;

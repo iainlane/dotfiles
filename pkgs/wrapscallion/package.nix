@@ -1,4 +1,4 @@
-# wrapscallion commit message linter — packaged from GitHub release binaries.
+# wrapscallion commit message linter, packaged from GitHub release binaries.
 # To update: nix run .#update-wrapscallion
 {
   autoPatchelfHook,

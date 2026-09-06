@@ -1,4 +1,4 @@
-# wolfictl CLI — packaged from GitHub release binaries.
+# wolfictl CLI, packaged from GitHub release binaries.
 # To update: nix run .#update-wolfictl
 {
   curl,
