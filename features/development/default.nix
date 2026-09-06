@@ -5,7 +5,7 @@
   withSystem,
   ...
 }: let
-  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShells;
+  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
   children = config.flake.features.development.provides;
 
   projects = {
@@ -40,14 +40,11 @@
     };
   };
 
-  mkShell = pkgs: kernel: def: let
-    langShell = mkLanguageShell pkgs kernel (def.languages or []);
-    extra = (def.extraPackages or (_: [])) pkgs;
-  in
-    pkgs.mkShellNoCC (langShell
-      // {
-        packages = (langShell.packages or []) ++ extra;
-      });
+  mkShell = pkgs: kernel: def:
+    mkProjectShell {
+      inherit pkgs def;
+      base = mkLanguageShell pkgs kernel (def.languages or []);
+    };
 
   projectShells = mkProjectShells {
     inherit config withSystem mkShell projects;

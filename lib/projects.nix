@@ -29,6 +29,32 @@
   # evaluation time.
   kernelFromSystem = system: (lib.systems.parse.mkSystemFromString system).kernel.name;
 
+  # Build one project's shell with `pkgs.mkShellNoCC`. The optional `base` is
+  # merged with the feature's `environment` attributes, and the project's own
+  # `extraPackages` are appended to the base package list.
+  #
+  # Arguments:
+  #   pkgs:        the package set for the build system
+  #   def:         the project definition, whose optional `extraPackages` is a
+  #                function from `pkgs` to a package list
+  #   base:        the language shell to build on, `{}` for a feature that
+  #                declares no languages
+  #   environment: the environment variables the feature sets in every one of
+  #                its shells
+  mkProjectShell = {
+    pkgs,
+    def,
+    base ? {},
+    environment ? {},
+  }:
+    pkgs.mkShellNoCC (
+      base
+      // environment
+      // {
+        packages = (base.packages or []) ++ (def.extraPackages or (_: [])) pkgs;
+      }
+    );
+
   # The nested attribute set the `direnvs` output takes. Each node may have
   # a `shell`, the devShell for that directory, and `subdirectories`, the
   # nodes below it.

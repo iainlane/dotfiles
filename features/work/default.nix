@@ -5,7 +5,7 @@
   withSystem,
   ...
 }: let
-  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShells;
+  inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
 
   children = config.flake.features.work.provides;
 
@@ -39,25 +39,25 @@
       };
   };
 
-  mkShell = pkgs: kernel: def: let
-    langShell = mkLanguageShell pkgs kernel (def.languages or []);
-    extra = (def.extraPackages or (_: [])) pkgs;
-  in
-    pkgs.mkShellNoCC (
-      langShell
-      // {
-        packages = (langShell.packages or []) ++ extra;
-        NAME = def.name;
-        EMAIL = def.email;
-        GIT_AUTHOR_NAME = def.name;
-        GIT_AUTHOR_EMAIL = def.email;
-        GIT_COMMITTER_NAME = def.name;
-        GIT_COMMITTER_EMAIL = def.email;
-      }
-      // lib.optionalAttrs ((def.zshColour or null) != null) {
-        ZSH_USERNAME_COLOUR = def.zshColour;
-      }
-    );
+  mkShell = pkgs: kernel: def:
+    mkProjectShell {
+      inherit pkgs def;
+
+      base = mkLanguageShell pkgs kernel (def.languages or []);
+
+      environment =
+        {
+          NAME = def.name;
+          EMAIL = def.email;
+          GIT_AUTHOR_NAME = def.name;
+          GIT_AUTHOR_EMAIL = def.email;
+          GIT_COMMITTER_NAME = def.name;
+          GIT_COMMITTER_EMAIL = def.email;
+        }
+        // lib.optionalAttrs ((def.zshColour or null) != null) {
+          ZSH_USERNAME_COLOUR = def.zshColour;
+        };
+    };
 
   projectShells = mkProjectShells {
     inherit config withSystem mkShell projects;
