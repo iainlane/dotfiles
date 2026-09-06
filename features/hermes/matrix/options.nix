@@ -11,8 +11,8 @@ in {
       example = "example.org";
       description = ''
         Domain suffix of the bot's user ID (`@<username>:<serverName>`). This
-        is the homeserver's `server_name`, which is its identity and is not
-        necessarily the name it is reached at; `httpUrl` is that.
+        is the homeserver's `server_name`, which identifies it and is not
+        necessarily the name it is reached at. `httpUrl` gives that name.
       '';
     };
 
@@ -41,9 +41,9 @@ in {
       default = "";
       example = "!abcdef:matrix.orangesquash.org.uk";
       description = ''
-        Optional room ID for cron and notification delivery. Left empty the
-        bot still works in DMs and threads; set it once you have a room you
-        want unsolicited output to land in.
+        Optional room ID for cron and notification delivery. With this empty
+        the bot still works in DMs and threads; set it once you have a room for
+        unsolicited output.
       '';
     };
 
@@ -52,9 +52,9 @@ in {
       default = cfg.secretsFile;
       defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        `matrix_password` (the bot account's password, which the homeserver
-        creates the account with and the agent logs in with) and
+        Path, relative to the `secrets` flake input, of the sops file
+        containing `matrix_password` (the bot account's password, which the
+        homeserver creates the account with and the agent logs in with) and
         `matrix_allowed_users` (comma-separated user IDs allowed to talk to
         the bot).
       '';
@@ -80,11 +80,11 @@ in {
       default = null;
       example = "matrix_recovery_key";
       description = ''
-        Key in `secretsFile` holding the cross-signing recovery key. Left
-        null, the bot bootstraps cross-signing on its first encrypted run
-        and keeps the generated recovery key in its state volume, from
-        which later runs read it back to re-sign the device after key
-        rotation. Set this to source the key from the secrets file.
+        Key in `secretsFile` containing the cross-signing recovery key. With
+        this null, the bot bootstraps cross-signing on its first encrypted run
+        and keeps the generated recovery key in its state volume, from which
+        later runs read it back to re-sign the device after key rotation. Set
+        this to take the key from the secrets file instead.
       '';
     };
 

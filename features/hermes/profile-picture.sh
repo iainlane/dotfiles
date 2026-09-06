@@ -2,9 +2,9 @@
 #
 # Select a profile picture from the source (a single image or a directory of
 # images) and apply it to each enabled messaging platform. Rotation avoids
-# repeating the last-applied image. Best-effort: a platform being unreachable is
-# logged and skipped, and the rotation marker only advances once the chosen
-# image has actually been applied everywhere.
+# repeating the last-applied image. A platform that cannot be reached is logged
+# and skipped, and the rotation marker advances only once the chosen image has
+# been applied to every enabled platform.
 
 set -euo pipefail
 

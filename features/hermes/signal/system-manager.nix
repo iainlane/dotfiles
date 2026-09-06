@@ -1,5 +1,6 @@
 # The Signal platform: a signal-cli JSON-RPC daemon sidecar the agent reaches
-# over a private podman network, plus the secrets and env that point it there.
+# over a private podman network, plus the secrets and environment variables
+# that point the agent at it.
 {
   config,
   hermesBuilders,

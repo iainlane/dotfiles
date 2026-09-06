@@ -14,18 +14,19 @@
 
   generatedConfigFile = yaml.generate "hermes-config.yaml" cfg.settings;
 
-  # Add an extra Python package as a leaf on the agent's import path: drop
-  # its propagated deps so they cannot duplicate packages the sealed venv
-  # already ships, which the package's collision check rejects. Shared deps
-  # resolve from the venv at import; a dependency the venv lacks must be its
-  # own `extraPythonPackages` entry.
+  # Add an extra Python package as a leaf on the agent's import path. Its
+  # propagated dependencies are dropped so they cannot duplicate packages the
+  # agent's own virtual environment already contains, which the package's
+  # collision check rejects. Shared dependencies resolve from that environment
+  # at import time; a dependency it does not contain needs its own
+  # `extraPythonPackages` entry.
   venvLeafPackage = pkg:
     pkg.overridePythonAttrs (_: {
       dependencies = [];
       propagatedBuildInputs = [];
-      # The package is built without its declared deps, so skip the build's
-      # own dependency and test checks; they are satisfied at the agent's
-      # assembled import path, not by the package in isolation.
+      # The package is built without its declared dependencies, so its own
+      # dependency and test checks would fail. Those dependencies are present
+      # on the agent's assembled import path, not in this package alone.
       doCheck = false;
       dontCheckRuntimeDeps = true;
     });
@@ -48,8 +49,8 @@
   inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
   # A fixed in-container service user, which the shared range maps onto the
-  # host. `fakeNss` already provides root and nobody plus nsswitch.conf; we
-  # just add the `hermes` line.
+  # host. `fakeNss` already provides root and nobody plus nsswitch.conf, so
+  # only the `hermes` line is added.
   hermesUser = "hermes";
 
   hermesUid = 1000;
@@ -64,8 +65,9 @@
   # one writes is one the others can read.
   idRange = config.virtualisation.containers.idRanges.hermes;
 
-  # Podman-managed named volumes hold the durable state. The setup step and
-  # backup resolve their mountpoints at runtime via `podman volume inspect`.
+  # podman-managed named volumes store the durable state. The setup step and
+  # the backup resolve their mountpoints at runtime with
+  # `podman volume inspect`.
   hermesStateVolume = "hermes-state";
 
   hermesHomeVolume = "hermes-home";
@@ -83,12 +85,12 @@
 
   agentBinPath = lib.makeBinPath agentToolDrvs;
 
-  # extraPlugins are symlinked into the state dir by the setup script using
-  # their store paths. The container has no host /nix/store, so carry those
-  # paths into the image closure here (buildLayeredImage ships the whole
-  # closure), otherwise the symlinks dangle inside the container. linkFarm
-  # references the plugins as real build inputs, so the closure includes
-  # them even though their paths reach the script context-free.
+  # The setup script symlinks each `extraPlugins` entry into the state
+  # directory by its store path. The container has no host /nix/store, so those
+  # paths have to be in the image closure or the symlinks dangle inside the
+  # container. `linkFarm` references the plugins as real build inputs, which
+  # puts them in the closure `buildLayeredImage` ships; the script's own copies
+  # of the paths carry no string context.
   extraPluginPaths = pkgs.linkFarm "hermes-extra-plugins" (
     lib.mapAttrsToList (name: path: {inherit name path;}) cfg.extraPlugins
   );
@@ -159,8 +161,8 @@
     '';
   };
 
-  # The script reads the sub-command off the name it was called by, so each
-  # one is a link to it.
+  # The script reads the sub-command from the name it was invoked as, so each
+  # name is a symlink to it.
   hostCliPackage = pkgs.runCommand "hermes-agent-cli" {} ''
     mkdir -p "$out/bin"
 
@@ -170,9 +172,10 @@
   '';
 
   # Both writers of `.hermes/.env` quote the value and escape the quotation
-  # marks and backslashes inside it, so a value carrying a space or a quotation
-  # mark survives python-dotenv's parse. `builtins.toJSON` of a string produces
-  # exactly the double-quoted, backslash-escaped form dotenv reads.
+  # marks and backslashes inside it, so a value containing a space or a
+  # quotation mark is parsed correctly by python-dotenv. `builtins.toJSON` of a
+  # string produces exactly the double-quoted, backslash-escaped form dotenv
+  # reads.
   envFile = pkgs.writeText "hermes-env" (
     lib.concatStringsSep "\n" (
       lib.mapAttrsToList
@@ -211,9 +214,9 @@
 
         ln -sfn "${package}" "$state/current-package"
 
-        # The skill curator materialises bundled skills read-only (copied
-        # from the read-only image). Make the tree writable so the agent can
-        # author and edit skills in place.
+        # Hermes copies the bundled skills out of the read-only image, so they
+        # arrive read-only. Make the tree writable so the agent can write and
+        # edit skills in place.
         if [ -d "$state/.hermes/skills" ]; then
           chmod -R u+w "$state/.hermes/skills"
         fi
@@ -272,18 +275,18 @@
       );
   };
 
-  # The networks every Hermes container joins. They run the same image and the
-  # same configuration, so they are given the same networks: the agent reaches
-  # signal-cli over the second one, and the profile-picture helper sets the
-  # avatar through the same daemon.
+  # The networks the gateway, the dashboard and the profile-picture helper all
+  # join. When Signal is present they also join its network, so the gateway can
+  # reach signal-cli and the profile-picture helper can set the avatar through
+  # the same daemon.
   hermesNetworks =
     lib.toList cfg.container.network
     ++ lib.optional cfg.signal.present "${cfg.signal.network}.network";
 
-  # Both the gateway and the dashboard are the same image and the same
-  # `hermes` binary run with a different sub-command. This builds the shared
-  # container definition; callers vary only the sub-command, ports, and a
-  # few unit knobs.
+  # The gateway and the dashboard run the same image and the same `hermes`
+  # binary with a different sub-command. This builds the shared container
+  # definition; callers vary the sub-command, the ports and a few unit
+  # settings.
   mkHermesContainer = {
     description,
     exec,
@@ -303,9 +306,9 @@
 
         image = config.virtualisation.quadlet.images.${cfg.container.name}.ref;
 
-        # Runs as the fixed `hermes` user, non-root inside the namespace and a
-        # subordinate id on the host, so it writes its state mounts and
-        # nothing else.
+        # Runs as the fixed `hermes` user, non-root inside the namespace and
+        # mapped to a reserved subordinate id on the host. The state volumes
+        # are owned by that id, so the process can write them.
         user = hermesUser;
 
         entrypoint = "${hermesBinDir}/hermes";

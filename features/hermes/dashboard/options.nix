@@ -27,10 +27,10 @@ in {
       type = lib.types.nullOr (lib.types.submodule (import ../../../lib/exposed-service.nix));
       default = null;
       description = ''
-        How the reverse proxy serves the dashboard. Hermes makes people
-        sign in, but serves anyone the identity provider recognises, so
-        `auth` belongs on: the proxy's `allow` list is the only thing that
-        limits who gets in.
+        How the reverse proxy serves the dashboard. Hermes requires a sign-in
+        but serves anyone the identity provider recognises, so `auth` has to be
+        on: the proxy's `auth.allow` list is the only thing limiting who gets
+        in.
       '';
     };
 
@@ -40,7 +40,7 @@ in {
       defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
       description = ''
         Path, relative to the `secrets` flake input, of the sops file
-        holding the dashboard's half of the secret it shares with the
+        containing the dashboard's half of the secret it shares with the
         identity provider. The provider reads the same file.
       '';
     };
@@ -48,7 +48,7 @@ in {
     clientSecretKey = lib.mkOption {
       type = lib.types.str;
       default = "dashboard_oidc_client_secret";
-      description = "Key in `dashboard.secretsFile` holding that secret.";
+      description = "Key in `dashboard.secretsFile` containing that secret.";
     };
 
     containerName = lib.mkOption {

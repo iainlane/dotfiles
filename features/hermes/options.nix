@@ -19,9 +19,9 @@ in {
       type = lib.types.str;
       default = "${hostConfig.name}/host-hermes.yaml";
       description = ''
-        Path, relative to the `secrets` flake input, of the sops file holding
-        the agent's secrets. Each platform reads its own keys from it and
-        defaults to this file.
+        Path, relative to the `secrets` flake input, of the sops file
+        containing the agent's secrets. Each platform reads its own keys from
+        it and defaults to this file.
       '';
     };
 
@@ -30,8 +30,8 @@ in {
       default = null;
       description = ''
         Hermes package to run. Null builds the one from the `hermes-agent`
-        input with `extraDependencyGroups` and `extraPythonPackages` applied,
-        which a package given here does not get.
+        input with `extraDependencyGroups` and `extraPythonPackages` applied. A
+        package given here is used as it is, so neither option affects it.
       '';
     };
 
@@ -61,8 +61,8 @@ in {
       description = ''
         Environment variables written into the agent's `.env` before every
         file in `environmentFiles`, so a variable set in both takes the value
-        from the file. The value reaches the world-readable store; a secret
-        belongs in `secretEnv`.
+        from the file. Values here are written into the world-readable store,
+        so a secret belongs in `secretEnv`.
       '';
     };
 
@@ -161,8 +161,9 @@ in {
       example = lib.literalExpression "[pkgs.python312Packages.tiktoken]";
       description = ''
         Python packages added to the agent's import path, for optional
-        dependencies a plugin can use but the sealed venv does not ship. They
-        must come from the same Python as the package (`python312Packages`).
+        dependencies a plugin can use that the package's own virtual
+        environment does not contain. They must come from the same Python as
+        the package (`python312Packages`).
       '';
     };
 

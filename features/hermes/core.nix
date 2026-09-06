@@ -52,9 +52,9 @@ in {
           (["gateway" "run" "--replace"] ++ cfg.extraArgs);
         publishPorts = cfg.container.ports;
 
-        # On stop the agent closes its platform connections, waits for the
-        # turn in flight and writes its session state, and podman's own
-        # `stopTimeout` then allows a further wait before the kill. Systemd's
+        # On stop the agent closes its platform connections, waits for the turn
+        # in flight and writes its session state, and podman's own
+        # `stopTimeout` then allows a further wait before the kill. systemd's
         # 90-second default would cut all of that short.
         serviceConfig.TimeoutStopSec = 210;
       };

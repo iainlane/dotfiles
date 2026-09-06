@@ -1,6 +1,6 @@
 # Profile picture rotation for messaging platforms. A short-lived helper
-# container joins the same private networks as the platform sidecars, selects an
-# image, and updates every enabled platform from there.
+# container joins the same private networks as the platform sidecars, selects
+# an image, and updates every composed platform.
 {
   config,
   hermesBuilders,

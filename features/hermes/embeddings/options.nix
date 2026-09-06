@@ -14,7 +14,7 @@
     model = lib.mkOption {
       type = lib.types.str;
       example = "baai/bge-m3";
-      description = "Embedding model, named as the configured endpoint names it.";
+      description = "Embedding model identifier accepted by the configured endpoint.";
     };
 
     baseUrl = lib.mkOption {

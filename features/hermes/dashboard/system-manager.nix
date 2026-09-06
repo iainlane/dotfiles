@@ -1,10 +1,10 @@
 # The Hermes web dashboard: the same image and binary as the gateway, run with
 # the `dashboard` sub-command in its own container.
 #
-# Hermes makes anyone reaching a non-loopback bind sign in. It uses the same
-# identity provider as the proxy, so one sign-in covers both. It has no list of
-# who may get in, and serves anyone the provider recognises, so the proxy's
-# `allow` list is what limits that.
+# Hermes requires a sign-in from anyone reaching a non-loopback bind. It uses
+# the same identity provider as the proxy, so one sign-in covers both. Hermes
+# has no list of who may get in and serves anyone the provider recognises, so
+# the proxy's `auth.allow` list is what limits access.
 {
   config,
   exposePodman,
@@ -26,8 +26,10 @@
 
   clientId = dashboard.containerName;
 
-  # The proxy has to be able to reach it, so it binds every address. That is
-  # also what makes Hermes require a sign-in.
+  # When the dashboard is exposed through the proxy it binds every IPv4
+  # address, so the proxy can connect to it. Binding a non-loopback address is
+  # also what makes Hermes require a sign-in. Otherwise it binds
+  # `dashboard.address`.
   bindAddress =
     if exposed
     then "0.0.0.0"
@@ -49,9 +51,9 @@
     ];
 
     environments = lib.optionalAttrs exposed {
-      # Where someone is sent back to after signing in. The request reaches
-      # Hermes from the proxy and does not carry the name it was asked for,
-      # so Hermes is told it here.
+      # Where someone is sent back to after signing in. The request arrives
+      # from the proxy without the name the browser used, so Hermes is given
+      # that name here.
       HERMES_DASHBOARD_PUBLIC_URL = publicUrl;
       HERMES_DASHBOARD_OIDC_ISSUER = idp.issuer;
       HERMES_DASHBOARD_OIDC_CLIENT_ID = clientId;
@@ -61,7 +63,8 @@
 
     after =
       ["${cfg.container.name}.service"]
-      # It reaches the provider by the name the proxy answers to.
+      # The dashboard reaches the identity provider by the name the proxy
+      # answers to.
       ++ lib.optional exposed proxy.unit;
   };
 in {
@@ -73,11 +76,12 @@ in {
         {
           assertion = dashboard.expose == null || dashboard.expose.auth;
           message = ''
-            dotfiles.hermes.dashboard.expose.auth is off. Hermes makes anyone
-            reaching a non-loopback bind sign in, and then serves anyone the
-            identity provider recognises, so the proxy's `allow` list is what
-            decides who gets in. Without it the dashboard is served to every
-            account the provider will authenticate.
+            dotfiles.hermes.dashboard.expose.auth is off. Hermes requires a
+            sign-in from anyone reaching a non-loopback bind, then serves
+            anyone the identity provider recognises, so the proxy's
+            `auth.allow` list is what decides who gets in. With `auth` off the
+            dashboard is served to every account the provider will
+            authenticate.
           '';
         }
       ];

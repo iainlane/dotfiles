@@ -15,9 +15,10 @@
   r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";
-  # The script reads its config from the environment, so it stays a plain
-  # checkable shell file. The systemd service supplies the non-secret values
-  # and the sops env file supplies the R2 credentials.
+  # Nothing is substituted into the script, so it stays a plain shell file that
+  # shellcheck can run over. Every setting arrives in the environment: the
+  # systemd service supplies the non-secret values and the sops env file
+  # supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "hermes-backup-r2";
     runtimeInputs = with pkgs; [coreutils rsync sqlite podman r2Tool];

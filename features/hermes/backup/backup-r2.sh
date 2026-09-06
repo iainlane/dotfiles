@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 #
-# Snapshot the Hermes state into a directory and hand it to `r2 backup`.
-# Driven entirely by the environment so it stays a plain, checkable shell
-# script:
+# Snapshot the Hermes state into a directory and hand it to `r2 backup`. Every
+# setting arrives in the environment, so nothing is substituted into this file
+# and shellcheck can run over it:
 #
 #   HERMES_STATE_DIR     state directory to back up, or
 #   HERMES_STATE_VOLUME  podman volume whose mountpoint to back up
@@ -19,8 +19,8 @@ fi
 : "${HERMES_STATE_DIR:?}"
 
 work="$(mktemp -d)"
-# The snapshot copies Hermes' read-only bundled skills, whose leaf
-# directories drop owner-write, so restore it before removing the tree.
+# The snapshot copies Hermes' read-only bundled skills, whose leaf directories
+# drop owner-write, so restore owner-write before removing the tree.
 trap 'chmod -R u+w "${work}" 2>/dev/null || true; rm -rf "${work}"' EXIT
 snap="${work}/snapshot"
 mkdir -p "${snap}/.hermes"

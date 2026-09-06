@@ -14,7 +14,7 @@ in {
     default = cfg.secretsFile;
     defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
     description = ''
-      Path, relative to the `secrets` flake input, of the sops file holding
+      Path, relative to the `secrets` flake input, of the sops file containing
       `hass_token` (a Home Assistant long-lived access token) and `hass_url`
       (the Home Assistant base URL, e.g. `http://homeassistant.local:8123`).
     '';

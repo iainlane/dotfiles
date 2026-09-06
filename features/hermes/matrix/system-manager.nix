@@ -1,13 +1,15 @@
 # The Matrix platform: how the agent reaches a homeserver and logs in to it.
 #
-# The homeserver is the `matrix` profile, which runs Continuwuity as a system
-# service and serves it at a public name. The agent connects to that name like
-# any other client would, so it needs the bot account's password and the list of
-# users allowed to talk to it, and nothing about where the homeserver runs.
+# The homeserver comes from the `matrix` feature, which runs Continuwuity as a
+# system service and serves it at a public name. The agent connects to that
+# name as any other client would, so it needs the bot account's password and
+# the list of users allowed to talk to it, and nothing about where the
+# homeserver runs.
 #
-# Both profiles hold the bot's password, one to create the account and one to
-# log in with, so the agent's secrets are named apart from the homeserver's and
-# say which key they read.
+# Both features declare sops secrets in the same host configuration, one to
+# create the bot account and one to log in with. The agent's secret names are
+# prefixed with `hermes_` so they do not collide with the homeserver's, and
+# each one sets `key` explicitly to read the shared value.
 {
   config,
   inputs,
@@ -73,8 +75,8 @@ in {
           };
         };
 
-      # The agent logs in by password; the user ID and home room are not secret
-      # and ride along as plain environment.
+      # The agent logs in by password. The user ID and home room are not secret
+      # and are set as plain environment variables.
       templates."hermes-matrix.env".content =
         ''
           MATRIX_PASSWORD=${config.sops.placeholder.hermes_matrix_password}

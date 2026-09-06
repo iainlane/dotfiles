@@ -42,8 +42,9 @@ in {
 
       config = {
         # The image builder, the container template and the state volume names.
-        # Five modules here build on them; built once, each module takes the
-        # argument and the image is constructed one time per evaluation.
+        # Several modules here build on them. Importing once and passing the
+        # result as a module argument means the image is constructed once per
+        # evaluation.
         _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
 
         dotfiles.hermes.settings = {
@@ -58,8 +59,8 @@ in {
 
         # Reserved for the agent, the dashboard and signal-cli, which share
         # state volumes and so map their ids from one range to see the same
-        # owner on a file. It sits above the window NixOS allocates
-        # subordinate ids from, so the reservation holds there too.
+        # owner on a file. The range starts above the window NixOS allocates
+        # subordinate ids from, so NixOS will not hand out ids inside it.
         virtualisation.containers.idRanges.hermes.start = 1900644000;
       };
     };

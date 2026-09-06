@@ -12,7 +12,7 @@ in {
       defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
       description = ''
         Path, relative to the `secrets` flake input, of the sops file
-        holding `signal_account`, `signal_allowed_users` and
+        containing `signal_account`, `signal_allowed_users` and
         `signal_home_channel`.
       '';
     };
@@ -31,7 +31,7 @@ in {
     network = lib.mkOption {
       type = lib.types.str;
       default = "hermesnet";
-      description = "Podman network shared between Hermes and signal-cli.";
+      description = "podman network shared between Hermes and signal-cli.";
     };
 
     package = lib.mkOption {

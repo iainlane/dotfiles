@@ -15,10 +15,11 @@ in {
     dotfiles.hermes.settings.mcp_servers = withSampling {
       exa = {
         url = "https://mcp.exa.ai/mcp";
-        # Authenticate with the Exa key (off the free tier). Hermes
-        # expands ${EXA_API_KEY} from the env at load, so the secret never
-        # reaches the world-readable store; the header survives the MCP
-        # SDK's URL handling where a ?exaApiKey= query param would not.
+        # Authenticate with the Exa key, which takes these requests off the
+        # free tier. Hermes expands ${EXA_API_KEY} from the environment when it
+        # loads the config, so the key never reaches the world-readable store.
+        # The MCP SDK's URL handling drops a `?exaApiKey=` query parameter, so
+        # the key goes in a header instead.
         headers."x-api-key" = "\${EXA_API_KEY}";
       };
       cloudflare.url = "https://docs.mcp.cloudflare.com/mcp";

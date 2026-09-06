@@ -9,14 +9,14 @@
 #
 # Without --confirm the run stops once the backup is open, which is enough to
 # show that the key works and the archive is sound. With it, the containers
-# holding the state volume are stopped, the state is replaced by what the
-# archive holds, and the containers are started again.
+# using the state volume are stopped, the state is replaced with the archive's
+# contents, and the containers are started again.
 #
 # The module supplies the rest through the environment:
 #
-#   HERMES_STATE_VOLUME   podman volume holding the state
+#   HERMES_STATE_VOLUME   podman volume containing the state
 #   HERMES_RESTORE_UNITS  units to stop while the state is replaced
-#   BACKUP_ENV_FILE       file holding the R2 credentials
+#   BACKUP_ENV_FILE       file containing the R2 credentials
 #
 # plus BACKUP_NAME and BACKUP_PREFIX, which `r2 restore` reads.
 set -euo pipefail
@@ -38,7 +38,7 @@ Usage:
   --identity  age identity file the backups are encrypted to
   --archive   backup to restore, defaulting to the newest
   --confirm   replace the live state; without it the run stops after unpacking
-  --list      print the backups held in R2 and exit
+  --list      print the backups stored in R2 and exit
 USAGE
 }
 
@@ -95,8 +95,8 @@ state="$(podman volume inspect --format '{{.Mountpoint}}' "${HERMES_STATE_VOLUME
 [ -d "${state}" ] || fail "the ${HERMES_STATE_VOLUME} volume has no directory at ${state}"
 
 work="$(mktemp -d)"
-# Hermes' bundled skills are materialised read-only, and the archive carries
-# that, so give the tree owner-write back before removing it.
+# The archive's copy of Hermes' bundled skills is read-only, so give the tree
+# owner-write back before removing it.
 trap 'chmod -R u+w "${work}" 2>/dev/null || true; rm -rf "${work}"' EXIT
 
 unpacked="${work}/state"

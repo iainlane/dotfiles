@@ -1,5 +1,6 @@
 # Arbitrary secret environment variables, mapped from environment variable name
-# to the sops key holding its value and rendered into the agent's environment.
+# to the sops key containing its value and rendered into the agent's
+# environment.
 {
   config,
   inputs,
