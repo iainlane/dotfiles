@@ -44,6 +44,8 @@
   managedSettingsFile = (pkgs.formats.json {}).generate "antigravity-cli-settings.json" managedSettings;
 
   settingsPath = "${config.home.homeDirectory}/.gemini/antigravity-cli/settings.json";
+
+  jq = lib.getExe pkgs.jq;
 in {
   config = {
     programs.antigravity-cli = {
@@ -66,9 +68,9 @@ in {
         $DRY_RUN_CMD rm -f "$settingsFile"
       fi
 
-      if [ -f "$settingsFile" ] && ${pkgs.jq}/bin/jq -e . "$settingsFile" >/dev/null 2>&1; then
-        $DRY_RUN_CMD ${pkgs.bash}/bin/bash -c \
-          "${pkgs.jq}/bin/jq -s '.[0] * .[1]' \"$settingsFile\" ${managedSettingsFile} > \"$settingsFile.hm-new\" && mv \"$settingsFile.hm-new\" \"$settingsFile\""
+      if [ -f "$settingsFile" ] && ${jq} -e . "$settingsFile" >/dev/null 2>&1; then
+        $DRY_RUN_CMD ${lib.getExe pkgs.bash} -c \
+          "${jq} -s '.[0] * .[1]' \"$settingsFile\" ${managedSettingsFile} > \"$settingsFile.hm-new\" && mv \"$settingsFile.hm-new\" \"$settingsFile\""
       else
         $DRY_RUN_CMD cp ${managedSettingsFile} "$settingsFile"
       fi
