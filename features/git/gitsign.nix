@@ -22,8 +22,8 @@ in {
       {
         GITSIGN_CREDENTIAL_CACHE = gitsignCredentialCache;
       }
-      # The per-repository git configuration carries each tree's connector,
-      # so the environment default is only set when it is unambiguous.
+      # Each directory tree's git configuration sets its own connector, so
+      # set the environment variable only when every tree uses the same one.
       // lib.optionalAttrs (lib.length connectorIDs == 1) {
         GITSIGN_CONNECTOR_ID = lib.head connectorIDs;
       };

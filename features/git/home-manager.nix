@@ -119,8 +119,8 @@ in {
       options = {
         navigate = true;
 
-        # The two sections below are feature sets; delta applies the one this
-        # names.
+        # `catppuccin-latte` and `catppuccin-mocha` below are delta feature
+        # sets; `features` selects one of them by name.
         features = "catppuccin-${config.catppuccin.flavor}";
 
         catppuccin-latte = {
@@ -151,7 +151,7 @@ in {
         # direnv
         ## state
         ".direnv"
-        ## these are config but usually we don't want to commit them
+        ## configuration, but usually not committed
         ".envrc"
         "flake.nix"
         "flake.lock"
