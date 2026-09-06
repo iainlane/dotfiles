@@ -349,6 +349,12 @@
     patches = [variantPatch];
   };
 
+  # Sandboxed builds share the machine with whatever else is running, so
+  # process-spawning tests can exceed the 30-second interactive timeout
+  # pyproject.toml sets, without being hung. 120 seconds still catches a
+  # genuine hang.
+  sandboxedTestTimeout = "--timeout=120";
+
   pythonApplication = pkgs.python3Packages.buildPythonApplication {
     pname = "prompt-conformance";
     inherit ((lib.importTOML ./pyproject.toml).project) version;
@@ -386,12 +392,9 @@
       "endpoint_integration"
       "host_integration"
     ];
-    # Sandboxed builds share the machine with whatever else is running, so
-    # process-spawning tests can exceed the 30-second interactive timeout
-    # without being hung. 120 seconds still catches a genuine hang.
     pytestFlags = [
       "tests"
-      "--timeout=120"
+      sandboxedTestTimeout
     ];
     pythonImportsCheck = ["claude_prompt_conformance"];
   };
@@ -421,6 +424,7 @@
         --no-header \
         -p no:cacheprovider \
         --quiet \
+        ${sandboxedTestTimeout} \
         ${source}/tests/test_codex_app_server_contract.py
       touch "$out"
     '';
@@ -443,6 +447,7 @@
         --no-header \
         -p no:cacheprovider \
         --quiet \
+        ${sandboxedTestTimeout} \
         ${source}/tests/test_codex_model_turn.py
       touch "$out"
     '';
@@ -465,6 +470,7 @@
         --no-header \
         -p no:cacheprovider \
         --quiet \
+        ${sandboxedTestTimeout} \
         ${source}/tests/test_claude_model_turn.py
       touch "$out"
     '';
