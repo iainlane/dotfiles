@@ -44,7 +44,6 @@ in {
         inherit (imagePath) firmwarePlatform;
         serverVersion = imagePath.version;
         image = config.virtualisation.quadlet.images.${imageName}.ref;
-        inherit (config.dotfiles.network) lanAddress;
         uuidBuilder = "${uuidBuilder}/bin/unifi-build-uuid-env";
       };
     in {

@@ -2,7 +2,6 @@
   cfg,
   firmwarePlatform,
   image,
-  lanAddress,
   network,
   quadlet,
   serverVersion,
@@ -12,11 +11,11 @@
   runtimeDirectory = "unifi";
   runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
 
-  # The controller's own ports, published on the host's LAN address. This host
-  # also has a routed public address, so publishing on every address would
-  # expose the admin UI, the unencrypted inform port, RabbitMQ and syslog to
-  # the internet.
-  publish = mapping: "${lanAddress}:${mapping}";
+  # The controller's own ports, published on one address only. This host also
+  # has a routed public address, and publishing on every address there serves
+  # the admin UI, the unencrypted inform port, RabbitMQ and syslog to the
+  # internet.
+  publish = mapping: "${cfg.listenAddress}:${mapping}";
 
   defaultPorts = map publish [
     "${toString cfg.webPort}:443"
@@ -49,10 +48,14 @@ in {
     addCapabilities = ["NET_RAW" "NET_ADMIN"];
     podmanArgs = ["--systemd=always"];
 
+    # UniFi OS serves this endpoint on port 80 inside the container once its
+    # init has brought the controller up. Podman restarts the container after
+    # three consecutive failed checks, one minute apart.
     healthCmd = "curl --fail http://127.0.0.1/api/ping";
     healthInterval = "60s";
     healthTimeout = "5s";
     healthRetries = 3;
+    healthOnFailure = "restart";
 
     environments = {
       APP_MODEL = "UOSSERVER";
