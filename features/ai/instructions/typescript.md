@@ -15,7 +15,10 @@ paths:
 
 - Always first determine which package manager (npm, yarn, pnpm) and runtime
   (node, bun, deno) is in use, so you know how to run commands in the project.
-- Prefer `pnpm add` for dependencies when the project uses pnpm.
+- Add and change dependencies with that package manager's own command
+  (`npm install`, `pnpm add`, `yarn add`), never by hand-editing `package.json`.
+- No program logic in `index.ts` or other re-export files -- these are only for
+  re-exports.
 - Avoid `any` and unchecked casts unless there is no practical alternative.
 - Use clear typed errors and never throw raw strings. Keep error messages
   actionable.
@@ -52,8 +55,7 @@ paths:
 - Use msw to provide mock services.
 - Write e2e tests with Playwright.
 - Use `it.each` for parameterised tests.
-- Use structural assertions on full objects. Output should be deterministic, so
-  this should be possible. For example:
+- The whole-object assertion rule in `testing.md` looks like this in TypeScript:
 
   ```ts
   // Bad -- hides missing or incorrect fields

@@ -24,7 +24,7 @@ paths:
   - Where a lint genuinely does not apply, use `#[expect(lint, reason = "...")]`
     so the attribute itself warns once the code stops triggering the lint.
   - If you are initialising a project, configure clippy to be strict.
-- No program logic in index, `mod.rs`, `lib.rs`, or re-export files -- these are
+- No program logic in `mod.rs`, `lib.rs`, or other re-export files -- these are
   only for module declarations and re-exports.
 
 ## Errors
@@ -52,10 +52,10 @@ paths:
 
 - Always use `pretty_assertions::assert_eq!` for equality assertions.
 - Use `rstest` for parameterised tests.
-- Use `assert_matches` for matching error variants and other sum types.
+- Use the `assert_matches` crate's `assert_matches!` for matching error variants
+  and other sum types.
 - Don't use `unwrap()` in tests: use `?` or `expect()` with a helpful message.
-- Use structural assertions on full objects. Don't repeatedly assert on the same
-  value -- assign it to a variable instead. For example:
+- The whole-object assertion rule in `testing.md` looks like this in Rust:
 
   ```rust
   // Bad

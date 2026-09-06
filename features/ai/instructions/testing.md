@@ -19,9 +19,12 @@
   behaviour the task states. Scratch scripts and quick checks are fine while
   working and need not be kept. Do not turn them into additional permanent test
   files.
-- Use structural assertions on full objects. Output should be deterministic, so
-  this ought to be possible. Don't repeatedly assert on the same value in tests
-  -- assign it to a variable instead.
+- Assert on the whole object, not on one field at a time: a field that goes
+  missing or changes then shows up in the failure. Test output should be
+  deterministic, so a whole-object assertion is normally available. Where the
+  same expression appears in several assertions, bind it to a variable and
+  assert on that. `rust.md` and `typescript.md` show what this looks like in
+  each language.
 - Avoid writing repetitive tests: use parameterised tests instead.
 - Use dependency injection via traits or interfaces to make code testable.
 - Make sure to run the tests frequently during development.
