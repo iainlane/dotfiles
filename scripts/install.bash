@@ -6,7 +6,7 @@
 # Install NixOS onto a remote target, optionally injecting generated set-up keys
 # and secure boot files.
 #
-# Usage: install <host> <target> [keys_dir] [phases]
+# Usage: install <host> <target> <username> [keys_dir] [phases]
 
 set -euo pipefail
 
@@ -15,11 +15,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/just-common.bash"
 
 host="${1:-}"
 target="${2:-}"
-keys_dir="${3:-}"
-phases="${4:-}"
+username="${3:-}"
+keys_dir="${4:-}"
+phases="${5:-}"
 
-if [[ -z "${host}" || -z "${target}" ]]; then
-	die "usage: install <host> <target> [keys_dir] [phases]"
+if [[ -z "${host}" || -z "${target}" || -z "${username}" ]]; then
+	die "usage: install <host> <target> <username> [keys_dir] [phases]"
 fi
 
 ensure_repo_root
@@ -36,7 +37,7 @@ if [[ -n "${keys_dir}" && -d "${keys_dir}" ]]; then
 	install -m 0600 "${keys_dir}/ssh_host_ed25519_key" "${extra_files_dir}/etc/ssh/ssh_host_ed25519_key"
 	install -m 0644 "${keys_dir}/ssh_host_ed25519_key.pub" "${extra_files_dir}/etc/ssh/ssh_host_ed25519_key.pub"
 
-	user_age_dir="${extra_files_dir}/home/${USER}/.config/sops/age"
+	user_age_dir="${extra_files_dir}/home/${username}/.config/sops/age"
 	install -d -m 0700 "${user_age_dir}"
 	install -m 0600 "${keys_dir}/keys.txt" "${user_age_dir}/keys.txt"
 
@@ -71,7 +72,7 @@ log_step "Installing NixOS on ${host} via ${target}"
 nix run .#nixos-anywhere -- \
 	--flake ".#${host}" \
 	--target-host "root@${target}" \
-	--chown "/home/${USER}/.config" 1000:100 \
+	--chown "/home/${username}/.config" 1000:100 \
 	"${phases_args[@]}" \
 	"${extra_files_args[@]}"
 

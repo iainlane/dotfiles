@@ -18,6 +18,11 @@ export NIX_CONFIG := nix-config-base + nix-config-sep + token-config
 
 secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
 
+# Primary user account, taken from `flake.username` so the home deploy profile
+# and the installer agree with the configuration
+
+username := `nix eval --raw .#username`
+
 # Path to the system profile
 
 system-profile := "/nix/var/nix/profiles/system"
@@ -78,7 +83,7 @@ update-host-system hostname *args:
 
 # Deploy the home profile to a remote host via deploy-rs
 update-host-home hostname *args:
-    just deploy-host {{ hostname }} {{ hostname }}.laney {{ args }}
+    just deploy-host {{ hostname }} {{ hostname }}.{{ username }} {{ args }}
 
 [private]
 deploy-host hostname target *args:
@@ -161,7 +166,7 @@ history n="1" *args:
 
 # Install NixOS on a remote target via nixos-anywhere
 install host target keys_dir="" phases="":
-    ./scripts/install.bash "{{ host }}" "{{ target }}" "{{ keys_dir }}" "{{ phases }}"
+    ./scripts/install.bash "{{ host }}" "{{ target }}" "{{ username }}" "{{ keys_dir }}" "{{ phases }}"
 
 # Serve a PXE/netboot installer for a host using keys from ssh-agent
 netboot host *args:
