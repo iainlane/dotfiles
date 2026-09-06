@@ -119,6 +119,10 @@ in {
       options = {
         navigate = true;
 
+        # The two sections below are feature sets; delta applies the one this
+        # names.
+        features = "catppuccin-${config.catppuccin.flavor}";
+
         catppuccin-latte = {
           light = true;
           syntax-theme = "Catppuccin Latte";
