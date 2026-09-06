@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from claude_prompt_conformance.agents.codex import codex_model_transport
+from claude_prompt_conformance.agents.codex_host_configuration import (
+    load_codex_host_configuration,
+)
 from claude_prompt_conformance.agents.improver import (
     IMPROVER_ANGLES,
     CodexPromptImprover,
@@ -33,7 +36,6 @@ from claude_prompt_conformance.models import (
     VerificationResult,
     WorkspaceEvidence,
 )
-from claude_prompt_conformance.platforms.codex import load_codex_host_configuration
 from claude_prompt_conformance.platforms.direct import DirectProcessRunner
 from claude_prompt_conformance.process import ProcessSupervisor
 from claude_prompt_conformance.protocols.mcp import (

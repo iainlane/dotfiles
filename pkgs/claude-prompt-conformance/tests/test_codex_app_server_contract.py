@@ -13,6 +13,9 @@ from claude_prompt_conformance.agents.codex import (
     codex_effective_isolated_features,
     codex_instance_configuration,
 )
+from claude_prompt_conformance.agents.codex_host_configuration import (
+    load_codex_host_configuration,
+)
 from claude_prompt_conformance.codex_configuration_session import (
     CodexConfigurationSession,
 )
@@ -32,7 +35,6 @@ from claude_prompt_conformance.models import (
     ProcessOutputRecord,
     ProcessResult,
 )
-from claude_prompt_conformance.platforms.codex import load_codex_host_configuration
 from claude_prompt_conformance.ports import ProcessSession
 from claude_prompt_conformance.process import ProcessSupervisor
 from claude_prompt_conformance.protocols.codex_app_server import (

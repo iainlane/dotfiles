@@ -6,6 +6,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
+from .agents.codex_host_configuration import load_codex_host_configuration
 from .backend import ConformanceSuite
 from .checkpoints import JsonFixtureResultStore
 from .claude_storage import ClaudeSecureStorage
@@ -29,7 +30,6 @@ from .platforms import (
     LinuxProcessRunner,
     PyObjCKeychain,
     claude_keychain_namespace,
-    load_codex_host_configuration,
 )
 from .ports import (
     AgentSlots,

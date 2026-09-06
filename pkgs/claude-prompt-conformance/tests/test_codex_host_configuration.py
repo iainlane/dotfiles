@@ -1,14 +1,14 @@
 import errno
 from pathlib import Path
 
-from claude_prompt_conformance.models import CodexHostConfiguration
-from claude_prompt_conformance.platforms.codex import (
+from claude_prompt_conformance.agents.codex_host_configuration import (
     CodexEnforcedConfigurationPresentError,
     CodexHostConfigurationReadError,
     CodexHostConfigurationSyntaxError,
     CodexHostMcpServersTypeError,
     load_codex_host_configuration,
 )
+from claude_prompt_conformance.models import CodexHostConfiguration
 
 
 def test_codex_host_configuration_collects_system_mcp_server_names(
