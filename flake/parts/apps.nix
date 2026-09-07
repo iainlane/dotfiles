@@ -25,6 +25,7 @@ in {
   }: let
     promptConformance = import ../../modules/ai/prompt-conformance {
       inherit inputs lib pkgs system;
+      inherit (config.flake.modules.ai) defaultModels;
     };
   in {
     apps =

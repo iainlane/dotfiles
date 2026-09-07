@@ -3,6 +3,7 @@
   pkgs,
   lib,
   config,
+  defaultModels,
   hostConfig,
   ...
 }: let
@@ -39,7 +40,7 @@
           }
       )
       config.dotfiles.ai.mcpServers;
-    model = "gpt-5.6-sol";
+    model = defaultModels.openai;
     model_reasoning_effort = "high";
     personality = "pragmatic";
     service_tier = "fast";

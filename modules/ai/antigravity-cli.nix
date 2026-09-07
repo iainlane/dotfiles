@@ -13,6 +13,7 @@
 {
   pkgs,
   config,
+  defaultModels,
   inputs,
   lib,
   mcp,
@@ -35,7 +36,7 @@
   # declines interaction-data collection.
   managedSettings = {
     colorScheme = "terminal";
-    model = "Gemini 3.1 Pro (High)";
+    model = defaultModels.google;
     onboardingComplete = true;
     securityAgreed = true;
     enableTelemetry = false;

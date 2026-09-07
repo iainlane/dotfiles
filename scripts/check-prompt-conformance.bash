@@ -9,6 +9,7 @@ relevant_paths=(
 	flake/parts/apps.nix
 	flake/parts/git-hooks.nix
 	modules/ai/agent-instructions.nix
+	modules/ai/default.nix
 	modules/ai/claude-code/managed-settings-common.nix
 	modules/ai/output-styles.nix
 	modules/ai/instructions/

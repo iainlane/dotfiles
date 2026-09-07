@@ -1,5 +1,6 @@
 {
   inputs,
+  defaultModels,
   lib,
   pkgs,
   system,
@@ -8,7 +9,7 @@
   managedSettings =
     (lib.evalModules {
       modules = [../claude-code/managed-settings-common.nix];
-      specialArgs = {inherit inputs pkgs;};
+      specialArgs = {inherit defaultModels inputs pkgs;};
     }).config.dotfiles.claudeCode.managedSettings;
   suiteManagedSettings = removeAttrs managedSettings [
     "enabledPlugins"
@@ -38,7 +39,7 @@
   claudeOauthClientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
   codexJudgeModel = "gpt-5.6-terra";
   codexJudgeEffort = "high";
-  codexImproverModel = "gpt-5.6-sol";
+  codexImproverModel = defaultModels.openai;
   codexImproverEffort = "high";
   codexServiceTier = "fast";
   codexVerbosity = "low";
@@ -444,10 +445,13 @@
       jq --compact-output --sort-keys . catalogue.json >catalogue.normalised.json
       jq --compact-output --sort-keys . ${expectedCatalogue} >expected.normalised.json
       cmp catalogue.normalised.json expected.normalised.json
-      jq --exit-status --slurpfile settings ${managedSettingsFile} '
+      jq --exit-status \
+        --slurpfile settings ${managedSettingsFile} \
+        --arg judgeModel ${lib.escapeShellArg codexJudgeModel} \
+        --arg improverModel ${lib.escapeShellArg defaultModels.openai} '
         .claude.model == $settings[0].model and
-        .codex.judge == {"contextWindow":272000,"effort":"high","model":"gpt-5.6-terra","serviceTier":"fast","verbosity":"low"} and
-        .codex.improver == {"contextWindow":272000,"effort":"high","model":"gpt-5.6-sol","serviceTier":"fast","verbosity":"low"} and
+        .codex.judge == {"contextWindow":272000,"effort":"high","model":$judgeModel,"serviceTier":"fast","verbosity":"low"} and
+        .codex.improver == {"contextWindow":272000,"effort":"high","model":$improverModel,"serviceTier":"fast","verbosity":"low"} and
         .codex.tlsCertificateBundle == "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" and
         .codex.oauthTokenUrl == "${codexOauthTokenUrl}" and
         .codex.oauthClientId == "${codexOauthClientId}"

@@ -13,10 +13,12 @@ did, and Codex judges that evidence blindly against the fixture's criteria. An
 improvement mode proposes prompt changes and measures them with the same
 fixtures.
 
-The candidate is the Claude model the managed settings select for daily use.
-GPT-5.6 Terra judges its work, and GPT-5.6 Sol writes improvement proposals. Nix
-pins the clients, the prompt inputs, and the fixture tool environments, so two
-runs of the same fixtures differ only in the prompt.
+The candidate is the Claude model the managed settings select for daily use. The
+configured Codex judge assesses its work, and the [shared OpenAI default] writes
+improvement proposals. Nix pins the clients, the prompt inputs, and the fixture
+tool environments, so two runs of the same fixtures differ only in the prompt.
+
+[shared OpenAI default]: ../default.nix
 
 ## Running the suite
 

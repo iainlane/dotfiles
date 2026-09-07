@@ -115,14 +115,7 @@ in {
         settings = {
           model = {
             provider = "openai-codex";
-            default = "gpt-5.6-sol";
           };
-          fallback_providers = [
-            {
-              provider = "openrouter";
-              model = "openai/gpt-5.6-sol";
-            }
-          ];
           agent.reasoning_effort = "high";
           memory = {
             memory_enabled = true;
@@ -165,11 +158,6 @@ in {
           # @mentioned. Respond to every message instead.
           matrix.require_mention = false;
 
-          # Codex caps gpt-5.6-sol at a 372K window (Hermes resolves this
-          # live from Codex's /models endpoint), so compacting at the 50%
-          # default wastes half of it. Hermes has no threshold auto-raise
-          # for this model, so this global setting is what keeps compaction
-          # near the top of the window.
           compression.threshold = 0.85;
 
           # Keep memory updates silent in chat; the background review still runs.

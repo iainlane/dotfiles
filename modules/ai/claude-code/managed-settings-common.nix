@@ -12,6 +12,7 @@
   lib,
   pkgs,
   inputs,
+  defaultModels,
   ...
 }: let
   inherit (pkgs.stdenv.hostPlatform) system;
@@ -101,7 +102,7 @@ in {
       type = "command";
       command = lib.getExe fileSuggestionCommand;
     };
-    model = "claude-fable-5-1[1m]";
+    model = "${defaultModels.anthropic}[1m]";
     outputStyle = outputStyles.default.name;
     skipDangerousModePermissionPrompt = true;
     statusLine = {
