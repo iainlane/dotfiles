@@ -7,9 +7,13 @@
   ...
 }: let
   cfg = config.services.hermes-agent;
+
+  withSampling =
+    lib.mapAttrs (_: server:
+      lib.recursiveUpdate {sampling.enabled = lib.mkDefault true;} server);
 in {
   config = lib.mkIf (cfg.enable && cfg.mcp.enable) {
-    services.hermes-agent.settings.mcp_servers = {
+    services.hermes-agent.settings.mcp_servers = withSampling {
       exa = {
         url = "https://mcp.exa.ai/mcp";
         # Authenticate with the Exa key (off the free tier). Hermes

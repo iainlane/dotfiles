@@ -1,9 +1,11 @@
 {
   hostConfig,
   lib,
+  pkgs,
   ...
 }: let
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  yaml = pkgs.formats.yaml {};
 in {
   options.services.hermes-agent = {
     enable = lib.mkEnableOption "Hermes Agent gateway service";
@@ -21,7 +23,7 @@ in {
     };
 
     settings = lib.mkOption {
-      type = lib.types.attrs;
+      inherit (yaml) type;
       default = {};
     };
 
@@ -135,14 +137,13 @@ in {
     };
 
     agentPackages = lib.mkOption {
-      type = with lib.types; listOf str;
-      default = ["curl" "wget"];
-      example = ["curl" "wget" "jq" "fd"];
+      type = with lib.types; listOf package;
+      default = [];
+      example = lib.literalExpression "[pkgs.jq pkgs.fd]";
       description = ''
-        Programs, by nixpkgs attribute name, that the agent can run inside the
-        container — in addition to the package's own runtime tools (git, node,
-        ripgrep, ffmpeg, ...). They are baked into the image and put on the
-        container PATH so they resolve by name.
+        Programs the agent can run inside the container, in addition to the
+        package's own runtime tools (git, node, ripgrep, ffmpeg, ...). They
+        are baked into the image and put on the container PATH.
       '';
     };
 

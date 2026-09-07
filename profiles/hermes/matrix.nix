@@ -29,6 +29,7 @@ in {
   config = lib.mkIf (cfg.enable && cfg.matrix.enable) {
     services.hermes-agent = {
       extraDependencyGroups = ["matrix"];
+      settings.display.platforms.matrix.streaming = lib.mkDefault true;
       environment =
         {
           MATRIX_HOMESERVER = cfg.matrix.httpUrl;

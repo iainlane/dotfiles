@@ -31,6 +31,9 @@ in {
       # The agent's terminal working directory, inside the container.
       terminal.cwd = "/data/workspace";
 
+      checkpoints.enabled = lib.mkDefault true;
+      display.busy_input_mode = lib.mkDefault "steer";
+
       # Single owner of the `plugins` allow/deny lists, merging the two
       # sources (context-engine's enable, host-level disables) into one
       # `settings.plugins` definition.

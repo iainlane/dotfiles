@@ -77,12 +77,9 @@
   profilePictureContainerPath = "/profile-pictures";
 
   # Tools the agent can shell out to, on top of the package's own runtime
-  # deps (git/node/ripgrep/ffmpeg/...). `agentPackages` are nixpkgs
-  # attribute names; they go into the image and onto the container PATH so
-  # they resolve by name for the agent.
-  agentToolDrvs =
-    map (name: pkgs.${name}) cfg.agentPackages
-    ++ cfg.extraPackages;
+  # deps (git/node/ripgrep/ffmpeg/...). They go into the image and onto the
+  # container PATH so they resolve by name for the agent.
+  agentToolDrvs = cfg.agentPackages ++ cfg.extraPackages;
 
   agentBinPath = lib.makeBinPath agentToolDrvs;
 
@@ -363,6 +360,8 @@
     serviceConfig =
       {
         ExecStartPre = ["${setupScript}/bin/hermes-prepare-state"];
+        Restart = "always";
+        RestartSec = 5;
       }
       // serviceConfig;
   };

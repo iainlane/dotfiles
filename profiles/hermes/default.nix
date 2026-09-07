@@ -13,6 +13,9 @@ in {
       imports = [
         ./options.nix
         ./core.nix
+        ./models.nix
+        ./terminal.nix
+        ./browser.nix
         ./dashboard.nix
         ./signal.nix
         ./matrix.nix
