@@ -35,7 +35,7 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      - name: Run the prompt conformance hook
+      - name: Run all prompt conformance checks
         env:
           FROM_REF:
             ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -48,6 +48,11 @@ jobs:
             from_ref="$(git rev-parse HEAD^)"
           fi
 
-          nix develop --command pre-commit run prompt-conformance \
-            --from-ref "${from_ref}" \
-            --to-ref "${TO_REF}"
+          export PRE_COMMIT_FROM_REF="${from_ref}"
+          export PRE_COMMIT_TO_REF="${TO_REF}"
+          ./scripts/check-prompt-conformance.bash \
+            .#claude-prompt-conformance.tests.python \
+            .#claude-prompt-conformance.tests.conformance \
+            .#claude-prompt-conformance.tests.codexProtocol \
+            .#claude-prompt-conformance.tests.codexEndpoint \
+            .#claude-prompt-conformance.tests.claudeEndpoint

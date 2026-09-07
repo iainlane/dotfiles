@@ -9,9 +9,23 @@ selects the platform adapter and concrete clients. Unit tests inject fakes for
 every backend capability and compare complete domain structures. Platform tests
 compare complete Seatbelt profiles and Bubblewrap commands.
 
-Nix runs Ruff, pytest, import checks, package construction, wrapper
-construction, and a non-interactive catalogue check without credentials or
-network access.
+Pre-commit builds `claude-prompt-conformance.tests.python`, which runs Ruff,
+BasedPyright, pytest, and import checks while building the Python package. Its
+source includes only the Python code, tests and package metadata, so changes to
+prompts, model defaults or fixtures reuse the cached package.
+
+CI also builds `tests.conformance` and the three client checks below. These
+checks construct the runner, verify its configuration and catalogue, and test
+the pinned clients without credentials or external model requests. Run the same
+checks locally with:
+
+```console
+nix build --no-link \
+  .#claude-prompt-conformance.tests.conformance \
+  .#claude-prompt-conformance.tests.codexProtocol \
+  .#claude-prompt-conformance.tests.codexEndpoint \
+  .#claude-prompt-conformance.tests.claudeEndpoint
+```
 
 ## Client checks
 

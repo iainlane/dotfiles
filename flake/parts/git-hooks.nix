@@ -4,13 +4,6 @@
   perSystem = {config, ...}: let
     inherit (config._module.args) pkgs;
     inherit (pkgs) lib;
-
-    promptConformanceChecks = [
-      ".#claude-prompt-conformance.tests.conformance"
-      ".#claude-prompt-conformance.tests.codexProtocol"
-      ".#claude-prompt-conformance.tests.codexEndpoint"
-      ".#claude-prompt-conformance.tests.claudeEndpoint"
-    ];
   in {
     pre-commit = {
       check.enable = false;
@@ -53,8 +46,8 @@
 
           prompt-conformance = {
             enable = true;
-            name = "prompt conformance";
-            entry = "./scripts/check-prompt-conformance.bash ${builtins.concatStringsSep " " promptConformanceChecks}";
+            name = "prompt conformance Python checks";
+            entry = "./scripts/check-prompt-conformance.bash .#claude-prompt-conformance.tests.python";
             language = "system";
             pass_filenames = false;
             always_run = true;

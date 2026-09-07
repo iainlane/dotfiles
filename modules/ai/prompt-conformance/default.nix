@@ -17,8 +17,15 @@
     "statusLine"
     "voiceEnabled"
   ];
-  source = ./.;
-  fixturesDirectory = source + "/fixtures";
+  source = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./claude_prompt_conformance
+      ./pyproject.toml
+      ./tests
+    ];
+  };
+  fixturesDirectory = ./fixtures;
 
   claudePackage = inputs.llm-agents.packages.${system}.claude-code;
   codexPackage = inputs.llm-agents.packages.${system}.codex;
@@ -468,6 +475,7 @@ in
             codexEndpoint = codexEndpointCheck;
             codexProtocol = codexProtocolCheck;
             conformance = check;
+            python = pythonApplication;
           };
       };
   })
