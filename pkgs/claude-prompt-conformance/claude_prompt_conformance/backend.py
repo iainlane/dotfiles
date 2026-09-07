@@ -62,6 +62,7 @@ from .run_store import (
     protect_output_path,
 )
 from .storage import (
+    OUTPUT_MARKER,
     SAMPLE_MARKER,
     RetainedPathUnsafeError,
     atomic_write,
@@ -1230,7 +1231,12 @@ def prepare_output(
     if exists:
         if not resolved.is_dir():
             raise OutputPathNotDirectoryError(resolved)
-        if not (resolved / SAMPLE_MARKER).is_file():
+        # RunStore creates the top-level directory with OUTPUT_MARKER before
+        # the suite starts. Nested samples require SAMPLE_MARKER.
+        marked = (resolved / SAMPLE_MARKER).is_file() or (
+            root is None and (resolved / OUTPUT_MARKER).is_file()
+        )
+        if not marked:
             if root is None:
                 raise OutputPathUnmarkedError(resolved)
 

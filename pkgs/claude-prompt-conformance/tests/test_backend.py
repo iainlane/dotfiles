@@ -1,4 +1,5 @@
 import json
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -68,6 +69,7 @@ from claude_prompt_conformance.process import (
 from claude_prompt_conformance.progress import TaskKind as ProgressTaskKind
 from claude_prompt_conformance.progress import TaskOutcome, TaskRun, TaskScopes
 from claude_prompt_conformance.run_store import OutputPathUnmarkedError
+from claude_prompt_conformance.storage import OUTPUT_MARKER
 from claude_prompt_conformance.task_children import ChildAllocation, FixedTaskChildren
 from claude_prompt_conformance.verification import CommandVerifier
 
@@ -982,6 +984,27 @@ def draft_metadata(draft: str) -> str:
             "prompt": {"AGENTS.md": draft},
         }
     )
+
+
+def test_suite_runs_in_the_directory_the_run_store_opened(tmp_path: Path) -> None:
+    fixture = make_fixture(tmp_path / "fixtures")
+    events = RecordingEvents()
+    metadata = tmp_path / "run.json"
+    output = tmp_path / "results"
+    conformance = suite(metadata, events)
+    # Reproduce RunStore.open's directory, marker and metadata snapshots
+    # before starting the suite.
+    output.mkdir()
+    (output / OUTPUT_MARKER).write_text("{}\n")
+    shutil.copyfile(metadata, output / "run-metadata.json")
+    shutil.copyfile(
+        metadata.with_name("prompt-context-source.json"),
+        output / "prompt-context.json",
+    )
+
+    summary = conformance.run(RunRequest(output, (fixture,)))
+
+    assert (summary.passed, summary.failed, summary.invalid) == (1, 0, 0)
 
 
 def arm_request(store_root: Path, fixture: Fixture, sample: int) -> RunRequest:
