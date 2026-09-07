@@ -29,11 +29,19 @@ from .errors import ConformanceError
 from .frontend import JsonFrontend, RichFrontend, catalogue_table, choose_fixtures
 from .improvement import ImprovementRequest, PromptImprovementSuite
 from .improvement import validate_bounds as validate_improvement_bounds
-from .inputs import RuntimeInputs
+from .inputs import RuntimeInputs, declaration_paths
 from .models import Fixture, RuntimeConfiguration
 from .process import kill_active_process_groups
 from .progress import TaskScopes
-from .run_store import RunInvocation, RunStore
+from .protocols.configuration import (
+    ClaudeConfigurationInput,
+    CodexAgentConfigurationInput,
+    CodexConfigurationInput,
+    IsolationConfigurationInput,
+    PromptVariantConfigurationInput,
+    RuntimeConfigurationInput,
+)
+from .run_store import RunInvocation, RunStore, configuration_document
 from .slots import SlotPool
 from .storage import RunLease
 
@@ -74,14 +82,8 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Test Claude's assembled prompt configuration"
     )
-    result.add_argument(
-        "configuration",
-        type=Path,
-        metavar="CONFIGURATION",
-        # The Nix wrapper appends the assembled configuration to every
-        # invocation, so the usage line must not ask an operator for it.
-        help=argparse.SUPPRESS,
-    )
+    add_suite_arguments(result)
+    add_prompt_arguments(result)
     result.add_argument(
         "output",
         nargs="?",
@@ -172,6 +174,147 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+def add_suite_arguments(result: argparse.ArgumentParser) -> None:
+    """Declare the flags the suite's own wrapper supplies.
+
+    These name the suite's machinery, the clients it pins, and the settings it
+    measures every prompt with. A person can still replace any of them on the
+    command line.
+    """
+
+    group = result.add_argument_group("suite")
+    group.add_argument("--fixtures", required=True, metavar="PATH")
+    group.add_argument(
+        "--isolation-backend",
+        required=True,
+        choices=("darwin", "linux"),
+    )
+    group.add_argument("--isolation-program", required=True, metavar="PATH")
+    group.add_argument("--git-program", required=True, metavar="PATH")
+    group.add_argument("--tls-certificate-bundle", required=True, metavar="PATH")
+    group.add_argument("--claude-program", required=True, metavar="PATH")
+    group.add_argument("--claude-shell", required=True, metavar="PATH")
+    group.add_argument("--claude-version", required=True, metavar="VERSION")
+    group.add_argument("--claude-effort", required=True, metavar="EFFORT")
+    group.add_argument("--claude-api-budget", required=True, metavar="USD")
+    group.add_argument("--claude-oauth-token-url", required=True, metavar="URL")
+    group.add_argument("--claude-oauth-client-id", required=True, metavar="ID")
+    group.add_argument("--codex-program", required=True, metavar="PATH")
+    group.add_argument("--codex-version", required=True, metavar="VERSION")
+    group.add_argument("--mcp-program", required=True, metavar="PATH")
+    group.add_argument("--judge-schema", required=True, metavar="PATH")
+    group.add_argument("--proposal-schema", required=True, metavar="PATH")
+    group.add_argument("--judge-effort", required=True, metavar="EFFORT")
+    group.add_argument("--improver-effort", required=True, metavar="EFFORT")
+    group.add_argument("--codex-service-tier", required=True, metavar="TIER")
+    group.add_argument(
+        "--codex-verbosity",
+        required=True,
+        choices=("low", "medium", "high"),
+    )
+    group.add_argument(
+        "--codex-context-window",
+        required=True,
+        type=int,
+        metavar="TOKENS",
+    )
+    group.add_argument("--codex-oauth-token-url", required=True, metavar="URL")
+    group.add_argument("--codex-oauth-client-id", required=True, metavar="ID")
+    group.add_argument("--nix-program", required=True, metavar="PATH")
+    group.add_argument("--nixpkgs", required=True, metavar="DIR")
+    group.add_argument("--variant-expression", required=True, metavar="PATH")
+    group.add_argument("--variant-prompt-environment", required=True, metavar="PATH")
+
+
+def add_prompt_arguments(result: argparse.ArgumentParser) -> None:
+    """Declare the flags which name the prompt configuration under test.
+
+    A caller assembles these: the prompt a candidate is given, the managed
+    settings it runs under, the sources a variant patches, and the three
+    models.
+    """
+
+    group = result.add_argument_group("prompt configuration")
+    group.add_argument("--managed-settings", required=True, metavar="PATH")
+    group.add_argument("--candidate-context", required=True, metavar="DIR")
+    group.add_argument("--workspace-overlay", required=True, metavar="DIR")
+    group.add_argument("--prompt-context", required=True, metavar="PATH")
+    group.add_argument("--prompt-source", required=True, metavar="DIR")
+    group.add_argument("--candidate-model", required=True, metavar="MODEL")
+    group.add_argument("--output-style", required=True, metavar="NAME")
+    group.add_argument("--judge-model", required=True, metavar="MODEL")
+    group.add_argument("--improver-model", required=True, metavar="MODEL")
+
+
+def configuration_input(
+    arguments: argparse.Namespace,
+) -> RuntimeConfigurationInput:
+    """Assemble the effective configuration from the parsed command line."""
+
+    return RuntimeConfigurationInput(
+        fixture_manifest=arguments.fixtures,
+        prompt_context=arguments.prompt_context,
+        candidate_context=arguments.candidate_context,
+        workspace_overlay=arguments.workspace_overlay,
+        git_program=arguments.git_program,
+        tls_certificate_bundle=arguments.tls_certificate_bundle,
+        claude=ClaudeConfigurationInput(
+            program=arguments.claude_program,
+            shell=arguments.claude_shell,
+            version=arguments.claude_version,
+            settings=arguments.managed_settings,
+            model=arguments.candidate_model,
+            effort=arguments.claude_effort,
+            api_budget_usd=arguments.claude_api_budget,
+            output_style=arguments.output_style,
+            oauth_token_url=arguments.claude_oauth_token_url,
+            oauth_client_id=arguments.claude_oauth_client_id,
+        ),
+        codex=CodexConfigurationInput(
+            program=arguments.codex_program,
+            version=arguments.codex_version,
+            mcp_program=arguments.mcp_program,
+            judge=codex_agent_input(
+                arguments, arguments.judge_model, arguments.judge_effort
+            ),
+            improver=codex_agent_input(
+                arguments, arguments.improver_model, arguments.improver_effort
+            ),
+            schema=arguments.judge_schema,
+            proposal_schema=arguments.proposal_schema,
+            oauth_token_url=arguments.codex_oauth_token_url,
+            oauth_client_id=arguments.codex_oauth_client_id,
+        ),
+        isolation=IsolationConfigurationInput(
+            backend=arguments.isolation_backend,
+            program=arguments.isolation_program,
+        ),
+        variant=PromptVariantConfigurationInput(
+            nix_program=arguments.nix_program,
+            nixpkgs=arguments.nixpkgs,
+            expression=arguments.variant_expression,
+            prompt_environment=arguments.variant_prompt_environment,
+            prompt_source=arguments.prompt_source,
+        ),
+    )
+
+
+def codex_agent_input(
+    arguments: argparse.Namespace,
+    model: str,
+    effort: str,
+) -> CodexAgentConfigurationInput:
+    """Combine one Codex agent's model and effort with the shared client limits."""
+
+    return CodexAgentConfigurationInput(
+        model=model,
+        effort=effort,
+        service_tier=arguments.codex_service_tier,
+        verbosity=arguments.codex_verbosity,
+        context_window=arguments.codex_context_window,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _interrupt_on_terminate)
     try:
@@ -246,8 +389,9 @@ RUN_FAILURE = FailurePhase("RunFailed", "Run failed", 3)
 
 def _main(argv: Sequence[str] | None = None) -> int:
     arguments = parser().parse_args(argv)
+    declaration = configuration_input(arguments)
     try:
-        inputs = RuntimeInputs.load(arguments.configuration)
+        inputs = RuntimeInputs.from_declaration(declaration)
         fixtures = inputs.source_fixtures()
     except ConformanceError as error:
         return report_failure(SETUP_FAILURE, error, arguments.format)
@@ -306,15 +450,18 @@ def _main(argv: Sequence[str] | None = None) -> int:
             )
         with (
             pinned_closure(
-                arguments.configuration,
-                nix_store_program(inputs.declaration.variant.nix_program),
+                declaration_paths(declaration),
+                nix_store_program(declaration.variant.nix_program),
                 runtime_directory(os.environ),
                 f"run-{os.getpid()}",
             ),
+            # The run store has yet to retain the configuration, and
+            # authentication needs only the endpoints and the sandbox, so this
+            # names the document the store will write.
             acquire_run_authentication(
                 RuntimeConfiguration.from_input(
-                    arguments.configuration,
-                    inputs.declaration,
+                    configuration_document(output),
+                    declaration,
                 )
             ) as authentication,
             RunLease(output),

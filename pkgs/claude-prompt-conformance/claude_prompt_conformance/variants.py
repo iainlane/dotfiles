@@ -161,7 +161,7 @@ class NixPromptVariantBuilder:
             raise PromptVariantBuildError(result.return_code, stderr)
 
         output = nix_output_path(stdout)
-        runtime = RuntimeInputs.load(output / "configuration.json").materialise(
+        runtime = variant_inputs(configuration, output).materialise(
             artefacts / "inputs"
         )
         retained_configuration = refresh_execution(runtime, configuration).configuration
@@ -176,6 +176,34 @@ class NixPromptVariantBuilder:
         return retained_configuration
 
 
+def variant_inputs(
+    configuration: RuntimeConfiguration,
+    output: Path,
+) -> RuntimeInputs:
+    """Load the run's inputs with the variant's prompt in place of the base one.
+
+    The variant build rebuilds the prompt alone. Everything else, the fixtures
+    above all, is read again from the run's own retained snapshot.
+    """
+
+    base = RuntimeInputs.load(configuration.source).declaration
+    declaration = msgspec.structs.replace(
+        base,
+        prompt_context=str(output / "prompt-context.json"),
+        candidate_context=str(output / "candidate-context"),
+        workspace_overlay=str(output / "workspace-overlay"),
+        claude=msgspec.structs.replace(
+            base.claude,
+            settings=str(output / "managed-settings.json"),
+        ),
+        variant=msgspec.structs.replace(
+            base.variant,
+            prompt_source=str(output / "prompt-source"),
+        ),
+    )
+    return RuntimeInputs.from_declaration(declaration)
+
+
 def nix_expression(configuration: RuntimeConfiguration, patch: Path) -> str:
     """Construct a Nix expression that copies the variant inputs into the store.
 
@@ -188,8 +216,8 @@ def nix_expression(configuration: RuntimeConfiguration, patch: Path) -> str:
     # is fixed per argument so that a run store and a Nix store yield the same
     # path for the same contents.
     inputs = {
-        "baseConfiguration": ("configuration.json", configuration.source),
         "expression": ("variant.nix", configuration.variant.expression),
+        "managedSettings": ("managed-settings.json", configuration.claude.settings),
         "patch": ("prompt.patch", patch),
         "promptEnvironment": (
             "prompt-environment.nix",
@@ -213,7 +241,7 @@ def nix_expression(configuration: RuntimeConfiguration, patch: Path) -> str:
         f"let pkgs = import {nixpkgs} {{}}; "
         f"in import ({stored['expression']}) {{ "
         f"inherit pkgs; "
-        f"baseConfiguration = {stored['baseConfiguration']}; "
+        f"managedSettings = {stored['managedSettings']}; "
         f"patch = {stored['patch']}; "
         f"promptEnvironment = {stored['promptEnvironment']}; "
         f"promptSource = {stored['promptSource']}; "

@@ -3,8 +3,8 @@
 # Build the prompt-conformance checks named on the command line, but only when
 # the change under review touches a file they read.
 #
-# The checks take minutes, so the pre-commit hook that runs this passes every
-# check it wants built and this script decides whether to build them.
+# The pre-commit hook passes the checks it needs. This script skips the build
+# when none of their inputs changed.
 #
 # Usage: check-prompt-conformance <flake check>...
 
@@ -14,8 +14,9 @@ relevant_paths=(
 	flake.lock
 	flake.nix
 	.github/workflows/prompt-conformance.yml
-	flake/parts/apps.nix
 	flake/parts/git-hooks.nix
+	features/ai/default.nix
+	features/ai/prompt-conformance.nix
 	features/ai/agent-instructions.nix
 	features/ai/models.nix
 	features/ai/claude-code/managed-settings-common.nix

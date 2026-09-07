@@ -1,5 +1,15 @@
 # Architecture
 
+## Configuration
+
+The suite takes its whole configuration as command-line flags, which name the
+manifests and directories a run loads. The package wrapper adds the flags of the
+suite itself; the `ai` feature adds the flags which name the prompt under test
+and exposes the result as `nix run .#claude-prompt-conformance`. The program
+itself draws no distinction between the two groups: it assembles one runtime
+configuration from the parsed arguments, and a run retains that configuration as
+JSON so it can be resumed and fingerprinted.
+
 ## Capability interfaces
 
 The backend talks only to capability interfaces for instance allocation,
@@ -14,22 +24,24 @@ BasedPyright, pytest, and import checks while building the Python package. Its
 source includes only the Python code, tests and package metadata, so changes to
 prompts, model defaults or fixtures reuse the cached package.
 
-CI also builds `tests.conformance` and the three client checks below. These
-checks construct the runner, verify its configuration and catalogue, and test
-the pinned clients without credentials or external model requests. Run the same
-checks locally with:
+CI also builds the fixture-environment check, the three client checks below, and
+the `ai` feature's configuration check. Together they realise a fixture
+toolchain, drive the pinned clients without credentials or external model
+requests, and run the configured program far enough to print its catalogue. Run
+the same checks locally with:
 
 ```console
 nix build --no-link \
-  .#claude-prompt-conformance.tests.conformance \
+  .#claude-prompt-conformance.tests.fixtureEnvironments \
   .#claude-prompt-conformance.tests.codexProtocol \
   .#claude-prompt-conformance.tests.codexEndpoint \
-  .#claude-prompt-conformance.tests.claudeEndpoint
+  .#claude-prompt-conformance.tests.claudeEndpoint \
+  ".#checks.$(nix config show system).prompt-conformance-configuration"
 ```
 
 ## Client checks
 
-Three further Nix checks drive the pinned clients themselves.
+Three of those checks drive the pinned clients themselves.
 
 A protocol check reads the effective configuration of an isolated Codex
 instance.
@@ -50,10 +62,12 @@ for that stream, so this check is what catches client drift.
 A run pins its own program closure. Startup reads every document input into
 memory, but the pinned clients, the evidence MCP server, and the fixture
 toolchains are executed from the Nix store throughout the run. Startup therefore
-registers an indirect garbage-collector root on the runtime configuration and
-releases it on exit. The root's link lives in the session's runtime directory,
-where the next run to start sweeps the links of runs whose process is gone, and
-Nix prunes the then-dangling indirect root at its next collection.
+registers an indirect garbage-collector root on every store path its
+configuration names, and releases them on exit. The links live under
+`XDG_RUNTIME_DIR`, or in the per-user temporary directory when that variable is
+unset, as on macOS. The next run to start removes the links of runs whose
+process is gone, and Nix prunes the then-dangling indirect roots at its next
+collection.
 
 ## Progress
 

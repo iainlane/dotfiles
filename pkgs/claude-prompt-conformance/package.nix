@@ -1,30 +1,19 @@
-# The prompt-conformance suite: it drives whole agent packages from
-# `llm-agents` and reads this flake's own prompt files, so it takes the input
-# set and the package set rather than a list of individual dependencies. The
-# local package overlay passes both.
+# The prompt-conformance suite: the program, its fixtures and their tool
+# environments. It drives the two agent clients pinned from `llm-agents`, and
+# it uses enough of nixpkgs that it takes the package set rather than a list
+# of individual dependencies; `args.nix` supplies all three.
+#
+# The program measures whichever prompt configuration its caller names on the
+# command line. This wrapper supplies the suite's own half of that command
+# line: the fixtures, the machinery, and the settings every prompt is measured
+# with. The `ai` feature supplies the other half and exposes the result as
+# `nix run .#claude-prompt-conformance`.
 {
-  inputs,
+  claudeCode,
+  codex,
   lib,
   pkgs,
-  stdenv,
 }: let
-  inherit (stdenv.hostPlatform) system;
-  defaultModels = import ../../features/ai/models.nix;
-  instructions = (import ../../features/ai/agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
-  managedSettings =
-    (lib.evalModules {
-      modules = [../../features/ai/claude-code/managed-settings-common.nix];
-      specialArgs = {inherit defaultModels inputs pkgs;};
-    }).config.dotfiles.claudeCode.managedSettings;
-  # Dropped: the settings that would change the measured prompt, and the
-  # settings that need host services the isolated candidate is denied.
-  suiteManagedSettings = removeAttrs managedSettings [
-    "enabledPlugins"
-    "extraKnownMarketplaces"
-    "fileSuggestion"
-    "statusLine"
-    "voiceEnabled"
-  ];
   # The distribution and its tests, and nothing else, so that editing the
   # documentation or regenerating the demo recording leaves the pytest suite and
   # both endpoint checks cached.
@@ -38,18 +27,12 @@
   };
   fixturesDirectory = ./fixtures;
 
-  claudePackage = inputs.llm-agents.packages.${system}.claude-code;
-  codexPackage = inputs.llm-agents.packages.${system}.codex;
-  # The candidate is the model the managed settings select for daily use.
-  claudeModel = suiteManagedSettings.model;
   claudeEffort = "medium";
   claudeApiBudget = "0.75";
   # Public OAuth values from the pinned Claude client, retained with its version.
   claudeOauthTokenUrl = "https://platform.claude.com/v1/oauth/token";
   claudeOauthClientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-  codexJudgeModel = "gpt-5.6-terra";
   codexJudgeEffort = "high";
-  codexImproverModel = defaultModels.openai;
   codexImproverEffort = "high";
   codexServiceTier = "fast";
   codexVerbosity = "low";
@@ -185,6 +168,9 @@
       task = directory + "/task.txt";
     };
   fixtures = map loadFixture fixtureNames;
+  # What `--list` must print. The `ai` feature compares it with the program's
+  # own output, because the program lists its catalogue only once it has been
+  # given a prompt configuration.
   expectedCatalogue =
     pkgs.writeText "prompt-conformance-catalogue.json"
     (builtins.toJSON {
@@ -199,29 +185,6 @@
     pkgs.writeText "prompt-conformance-fixtures.json"
     (builtins.toJSON fixtures);
 
-  variantPatch = pkgs.writeText "prompt-conformance-variant-smoke.patch" ''
-    --- a/output-style/plain-technical-prose.md
-    +++ b/output-style/plain-technical-prose.md
-    @@ -8,3 +8,3 @@
-
-    -# Plain technical prose
-    +# Plain technical prose test variant
-
-  '';
-
-  promptEnvironment = import ./prompt-environment.nix {
-    inherit instructions lib pkgs;
-    managedSettings = suiteManagedSettings;
-  };
-  promptSource = lib.fileset.toSource {
-    root = ../../features/ai;
-    fileset = lib.fileset.unions [
-      ../../features/ai/agent-instructions.nix
-      ../../features/ai/instructions
-      ../../features/ai/output-style
-      ../../features/ai/output-styles.nix
-    ];
-  };
   variantExpressionSource = pkgs.linkFarm "prompt-conformance-variant-expression" [
     {
       name = "variant.nix";
@@ -232,13 +195,6 @@
       path = ./prompt-environment.nix;
     }
   ];
-  inherit
-    (promptEnvironment)
-    candidateContext
-    managedSettingsFile
-    promptContext
-    workspaceOverlay
-    ;
   makeResponseSchema = name:
     pkgs.runCommandLocal "prompt-conformance-${name}-schema.json" {
       nativeBuildInputs = [pythonApplication];
@@ -247,35 +203,6 @@
     '';
   judgeSchema = makeResponseSchema "judgement";
   promptProposalSchema = makeResponseSchema "proposal";
-  runMetadataValue =
-    {
-      claude = {
-        inherit (claudePackage) version;
-        model = claudeModel;
-        effort = claudeEffort;
-      };
-      codex = {
-        inherit (codexPackage) version;
-        judge = {
-          model = codexJudgeModel;
-          effort = codexJudgeEffort;
-          serviceTier = codexServiceTier;
-          verbosity = codexVerbosity;
-          contextWindow = codexContextWindow;
-        };
-        improver = {
-          model = codexImproverModel;
-          effort = codexImproverEffort;
-          serviceTier = codexServiceTier;
-          verbosity = codexVerbosity;
-          contextWindow = codexContextWindow;
-        };
-      };
-    }
-    // promptEnvironment.promptDigests;
-  runMetadata =
-    pkgs.writeText "prompt-conformance-run.json"
-    (builtins.toJSON runMetadataValue);
   isolation =
     if pkgs.stdenv.hostPlatform.isDarwin
     then {
@@ -286,68 +213,67 @@
       backend = "linux";
       program = lib.getExe pkgs.bubblewrap;
     };
-  configurationValue = {
-    inherit
-      candidateContext
-      fixtureManifest
-      isolation
-      promptContext
-      runMetadata
-      workspaceOverlay
-      ;
-    gitProgram = lib.getExe pkgs.gitMinimal;
-    # Every isolated process is given this bundle: the sandbox cannot resolve
-    # the host's own trust location, and the store is readable to all of them.
-    tlsCertificateBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-    claude = {
-      program = lib.getExe claudePackage;
-      shell = lib.getExe pkgs.bash;
-      settings = managedSettingsFile;
-      model = claudeModel;
-      effort = claudeEffort;
-      apiBudgetUsd = claudeApiBudget;
-      oauthTokenUrl = claudeOauthTokenUrl;
-      oauthClientId = claudeOauthClientId;
-      inherit (suiteManagedSettings) outputStyle;
-    };
-    codex = {
-      program = lib.getExe codexPackage;
-      mcpProgram = "${pythonApplication}/bin/claude-prompt-conformance-mcp";
-      judge = {
-        model = codexJudgeModel;
-        effort = codexJudgeEffort;
-        serviceTier = codexServiceTier;
-        verbosity = codexVerbosity;
-        contextWindow = codexContextWindow;
-      };
-      improver = {
-        model = codexImproverModel;
-        effort = codexImproverEffort;
-        serviceTier = codexServiceTier;
-        verbosity = codexVerbosity;
-        contextWindow = codexContextWindow;
-      };
-      schema = judgeSchema;
-      proposalSchema = promptProposalSchema;
-      oauthTokenUrl = codexOauthTokenUrl;
-      oauthClientId = codexOauthClientId;
-    };
-    variant = {
-      nixProgram = lib.getExe pkgs.nix;
-      nixpkgs = pkgs.path;
-      expression = variantExpressionSource + "/variant.nix";
-      promptEnvironment = variantExpressionSource + "/prompt-environment.nix";
-      inherit promptSource;
-    };
-  };
-  configuration =
-    pkgs.writeText "prompt-conformance-configuration.json"
-    (builtins.toJSON configurationValue);
-  variantSmokeSource = pkgs.applyPatches {
-    name = "prompt-conformance-variant-smoke-source";
-    src = promptSource;
-    patches = [variantPatch];
-  };
+  # Every isolated process is given this bundle: the sandbox cannot resolve the
+  # host's own trust location, and the store is readable to all of them.
+  tlsCertificateBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+  suiteFlags = [
+    "--fixtures"
+    "${fixtureManifest}"
+    "--isolation-backend"
+    isolation.backend
+    "--isolation-program"
+    isolation.program
+    "--git-program"
+    (lib.getExe pkgs.gitMinimal)
+    "--tls-certificate-bundle"
+    tlsCertificateBundle
+    "--claude-program"
+    (lib.getExe claudeCode)
+    "--claude-shell"
+    (lib.getExe pkgs.bash)
+    "--claude-version"
+    claudeCode.version
+    "--claude-effort"
+    claudeEffort
+    "--claude-api-budget"
+    claudeApiBudget
+    "--claude-oauth-token-url"
+    claudeOauthTokenUrl
+    "--claude-oauth-client-id"
+    claudeOauthClientId
+    "--codex-program"
+    (lib.getExe codex)
+    "--codex-version"
+    codex.version
+    "--mcp-program"
+    "${pythonApplication}/bin/claude-prompt-conformance-mcp"
+    "--judge-schema"
+    "${judgeSchema}"
+    "--proposal-schema"
+    "${promptProposalSchema}"
+    "--judge-effort"
+    codexJudgeEffort
+    "--improver-effort"
+    codexImproverEffort
+    "--codex-service-tier"
+    codexServiceTier
+    "--codex-verbosity"
+    codexVerbosity
+    "--codex-context-window"
+    (toString codexContextWindow)
+    "--codex-oauth-token-url"
+    codexOauthTokenUrl
+    "--codex-oauth-client-id"
+    codexOauthClientId
+    "--nix-program"
+    (lib.getExe pkgs.nix)
+    "--nixpkgs"
+    "${pkgs.path}"
+    "--variant-expression"
+    "${variantExpressionSource}/variant.nix"
+    "--variant-prompt-environment"
+    "${variantExpressionSource}/prompt-environment.nix"
+  ];
 
   # Sandboxed builds share the machine with whatever else is running, so
   # process-spawning tests can exceed the 30-second interactive timeout
@@ -405,7 +331,7 @@
     nativeBuildInputs = [pkgs.makeWrapper];
     postBuild = ''
       wrapProgram "$out/bin/claude-prompt-conformance" \
-        --add-flags ${lib.escapeShellArg configuration}
+        --add-flags ${lib.escapeShellArg (lib.escapeShellArgs suiteFlags)}
     '';
     meta.mainProgram = "claude-prompt-conformance";
   };
@@ -413,7 +339,7 @@
   codexProtocolCheck =
     pkgs.runCommandLocal "prompt-conformance-codex-protocol-check" {
       nativeBuildInputs = [
-        codexPackage
+        codex
         pkgs.python3Packages.pytest
         pkgs.python3Packages.pytest-timeout
         pythonApplication
@@ -432,7 +358,7 @@
   codexEndpointCheck =
     pkgs.runCommandLocal "prompt-conformance-codex-endpoint-check" {
       nativeBuildInputs = [
-        codexPackage
+        codex
         pkgs.gitMinimal
         pkgs.python3Packages.pytest
         pkgs.python3Packages.pytest-timeout
@@ -455,7 +381,7 @@
   claudeEndpointCheck =
     pkgs.runCommandLocal "prompt-conformance-claude-endpoint-check" {
       nativeBuildInputs = [
-        claudePackage
+        claudeCode
         pkgs.python3Packages.pytest
         pkgs.python3Packages.pytest-timeout
         pythonApplication
@@ -475,34 +401,19 @@
       touch "$out"
     '';
 
-  check =
-    pkgs.runCommandLocal "prompt-conformance-check" {
-      nativeBuildInputs = [runner pkgs.diffutils pkgs.gnugrep pkgs.jq];
+  # The fixture toolchains and the certificate bundle are used only during a
+  # run, so nothing exercises them until a run needs them. This check runs the
+  # Rust toolchain the starship fixture verifies with, and confirms the bundle
+  # is where the wrapper says it is.
+  fixtureEnvironmentCheck =
+    pkgs.runCommandLocal "prompt-conformance-fixture-environment-check" {
+      nativeBuildInputs = [pkgs.jq];
     } ''
-      claude-prompt-conformance --list >catalogue.json
-      jq --compact-output --sort-keys . catalogue.json >catalogue.normalised.json
-      jq --compact-output --sort-keys . ${expectedCatalogue} >expected.normalised.json
-      cmp catalogue.normalised.json expected.normalised.json
-      jq --exit-status \
-        --slurpfile settings ${managedSettingsFile} \
-        --arg judgeModel ${lib.escapeShellArg codexJudgeModel} \
-        --arg improverModel ${lib.escapeShellArg defaultModels.openai} '
-        .claude.model == $settings[0].model and
-        .codex.judge == {"contextWindow":272000,"effort":"high","model":$judgeModel,"serviceTier":"fast","verbosity":"low"} and
-        .codex.improver == {"contextWindow":272000,"effort":"high","model":$improverModel,"serviceTier":"fast","verbosity":"low"} and
-        .tlsCertificateBundle == "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" and
-        .codex.oauthTokenUrl == "${codexOauthTokenUrl}" and
-        .codex.oauthClientId == "${codexOauthClientId}"
-      ' ${configuration} >/dev/null
-      test -f ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
-      starshipPath=$(jq --raw-output '.[] | select(.name == "starship-kotlin-gradle") | .environmentPath' ${fixtureManifest})
+      test -f ${tlsCertificateBundle}
+      starshipPath=$(jq --raw-output \
+        '.[] | select(.name == "starship-kotlin-gradle") | .environmentPath' \
+        ${fixtureManifest})
       env PATH="$starshipPath" cargo clippy --version >/dev/null
-      cmp \
-        ${../../features/ai/instructions/claude-code/harness.md} \
-        ${candidateContext}/rules/harness.md
-      grep --fixed-strings --quiet \
-        '# Plain technical prose test variant' \
-        ${variantSmokeSource}/output-style/plain-technical-prose.md
       touch "$out"
     '';
 in
@@ -510,13 +421,17 @@ in
     passthru =
       (old.passthru or {})
       // {
+        # The prompt builder, so that a caller assembles the prompt it measures
+        # exactly as a variant build rebuilds it.
+        promptEnvironment = ./prompt-environment.nix;
+        catalogue = expectedCatalogue;
         tests =
           (old.passthru.tests or {})
           // {
             claudeEndpoint = claudeEndpointCheck;
             codexEndpoint = codexEndpointCheck;
             codexProtocol = codexProtocolCheck;
-            conformance = check;
+            fixtureEnvironments = fixtureEnvironmentCheck;
             python = pythonApplication;
           };
       };

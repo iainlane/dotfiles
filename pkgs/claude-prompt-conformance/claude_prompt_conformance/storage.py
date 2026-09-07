@@ -64,16 +64,21 @@ OUTPUT_MARKER = ".claude-prompt-conformance"
 # their marker contains a different document, so it has a different name.
 SAMPLE_MARKER = ".claude-prompt-conformance-sample"
 STATE_DIRECTORY = ".claude-prompt-conformance-state"
+# The run's own description of the prompt, the clients and the models it was
+# started with. The suite writes it into the run store and beside the retained
+# inputs, and the judge identity of a retained calibration is computed from it.
+RUN_METADATA_DOCUMENT = "run-metadata.json"
+CONFIGURATION_DOCUMENT = "configuration.json"
 RESERVED_RUN_NAMES = frozenset(
     {
         OUTPUT_MARKER,
         SAMPLE_MARKER,
         STATE_DIRECTORY,
+        RUN_METADATA_DOCUMENT,
         "current-prompt",
         "improvement-summary.json",
         "prompt-context.json",
         "reserved-checks",
-        "run-metadata.json",
         "tries",
     }
 )

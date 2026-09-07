@@ -61,11 +61,17 @@ class FailingVariantRunner:
 
 @dataclass(frozen=True)
 class SuccessfulVariantRunner:
+    """Write the directory `variant.nix` builds, taking its prompt from inputs."""
+
     inputs: RuntimeInputs
     output: Path
 
     def run(self, invocation: ProcessInvocation) -> ProcessResult:
-        self.inputs.materialise(self.output)
+        self.inputs.candidate_context.materialise(self.output / "candidate-context")
+        self.inputs.workspace_overlay.materialise(self.output / "workspace-overlay")
+        self.inputs.prompt_source.materialise(self.output / "prompt-source")
+        self.inputs.prompt_context.materialise(self.output / "prompt-context.json")
+        self.inputs.claude_settings.materialise(self.output / "managed-settings.json")
         invocation.stdout.write_text(
             json.dumps([{"outputs": {"out": str(self.output)}}])
         )

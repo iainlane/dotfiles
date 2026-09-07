@@ -10,6 +10,7 @@ import msgspec
 from .errors import ConformanceError
 from .protocols.codex import JudgementResponse, PromptProposalResponse
 from .protocols.configuration import FixtureInput, RuntimeConfigurationInput
+from .storage import RUN_METADATA_DOCUMENT
 
 
 @dataclass(eq=True)
@@ -376,7 +377,7 @@ class IsolationConfiguration:
 
 @dataclass(frozen=True)
 class RuntimeConfiguration:
-    """Nix-assembled programs, prompt artefacts, fixtures, and isolation policy."""
+    """The programs, prompt artefacts, fixtures and isolation policy of one run."""
 
     fixture_manifest: Path
     run_metadata: Path
@@ -407,12 +408,16 @@ class RuntimeConfiguration:
         path: Path,
         value: RuntimeConfigurationInput,
     ) -> "RuntimeConfiguration":
-        """Construct a runtime configuration from an already decoded document."""
+        """Construct a runtime configuration from an already decoded document.
+
+        The suite computes the run metadata from the same values, and writes it
+        beside the configuration document, so `path` locates both.
+        """
 
         try:
             return cls(
                 fixture_manifest=Path(value.fixture_manifest),
-                run_metadata=Path(value.run_metadata),
+                run_metadata=path.with_name(RUN_METADATA_DOCUMENT),
                 prompt_context=Path(value.prompt_context),
                 candidate_context=Path(value.candidate_context),
                 workspace_overlay=Path(value.workspace_overlay),

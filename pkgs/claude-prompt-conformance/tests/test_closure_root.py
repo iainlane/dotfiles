@@ -13,6 +13,8 @@ from claude_prompt_conformance.closure_root import (
 
 
 class RecordingRunner:
+    """Create the links `nix-store --add-root` would create for each store path."""
+
     def __init__(self, returncode: int = 0, stderr: bytes = b"") -> None:
         self.commands: list[tuple[str, ...]] = []
         self._returncode = returncode
@@ -23,9 +25,13 @@ class RecordingRunner:
         command: tuple[str, ...],
     ) -> subprocess.CompletedProcess[bytes]:
         self.commands.append(command)
-        link = Path(command[2])
+        base = Path(command[2])
         if self._returncode == 0:
-            link.symlink_to(command[4])
+            for position, target in enumerate(command[4:], start=1):
+                link = (
+                    base if position == 1 else base.with_name(f"{base.name}-{position}")
+                )
+                link.symlink_to(target)
         return subprocess.CompletedProcess(command, self._returncode, b"", self._stderr)
 
 
@@ -42,36 +48,43 @@ def test_nix_store_program_is_the_configured_nix_sibling() -> None:
     )
 
 
-def test_pinned_closure_roots_a_store_configuration_and_releases_it(
+def test_pinned_closure_roots_every_store_path_and_releases_each_link(
     tmp_path: Path,
 ) -> None:
     store = tmp_path / "store"
-    configuration = store / "abc-configuration.json"
     directory = tmp_path / "runtime"
     runner = RecordingRunner()
+    paths = (
+        store / "abc-claude",
+        tmp_path / "assembled-by-a-test.json",
+        store / "def-codex",
+        store / "abc-claude",
+    )
 
     with pinned_closure(
-        configuration,
+        paths,
         "nix-store",
         directory,
         "run-7",
         runner=runner,
         store=store,
     ) as link:
-        held = link is not None and link.is_symlink()
+        held = tuple(sorted(path.name for path in directory.iterdir()))
 
-    assert (runner.commands, held, (directory / "run-7").exists()) == (
+    assert (runner.commands, link, held, tuple(directory.iterdir())) == (
         [
             (
                 "nix-store",
                 "--add-root",
                 str(directory / "run-7"),
                 "-r",
-                str(configuration),
+                str(store / "abc-claude"),
+                str(store / "def-codex"),
             )
         ],
-        True,
-        False,
+        directory / "run-7",
+        ("run-7", "run-7-2"),
+        (),
     )
 
 
@@ -81,13 +94,13 @@ def test_pinned_closure_sweeps_the_links_of_runs_which_have_gone(
     store = tmp_path / "store"
     directory = tmp_path / "runtime"
     directory.mkdir()
-    abandoned = directory / "run-2147483647"
-    abandoned.symlink_to(store / "old-configuration.json")
+    for name in ("run-2147483647", "run-2147483647-2"):
+        (directory / name).symlink_to(store / "old-claude")
     unrelated = directory / "note.txt"
     unrelated.write_text("kept\n")
 
     with pinned_closure(
-        store / "abc-configuration.json",
+        (store / "abc-claude",),
         "nix-store",
         directory,
         f"run-{os.getpid()}",
@@ -105,7 +118,7 @@ def test_pinned_closure_skips_a_configuration_outside_the_store(
     runner = RecordingRunner()
 
     with pinned_closure(
-        tmp_path / "configuration.json",
+        (tmp_path / "claude", tmp_path / "codex"),
         "nix-store",
         tmp_path / "runtime",
         "run-7",
@@ -124,7 +137,7 @@ def test_pinned_closure_reports_a_failed_root_creation(tmp_path: Path) -> None:
     with (
         pytest.raises(ClosureRootCreateError) as raised,
         pinned_closure(
-            store / "abc-configuration.json",
+            (store / "abc-claude",),
             "nix-store",
             directory,
             "run-7",
@@ -150,7 +163,7 @@ def test_pinned_closure_reports_an_unrunnable_nix_store(tmp_path: Path) -> None:
     with (
         pytest.raises(ClosureRootCreateError),
         pinned_closure(
-            store / "abc-configuration.json",
+            (store / "abc-claude",),
             "nix-store",
             directory,
             "run-7",

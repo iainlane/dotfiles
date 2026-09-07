@@ -2,14 +2,17 @@
 
 Startup reads every document input into memory, but the programs a run spawns
 throughout its lifetime, such as the pinned clients and the evidence MCP
-server, are executed from the Nix store on every process start. An indirect
-garbage-collector root on the runtime configuration pins that whole closure.
+server, are executed from the Nix store on every process start. Indirect
+garbage-collector roots on the store paths the configuration names pin those
+closures.
 
-The root's user-side link lives under `XDG_RUNTIME_DIR`, which the operating
-system clears when the session ends, or under the per-user temporary directory
-where there is no such variable, as on macOS. Releasing the root is deleting the
-link, and Nix prunes the then-dangling automatic root at its next collection.
-A run killed before it can clean up leaves its link behind, so entering the
+The user-side links live under `XDG_RUNTIME_DIR`, which the operating system
+clears when the session ends, or under the per-user temporary directory where
+there is no such variable, as on macOS. `nix-store --add-root` names the first
+link as asked and numbers the rest, so one run owns every link whose name
+begins with its identifier. Releasing the roots is deleting those links, and
+Nix prunes the then-dangling automatic roots at its next collection. A run
+killed before it can clean up leaves its links behind, so entering the
 directory sweeps the links of processes which no longer exist.
 """
 
@@ -60,8 +63,9 @@ def sweep_dead_roots(directory: Path) -> None:
     """Delete the links of runs whose process no longer exists."""
 
     for link in directory.glob("run-*"):
+        identifier, _, _ = link.name.removeprefix("run-").partition("-")
         try:
-            os.kill(int(link.name.removeprefix("run-")), 0)
+            os.kill(int(identifier), 0)
         except ValueError:
             continue
         except ProcessLookupError:
@@ -78,20 +82,21 @@ def _execute(command: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
 
 @contextmanager
 def pinned_closure(
-    configuration: Path,
+    paths: tuple[Path, ...],
     program: str,
     directory: Path,
     identifier: str,
     runner: ClosureRootRunner = _execute,
     store: Path = _STORE,
 ) -> Generator[Path | None]:
-    """Root the configuration's closure while the run may spawn its programs.
+    """Root the run's store closures while it may still spawn its programs.
 
-    A configuration outside the store, such as one assembled by a test, needs
-    no root and gets none.
+    A path outside the store, such as one a test assembles, is left alone. A
+    configuration made entirely of such paths needs no root and gets none.
     """
 
-    if store not in configuration.parents:
+    rooted = tuple(dict.fromkeys(path for path in paths if store in path.parents))
+    if not rooted:
         yield None
         return
 
@@ -99,7 +104,9 @@ def pinned_closure(
     try:
         directory.mkdir(parents=True, exist_ok=True)
         sweep_dead_roots(directory)
-        result = runner((program, "--add-root", str(link), "-r", str(configuration)))
+        result = runner(
+            (program, "--add-root", str(link), "-r", *(str(path) for path in rooted))
+        )
     except OSError as error:
         raise ClosureRootCreateError(link, str(error)) from error
     if result.returncode != 0:
@@ -111,4 +118,5 @@ def pinned_closure(
     try:
         yield link
     finally:
-        link.unlink(missing_ok=True)
+        for created in directory.glob(f"{identifier}*"):
+            created.unlink(missing_ok=True)

@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import overload
 
+import msgspec
 import pytest
 
 from claude_prompt_conformance.cli import (
@@ -10,10 +11,177 @@ from claude_prompt_conformance.cli import (
     FailurePhase,
     ImprovementCalibrationConflictError,
     InterruptEscalation,
+    configuration_input,
     main,
+    parser,
     report_failure,
     validate_run_mode,
 )
+from claude_prompt_conformance.protocols.configuration import (
+    ClaudeConfigurationInput,
+    CodexAgentConfigurationInput,
+    CodexConfigurationInput,
+    IsolationConfigurationInput,
+    PromptVariantConfigurationInput,
+    RuntimeConfigurationInput,
+)
+
+SUITE_FLAGS = (
+    "--fixtures",
+    "/nix/store/suite/fixtures.json",
+    "--isolation-backend",
+    "darwin",
+    "--isolation-program",
+    "/usr/bin/sandbox-exec",
+    "--git-program",
+    "/nix/store/git/bin/git",
+    "--tls-certificate-bundle",
+    "/nix/store/suite/ca-bundle.crt",
+    "--claude-program",
+    "/nix/store/claude/bin/claude",
+    "--claude-shell",
+    "/nix/store/bash/bin/bash",
+    "--claude-version",
+    "1.0.0",
+    "--claude-effort",
+    "medium",
+    "--claude-api-budget",
+    "0.75",
+    "--claude-oauth-token-url",
+    "https://claude.invalid/oauth/token",
+    "--claude-oauth-client-id",
+    "claude-client",
+    "--codex-program",
+    "/nix/store/codex/bin/codex",
+    "--codex-version",
+    "0.146.0",
+    "--mcp-program",
+    "/nix/store/suite/bin/mcp",
+    "--judge-schema",
+    "/nix/store/suite/judgement-schema.json",
+    "--proposal-schema",
+    "/nix/store/suite/proposal-schema.json",
+    "--judge-effort",
+    "high",
+    "--improver-effort",
+    "high",
+    "--codex-service-tier",
+    "fast",
+    "--codex-verbosity",
+    "low",
+    "--codex-context-window",
+    "272000",
+    "--codex-oauth-token-url",
+    "https://codex.invalid/oauth/token",
+    "--codex-oauth-client-id",
+    "codex-client",
+    "--nix-program",
+    "/nix/store/nix/bin/nix",
+    "--nixpkgs",
+    "/nix/store/nixpkgs",
+    "--variant-expression",
+    "/nix/store/suite/variant.nix",
+    "--variant-prompt-environment",
+    "/nix/store/suite/prompt-environment.nix",
+)
+
+CONFIGURATION_FLAGS = (
+    "--managed-settings",
+    "/nix/store/prompt/settings.json",
+    "--candidate-context",
+    "/nix/store/prompt/candidate-context",
+    "--workspace-overlay",
+    "/nix/store/prompt/workspace-overlay",
+    "--prompt-context",
+    "/nix/store/prompt/context.json",
+    "--prompt-source",
+    "/nix/store/prompt/source",
+    "--candidate-model",
+    "claude-opus-5",
+    "--output-style",
+    "plain",
+    "--judge-model",
+    "gpt-5.6-terra",
+    "--improver-model",
+    "gpt-6-astra",
+)
+
+DECLARATION = RuntimeConfigurationInput(
+    fixture_manifest="/nix/store/suite/fixtures.json",
+    prompt_context="/nix/store/prompt/context.json",
+    candidate_context="/nix/store/prompt/candidate-context",
+    workspace_overlay="/nix/store/prompt/workspace-overlay",
+    git_program="/nix/store/git/bin/git",
+    tls_certificate_bundle="/nix/store/suite/ca-bundle.crt",
+    claude=ClaudeConfigurationInput(
+        program="/nix/store/claude/bin/claude",
+        shell="/nix/store/bash/bin/bash",
+        version="1.0.0",
+        settings="/nix/store/prompt/settings.json",
+        model="claude-opus-5",
+        effort="medium",
+        api_budget_usd="0.75",
+        output_style="plain",
+        oauth_token_url="https://claude.invalid/oauth/token",
+        oauth_client_id="claude-client",
+    ),
+    codex=CodexConfigurationInput(
+        program="/nix/store/codex/bin/codex",
+        version="0.146.0",
+        mcp_program="/nix/store/suite/bin/mcp",
+        judge=CodexAgentConfigurationInput(
+            model="gpt-5.6-terra",
+            effort="high",
+            service_tier="fast",
+            verbosity="low",
+            context_window=272000,
+        ),
+        improver=CodexAgentConfigurationInput(
+            model="gpt-6-astra",
+            effort="high",
+            service_tier="fast",
+            verbosity="low",
+            context_window=272000,
+        ),
+        schema="/nix/store/suite/judgement-schema.json",
+        proposal_schema="/nix/store/suite/proposal-schema.json",
+        oauth_token_url="https://codex.invalid/oauth/token",
+        oauth_client_id="codex-client",
+    ),
+    isolation=IsolationConfigurationInput(
+        backend="darwin",
+        program="/usr/bin/sandbox-exec",
+    ),
+    variant=PromptVariantConfigurationInput(
+        nix_program="/nix/store/nix/bin/nix",
+        nixpkgs="/nix/store/nixpkgs",
+        expression="/nix/store/suite/variant.nix",
+        prompt_environment="/nix/store/suite/prompt-environment.nix",
+        prompt_source="/nix/store/prompt/source",
+    ),
+)
+
+
+def test_the_flags_of_both_wrappers_describe_the_whole_configuration() -> None:
+    arguments = parser().parse_args([*SUITE_FLAGS, *CONFIGURATION_FLAGS, "--list"])
+
+    assert configuration_input(arguments) == DECLARATION
+
+
+def test_a_repeated_flag_lets_an_operator_replace_a_wrapper_value() -> None:
+    arguments = parser().parse_args(
+        [*SUITE_FLAGS, *CONFIGURATION_FLAGS, "--judge-model", "gpt-5.6-luna", "--list"]
+    )
+
+    assert configuration_input(arguments) == msgspec.structs.replace(
+        DECLARATION,
+        codex=msgspec.structs.replace(
+            DECLARATION.codex,
+            judge=msgspec.structs.replace(
+                DECLARATION.codex.judge, model="gpt-5.6-luna"
+            ),
+        ),
+    )
 
 
 class InterruptingArguments(Sequence[str]):

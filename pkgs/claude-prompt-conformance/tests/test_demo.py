@@ -46,6 +46,7 @@ from .helpers import (
     RecordingSlots,
     make_fixture,
 )
+from .test_cli import CONFIGURATION_FLAGS, SUITE_FLAGS
 
 INSTANT = DemoPacing(scale=0)
 
@@ -309,14 +310,14 @@ def test_demo_options_reject_improvement() -> None:
 
 
 def test_demo_needs_no_output_argument() -> None:
-    arguments = parser().parse_args(["configuration.json", "--demo"])
+    arguments = parser().parse_args([*SUITE_FLAGS, *CONFIGURATION_FLAGS, "--demo"])
 
     assert (arguments.demo, arguments.output) == (True, None)
 
 
 def test_demo_treats_every_positional_as_a_test_name() -> None:
     arguments = parser().parse_args(
-        ["configuration.json", "first-test", "second-test", "--demo"]
+        [*SUITE_FLAGS, *CONFIGURATION_FLAGS, "first-test", "second-test", "--demo"]
     )
 
     adjusted = demo_arguments(arguments)

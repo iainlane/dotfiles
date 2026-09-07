@@ -6,9 +6,8 @@
 }: let
   children = config.flake.features.ai.provides;
 
-  # Hands every module of the feature the shared model defaults as an
-  # argument. The key keeps a module list that ends up importing it twice
-  # from defining the argument twice.
+  # Passes the model table to the feature's modules as the `defaultModels`
+  # argument. The key lets a module list that imports this twice count it once.
   modelDefaults = {
     key = "dotfiles-ai-model-defaults";
     _module.args.defaultModels = import ./models.nix;
@@ -25,6 +24,7 @@ in {
     ./opencode
     ./opencode2
     ./pi
+    ./prompt-conformance.nix
   ];
 
   flake.features.ai = {

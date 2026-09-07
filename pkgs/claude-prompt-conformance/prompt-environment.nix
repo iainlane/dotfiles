@@ -1,3 +1,8 @@
+# Builds the prompt a conformance run measures: the candidate's context
+# directory, the overlay a workspace receives, the prompt manifest and the
+# managed settings file. The `ai` feature builds this from the repository's own
+# instruction set, and `variant.nix` builds it again from a patched copy of the
+# instruction sources, so both prompts are assembled the same way.
 {
   instructions,
   lib,
@@ -60,23 +65,11 @@
       })
       instructions.outputStyles)
   );
-  # The part of the run metadata that identifies the prompt. A variant recomputes
-  # it from its own instruction set and keeps the rest of the base metadata.
-  promptDigests = {
-    prompt =
-      lib.mapAttrs (_: content: builtins.hashString "sha256" content)
-      instructions.files;
-    outputStyles =
-      lib.mapAttrs (_: style: builtins.hashFile "sha256" style.file)
-      instructions.outputStyles;
-    defaultOutputStyle = managedSettings.outputStyle;
-  };
 in {
   inherit
     candidateContext
     managedSettingsFile
     promptContext
-    promptDigests
     workspaceOverlay
     ;
 }

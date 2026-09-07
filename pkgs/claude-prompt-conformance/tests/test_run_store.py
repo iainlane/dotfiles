@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -10,7 +11,12 @@ import msgspec
 import pytest
 
 from claude_prompt_conformance import cli
-from claude_prompt_conformance.cli import ImprovementCalibrationConflictError, main
+from claude_prompt_conformance.cli import (
+    ImprovementCalibrationConflictError,
+    configuration_input,
+    main,
+    parser,
+)
 from claude_prompt_conformance.inputs import (
     CalibrationNameError,
     FixtureNameError,
@@ -94,13 +100,15 @@ def test_identified_directory_removal_preserves_a_replacement(tmp_path: Path) ->
     )
 
 
-def runtime_inputs(
+def nix_inputs(
     tmp_path: Path,
     *,
     prompt: str = "Be precise.",
     fixture_name: str = "example",
     calibration_name: str = "known-good",
-) -> RuntimeInputs:
+) -> Path:
+    """Write the immutable documents a wrapper would name, and return their root."""
+
     source = tmp_path / "nix-inputs"
     fixture = source / "fixture"
     candidate_context = source / "candidate-context"
@@ -110,6 +118,7 @@ def runtime_inputs(
     for directory in (
         fixture,
         candidate_context / "rules",
+        candidate_context / "output-styles",
         workspace_overlay / ".claude" / "rules",
         prompt_source / "instructions",
         prompt_source / "output-style",
@@ -120,6 +129,7 @@ def runtime_inputs(
     (fixture / "task.txt").write_text("Make the focused change.\n")
     (fixture / "known-good.txt").write_text("Implemented and checked.\n")
     (candidate_context / "rules" / "global.md").write_text(prompt)
+    (candidate_context / "output-styles" / "plain.md").write_text("Be direct.\n")
     (workspace_overlay / ".claude" / "rules" / "global.md").write_text(prompt)
     (prompt_source / "instructions" / "AGENTS.md").write_text(prompt)
     (prompt_source / "output-style" / "plain.md").write_text("Be direct.\n")
@@ -173,37 +183,6 @@ def runtime_inputs(
         )
     )
     documents = {
-        "run.json": json.dumps(
-            {
-                "claude": {
-                    "effort": "medium",
-                    "model": "claude-opus-5",
-                    "version": "1.0.0",
-                },
-                "codex": {
-                    "improver": {
-                        "contextWindow": 272000,
-                        "effort": "high",
-                        "model": "gpt-5.6-sol",
-                        "serviceTier": "fast",
-                        "verbosity": "low",
-                    },
-                    "judge": {
-                        "contextWindow": 272000,
-                        "effort": "high",
-                        "model": "gpt-5.6-terra",
-                        "serviceTier": "fast",
-                        "verbosity": "low",
-                    },
-                    "version": "0.146.0",
-                },
-                "defaultOutputStyle": "plain",
-                "outputStyles": {"plain": "style-hash"},
-                "prompt": {"global": "prompt-hash"},
-            },
-            separators=(",", ":"),
-            sort_keys=True,
-        ),
         "prompt.json": json.dumps({"globalPrompt": {"global": prompt}}) + "\n",
         "settings.json": '{"outputStyle":"plain"}\n',
         "judgement-schema.json": '{"type":"object"}\n',
@@ -212,67 +191,146 @@ def runtime_inputs(
     }
     for name, contents in documents.items():
         (source / name).write_text(contents)
-    (variant_source / "variant.nix").write_text(
-        "{ baseConfiguration, ... }: baseConfiguration\n"
-    )
+    (variant_source / "variant.nix").write_text("{promptSource, ...}: promptSource\n")
     (variant_source / "prompt-environment.nix").write_text("{}\n")
 
-    configuration = source / "configuration.json"
-    configuration.write_text(
-        json.dumps(
-            {
-                "fixtureManifest": str(fixture_manifest),
-                "runMetadata": str(source / "run.json"),
-                "promptContext": str(source / "prompt.json"),
-                "candidateContext": str(candidate_context),
-                "workspaceOverlay": str(workspace_overlay),
-                "gitProgram": "/nix/store/git/bin/git",
-                "tlsCertificateBundle": str(source / "ca-bundle.crt"),
-                "claude": {
-                    "program": "/nix/store/claude/bin/claude",
-                    "shell": "/nix/store/bash/bin/bash",
-                    "settings": str(source / "settings.json"),
-                    "model": "claude-opus-5",
-                    "effort": "medium",
-                    "apiBudgetUsd": "0.75",
-                    "outputStyle": "plain",
-                    "oauthTokenUrl": "https://claude.invalid/oauth/token",
-                    "oauthClientId": "client",
-                },
-                "codex": {
-                    "program": "/nix/store/codex/bin/codex",
-                    "mcpProgram": "/nix/store/harness/bin/mcp",
-                    "judge": {
-                        "model": "gpt-5.6-terra",
-                        "effort": "high",
-                        "serviceTier": "fast",
-                        "verbosity": "low",
-                        "contextWindow": 272000,
-                    },
-                    "improver": {
-                        "model": "gpt-5.6-sol",
-                        "effort": "high",
-                        "serviceTier": "fast",
-                        "verbosity": "low",
-                        "contextWindow": 272000,
-                    },
-                    "schema": str(source / "judgement-schema.json"),
-                    "proposalSchema": str(source / "proposal-schema.json"),
-                    "oauthTokenUrl": "https://codex.invalid/oauth/token",
-                    "oauthClientId": "codex-client",
-                },
-                "isolation": {"backend": "darwin", "program": "/usr/bin/sandbox-exec"},
-                "variant": {
-                    "nixProgram": "/nix/store/nix/bin/nix",
-                    "nixpkgs": "/nix/store/nixpkgs",
-                    "expression": str(variant_source / "variant.nix"),
-                    "promptEnvironment": str(variant_source / "prompt-environment.nix"),
-                    "promptSource": str(prompt_source),
-                },
-            }
-        )
+    return source
+
+
+def configuration_flags(source: Path) -> tuple[str, ...]:
+    """Name the documents below one input root the way both wrappers would."""
+
+    return (
+        "--fixtures",
+        str(source / "fixtures.json"),
+        "--isolation-backend",
+        "darwin",
+        "--isolation-program",
+        "/usr/bin/sandbox-exec",
+        "--git-program",
+        "/nix/store/git/bin/git",
+        "--tls-certificate-bundle",
+        str(source / "ca-bundle.crt"),
+        "--claude-program",
+        "/nix/store/claude/bin/claude",
+        "--claude-shell",
+        "/nix/store/bash/bin/bash",
+        "--claude-version",
+        "1.0.0",
+        "--claude-effort",
+        "medium",
+        "--claude-api-budget",
+        "0.75",
+        "--claude-oauth-token-url",
+        "https://claude.invalid/oauth/token",
+        "--claude-oauth-client-id",
+        "client",
+        "--codex-program",
+        "/nix/store/codex/bin/codex",
+        "--codex-version",
+        "0.146.0",
+        "--mcp-program",
+        "/nix/store/harness/bin/mcp",
+        "--judge-schema",
+        str(source / "judgement-schema.json"),
+        "--proposal-schema",
+        str(source / "proposal-schema.json"),
+        "--judge-effort",
+        "high",
+        "--improver-effort",
+        "high",
+        "--codex-service-tier",
+        "fast",
+        "--codex-verbosity",
+        "low",
+        "--codex-context-window",
+        "272000",
+        "--codex-oauth-token-url",
+        "https://codex.invalid/oauth/token",
+        "--codex-oauth-client-id",
+        "codex-client",
+        "--nix-program",
+        "/nix/store/nix/bin/nix",
+        "--nixpkgs",
+        "/nix/store/nixpkgs",
+        "--variant-expression",
+        str(source / "variant-expression" / "variant.nix"),
+        "--variant-prompt-environment",
+        str(source / "variant-expression" / "prompt-environment.nix"),
+        "--managed-settings",
+        str(source / "settings.json"),
+        "--candidate-context",
+        str(source / "candidate-context"),
+        "--workspace-overlay",
+        str(source / "workspace-overlay"),
+        "--prompt-context",
+        str(source / "prompt.json"),
+        "--prompt-source",
+        str(source / "prompt-source"),
+        "--candidate-model",
+        "claude-opus-5",
+        "--output-style",
+        "plain",
+        "--judge-model",
+        "gpt-5.6-terra",
+        "--improver-model",
+        "gpt-5.6-sol",
     )
-    return RuntimeInputs.load(configuration)
+
+
+def runtime_inputs(
+    tmp_path: Path,
+    *,
+    prompt: str = "Be precise.",
+    fixture_name: str = "example",
+    calibration_name: str = "known-good",
+) -> RuntimeInputs:
+    source = nix_inputs(
+        tmp_path,
+        prompt=prompt,
+        fixture_name=fixture_name,
+        calibration_name=calibration_name,
+    )
+    return RuntimeInputs.from_declaration(declaration_of(source))
+
+
+def declaration_of(source: Path) -> RuntimeConfigurationInput:
+    """Parse one input root's flags the way the program parses its own."""
+
+    return configuration_input(
+        parser().parse_args([*configuration_flags(source), "--list"])
+    )
+
+
+def test_the_run_metadata_describes_the_clients_the_models_and_the_prompt(
+    tmp_path: Path,
+) -> None:
+    prompt = "Be precise."
+    style = "Be direct.\n"
+    codex_agent = {
+        "effort": "high",
+        "serviceTier": "fast",
+        "verbosity": "low",
+        "contextWindow": 272000,
+    }
+
+    inputs = runtime_inputs(tmp_path, prompt=prompt)
+
+    assert msgspec.json.decode(inputs.run_metadata.contents) == {
+        "claude": {
+            "version": "1.0.0",
+            "model": "claude-opus-5",
+            "effort": "medium",
+        },
+        "codex": {
+            "version": "0.146.0",
+            "judge": {"model": "gpt-5.6-terra"} | codex_agent,
+            "improver": {"model": "gpt-5.6-sol"} | codex_agent,
+        },
+        "prompt": {"global": hashlib.sha256(prompt.encode()).hexdigest()},
+        "outputStyles": {"plain": hashlib.sha256(style.encode()).hexdigest()},
+        "defaultOutputStyle": "plain",
+    }
 
 
 @pytest.mark.parametrize(
@@ -537,14 +595,18 @@ def test_resume_identity_rejects_a_changed_judge_configuration(
     inputs = runtime_inputs(tmp_path)
     output = tmp_path / "results"
     RunStore.open(output, inputs, INVOCATION, unlink_first=False)
-    metadata = msgspec.json.decode(inputs.run_metadata.contents)
-    metadata["codex"]["judge"]["model"] = "gpt-5.6-luna"
-    changed = replace(
-        inputs,
-        run_metadata=replace(
-            inputs.run_metadata,
-            contents=msgspec.json.encode(metadata),
-        ),
+    declaration = inputs.declaration
+    changed = RuntimeInputs.from_declaration(
+        msgspec.structs.replace(
+            declaration,
+            codex=msgspec.structs.replace(
+                declaration.codex,
+                judge=msgspec.structs.replace(
+                    declaration.codex.judge,
+                    model="gpt-5.6-luna",
+                ),
+            ),
+        )
     )
 
     with pytest.raises(OutputSnapshotMismatchError) as raised:
@@ -746,8 +808,9 @@ def test_run_identity_covers_every_class_of_controlled_input(tmp_path: Path) -> 
 def test_the_certificate_bundle_is_read_from_the_configuration_root(
     tmp_path: Path,
 ) -> None:
-    runtime_inputs(tmp_path)
-    source = tmp_path / "nix-inputs" / "configuration.json"
+    source = (
+        runtime_inputs(tmp_path).materialise(tmp_path / "retained").configuration.source
+    )
     document = json.loads(source.read_text())
     bundle = document.pop("tlsCertificateBundle")
     beside_codex = tmp_path / "beside-codex.json"
@@ -769,8 +832,9 @@ def test_the_certificate_bundle_is_read_from_the_configuration_root(
 def test_the_isolation_backend_is_one_of_the_configurable_sandboxes(
     tmp_path: Path,
 ) -> None:
-    runtime_inputs(tmp_path)
-    source = tmp_path / "nix-inputs" / "configuration.json"
+    source = (
+        runtime_inputs(tmp_path).materialise(tmp_path / "retained").configuration.source
+    )
     document = json.loads(source.read_text())
     isolation = document["isolation"]
     unknown = tmp_path / "unknown-backend.json"
@@ -876,8 +940,8 @@ def test_incomplete_versioned_initialisation_is_rebuilt(tmp_path: Path) -> None:
 def test_invalid_unlink_first_invocation_preserves_the_existing_store(
     tmp_path: Path,
 ) -> None:
-    inputs = runtime_inputs(tmp_path)
-    configuration = tmp_path / "nix-inputs" / "configuration.json"
+    source = nix_inputs(tmp_path)
+    inputs = RuntimeInputs.from_declaration(declaration_of(source))
     output = tmp_path / "results"
     RunStore.open(output, inputs, INVOCATION, unlink_first=False)
     sentinel = output / "completed-evidence"
@@ -890,7 +954,7 @@ def test_invalid_unlink_first_invocation_preserves_the_existing_store(
 
     status = main(
         (
-            str(configuration),
+            *configuration_flags(source),
             str(output),
             "--all",
             "--improve",
@@ -914,14 +978,13 @@ def test_a_failure_from_a_started_run_is_not_reported_as_a_setup_failure(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    runtime_inputs(tmp_path)
-    configuration = tmp_path / "nix-inputs" / "configuration.json"
+    source = nix_inputs(tmp_path)
 
     def fail(*_arguments: object, **_keywords: object) -> None:
         raise ImprovementCalibrationConflictError
 
     monkeypatch.setattr(cli, "run_demo", fail)
-    status = main((str(configuration), "--demo", "--all", "--format", "json"))
+    status = main((*configuration_flags(source), "--demo", "--all", "--format", "json"))
 
     assert (status, json.loads(capsys.readouterr().out)["event"]) == (3, "RunFailed")
 

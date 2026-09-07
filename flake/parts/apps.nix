@@ -25,11 +25,6 @@ in {
   }: {
     apps =
       {
-        claude-prompt-conformance = {
-          type = "app";
-          program = lib.getExe pkgs.claude-prompt-conformance;
-          meta.description = "Test Claude's assembled prompt configuration";
-        };
         deploy-rs = {
           type = "app";
           program = lib.getExe inputs.deploy-rs.packages.${system}.deploy-rs;

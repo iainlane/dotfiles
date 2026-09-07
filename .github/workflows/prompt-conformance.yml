@@ -51,9 +51,12 @@ jobs:
 
           export PRE_COMMIT_FROM_REF="${from_ref}"
           export PRE_COMMIT_TO_REF="${TO_REF}"
+          # The configuration check belongs to the `ai` feature, and a check is
+          # named by system; this job runs on x86_64-linux.
           ./scripts/check-prompt-conformance.bash \
             .#claude-prompt-conformance.tests.python \
-            .#claude-prompt-conformance.tests.conformance \
+            .#claude-prompt-conformance.tests.fixtureEnvironments \
             .#claude-prompt-conformance.tests.codexProtocol \
             .#claude-prompt-conformance.tests.codexEndpoint \
-            .#claude-prompt-conformance.tests.claudeEndpoint
+            .#claude-prompt-conformance.tests.claudeEndpoint \
+            .#checks.x86_64-linux.prompt-conformance-configuration

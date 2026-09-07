@@ -18,9 +18,10 @@ fixtures.
 The candidate is the Claude model the managed settings select for daily use. The
 configured Codex judge assesses its work, and the [shared OpenAI default] writes
 improvement proposals. Nix pins the clients, the prompt inputs, and the fixture
-tool environments, so two runs of the same fixtures differ only in the prompt.
+tool environments so prompt variants can be compared with the same clients and
+tools. Model responses can still vary between samples.
 
-[shared OpenAI default]: ../default.nix
+[shared OpenAI default]: ../../features/ai/models.nix
 
 ## Running the suite
 
@@ -59,6 +60,26 @@ second Ctrl-C kills every agent process group and exits immediately.
 `--keep-workspaces` retains the checkouts alongside the evidence, and
 `--unlink-first` removes a previous run store and starts again.
 
+## The configuration a run measures
+
+The caller supplies the whole runtime configuration through command-line flags,
+which name the manifests and directories a run loads. The package wrapper
+supplies the suite's own half of that command line: the fixtures, runtime
+helpers, tool environments, two pinned clients, and the efforts and limits used
+to measure every prompt. The other half names the prompt under test: the
+candidate's context directory, the workspace overlay, the prompt manifest, the
+managed settings file, the sources a variant patches, and the candidate, judge
+and improver models.
+
+`nix run .#claude-prompt-conformance` supplies both halves, because the [`ai`
+feature][ai-feature] builds the prompt this repository's own hosts deploy and
+wraps the program with it. `nix build .#claude-prompt-conformance` builds the
+program with the suite's flags alone, for a caller who assembles a prompt
+configuration of their own. Either way, repeating a flag after the wrapper's own
+replaces its value.
+
+[ai-feature]: ../../features/ai/prompt-conformance.nix
+
 ## Prompt improvement
 
 ```console
@@ -69,10 +90,12 @@ nix run .#claude-prompt-conformance -- \
 An improvement run races three competing prompt drafts and measures each over
 five fresh samples per fixture. A draft must either gain at least three of those
 samples on one criterion or clear every gate failure on the current prompt. In
-both cases no criterion may lose two or more samples. The production prompt is
-never changed: a successful experiment writes `tries/winner.patch`, which can be
-inspected and applied separately. [docs/improvement.md] describes the
-tournament, the acceptance rule, and the reserved regression checks.
+both cases no criterion may lose two or more samples. Incomplete evidence also
+rejects a draft, as does a gate failure when the current prompt had none. The
+production prompt is never changed: a successful experiment writes
+`tries/winner.patch`, which can be inspected and applied separately.
+[docs/improvement.md] describes the tournament, the acceptance rule, and the
+reserved regression checks.
 
 [docs/improvement.md]: docs/improvement.md
 

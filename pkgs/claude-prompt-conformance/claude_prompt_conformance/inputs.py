@@ -1,6 +1,7 @@
 """Eager loading and run-owned materialisation of immutable Nix inputs."""
 
 import hashlib
+import json
 import os
 import stat
 from dataclasses import dataclass
@@ -11,8 +12,16 @@ import msgspec
 
 from .errors import ConformanceError
 from .models import Fixture, RuntimeConfiguration
-from .protocols.configuration import FixtureInput, RuntimeConfigurationInput
-from .storage import RESERVED_RUN_NAMES
+from .protocols.configuration import (
+    CodexAgentConfigurationInput,
+    FixtureInput,
+    RuntimeConfigurationInput,
+)
+from .storage import (
+    CONFIGURATION_DOCUMENT,
+    RESERVED_RUN_NAMES,
+    RUN_METADATA_DOCUMENT,
+)
 
 
 @dataclass(eq=True)
@@ -309,14 +318,14 @@ class RuntimeInputs:
         except (msgspec.DecodeError, msgspec.ValidationError) as error:
             raise RuntimeConfigurationDecodeError(source, error) from error
 
-        return cls._load_declaration(declaration)
+        return cls.from_declaration(declaration)
 
     @classmethod
-    def _load_declaration(
+    def from_declaration(
         cls,
         declaration: RuntimeConfigurationInput,
     ) -> "RuntimeInputs":
-        """Load every immutable document referenced by a decoded declaration."""
+        """Load every immutable document the configuration names."""
 
         fixture_manifest_path = Path(declaration.fixture_manifest)
         fixture_manifest = MemoryFile.load(fixture_manifest_path)
@@ -328,10 +337,11 @@ class RuntimeInputs:
         except (msgspec.DecodeError, msgspec.ValidationError) as error:
             raise FixtureManifestDecodeError(fixture_manifest_path, error) from error
 
+        candidate_context = MemoryTree.load(Path(declaration.candidate_context))
         result = cls(
             declaration=declaration,
             fixture_manifest=fixture_manifest,
-            run_metadata=MemoryFile.load(Path(declaration.run_metadata)),
+            run_metadata=run_metadata_document(declaration, candidate_context),
             prompt_context=MemoryFile.load(Path(declaration.prompt_context)),
             claude_settings=MemoryFile.load(Path(declaration.claude.settings)),
             judge_schema=MemoryFile.load(Path(declaration.codex.schema)),
@@ -340,7 +350,7 @@ class RuntimeInputs:
                 Path(declaration.tls_certificate_bundle)
             ),
             variant_source=MemoryTree.load(Path(declaration.variant.expression).parent),
-            candidate_context=MemoryTree.load(Path(declaration.candidate_context)),
+            candidate_context=candidate_context,
             workspace_overlay=MemoryTree.load(Path(declaration.workspace_overlay)),
             prompt_source=MemoryTree.load(Path(declaration.variant.prompt_source)),
             fixtures=tuple(
@@ -380,7 +390,6 @@ class RuntimeInputs:
         normalized_declaration = msgspec.structs.replace(
             declaration,
             fixture_manifest="fixture-manifest",
-            run_metadata="run-metadata",
             prompt_context="prompt-context",
             candidate_context="candidate-context",
             workspace_overlay="workspace-overlay",
@@ -567,7 +576,6 @@ class RuntimeInputs:
         return msgspec.structs.replace(
             self.declaration,
             fixture_manifest=str(paths.fixture_manifest),
-            run_metadata=str(paths.run_metadata),
             prompt_context=str(paths.prompt_context),
             candidate_context=str(paths.candidate_context),
             workspace_overlay=str(paths.workspace_overlay),
@@ -672,7 +680,7 @@ class RuntimeInputPaths:
 
     @property
     def configuration(self) -> Path:
-        return self.root / "configuration.json"
+        return self.root / CONFIGURATION_DOCUMENT
 
     @property
     def fixture_manifest(self) -> Path:
@@ -680,7 +688,7 @@ class RuntimeInputPaths:
 
     @property
     def run_metadata(self) -> Path:
-        return self.root / "run-metadata.json"
+        return self.root / RUN_METADATA_DOCUMENT
 
     @property
     def prompt_context(self) -> Path:
@@ -843,3 +851,89 @@ def controlled_prompt_source(tree: MemoryTree) -> MemoryTree:
             or (entry.relative.parts and entry.relative.parts[0] in roots)
         )
     )
+
+
+def declaration_paths(declaration: RuntimeConfigurationInput) -> tuple[Path, ...]:
+    """List every path the configuration names, in one stable order."""
+
+    isolation = declaration.isolation.program
+    return tuple(
+        Path(value)
+        for value in (
+            declaration.fixture_manifest,
+            declaration.prompt_context,
+            declaration.candidate_context,
+            declaration.workspace_overlay,
+            declaration.git_program,
+            declaration.tls_certificate_bundle,
+            declaration.claude.program,
+            declaration.claude.shell,
+            declaration.claude.settings,
+            declaration.codex.program,
+            declaration.codex.mcp_program,
+            declaration.codex.schema,
+            declaration.codex.proposal_schema,
+            declaration.variant.nix_program,
+            declaration.variant.nixpkgs,
+            declaration.variant.expression,
+            declaration.variant.prompt_environment,
+            declaration.variant.prompt_source,
+            *((isolation,) if isolation is not None else ()),
+        )
+    )
+
+
+def run_metadata_document(
+    declaration: RuntimeConfigurationInput,
+    candidate_context: MemoryTree,
+) -> MemoryFile:
+    """Describe the clients, the models and the prompt one run measures.
+
+    The suite writes this document into the run store, and the judge identity
+    of a retained calibration is computed from it. A prompt variant keeps the
+    base run's client and model settings and replaces only its prompt inputs,
+    so the two documents differ in the digests below and in nothing else.
+    Serialisation is deterministic, so the same configuration always produces
+    the same bytes.
+    """
+
+    codex = declaration.codex
+    value = {
+        "claude": {
+            "version": declaration.claude.version,
+            "model": declaration.claude.model,
+            "effort": declaration.claude.effort,
+        },
+        "codex": {
+            "version": codex.version,
+            "judge": agent_metadata(codex.judge),
+            "improver": agent_metadata(codex.improver),
+        },
+        "prompt": document_digests(candidate_context, Path("rules")),
+        "outputStyles": document_digests(candidate_context, Path("output-styles")),
+        "defaultOutputStyle": declaration.claude.output_style,
+    }
+    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+    return MemoryFile(encoded, False)
+
+
+def agent_metadata(agent: CodexAgentConfigurationInput) -> dict[str, object]:
+    """Describe how one Codex agent of a run was configured."""
+
+    return {
+        "model": agent.model,
+        "effort": agent.effort,
+        "serviceTier": agent.service_tier,
+        "verbosity": agent.verbosity,
+        "contextWindow": agent.context_window,
+    }
+
+
+def document_digests(tree: MemoryTree, directory: Path) -> dict[str, str]:
+    """Digest each Markdown document directly below one directory of a tree."""
+
+    return {
+        entry.relative.stem: hashlib.sha256(entry.file.contents).hexdigest()
+        for entry in tree.files
+        if entry.relative.parent == directory and entry.relative.suffix == ".md"
+    }

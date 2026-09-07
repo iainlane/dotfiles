@@ -1,4 +1,4 @@
-"""Schemas for Nix-assembled suite and fixture configuration."""
+"""Schemas for the suite's runtime configuration and its fixture manifest."""
 
 from typing import Literal
 
@@ -62,6 +62,7 @@ class FixtureInput(msgspec.Struct, frozen=True, rename="camel"):
 class ClaudeConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
     program: str
     shell: str
+    version: str
     settings: str
     model: str
     effort: str
@@ -81,6 +82,7 @@ class CodexAgentConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
 
 class CodexConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
     program: str
+    version: str
     mcp_program: str
     judge: CodexAgentConfigurationInput
     improver: CodexAgentConfigurationInput
@@ -105,7 +107,6 @@ class PromptVariantConfigurationInput(msgspec.Struct, frozen=True, rename="camel
 
 class RuntimeConfigurationInput(msgspec.Struct, frozen=True, rename="camel"):
     fixture_manifest: str
-    run_metadata: str
     prompt_context: str
     candidate_context: str
     workspace_overlay: str

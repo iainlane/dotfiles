@@ -13,7 +13,9 @@ from .errors import ConformanceError
 from .inputs import MaterialisedRuntime, RuntimeInputs
 from .models import RuntimeConfiguration
 from .storage import (
+    CONFIGURATION_DOCUMENT,
     OUTPUT_MARKER,
+    RUN_METADATA_DOCUMENT,
     STATE_DIRECTORY,
     RetainedPathUnsafeError,
     atomic_write,
@@ -129,7 +131,6 @@ class OutputUnlinkError(ConformanceError):
 RUN_STORE_VERSION = 4
 INPUT_DIRECTORY = f"{STATE_DIRECTORY}/inputs"
 PROMPT_CONTEXT_DOCUMENT = "prompt-context.json"
-RUN_METADATA_DOCUMENT = "run-metadata.json"
 
 
 class RunInvocation(msgspec.Struct, frozen=True, rename="camel"):
@@ -205,7 +206,7 @@ class RunStore:
         """Reuse a complete retained snapshot which authenticates the run identity."""
 
         root = self.path / INPUT_DIRECTORY
-        retained = RuntimeInputs.load(root / "configuration.json")
+        retained = RuntimeInputs.load(root / CONFIGURATION_DOCUMENT)
         runtime = retained.reuse_materialised(root)
         if run_fingerprint(retained, invocation) != fingerprint:
             raise OutputSnapshotMismatchError(self.path)
@@ -382,6 +383,12 @@ class RunStore:
             )
         except OSError as error:
             raise OutputMarkerWriteError(destination, error) from error
+
+
+def configuration_document(output: Path) -> Path:
+    """Locate the configuration document the run store at this path retains."""
+
+    return output / INPUT_DIRECTORY / CONFIGURATION_DOCUMENT
 
 
 def protect_output_path(output: Path) -> None:

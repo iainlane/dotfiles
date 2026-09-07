@@ -21,10 +21,13 @@ concurrently with the others. The accepted draft with the largest decisive
 improvement wins the round; ties are settled by the fewest noise regressions and
 then by draft order, so the winner does not depend on scheduling.
 
-Draft prompt variants are built with Nix during the run, and each variant embeds
-prompt hashes computed from its own source tree. Each variant's evaluation is
-one arm of the run. The arms share one run store, so the reference judgements a
-judge calibrates against are produced once and reused by every arm.
+Draft prompt variants are built with Nix during the run: the patched sources are
+assembled into a prompt by the same expression that built the prompt the run
+started with, and the suite digests that prompt to identify the variant.
+Everything the variant does not change, the fixtures above all, is read again
+from the run's own retained inputs. Each variant's evaluation is one arm of the
+run. The arms share one run store, so the reference judgements a judge
+calibrates against are produced once and reused by every arm.
 
 ## What the improver sees
 
@@ -43,13 +46,16 @@ general unified diff or an explicit decision that no prompt change is warranted.
 
 ## Acceptance
 
-A draft is accepted when one fixture criterion gains at least three of its five
-samples, or when every gate failure the current prompt produced disappears, and
-no criterion loses two or more. Five samples make a single changed sample
-uninformative, so one lost sample anywhere is treated as noise; the regression
-half of the rule stops a proposal from buying one decisive gain with a broad,
-shallow decline. Incomplete evidence, and a gate failure the current prompt did
-not produce, reject the draft on their own.
+A draft must either gain at least three passing samples on one fixture criterion
+or clear all gate failures from the current prompt. In both cases, no criterion
+may lose two or more passing samples. Each prompt is measured over five samples
+by default.
+
+The rule tolerates one lost sample per criterion as noise; this is an acceptance
+threshold, not a test of statistical significance. Several criteria can each
+lose one sample without rejecting the draft. Incomplete evidence rejects a draft
+independently of the pass counts. Gate failures also reject it if the current
+prompt had no gate failures.
 
 Each `acceptance.json` records, for every fixture criterion, the pass counts on
 both sides, the net change, and whether the criterion was already unstable on
