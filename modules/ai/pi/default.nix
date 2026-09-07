@@ -10,6 +10,7 @@
 {
   pkgs,
   config,
+  defaultModels,
   inputs,
   lib,
   mcp,
@@ -87,8 +88,8 @@
   };
 
   piSettings = {
-    defaultProvider = "anthropic";
-    defaultModel = "claude-opus-5";
+    defaultProvider = "openai";
+    defaultModel = defaultModels.openai;
     defaultThinkingLevel = "high";
     thinkingBudgets = {
       minimal = 1024;
@@ -99,12 +100,12 @@
     };
     hideThinkingBlock = true;
     enabledModels = [
+      "claude-mythos-*"
+      "claude-fable-*"
       "claude-opus-*"
       "claude-sonnet-*"
       "claude-haiku-*"
-      "gpt-5.6-sol"
-      "gpt-5.3-codex-spark"
-      "gpt-5.4-mini"
+      "gpt-*"
     ];
 
     # Resting theme, matching the system Catppuccin flavour. `pi-system-theme`
