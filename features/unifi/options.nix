@@ -1,9 +1,21 @@
 {
   config,
+  hostConfig,
   lib,
   ...
 }: {
   options.dotfiles.unifi = {
+    secretsFile = lib.mkOption {
+      type = lib.types.str;
+      default = "${hostConfig.name}/host-unifi.yaml";
+      description = ''
+        Path, relative to the `secrets` input, of the sops file containing
+        `unifi_api_key`: an API key from the Network application's
+        Integrations page, which the backup uses to ask the controller for a
+        backup file.
+      '';
+    };
+
     listenAddress = lib.mkOption {
       type = lib.types.str;
       default = config.dotfiles.network.lanAddress;

@@ -3,12 +3,13 @@
 # encrypts and uploads, checks what arrived, and fetches it back. A service
 # supplies the directory to archive and the schedule to do it on.
 #
-# `r2 restore` fetches and unpacks an archive; putting the contents back is
-# each service's own business, and only Hermes wraps it in a command. Restoring
-# the AgentsView database means feeding the dump to `psql`, Continuwuity's
-# means putting the files back in its backup volume and telling it to load one,
-# and UniFi's means stopping the container and writing the volumes back. Each
-# is a hand-run job for a person with the offline key.
+# `r2 restore` fetches and unpacks an archive. Putting the contents back takes
+# different steps for each service, and only Hermes provides a command for it.
+# Restoring the AgentsView database means feeding the dump to `psql`,
+# Continuwuity's means putting the files back in its backup volume and telling
+# it to load one, and UniFi's means uploading the `.unf` file on the
+# controller's restore page. Each is a hand-run job for a person with the
+# offline key.
 let
   # The public age key that backups are encrypted to. It is the same key on
   # every host. The matching private key is kept offline, and a restore needs

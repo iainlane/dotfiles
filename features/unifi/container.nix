@@ -71,7 +71,7 @@ in {
         source.quadletVolume = mount.volume;
         inherit (mount) target;
       })
-      volumes.all
+      volumes
     );
   };
 

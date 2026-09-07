@@ -53,7 +53,7 @@ in {
         virtualisation.quadlet = {
           networks.unifinet = {};
 
-          volumes = lib.genAttrs (map (mount: mount.volume) volumes.all) (_: {});
+          volumes = lib.genAttrs (map (mount: mount.volume) volumes) (_: {});
 
           images.${imageName}.imageConfig = {
             image = "docker-archive:${imagePath}/image.tar";
