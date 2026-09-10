@@ -30,10 +30,13 @@
     ];
 
     userSettings = {
+      agent.dock = "right";
+
       auto_update = false;
       base_keymap = "VSCode";
 
-      buffer_font_family = "MonaspiceNe NFM";
+      buffer_font_family = "MonaspiceNe Nerd Font Mono";
+      buffer_font_fallbacks = ["FiraCode Nerd Font"];
       buffer_font_features = {
         calt = true;
         dlig = true;
@@ -55,6 +58,8 @@
       cursor_blink = true;
       cursor_shape = "block";
 
+      edit_predictions.provider = "copilot";
+
       ensure_final_newline_on_save = true;
       format_on_save = "on";
 
@@ -67,7 +72,11 @@
         enabled = true;
       };
 
-      inlay_hints.enabled = true;
+      inlay_hints = {
+        enabled = true;
+        show_parameter_hints = false;
+        show_type_hints = false;
+      };
 
       languages = {
         Make.hard_tabs = true;
@@ -78,6 +87,7 @@
           };
           language_servers = ["nixd"];
         };
+        TypeScript.code_actions_on_format."source.fixAll.eslint" = true;
         YAML.tab_size = 2;
       };
 
@@ -92,6 +102,8 @@
       minimap.show = "auto";
 
       preferred_line_length = 100;
+
+      project_panel.dock = "left";
 
       remove_trailing_whitespace_on_save = true;
 
@@ -115,8 +127,9 @@
         blinking = "on";
         copy_on_select = false;
         cursor_shape = "block";
-        font_family = "MonaspiceNe NFM";
+        font_family = "MonaspiceNe Nerd Font Mono";
         font_size = 13;
+        toolbar.breadcrumbs = true;
       };
 
       theme = {
@@ -125,8 +138,10 @@
         mode = "system";
       };
 
-      ui_font_family = "MonaspiceNe NFM";
+      ui_font_family = "MonaspiceNe Nerd Font Mono";
       ui_font_size = 14;
+
+      vim_mode = true;
 
       wrap_guides = [80 100];
     };
