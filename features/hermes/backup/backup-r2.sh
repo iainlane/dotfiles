@@ -38,6 +38,7 @@ rsync -a --numeric-ids \
 	--exclude='/.hermes/state.db*' \
 	--exclude='/.hermes/memory_store.db*' \
 	--exclude='/.hermes/kanban.db*' \
+	--exclude='/.hermes/plugin-data/agent-plugin-hermes-inbox-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/inbox.sqlite3*' \
 	"${HERMES_STATE_DIR}/" "${snap}/"
 
 for db in state.db memory_store.db kanban.db; do
@@ -45,6 +46,18 @@ for db in state.db memory_store.db kanban.db; do
 	if [ -f "${src}" ]; then
 		sqlite3 "${src}" ".backup '${snap}/.hermes/${db}'"
 	fi
+done
+
+shopt -s nullglob
+for inbox_db in "${HERMES_STATE_DIR}"/.hermes/plugin-data/agent-plugin-hermes-inbox-????????/inbox.sqlite3; do
+	data_namespace="$(basename "$(dirname "${inbox_db}")")"
+	if [[ ! "${data_namespace}" =~ ^agent-plugin-hermes-inbox-[0-9a-f]{8}$ ]]; then
+		continue
+	fi
+
+	snapshot_dir="${snap}/.hermes/plugin-data/${data_namespace}"
+	mkdir -p "${snapshot_dir}"
+	sqlite3 "${inbox_db}" ".backup '${snapshot_dir}/inbox.sqlite3'"
 done
 
 BACKUP_SOURCE="${snap}" r2 backup
