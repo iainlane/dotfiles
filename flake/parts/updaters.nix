@@ -33,7 +33,7 @@
     (lib.all (name: inputs ? ${name}) (lib.attrNames flakeInputs))
     "flake/parts/updaters.nix: flakeInputs names an input flake.nix does not have";
 
-  hasUpdateScript = packages: name: (packages.${name} or null) ? updateScript;
+  hasUpdateScript = packages: name: (packages.${name}.updateScript or null) != null;
 
   # `flake.packages` omits packages that are not available on a system, so a
   # package gets an updater when it defines an update script in at least one

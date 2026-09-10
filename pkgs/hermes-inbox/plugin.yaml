@@ -1,0 +1,14 @@
+name: hermes-inbox
+version: 0.1.0
+description:
+  "AgentMail intake with constrained Kanban proposals and Matrix approval
+  digests."
+author: Laney
+kind: backend
+requires_env:
+  - name: AGENTMAIL_API_KEY
+    description:
+      "API key used to fetch messages from the configured AgentMail inbox."
+    prompt: "AgentMail API key"
+    url: "https://console.agentmail.to"
+    password: true
