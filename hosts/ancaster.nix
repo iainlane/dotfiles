@@ -20,6 +20,7 @@ in {
       features.matrix
       features.hermes
       features.hermes.provides.agentsview
+      features.hermes.provides.identity
       features.network
       features.nixbuild-substituter
       features.unifi
@@ -78,6 +79,10 @@ in {
         };
 
         hermes = {
+          identity = {
+            name = "Godfrey";
+            email = "godfrey@orangesquash.org.uk";
+          };
           profilePicture = ./ancaster/godfrey;
           matrix = {
             serverName = "orangesquash.org.uk";

@@ -10,6 +10,7 @@ in {
     ./dashboard
     ./embeddings
     ./homeassistant
+    ./identity
     ./matrix
     ./mcp
     ./signal

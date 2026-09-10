@@ -272,7 +272,8 @@
           ln -sfn "${plugin}" "$state/.hermes/plugins/nix-managed-${name}"
         '')
         cfg.extraPlugins
-      );
+      )
+      + lib.optionalString (cfg.container.extraSetup != "") "\n${cfg.container.extraSetup}";
   };
 
   # The networks the gateway, the dashboard and the profile-picture helper all
