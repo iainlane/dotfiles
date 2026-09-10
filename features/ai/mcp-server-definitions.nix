@@ -9,6 +9,7 @@
   inputs,
   pkgs,
 }: let
+  inherit (pkgs) lib;
   programs = {
     codex = {
       enable = true;
@@ -45,5 +46,7 @@
   mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs {
     inherit programs;
   };
-in
-  mcpServersNix.config.settings.servers
+in {
+  inherit (mcpServersNix.config.settings) servers;
+  serverPackages = lib.mapAttrs (name: _: mcpServersNix.config.programs.${name}.package) mcpServersNix.config.settings.servers;
+}

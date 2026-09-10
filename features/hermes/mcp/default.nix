@@ -1,3 +1,5 @@
 {
-  flake.features.hermes.provides.mcp.systemManager.imports = [./system-manager.nix];
+  flake.features.hermes.provides.mcp = {
+    systemManager.imports = [./options.nix ./system-manager.nix];
+  };
 }

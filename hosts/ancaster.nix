@@ -119,6 +119,10 @@ in {
             # name; reuse the OpenRouter key so speech routes through OpenRouter.
             VOICE_TOOLS_OPENAI_KEY = "openrouter_api_key";
           };
+          mcp.tokens = {
+            browser-rendering = "cloudflare_browser_token";
+            exa = "exa_api_key";
+          };
           settings = {
             # `raft-platform` is a bundled gateway adapter this host does not
             # use. While it is enabled the agent probes for the absent `raft`

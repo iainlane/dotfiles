@@ -59,7 +59,7 @@ in {
     # The mcp-servers-nix module system is evaluated once per system, against
     # unstable, and both channels are given the result. The server definitions
     # are therefore built from unstable even on a stable host.
-    servers = import ./mcp-server-definitions.nix {inherit inputs pkgs;};
+    mcpRegistry = import ./mcp-server-definitions.nix {inherit inputs pkgs;};
   in {
     # A host's channel selects the package set that the tool wrappers, the
     # shared language servers and mcp-remote are built from, so a stable host
@@ -67,7 +67,8 @@ in {
     # come from the llm-agents input and are the same on either channel.
     _module.args.mcpByChannel = lib.mapAttrs (_: channelPkgs:
       import ./mcp-servers.nix {
-        inherit inputs servers;
+        inherit inputs;
+        inherit (mcpRegistry) servers serverPackages;
         inherit (channelPkgs) lib;
         pkgs = channelPkgs;
       }) {

@@ -7,19 +7,21 @@
   # Each harness either consumes them directly or mirrors them through
   # `programs.mcp`.
   servers,
+  serverPackages,
 }:
 # The per-channel half of the shared MCP server set: the tools built from this
 # channel's package set, and the helpers each harness uses to reshape the
 # servers.
 let
   mcpRemote = import ./mcp-remote.nix {inherit lib pkgs;};
+  remoteServers = import ./mcp-remote-servers.nix;
 
   exaServer = {apiKeyFile}:
     mcpRemote.mkServer {
       name = "exa";
-      url = "https://mcp.exa.ai/mcp";
+      inherit (remoteServers.exa) url;
       envFiles.EXA_API_KEY = apiKeyFile;
-      headerEnv."x-api-key" = "EXA_API_KEY";
+      headerEnv.${remoteServers.exa.token.header} = "EXA_API_KEY";
     };
 
   hostSecretServerDefinitions = {
@@ -94,7 +96,7 @@ let
     yt-dlp
   ];
 in {
-  inherit mcpServersOption excludeServers mcpRemote hostSecretServers servers;
+  inherit mcpServersOption excludeServers mcpRemote hostSecretServers serverPackages servers;
 
   # Wrap an AI tool so the shared tools are on its PATH. The result contains
   # everything the package installs, keeps its `pname`, `version`, `meta` and
