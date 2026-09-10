@@ -74,7 +74,11 @@ The twenty-one top-level features:
   registering the host as a remote-build client.
 - `agentsview` and `agentsview-server`: the archive of agent sessions on a
   machine that runs agents, and the shared database behind it.
+- `hermes`: the containerised Hermes agent and its messaging, archive, webhook,
+  MCP, identity, and backup children. See the [Hermes operator notes].
 - `adsb`, `caddy`, `dex`, `hermes`, `matrix`, `unifi`: the services on ancaster.
+
+[Hermes operator notes]: docs/hermes.md
 
 The Neovim configuration is `nvim/` at the repository root, which `base.neovim`
 installs.
