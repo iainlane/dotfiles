@@ -25,6 +25,7 @@
   clientFeature = features.agentsview;
   serverFeature = features."agentsview-server";
   workFeature = features.work;
+  hermesArchiveFeature = features.hermes.provides.agentsview;
 
   # A work machine keeps its archive locally and does not push.
   pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host workFeature;
@@ -117,12 +118,52 @@
   # A secret's name includes the machine it belongs to, so one host can store
   # several machines' passwords without them colliding.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
+
+  mkPusher = {
+    hostname,
+    machine ? hostname,
+    certificateName ? "agentsview",
+    optional ? false,
+  }: rec {
+    inherit certificateName hostname machine optional;
+    certificatePath = ../../hosts + "/${hostname}/${certificateName}.pem";
+    hasCertificate = builtins.pathExists certificatePath;
+    passwordFile = "agentsview-postgres/${machine}.yaml";
+    passwordSecretName = "agentsview_password_${machine}";
+  };
+
+  pushers = hosts:
+    lib.listToAttrs (
+      map (hostname: lib.nameValuePair hostname (mkPusher {inherit hostname;}))
+      (lib.attrNames (syncingHosts hosts))
+      ++ map (hostname: let
+        machine = "${hostname}-hermes";
+      in
+        lib.nameValuePair machine (mkPusher {
+          inherit hostname machine;
+          certificateName = "agentsview-hermes";
+          optional = true;
+        }))
+      (lib.attrNames (lib.filterAttrs (_: host: helpers.hasFeature host hermesArchiveFeature) hosts))
+    );
+
+  dsn = {
+    server,
+    machine,
+    password,
+    certificate,
+    key,
+  }:
+    "postgres://${machine}:${password}@${server.domain}:443/${server.database}"
+    + "?sslmode=verify-full&sslnegotiation=direct&sslrootcert=system"
+    + "&sslcert=${certificate}&sslkey=${key}";
 in {
   inherit
     authTokenSecret
     certificatePath
     cursorSecret
     database
+    dsn
     hasCertificate
     kinds
     passwordFile
@@ -131,6 +172,7 @@ in {
     passwordSecretName
     privateKeySecret
     pushes
+    pushers
     role
     serverSettings
     syncingHosts

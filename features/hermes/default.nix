@@ -5,6 +5,7 @@
 in {
   imports = [
     ./agents
+    ./agentsview
     ./backup
     ./dashboard
     ./embeddings

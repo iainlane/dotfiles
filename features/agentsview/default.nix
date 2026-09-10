@@ -43,14 +43,55 @@ in {
         each machine needs.
       '';
     };
+
+    agentsviewPushers = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          host = lib.mkOption {type = lib.types.str;};
+          machine = lib.mkOption {type = lib.types.str;};
+          certificate = lib.mkOption {type = lib.types.str;};
+          passwordFile = lib.mkOption {type = lib.types.str;};
+          secretsFile = lib.mkOption {type = lib.types.str;};
+          recipientSource = lib.mkOption {type = lib.types.nullOr lib.types.str;};
+          serverRecipientSource = lib.mkOption {type = lib.types.str;};
+        };
+      });
+      description = ''
+        The archive identities that push to the shared database. The secrets
+        generator reads these records so it uses the same machine names and
+        paths as the evaluated host configurations.
+      '';
+    };
   };
 
   config.flake = {
     agentsviewHosts = common.kinds config.flake.hosts;
+    agentsviewPushers = let
+      serverHosts = lib.attrNames (lib.filterAttrs (_: kind: kind == "server") config.flake.agentsviewHosts);
+      serverHost =
+        if serverHosts == []
+        then throw "AgentsView has archive pushers but no host has the agentsview-server feature"
+        else lib.head serverHosts;
+      serverSecretsFile = config.flake.systemConfigs.${serverHost}.passthru.config.dotfiles.agentsviewServer.secretsFile;
+    in
+      lib.mapAttrs (_: pusher: {
+        host = pusher.hostname;
+        inherit (pusher) machine passwordFile;
+        certificate = "hosts/${pusher.hostname}/${pusher.certificateName}.pem";
+        secretsFile =
+          if pusher.optional
+          then config.flake.systemConfigs.${pusher.hostname}.passthru.config.dotfiles.hermes.agentsview.secretsFile
+          else common.userSecretsFile pusher.hostname;
+        recipientSource =
+          if pusher.optional
+          then config.flake.systemConfigs.${pusher.hostname}.passthru.config.dotfiles.hermes.agentsview.secretsFile
+          else null;
+        serverRecipientSource = serverSecretsFile;
+      }) (common.pushers config.flake.hosts);
 
     features = {
       agentsview = import ./client.nix {inherit config inputs lib;};
-      agentsview-server = import ./server.nix {inherit config lib;};
+      agentsview-server = import ./server.nix {inherit config inputs lib;};
     };
   };
 }

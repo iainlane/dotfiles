@@ -83,10 +83,17 @@ make_secret_temp_dir() {
 }
 
 make_secret_temp_file() {
+	local output_variable="${1:-}"
 	local path
 
 	path="$(mktemp)"
 	_SECRET_TEMP_PATHS+=("${path}")
+
+	if [[ -n "${output_variable}" ]]; then
+		printf -v "${output_variable}" '%s' "${path}"
+		return 0
+	fi
+
 	printf '%s\n' "${path}"
 }
 

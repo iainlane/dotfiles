@@ -12,12 +12,12 @@
 #   <host>/user-agentsview.yaml       agentsview_auth_token
 #                                     agentsview_cursor_secret
 #
-# A machine that also pushes its archive to the shared database needs a
-# password, a certificate, and the key of that certificate:
+# An archive identity that also pushes to the shared database needs a password,
+# a certificate, and the key of that certificate:
 #
-#   agentsview-postgres/<host>.yaml   password
-#   <host>/user-agentsview.yaml       agentsview_client_key
-#   hosts/<host>/agentsview.pem       the certificate that the proxy checks
+#   agentsview-postgres/<machine>.yaml password
+#   <configured secrets file>          agentsview_client_key
+#   hosts/<host>/<certificate>.pem     the certificate that the proxy checks
 #
 # The machine that runs the database and serves the dashboard needs four more:
 #
@@ -80,26 +80,63 @@ agentsview_hosts() {
 		jq -r 'to_entries[] | "\(.value) \(.key)"'
 }
 
+# The identities that push to the shared archive. This includes additional
+# identities supplied by host features, with paths taken from their evaluated
+# configuration.
+agentsview_pushers() {
+	nix eval --json "${REPO_ROOT}#agentsviewPushers" |
+		jq -r 'to_entries[] | [.value.host, .value.machine, .value.certificate, .value.passwordFile, .value.secretsFile, (.value.recipientSource // "-"), .value.serverRecipientSource] | @tsv'
+}
+
 # The rule that lets the server and the machine itself read the password.
 add_password_rule() {
-	local host="${1}"
+	local machine="${1}"
+	local host="${2}"
+	local recipient_source="${3:-}"
+	local server_recipient_source="${4}"
 
-	if yq -e '.creation_rules[] | select(.path_regex == "^agentsview-postgres/'"${host}"'\.yaml$")' .sops.yaml >/dev/null 2>&1; then
-		echo "    .sops.yaml already covers ${host}"
+	if PASSWORD_PATH="agentsview-postgres/${machine}.yaml" yq -e ".creation_rules[] | select(.path_regex as \$regex | strenv(PASSWORD_PATH) | test(\$regex))" .sops.yaml >/dev/null 2>&1; then
+		echo "    .sops.yaml already covers ${machine}"
+		return 0
+	fi
+
+	if [[ -n "${recipient_source}" ]]; then
+		local source
+		for source in "${recipient_source}" "${server_recipient_source}"; do
+			SOURCE_PATH="${source}" yq -o=json "
+			    .creation_rules |
+			    map(select(.path_regex as \$regex | strenv(SOURCE_PATH) | test(\$regex))) | .[0]
+			" .sops.yaml | jq -e '
+			    (.key_groups | length) == 1 and
+			    (.key_groups[0] | keys) == ["age"] and
+			    (.key_groups[0].age | length) > 0
+			' >/dev/null || die "No single age key group covers ${source}."
+
+		done
+
+		MACHINE="${machine}" SOURCE_PATH="${recipient_source}" SERVER_PATH="${server_recipient_source}" yq -i "
+		    (.creation_rules | map(select(.path_regex as \$regex | strenv(SOURCE_PATH) | test(\$regex))) | .[0].key_groups[0].age) as \$client |
+		    (.creation_rules | map(select(.path_regex as \$regex | strenv(SERVER_PATH) | test(\$regex))) | .[0].key_groups[0].age) as \$server |
+		    .creation_rules += [{
+		        \"path_regex\": \"^agentsview-postgres/\" + strenv(MACHINE) + \"[.]yaml\$\",
+		        \"key_groups\": [{\"age\": ((\$client + \$server) | unique)}]
+		    }]
+		" .sops.yaml
+
+		echo "    Added a rule for ${machine}"
 		return 0
 	fi
 
 	yq -i '
 	    .creation_rules += [{
-	        "path_regex": "^agentsview-postgres/'"${host}"'\\.yaml$",
+	        "path_regex": "^agentsview-postgres/'"${machine}"'\\.yaml$",
 	        "key_groups": [{"age": []}]
 	    }] |
 	    .creation_rules[-1].key_groups[0].age[0] alias = "'"${server_anchor}"'" |
-	    .creation_rules[-1].key_groups[0].age[1] alias = "'"${host}"'_user" |
-	    .creation_rules |= sort_by(.path_regex)
+	    .creation_rules[-1].key_groups[0].age[1] alias = "'"${host}"'_user"
 	' .sops.yaml
 
-	echo "    Added a rule for ${host}"
+	echo "    Added a rule for ${machine}"
 }
 
 # The auth token and the cursor secret every machine needs, and for a machine
@@ -135,7 +172,7 @@ generate_user_secrets() {
 		return 0
 	fi
 
-	plaintext="$(make_secret_temp_file)"
+	make_secret_temp_file plaintext
 	AUTH_TOKEN="$(openssl rand -base64 32)" \
 	CURSOR_SECRET="$(openssl rand -base64 32)" \
 		yq -n '
@@ -154,29 +191,35 @@ generate_user_secrets() {
 
 generate_client_secrets() {
 	local host="${1}"
-
-	local certificate="${REPO_ROOT}/hosts/${host}/agentsview.pem"
-	local password_file="agentsview-postgres/${host}.yaml"
-	local user_file="${host}/user-agentsview.yaml"
+	local machine="${2}"
+	local certificate="${REPO_ROOT}/${3}"
+	local password_file="${4}"
+	local secrets_file="${5}"
+	local recipient_source="${6:-}"
+	local server_recipient_source="${7}"
 
 	local client_key=""
 	local key_file plaintext
 
-	add_password_rule "${host}"
+	if [[ ! -f "${certificate}" ]] && has_secret "${secrets_file}" "agentsview_client_key"; then
+		die "${secrets_file} has agentsview_client_key but ${certificate} is missing. Restore the matching certificate or remove the key before generating a new pair."
+	fi
+
+	add_password_rule "${machine}" "${host}" "${recipient_source}" "${server_recipient_source}"
 
 	mkdir -p "agentsview-postgres"
 
 	if [[ -f "${certificate}" ]]; then
 		echo "    ${certificate} is already there"
 	else
-		key_file="$(make_secret_temp_file)"
+		make_secret_temp_file key_file
 		mkdir -p "$(dirname "${certificate}")"
 
 		# By default, openssl writes the full curve parameters. Go rejects a
 		# key of that form, so the command asks for the named-curve encoding.
 		openssl req -x509 -newkey ec \
 			-pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve \
-			-nodes -days 36500 -subj "/CN=${host}" \
+			-nodes -days 36500 -subj "/CN=${machine}" \
 			-keyout "${key_file}" \
 			-out "${certificate}"
 
@@ -191,7 +234,7 @@ generate_client_secrets() {
 	elif [[ -f "${password_file}" ]]; then
 		add_secret "${password_file}" "password" "$(openssl rand -hex 32)"
 	else
-		plaintext="$(make_secret_temp_file)"
+		make_secret_temp_file plaintext
 		PASSWORD="$(openssl rand -hex 32)" yq -n '.password = strenv(PASSWORD)' >"${plaintext}"
 		encrypt_yaml_file "${plaintext}" "${password_file}"
 		echo "    Created ${password_file}"
@@ -199,11 +242,24 @@ generate_client_secrets() {
 
 	# openssl writes the key once, when it generates the certificate. If the
 	# certificate is already there, the key can only be in the user file.
-	if [[ ! -f "${user_file}" && -z "${client_key}" ]]; then
-		die "${certificate} is there and ${user_file} is not. Delete the certificate and run this again to generate a matching pair."
+	if [[ -z "${client_key}" ]] && ! has_secret "${secrets_file}" "agentsview_client_key"; then
+		die "${certificate} is there but ${secrets_file} has no agentsview_client_key. Delete the certificate and run this again to generate a matching pair."
 	fi
 
-	generate_user_secrets "${host}" "${client_key}"
+	if [[ "${secrets_file}" == "${host}/user-agentsview.yaml" ]]; then
+		generate_user_secrets "${host}" "${client_key}"
+	elif [[ -n "${client_key}" ]]; then
+		if [[ -f "${secrets_file}" ]]; then
+			add_secret "${secrets_file}" "agentsview_client_key" "${client_key}"
+		else
+			plaintext=""
+			make_secret_temp_file plaintext
+			CLIENT_KEY="${client_key}" yq -n '.agentsview_client_key = strenv(CLIENT_KEY)' >"${plaintext}"
+			mkdir -p "$(dirname "${secrets_file}")"
+			encrypt_yaml_file "${plaintext}" "${secrets_file}"
+			echo "    Created ${secrets_file}"
+		fi
+	fi
 }
 
 generate_server_secrets() {
@@ -235,7 +291,7 @@ generate_server_secrets() {
 		return 0
 	fi
 
-	plaintext="$(make_secret_temp_file)"
+	make_secret_temp_file plaintext
 	: >"${plaintext}"
 
 	for key in "${!secrets[@]}"; do
@@ -248,11 +304,28 @@ generate_server_secrets() {
 }
 
 log_step "Reading the host records"
-mapfile -t roles < <(agentsview_hosts)
-
-if ((${#roles[@]} == 0)); then
+roles_output="$(agentsview_hosts)" || die "Could not evaluate the AgentsView hosts."
+pushers_output="$(agentsview_pushers)" || die "Could not evaluate the AgentsView pushers."
+if [[ -z "${roles_output}" ]]; then
 	die "No host has the agentsview feature."
 fi
+
+mapfile -t roles <<<"${roles_output}"
+pushers=()
+if [[ -n "${pushers_output}" ]]; then
+	mapfile -t pushers <<<"${pushers_output}"
+fi
+
+declare -A key_owners=()
+for pusher in "${pushers[@]}"; do
+	IFS=$'\t' read -r _ machine _ _ secrets_file _ <<<"${pusher}"
+
+	if [[ -n "${key_owners[${secrets_file}]:-}" ]]; then
+		die "AgentsView pushers ${key_owners[${secrets_file}]} and ${machine} both store agentsview_client_key in ${secrets_file}. Configure separate secrets files."
+	fi
+
+	key_owners["${secrets_file}"]="${machine}"
+done
 
 # Refuse a name that matches no host: filtering by it would select no hosts,
 # and the typo would go unreported.
@@ -275,6 +348,34 @@ fi
 
 cd "${secrets_dir}"
 
+generate_pusher() {
+	local wanted_machine="${1}"
+	local pusher
+
+	for pusher in "${pushers[@]}"; do
+		IFS=$'\t' read -r pusher_host machine certificate password_file secrets_file recipient_source server_recipient_source <<<"${pusher}"
+		if [[ "${recipient_source}" == "-" ]]; then
+			recipient_source=""
+		fi
+
+		if [[ "${machine}" != "${wanted_machine}" ]]; then
+			continue
+		fi
+
+		generate_client_secrets \
+			"${pusher_host}" \
+			"${machine}" \
+			"${certificate}" \
+			"${password_file}" \
+			"${secrets_file}" \
+			"${recipient_source}" \
+			"${server_recipient_source}"
+		return 0
+	done
+
+	die "The evaluated AgentsView configuration has no pusher named ${wanted_machine}."
+}
+
 for role in "${roles[@]}"; do
 	read -r kind host <<<"${role}"
 
@@ -290,12 +391,21 @@ for role in "${roles[@]}"; do
 		;;
 
 	client)
-		generate_client_secrets "${host}"
+		generate_pusher "${host}"
 		;;
 
 	server)
-		generate_client_secrets "${host}"
+		generate_pusher "${host}"
 		generate_server_secrets "${host}"
 		;;
 	esac
+
+	for pusher in "${pushers[@]}"; do
+		IFS=$'\t' read -r pusher_host machine _ <<<"${pusher}"
+
+		if [[ "${pusher_host}" == "${host}" && "${machine}" != "${host}" ]]; then
+			log_step "Generating the AgentsView secrets for ${machine}"
+			generate_pusher "${machine}"
+		fi
+	done
 done

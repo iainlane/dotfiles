@@ -19,6 +19,7 @@ in {
       features.dex
       features.matrix
       features.hermes
+      features.hermes.provides.agentsview
       features.network
       features.nixbuild-substituter
       features.unifi

@@ -12,6 +12,7 @@
 # the host record identifies each one, so this file lists no machine itself.
 {
   config,
+  inputs,
   lib,
 }: let
   common = import ./common.nix {
@@ -19,17 +20,21 @@
     inherit (config.flake) features;
   };
 
-  pushers = common.syncingHosts config.flake.hosts;
+  allPushers = common.pushers config.flake.hosts;
+  ready = pusher:
+    !pusher.optional
+    || (pusher.hasCertificate && builtins.pathExists (inputs.secrets + "/${pusher.passwordFile}"));
+  pushers = lib.filterAttrs (_: ready) allPushers;
 
   serverDomain = config.flake.agentsviewServer.domain;
 
   withoutCertificate =
-    lib.attrNames (lib.filterAttrs (hostname: _: !common.hasCertificate hostname) pushers);
+    lib.attrNames (lib.filterAttrs (_: pusher: !pusher.hasCertificate) pushers);
 
   trustedClients =
     map
-    (hostname: builtins.readFile (common.certificatePath hostname))
-    (lib.attrNames (lib.filterAttrs (hostname: _: common.hasCertificate hostname) pushers));
+    (pusher: builtins.readFile pusher.certificatePath)
+    (lib.attrValues (lib.filterAttrs (_: pusher: pusher.hasCertificate) pushers));
 in {
   includes = [config.flake.features.containers config.flake.features.agentsview-server.provides.backup];
 
@@ -214,9 +219,9 @@ in {
     # Everything that connects over the network: one role for each machine
     # that pushes, and one for the dashboard.
     clients =
-      lib.mapAttrsToList (hostname: _: {
-        name = common.role hostname;
-        password = config.sops.placeholder.${common.passwordSecretFor hostname};
+      lib.mapAttrsToList (_: pusher: {
+        name = pusher.machine;
+        password = config.sops.placeholder.${pusher.passwordSecretName};
       })
       pushers
       ++ [
@@ -508,9 +513,9 @@ in {
             }
             # The password of each machine that pushes. The roles unit applies
             # whatever the secrets repository currently has.
-            // lib.mapAttrs' (hostname: _:
-              lib.nameValuePair (common.passwordSecretFor hostname) {
-                sopsFile = inputs.secrets + "/${common.passwordFile hostname}";
+            // lib.mapAttrs' (_: pusher:
+              lib.nameValuePair pusher.passwordSecretName {
+                sopsFile = inputs.secrets + "/${pusher.passwordFile}";
                 key = common.passwordSecret;
               })
             pushers;

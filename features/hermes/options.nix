@@ -263,6 +263,7 @@ in {
     homeassistant.present = presence.option "the Home Assistant integration, an event platform and device-control tools";
     soul.present = presence.option "the read-only SOUL.md identity file";
     agents.present = presence.option "the read-only AGENTS.md operating-instructions file";
+    agentsview.present = presence.option "archiving the agent's sessions in AgentsView";
     mcp.present = presence.option "the default MCP server set: Exa, Cloudflare, Context7 and a local mcp-nixos";
     embeddings.present = presence.option "semantic and hybrid retrieval in the LCM context engine";
     backup.present = presence.option "encrypted backups of the agent state, uploaded to Cloudflare R2";
@@ -283,6 +284,7 @@ in {
       "homeassistant"
       "soul"
       "agents"
+      "agentsview"
       "mcp"
       "embeddings"
       "backup"
