@@ -9,25 +9,7 @@
 }: let
   cfg = config.dotfiles.hermes;
 
-  # Extra packages share the agent's import path and must use its Python
-  # interpreter. Derive the package set from the agent's interpreter argument
-  # so an upstream interpreter update also applies to these packages.
-  agentPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
-
-  interpreterArguments =
-    lib.filter (lib.hasPrefix "python3")
-    (lib.attrNames (lib.functionArgs agentPackage.override));
-
-  pythonPackages =
-    if lib.length interpreterArguments == 1
-    then pkgs.${lib.head interpreterArguments}.pkgs
-    else
-      throw ''
-        The hermes-agent package is expected to take one python3 interpreter
-        argument, and takes ${toString (lib.length interpreterArguments)}.
-        features/hermes/context-engine.nix picks the package set for
-        `extraPythonPackages` from that argument's name.
-      '';
+  pythonPackages = import ../../lib/hermes-python.nix {inherit inputs lib pkgs;};
 in {
   config = lib.mkIf (cfg.contextEngine == "lcm") {
     dotfiles.hermes = {

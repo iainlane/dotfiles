@@ -9,27 +9,28 @@
 }: let
   cfg = config.dotfiles.hermes;
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
+  hermesPythonPackages = import ../../lib/hermes-python.nix {inherit inputs lib pkgs;};
 
   yaml = pkgs.formats.yaml {};
 
   generatedConfigFile = yaml.generate "hermes-config.yaml" cfg.settings;
 
-  # Add an extra Python package as a leaf on the agent's import path. The
-  # agent package's collision check rejects a package that appears twice, so
-  # drop the extra package's propagated dependencies and let the shared ones
-  # resolve from the agent's own virtual environment at import time. A
-  # dependency that environment does not contain needs its own
-  # `extraPythonPackages` entry.
-  venvLeafPackage = pkg:
-    pkg.overridePythonAttrs (_: {
-      dependencies = [];
-      propagatedBuildInputs = [];
-      # The package is built without its declared dependencies, so its own
-      # dependency and test checks would fail. Those dependencies are present
-      # on the agent's assembled import path, not in this package alone.
-      doCheck = false;
-      dontCheckRuntimeDeps = true;
-    });
+  # Expose only this package to Hermes' dependency walker. Reuse the original
+  # output so its build and checks still run with its declared dependencies.
+  venvLeafPackage = pkg: let
+    sitePackages = pkg.pythonModule.sitePackages;
+  in
+    pkgs.runCommand "${lib.getName pkg}-venv-leaf" {
+      passthru = {
+        inherit (pkg) pythonModule;
+        requiredPythonModules = [];
+      };
+    } ''
+      mkdir -p "$out/${dirOf sitePackages}"
+      ln -s "${pkg}/${sitePackages}" "$out/${sitePackages}"
+    '';
+
+  leafPythonPackages = map venvLeafPackage cfg.extraPythonPackages;
 
   package =
     if cfg.package != null
@@ -37,8 +38,17 @@
     else
       inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
         inherit (cfg) extraDependencyGroups;
-        extraPythonPackages = map venvLeafPackage cfg.extraPythonPackages;
+        extraPythonPackages = leafPythonPackages;
       };
+
+  hermesPythonPath = lib.makeSearchPath hermesPythonPackages.python.sitePackages (
+    hermesPythonPackages.requiredPythonModules leafPythonPackages
+  );
+
+  hermesPython = pkgs.writeShellScriptBin "hermes-python" ''
+    export PYTHONPATH="''${PYTHONPATH:+$PYTHONPATH:}${hermesPythonPath}"
+    exec ${package.hermesVenv}/bin/python3 "$@"
+  '';
 
   hermesBinDir = "${package}/bin";
 
@@ -388,6 +398,9 @@
       // serviceConfig;
   };
 in {
+  inherit hermesPython hermesPythonPath;
+  hermesPackage = package;
+
   inherit
     mkNixImage
     hermesUser
