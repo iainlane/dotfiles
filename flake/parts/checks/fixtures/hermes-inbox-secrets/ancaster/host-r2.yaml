@@ -1,0 +1,4 @@
+r2_access_key_id: test-r2-access-key-id
+r2_bucket: test-r2-bucket
+r2_endpoint: https://r2.example.org
+r2_secret_access_key: test-r2-secret-access-key

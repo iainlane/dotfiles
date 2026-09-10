@@ -270,6 +270,7 @@ in {
     dashboard.present = presence.option "the Hermes web dashboard, in a container of its own";
     homeassistant.present = presence.option "the Home Assistant integration, an event platform and device-control tools";
     identity.present = presence.option "the agent's Git and SSH identity";
+    inbox.present = presence.option "the AgentMail inbox workflow";
     soul.present = presence.option "the read-only SOUL.md identity file";
     agents.present = presence.option "the read-only AGENTS.md operating-instructions file";
     agentsview.present = presence.option "archiving the agent's sessions in AgentsView";
@@ -293,6 +294,7 @@ in {
       "dashboard"
       "homeassistant"
       "identity"
+      "inbox"
       "soul"
       "agents"
       "agentsview"

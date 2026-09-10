@@ -21,6 +21,7 @@ in {
       features.hermes
       features.hermes.provides.agentsview
       features.hermes.provides.identity
+      features.hermes.provides.inbox
       features.hermes.provides.webhook
       features.network
       features.nixbuild-substituter
@@ -83,6 +84,10 @@ in {
           identity = {
             name = "Godfrey";
             email = "godfrey@orangesquash.org.uk";
+          };
+          inbox = {
+            matrixRoomId = "!woL3cp6c1ydExPf6Uqk2sTMmksH5g9t5vBGCZq4IXQY";
+            matrixUserId = "@iain:orangesquash.org.uk";
           };
           profilePicture = ./ancaster/godfrey;
           matrix = {

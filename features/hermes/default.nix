@@ -11,6 +11,7 @@ in {
     ./embeddings
     ./homeassistant
     ./identity
+    ./inbox
     ./matrix
     ./mcp
     ./signal
