@@ -265,6 +265,7 @@ in {
     };
 
     signal.present = presence.option "the Signal platform, backed by a signal-cli daemon sidecar";
+    webhook.present = presence.option "the signed HTTP webhook platform";
     matrix.present = presence.option "the Matrix platform";
     dashboard.present = presence.option "the Hermes web dashboard, in a container of its own";
     homeassistant.present = presence.option "the Home Assistant integration, an event platform and device-control tools";
@@ -287,6 +288,7 @@ in {
     presence.assertions options
     (map (child: ["dotfiles" "hermes" child "present"]) [
       "signal"
+      "webhook"
       "matrix"
       "dashboard"
       "homeassistant"

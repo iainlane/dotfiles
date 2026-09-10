@@ -2,6 +2,7 @@
 # and the long-running gateway container.
 {
   config,
+  exposePodman,
   hermesBuilders,
   lib,
   pkgs,
@@ -17,6 +18,23 @@
     hermesImage
     mkHermesContainer
     ;
+
+  gatewayContainer = mkHermesContainer {
+    description = "Hermes Agent Gateway";
+    exec = lib.concatStringsSep " " (["gateway" "run" "--replace"] ++ cfg.extraArgs);
+    publishPorts = cfg.container.ports;
+
+    # On stop the agent closes its platform connections, waits for the turn
+    # in flight and writes its session state, and podman's own `stopTimeout`
+    # then allows a further wait before the kill.
+    serviceConfig.TimeoutStopSec = 210;
+  };
+
+  webhookExposed =
+    cfg.webhook.present
+    && cfg.webhook.active
+    && cfg.webhook.expose != null
+    && config.dotfiles.containers.edgeProxy.enable;
 in {
   config = {
     environment.systemPackages = [hostCliPackage] ++ cfg.extraPackages;
@@ -48,19 +66,10 @@ in {
         tag = "localhost/${cfg.container.name}:${hermesImage.imageTag}";
       };
 
-      containers.${cfg.container.name} = mkHermesContainer {
-        description = "Hermes Agent Gateway";
-        exec =
-          lib.concatStringsSep " "
-          (["gateway" "run" "--replace"] ++ cfg.extraArgs);
-        publishPorts = cfg.container.ports;
-
-        # On stop the agent closes its platform connections, waits for the turn
-        # in flight and writes its session state, and podman's own
-        # `stopTimeout` then allows a further wait before the kill. systemd's
-        # 90-second default would cut all of that short.
-        serviceConfig.TimeoutStopSec = 210;
-      };
+      containers.${cfg.container.name} =
+        if webhookExposed
+        then exposePodman cfg.container.name gatewayContainer (cfg.webhook.expose // {inherit (cfg.webhook) port;})
+        else gatewayContainer;
     };
   };
 }

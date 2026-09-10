@@ -15,6 +15,7 @@ in {
     ./mcp
     ./signal
     ./soul
+    ./webhook
   ];
 
   flake.features.hermes = {

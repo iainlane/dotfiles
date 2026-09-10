@@ -21,6 +21,7 @@ in {
       features.hermes
       features.hermes.provides.agentsview
       features.hermes.provides.identity
+      features.hermes.provides.webhook
       features.network
       features.nixbuild-substituter
       features.unifi
@@ -94,6 +95,10 @@ in {
           dashboard.expose = {
             domain = "godfrey.orangesquash.org.uk";
             auth = true;
+          };
+          webhook.expose = {
+            domain = "hooks.godfrey.orangesquash.org.uk";
+            auth = false;
           };
           contextEngine = "lcm";
           embeddings = {
