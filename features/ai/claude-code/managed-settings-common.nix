@@ -80,16 +80,10 @@ in {
     };
     effortLevel = "high";
     enabledPlugins = {
-      "claude-code-setup@claude-plugins-official" = true;
-      "claude-md-management@claude-plugins-official" = true;
-      "code-review@claude-plugins-official" = true;
-      "feature-dev@claude-plugins-official" = true;
-      "frontend-design@claude-plugins-official" = true;
       "gopls-lsp@claude-plugins-official" = true;
       "lua-lsp@claude-plugins-official" = true;
       "pr-review-toolkit@claude-plugins-official" = true;
       "pyright-lsp@claude-plugins-official" = true;
-      "ralph-loop@claude-plugins-official" = true;
       "rust-analyzer-lsp@claude-plugins-official" = true;
       "security-guidance@claude-plugins-official" = true;
       # It seems to aggressively replace default behaviours.
