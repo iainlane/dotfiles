@@ -72,7 +72,7 @@
   aheadBehindCommand = lib.getExe gitAheadBehind;
   usagePctCommand = lib.getExe usagePct;
 in {
-  version = 3;
+  version = 4;
   colorLevel = 1;
   globalBold = true;
   defaultSeparator = "|";
