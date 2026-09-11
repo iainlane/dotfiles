@@ -79,6 +79,14 @@ in {
       }
     ];
 
+    # Neither set is used from Claude Code: the built-in git tooling, the
+    # Chrome extension and the bundled skills cover the same ground. The other
+    # harnesses still receive them.
+    dotfiles.claudeCode = {
+      excludeMcpServers = ["context7" "git" "playwright"];
+      excludeSkills = ["asd-ste100" "gh-stack" "stacked-prs"];
+    };
+
     programs.claude-code = {
       enable = true;
       package = wrappedClaudeCode;
