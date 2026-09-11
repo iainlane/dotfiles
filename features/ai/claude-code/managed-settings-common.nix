@@ -71,20 +71,26 @@ in {
   # Sort this last so the values here override any incoming system-wide
   # configuration.
   config.dotfiles.claudeCode.managedSettings = lib.mkAfter {
+    agentPushNotifEnabled = true;
     alwaysThinkingEnabled = true;
     attribution = {
       commit = "";
       pr = "";
       sessionUrl = false;
     };
+    effortLevel = "high";
     enabledPlugins = {
       "claude-code-setup@claude-plugins-official" = true;
       "claude-md-management@claude-plugins-official" = true;
       "code-review@claude-plugins-official" = true;
       "feature-dev@claude-plugins-official" = true;
       "frontend-design@claude-plugins-official" = true;
+      "gopls-lsp@claude-plugins-official" = true;
+      "lua-lsp@claude-plugins-official" = true;
       "pr-review-toolkit@claude-plugins-official" = true;
+      "pyright-lsp@claude-plugins-official" = true;
       "ralph-loop@claude-plugins-official" = true;
+      "rust-analyzer-lsp@claude-plugins-official" = true;
       "security-guidance@claude-plugins-official" = true;
       # It seems to aggressively replace default behaviours.
       # "superpowers@claude-plugins-official" = true;
@@ -105,15 +111,22 @@ in {
       type = "command";
       command = lib.getExe fileSuggestionCommand;
     };
+    inputNeededNotifEnabled = true;
     model = "${defaultModels.anthropic}[1m]";
     outputStyle = outputStyles.default.name;
+    permissions.defaultMode = "auto";
+    skipAutoPermissionPrompt = true;
     skipDangerousModePermissionPrompt = true;
+    skipWorkflowUsageWarning = true;
     statusLine = {
       type = "command";
       command = "${ccstatusline}/bin/ccstatusline";
       padding = 0;
     };
+    teammateMode = "in-process";
+    theme = "light";
     tui = "fullscreen";
+    verbose = true;
     voiceEnabled = true;
   };
 }
