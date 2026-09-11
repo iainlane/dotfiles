@@ -148,7 +148,10 @@ by invoking the skill named after it. The `skillTree` argument merges a set of
 skills into one directory and fails the build when two skills share a name and
 differ. The shared tree is linked into `~/.agents/skills`, the harness-neutral
 location; a harness that reads only its own directory calls `skillTree` again
-for a tree of its own.
+for a tree of its own. That call is also where a harness leaves out skills it
+does not want: `skillTree` takes an `excludes` list of names, removes them after
+the merge, and fails the build for a name that matches nothing. Claude Code
+exposes this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
 
 ## Unstable home-manager modules
 

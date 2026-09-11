@@ -32,9 +32,10 @@ in {
       type = with lib.types; listOf str;
       default = [];
       description = ''
-        Names of shared MCP servers to drop from Claude Code. The work feature
-        uses this to exclude the enterprise connectors, which Claude Code
-        receives from the organisation directly.
+        Names of shared MCP servers to drop from Claude Code. The other
+        harnesses keep them. The work feature uses this to exclude the
+        enterprise connectors, which Claude Code receives from the
+        organisation directly.
       '';
     };
 
@@ -47,9 +48,30 @@ in {
         Claude Code its own variant of a shared skill.
       '';
     };
+
+    excludeSkills = lib.mkOption {
+      type = with lib.types; listOf str;
+      default = [];
+      description = ''
+        Names of skills to leave out of Claude Code's skill tree. The other
+        harnesses keep them. A name that matches no skill in the merged tree
+        fails the build, and a name that `skills` also defines is an error.
+      '';
+    };
   };
 
-  config = {
+  config = let
+    cfg = config.dotfiles.claudeCode;
+
+    definedAndExcluded = lib.intersectLists (lib.attrNames cfg.skills) cfg.excludeSkills;
+  in {
+    assertions = [
+      {
+        assertion = definedAndExcluded == [];
+        message = "dotfiles.claudeCode both defines and excludes these skills: ${lib.concatStringsSep ", " definedAndExcluded}";
+      }
+    ];
+
     programs.claude-code = {
       enable = true;
       package = wrappedClaudeCode;
@@ -59,7 +81,7 @@ in {
       enableMcpIntegration = false;
       mcpServers =
         lib.mapAttrs (_name: mkMcpServer)
-        (mcp.excludeServers config.dotfiles.claudeCode.excludeMcpServers config.dotfiles.ai.mcpServers);
+        (mcp.excludeServers cfg.excludeMcpServers config.dotfiles.ai.mcpServers);
 
       # Shared instructions as auto-loaded rule files.
       rules = claudeCodeInstructions.files;
@@ -69,7 +91,10 @@ in {
     };
 
     home.file."${config.programs.claude-code.configDir}/skills" = {
-      source = skillTree (config.dotfiles.ai.skills // config.dotfiles.claudeCode.skills);
+      source = skillTree {
+        skills = config.dotfiles.ai.skills // cfg.skills;
+        excludes = cfg.excludeSkills;
+      };
       recursive = true;
     };
 

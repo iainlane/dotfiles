@@ -14,10 +14,11 @@
 # `claude-code/managed-settings-common.nix` imports `output-styles.nix`
 # directly.
 #
-# `skillTree` assembles a set of skills into one directory. The shared set
-# is linked into `~/.agents/skills`, the harness-neutral location. A harness
-# that reads only its own directory links the tree itself, through the
-# `skillTree` module argument.
+# `skillTree` assembles a set of skills into one directory, leaving out any
+# skill named in `excludes`. The shared set is linked into `~/.agents/skills`,
+# the harness-neutral location. A harness that reads only its own directory
+# links the tree itself, through the `skillTree` module argument, and that is
+# where it drops the skills it does not want.
 #
 # A value in the set is inline SKILL.md content, a directory that is a
 # skill, or a directory that contains skills. Evaluation cannot tell the
@@ -87,10 +88,28 @@
       ''
     else pkgs.writeTextDir "${name}/SKILL.md" skill;
 
-  skillTree = skills:
+  # The excluded names are checked against the merged tree, after the build,
+  # because a directory of skills only reveals its names once it is built. A
+  # name that matches nothing fails the build, so a stale exclusion cannot
+  # linger after a skill is renamed or removed.
+  skillTree = {
+    skills,
+    excludes ? [],
+  }:
     pkgs.buildEnv {
       name = "skills";
       paths = lib.mapAttrsToList asSkillDirectory skills;
+
+      postBuild =
+        lib.concatMapStringsSep "\n" (name: ''
+          if [ ! -e "$out"/${lib.escapeShellArg name} ]; then
+            echo "skill exclusion ${name} matches no skill in the tree" >&2
+            exit 1
+          fi
+
+          rm -r "$out"/${lib.escapeShellArg name}
+        '')
+        excludes;
     };
 in {
   options.dotfiles.ai.skills = lib.mkOption {
@@ -108,7 +127,7 @@ in {
     dotfiles.ai.skills = local // external // styles;
 
     home.file.".agents/skills" = {
-      source = skillTree config.dotfiles.ai.skills;
+      source = skillTree {skills = config.dotfiles.ai.skills;};
       recursive = true;
     };
 
