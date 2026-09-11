@@ -33,9 +33,10 @@ in {
       default = [];
       description = ''
         Names of shared MCP servers to drop from Claude Code. The other
-        harnesses keep them. The work feature uses this to exclude the
-        enterprise connectors, which Claude Code receives from the
-        organisation directly.
+        harnesses keep them. A name that is not in `dotfiles.ai.mcpServers`
+        is an error. The work feature uses this to exclude the enterprise
+        connectors, which Claude Code receives from the organisation
+        directly.
       '';
     };
 
@@ -64,11 +65,17 @@ in {
     cfg = config.dotfiles.claudeCode;
 
     definedAndExcluded = lib.intersectLists (lib.attrNames cfg.skills) cfg.excludeSkills;
+
+    unknownMcpServers = lib.subtractLists (lib.attrNames config.dotfiles.ai.mcpServers) cfg.excludeMcpServers;
   in {
     assertions = [
       {
         assertion = definedAndExcluded == [];
         message = "dotfiles.claudeCode both defines and excludes these skills: ${lib.concatStringsSep ", " definedAndExcluded}";
+      }
+      {
+        assertion = unknownMcpServers == [];
+        message = "dotfiles.claudeCode.excludeMcpServers names servers that are not in dotfiles.ai.mcpServers: ${lib.concatStringsSep ", " unknownMcpServers}";
       }
     ];
 
