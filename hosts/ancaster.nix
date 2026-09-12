@@ -139,7 +139,9 @@ in {
             # CLI at startup. `google_chat-platform` registers a Platform
             # value the gateway does not define, so it fails to load and warns
             # at every startup.
-            plugins.disabled = ["raft-platform" "google_chat-platform"];
+            plugins.disabled = ["raft-platform" "google_chat-platform" "spotify" "a2a-platform"];
+
+            agent.disabled_toolsets = ["computer_use" "browser-cdp"];
 
             model = {
               provider = "openai-codex";
