@@ -32,19 +32,33 @@
   # image the current generation still wants.
   #
   # Rather than track which containers stay running, make every
-  # Nix-built image unit pull its image again whenever something
-  # depends on it. `RemainAfterExit = false` makes the unit go inactive
-  # once the pull finishes, so `Requires=`/`After=` on a dependent unit
-  # reruns it on every start. The pull re-imports the same tag from the
-  # already-built store path, so repeating it costs a local copy, not a
-  # network fetch.
+  # Nix-built image unit run again whenever something depends on it.
+  # `RemainAfterExit = false` makes the unit go inactive once it
+  # finishes, so `Requires=`/`After=` on a dependent unit reruns it on
+  # every start.
+  #
+  # Importing a docker-archive decompresses and hashes every layer, which
+  # on a large image takes tens of seconds of CPU and writes the layers
+  # to disk again, so a container that keeps crashing would spend most of
+  # each restart re-importing an image it already has. The condition
+  # skips the pull while the tag is in local storage; after a prune has
+  # removed it, the tag is missing and the pull runs.
+  imageAbsent = pkgs.writeShellScript "podman-image-absent" (builtins.readFile ../../lib/podman-image-absent.sh);
+
   nixBuiltImageOverrides =
     lib.mapAttrs' (
-      name: _image:
+      name: image:
         lib.nameValuePair "${name}-image" {
-          serviceConfig.RemainAfterExit = lib.mkForce false;
+          path = [config.virtualisation.podman.package];
+          serviceConfig = {
+            RemainAfterExit = lib.mkForce false;
+            ExecCondition = "${imageAbsent} ${lib.escapeShellArg image.imageConfig.tag}";
+          };
         }
-    ) (lib.filterAttrs (_: image: lib.hasPrefix "docker-archive:" image.imageConfig.image)
+    ) (lib.filterAttrs (
+        _: image:
+          lib.hasPrefix "docker-archive:" image.imageConfig.image && image.imageConfig.tag != null
+      )
       config.virtualisation.quadlet.images);
 in {
   imports = [
