@@ -394,6 +394,8 @@
         ExecStartPre = ["${setupScript}/bin/hermes-prepare-state"];
         Restart = "always";
         RestartSec = 5;
+        RestartSteps = 10;
+        RestartMaxDelaySec = "5min";
       }
       // serviceConfig;
   };

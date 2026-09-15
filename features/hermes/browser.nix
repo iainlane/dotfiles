@@ -87,6 +87,17 @@ in {
     environment.AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
   };
 
+  # Chromium records the hostname and pid holding a profile in
+  # `SingletonLock`, and only reclaims the lock when the hostname is its
+  # own. Every container run has a fresh hostname, so a lock left by a
+  # container that was not stopped cleanly is never reclaimed and
+  # Chromium exits with "profile in use" on every start. No other
+  # container uses this profile, so any lock present before a start is
+  # stale.
+  dotfiles.hermes.container.extraSetup = ''
+    rm -f "$state"/.hermes/chromium/Singleton{Lock,Socket,Cookie}
+  '';
+
   virtualisation.quadlet.containers.${config.dotfiles.hermes.container.name}.containerConfig = {
     entrypoint = lib.mkForce (lib.getExe gateway);
     environments.BROWSER_CDP_URL = cdpUrl;
