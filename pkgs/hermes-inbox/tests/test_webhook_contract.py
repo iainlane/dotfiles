@@ -53,6 +53,7 @@ def _response(response: Any) -> tuple[int, dict[str, Any]]:
 def test_native_webhook_validates_svix_and_never_dispatches_to_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from gateway.authz_mixin import GatewayAuthorizationMixin
     from gateway.config import PlatformConfig
     from gateway.platforms import webhook as gateway
     from gateway.platforms.base import SendResult
@@ -84,13 +85,13 @@ def test_native_webhook_validates_svix_and_never_dispatches_to_agent(
     adapter = gateway.WebhookAdapter(config)
     adapter.handle_message = AsyncMock()
     target = SimpleNamespace(send=AsyncMock(return_value=SendResult(success=True)))
-    adapter.gateway_runner = cast(
-        Any,
-        SimpleNamespace(
-            adapters={gateway.Platform.MATRIX: target},
-            config=SimpleNamespace(get_home_channel=lambda _platform: None),
-        ),
-    )
+
+    class Runner(GatewayAuthorizationMixin):
+        def __init__(self) -> None:
+            self.adapters = {gateway.Platform.MATRIX: target}
+            self.config = SimpleNamespace(get_home_channel=lambda _platform: None)
+
+    adapter.gateway_runner = cast(Any, Runner())
 
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_INBOX_ID", inbox_id)

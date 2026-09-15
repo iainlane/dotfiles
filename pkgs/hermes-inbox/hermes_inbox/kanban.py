@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
+from contextlib import AbstractContextManager
 from importlib import import_module
 
 from .classifier import Candidate
@@ -23,9 +25,13 @@ class HermesKanban:
         self._board_id = board_id
         self._body_limit = body_limit
 
+    def _connect(self) -> AbstractContextManager[sqlite3.Connection]:
+        connect = import_module("hermes_cli.kanban_db_connect")
+        return connect.connect_closing(board=self._board_id)
+
     def list_candidates(self) -> list[Candidate]:
         database = import_module("hermes_cli.kanban_db")
-        with database.connect_closing(board=self._board_id) as connection:
+        with self._connect() as connection:
             tasks = database.list_tasks(
                 connection, include_archived=True, order_by="created"
             )
@@ -42,7 +48,7 @@ class HermesKanban:
 
     def get_candidate(self, card_id: str) -> Candidate | None:
         database = import_module("hermes_cli.kanban_db")
-        with database.connect_closing(board=self._board_id) as connection:
+        with self._connect() as connection:
             task = database.get_task(connection, card_id)
         if task is None:
             return None
@@ -61,7 +67,7 @@ class HermesKanban:
         card_body, attachment = self._bounded_body(body)
         source_key = hashlib.sha256(idempotency_key.encode()).hexdigest()
         attachment_name = f"agentmail-{source_key}.txt"
-        with database.connect_closing(board=self._board_id) as connection:
+        with self._connect() as connection:
             card_id = database.create_task(
                 connection,
                 board=self._board_id,
@@ -97,7 +103,7 @@ class HermesKanban:
         marker = f"[hermes-inbox-source:{source_key}]"
         note = f"{marker}\n{note}"
         attachment_name = f"agentmail-{source_key}.txt"
-        with database.connect_closing(board=self._board_id) as connection:
+        with self._connect() as connection:
             duplicate = connection.execute(
                 "SELECT 1 FROM task_comments "
                 "WHERE task_id = ? AND author = 'hermes-inbox' "
@@ -138,7 +144,7 @@ class HermesKanban:
         database = import_module("hermes_cli.kanban_db")
         profiles = import_module("hermes_cli.profiles")
         canonical_assignee = profiles.normalize_profile_name(assignee)
-        with database.connect_closing(board=self._board_id) as connection:
+        with self._connect() as connection:
             with database.write_txn(connection):
                 cursor = connection.execute(
                     "UPDATE tasks SET status = 'todo', assignee = ? "

@@ -192,13 +192,12 @@ def test_native_context_registers_openai_schemas_and_unloads(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     pytest.importorskip("hermes_cli", reason="requires the pinned Hermes source")
-    config_module = import_module("hermes_cli.config")
     plugins_module = import_module("hermes_cli.plugins")
     registry = import_module("tools.registry").registry
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr(
-        config_module,
+        plugins_module,
         "load_config_readonly",
         lambda: {
             "plugins": {

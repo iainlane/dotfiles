@@ -2,7 +2,9 @@ import asyncio
 import hashlib
 import inspect
 import os
+import sqlite3
 import sys
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from importlib import import_module
 from pathlib import Path
@@ -23,9 +25,15 @@ if HERMES_SOURCE:
     sys.path.insert(0, HERMES_SOURCE)
 
 
+def _connect() -> AbstractContextManager[sqlite3.Connection]:
+    connect = import_module("hermes_cli.kanban_db_connect")
+    return connect.connect_closing(board="default")
+
+
 @pytest.mark.skipif(HERMES_SOURCE is None, reason="set HERMES_SOURCE to pinned source")
 def test_pinned_hermes_plugin_and_kanban_contracts() -> None:
     kanban = import_module("hermes_cli.kanban_db")
+    connect = import_module("hermes_cli.kanban_db_connect")
     PluginContext = import_module("hermes_cli.plugins").PluginContext
     PluginLlm = import_module("agent.plugin_llm").PluginLlm
 
@@ -42,7 +50,7 @@ def test_pinned_hermes_plugin_and_kanban_contracts() -> None:
         "name",
     }
     assert "task" in inspect.signature(PluginLlm.acomplete_structured).parameters
-    assert callable(kanban.connect_closing)
+    assert callable(connect.connect_closing)
     assert callable(kanban.create_task)
     assert callable(kanban.get_task)
     assert callable(kanban.list_tasks)
@@ -61,7 +69,7 @@ def test_pinned_kanban_approval_refuses_changed_card(
     card_id, card_body = adapter.create_proposal_card(
         title="Original", body="Original body", idempotency_key="inbox:test"
     )
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         connection.execute(
             "UPDATE tasks SET body = ? WHERE id = ?", ("Changed body", card_id)
         )
@@ -70,7 +78,7 @@ def test_pinned_kanban_approval_refuses_changed_card(
     assert not adapter.approve_if_unchanged(
         card_id, assignee="default", title="Original", body=card_body
     )
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         task = kanban.get_task(connection, card_id)
     assert task is not None
     assert task.status == "triage"
@@ -90,7 +98,7 @@ def test_pinned_kanban_approval_canonicalises_assignee(
     assert adapter.approve_if_unchanged(
         card_id, assignee="Godfrey", title="Original", body=card_body
     )
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         task = kanban.get_task(connection, card_id)
     assert task is not None
     assert task.assignee == "godfrey"
@@ -152,7 +160,7 @@ def test_runtime_proposal_stays_inactive_until_authorised_approval(
     rendered = asyncio.run(runtime.deliver_digest())
     proposal = store.pending_for_digest()[0]
     kanban = import_module("hermes_cli.kanban_db")
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         before = kanban.get_task(connection, proposal.card_id)
     assert before is not None and (before.status, before.assignee) == ("triage", None)
     assert not asyncio.run(
@@ -171,7 +179,7 @@ def test_runtime_proposal_stays_inactive_until_authorised_approval(
             emoji=rendered.items[0][2],
         )
     )
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         after = kanban.get_task(connection, proposal.card_id)
     assert after is not None and after.assignee == "default"
 
@@ -193,7 +201,7 @@ def test_large_proposal_retry_keeps_one_complete_attachment(
 
     assert second == first
     kanban = import_module("hermes_cli.kanban_db")
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         attachments = kanban.list_attachments(connection, first[0])
     assert len(attachments) == 1
     assert Path(attachments[0].stored_path).read_bytes() == body.encode()
@@ -211,7 +219,7 @@ def test_append_retry_uses_exact_prefix_and_preserves_full_source(
     )
     message_id = "%_wildcard"
     marker = hashlib.sha256(message_id.encode()).hexdigest()
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         kanban.add_comment(
             connection,
             card_id,
@@ -233,7 +241,7 @@ def test_append_retry_uses_exact_prefix_and_preserves_full_source(
     adapter.append_email(card_id, email)
     adapter.append_email(card_id, email)
 
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         comments = kanban.list_comments(connection, card_id)
         attachments = kanban.list_attachments(connection, card_id)
     assert len(comments) == 2
@@ -248,7 +256,7 @@ def test_runtime_keeps_running_and_completed_cards_in_their_columns(
 ) -> None:
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
     kanban = import_module("hermes_cli.kanban_db")
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         running_id = kanban.create_task(connection, title="Running", body="body")
         completed_id = kanban.create_task(connection, title="Completed", body="body")
         connection.execute(
@@ -335,7 +343,7 @@ def test_runtime_keeps_running_and_completed_cards_in_their_columns(
     )
     assert new_location is not None
 
-    with kanban.connect_closing(board="default") as connection:
+    with _connect() as connection:
         running = kanban.get_task(connection, running_id)
         completed = kanban.get_task(connection, completed_id)
         proposed = kanban.get_task(connection, new_location.card_id)
