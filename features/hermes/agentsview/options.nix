@@ -12,8 +12,12 @@
     };
     interval = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 2;
-      description = "Seconds the AgentsView watcher waits between scans.";
+      default = 900;
+      description = ''
+        Seconds between the AgentsView watcher's periodic full pushes. The
+        watcher also pushes shortly after a session file changes, so this
+        only bounds how stale the archive can get when a change is missed.
+      '';
     };
   };
 }
