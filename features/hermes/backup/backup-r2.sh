@@ -38,12 +38,13 @@ rsync -a --numeric-ids \
 	--exclude='/.hermes/state.db*' \
 	--exclude='/.hermes/memory_store.db*' \
 	--exclude='/.hermes/kanban.db*' \
+	--exclude='/.hermes/lcm.db*' \
 	--exclude='/.hermes/shared-state.db*' \
 	--exclude='/.hermes/cron/deliveries.db*' \
 	--exclude='/.hermes/plugin-data/agent-plugin-hermes-inbox-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/inbox.sqlite3*' \
 	"${HERMES_STATE_DIR}/" "${snap}/"
 
-for db in state.db memory_store.db kanban.db shared-state.db cron/deliveries.db; do
+for db in state.db memory_store.db kanban.db lcm.db shared-state.db cron/deliveries.db; do
 	src="${HERMES_STATE_DIR}/.hermes/${db}"
 	if [ -f "${src}" ]; then
 		mkdir -p "$(dirname "${snap}/.hermes/${db}")"

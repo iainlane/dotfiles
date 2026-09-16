@@ -23,6 +23,7 @@ databases=(
 	.hermes/state.db
 	.hermes/memory_store.db
 	.hermes/kanban.db
+	.hermes/lcm.db
 	.hermes/shared-state.db
 	.hermes/cron/deliveries.db
 	".hermes/plugin-data/${data_namespace}/inbox.sqlite3"
