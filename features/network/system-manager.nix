@@ -58,6 +58,9 @@ in {
           Type = "oneshot";
           RemainAfterExit = true;
           ExecStart = "${pkgs.systemd}/bin/networkctl reload";
+          # At boot this can race systemd-networkd's own startup.
+          Restart = "on-failure";
+          RestartSec = "2s";
         };
       };
     })
