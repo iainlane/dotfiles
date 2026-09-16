@@ -108,7 +108,7 @@ in {
           contextEngine = "lcm";
           embeddings = {
             # OpenRouter serves OpenAI-compatible embeddings, so LCM reaches it
-            # through the provider proposed in hermes-lcm#519 and reads the key
+            # through the provider proposed in hermes-lcm#551 and reads the key
             # from the variable `secretEnv` already sets for the agent's models.
             baseUrl = "https://openrouter.ai/api/v1";
             apiKeyVariable = "OPENROUTER_API_KEY";
