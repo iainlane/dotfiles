@@ -90,9 +90,6 @@ in {
       # "superpowers@claude-plugins-official" = true;
       "typescript-lsp@claude-plugins-official" = true;
     };
-    env = {
-      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
-    };
     extraKnownMarketplaces = {
       "anthropic-agent-skills" = {
         source = {
