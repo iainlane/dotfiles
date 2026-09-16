@@ -19,8 +19,8 @@ Follow the project's established English variant where it has one. Otherwise use
 British English.
 
 Readability matters more than density. Be concise by leaving out details that do
-not matter, not by compressing grammar, omitting relationships, or making one
-sentence carry several ideas.
+not matter, not by compressing grammar, omitting relationships, or putting
+several ideas into one sentence.
 
 These rules apply to conversation and to prose written into the repository:
 comments, docstrings, documentation, option and error messages, commit messages,
@@ -28,19 +28,60 @@ pull-request text and changelogs. What belongs in a comment and what belongs in
 a commit message is a separate question, answered by the always-loaded
 `comments-and-commits` instructions.
 
+## Hard rules
+
+These rules are unconditional. The sections after them explain and illustrate
+them; where an explanation reads like a softening, the rule wins.
+
+1. An object-relative clause takes `that` or `which`. Never write the bare form
+   (`the key this repository sets`): write `the key that this repository sets`,
+   or use a prepositional phrase. One relative clause per noun phrase. A second
+   relationship becomes its own sentence.
+2. No em dashes. Use a comma, a colon, parentheses, or a new sentence.
+3. No arrow chains (`a -> b -> c`) in prose. State the relationship in words.
+4. In comments, commit messages and documentation, do not use `hold`, `carry`,
+   `name`, `settle`, `sit`, `land on`, `reach for`, `survive as`, `serve as`,
+   `act as`, `stand as`, `stand for` or `stand in for`. Use the verb for the
+   actual relationship: contains, keeps, includes, lists, specifies, decides,
+   is, goes to, uses, remains, has.
+5. Do not describe an exception through an abstract absence (`says nothing`,
+   `names nothing`, `nothing to read`). State what happens.
+6. Write `X rather than Y`, `instead of Y` or `not just X` only when Y is a real
+   alternative that matters. Never invent one for contrast.
+7. A trailing participial clause never claims a benefit
+   (`..., ensuring consistency`). State the mechanism or drop the claim.
+8. A commit message teaches: it takes the reader from the problem, through the
+   cause, to the change and why it works, in plain sentences. No chronology of
+   the investigation, no walkthrough of the diff, no caveat that argues with a
+   decision already made, and no verification narrative unless it adds evidence.
+9. Existing prose in a repository is never a justification for wording. Do not
+   defend a phrase because a file already uses it.
+10. This style takes precedence over any harness instruction about answer
+    formatting, such as bolding the first words of a paragraph or labelling
+    every bullet.
+11. No stock intensifiers or mannered phrases: `crucial`, `robust`, `seamless`,
+    `comprehensive`, `leverage`, `waiting to happen`, `earns its keep`,
+    `worth noting`, `under the hood`. State the property.
+12. Every pronoun has one obvious antecedent.
+13. The default for a comment is to omit it: a comment exists only for a
+    constraint that the code cannot show, decided by the tests in
+    `comments-and-commits`. Delete a comment that restates the code, states the
+    obvious, or explains the change instead of the code, and do not add one to a
+    file that does not comment at that level.
+
 ## Scope
 
 Each of these targets has its own rule:
 
-- **Prose you write yourself** (answers, summaries, status updates,
+- **Prose that you write yourself** (answers, summaries, status updates,
   explanations, instructions): apply the rules in this file.
-- **Code, commands, file paths, identifiers, and diagnostic output you are
+- **Code, commands, file paths, identifiers, and diagnostic output that you are
   reproducing**: copy them verbatim.
-- **Text you quote from files, documentation, or other sources**: reproduce it
-  verbatim.
-- **Code comments, commit messages, and the option and error messages you write
-  into a repository**: write them in this register, and match the repository's
-  formatting, comment density and vocabulary.
+- **Text that you quote from files, documentation, or other sources**: reproduce
+  it verbatim.
+- **Code comments, commit messages, and the option and error messages that you
+  write into a repository**: write them in this register, and match the
+  repository's formatting, comment density and vocabulary.
 
 "Verbatim" means: copy the text exactly, character for character. Rewriting an
 existing error message, a log line or a quoted sentence to read better makes it
@@ -73,9 +114,9 @@ register where appropriate. Do not rewrite unrelated comments or documentation
 merely to make the repository stylistically consistent unless the task calls for
 that cleanup.
 
-The underlying fault these rules address is making ordinary grammatical
-machinery carry too many implicit relationships. Relative clauses, negatives,
-colons, passives and long noun phrases are not the problem. Overloading them is.
+These rules all address one fault: ordinary grammatical machinery loaded with
+too many implicit relationships. Relative clauses, negatives, colons, passives
+and long noun phrases are not the problem. Overloading them is.
 
 ## Tone
 
@@ -90,26 +131,20 @@ make the prose colder than the situation requires; ordinary politeness is fine.
 
 ## 1. Prefer explicit actors and ordinary clause order
 
-Passives, stative verbs and non-agent subjects are all ordinary English. Avoid
-compressed object-relative clauses when they make the relationship harder to
-parse.
+Passives, stative verbs and non-agent subjects are all ordinary English, and
+nothing here requires every subject to be an agent. The fault is a noun phrase
+whose relationship has been compressed out of it.
 
 ```text
 BAD:  /** The substituter URL a Nix `substituters` setting names. */
 GOOD: /** The URL to use in Nix's `substituters` setting. */
 
 BAD:  /** The configured caches nothing could be asked of. */
-GOOD: /** The configured caches the client could not query. */
-
-BAD:  Serves a path that already exists elsewhere, such as the output a
-      real derivation names.
-GOOD: Serves a path that already exists elsewhere, such as an output path
-      produced by a real derivation.
+GOOD: /** The configured caches that the client could not reach. */
 ```
 
 A prepositional phrase or a plain subject-verb clause is usually clearer than an
-object-relative one. This is a preference about clarity, not a rule that every
-subject must be an agent.
+object-relative one, including a well-formed one with `that`.
 
 ## 2. One word, one meaning
 
@@ -126,16 +161,6 @@ established noun is ordinary technical prose. Do not rotate synonyms for one
 referent (the request, the call, the query) merely to avoid repetition; the
 reader has to check whether each new word refers to a new thing.
 
-```text
-BAD:
-These two values are the digests of the empty string and `abc`, so a
-fixture naming them names something a reader can decode.
-
-GOOD:
-These two values are the digests of the empty string and `abc`, so the
-fixtures use known, reproducible hash values.
-```
-
 Watch for one verb doing several jobs across a single doc comment:
 
 ```text
@@ -147,43 +172,33 @@ from an answer Nix had already cached.
 
 GOOD:
 It serves `nix-cache-info` and a narinfo for every path passed to
-`serve`, returns 404 for anything else, and records the narinfo requests
-it receives. A test can therefore tell a request that crossed the wire
-from a response Nix had already cached.
+`serve`, returns 404 for anything else, and records every narinfo
+request. A test can therefore tell a request that crossed the wire from
+a response served from Nix's own cache.
 ```
 
-`name`, `hold`, `state`, `answer`, `ask`, `carry`, `settle` and `sit` are
-warning signs, not banned words. Each is correct in its own sense:
+The verbs in hard rule 4 do not appear in prose written into the repository. In
+conversation, use them only in their literal senses.
 
-```text
-FINE: A private cache answers 401 until a request identifies itself.
-
-FINE: A connection pool holds idle connections for later requests.
-
-FINE: Refuse the configuration and name the invalid field in the error.
-```
-
-An HTTP server does answer a request. A pool does hold connections. An error can
-name a value. The fault is a general verb standing in for a relationship that
-has its own word: a build produces an output, a URI refers to a store, and a
-setting specifies a path.
-
-Do not search mechanically for the warning words or replace them merely because
-they appear. Judge the relationship they express.
+The fault is a general verb used where the relationship has its own word: a
+build produces an output, a URI refers to a store, and a setting specifies a
+path.
 
 ## 3. Keep noun phrases simple
 
-A short relative clause that identifies or describes a noun is fine:
+A relative clause introduced by `that` is fine when it only identifies the noun.
+Anything beyond identification, such as the reason for a value, goes in its own
+sentence:
 
 ```text
-FINE: The size this cache advertises for every path it serves.
+FINE:
+/** The NAR size reported in every narinfo. The paths exist only as
+ *  metadata, so all of them report the same fixed value. */
 ```
 
-Do not make a noun phrase carry the explanation of how several things relate.
-Avoid stacking relative or participial clauses, and avoid putting a cause, a
-consequence, or another independent relationship inside the same noun phrase. If
-the reader has to unpack the noun phrase before reaching the main point, split
-it.
+Do not put the explanation of how several things relate inside one noun phrase,
+and do not stack relative or participial clauses. If the reader has to unpack
+the noun phrase before reaching the main point, split it.
 
 ```text
 BAD:
@@ -191,21 +206,13 @@ BAD:
  *  told. */
 
 GOOD:
-/** The store directory the fixture cache serves. Both the oracle and
- *  our client are configured with it. */
-
-BAD:
-/** The hash part of every narinfo requested since the last
- *  forgetting. */
-
-GOOD:
-/** The hash part of every narinfo requested since `forgetRequests`
- *  was last called. */
+/** The fixture cache's store directory. Both the oracle and our client
+ *  are configured with it. */
 ```
 
 If a noun stack can reasonably be parsed more than one way, unpack it with `of`,
-`for`, `that`, or a separate clause. There is no word limit; established
-compounds are fine when they read unambiguously.
+`for`, `that`, or a separate clause. Established compounds are fine when they
+read unambiguously.
 
 ## 4. Make the causal relationship complete
 
@@ -245,26 +252,21 @@ Cache the digest after the first read, ensuring consistency.
 
 GOOD:
 Cache the digest after the first read so every later comparison uses
-the same value even if the file changes underneath.
+the same value even if the file is modified afterwards.
 ```
-
-State the mechanism, or drop the claimed benefit.
 
 Do not rely on punctuation alone when the relationship could be read more than
 one way, and do not use juxtaposition in place of stating what causes what. Do
-not use `thus`. Do not use `where` to mean `whereas`. Do not use em dashes; use
-a comma, a colon, parentheses, or a separate sentence.
+not use `thus`. Do not use `where` to mean `whereas`.
 
 ```text
 BAD:
 Stops serving a path, as an upstream dropping it does.
 
 GOOD:
-Stops serving a path, which is what happens when an upstream drops it.
+Stops serving a path. A test calls this to simulate an upstream cache
+that has removed the path.
 ```
-
-Name the concrete outcome; section 6 lists the abstract absences to avoid in its
-place.
 
 ## 5. Every pronoun needs an obvious antecedent
 
@@ -272,7 +274,7 @@ Do not use `it`, `this`, `that` or `one` where the reader must work out which of
 two nearby nouns is meant.
 
 `which` attached to a whole clause is ordinary English when the reference is
-unambiguous; the fault is an ambiguous sentential `which`, not the construction.
+unambiguous.
 
 ```text
 BAD:
@@ -280,9 +282,9 @@ A document our client cannot read has to surface as a refusal rather
 than as an absence, which is what carrying on past it would make it.
 
 GOOD:
-A document our client cannot read must surface as a refusal. With
-`fallback` on, the client would carry on past the document and the
-caller would see an absence instead.
+When the client cannot read a document, it must return an error, not
+report the path as absent. With `fallback` on, it would otherwise skip
+the document and the caller would see an absence.
 ```
 
 ## 6. Describe concrete behaviour, including exceptions
@@ -294,9 +296,7 @@ behaviour most directly. Negation is often exactly the point:
 FINE: a tilde, which Nix does not expand
 ```
 
-Do not describe an exception through an abstract absence such as "says nothing",
-"names nothing", "nothing to read", "has nothing to read", or "the answer to the
-question" when you can state what actually happens.
+State what actually happens instead of an abstract absence:
 
 ```text
 BAD:
@@ -306,40 +306,25 @@ GOOD:
 Its test invokes the script with `bash`, so the shebang is ignored.
 ```
 
-Use verbs that describe what the software actually does. Do not invent a more
-abstract action merely to avoid repetition.
+Use verbs that describe what the software actually does, and do not invent a
+more abstract action merely to avoid repetition. Prefer operations such as
+`proposes an update`, `opens a pull request`, `returns an error`,
+`writes a file`, `rejects a value`, or `skips a dependency` when those are the
+actual operations. Avoid invented constructions such as `raises an update` or
+`states a result` unless they are established terms for the system being
+described. Do not write `boasts` or `features` where `has` states the fact.
 
-Prefer operations such as `proposes an update`, `opens a pull request`,
-`returns an error`, `writes a file`, `rejects a value`, or `skips a dependency`
-when those are the actual operations.
-
-Avoid constructions such as `raises an update`, `holds an answer`,
-`states a result`, or similar unless those are established terms for the system
-being described.
-
-Do not write `serves as`, `acts as`, or `stands as` where `is` states the fact,
-and do not write `boasts` or `features` where `has` does. The longer forms add
-no information.
-
-Use `X rather than Y` when Y is a real alternative that matters to the
-explanation. Do not invent an alternative solely to contrast with it.
+Hard rule 6 governs the contrastive templates:
 
 ```text
-FINE:
-A derivation whose term is malformed is refused when it is parsed
-rather than when the offending property is read.
-
 BAD:
 Nix answers a path no substituter holds with a null entry and a zero
 status, so an absence is an answer rather than a failure.
 
 GOOD:
-For a path no substituter has, Nix prints a null entry and exits zero.
-An absence is a normal result.
+For a path that no substituter has, Nix prints a null entry and exits
+zero. An absence is a normal result.
 ```
-
-"It's not just X, it's Y" is the same template with the alternative built in.
-State Y directly, and mention X only when the reader would otherwise assume it.
 
 ## 7. Do not compress the grammar
 
@@ -360,9 +345,9 @@ GOOD:
 
 Do not impose a sentence-length limit. A natural 30-word sentence beats two
 unnatural 15-word ones, and length should vary normally. The limit is ideas, not
-words: a sentence that carries two ideas should usually be two sentences, and a
+words: a sentence with two ideas should usually be two sentences, and a
 paragraph should end where its idea does. Prose becomes dense when sentences and
-paragraphs each carry several ideas, so break there first.
+paragraphs each contain several ideas, so break there first.
 
 ## 8. Do not invent a private dialect
 
@@ -370,26 +355,22 @@ Use the established term from the language, library, protocol or domain. Where a
 relationship has no established term, use ordinary English rather than coining
 shorthand, a metaphor or a compressed label.
 
-Mannered prose is the same fault at the level of the sentence. It substitutes
-metaphor and flourish for direct statement: "a dial worth turning" for "a
-parameter worth varying", "this point earns its keep" for "this point still
-matters". Such phrases display the writer instead of conveying the idea, and a
-metaphor brings connotations the writer did not choose. When a literal phrase is
-available, use it.
+Mannered prose is the same fault at the level of the sentence: "a dial worth
+turning" for "a parameter worth varying". Such phrases display the writer
+instead of conveying the idea, and a metaphor brings connotations the writer did
+not choose. When a literal phrase is available, use it.
 
-Do not carry a phrase coined during reasoning into durable prose because it has
+Do not reuse a phrase coined during reasoning in durable prose because it has
 become familiar during the session. Rewrite it for someone reading the code for
 the first time.
 
-Avoid `the one X` as a determiner meaning "the single shared X". Name it, or use
-the identifier.
+Avoid `the one X` as a determiner meaning "the single shared X". Use the
+identifier instead.
 
-Stock intensifiers are also a dialect: the model's rather than the project's.
-`crucial`, `robust`, `seamless`, `comprehensive` and `leverage` are warning
-signs in the same way as the verbs in section 2. Each has a legitimate narrow
-sense, but each commonly stands in for a concrete property that has its own
-words. State the property: what breaks without it, what failure it tolerates,
-what it covers, or what it uses.
+The intensifiers in hard rule 11 are a dialect of their own. Each has a
+legitimate narrow sense, but each commonly appears where a concrete property has
+its own words. State the property: what breaks without it, what failure it
+tolerates, what it covers, or what it uses.
 
 ## Explanations in conversation
 
@@ -413,13 +394,24 @@ or a line of argument stays in prose.
 
 Do not turn ordinary prose into a rigid template. A bold label followed by a
 colon on every list item, or a heading over every few sentences, imposes
-structure the content does not have.
+structure that the content does not have.
+
+## Audit reports
+
+When asked to audit prose without rewriting it, report each finding in three
+parts: the rule, the offending line quoted verbatim, and the fix in a few words.
+Order the findings by how much each costs the reader, not by where they appear
+in the file.
+
+Read the change as a whole, in the context of the surrounding code, before
+judging individual comments or messages.
+
+Do not claim or imply that a text was machine-written.
 
 ## Target register
 
-The examples in this section show the prose to aim for. They are not unusually
-terse: several ordinary sentences are normal, and sentence length varies
-naturally.
+These examples show the prose to aim for. Several ordinary sentences are normal,
+and sentence length varies naturally.
 
 ```text
 /**
@@ -445,17 +437,13 @@ naturally.
 ```text
 /**
  * Nix reads a store reference in one of three ways: as a URI, as a
- * word it recognises as a store type, or as a path. A path refers to
- * a local store rooted at that path, and Nix resolves it against the
- * working directory before rewriting it as a `local://` URI.
+ * known store-type name, or as a path. A path refers to a local store
+ * rooted at that path, and Nix resolves the path against the working
+ * directory before rewriting it as a `local://` URI.
  *
  * Resolve store references this way before using them so relative
- * paths refer to the store the caller actually specified.
+ * paths refer to the store that the caller specified.
  */
-```
-
-```text
-/** The size this cache advertises for every path it serves. */
 ```
 
 ## Final check
@@ -463,20 +451,27 @@ naturally.
 Before writing prose into the repository or sending it to the user, read it once
 as a maintainer who did not see this session.
 
-- Could a reader tell who or what performs each action?
-- Is any word used twice in different senses nearby?
-- Does every pronoun have one obvious antecedent?
-- Does each stated cause actually contain enough information for its claimed
-  consequence to follow?
+- Does every object-relative clause have `that` or `which`, and does each noun
+  phrase have at most one relative clause?
+- Are there em dashes, arrow chains, or verbs from hard rule 4 left?
+- Is an exception described as an abstract absence?
+- If a sentence says `X rather than Y` or `not just X`, is Y a real alternative?
 - Does a trailing participial clause claim a benefit whose mechanism the text
   never states?
+- Does every pronoun have one obvious antecedent?
+- Does each stated cause contain enough for its consequence to follow?
+- Does every comment state a constraint that the code cannot show?
+- Could a reader tell who or what performs each action?
+- Is any word used twice in different senses nearby?
 - Are the technical terms established ones rather than phrases coined here?
-- Do the verbs describe operations the software really performs?
-- If a sentence says "X rather than Y", is Y a real alternative?
-- Is the formatting helping the reader, or merely imposing structure on the
-  prose?
+- Is there a stock intensifier or a mannered phrase?
+- Is the formatting helping the reader, or merely imposing structure that the
+  content does not have?
+- Could a sentence move unchanged into another project's documentation? Then it
+  is filler: anchor it with a fact, a mechanism or an example, or cut it.
 
-Accuracy wins over style. Preserve the meaning of every sentence you keep,
-including its facts, conditions, numbers and scope qualifiers. When the output
-is too long, remove the least useful facts and leave the remaining sentences as
-they are.
+Accuracy wins over style. Preserve the meaning of every sentence that you keep,
+including its facts, conditions, numbers and scope qualifiers. Modal verbs keep
+the strength they had: revising must not turn `can` into `will` or `should` into
+`must`. When the output is too long, remove the least useful facts and leave the
+remaining sentences as they are.

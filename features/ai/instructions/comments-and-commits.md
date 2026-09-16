@@ -85,6 +85,11 @@ expand a short maintenance constraint into an essay.
 
 ## Commit messages
 
+A commit message is pedagogical: it leads the reader from the problem to the
+solution and gives them the understanding they need to follow it. The same
+standard applies to the contents of the commit, judged as a whole and in the
+context of the surrounding code, not only to the message.
+
 Follow the repository's subject style, formatting, and usual level of detail.
 
 Write the commit message for a maintainer reading `git log` months later,
@@ -106,7 +111,8 @@ Include the facts needed to answer the relevant questions:
 Do not mechanically answer every question. Include the ones that matter for the
 change.
 
-A useful default narrative order is: **problem → cause → change → result**
+A useful default narrative order is: problem, then cause, then change, then
+result.
 
 This is a guide to the information flow, not a required paragraph template.
 Combine, reorder, or omit parts when that makes the explanation more natural.
