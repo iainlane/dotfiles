@@ -136,9 +136,8 @@ in {
           settings = {
             # `raft-platform` is a bundled gateway adapter this host does not
             # use. While it is enabled the agent probes for the absent `raft`
-            # CLI at startup. `google_chat-platform` registers a Platform
-            # value the gateway does not define, so it fails to load and warns
-            # at every startup.
+            # CLI at startup. `google_chat-platform` needs the `google-chat`
+            # dependency group, which the `all` group no longer includes.
             plugins.disabled = ["raft-platform" "google_chat-platform" "spotify" "a2a-platform"];
 
             agent.disabled_toolsets = ["computer_use" "browser-cdp"];
