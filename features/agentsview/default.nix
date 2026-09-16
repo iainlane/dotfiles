@@ -19,7 +19,7 @@
     inherit (config.flake) features;
   };
 in {
-  imports = [./server-backup];
+  imports = [./embeddings ./server-backup];
 
   options.flake = {
     agentsviewServer.domain = lib.mkOption {

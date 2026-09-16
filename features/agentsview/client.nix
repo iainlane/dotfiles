@@ -88,6 +88,7 @@
     cursorSecret,
     codexSessionsDirs,
     url,
+    vector,
   }:
     ''
       auth_token = "${authToken}"
@@ -99,7 +100,8 @@
 
       [pg]
       url = "${url}"
-    '';
+    ''
+    + lib.optionalString vector common.vectorConfig;
 
   # The log of the push. `agentsview pg service logs` reads this path, so that
   # command works against the units declared here.
@@ -271,7 +273,10 @@ in {
     imports = [./client-options.nix skillsModule];
 
     config = lib.mkMerge [
-      {dotfiles.agentsview.sync.enable = common.pushes hostConfig;}
+      {
+        dotfiles.agentsview.sync.enable = common.pushes hostConfig;
+        dotfiles.agentsview.vector = common.hasEmbeddings hostConfig;
+      }
 
       {home.packages = [(agentsviewFor system)];}
 
@@ -355,6 +360,7 @@ in {
 
             content = configContent {
               inherit codexSessionsDirs;
+              inherit (cfg) vector;
 
               authToken = config.sops.placeholder.${common.authTokenSecret};
               cursorSecret = config.sops.placeholder.${common.cursorSecret};

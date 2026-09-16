@@ -53,6 +53,12 @@ in {
 
     secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
+    # Whether some publisher builds a semantic-search index for this
+    # database, which decides whether the dashboard also needs a matching
+    # `[vector]` configuration to embed search queries against it.
+    embeddingsEnabled = common.hasEmbeddings hostConfig;
+    embeddingsEnvTemplate = "agentsview-embeddings.env";
+
     proxy = config.dotfiles.containers.edgeProxy;
 
     database = import ./server-database.nix {inherit pkgs;};
@@ -108,15 +114,17 @@ in {
     # two of them share. The certificate the pushing machines check belongs to
     # the proxy, which terminates TLS and passes the connection on unencrypted.
     # `allow_insecure` confirms to AgentsView that this is deliberate.
-    configContent = ''
-      auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
-      cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
-      disable_update_check = true
+    configContent =
+      ''
+        auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
+        cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
+        disable_update_check = true
 
-      [pg]
-      url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable"
-      allow_insecure = true
-    '';
+        [pg]
+        url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable"
+        allow_insecure = true
+      ''
+      + lib.optionalString embeddingsEnabled common.vectorConfig;
 
     # The proxy joins the database's network only to pass pushes on. With no
     # machine pushing, the dashboard is the only thing that connects.
@@ -402,6 +410,8 @@ in {
           AGENTSVIEW_DATA_DIR = dataDir;
         };
 
+        environmentFiles = lib.optional embeddingsEnabled config.sops.templates.${embeddingsEnvTemplate}.path;
+
         dropCapabilities = ["ALL"];
         noNewPrivileges = true;
       };
@@ -518,17 +528,29 @@ in {
                 sopsFile = inputs.secrets + "/${pusher.passwordFile}";
                 key = common.passwordSecret;
               })
-            pushers;
+            pushers
+            // lib.optionalAttrs embeddingsEnabled {
+              ${common.embeddings.apiKeySecretName} = {
+                sopsFile = inputs.secrets + "/${common.embeddings.secretsFile}";
+                key = common.embeddings.apiKeySecret;
+              };
+            };
 
-          templates = {
-            "agentsview-db.env".content = ''
-              POSTGRES_PASSWORD=${config.sops.placeholder.${superuserSecret}}
-            '';
+          templates =
+            {
+              "agentsview-db.env".content = ''
+                POSTGRES_PASSWORD=${config.sops.placeholder.${superuserSecret}}
+              '';
 
-            ${configTemplate}.content = configContent;
+              ${configTemplate}.content = configContent;
 
-            "agentsview-roles.sql".content = rolesSql;
-          };
+              "agentsview-roles.sql".content = rolesSql;
+            }
+            // lib.optionalAttrs embeddingsEnabled {
+              ${embeddingsEnvTemplate}.content = ''
+                ${common.embeddings.apiKeyEnvironment}=${config.sops.placeholder.${common.embeddings.apiKeySecretName}}
+              '';
+            };
         };
 
         systemd.services.${rolesUnit} = {

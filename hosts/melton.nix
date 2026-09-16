@@ -8,6 +8,7 @@ in {
     motd = halls.melton;
     features = [
       features.agentsview
+      features.agentsview.provides.embeddings
       features.base
       features.development
       features.desktop

@@ -157,6 +157,55 @@
     "postgres://${machine}:${password}@${server.domain}:443/${server.database}"
     + "?sslmode=verify-full&sslnegotiation=direct&sslrootcert=system"
     + "&sslcert=${certificate}&sslkey=${key}";
+
+  # The embedding provider that builds and queries the semantic-search index,
+  # shared by every publisher that builds one and by the dashboard that
+  # queries them. Model choice matches Hermes' LCM (`hosts/ancaster.nix`):
+  # `baai/bge-m3` embeds at 1024 dimensions, is multilingual, and costs $0.01
+  # per million input tokens on OpenRouter, so the two features need no
+  # separate evaluation.
+  embeddings = {
+    model = "baai/bge-m3";
+    dimension = 1024;
+    endpoint = "https://openrouter.ai/api/v1";
+    serverName = "openrouter";
+    apiKeyEnvironment = "OPENROUTER_API_KEY";
+    # Hermes also declares a secret named `openrouter_api_key`, from its own
+    # secrets file, so the sops secret name here has to differ even though
+    # the key inside this feature's own file is the plain name.
+    apiKeySecretName = "agentsview_embeddings_api_key";
+    apiKeySecret = "openrouter_api_key";
+    # Shared by every publisher and by the dashboard, unlike the per-machine
+    # files above: they all embed against the same provider and the same
+    # stored vectors, so one dedicated key serves all of them.
+    secretsFile = "agentsview-postgres/embeddings.yaml";
+  };
+
+  embeddingsFeature = features.agentsview.provides.embeddings;
+
+  # Whether a host builds or queries the semantic-search index: the
+  # `agentsview.embeddings` child feature, listed explicitly by the hosts
+  # that want it rather than through `agentsview`'s own `includes`, because
+  # most hosts with `agentsview` should not send their archive to OpenRouter.
+  hasEmbeddings = hostConfig: helpers.hasFeature hostConfig embeddingsFeature;
+
+  # The `[vector]` block of `config.toml`. A publisher building the index and
+  # the dashboard querying it both need this: AgentsView reads the model and
+  # dimension to interpret stored vectors, and reads the server to embed new
+  # text, whether that text is a session message or a search query.
+  vectorConfig = ''
+
+    [vector]
+    enabled = true
+
+    [vector.embeddings]
+    model = "${embeddings.model}"
+    dimension = ${toString embeddings.dimension}
+
+    [vector.embeddings.servers.${embeddings.serverName}]
+    endpoint = "${embeddings.endpoint}"
+    api_key_env = "${embeddings.apiKeyEnvironment}"
+  '';
 in {
   inherit
     authTokenSecret
@@ -164,7 +213,9 @@ in {
     cursorSecret
     database
     dsn
+    embeddings
     hasCertificate
+    hasEmbeddings
     kinds
     passwordFile
     passwordSecret
@@ -177,5 +228,6 @@ in {
     serverSettings
     syncingHosts
     userSecretsFile
+    vectorConfig
     ;
 }

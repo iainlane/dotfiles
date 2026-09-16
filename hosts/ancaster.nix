@@ -13,6 +13,7 @@ in {
     features = [
       features.adsb
       features.agentsview
+      features.agentsview.provides.embeddings
       features.agentsview-server
       features.base
       features.containers

@@ -37,5 +37,16 @@
         '';
       };
     };
+
+    vector = lib.mkOption {
+      type = lib.types.bool;
+      readOnly = true;
+      description = ''
+        Whether this machine builds a semantic-search embedding index over
+        its archive and pushes it alongside the rest. The value comes from
+        the host record: a machine with the `agentsview.embeddings` child
+        feature does; one without it does not.
+      '';
+    };
   };
 }
