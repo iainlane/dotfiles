@@ -47,6 +47,7 @@ in {
       modelDefaults
       ./unstable-hm-modules.nix
       ./mcp.nix
+      ./prose-lint.nix
       ./skills.nix
     ];
   };

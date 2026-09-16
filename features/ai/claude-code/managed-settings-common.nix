@@ -105,6 +105,32 @@ in {
       type = "command";
       command = lib.getExe fileSuggestionCommand;
     };
+    hooks = {
+      PostToolUse = [
+        {
+          matcher = "Edit|Write|MultiEdit";
+          hooks = [
+            {
+              type = "command";
+              command = "${lib.getExe pkgs.prose-lint} hook post-tool-use";
+              timeout = 30;
+            }
+          ];
+        }
+      ];
+      PreToolUse = [
+        {
+          matcher = "Bash";
+          hooks = [
+            {
+              type = "command";
+              command = "${lib.getExe pkgs.prose-lint} hook pre-tool-use";
+              timeout = 30;
+            }
+          ];
+        }
+      ];
+    };
     inputNeededNotifEnabled = true;
     model = "${defaultModels.anthropic}[1m]";
     outputStyle = outputStyles.default.name;

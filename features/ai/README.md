@@ -30,7 +30,7 @@ These are the simplest integrations: no configuration file has to be generated.
 ### Config file generation
 
 Other tools expect a configuration file on disk. Each of these writes its own
-file, reshaping the shared set into the schema the tool reads:
+file, reshaping the shared set into the schema that the tool reads:
 
 - `claude-desktop/`: generates JSON for Claude Desktop on macOS and Linux. On
   Linux it also installs the application itself (from the `llm-agents` input);
@@ -173,6 +173,26 @@ undeclared.
 Those modules are written against unstable's `lib.hm`. On stable hosts,
 `lib/home.nix` passes home-manager a library extended with unstable's `lib.hm`.
 `desktop.voxtype` also uses an unstable module and needs the same extension.
+
+## Prose linting
+
+`prose-lint.nix` installs `prose-lint`, [Vale][vale] and the Vale language
+server for every harness, and writes the Vale and `prose-lint` configuration
+that the package ships.
+
+Rules come in two tiers. Portable rules encode the plain technical prose style
+and apply wherever the tool runs. House rules are local preferences that another
+project has no reason to share, so they report as errors only in a repository
+owned by one of the accounts in `dotfiles.ai.proseLint.owners`, and as warnings
+anywhere else. Ownership is read from the repository's git remotes.
+
+A rule can be lowered for a single repository: the CLI records the override
+together with a reason and keeps it out of the commit. The package's own
+documentation has the commands. Claude Code runs the tool from hooks in its
+managed settings; this repository lints its own text and commit messages through
+`flake/parts/git-hooks.nix`.
+
+[vale]: https://vale.sh/
 
 ## Adding a new tool
 
