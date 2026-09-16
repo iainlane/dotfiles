@@ -31,6 +31,22 @@
             stages = ["commit-msg"];
           };
 
+          prose-lint-commit-msg = {
+            enable = true;
+            name = "prose-lint commit message";
+            entry = "${lib.getExe pkgs.prose-lint} commit-msg";
+            language = "system";
+            stages = ["commit-msg"];
+          };
+
+          prose-lint = {
+            enable = true;
+            name = "prose-lint";
+            entry = "${lib.getExe pkgs.prose-lint} check";
+            language = "system";
+            types = ["text"];
+          };
+
           nix-format = {
             enable = true;
             name = "nix fmt";
