@@ -50,6 +50,12 @@ in {
           linkConfig.RequiredForOnline = "yes";
         };
 
+        # ancaster uses ethernet only.
+        network.systemd.network.networks."10-wlan0" = {
+          matchConfig.Name = "wlan0";
+          linkConfig.ActivationPolicy = "down";
+        };
+
         adsb = {
           secretsFile = "adsb.yaml";
           expose.domain = "adsb.orangesquash.org.uk";
