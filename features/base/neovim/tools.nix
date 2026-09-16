@@ -18,6 +18,7 @@
     statix
     stylua
     tflint
+    vale
     zizmor
     ;
 

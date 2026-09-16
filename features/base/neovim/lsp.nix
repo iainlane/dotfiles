@@ -94,6 +94,9 @@
   "taplo" = null;
   "terraform-ls" = "terraformls";
   "typescript-language-server" = "ts_ls";
+  # Prose, through the Vale configuration that features/ai/prose-lint.nix
+  # writes. The server spec is in nvim/lua/plugins/vale-ls.lua.
+  "vale-ls" = "vale_ls";
   # Multi-server package from VS Code.
   "vscode-langservers-extracted" = {
     lsp = [
