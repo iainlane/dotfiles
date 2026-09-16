@@ -10,9 +10,10 @@
   system,
   ...
 }: let
-  # Claude Code receives the output styles natively (see `outputStyles`
-  # below), so its instruction set leaves the default style's body out of
-  # the rule files and the model does not receive the same text twice.
+  # Claude Code receives the default style's body twice on purpose: as an
+  # output style (see `outputStyles` below) for the main agent, and as a rule
+  # file for subagents, which run their own system prompt and are given no
+  # output style.
   claudeCodeInstructions = instructions.harnesses.claudeCode;
 
   # Claude Code's `.mcp.json` schema: `type` of http/stdio plus `enabled`.

@@ -131,10 +131,12 @@ separate rule files, and as one string with `AGENTS.md` first and the remaining
 stems in lexicographic order for harnesses that want a single blob. A harness
 with instructions of its own gets a named set instead: `harnesses.claudeCode`
 merges `instructions/claude-code/` over the shared files, so reusing a stem
-replaces the shared file for that harness alone. A harness with no native
-output-style support also receives the default style's body as an ordinary
-instruction. Claude Code's set leaves it out: Claude Code installs the styles
-natively, so the body already reaches the model by that route.
+replaces the shared file for that harness alone. Every set also includes the
+default style's body as an ordinary instruction. A harness with no native
+output-style support has no other way to receive it, and Claude Code receives it
+twice on purpose: the output style reaches the main agent, and the rule file
+reaches subagents, which run their own system prompt and are given no output
+style.
 
 `output-styles.nix` parses each `.md` file under `output-style/` into its
 frontmatter `name` and `description` and the body that follows, and names

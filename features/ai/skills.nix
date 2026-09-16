@@ -61,13 +61,16 @@
   styleSkill = stem: style: ''
     ---
     name: ${stem}
-    description: Adopt the ${style.name} output style (${style.description}). Use when the user asks for output in this style.
+    description: Adopt the ${style.name} output style (${style.description}). ${
+      if stem == outputStyles.default.stem
+      then "Use when writing or auditing comments, commit messages, documentation or any prose that goes into a repository, and whenever the user asks for this style."
+      else "Use when the user asks for output in this style."
+    }
     ---
 
-    The user asked for the ${style.name} output style. Apply the style below
-    to all prose you write for the rest of the session. This style replaces
-    any output style that was active before; all other instructions still
-    apply.
+    Apply the ${style.name} output style below to all prose you write for the
+    rest of the session. This style replaces any output style that was active
+    before; all other instructions still apply.
 
     ${style.body}'';
 

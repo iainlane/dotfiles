@@ -4,11 +4,12 @@
 # sets merge their harness directory over the shared files, so reusing a stem
 # overrides the shared file for that harness.
 #
-# The default output style (see ./output-styles.nix) is part of the shared
-# set: a harness with no native style support receives the style body as an
-# ordinary instruction. Claude Code installs the styles natively and selects
-# one through its settings, so its instruction set leaves the body out and
-# the model does not receive the same text twice.
+# The default output style (see ./output-styles.nix) is part of every
+# instruction set: a harness with no native style support receives the style
+# body as an ordinary instruction. Claude Code receives it twice on purpose.
+# It installs the styles natively and selects one through its settings, which
+# reaches the main agent; subagents run their own system prompt and are given
+# no output style, so the rule file is the copy they read.
 #
 # Returns { files, concatenated, outputStyles, harnesses } where:
 #   files: { stem = content; } for each instruction, for tools that accept
@@ -34,13 +35,8 @@
       (name: type: type == "regular" && lib.hasSuffix ".md" name)
       (builtins.readDir d));
 
-  makeInstructionSet = {
-    harnessDirectory ? null,
-    nativeOutputStyles ? false,
-  }: let
-    defaultStyle =
-      lib.optionalAttrs (!nativeOutputStyles)
-      {${outputStyles.default.stem} = outputStyles.default.body;};
+  makeInstructionSet = {harnessDirectory ? null}: let
+    defaultStyle = {${outputStyles.default.stem} = outputStyles.default.body;};
 
     harnessFiles =
       lib.optionalAttrs (harnessDirectory != null)
@@ -66,6 +62,5 @@ in
   // {
     harnesses.claudeCode = makeInstructionSet {
       harnessDirectory = dir + "/claude-code";
-      nativeOutputStyles = true;
     };
   }
