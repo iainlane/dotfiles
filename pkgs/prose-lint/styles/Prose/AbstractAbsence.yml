@@ -1,0 +1,12 @@
+extends: existence
+message:
+  "'%s' describes an exception as an abstract absence; say what happens instead."
+level: error
+ignorecase: true
+nonword: true
+tokens:
+  - '\bsays nothing\b'
+  - '\bnames nothing\b'
+  - '\banswers nothing\b'
+  - '\bnothing to
+    (?!do\b|lose\b|wait\b|see\b|report\b|add\b|gain\b|worry\b|fear\b)[a-z]+\b'

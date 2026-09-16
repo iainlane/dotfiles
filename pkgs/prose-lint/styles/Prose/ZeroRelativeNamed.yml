@@ -1,0 +1,11 @@
+extends: sequence
+message:
+  "A noun followed by a name and a verb may be an object-relative clause without
+  'that' or 'which'; if it is, add the pronoun."
+level: warning
+tokens:
+  - tag: DT
+  - tag: NN|NNS|NNP
+  - tag: NNP
+  - tag: NN|NNS|NNP|JJ
+  - tag: VBZ|VBD|VBP|NNS

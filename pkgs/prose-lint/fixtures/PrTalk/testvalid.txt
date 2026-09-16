@@ -1,0 +1,3 @@
+fix(db): index foo by quux
+
+The upcoming change uses the full index.

@@ -1,0 +1,29 @@
+extends: existence
+message: "'%s' is a stock intensifier; say which concrete property is meant."
+level: warning
+ignorecase: true
+tokens:
+  - crucial
+  - robust
+  - seamless
+  - comprehensive
+  - leverage
+  - delve
+  - foster
+  - utilize
+  - facilitate
+  - empower
+  - streamline
+  - cutting-edge
+  - tapestry
+  - realm
+  - beacon
+  - multifaceted
+  - meticulous
+  - paramount
+  - transformative
+  - elevate
+  - embark
+  - supercharge
+  - ever-evolving
+  - game changer

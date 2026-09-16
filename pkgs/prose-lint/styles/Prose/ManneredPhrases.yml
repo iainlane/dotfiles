@@ -1,0 +1,19 @@
+extends: existence
+message: "'%s' is a flourish; state the point literally."
+level: warning
+ignorecase: true
+tokens:
+  - waiting to happen
+  - earns its keep
+  - under the hood
+  - worth noting
+  - it's worth
+  - the key takeaway
+  - as you can see
+  - here's the thing
+  - let me be clear
+  - at the end of the day
+  - in today's world
+  - going forward
+  - dial worth turning
+  - chasing our tail

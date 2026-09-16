@@ -1,0 +1,10 @@
+extends: substitution
+message: "'%s' reads plainly where '%s' is Latin shorthand."
+level: warning
+ignorecase: true
+nonword: true
+swap:
+  '\be\.g\.': for example
+  '\bi\.e\.': that is
+  '\bviz\.': namely
+  '\betc\.': and so on

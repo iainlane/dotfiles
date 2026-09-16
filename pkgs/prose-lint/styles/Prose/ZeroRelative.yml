@@ -1,0 +1,11 @@
+extends: sequence
+message:
+  "An object-relative clause takes 'that' or 'which', and one noun phrase takes
+  one relative clause."
+level: error
+tokens:
+  - tag: DT
+  - tag: NN|NNS|NNP
+  - tag: DT|PRP\$
+  - tag: NN|NNS|NNP|JJ
+  - tag: VBZ|VBD|VBP|NNS

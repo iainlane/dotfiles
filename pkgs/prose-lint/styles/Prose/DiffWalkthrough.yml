@@ -1,0 +1,9 @@
+extends: existence
+message:
+  "'%s' introduces a walkthrough of the diff; the message needs the reason for
+  the change."
+level: warning
+scope: sentence
+nonword: true
+tokens:
+  - '^(?:This commit|This PR|This change|This patch)\b'

@@ -1,0 +1,7 @@
+extends: existence
+message: "'%s' explains the change, which belongs in the commit message."
+level: error
+nonword: true
+tokens:
+  - '\b(?:Previously|Used to|This fix|This fixes|Before this change|Was
+    broken)\b'

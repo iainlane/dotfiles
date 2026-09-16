@@ -1,0 +1,7 @@
+extends: existence
+message:
+  "An exclamation mark manufactures enthusiasm; a full stop states the fact."
+level: warning
+nonword: true
+tokens:
+  - '\w!(?:\s|$)'

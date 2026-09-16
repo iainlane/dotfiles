@@ -1,0 +1,8 @@
+extends: existence
+message:
+  "'%s' uses 'the one' as a determiner; name the thing or use its identifier."
+level: suggestion
+ignorecase: true
+nonword: true
+tokens:
+  - '\bthe one [a-z]+\b'

@@ -1,0 +1,1 @@
+testinvalid.txt:3:1:Prose.DiffWalkthrough:'This commit' introduces a walkthrough of the diff; the message needs the reason for the change.

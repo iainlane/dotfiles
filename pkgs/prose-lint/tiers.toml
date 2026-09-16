@@ -1,0 +1,178 @@
+# Every rule in the Prose style, with the tier it belongs to, the level it runs
+# at, whether it can be lowered, and the files it applies to. The globs under
+# [scopes] are the section headers of vale.ini, so the levels this file
+# computes land in the section that enables the rule.
+
+[scopes]
+all = "*"
+commit = "*.txt"
+code = "*.{bash,c,cc,cfg,conf,cpp,cs,go,h,hpp,ini,java,js,jsx,lua,nix,php,pl,py,r,rb,rs,scala,sh,swift,toml,ts,tsx,yaml,yml}"
+markdown = "*.md"
+
+[rules.ArrowChain]
+tier = "portable"
+level = "error"
+locked = true
+scope = "all"
+
+[rules.AbstractAbsence]
+tier = "portable"
+level = "error"
+locked = true
+scope = "all"
+
+[rules.ReviewRationale]
+tier = "portable"
+level = "error"
+locked = true
+scope = "code"
+
+[rules.EmDash]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+[rules.Thus]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+[rules.ServesAs]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+[rules.TrailingBenefit]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.ZeroRelative]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+# The same shape with a proper noun as the subject of the clause. A compound
+# noun subject ("the Agent Skills format requires") reads the same way to the
+# tagger, so this form only warns.
+[rules.ZeroRelativeNamed]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.RepeatedWords]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+[rules.SpellingConsistency]
+tier = "portable"
+level = "error"
+locked = false
+scope = "all"
+
+# Signed-off-by: is required by some projects, so the list of trailers this rule
+# rejects is not the list every project rejects. Keeping it unlocked lets a
+# project that needs a trailer lower the rule.
+[rules.Trailers]
+tier = "house"
+level = "error"
+locked = false
+scope = "commit"
+
+[rules.WarningVerbs]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.WarningVerbPhrases]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.StockWords]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.InventedAlternative]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.ManneredPhrases]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.TheOneX]
+tier = "portable"
+level = "suggestion"
+locked = false
+scope = "all"
+
+[rules.Chronology]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "commit"
+
+[rules.DiffWalkthrough]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "commit"
+
+[rules.PrTalk]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "commit"
+
+[rules.BoldLabelBullets]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "markdown"
+
+[rules.BritishSpelling]
+tier = "house"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.AmericanSpelling]
+tier = "house"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.Latin]
+tier = "house"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.Please]
+tier = "house"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.Exclamation]
+tier = "house"
+level = "warning"
+locked = false
+scope = "all"

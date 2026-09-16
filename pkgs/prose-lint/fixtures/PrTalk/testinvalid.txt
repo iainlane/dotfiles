@@ -1,0 +1,3 @@
+fix(db): index foo by quux
+
+The pull request discussion chose the full index.

@@ -1,0 +1,3 @@
+fix(db): index foo by quux
+
+The query scanned the whole table.

@@ -1,0 +1,9 @@
+extends: existence
+message:
+  "The trailing '%s' clause claims a benefit without the mechanism that produces
+  it."
+level: warning
+nonword: true
+tokens:
+  - ',
+    (?:ensuring|allowing|enabling|making|giving|providing|keeping|improving|guaranteeing)\b'

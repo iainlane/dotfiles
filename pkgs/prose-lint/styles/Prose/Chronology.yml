@@ -1,0 +1,15 @@
+extends: existence
+message:
+  "'%s' recounts the order of the investigation; the message needs the
+  conclusion it reached."
+level: warning
+nonword: true
+tokens:
+  - '\bFirst I\b'
+  - '\bI then\b'
+  - '\bThen I\b'
+  - '\bInitially\b'
+  - '\bOriginally\b'
+  - '\bAfter that\b'
+  - '\bAt first\b'
+  - '\bI tried\b'

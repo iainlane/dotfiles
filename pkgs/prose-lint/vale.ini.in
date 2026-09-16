@@ -1,0 +1,65 @@
+StylesPath = @stylesPath@
+MinAlertLevel = suggestion
+
+# Vale has no parser for the first group and would otherwise skip the files.
+# Perl has the same line comment marker, so mapping to it leaves the comments
+# to lint when Vale is run directly; prose-lint extracts those comments itself
+# and reads them as Markdown, which the part-of-speech rules need.
+#
+# The second group are languages Vale parses. Mapping each to Markdown makes
+# Vale read the extracted comments as Markdown too, so code spans are skipped
+# and the part-of-speech rules run. Lua is not in the group: Vale rejects the
+# file as an unsupported extension when Lua is mapped, and lints its comments
+# without the mapping.
+[formats]
+bash = pl
+cfg = pl
+conf = pl
+ini = pl
+nix = pl
+sh = pl
+toml = pl
+yaml = pl
+yml = pl
+c = md
+cc = md
+cpp = md
+cs = md
+go = md
+h = md
+hpp = md
+java = md
+js = md
+jsx = md
+php = md
+py = md
+r = md
+rb = md
+rs = md
+scala = md
+swift = md
+ts = md
+tsx = md
+
+[*]
+BasedOnStyles = Prose
+Prose.AmericanSpelling = NO
+Prose.BoldLabelBullets = NO
+Prose.Chronology = NO
+Prose.DiffWalkthrough = NO
+Prose.PrTalk = NO
+Prose.ReviewRationale = NO
+Prose.Trailers = NO
+
+[*.txt]
+Prose.Chronology = warning
+Prose.DiffWalkthrough = warning
+Prose.PrTalk = warning
+Prose.Trailers = error
+
+[*.{bash,c,cc,cfg,conf,cpp,cs,go,h,hpp,ini,java,js,jsx,lua,nix,php,pl,py,r,rb,rs,scala,sh,swift,toml,ts,tsx,yaml,yml}]
+Prose.ReviewRationale = error
+
+[*.md]
+Prose.BoldLabelBullets = warning
+BlockIgnores = (?s) *(```text\nBAD:.*?```)

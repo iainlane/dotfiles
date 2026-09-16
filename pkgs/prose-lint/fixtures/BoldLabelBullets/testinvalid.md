@@ -1,0 +1,1 @@
+- **Cache:** the resolver reads it once.

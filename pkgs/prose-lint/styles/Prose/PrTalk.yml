@@ -1,0 +1,10 @@
+extends: existence
+message:
+  "'%s' refers to a review that a later reader of the log cannot see; 'upcoming'
+  describes work that has not landed."
+level: warning
+nonword: true
+tokens:
+  - '(?i)\bpull requests?\b'
+  - '\bPRs?\b'
+  - '(?i)\bin review\b'

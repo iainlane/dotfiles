@@ -1,0 +1,14 @@
+extends: substitution
+message: "'%s' states the fact; '%s' adds no information."
+level: error
+ignorecase: true
+swap:
+  serves as: is
+  acts as: is
+  stands as: is
+  stands in for: is
+  stands for: is
+  boasts: has
+  # "features" is a noun far more often than a verb, so this entry matches only
+  # the verb reading, where an object follows.
+  features (?:an?|the|its|their|our|two|three|several|many): has a

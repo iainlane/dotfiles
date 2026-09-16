@@ -1,0 +1,3 @@
+fix(db): index foo by quux
+
+First I tried a partial index.

@@ -1,0 +1,8 @@
+extends: existence
+message:
+  "A bold label on a bullet imposes a structure that the content does not have."
+level: warning
+scope: raw
+nonword: true
+tokens:
+  - '(?m)^[ \t]*[-*] \*\*[^*]+:?\*\*'

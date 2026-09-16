@@ -1,0 +1,3 @@
+fix(db): index foo by quux
+
+An index on foo.quux replaces the table scan.

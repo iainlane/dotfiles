@@ -1,0 +1,9 @@
+extends: existence
+message:
+  "A dash joins two clauses loosely; a comma, a colon, parentheses or a second
+  sentence says which relationship is meant."
+level: error
+nonword: true
+tokens:
+  - "—"
+  - '\s–\s'

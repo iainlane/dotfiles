@@ -1,0 +1,6 @@
+extends: existence
+message: "'%s' asks a favour of the reader; technical prose states what to do."
+level: warning
+ignorecase: true
+tokens:
+  - please

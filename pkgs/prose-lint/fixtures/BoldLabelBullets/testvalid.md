@@ -1,0 +1,1 @@
+- The resolver reads the cache once.

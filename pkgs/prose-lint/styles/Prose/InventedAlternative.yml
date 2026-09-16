@@ -1,0 +1,13 @@
+extends: existence
+message:
+  "'%s' contrasts with an alternative; keep it only where the alternative is
+  real."
+level: warning
+ignorecase: true
+nonword: true
+tokens:
+  - '\brather than\b'
+  - '\binstead of\b'
+  - '\bnot just\b'
+  - "\\bit'?s not \\w+, it'?s\\b"
+  - '\bnot only\b[^.]{0,60}\bbut\b'

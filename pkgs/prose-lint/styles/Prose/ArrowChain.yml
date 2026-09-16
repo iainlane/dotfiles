@@ -1,0 +1,6 @@
+extends: existence
+message: "'%s' compresses a relationship into an arrow; write it as a sentence."
+level: error
+nonword: true
+tokens:
+  - '\w+ *(?:->|=>|→) *\w+'

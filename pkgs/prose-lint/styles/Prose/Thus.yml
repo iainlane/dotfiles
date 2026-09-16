@@ -1,0 +1,6 @@
+extends: existence
+message: "'thus' is formal filler; 'so' or 'therefore' reads plainly."
+level: error
+ignorecase: true
+tokens:
+  - thus
