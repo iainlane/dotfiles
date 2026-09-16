@@ -51,6 +51,11 @@ in {
 
         checkpoints.enabled = lib.mkDefault true;
         display.busy_input_mode = lib.mkDefault "steer";
+
+        # The package embeds the locked revision, and the passive check
+        # compares it with upstream's main branch, so a release pin always
+        # reports itself as behind.
+        updates.check = lib.mkDefault false;
       };
     };
 
