@@ -194,9 +194,9 @@ directory.
 
 Composition decides what a host runs. The module system is still where values
 live, because that is where types, defaults, merging and error messages come
-from, but a feature never asks a host to switch it on: giving the host the
-feature does that. Six rules follow, and every option this repository declares
-keeps to them.
+from, but a feature never asks a host to switch it on. A host switches a feature
+on by including it. Six rules follow, and every option in this repository keeps
+to them.
 
 1. **Presence is the switch.** A feature or child never declares an `enable`
    that a host sets. A module written as an ordinary NixOS service module for a
@@ -238,8 +238,6 @@ keeps to them.
 
 ### Excludes
 
-`flake.hosts.<name>.excludes` lists features the resolver drops from that host's
-closure. A dropped feature contributes no modules and its own includes are not
 followed, so a feature that nothing else includes is dropped with it. `closure`
 returns the features in composition order and the names it dropped, and both
 `featureNames` and the module list derive from it, so `hasFeature` and the
