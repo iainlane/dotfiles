@@ -162,9 +162,9 @@ of `featureNames` on the other OSes, so `hasFeature` never claims
 `desktop.gnome` on a darwin host.
 
 A child that its parent includes must not include the parent: the resolver
-reports that as a cycle. A child that something else selects uses options from
-other features, and it must include them. That is why `ai.claude-desktop` and
-`work.claude-managed-settings` both include `ai`.
+reports that as a cycle. A child that something else selects uses options
+declared by other features, and it must include those features. That is why
+`ai.claude-desktop` and `work.claude-managed-settings` both include `ai`.
 
 Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
 it is loaded only when that `default.nix` imports it. A directory registers the
