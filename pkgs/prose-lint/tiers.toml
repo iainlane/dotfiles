@@ -1,5 +1,5 @@
-# Every rule in the Prose style, with the tier it belongs to, the level it runs
-# at, whether it can be lowered, and the files it applies to. The globs under
+# For every rule in the Prose style: its tier, its level, whether it can be
+# lowered, and which files it applies to. The globs under
 # [scopes] are the section headers of vale.ini, so each level computed here
 # goes into the section that enables the rule.
 
@@ -58,7 +58,7 @@ locked = false
 scope = "all"
 
 # The same shape with a proper noun as the subject of the clause. A compound
-# noun subject ("the Agent Skills format requires") reads the same way to the
+# noun subject (`the Agent Skills format requires`) reads the same way to the
 # tagger, so this form only warns.
 [rules.ZeroRelativeNamed]
 tier = "portable"
