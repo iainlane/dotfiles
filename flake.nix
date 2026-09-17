@@ -103,10 +103,12 @@
     # `openai-embeddings-on-v1.0.0-rc.1` branch. #551 adds an
     # OpenAI-compatible embedding provider, which ancaster uses to send
     # embedding requests to OpenRouter with the API key that Hermes already
-    # has for its models. Upstream's own providers are unusable there:
-    # nixpkgs lists aarch64-linux in fastembed's `badPlatforms`. When #551
-    # merges, restore the release tag and add hermes-lcm to `flakeInputs`
-    # in flake/parts/updaters.nix so it follows releases again.
+    # has for its models. None of upstream's three providers suits ancaster:
+    # Voyage would need a second account, Ollama would need another service
+    # on the Pi, and nixpkgs lists aarch64-linux in fastembed's
+    # `badPlatforms`. When #551 merges, restore the release tag and add
+    # hermes-lcm to `flakeInputs` in flake/parts/updaters.nix so it follows
+    # releases again.
     hermes-lcm = {
       url = "github:iainlane/hermes-lcm/34444ff9ba99a79f791044156fa9641c46210e9e";
       flake = false;
