@@ -174,7 +174,7 @@ class ClaudeSdkSession:
         if event.request_id is None:
             raise ClaudeControlRequestIdMissingError
         if request.subtype != "oauth_token_refresh":
-            # A record whose kind the suite does not model is ignored above; a
+            # A record of a kind that the suite does not model is ignored above; a
             # control request is a question, so answer it with the protocol's
             # own error and let the candidate's run continue.
             failure = ClaudeControlRequestUnsupportedError(request.subtype)
@@ -281,7 +281,7 @@ class ClaudeSdkSession:
 
 
 def check_initialize_response(record: ClaudeControlResponseRecord) -> None:
-    """Raise an error when Claude rejects this session's initialize request.
+    """Raise an error when Claude rejects this session's `initialize` request.
 
     Ignore responses for other request identifiers, and responses whose
     subtype is not "error".
