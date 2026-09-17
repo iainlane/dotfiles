@@ -44,7 +44,7 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the same binary caches the hosts use, as in the publish path.
+      # Trust the binary caches used by the hosts, as in the publish path.
       # Some home configurations import from derivation while evaluating, so
       # Nix has to realise those outputs during evaluation. With the caches
       # trusted, Nix substitutes the outputs they already have instead of
@@ -98,7 +98,7 @@ jobs:
 
       # The host evaluations import from derivation, so Nix realises those
       # derivations mid-evaluation. nixbuild.net supplies them, as a
-      # substituter and as a remote builder for the ones it has to build.
+      # substituter and as a remote builder for the rest.
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         with:
