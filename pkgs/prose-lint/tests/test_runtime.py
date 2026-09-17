@@ -18,15 +18,27 @@ SOURCE = Path(__file__).resolve().parent.parent
 class FakeGit:
     """A git repository with no remotes, standing in for the real one."""
 
-    root_path: Path
+    root_path: Path | None
     urls: tuple[str, ...] = ()
     counts: dict[str, int] = field(default_factory=dict)
+    changed: tuple[Path, ...] = ()
+    untracked: tuple[Path, ...] = ()
+    diffs: dict[Path, str] = field(default_factory=dict)
 
     def root(self) -> Path | None:
         return self.root_path
 
     def common_directory(self) -> Path | None:
-        return self.root_path / ".git"
+        return None if self.root_path is None else self.root_path / ".git"
+
+    def changed_paths(self) -> tuple[Path, ...]:
+        return self.changed
+
+    def untracked_paths(self) -> tuple[Path, ...]:
+        return self.untracked
+
+    def diff_against_head(self, path: Path) -> str:
+        return self.diffs.get(path, "")
 
     def remote_urls(self) -> tuple[str, ...]:
         return self.urls
@@ -73,12 +85,37 @@ class BrokenFileVale:
         )
 
 
-def build_runtime(tmp_path: Path, vale: Vale) -> Runtime:
+@dataclass
+class LineVale:
+    """A vale that reports one finding on each of `lines`, for every file."""
+
+    lines: tuple[int, ...]
+
+    def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+        paths = invocation.paths or (Path(invocation.path_hint or ""),)
+
+        return tuple(
+            em_dash(path, line) for path in paths for line in sorted(self.lines)
+        )
+
+
+def em_dash(path: Path, line: int) -> Finding:
+    return Finding(
+        path=str(path),
+        line=line,
+        column=1,
+        rule="Prose.EmDash",
+        message="An em dash.",
+        severity=Level.error,
+    )
+
+
+def build_runtime(tmp_path: Path, vale: Vale, git: FakeGit | None = None) -> Runtime:
     return Runtime(
         share=SOURCE,
         catalogue=RuleCatalogue.load(SOURCE / "tiers.toml"),
         config=Config(),
-        git=FakeGit(root_path=tmp_path),
+        git=git or FakeGit(root_path=tmp_path),
         vale=vale,
         cwd=tmp_path,
     )
@@ -215,3 +252,43 @@ def test_a_hash_comment_file_vale_cannot_read_is_reported_the_same_way(
     report = runtime.lint_paths((module,))
 
     assert report.findings == (failure_finding(module),)
+
+
+def test_only_the_lines_added_since_head_are_reported(tmp_path: Path) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("One.\nTwo.\nThree.\n")
+    runtime = build_runtime(
+        tmp_path,
+        LineVale(lines=(1, 2, 3)),
+        FakeGit(
+            root_path=tmp_path,
+            changed=(Path("notes.md"),),
+            diffs={Path("notes.md"): "@@ -2 +2 @@\n-Two.\n+Two again.\n"},
+        ),
+    )
+
+    assert runtime.lint_added_lines().findings == (em_dash(notes, 2),)
+
+
+def test_every_line_of_an_untracked_file_counts_as_added(tmp_path: Path) -> None:
+    fresh = tmp_path / "fresh.md"
+    fresh.write_text("One.\nTwo.\n")
+    runtime = build_runtime(
+        tmp_path,
+        LineVale(lines=(1, 2)),
+        FakeGit(root_path=tmp_path, untracked=(Path("fresh.md"),)),
+    )
+
+    assert runtime.lint_added_lines().findings == (
+        em_dash(fresh, 1),
+        em_dash(fresh, 2),
+    )
+
+
+def test_nothing_is_linted_outside_a_git_repository(tmp_path: Path) -> None:
+    (tmp_path / "notes.md").write_text("One.\n")
+    runtime = build_runtime(
+        tmp_path, LineVale(lines=(1,)), FakeGit(root_path=None, untracked=())
+    )
+
+    assert runtime.lint_added_lines().findings == ()

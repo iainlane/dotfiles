@@ -20,6 +20,12 @@ class Git(Protocol):
 
     def count_matches(self, pattern: str, pathspec: Sequence[str] = ()) -> int: ...
 
+    def changed_paths(self) -> tuple[Path, ...]: ...
+
+    def untracked_paths(self) -> tuple[Path, ...]: ...
+
+    def diff_against_head(self, path: Path) -> str: ...
+
 
 @dataclass(frozen=True)
 class SubprocessGit:
@@ -46,6 +52,27 @@ class SubprocessGit:
         }
 
         return tuple(sorted(urls))
+
+    def changed_paths(self) -> tuple[Path, ...]:
+        """The tracked files the working tree differs from HEAD in."""
+        return self._paths(["diff", "--name-only", "--no-relative", "HEAD"])
+
+    def untracked_paths(self) -> tuple[Path, ...]:
+        """The files git does not track and has not been told to ignore."""
+        return self._paths(
+            ["ls-files", "--others", "--exclude-standard", "--full-name"]
+        )
+
+    def diff_against_head(self, path: Path) -> str:
+        """One file's working-tree diff against HEAD, with no context lines."""
+        return self._run(["diff", "--unified=0", "HEAD", "--", str(path)]) or ""
+
+    def _paths(self, arguments: list[str]) -> tuple[Path, ...]:
+        output = self._run(arguments)
+        if output is None:
+            return ()
+
+        return tuple(Path(line) for line in output.splitlines() if line)
 
     def count_matches(self, pattern: str, pathspec: Sequence[str] = ()) -> int:
         """How many tracked lines contain a whole word matching `pattern`."""

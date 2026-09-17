@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
 
+from prose_lint.changes import added_lines, every_line
 from prose_lint.comments import hash_comments
 from prose_lint.config import Config, state_home
 from prose_lint.configuration import render_configuration
@@ -123,6 +124,45 @@ class Runtime:
             findings.extend(self._lint_comments(path))
 
         return Report(tuple(findings))
+
+    def lint_added_lines(self) -> Report:
+        """The findings on the lines the working tree has added to HEAD.
+
+        An untracked file counts as added in full. Outside a git repository
+        the report is empty, because there is no HEAD to compare the working
+        tree with.
+        """
+        root = self.git.root()
+        if root is None:
+            return Report(())
+
+        added = {
+            root / relative: added_lines(self.git.diff_against_head(relative))
+            for relative in self.git.changed_paths()
+        }
+        added.update(
+            {
+                root / relative: every_line(root / relative)
+                for relative in self.git.untracked_paths()
+            }
+        )
+
+        paths = tuple(
+            path for path in added if path.is_file() and self.catalogue.lintable(path)
+        )
+
+        if not paths:
+            return Report(())
+
+        report = self.lint_paths(paths)
+
+        return Report(
+            tuple(
+                finding
+                for finding in report.findings
+                if finding.line in added.get(Path(finding.path), frozenset())
+            )
+        )
 
     def _lint_directly(self, paths: tuple[Path, ...]) -> tuple[Finding, ...]:
         """The findings in the files Vale reads for itself.

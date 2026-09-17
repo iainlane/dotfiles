@@ -53,6 +53,7 @@
 
     nativeCheckInputs = [
       basedpyright
+      gitMinimal
       python3Packages.pytest-timeout
       python3Packages.pytestCheckHook
       ruff

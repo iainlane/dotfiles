@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 
 import pytest
@@ -53,3 +54,17 @@ def test_the_hook_answers_every_payload_with_valid_output_and_status_zero(
     status = main(["hook", event])
 
     assert (status, capsys.readouterr().out) == (0, expected)
+
+
+def test_the_stop_hook_reports_nothing_while_it_is_already_active(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("PROSE_LINT_VALE", str(tmp_path / "absent"))
+    payload = {"stop_hook_active": True, "cwd": str(tmp_path)}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+
+    status = main(["hook", "stop"])
+
+    assert (status, capsys.readouterr().out) == (0, "")

@@ -1,4 +1,8 @@
-from prose_lint.hooks import post_tool_use_payload, pre_tool_use_payload
+from prose_lint.hooks import (
+    post_tool_use_payload,
+    pre_tool_use_payload,
+    stop_payload,
+)
 from prose_lint.levels import Level
 from prose_lint.overrides import Override
 from prose_lint.report import Finding, Report
@@ -120,3 +124,18 @@ def test_a_long_list_of_findings_is_cut_with_a_count() -> None:
     assert text.splitlines()[1:27] == [
         f"README.md:{line}:1 Prose.EmDash: em dash" for line in range(1, 26)
     ] + ["and 5 more"]
+
+
+def test_errors_on_added_lines_block_the_stop() -> None:
+    assert stop_payload(Report((ERROR,)), ()) == {
+        "decision": "block",
+        "reason": ERROR_TEXT,
+    }
+
+
+def test_warnings_on_added_lines_reach_the_user_as_a_system_message() -> None:
+    assert stop_payload(Report((WARNING,)), ()) == {"systemMessage": WARNING_TEXT}
+
+
+def test_added_lines_with_no_findings_produce_no_payload() -> None:
+    assert stop_payload(Report(()), ()) is None

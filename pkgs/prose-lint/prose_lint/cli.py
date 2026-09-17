@@ -10,7 +10,11 @@ from pathlib import Path
 from prose_lint.commit_command import extract_commit_message
 from prose_lint.config import Config, share_directory
 from prose_lint.git import SubprocessGit
-from prose_lint.hooks import post_tool_use_payload, pre_tool_use_payload
+from prose_lint.hooks import (
+    post_tool_use_payload,
+    pre_tool_use_payload,
+    stop_payload,
+)
 from prose_lint.levels import Level
 from prose_lint.overrides import OverrideRefused, build_override
 from prose_lint.report import ADVICE
@@ -65,7 +69,7 @@ def _parser() -> argparse.ArgumentParser:
     listing.set_defaults(run=_overrides)
 
     hook = commands.add_parser("hook", help="answer a Claude Code hook")
-    hook.add_argument("event", choices=["post-tool-use", "pre-tool-use"])
+    hook.add_argument("event", choices=["post-tool-use", "pre-tool-use", "stop"])
     hook.set_defaults(run=_hook)
 
     return parser
@@ -214,6 +218,9 @@ def _answer_hook(event: str, raw_payload: str) -> dict[str, object] | None:
     if event == "post-tool-use":
         return _post_tool_use(runtime, payload)
 
+    if event == "stop":
+        return _stop(runtime, payload)
+
     return _pre_tool_use(runtime, payload)
 
 
@@ -237,6 +244,19 @@ def _post_tool_use(
     report = runtime.lint_paths((Path(file_path),))
 
     return post_tool_use_payload(report, runtime.overrides())
+
+
+def _stop(runtime: Runtime, payload: dict[str, object]) -> dict[str, object] | None:
+    """The response to a Stop payload.
+
+    Claude Code sets `stop_hook_active` when the model is already answering a
+    block from this hook. Returning nothing then ends the turn instead of
+    blocking it again.
+    """
+    if payload.get("stop_hook_active"):
+        return None
+
+    return stop_payload(runtime.lint_added_lines(), runtime.overrides())
 
 
 def _pre_tool_use(

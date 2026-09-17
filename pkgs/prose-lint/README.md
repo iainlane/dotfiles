@@ -104,7 +104,19 @@ options, a heredoc feeding `-F -`, or `-F` with a path. Errors deny the call;
 warnings let it through with the findings attached. Every other command produces
 no output.
 
-Both hooks exit 0 whatever they find, so a failure to parse a payload never
+`prose-lint hook stop` reads a Stop payload and lints the working tree against
+HEAD: every file that git reports as changed, and every file it does not track
+yet. Of the findings in those files it keeps the ones on the lines that the
+working tree added or rewrote, so the hook reads the prose of this session and
+leaves the rest of each file alone. Errors come back as a `block` decision and
+warnings as a system message.
+
+Claude Code sets `stop_hook_active` when the model is already answering a block
+from this hook, and the hook then returns nothing, so the same turn cannot be
+blocked twice. Outside a git repository the hook has no HEAD to compare the
+working tree with, and it produces no output.
+
+Every hook exits 0 whatever it finds, so a failure to parse a payload never
 stops the session.
 
 ## Fixtures

@@ -44,6 +44,31 @@ def pre_tool_use_payload(
     return _with_overrides({"hookSpecificOutput": specific}, overrides)
 
 
+def stop_payload(
+    report: Report, overrides: Sequence[Override]
+) -> dict[str, object] | None:
+    """The Stop hook response for the lines the working tree has added."""
+    if not report.findings:
+        return None
+
+    payload: dict[str, object] = {}
+    messages: list[str] = []
+
+    if report.errors:
+        payload["decision"] = "block"
+        payload["reason"] = report.error_text()
+
+    if report.warnings:
+        messages.append(report.warning_text())
+
+    messages.extend(override.render() for override in overrides)
+
+    if messages:
+        payload["systemMessage"] = "\n".join(messages)
+
+    return payload
+
+
 def _with_overrides(
     payload: dict[str, object], overrides: Sequence[Override]
 ) -> dict[str, object] | None:
