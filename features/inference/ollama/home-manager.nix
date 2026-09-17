@@ -16,6 +16,20 @@
   xargs = lib.getExe' pkgs.findutils "xargs";
 
   logDir = "${config.home.homeDirectory}/Library/Logs";
+
+  pullNames = map (model: model.name) ollamaModels;
+
+  # Runs after every model has pulled, so the source model for each alias
+  # already exists. `ollama cp` is a cheap local rename, so these run one
+  # at a time.
+  aliasCommands =
+    lib.concatMapStrings (
+      model:
+        lib.concatMapStrings
+        (alias: "'${ollama}' cp ${lib.escapeShellArg model.name} ${lib.escapeShellArg alias} && ")
+        model.aliases
+    )
+    ollamaModels;
 in {
   config = lib.mkMerge [
     {
@@ -32,7 +46,7 @@ in {
           ProgramArguments = [
             "/bin/sh"
             "-c"
-            ''printf '%s\0' ${lib.escapeShellArgs ollamaModels} | '${xargs}' -0 -r -n 1 -P "$('${nproc}')" '${ollama}' pull''
+            ''printf '%s\0' ${lib.escapeShellArgs pullNames} | '${xargs}' -0 -r -n 1 -P "$('${nproc}')" '${ollama}' pull && ${aliasCommands}true''
           ];
           EnvironmentVariables.OLLAMA_HOST = "${cfg.host}:${toString cfg.port}";
           RunAtLoad = true;

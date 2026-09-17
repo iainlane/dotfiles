@@ -55,7 +55,7 @@
     };
   };
 
-  # The database answers on 443, the port the web sites already use, and the
+  # The database answers on 443, the port that the web sites already use, and the
   # proxy tells the two apart by the ALPN name in the TLS handshake. That name
   # is present only if the driver opens the connection with TLS, which is what
   # `sslnegotiation=direct` asks for. The default negotiates TLS through a
@@ -89,6 +89,7 @@
     codexSessionsDirs,
     url,
     vector,
+    vectorBackend,
   }:
     ''
       auth_token = "${authToken}"
@@ -101,7 +102,7 @@
       [pg]
       url = "${url}"
     ''
-    + lib.optionalString vector common.vectorConfig;
+    + lib.optionalString vector (common.vectorConfig vectorBackend);
 
   # The log of the push. `agentsview pg service logs` reads this path, so that
   # command works against the units declared here.
@@ -361,6 +362,10 @@ in {
             content = configContent {
               inherit codexSessionsDirs;
               inherit (cfg) vector;
+              vectorBackend =
+                if common.hasLocalEmbeddings hostConfig
+                then "local"
+                else "openrouter";
 
               authToken = config.sops.placeholder.${common.authTokenSecret};
               cursorSecret = config.sops.placeholder.${common.cursorSecret};

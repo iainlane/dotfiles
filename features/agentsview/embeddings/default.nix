@@ -1,11 +1,7 @@
 # Builds a semantic-search embedding index over one machine's archive and
 # pushes it alongside the rest, through OpenRouter's OpenAI-compatible
-# embeddings endpoint.
-#
-# This is opt-in: sending archived session text to OpenRouter is a choice
-# each host makes for itself, not something every `agentsview` host should do,
-# so a host lists this child explicitly rather than getting it through
-# `agentsview`'s own `includes`.
+# embeddings endpoint unless the machine also has the `local` child, which
+# switches it to a local Ollama server instead.
 {
   config,
   lib,
@@ -22,17 +18,21 @@
 
   homeManager = {
     config,
+    hostConfig,
     inputs,
+    lib,
     ...
-  }: {
-    config.sops = {
+  }: let
+    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
+  in {
+    config.sops = lib.mkIf usesOpenRouter {
       secrets.${common.embeddings.apiKeySecretName} = {
         sopsFile = inputs.secrets + "/${common.embeddings.secretsFile}";
         key = common.embeddings.apiKeySecret;
       };
 
       templates.${envTemplate}.content = ''
-        ${common.embeddings.apiKeyEnvironment}=${config.sops.placeholder.${common.embeddings.apiKeySecretName}}
+        ${common.embeddings.backends.openrouter.apiKeyEnvironment}=${config.sops.placeholder.${common.embeddings.apiKeySecretName}}
       '';
     };
   };
@@ -43,23 +43,28 @@
   # costs nothing on a quiet archive.
   systemdModule = {
     config,
+    hostConfig,
     inputs,
     system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
+    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
     agentsview = agentsviewFor inputs system;
   in {
     config = {
       systemd.user.services.agentsview-embed = {
         Unit.Description = "Build the AgentsView semantic-search embedding index";
 
-        Service = {
-          Type = "oneshot";
-          EnvironmentFile = config.sops.templates.${envTemplate}.path;
-          Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
-          ExecStart = "${agentsview}/bin/agentsview embeddings build --yes";
-        };
+        Service =
+          {
+            Type = "oneshot";
+            Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
+            ExecStart = "${agentsview}/bin/agentsview embeddings build --yes";
+          }
+          // lib.optionalAttrs usesOpenRouter {
+            EnvironmentFile = config.sops.templates.${envTemplate}.path;
+          };
       };
 
       systemd.user.timers.agentsview-embed = {
@@ -75,17 +80,22 @@
     };
   };
 
-  # launchd has no direct equivalent of `EnvironmentFile=`, so the job sources
-  # the sops-rendered secret itself before running the build.
+  # launchd has no direct equivalent of `EnvironmentFile=`, so the OpenRouter
+  # backend sources its sops-rendered secret itself before running the build;
+  # the local backend needs no key at all.
   launchdModule = {
     config,
+    hostConfig,
     inputs,
     system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
+    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
     agentsview = agentsviewFor inputs system;
     logDir = "${config.home.homeDirectory}/Library/Logs";
+
+    build = "exec \"${agentsview}/bin/agentsview\" embeddings build --yes";
   in {
     config = {
       launchd.agents.agentsview-embed = {
@@ -94,7 +104,11 @@
           ProgramArguments = [
             "/bin/sh"
             "-c"
-            ''set -a; . "${config.sops.templates.${envTemplate}.path}"; set +a; exec "${agentsview}/bin/agentsview" embeddings build --yes''
+            (
+              if usesOpenRouter
+              then ''set -a; . "${config.sops.templates.${envTemplate}.path}"; set +a; ${build}''
+              else build
+            )
           ];
           EnvironmentVariables.AGENTSVIEW_DATA_DIR = cfg.dataDir;
           StartInterval = 1800;
@@ -105,6 +119,8 @@
     };
   };
 in {
+  imports = [./local];
+
   flake.features.agentsview.provides.embeddings = {
     inherit homeManager;
     kernel.linux.homeManager = systemdModule;

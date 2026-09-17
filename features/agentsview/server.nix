@@ -124,7 +124,7 @@ in {
         url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable"
         allow_insecure = true
       ''
-      + lib.optionalString embeddingsEnabled common.vectorConfig;
+      + lib.optionalString embeddingsEnabled (common.vectorConfig "openrouter");
 
     # The proxy joins the database's network only to pass pushes on. With no
     # machine pushing, the dashboard is the only thing that connects.
@@ -177,7 +177,7 @@ in {
     '';
 
     # `initdb` creates only the cluster's default database. The first run of
-    # this statement creates the database the sessions are stored in.
+    # this statement creates the database that the sessions are stored in.
     databaseSql = pkgs.writeText "agentsview-database.sql" ''
       SELECT 'CREATE DATABASE ' || quote_ident('${cfg.database}')
        WHERE NOT EXISTS (
@@ -212,8 +212,8 @@ in {
     '';
 
     # One shared role owns every object the machines create, so each machine
-    # can read what the others wrote and no grant has to name an individual
-    # machine.
+    # can read what the others wrote and no grant has to specify an
+    # individual machine.
     group = "agentsview_push";
 
     rolesUnit = "${database.containerName}-roles";
@@ -548,7 +548,7 @@ in {
             }
             // lib.optionalAttrs embeddingsEnabled {
               ${embeddingsEnvTemplate}.content = ''
-                ${common.embeddings.apiKeyEnvironment}=${config.sops.placeholder.${common.embeddings.apiKeySecretName}}
+                ${common.embeddings.backends.openrouter.apiKeyEnvironment}=${config.sops.placeholder.${common.embeddings.apiKeySecretName}}
               '';
             };
         };
