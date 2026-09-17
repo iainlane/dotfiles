@@ -122,12 +122,11 @@ which is why `git` above puts its Linux modules there. `os.nixos` and
 
 ### Top-level features and children
 
-A feature is top-level when it is a concern a host composes in its own right,
-such as `base` or `desktop`. Every other concern is a child of the feature it
-belongs to, registered under that feature's `provides`. A child has every field
-a feature has, including its own `provides`, and its name is qualified by its
-parent's, so `base`'s zsh configuration is `base.zsh` and appears under that
-name in `featureNames`.
+A feature is top-level when a host composes it in its own right, such as `base`
+or `desktop`. Every other concern is a child of its parent feature, registered
+under that feature's `provides`. A child has every field of a feature, including
+its own `provides`, and its name is qualified by its parent's, so `base`'s zsh
+configuration is `base.zsh` and appears under that name in `featureNames`.
 
 Registering a child does not apply it. Something has to list it in `includes`,
 so a parent lists the children that always apply and puts the conditional ones
@@ -163,15 +162,15 @@ of `featureNames` on the other OSes, so `hasFeature` never claims
 `desktop.gnome` on a darwin host.
 
 A child that its parent includes must not include the parent: the resolver
-reports that as a cycle. A child that something else selects must include the
-features that declare the options it uses, which is why `ai.claude-desktop` and
+reports that as a cycle. A child that something else selects uses options from
+other features, and it must include them. That is why `ai.claude-desktop` and
 `work.claude-managed-settings` both include `ai`.
 
 Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
 it is loaded only when that `default.nix` imports it. A directory registers the
 top-level feature of its own name, and may register others whose names extend
 it: `features/nixbuild/default.nix` registers `nixbuild-substituter` and
-`nixbuild-builder`. Module files are named after the module system they are for:
+`nixbuild-builder`. Module files are named after their module system:
 `nixos.nix`, `darwin.nix`, `system-manager.nix`, `home-manager.nix`, with
 `home-manager-linux.nix` for the kernel scope and `home-manager-nixos.nix` or
 `home-manager-generic-linux.nix` for the OS scope. Packages live under `pkgs/`,
@@ -202,7 +201,7 @@ to them.
    package keeps its own `enable` and the feature sets it, which is what
    `services.falcon-sensor` is.
 2. **Every switch is a child feature.** A parent lists its default children in
-   `includes`, and a host drops the ones it does not want through `excludes`. So
+   `includes`, and a host drops unwanted children through `excludes`. So
    `hermes` includes `signal`, `matrix`, `dashboard`, `homeassistant`, `soul`,
    `agents`, `mcp`, `embeddings` and `backup`; `caddy` includes `auth` and
    `origin-auth`; `agentsview-server` and `matrix` include `backup`. A child
@@ -237,11 +236,14 @@ to them.
 
 ### Excludes
 
-followed, so a feature that nothing else includes is dropped with it. `closure`
-returns the features in composition order and the names it dropped, and both
-`featureNames` and the module list derive from it, so `hasFeature` and the
-modules cannot disagree. Two kinds of entry are refused: a feature the host also
-lists in `features`, and a feature the closure never reaches.
+`flake.hosts.<name>.excludes` lists the features that the resolver drops from
+that host's closure. A dropped feature contributes no modules and its own
+includes are not followed, so a feature that nothing else includes is dropped
+with it. `closure` returns the features in composition order together with the
+dropped names, and both `featureNames` and the module list derive from it, so
+`hasFeature` and the modules cannot disagree. Two kinds of entry are refused: a
+feature the host also lists in `features`, and a feature the closure never
+reaches.
 
 ```nix
 flake.hosts.example = {
@@ -256,7 +258,7 @@ A parent often has to know which of its children a host composed: hermes adds
 the signal network to the agent's container, its restore script stops the
 dashboard before replacing the shared state, and Caddy refuses a site that asks
 for sign-in when no sign-in service is there. The child publishes that by
-defining one boolean the parent declares:
+defining a boolean that the parent has declared:
 
 ```nix
 # features/hermes/options.nix, in the parent
@@ -273,8 +275,8 @@ refuses more than one, so a host that sets it is told to change its composition.
 
 The child declares its own settings, and the parent reads them only inside a
 branch on the presence option, so they are never forced on a host without the
-child. An option the parent reads while building something unconditionally stays
-with the parent.
+child. If the parent reads an option while building something unconditionally,
+that option stays with the parent.
 
 Where the parent needs a list or an attribute set, the child defines into an
 option of that type that the parent declares, and the module system's merge
