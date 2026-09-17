@@ -326,8 +326,8 @@ Then derive the age public key and add it to `.sops.yaml` in the
 nix shell nixpkgs#age -c age-keygen -y ~/.config/sops/age/keys.txt
 ```
 
-If you already have an SSH private key you want to reuse, convert it into
-`keys.txt` instead of generating a fresh age key:
+To reuse an SSH private key that you already have, convert it into `keys.txt`
+instead of generating a fresh age key:
 
 ```sh
 mkdir -p ~/.config/sops/age
