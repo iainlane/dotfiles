@@ -28,14 +28,14 @@ mkdir -p "${snapshot}"
 
 # Command-line arguments are visible to every user in the process list, so
 # the key reaches curl as a config on stdin instead. The controller serves a
-# certificate it issued itself, which curl cannot verify, so verification is
+# self-signed certificate, which curl cannot verify, so verification is
 # off; the request goes to this host's own LAN address and never leaves it.
 request() {
 	printf 'header = "X-API-KEY: %s"\n' "${UNIFI_API_KEY}" |
 		curl --config - --silent --show-error --fail --insecure "$@"
 }
 
-# The command answers with the path of the file it wrote, relative to the
+# The command answers with the path of the file that it wrote, relative to the
 # Network application, which UniFi OS serves under /proxy/network.
 path="$(
 	request \
