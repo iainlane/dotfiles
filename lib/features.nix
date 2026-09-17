@@ -4,21 +4,21 @@
 # A feature can define a module, or a list of modules, for each of NixOS,
 # nix-darwin, system-manager and Home Manager. Its `system` field contributes
 # modules to whichever of NixOS, nix-darwin and system-manager builds the
-# host, and its `includes` field names the features it pulls in. `closure`
-# expands those includes into an ordered list, which contains the features it
-# was given as well as the ones they include, and `modulesFor` selects one
-# class of module from that list.
+# host, and its `includes` field lists the features that it pulls in.
+# `closure` expands those includes into an ordered list of the given features
+# and everything they include, and `modulesFor` selects one class of module
+# from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
 in rec {
   systemClassFor = os: operatingSystems.${os}.systemClass;
 
-  # The kernel a host runs, taken from the last component of its Nix system
-  # string. NixOS and the Linux hosts system-manager builds share `linux`.
+  # The kernel of a host, taken from the last component of its Nix system
+  # string. NixOS and the Linux hosts built by system-manager share `linux`.
   kernelFor = system: lib.last (lib.splitString "-" system);
 
   # An evaluated `flake.features` entry. The entries are plain submodule
-  # configs, so the check looks for the attributes every entry has.
+  # configs, so the check looks for the attributes common to every entry.
   featureType = lib.mkOptionType {
     name = "feature";
     description = "feature from flake.features";
@@ -36,8 +36,8 @@ in rec {
   # `excludes` names features to drop. A dropped feature contributes no
   # modules, and the walk does not follow its includes, so a feature that
   # nothing else includes is dropped with it. The result is `ordered`, the
-  # remaining features in composition order, and `excluded`, the names the
-  # walk met and dropped. `excludeError` compares `excluded` with the host's
+  # remaining features in composition order, and `excluded`, the names that
+  # the walk met and dropped. `excludeError` compares `excluded` with the host's
   # `excludes` to find an entry that dropped nothing.
   closure = {
     features,
@@ -109,8 +109,8 @@ in rec {
   featureNames = args: map (feature: feature.name) (closure args).ordered;
 
   # Whether the host has the feature, directly or through an include. The
-  # feature is an entry of `flake.features`, so a name the registry does not
-  # have is an evaluation error where the caller writes it.
+  # feature is an entry of `flake.features`, so a name missing from the
+  # registry is an evaluation error where the caller writes it.
   hasFeature = hostConfig: feature: lib.elem feature.name hostConfig.featureNames;
 
   # The modules of class `class` from `ordered`, a closure's feature list.
