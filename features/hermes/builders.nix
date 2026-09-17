@@ -171,7 +171,7 @@
     '';
   };
 
-  # The script reads the sub-command from the name it was invoked as, so each
+  # The script reads the sub-command from its own invocation name, so each
   # name is a symlink to it.
   hostCliPackage = pkgs.runCommand "hermes-agent-cli" {} ''
     mkdir -p "$out/bin"
@@ -194,8 +194,8 @@
     )
   );
 
-  # Everything the agent needs in place before it starts: the state tree, the
-  # package it is running, the file that tells the host CLI how to reach it,
+  # Everything that the agent needs in place before it starts: the state tree,
+  # its package, the file that tells the host CLI how to reach it,
   # and the environment assembled from the sops-rendered files.
   setupScript = pkgs.writeShellApplication {
     name = "hermes-prepare-state";
