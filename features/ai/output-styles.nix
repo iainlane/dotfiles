@@ -41,8 +41,15 @@
         [(lib.removePrefix "${field}:" (builtins.elemAt fmLines start))]
         ++ lib.take folded after
       ));
+
+    joined = lib.concatStringsSep " " parts;
   in
-    lib.concatStringsSep " " parts;
+    # YAML forbids a colon followed by a space in an unquoted scalar, so a
+    # value containing one is written in double quotes. The quotes delimit the
+    # value and are not part of it.
+    if lib.hasPrefix "\"" joined && lib.hasSuffix "\"" joined
+    then lib.removeSuffix "\"" (lib.removePrefix "\"" joined)
+    else joined;
 
   parse = stem: file: let
     lines = lib.splitString "\n" (builtins.readFile file);
