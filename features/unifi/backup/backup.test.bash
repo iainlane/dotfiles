@@ -112,8 +112,8 @@ report_failure() {
 }
 
 # Runs one scenario and checks its exit status and output. `expected_status`
-# is `zero` when the script has to accept the controller and `nonzero` when it
-# has to refuse the response.
+# is `zero` when the script has to accept the controller's responses and
+# `nonzero` when it has to refuse them.
 assert_backup() {
 	local scenario="${1}" expected_status="${2}" expected="${3}" output status
 
