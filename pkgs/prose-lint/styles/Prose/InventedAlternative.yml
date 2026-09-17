@@ -2,7 +2,7 @@ extends: existence
 message:
   "'%s' contrasts with an alternative; keep it only where the alternative is
   real."
-level: warning
+level: suggestion
 ignorecase: true
 nonword: true
 tokens:

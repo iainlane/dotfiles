@@ -120,9 +120,12 @@ level = "warning"
 locked = false
 scope = "all"
 
+# Vale cannot tell whether the alternative is real, and across this repository
+# nearly every match turned out to be a real alternative, so the rule only
+# suggests.
 [rules.InventedAlternative]
 tier = "portable"
-level = "warning"
+level = "suggestion"
 locked = false
 scope = "all"
 
