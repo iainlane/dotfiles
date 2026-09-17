@@ -135,8 +135,6 @@
     gitHub ? null,
     # The release tag's prefix before the version.
     tagPrefix ? "v",
-    # Replacement version ranges, applied to the manifest's `dependencies`
-    # before resolving, for a dependency whose declared range admits a version
     # the extension cannot use. Meaningless with `gitHub`, which takes
     # upstream's resolution as it stands.
     npmDependencies ? {},
