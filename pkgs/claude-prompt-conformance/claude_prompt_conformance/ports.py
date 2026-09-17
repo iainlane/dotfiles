@@ -78,10 +78,10 @@ class ProcessController(Protocol):
 
 
 class IsolatedChildProcesses(Protocol):
-    """Execute the isolated command an isolation backend has assembled.
+    """Execute the isolated command that an isolation backend has assembled.
 
     A backend can pass the pipe on which its sandbox reports the process group
-    it created. The supervisor reads the group identifier from that pipe and
+    that it created. The supervisor reads the group identifier from that pipe and
     uses it to signal the sandboxed processes.
     """
 
