@@ -53,8 +53,9 @@ def unusable_certificate_bundle(destination: Path) -> Path:
     """Write the certificate bundle which keeps the client on plain HTTP.
 
     The pinned client prefers a WebSocket transport for `/responses`, which the
-    scripted endpoint cannot speak. A bundle it refuses to load fails WebSocket
-    client construction and leaves only the HTTP transport the endpoint serves.
+    scripted endpoint cannot speak. A bundle that it refuses to load fails
+    WebSocket client construction and leaves only the HTTP transport, which the
+    endpoint does serve.
     """
 
     destination.write_text("")
@@ -133,7 +134,7 @@ def sse_frame(event: dict[str, object]) -> bytes:
 
 
 def response_created(identifier: str) -> dict[str, object]:
-    """Announce the response the client is about to receive."""
+    """Announce the response that the client is about to receive."""
 
     return {"type": "response.created", "response": {"id": identifier}}
 
@@ -253,7 +254,7 @@ class McpToolCall(msgspec.Struct, frozen=True):
 
 
 def mcp_tool_calls(transcript: bytes) -> tuple[str, ...]:
-    """List every tool an instance MCP server was actually asked to run.
+    """List every tool that an instance MCP server was actually asked to run.
 
     Both endpoint tests use this, so the transcript may belong to the
     evaluator's server or the improver's.

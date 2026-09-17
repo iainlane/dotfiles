@@ -1235,7 +1235,7 @@ class Arm:
 
 @dataclass(frozen=True)
 class Decision:
-    """The acceptance outcome a comparison is required to reach."""
+    """The acceptance outcome that a comparison is required to reach."""
 
     accepted: bool
     failures: tuple[AcceptanceFailure, ...]

@@ -34,7 +34,7 @@ class MessagesRequest(msgspec.Struct, frozen=True):
         return tuple(str(tool.get("name")) for tool in self.tools)
 
     def tool_results(self) -> tuple[dict[str, Any], ...]:
-        """Return every tool_result content block the client sent back."""
+        """Return every tool_result content block that the client sent back."""
 
         return tuple(
             block
