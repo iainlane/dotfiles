@@ -159,7 +159,7 @@ class Runtime:
         """The findings in a file's `#` comments, read as Markdown.
 
         The path is passed to Vale as a hint so that the configuration
-        sections for code apply and the report names the file.
+        sections for code apply and the report shows the file's path.
         """
         try:
             return self.vale.lint(

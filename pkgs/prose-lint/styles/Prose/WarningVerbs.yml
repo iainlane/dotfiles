@@ -1,7 +1,7 @@
 extends: sequence
 message:
-  "'%s' stands in for a more specific verb: contains, keeps, includes, lists,
-  specifies, decides, is."
+  "'%s' is a general verb; the relationship has its own word: contains, keeps,
+  includes, lists, specifies, decides, is."
 level: warning
 ignorecase: true
 tokens:

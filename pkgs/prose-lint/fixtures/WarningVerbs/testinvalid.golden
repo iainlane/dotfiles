@@ -1,1 +1,1 @@
-testinvalid.md:1:11:Prose.WarningVerbs:'holds' stands in for a more specific verb: contains, keeps, includes, lists, specifies, decides, is.
+testinvalid.md:1:11:Prose.WarningVerbs:'holds' is a general verb; the relationship has its own word: contains, keeps, includes, lists, specifies, decides, is.

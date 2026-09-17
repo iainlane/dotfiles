@@ -12,9 +12,9 @@ part-of-speech rules run. For the languages Vale parses, the packaged
 configuration maps each to Markdown. For Nix, shell and the other formats with
 `#` comments, which Vale cannot parse, `prose-lint check` extracts the comments
 itself, one line per source line, and passes the file's path along so that the
-code-only rules apply and the report names the file. Vale run directly on those
-files, as an editor does, still lints their comments through the packaged Perl
-mapping, without the part-of-speech rules.
+code-only rules apply and the report shows the file's path. Vale run directly on
+those files, as an editor does, still lints their comments through the packaged
+Perl mapping, without the part-of-speech rules.
 
 ```console
 nix run .#prose-lint -- check README.md
