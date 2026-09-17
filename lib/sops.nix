@@ -1,10 +1,10 @@
-# SOPS module helpers: assemble the sops-nix fragments each host needs to
-# decrypt secrets. The home fragment points sops at the user age key and, when
-# the secrets repository has one, at the per-host SSH key; the system fragment
-# derives the host age key from the SSH host key.
+# SOPS module helpers: assemble the sops-nix fragments that each host needs in
+# order to decrypt secrets. The home fragment points sops at the user age key
+# and, when the secrets repository has one, at the per-host SSH key; the system
+# fragment derives the host age key from the SSH host key.
 #
-# One policy covers a per-host secrets file the secrets input does not have:
-# skip the secret's declaration, and let the machine come up without that
+# One policy covers a per-host secrets file that the secrets input does not
+# have: skip the secret's declaration, and let the machine come up without that
 # secret. `scripts/generate-user-secrets.bash` writes a machine's user secrets
 # in a single run, so a machine that has not been through it has none of them.
 # Refusing to evaluate such a machine would leave no way to build the machine
