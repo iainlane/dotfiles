@@ -122,14 +122,24 @@ class Runtime:
             p for p in paths if p.suffix.lower() not in HASH_COMMENT_SUFFIXES
         )
         extracted = tuple(p for p in paths if p.suffix.lower() in HASH_COMMENT_SUFFIXES)
+        comments: dict[Path, str] = {}
+        unreadable: list[Finding] = []
+
+        for path in extracted:
+            try:
+                comments[path] = hash_comments(path.read_text())
+            except (OSError, UnicodeDecodeError) as error:
+                unreadable.append(_failure_finding(path, error))
+
         findings: list[Finding] = []
-        comments = {path: hash_comments(path.read_text()) for path in extracted}
 
         if direct:
             findings.extend(self._lint_directly(direct))
 
         if comments:
             findings.extend(self._lint_comments(comments))
+
+        findings.extend(unreadable)
 
         return Report(_refined(tuple(findings), _texts(findings, comments)))
 
@@ -322,8 +332,8 @@ def _against_source(sources: Mapping[Path, Path], finding: Finding) -> Finding:
     return finding if source is None else replace(finding, path=str(source))
 
 
-def _failure_finding(path: Path, failure: ValeFailed) -> Finding:
-    """A file Vale could not read, reported as an error against that file."""
+def _failure_finding(path: Path, failure: Exception) -> Finding:
+    """A file that prose-lint could not lint, reported as an error against it."""
     return Finding(
         path=str(path),
         line=1,

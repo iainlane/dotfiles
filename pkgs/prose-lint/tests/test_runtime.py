@@ -412,3 +412,28 @@ def test_a_mistagged_adverbial_in_a_comment_is_not_reported(tmp_path: Path) -> N
     runtime = build_runtime(tmp_path, RelativeClauseVale("The lint no longer objects"))
 
     assert runtime.lint_paths((module,)).findings == ()
+
+
+UNDECODABLE = "'utf-8' codec can't decode byte 0xff in position 13: invalid start byte"
+
+
+def test_a_hash_comment_file_that_is_not_utf8_is_reported_against_itself(
+    tmp_path: Path,
+) -> None:
+    undecodable = tmp_path / "broken.nix"
+    undecodable.write_bytes(b"# A comment.\n\xff\xfe\n")
+    readable = tmp_path / "readable.nix"
+    readable.write_text("# A comment.\n")
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)))
+
+    assert runtime.lint_paths((undecodable, readable)).findings == (
+        em_dash(readable, 1),
+        Finding(
+            path=str(undecodable),
+            line=1,
+            column=1,
+            rule="prose-lint",
+            message=UNDECODABLE,
+            severity=Level.error,
+        ),
+    )
