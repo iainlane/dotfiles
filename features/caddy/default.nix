@@ -2,11 +2,9 @@
 # each backend by container name over a network shared with that service alone,
 # and obtains its certificates through the ACME DNS-01 challenge.
 #
-# Caddy's own network has a public IPv6 range delegated from the prefix routed
-# to this host, so Caddy has an IPv6 address the internet routes to directly.
-# The host has only one public IPv4 address, so no IPv4 range can be delegated
-# the same way, and ports 80 and 443 are published on that address instead.
-# `exposePodman` gets labels giving its domain and whether it
+# The sites to serve come from the containers themselves: a container wrapped
+# in `exposePodman` has labels for its domain and for whether a visitor has to
+# sign in first. No individual service is configured here.
 {config, ...}: let
   inherit (config.flake) features;
   children = features.caddy.provides;
@@ -199,7 +197,6 @@ in {
         upstreams = [{dial = upstream;}];
       };
 
-      # again only when oauth2-proxy's response included it.
       identityHeaders = lib.attrNames identityClaims;
 
       copyIdentityHeader = header: let
