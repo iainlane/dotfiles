@@ -1,5 +1,5 @@
 # The constants that describe the nixbuild.net account: its host, its keys,
-# the systems it builds for, and the `/etc/nix/machines` lines that register
+# the systems that it builds for, and the `/etc/nix/machines` lines that register
 # it as a remote builder.
 #
 # `flake/parts/nix.nix` writes CI's substituter and builder settings from
