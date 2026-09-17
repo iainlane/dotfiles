@@ -57,7 +57,7 @@ them.
 
 The `flake.hosts` option (in `flake/parts/hosts.nix`) types these records and
 computes derived fields such as `system`, `homeDirectory` and `featureNames`,
-the names of every feature the host has once includes are followed.
+the names of every feature on the host once includes are followed.
 
 ## Features
 
