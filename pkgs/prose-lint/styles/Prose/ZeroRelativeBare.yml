@@ -1,0 +1,14 @@
+extends: sequence
+message:
+  "A compound noun followed by a determiner, a noun and a verb may be an
+  object-relative clause without 'that' or 'which'. Such a clause compresses a
+  relationship into a noun phrase: rewrite it as a prepositional phrase or its
+  own sentence, and add the pronoun only when the clause does nothing but
+  identify the noun."
+level: warning
+tokens:
+  - tag: NN|NNS
+  - tag: NN|NNS
+  - tag: DT|PRP\$
+  - tag: NN|NNS|NNP|JJ
+  - tag: VBZ|VBD|VBP|NNS

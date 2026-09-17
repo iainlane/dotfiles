@@ -1,7 +1,9 @@
 extends: sequence
 message:
   "A noun followed by a name and a verb may be an object-relative clause without
-  'that' or 'which'; if it is, add the pronoun."
+  'that' or 'which'. Such a clause compresses a relationship into a noun phrase:
+  rewrite it as a prepositional phrase or its own sentence, and add the pronoun
+  only when the clause does nothing but identify the noun."
 level: warning
 tokens:
   - tag: DT

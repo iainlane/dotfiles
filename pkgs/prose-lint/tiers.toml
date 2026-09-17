@@ -1,7 +1,7 @@
 # Every rule in the Prose style, with the tier it belongs to, the level it runs
 # at, whether it can be lowered, and the files it applies to. The globs under
-# [scopes] are the section headers of vale.ini, so the levels this file
-# computes land in the section that enables the rule.
+# [scopes] are the section headers of vale.ini, so each level computed here
+# goes into the section that enables the rule.
 
 [scopes]
 all = "*"
@@ -66,6 +66,15 @@ level = "warning"
 locked = false
 scope = "all"
 
+# The same shape with a compound noun as the head. A fronted adverbial ("in
+# production mode the server listens") tags the same way, so this form only
+# warns.
+[rules.ZeroRelativeBare]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
 [rules.RepeatedWords]
 tier = "portable"
 level = "error"
@@ -78,8 +87,8 @@ level = "error"
 locked = false
 scope = "all"
 
-# Signed-off-by: is required by some projects, so the list of trailers this rule
-# rejects is not the list every project rejects. Keeping it unlocked lets a
+# Some projects require Signed-off-by, so this rule's list of rejected
+# trailers does not suit every project. Keeping it unlocked lets a
 # project that needs a trailer lower the rule.
 [rules.Trailers]
 tier = "house"
@@ -88,6 +97,12 @@ locked = false
 scope = "commit"
 
 [rules.WarningVerbs]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
+[rules.WarningVerbGerunds]
 tier = "portable"
 level = "warning"
 locked = false

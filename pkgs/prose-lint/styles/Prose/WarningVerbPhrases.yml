@@ -5,4 +5,5 @@ ignorecase: true
 swap:
   lands on: "'goes to'"
   reaches for: "'uses' or 'imports'"
+  serves? both: "'is used by both'"
   survives as: "'remains' or 'becomes'"

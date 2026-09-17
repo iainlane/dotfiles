@@ -1,7 +1,10 @@
-testinvalid.md:1:32:Prose.ZeroRelative:An object-relative clause takes 'that' or 'which', and one noun phrase takes one relative clause.
-testinvalid.md:3:23:Prose.ZeroRelative:An object-relative clause takes 'that' or 'which', and one noun phrase takes one relative clause.
+testinvalid.md:1:32:Prose.ZeroRelative:An object-relative clause without 'that' or 'which' compresses a relationship into a noun phrase. Rewrite it as a prepositional phrase or its own sentence; add the pronoun only when the clause does nothing but identify the noun.
+testinvalid.md:3:23:Prose.ZeroRelative:An object-relative clause without 'that' or 'which' compresses a relationship into a noun phrase. Rewrite it as a prepositional phrase or its own sentence; add the pronoun only when the clause does nothing but identify the noun.
 testinvalid.md:5:11:Prose.WarningVerbs:'holds' stands in for a more specific verb: contains, keeps, includes, lists, specifies, decides, is.
 testinvalid.md:7:21:Prose.AbstractAbsence:'nothing to reformat' describes an exception as an abstract absence; say what happens instead.
 testinvalid.md:9:26:Prose.ArrowChain:'host -> features' compresses a relationship into an arrow; write it as a sentence.
 testinvalid.md:11:25:Prose.InventedAlternative:'rather than' contrasts with an alternative; keep it only where the alternative is real.
 testinvalid.md:13:38:Prose.TrailingBenefit:The trailing ', ensuring' clause claims a benefit without the mechanism that produces it.
+testinvalid.md:15:1:Prose.WarningVerbGerunds:'Naming' is a general verb; the relationship has its own word: contains, keeps, includes, lists, specifies, decides, is.
+testinvalid.md:15:19:Prose.InventedAlternative:'rather than' contrasts with an alternative; keep it only where the alternative is real.
+testinvalid.md:16:1:Prose.WarningVerbPhrases:'is used by both' is more specific than 'serve both'.
