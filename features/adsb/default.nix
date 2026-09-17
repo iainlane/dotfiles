@@ -1,8 +1,5 @@
 # The ADS-B feeder stack: an ultrafeeder decoding from the RTL-SDR, and one
 # container per aggregator relaying from it.
-#
-# These run rootful. The feeders need the reverse proxy to resolve them by
-# container name, and a rootless bridge lives in a network namespace the host
 # cannot route into, so the whole stack runs on a rootful netavark bridge.
 {config, ...}: {
   flake.features.adsb = {
@@ -26,7 +23,6 @@
       network = config.virtualisation.quadlet.networks.adsbnet.ref;
 
       # quadlet names a container's unit after its quadlet file, with no
-      # prefix, so the relaying feeders order themselves against this.
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
@@ -78,7 +74,6 @@
             name = "rtl-blacklist.conf";
           };
 
-          # rtl-sdr's own rules give the device node to the `plugdev` group,
           # and list the ids of every dongle the library supports.
           environment.etc."udev/rules.d/60-rtl-sdr.rules".source = "${pkgs.rtl-sdr}/etc/udev/rules.d/rtl-sdr.rules";
 
