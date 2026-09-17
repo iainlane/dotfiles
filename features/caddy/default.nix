@@ -61,9 +61,9 @@ in {
 
       authUpstream = "${cfg.auth.containerName}:${toString cfg.auth.port}";
 
-      # oauth2-proxy treats an environment variable named `OAUTH2_PROXY_*` as
-      # an option override. Name this one outside that prefix, because it is
-      # expanded into the alpha config below instead.
+      # oauth2-proxy reads any `OAUTH2_PROXY_*` variable as an option override.
+      # This name stays outside that prefix because `authAlphaConfigFile`
+      # expands it instead.
       authClientSecretEnv = "OIDC_CLIENT_SECRET";
 
       authConfigPath = "/etc/oauth2-proxy.cfg";
