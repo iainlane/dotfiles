@@ -406,7 +406,6 @@ in {
         }
         // lib.optionalAttrs (ca != null) {inherit ca;};
 
-      # A service calling the identity provider comes from a per-service
       # network and has no Cloudflare certificate to present, so every range
       # podman draws its networks from is exempt as well.
       containerSources = config.dotfiles.containers.subnetPools;
