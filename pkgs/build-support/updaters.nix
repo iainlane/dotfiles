@@ -43,12 +43,13 @@
   # `discoverVersion` is a shell fragment that must set `version` (and any
   # other variables the URL needs). The helpers from `prefetch.sh`, such as
   # `download`, are in scope. `urlTemplate` is a shell-syntax string expanded
-  # once per platform with `suffix`, `version`, and anything `discoverVersion`
-  # set; write its `${...}` references with a backslash so Nix leaves them for
-  # the shell.
+  # once per platform with `suffix`, `version` and any variable set by
+  # `discoverVersion`; write its `${...}` references with a backslash so Nix
+  # leaves them for the shell.
   mkSourcesUpdater = {
     pname,
-    # Nix system → upstream artifact suffix, e.g. "x86_64-linux" → "linux_amd64".
+    # Upstream artifact suffix for each Nix system, such as "linux_amd64" for
+    # "x86_64-linux".
     platforms,
     discoverVersion,
     urlTemplate,
