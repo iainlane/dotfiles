@@ -792,10 +792,9 @@ def clean_environment(
 
     The sandbox binds `/etc/ssl` as a directory, and on a Nix host its entries
     are symlinks into trees that the sandbox does not bind, so those symlink
-    targets
-    are unavailable inside the sandbox. Every isolated process is therefore
-    given the packaged bundle, which lives in the Nix store and is already
-    readable to all of them.
+    targets are unavailable inside the sandbox. Every isolated process is
+    therefore given the packaged bundle, which lives in the Nix store and is
+    already readable to all of them.
     """
 
     return {
