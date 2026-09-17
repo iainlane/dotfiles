@@ -77,9 +77,9 @@ scope = "all"
 
 # A noun, a determiner, a noun and a verb. ZeroRelative matches the same clause
 # one token earlier, at a determiner in front of the head noun, so this rule
-# reports the clause whose head noun opens the phrase. About one match in six
-# is a wh-clause or an imperative opening that the tagger reads as a noun, so
-# the rule warns.
+# reports the clause whose head noun opens the phrase. With nothing in front of
+# that noun an imperative opening ("Hash the exact retained files") and a
+# wh-clause tag the same way, so this form only warns.
 [rules.ZeroRelativeShort]
 tier = "portable"
 level = "warning"
@@ -88,8 +88,8 @@ scope = "all"
 
 # The same clause with a pronoun for its subject. A reflexive pronoun takes the
 # same tag and never opens such a clause, so the rule lists the subject
-# pronouns. This is the repository's commonest shape and the rule reports well
-# over a hundred existing lines, so it warns.
+# pronouns. A wh-clause ("decides whose repository it is") and a verb
+# complement ("means it does") still tag the same way, so this form only warns.
 [rules.ZeroRelativePronoun]
 tier = "portable"
 level = "warning"
