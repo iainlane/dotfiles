@@ -22,8 +22,8 @@ in {
     environmentFiles = [envFile];
 
     # The image's own check: a connection to the feed source, the status site
-    # listening, and no service deaths. It truncates /var/log/fr24feed.log each
-    # time it runs, so the interval also decides how much log is kept. Ten
+    # listening, and no service deaths. It truncates /var/log/fr24feed.log on every
+    # run, so the interval also decides how much log is kept. Ten
     # minutes is the value upstream builds the image around.
     healthCmd = "/scripts/healthcheck.sh";
     healthInterval = "600s";
