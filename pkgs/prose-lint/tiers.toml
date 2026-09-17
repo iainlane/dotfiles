@@ -66,8 +66,8 @@ level = "warning"
 locked = false
 scope = "all"
 
-# The same shape with a compound noun as the head. A fronted adverbial ("in
-# production mode the server listens") tags the same way, so this form only
+# The same shape with a compound noun as the head. A fronted adverbial (`in
+# production mode the server listens`) tags the same way, so this form only
 # warns.
 [rules.ZeroRelativeBare]
 tier = "portable"
