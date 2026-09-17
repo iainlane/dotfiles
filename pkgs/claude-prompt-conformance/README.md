@@ -102,9 +102,9 @@ reserved regression checks.
 ## Fixtures
 
 Each directory under `fixtures` contains `task.txt`, `case.json`, and one
-response file for each calibration entry the case declares: at least a vetted
-positive and a negative one, and a partial response where the fixture calibrates
-a partially correct reference. Any other file in the directory becomes the
+response file for each calibration entry in the case: at least a vetted positive
+and a negative one, and a partial response where the fixture calibrates a
+partially correct reference. Any other file in the directory becomes the
 fixture's own source tree, such as the pinned dependency lock the Python
 environment installs from. `case.json` declares the repository, a short
 catalogue description, the task kind, selection metadata, typed criteria,
