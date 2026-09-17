@@ -149,8 +149,8 @@
         source "${./prefetch.sh}"
 
         tmpdir="$(mktemp -d)"
-        # Keep the temporary file beside `source.json` so the rename below
-        # stays atomic.
+        # Keep the temporary file beside `source.json` so the rename stays
+        # atomic.
         staged="$(mktemp source.json.XXXXXX)"
         trap 'rm -rf "''${tmpdir}" "''${staged}"' EXIT
 
