@@ -3,7 +3,7 @@
 ## Testing
 
 - Look through the project to see if it has tests before starting work. See if
-  the tests apply to the code you're working on.
+  the tests apply to the code that you're working on.
 - If there are relevant tests:
   - Run them before making changes so you know what fails.
   - Add new tests for your changes, and make sure they pass when you're done.
