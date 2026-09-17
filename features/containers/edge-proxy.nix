@@ -119,8 +119,8 @@ in {
   };
 
   config._module.args = {
-    # Name of the network the proxy shares with one service, where `name` is
-    # the name the container is declared under. The proxy joins every one of
+    # Name of the network between the proxy and one service. `name` is the
+    # attribute name of the container declaration. The proxy joins every one of
     # them; a service joins only its own, and so reaches the proxy and nothing
     # else.
     serviceNetwork = name: "${cfg.network}-${name}";
@@ -130,12 +130,12 @@ in {
     # definition joined to the network it shares with the proxy, with the
     # proxy's labels set; everything else about the container is left alone.
     #
-    # `name` is the name the container is declared under. The proxy resolves
-    # the container by that name, and the network the two share is named after
-    # it.
+    # `name` is the attribute name of the container declaration. The proxy
+    # resolves the container by that name, and their shared network is named
+    # after it.
     #
-    # The host sets `domain` and `auth` through the option a service declares
-    # from `lib/exposed-service.nix`. The service supplies `port`.
+    # The host sets `domain` and `auth` through the service's own option from
+    # `lib/exposed-service.nix`. The service supplies `port`.
     exposePodman = name: container: settings: let
       inherit (settings) domain port auth;
       containerConfig = container.containerConfig or {};
