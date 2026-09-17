@@ -68,8 +68,6 @@ let
     description = "MCP servers offered to the AI harnesses.";
   };
 
-  # Remove named servers from a set. A harness uses this to drop servers a
-  # feature has excluded for it.
   excludeServers = names: serverSet: lib.removeAttrs serverSet names;
 
   # These language servers, formatters and linters go on the PATH of the AI
