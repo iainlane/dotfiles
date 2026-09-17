@@ -34,10 +34,10 @@ in {
           LCM_EMBEDDING_PROVIDER = cfg.embeddings.provider;
           LCM_EMBEDDING_MODEL = cfg.embeddings.model;
           LCM_EMBEDDING_API_KEY_ENV = cfg.embeddings.apiKeyVariable;
-          # `/lcm embed warmup` registers the model and its dimension and
-          # `/lcm embed backfill` embeds the existing history. Neither is
-          # reachable without the `/lcm` operator command, which LCM leaves
-          # off by default.
+          # `/lcm embed warmup` registers the model and its dimension, and
+          # `/lcm embed backfill` embeds the existing history. Both are
+          # subcommands of the `/lcm` operator command, which LCM disables by
+          # default.
           LCM_ENABLE_SLASH_COMMAND = "true";
         }
         # Only the openai-compatible provider takes an endpoint address.

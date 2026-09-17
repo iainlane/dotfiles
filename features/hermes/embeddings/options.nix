@@ -5,9 +5,8 @@
       default = "openai-compatible";
       example = "voyage";
       description = ''
-        Embedding provider. `openai-compatible` targets any endpoint that
-        serves OpenAI's `/v1/embeddings`; `voyage`, `ollama` and `fastembed`
-        are the other providers LCM knows.
+        LCM embedding provider. `openai-compatible` works with any endpoint
+        that implements OpenAI's `/v1/embeddings`.
       '';
     };
 
@@ -32,10 +31,9 @@
       default = "LCM_EMBEDDING_API_KEY";
       example = "OPENROUTER_API_KEY";
       description = ''
-        Environment variable the `openai-compatible` provider reads the API
-        key from. Naming a variable rather than the key itself lets a key
-        already in `secretEnv` serve both the agent and the embedding
-        endpoint.
+        Environment variable from which the `openai-compatible` provider reads
+        the API key. Point it at a variable that `secretEnv` already provides
+        to share a key with the agent's models.
       '';
     };
   };
