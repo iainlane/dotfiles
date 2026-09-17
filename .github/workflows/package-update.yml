@@ -41,8 +41,8 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the same binary caches as the hosts and the cupboard workflow,
-      # so anything these steps have to realise can be substituted.
+      # Trust the binary caches used by the hosts and the cupboard workflow, so
+      # anything these steps have to realise can be substituted.
       - name: Trust our binary caches
         run: |
           set -euo pipefail
