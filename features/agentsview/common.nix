@@ -36,7 +36,7 @@
   # machine that runs the database also pushes to it, and a machine that
   # keeps its sessions to itself still shows them on its own dashboard.
   #
-  # This also decides which secrets a machine needs. The `agentsviewHosts`
+  # The secrets for a machine follow from this. The `agentsviewHosts`
   # flake output exposes it to `generate-agentsview-secrets`.
   kinds = hosts:
     lib.mapAttrs (_: host:
