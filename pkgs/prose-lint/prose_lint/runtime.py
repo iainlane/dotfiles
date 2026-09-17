@@ -182,6 +182,32 @@ class Runtime:
             )
         )
 
+    def lint_staged_lines(self, paths: tuple[Path, ...]) -> Report:
+        """The findings on the lines that the index adds to HEAD, in `paths`.
+
+        A file that is new in the index has every line in its staged diff.
+        Outside a git repository there is no HEAD to compare the index with,
+        and the report is empty.
+        """
+        if self.git.root() is None:
+            return Report(())
+
+        staged = {path: added_lines(self.git.diff_staged(path)) for path in paths}
+        changed = tuple(path for path, lines in staged.items() if lines)
+
+        if not changed:
+            return Report(())
+
+        report = self.lint_paths(changed)
+
+        return Report(
+            tuple(
+                finding
+                for finding in report.findings
+                if finding.line in staged.get(Path(finding.path), frozenset())
+            )
+        )
+
     def _lint_directly(self, paths: tuple[Path, ...]) -> tuple[Finding, ...]:
         """The findings in the files Vale reads for itself.
 

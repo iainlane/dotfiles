@@ -26,6 +26,8 @@ class Git(Protocol):
 
     def diff_against_head(self, path: Path) -> str: ...
 
+    def diff_staged(self, path: Path) -> str: ...
+
 
 @dataclass(frozen=True)
 class SubprocessGit:
@@ -66,6 +68,13 @@ class SubprocessGit:
     def diff_against_head(self, path: Path) -> str:
         """One file's working-tree diff against HEAD, with no context lines."""
         return self._run(["diff", "--unified=0", "HEAD", "--", str(path)]) or ""
+
+    def diff_staged(self, path: Path) -> str:
+        """One file's index diff against HEAD, with no context lines."""
+        return (
+            self._run(["diff", "--cached", "--unified=0", "HEAD", "--", str(path)])
+            or ""
+        )
 
     def _paths(self, arguments: list[str]) -> tuple[Path, ...]:
         output = self._run(arguments)

@@ -24,6 +24,7 @@ class FakeGit:
     changed: tuple[Path, ...] = ()
     untracked: tuple[Path, ...] = ()
     diffs: dict[Path, str] = field(default_factory=dict)
+    staged: dict[Path, str] = field(default_factory=dict)
 
     def root(self) -> Path | None:
         return self.root_path
@@ -39,6 +40,9 @@ class FakeGit:
 
     def diff_against_head(self, path: Path) -> str:
         return self.diffs.get(path, "")
+
+    def diff_staged(self, path: Path) -> str:
+        return self.staged.get(path, "")
 
     def remote_urls(self) -> tuple[str, ...]:
         return self.urls
@@ -374,6 +378,14 @@ def test_nothing_is_linted_outside_a_git_repository(tmp_path: Path) -> None:
     )
 
     assert runtime.lint_added_lines().findings == ()
+
+
+def test_nothing_is_staged_outside_a_git_repository(tmp_path: Path) -> None:
+    notes = tmp_path / "notes.md"
+    notes.write_text("One.\n")
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)), FakeGit(root_path=None))
+
+    assert runtime.lint_staged_lines((notes,)).findings == ()
 
 
 def test_a_fronted_adverbial_in_a_comment_is_not_reported(tmp_path: Path) -> None:

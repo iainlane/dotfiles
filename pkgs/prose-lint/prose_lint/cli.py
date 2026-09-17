@@ -47,6 +47,11 @@ def _parser() -> argparse.ArgumentParser:
     check = commands.add_parser("check", help="lint files")
     check.add_argument("files", nargs="*", type=Path)
     check.add_argument("--format", choices=["line", "json"], default="line")
+    check.add_argument(
+        "--staged",
+        action="store_true",
+        help="report only the lines the index adds to HEAD",
+    )
     check.set_defaults(run=_check)
 
     commit = commands.add_parser("commit-msg", help="lint a commit message file")
@@ -96,7 +101,11 @@ def _check(arguments: argparse.Namespace) -> int:
 
     runtime = _runtime()
     files = tuple(path for path in arguments.files if runtime.catalogue.lintable(path))
-    report = runtime.lint_paths(files)
+    report = (
+        runtime.lint_staged_lines(files)
+        if arguments.staged
+        else runtime.lint_paths(files)
+    )
 
     if arguments.format == "json":
         print(report.render_json())

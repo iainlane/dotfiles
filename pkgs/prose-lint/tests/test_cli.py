@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from prose_lint.cli import main
+from prose_lint.report import ADVICE
+from tests.conftest import git
 
 
 def test_a_broken_vale_is_reported_against_the_file_not_as_a_traceback(
@@ -68,3 +70,68 @@ def test_the_stop_hook_reports_nothing_while_it_is_already_active(
     status = main(["hook", "stop"])
 
     assert (status, capsys.readouterr().out) == (0, "")
+
+
+EM_DASH = "—"
+
+FAKE_VALE = """\
+#!/usr/bin/env python3
+import json
+import sys
+
+path = [argument for argument in sys.argv[1:] if not argument.startswith("-")][0]
+alerts = [
+    {
+        "Line": number,
+        "Span": [1, 1],
+        "Check": "Prose.EmDash",
+        "Message": "An em dash.",
+        "Severity": "error",
+    }
+    for number, line in enumerate(open(path).read().splitlines(), start=1)
+    if chr(0x2014) in line
+]
+
+print(json.dumps({path: alerts} if alerts else {}))
+"""
+
+
+def fake_vale(directory: Path) -> Path:
+    """A vale that reports an error on every line containing an em dash."""
+    script = directory / "vale"
+    script.write_text(FAKE_VALE)
+    script.chmod(0o755)
+
+    return script
+
+
+@pytest.mark.parametrize(
+    ("added", "expected"),
+    [
+        ("A clean sentence.\n", (0, "")),
+        (
+            f"A second sentence {EM_DASH} with an em dash.\n",
+            (1, f"notes.md:2:1 Prose.EmDash: An em dash.\n\n{ADVICE}\n"),
+        ),
+    ],
+)
+def test_the_staged_check_reports_only_the_lines_the_index_adds(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    added: str,
+    expected: tuple[int, str],
+) -> None:
+    committed = f"A sentence {EM_DASH} with an em dash.\n"
+    notes = repository / "notes.md"
+    notes.write_text(committed)
+    git(repository, "add", "notes.md")
+    git(repository, "commit", "--message", "write a line with an em dash")
+    notes.write_text(committed + added)
+    git(repository, "add", "notes.md")
+    monkeypatch.setenv("PROSE_LINT_VALE", str(fake_vale(repository)))
+    monkeypatch.chdir(repository)
+
+    status = main(["check", "--staged", "notes.md"])
+
+    assert (status, capsys.readouterr().out) == expected

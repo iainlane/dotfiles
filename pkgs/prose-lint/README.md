@@ -44,6 +44,14 @@ nix run .#prose-lint -- commit-msg .git/COMMIT_EDITMSG
 Both commands exit 1 when a rule reports at error level and 0 otherwise, so
 either can stand in a git hook.
 
+`check --staged` lints the named files and keeps only the findings on lines that
+the index adds to HEAD, at the same levels and with the same exit status. A
+commit that repairs part of a file therefore passes, even though findings remain
+on the lines that it did not touch. A file that is new in the index counts as
+added in full. Outside a git repository, and for a file with nothing staged, the
+command reports nothing. This repository runs it that way as its pre-commit
+hook.
+
 Vale reads several files in one run, and a file that it cannot parse fails that
 run. `check` therefore reads a failed batch again one file at a time: the file
 that Vale still cannot parse is reported as an error against that file, and
