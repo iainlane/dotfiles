@@ -6,7 +6,6 @@
 # to this host, so Caddy has an IPv6 address the internet routes to directly.
 # The host has only one public IPv4 address, so no IPv4 range can be delegated
 # the same way, and ports 80 and 443 are published on that address instead.
-#
 # The sites to serve come from the containers themselves: anything wrapped in
 # `exposePodman` gets labels giving its domain and whether it
 # requires signing in first. This feature names no individual service.
