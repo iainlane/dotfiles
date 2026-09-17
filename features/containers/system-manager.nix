@@ -118,14 +118,14 @@ in {
       {
         # Only a running container protects a Nix-built image from the
         # prune. Wait for the containers, so a timer run replayed just
-        # after boot does not delete the images the image units have
+        # after boot does not delete the images that the image units have
         # just pulled.
         podman-prune.after = ["system-manager.target"];
 
         # Rootless podman maps ids through setuid newuidmap and newgidmap.
         # /usr/local/libexec/podman is the first of podman's compiled-in
         # `helper_binaries_dir` entries, so setuid copies installed there are
-        # the ones it finds.
+        # the ones that podman finds.
         install-rootless-uidmap-wrappers = {
           description = "Install setuid uidmap helpers for rootless containers";
           wantedBy = ["sysinit.target"];
