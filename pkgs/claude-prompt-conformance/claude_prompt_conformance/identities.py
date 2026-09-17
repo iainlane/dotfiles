@@ -129,13 +129,15 @@ _DEFAULT_FIRST_PARTY_SCOPES = (
 
 @dataclass(frozen=True)
 class ReconciledCredentialUpdate:
-    """Complete one credential update even when a lock is lost part-way.
+    """Finish one credential update even when a lock is lost part-way.
 
-    token it replaced is already spent. The update is reconciled against the
-    credential stored at that moment: if its refresh token has changed, a
-    concurrent rotation by the pinned client wins and is kept. Otherwise the
-    replacement's OAuth fields are merged into the stored credential, and the
-    result is written only when it differs from what is already there.
+    A refresh spends the refresh token that it sent, so a completed rotation
+    must not be discarded because a lock expired: the replaced token is already
+    spent. The update is reconciled against whatever is stored at that moment.
+    A refresh token that has changed means the pinned client rotated
+    concurrently, and that credential wins; otherwise the replacement's OAuth
+    fields are merged into the stored credential and written back only when
+    they differ.
     """
 
     credentials: ReconcilableCredentials
@@ -443,8 +445,9 @@ class ClaudeOAuthIdentity:
             if observed_at >= deadline:
                 raise ClaudeCredentialRefreshDeadlineError(deadline, observed_at)
 
-            # when it finishes after the deadline: discarding it would strand
-            # the refresh token.
+            # Keep a rotation that reached durable storage even when it
+            # finished after the deadline: the refresh token it spent cannot be
+            # used again, so discarding the result would strand the credential.
             self._credential = self._store.mutate(
                 lambda current: self._refresh_rejected(current, rejected, deadline),
             )
