@@ -144,7 +144,7 @@ class RunInvocation(msgspec.Struct, frozen=True, rename="camel"):
     keep_workspaces: bool
 
     def __post_init__(self) -> None:
-        """Treat the fixture selection as the set it denotes."""
+        """Treat the fixture selection as the set that it denotes."""
 
         msgspec.structs.force_setattr(
             self,

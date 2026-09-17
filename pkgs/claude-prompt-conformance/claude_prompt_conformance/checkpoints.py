@@ -115,7 +115,7 @@ class RunMetadataDecodeError(ConformanceError):
 
 @dataclass(frozen=True)
 class StoredTestResult:
-    """Terminal result plus the durable evidence identity it was judged against."""
+    """Terminal result, with the durable evidence identity of the judgement."""
 
     result: TestResult
     contract: str
@@ -703,7 +703,7 @@ def digest_member(digest: DigestWriter, name: str, contents: bytes) -> None:
 
 
 def calibration_declaration(fixture: Fixture) -> CalibrationVerdicts:
-    """Describe the reference verdicts a fixture expects its judge to reach."""
+    """Describe the reference verdicts that a fixture expects from its judge."""
 
     return tuple(
         (candidate.name, candidate.expected_criteria)

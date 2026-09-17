@@ -224,7 +224,7 @@ class ImprovementRequest:
 
 @dataclass(frozen=True)
 class DraftOutcome:
-    """One tournament draft, the prompt it built, and how it was judged."""
+    """One tournament draft, the prompt that it built, and how it was judged."""
 
     index: int
     identifier: str
@@ -979,7 +979,7 @@ def prompt_patch_path(value: str) -> Path:
 
 
 def is_supported_prompt_path(path: Path) -> bool:
-    """Constrain proposals to the prompt source directories the improver lists."""
+    """Constrain proposals to the prompt source directories that the improver lists."""
 
     match path.parts:
         case (directory, *relative) if directory in PROMPT_DIRECTORIES:
@@ -1236,7 +1236,7 @@ def encode_summary_path(value: object) -> str:
 
 
 def prompt_tree_diff(base: Path, variant: Path) -> str:
-    """Describe every accepted prompt change the improver was able to make."""
+    """Describe every accepted prompt change that the improver was able to make."""
 
     relative_paths = sorted(
         set(prompt_tree_files(base)) | set(prompt_tree_files(variant))
