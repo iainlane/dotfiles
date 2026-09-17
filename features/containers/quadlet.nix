@@ -2,9 +2,9 @@
 #
 # quadlet-nix supplies the module; `./podman.nix` supplies the podman options
 # and the /etc/containers files it builds on. Both vendored pieces are in
-# `./vendored`. This file sets the podman package quadlet-nix generates units
-# against. quadlet-nix expects the host distribution to supply podman, and
-# these hosts run the podman that Nix builds.
+# `./vendored`. This file sets the podman package for the units that quadlet-nix
+# generates. quadlet-nix expects the host distribution to supply podman, and
+# these hosts run the podman built by Nix.
 {
   config,
   lib,
@@ -43,9 +43,8 @@ in {
       ];
 
       # The quadlet generator comes from podman itself, which the podman module
-      # puts in `systemd.packages`. Naming the same package here means the
-      # command lines quadlet-nix writes into the units it generates run the
-      # podman that generated them.
+      # puts in `systemd.packages`. Using the same package here makes the
+      # generated units call the podman that generated them.
       virtualisation.quadlet.podmanPackage = config.virtualisation.podman.package;
     })
   ];
