@@ -224,7 +224,11 @@ class ClaudeFileCredentialStore:
         return ClaudeCredential.decode(value)
 
     def current(self) -> ClaudeCredential:
-        """Read the credential the host has stored now."""
+        """Read the stored credential.
+
+        `ReconcilableCredentials` calls this operation `current`, and
+        `ClaudeCredentialStore` calls it `load`.
+        """
 
         return self.load()
 
