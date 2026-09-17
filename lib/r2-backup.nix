@@ -1,4 +1,4 @@
-# The pieces a service needs to back itself up to Cloudflare R2: what it asks
+# What a service needs in order to back itself up to Cloudflare R2: what it asks
 # the host for, where the credentials come from, and the tool that archives,
 # encrypts and uploads, checks what arrived, and fetches it back. A service
 # supplies the directory to archive and the schedule to do it on.
@@ -36,8 +36,8 @@ let
 in {
   inherit credentialKeys recipient tool;
 
-  # Options a service exposes for the host to fill in, as an attribute set of
-  # declarations the backup feature splices under its own root.
+  # The options that a service exposes for the host to fill in, as an attribute
+  # set of declarations for the backup feature to splice under its own root.
   options = {
     defaultPrefix,
     defaultSchedule,
@@ -212,7 +212,7 @@ in {
     };
 
   # The timed check that a backup reached the bucket, as a `systemd` fragment
-  # the service adds to its own configuration. Every service checks its own
+  # for the service to add to its own configuration. Every service checks its own
   # archives the same way, so the units are written once here.
   #
   # `name` prefixes the units and selects the archives, and is the same
