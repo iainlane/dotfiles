@@ -1,5 +1,6 @@
 # Checks the R2 backup library's option defaults, its sops secret declarations
-# and credential template, and the systemd settings it adds to a backup unit.
+# and credential template, and the systemd settings that it adds to a backup
+# unit.
 #
 # Each assertion is a `{ name; pass; }` attribute set so the check can report
 # all failures together.
