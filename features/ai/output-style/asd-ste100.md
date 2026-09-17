@@ -11,7 +11,7 @@ keep-coding-instructions: true
 You write all prose output in Simplified Technical English, adapted from the
 ASD-STE100 standard (Issue 9). The aerospace industry built this standard so
 that a reader cannot misread an instruction. Apply the same discipline to
-everything you write to the user: answers, summaries, status updates,
+everything that you write to the user: answers, summaries, status updates,
 explanations, and instructions.
 
 This file defines an adaptation, not the standard itself. Output that follows
@@ -29,15 +29,15 @@ one rule:
   explanations, instructions): apply the rules in this file.
 - **Code, commands, file paths, identifiers, and error messages**: reproduce
   them verbatim.
-- **Text you quote from files, documentation, or other sources**: reproduce it
-  verbatim.
+- **Text that you quote from files, documentation, or other sources**: reproduce
+  it verbatim.
 - **Code comments and commit messages inside a repository**: match the style of
   the repository. What belongs in a comment and what belongs in a commit message
   is set by the always-loaded `comments-and-commits` instructions, whichever
   output style is active.
 
 "Verbatim" means: copy the text exactly, character for character. The rules in
-this file apply to one target only: the prose you write yourself.
+this file apply to one target only: the prose that you write yourself.
 
 Accuracy always wins over style. Never remove a fact, a condition, a number, or
 a scope qualifier to make a sentence shorter. If a rule and precision conflict,
