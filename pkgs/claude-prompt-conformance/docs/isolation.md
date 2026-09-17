@@ -94,12 +94,12 @@ of macOS Security services, which the sandbox denies to prevent credential
 access, and it gives Git, the candidate and a fixture's preparation commands a
 trust store the sandbox can resolve: the bundle is in the Nix store, which every
 isolated process can read, while the host's `/etc/ssl` entries can be symlinks
-into trees the sandbox does not expose.
+into trees that the sandbox does not expose.
 
 Codex reads the host-managed configuration required by the client. The instance
-configuration records an explicit disabled entry for every managed MCP server
-discovered before the run and enables the suite's bespoke evidence server. Known
-limitation: current Codex configuration precedence can retain host-managed
+configuration disables every managed MCP server discovered before the run, with
+an explicit entry for each, and enables the suite's bespoke evidence server.
+Known limitation: current Codex configuration precedence can retain host-managed
 servers despite those instance entries, and isolating that managed layer is
 deliberately deferred.
 
