@@ -28,10 +28,10 @@ in rec {
   };
 
   # Resolves `features` and their transitive includes into composition order.
-  # Each feature comes after the features it includes, and a feature reached
-  # more than once appears once. The includes under `os.<os>` are followed
-  # only for the host's OS. An include cycle is an error: `closure` throws and
-  # names the features in the cycle.
+  # Each feature comes after its own includes, and a feature reached more than
+  # once appears once. The includes under `os.<os>` are followed only for the
+  # host's OS. An include cycle is an error: `closure` throws and lists the
+  # features in the cycle.
   #
   # `excludes` names features to drop. A dropped feature contributes no
   # modules, and the walk does not follow its includes, so a feature that
