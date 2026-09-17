@@ -231,9 +231,8 @@ def add_suite_arguments(result: argparse.ArgumentParser) -> None:
 def add_prompt_arguments(result: argparse.ArgumentParser) -> None:
     """Declare the flags that describe the prompt configuration under test.
 
-    A caller assembles these: the prompt for the candidate, the managed
-    settings for the run, the sources that a variant patches, and the three
-    models.
+    A caller assembles these: the candidate's prompt, the managed settings, the
+    sources that a variant patches, and the three models.
     """
 
     group = result.add_argument_group("prompt configuration")
