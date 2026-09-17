@@ -9,7 +9,7 @@
 # the same way, and ports 80 and 443 are published on that address instead.
 #
 # The sites to serve come from the containers themselves: anything wrapped in
-# `exposePodman` gets labels giving the domain it answers to and whether it
+# `exposePodman` gets labels giving its domain and whether it
 # requires signing in first. This feature names no individual service.
 {config, ...}: let
   inherit (config.flake) features;
