@@ -86,6 +86,19 @@ class BrokenFileVale:
 
 
 @dataclass
+class BrokenContentVale:
+    """A vale that fails on a file containing `broken` and reports on every other."""
+
+    broken: str
+
+    def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+        if any(self.broken in path.read_text() for path in invocation.paths):
+            raise ValeFailed(FAILURE)
+
+        return tuple(em_dash(path, 1) for path in invocation.paths)
+
+
+@dataclass
 class LineVale:
     """A vale that reports one finding on each of `lines`, for every file."""
 
@@ -97,6 +110,26 @@ class LineVale:
         return tuple(
             em_dash(path, line) for path in paths for line in sorted(self.lines)
         )
+
+
+@dataclass
+class MirrorVale:
+    """A vale that records what each invocation asked it to read.
+
+    A file Vale reads for itself is recorded by its path and a mirror file by
+    its contents, because a mirror's own name is a scratch name.
+    """
+
+    invocations: list[tuple[tuple[str, ...], str | None]] = field(default_factory=list)
+
+    def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+        read = tuple(
+            path.read_text() if invocation.extension == ".md" else str(path)
+            for path in invocation.paths
+        )
+        self.invocations.append((read, invocation.extension))
+
+        return ()
 
 
 def em_dash(path: Path, line: int) -> Finding:
@@ -187,24 +220,39 @@ def test_the_commit_rules_are_off_outside_a_commit_message(runtime: Runtime) -> 
     ]
 
 
-def test_hash_comment_files_are_read_as_markdown_with_their_path(
-    runtime: Runtime, tmp_path: Path
+def test_hash_comment_files_are_mirrored_as_markdown_for_one_run(
+    tmp_path: Path,
 ) -> None:
     module = tmp_path / "module.nix"
     module.write_text("# A comment.\nx = 1;\n")
+    script = tmp_path / "build.sh"
+    script.write_text("# Another comment.\n")
     readme = tmp_path / "README.md"
     readme.write_text("Prose.\n")
+    vale = MirrorVale()
+    runtime = build_runtime(tmp_path, vale)
 
-    runtime.lint_paths((module, readme))
+    runtime.lint_paths((module, script, readme))
 
-    vale = runtime.vale
-    assert isinstance(vale, RecordingVale)
-    assert [
-        (i.paths, i.stdin_text, i.extension, i.path_hint) for i in vale.invocations
-    ] == [
-        ((readme,), None, None, None),
-        ((), "A comment.\n\n", ".md", str(module)),
+    assert vale.invocations == [
+        ((str(readme),), None),
+        (("A comment.\n\n", "Another comment.\n"), ".md"),
     ]
+
+
+def test_an_alert_on_a_mirror_is_reported_against_the_file_it_came_from(
+    tmp_path: Path,
+) -> None:
+    module = tmp_path / "module.nix"
+    module.write_text("# A comment.\nx = 1;\n")
+    script = tmp_path / "build.sh"
+    script.write_text("# Another comment.\n")
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)))
+
+    assert runtime.lint_paths((module, script)).findings == (
+        em_dash(module, 1),
+        em_dash(script, 1),
+    )
 
 
 def failure_finding(path: Path) -> Finding:
@@ -246,12 +294,24 @@ def test_a_hash_comment_file_vale_cannot_read_is_reported_the_same_way(
     tmp_path: Path,
 ) -> None:
     module = tmp_path / "module.nix"
-    module.write_text("# A comment.\n")
-    runtime = build_runtime(tmp_path, BrokenFileVale(broken=module))
+    module.write_text("# Malformed.\n")
+    runtime = build_runtime(tmp_path, BrokenContentVale(broken="Malformed."))
 
     report = runtime.lint_paths((module,))
 
     assert report.findings == (failure_finding(module),)
+
+
+def test_one_unreadable_mirror_leaves_the_others_linted(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.nix"
+    broken.write_text("# Malformed.\n")
+    readable = tmp_path / "readable.nix"
+    readable.write_text("# A comment.\n")
+    runtime = build_runtime(tmp_path, BrokenContentVale(broken="Malformed."))
+
+    report = runtime.lint_paths((broken, readable))
+
+    assert report.findings == (failure_finding(broken), em_dash(readable, 1))
 
 
 def test_only_the_lines_added_since_head_are_reported(tmp_path: Path) -> None:

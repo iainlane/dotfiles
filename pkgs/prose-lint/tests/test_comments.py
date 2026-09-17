@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import pytest
 
-from prose_lint.comments import hash_comments
+from prose_lint.comments import hash_comments, mirror_pairs
 
 
 @pytest.mark.parametrize(
@@ -15,3 +17,25 @@ from prose_lint.comments import hash_comments
 )
 def test_comments_keep_their_line_numbers(source: str, expected: str) -> None:
     assert hash_comments(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [
+        (
+            (Path("one.nix"),),
+            ((Path("/scratch/0.nix"), Path("one.nix")),),
+        ),
+        (
+            tuple(Path(f"f{index}.sh") for index in range(11)),
+            tuple(
+                (Path(f"/scratch/{index:02d}.nix"), Path(f"f{index}.sh"))
+                for index in range(11)
+            ),
+        ),
+    ],
+)
+def test_each_file_gets_a_mirror_whose_name_keeps_the_order(
+    paths: tuple[Path, ...], expected: tuple[tuple[Path, Path], ...]
+) -> None:
+    assert mirror_pairs(Path("/scratch"), paths) == expected

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import re
 import tempfile
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from functools import cached_property
 from pathlib import Path
 
 from prose_lint.changes import added_lines, every_line
-from prose_lint.comments import hash_comments
+from prose_lint.comments import hash_comments, mirror_pairs
 from prose_lint.config import Config, state_home
 from prose_lint.configuration import render_configuration
 from prose_lint.git import Git
@@ -120,8 +121,8 @@ class Runtime:
         if direct:
             findings.extend(self._lint_directly(direct))
 
-        for path in extracted:
-            findings.extend(self._lint_comments(path))
+        if extracted:
+            findings.extend(self._lint_comments(extracted))
 
         return Report(tuple(findings))
 
@@ -195,23 +196,62 @@ class Runtime:
 
         return tuple(findings)
 
-    def _lint_comments(self, path: Path) -> tuple[Finding, ...]:
-        """The findings in a file's `#` comments, read as Markdown.
+    def _lint_comments(self, paths: tuple[Path, ...]) -> tuple[Finding, ...]:
+        """The findings in the `#` comments of `paths`, read as Markdown.
 
-        The path is passed to Vale as a hint so that the configuration
-        sections for code apply and the report shows the file's path.
+        Each file's comments are written to a file of their own in a scratch
+        directory and one Vale process reads them all. Vale keeps a document
+        per file, so a rule that reads a whole document, such as the spelling
+        consistency check, reports what it reports when the file is read on
+        its own. `--ext` makes Vale parse each mirror file as Markdown, which
+        the part-of-speech rules need, while the mirror's own name still
+        selects the rules for code.
+
+        `hash_comments` writes one line per source line, so an alert's line
+        is its line in the source file.
         """
-        try:
-            return self.vale.lint(
-                ValeInvocation(
-                    config=self.configuration(),
-                    stdin_text=hash_comments(path.read_text()),
-                    extension=".md",
-                    path_hint=str(path),
+        with tempfile.TemporaryDirectory(prefix="prose-lint-comments-") as scratch:
+            pairs = mirror_pairs(Path(scratch), paths)
+
+            for mirror, path in pairs:
+                mirror.write_text(hash_comments(path.read_text()))
+
+            return self._lint_mirrors(dict(pairs))
+
+    def _lint_mirrors(self, sources: Mapping[Path, Path]) -> tuple[Finding, ...]:
+        """The findings in a set of mirror files, reported against their sources.
+
+        As with a batch of files Vale reads for itself, one file that Vale
+        cannot parse fails the whole run, so a failed batch is read again one
+        file at a time.
+        """
+        mirrors = tuple(sources)
+
+        if len(mirrors) > 1:
+            try:
+                alerts = self.vale.lint(self._comment_invocation(mirrors))
+            except ValeFailed:
+                pass
+            else:
+                return tuple(_against_source(sources, alert) for alert in alerts)
+
+        findings: list[Finding] = []
+
+        for mirror in mirrors:
+            try:
+                findings.extend(
+                    _against_source(sources, alert)
+                    for alert in self.vale.lint(self._comment_invocation((mirror,)))
                 )
-            )
-        except ValeFailed as failure:
-            return (_failure_finding(path, failure),)
+            except ValeFailed as failure:
+                findings.append(_failure_finding(sources[mirror], failure))
+
+        return tuple(findings)
+
+    def _comment_invocation(self, mirrors: tuple[Path, ...]) -> ValeInvocation:
+        return ValeInvocation(
+            config=self.configuration(), paths=mirrors, extension=".md"
+        )
 
     def lint_commit_message(self, text: str, display_path: str) -> Report:
         return Report(
@@ -224,6 +264,13 @@ class Runtime:
                 )
             )
         )
+
+
+def _against_source(sources: Mapping[Path, Path], finding: Finding) -> Finding:
+    """One alert on a mirror file, reported against the file it was taken from."""
+    source = sources.get(Path(finding.path))
+
+    return finding if source is None else replace(finding, path=str(source))
 
 
 def _failure_finding(path: Path, failure: ValeFailed) -> Finding:

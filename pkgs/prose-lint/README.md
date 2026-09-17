@@ -11,10 +11,15 @@ Comments are read as Markdown, so code spans inside them are skipped and the
 part-of-speech rules run. For the languages Vale parses, the packaged
 configuration maps each to Markdown. For Nix, shell and the other formats with
 `#` comments, which Vale cannot parse, `prose-lint check` extracts the comments
-itself, one line per source line, and passes the file's path along so that the
-code-only rules apply and the report shows the file's path. Vale run directly on
-those files, as an editor does, still lints their comments through the packaged
-Perl mapping, without the part-of-speech rules.
+itself, one line per source line, and writes each file's comments to a scratch
+file of its own. One Vale process reads the whole set, with `--ext` so that it
+parses each scratch file as Markdown; the scratch names end in `.nix`, so the
+code-only rules apply, and each alert is reported against its source file. Vale
+reads a document per file, so a rule that reads a whole document, such as the
+spelling consistency check, reports the same as it does when the source file is
+read on its own. Vale run directly on those files, as an editor does, still
+lints their comments through the packaged Perl mapping, without the
+part-of-speech rules.
 
 The rules that match part-of-speech tags also read a lexicon,
 `styles/config/dictionaries/House.dict`. Each line gives a word one tag, which
