@@ -351,7 +351,7 @@ def atomic_write(root: Path, destination: Path, contents: bytes) -> None:
 
 
 def replace_private_file(destination: Path, contents: bytes) -> None:
-    """Atomically install a 0600 file in a directory the suite does not own.
+    """Atomically install a 0600 file in a directory that the suite does not own.
 
     `atomic_write` covers run-owned paths and checks them against a run root.
     Host credential directories are outside the run store, so this function
