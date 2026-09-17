@@ -303,8 +303,8 @@ def _source_text(path: Path) -> str:
 
     prose-lint hands these paths to Vale without opening them, so nothing has
     decoded the file before this point, and Vale tolerates bytes that
-    `read_text` raises on. The alerts in such a file are then reported as Vale gave them,
-    uncorrected.
+    `read_text` raises on. The corrections then skip that file and its alerts
+    are reported as Vale gave them.
     """
     try:
         return path.read_text()
