@@ -9,7 +9,7 @@
 # body as an ordinary instruction. Claude Code receives it twice on purpose.
 # It installs the styles natively and selects one through its settings, which
 # reaches the main agent; subagents run their own system prompt and are given
-# no output style, so the rule file is the copy they read.
+# no output style, so subagents read the rule file.
 #
 # Returns { files, concatenated, outputStyles, harnesses } where:
 #   files: { stem = content; } for each instruction, for tools that accept
