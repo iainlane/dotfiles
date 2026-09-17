@@ -20,24 +20,25 @@ and the pinned client versions are recorded with every run.
 ## Judging
 
 Codex judges the evidence blindly against the fixture's outcome, process, and
-communication criteria. Judgements use GPT-5.6 Terra at high effort; the prompt
-improver uses GPT-5.6 Sol at high effort (see [improvement.md]).
+communication criteria. The judge and the improver each run at high effort on
+the models that the package and the `ai` feature configure for those roles (see
+[improvement.md]).
 
 Each evaluator receives a fresh, neutral Codex working directory and a bespoke
 read-only MCP server for its subject. The server's schema-backed tools expose
 the original task and criteria, the final response, the canonical Claude
 actions, the Git patch and commits, the deterministic check results, the
 controlled prompt, and the candidate workspace. Evidence is paged or listed, so
-the evaluator can request the detail a criterion needs without every transcript
-and repository file entering its initial context. Codex returns a separate
-JSON-schema-constrained judgement.
+the evaluator can request detail one criterion at a time instead of loading
+every transcript and repository file into its initial context. Codex returns a
+separate JSON-schema-constrained judgement.
 
-The judge sees the same controlled prompt context the candidate received, but
-only as evidence. Its own working directory stays neutral, so the candidate
-repository cannot configure the judge.
+The judge sees the candidate's controlled prompt context, but only as evidence.
+Its own working directory stays neutral, so the candidate repository cannot
+configure the judge.
 
-A failed judgement identifies the likely origin of the failure, shows the work
-the evaluator would have produced, provides a corrected final response, and
+A failed judgement identifies the likely origin of the failure, shows what the
+evaluator itself would have produced, provides a corrected final response, and
 records prompt observations when the controlled prompt contributed to the
 failure.
 
@@ -57,9 +58,9 @@ expected decisions from the same evidence interface used for live work. Process
 criteria are exempt because they require the candidate's real action trace; a
 fixture marks such a criterion with `calibrate` set to `false`.
 
-A calibration failure in any sample cancels the rest of that evaluation;
-measurements made by an unvalidated evaluator cannot be trusted, so they are not
-paid for.
+A calibration failure in any sample cancels the rest of that evaluation. An
+unvalidated evaluator's measurements cannot be trusted, and cancelling stops the
+run spending further model requests on them.
 
 ## Verification gates
 
@@ -70,17 +71,18 @@ failure.
 
 ## The result store
 
-The result directory is positional and is also the durable run store. Repeating
-the same command resumes it: completed fixture results are reused, and a fixture
-with complete candidate evidence continues at the judge. A different set of
-controlled inputs is rejected.
+The result directory given on the command line is also the durable run store.
+Repeating the same command resumes it: completed fixture results are reused, and
+a fixture with complete candidate evidence continues at the judge. A different
+set of controlled inputs is rejected.
 
-Versioned stores with a retained input snapshot are upgraded in place. Evidence
-from an older unversioned store is retained for inspection but rerun, because it
-cannot be bound to the complete fixture contract. Harness-only updates use the
+The store format has a version, and that version is part of the run identity, so
+a store written by an earlier version is rejected like one written from
+different inputs. There is no upgrade path: the evidence stays on disk, and the
+run has to start again in another directory or with `--unlink-first`, which
+removes only a directory with this suite's marker. Harness-only updates use the
 current executables without changing the retained prompt, fixtures, or other
-experiment inputs. `--unlink-first` removes only a directory with this suite's
-marker before starting again.
+experiment inputs.
 
 At startup the runner reads every immutable task, prompt, setting, schema,
 certificate, and prompt-variant source into memory, then writes a private
@@ -91,10 +93,10 @@ depend on the original Nix store paths remaining alive.
 
 One run-wide pool bounds how many agent processes are active at once, whatever
 work asked for them: samples, fixtures, reference subjects, and competing drafts
-all draw on the same pool, and `--jobs COUNT` sets its size, six by default.
-Only candidate, judge, and improver invocations hold a slot; repository
-preparation, evidence capture, and deterministic checks do not, so the limit
-counts concurrent model invocations only.
+all draw on the same pool, and `--jobs` sets its size. Only candidate, judge,
+and improver invocations take a slot; repository preparation, evidence capture,
+and deterministic checks do not, so the limit counts concurrent model
+invocations only.
 
 ## Run artefacts
 
