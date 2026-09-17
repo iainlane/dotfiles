@@ -10,7 +10,7 @@ TIMEOUT_SECONDS = 10.0
 
 
 class Git(Protocol):
-    """The git questions prose-lint asks about the directory it runs in."""
+    """The git questions that prose-lint asks about its working directory."""
 
     def root(self) -> Path | None: ...
 
