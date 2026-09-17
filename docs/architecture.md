@@ -185,10 +185,9 @@ an error naming the features in the cycle.
 with fixtures covering each of those.
 
 `flake/parts/checks/feature-registration.nix` enforces the layout rules above.
-It reads the file each definition of `flake.features` came from and fails when a
-top-level feature is registered anywhere but the `default.nix` of the directory
-its name belongs to, or when a file adds children to a feature outside that
-directory.
+It reads the file of each definition of `flake.features` and fails when a
+top-level feature is registered outside the `default.nix` of its own directory,
+or when a file adds children to a feature outside that directory.
 
 ## Options
 
