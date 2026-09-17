@@ -1,5 +1,5 @@
 # Rebuilds the prompt from a patched copy of the instruction sources. An
-# improvement run builds this expression for each proposal it races, and
+# improvement run builds this expression for each proposal that it races, and
 # replaces the prompt inputs of the run with the directory below.
 {
   managedSettings,
