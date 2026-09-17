@@ -301,9 +301,9 @@ def _texts(findings: Sequence[Finding], comments: Mapping[Path, str]) -> dict[st
 def _source_text(path: Path) -> str:
     """A file's text, empty when it cannot be decoded.
 
-    prose-lint hands these paths to Vale without opening them, so this is the
-    first time it decodes one, and Vale tolerates bytes that `read_text`
-    raises on. The alerts in such a file are then reported as Vale gave them,
+    prose-lint hands these paths to Vale without opening them, so nothing has
+    decoded the file before this point, and Vale tolerates bytes that
+    `read_text` raises on. The alerts in such a file are then reported as Vale gave them,
     uncorrected.
     """
     try:
