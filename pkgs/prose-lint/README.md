@@ -125,11 +125,10 @@ warnings let it through with the findings attached. Every other command produces
 no output.
 
 `prose-lint hook stop` reads a Stop payload and lints the working tree against
-HEAD: every file that git reports as changed, and every file it does not track
-yet. Of the findings in those files it keeps the ones on the lines that the
-working tree added or rewrote, so the hook reads the prose of this session and
-leaves the rest of each file alone. Errors come back as a `block` decision and
-warnings as a system message.
+HEAD: every file that git reports as changed, and every untracked file. It
+reports only the findings on lines that the working tree added or rewrote, so
+the hook reads the prose of this session and leaves the rest of each file alone.
+Errors come back as a `block` decision and warnings as a system message.
 
 Claude Code sets `stop_hook_active` when the model is already answering a block
 from this hook, and the hook then returns nothing, so the same turn cannot be
