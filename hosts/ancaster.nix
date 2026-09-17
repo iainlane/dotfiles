@@ -40,8 +40,9 @@ in {
             # publishes its ports on it. A /32, because it is routed here and
             # shares no subnet with the LAN.
             "81.187.184.100/32"
-            # One address out of the /64 routed here. The rest of the prefix is
-            # delegated to the proxy's own podman network.
+            # The host's own address out of the /64 routed here. A /128 leaves
+            # the rest of the prefix off-link, so podman accepts a subnet out
+            # of the same /64 for the proxy's network.
             "2001:8b0:df29:1a0::/128"
           ];
           networkConfig = {
