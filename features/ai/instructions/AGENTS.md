@@ -25,9 +25,9 @@
   - Otherwise, use upstream source. Where source is not enough for conventions
     or intended usage, consult the official documentation.
 - Do not edit comments, documentation, or other prose that is separate from the
-  code you are changing unless the task calls for that cleanup.
+  code that you are changing unless the task calls for that cleanup.
 - If, while working or testing, you find a pre-existing bug, a performance
-  concern, or behaviour the task does not mention, do not fix, optimise, or
+  concern, or behaviour that the task does not mention, do not fix, optimise, or
   extend it in this change unless the requested behaviour cannot work without
   it. Report it as a follow-up in your summary.
 - Where the task is ambiguous, implement the reading its wording and the
