@@ -4,6 +4,7 @@ from prose_lint.levels import Level
 from prose_lint.relative_clauses import (
     without_contained_duplicates,
     without_fronted_adverbials,
+    without_mistagged_adverbials,
 )
 from prose_lint.report import Finding
 
@@ -131,3 +132,27 @@ def test_a_match_inside_another_rules_alert_is_kept() -> None:
     relative = alert("option a module declares")
 
     assert without_contained_duplicates((other, relative)) == (other, relative)
+
+
+@pytest.mark.parametrize(
+    "match",
+    [
+        "The lint no longer objects",
+        "The module no longer exists",
+        "The cache no more holds",
+    ],
+)
+def test_a_mistagged_adverbial_is_dropped(match: str) -> None:
+    assert without_mistagged_adverbials((alert(match),)) == ()
+
+
+def test_a_clause_headed_by_no_is_kept() -> None:
+    finding = alert("no key this repository sets")
+
+    assert without_mistagged_adverbials((finding,)) == (finding,)
+
+
+def test_another_rule_keeps_its_mistagged_adverbial() -> None:
+    finding = alert("The lint no longer objects", rule="Prose.EmDash")
+
+    assert without_mistagged_adverbials((finding,)) == (finding,)

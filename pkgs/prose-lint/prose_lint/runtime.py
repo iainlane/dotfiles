@@ -20,6 +20,7 @@ from prose_lint.relative_clauses import (
     RELATIVE_CLAUSE_RULES,
     without_contained_duplicates,
     without_fronted_adverbials,
+    without_mistagged_adverbials,
 )
 from prose_lint.report import Finding, Report
 from prose_lint.rules import HASH_COMMENT_SUFFIXES, RuleCatalogue
@@ -275,8 +276,10 @@ class Runtime:
 def _refined(
     findings: tuple[Finding, ...], texts: Mapping[str, str]
 ) -> tuple[Finding, ...]:
-    """The findings with the two relative-clause corrections applied."""
-    return without_contained_duplicates(without_fronted_adverbials(findings, texts))
+    """The findings with the three relative-clause corrections applied."""
+    return without_contained_duplicates(
+        without_mistagged_adverbials(without_fronted_adverbials(findings, texts))
+    )
 
 
 def _texts(findings: Sequence[Finding], comments: Mapping[Path, str]) -> dict[str, str]:

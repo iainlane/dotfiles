@@ -62,6 +62,31 @@ def without_fronted_adverbials(
     )
 
 
+_MISTAGGED_ADVERBIALS = ("no longer", "no more")
+
+
+def without_mistagged_adverbials(findings: Sequence[Finding]) -> tuple[Finding, ...]:
+    """Every finding but a relative-clause alert on "no longer" or "no more".
+
+    "The module no longer exists" tags as a determiner, a noun, a determiner,
+    a comparative and a verb, which is the shape that these rules match. Both
+    words belong to one adverbial and neither can head a clause. A genuine
+    clause whose subject opens with "no" keeps its alert, because its match
+    has a head noun where the idiom has the comparative.
+    """
+    return tuple(
+        finding
+        for finding in findings
+        if finding.rule not in RELATIVE_CLAUSE_RULES or not _mistagged(finding.match)
+    )
+
+
+def _mistagged(match: str) -> bool:
+    lowered = match.lower()
+
+    return any(idiom in lowered for idiom in _MISTAGGED_ADVERBIALS)
+
+
 def without_contained_duplicates(findings: Sequence[Finding]) -> tuple[Finding, ...]:
     """Every finding but a relative-clause alert inside another one on its line.
 

@@ -404,3 +404,11 @@ def test_a_fronted_adverbial_in_a_commit_message_is_not_reported(
     )
 
     assert report.findings == ()
+
+
+def test_a_mistagged_adverbial_in_a_comment_is_not_reported(tmp_path: Path) -> None:
+    module = tmp_path / "module.nix"
+    module.write_text("# The lint no longer objects.\n")
+    runtime = build_runtime(tmp_path, RelativeClauseVale("The lint no longer objects"))
+
+    assert runtime.lint_paths((module,)).findings == ()
