@@ -10,7 +10,7 @@
   serverPackages,
 }:
 # The per-channel half of the shared MCP server set: the tools built from this
-# channel's package set, and the helpers each harness uses to reshape the
+# channel's package set, and the helpers that each harness uses to reshape the
 # servers.
 let
   mcpRemote = import ./mcp-remote.nix {inherit lib pkgs;};
