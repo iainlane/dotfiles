@@ -4,8 +4,8 @@
 # The fixtures are attribute sets shaped like evaluated `flake.features`
 # entries, children included: a child is a feature value whose name is
 # qualified by its parent's. Each assertion compares the complete module list
-# returned by the resolver, including its order. Which definition of an option wins after
-# resolution is decided by the module system and is not tested here.
+# returned by the resolver, including its order. Which definition of an option
+# wins after resolution is decided by the module system and is not tested here.
 #
 # The merge assertion evaluates two fixture files against the real type of
 # `flake.features`, so it covers the declaration in
