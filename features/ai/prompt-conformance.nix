@@ -1,7 +1,7 @@
 # Gives the prompt-conformance suite the prompt this flake actually deploys.
 #
 # The suite package builds the program, its fixtures and the machinery of a
-# run, and takes the configuration it measures on the command line. This module
+# run, and takes the configuration to measure on the command line. This module
 # assembles that configuration from the instruction set, the managed settings
 # and the model table of this feature, wraps the program with it, and exposes
 # the result as `nix run .#claude-prompt-conformance`.
@@ -107,7 +107,7 @@
     # The program loads its whole configuration before it lists anything, so
     # `--list` fails as soon as this module and the package stop fitting
     # together. The comparisons below check the fixture catalogue and one
-    # assembled rule against the file it came from.
+    # assembled rule against its source file.
     checks.prompt-conformance-configuration =
       pkgs.runCommandLocal "prompt-conformance-configuration" {
         nativeBuildInputs = [configured pkgs.diffutils pkgs.gnugrep pkgs.jq];
