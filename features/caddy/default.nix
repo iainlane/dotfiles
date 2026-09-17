@@ -102,9 +102,6 @@ in {
 
             oidcConfig.issuerURL = idp.issuer;
 
-            # PKCE: the token request has to include the verifier for the
-            # authorisation code intercepted in flight cannot be redeemed
-            # without that verifier.
             code_challenge_method = "S256";
 
             # An empty list is not the same as leaving this out: oauth2-proxy's
@@ -553,11 +550,8 @@ in {
                 exec = "run --config ${configPath}";
                 entrypoint = "${caddyPackage}/bin/caddy";
 
-                # IPv6 traffic is routed to `ipv6Address` on the network
-                # directly. The host has one public IPv4 address and no IPv4
-                # range to delegate the same way, so these ports are published
-                # on that address. The UDP port serves HTTP/3, which Caddy
-                # advertises through Alt-Svc.
+                # The UDP port serves HTTP/3, which Caddy advertises through
+                # Alt-Svc.
                 publishPorts = lib.optionals (cfg.ipv4Address != null) [
                   "${cfg.ipv4Address}:80:80"
                   "${cfg.ipv4Address}:443:443"

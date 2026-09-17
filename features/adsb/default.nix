@@ -27,9 +27,9 @@
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
-      # A page is exposed to the outside only through the proxy. The host sets
-      # the public name and whether to require sign-in, and this feature sets
-      # the port the page listens on inside its container.
+      # Returns the container unchanged when the host sets no `expose`, or
+      # when there is no proxy, so this feature evaluates on a host without
+      # one.
       served = expose: port: container:
         if expose != null && config.dotfiles.containers.edgeProxy.enable
         then name: exposePodman name container (expose // {inherit port;})
@@ -75,7 +75,6 @@
             name = "rtl-blacklist.conf";
           };
 
-          # and list the ids of every dongle the library supports.
           environment.etc."udev/rules.d/60-rtl-sdr.rules".source = "${pkgs.rtl-sdr}/etc/udev/rules.d/rtl-sdr.rules";
 
           sops = {
