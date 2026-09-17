@@ -7,7 +7,9 @@ message:
   only when the clause does nothing but identify the noun."
 level: warning
 tokens:
-  - tag: DT
+  # Anchored so that DT does not also match a pronoun's WDT; see
+  # ZeroRelative.yml.
+  - tag: ^DT$
   - tag: NN|NNS|NNP
   - tag: NNP
   - tag: NN|NNS|NNP|JJ

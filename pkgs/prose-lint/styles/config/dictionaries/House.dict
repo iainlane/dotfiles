@@ -25,6 +25,7 @@ providers	NNS
 repositories	NNS
 repository	NN
 secret	NN
+secrets	NNS
 setting	NN
 settings	NNS
 submodule	NN

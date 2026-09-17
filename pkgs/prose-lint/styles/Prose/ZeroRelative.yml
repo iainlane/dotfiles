@@ -6,11 +6,12 @@ message:
   add the pronoun only when the clause does nothing but identify the noun."
 level: error
 tokens:
-  - tag: DT
-  - tag: NN|NNS|NNP
   # Vale does not anchor a tag pattern, so a bare DT also matches the WDT of
-  # a relative pronoun and the rule would fire on a clause with its pronoun in
-  # place.
+  # a relative or interrogative pronoun: the rule would fire on a clause with
+  # its pronoun in place, and on a subject clause such as "which secrets a
+  # machine needs".
+  - tag: ^DT$
+  - tag: NN|NNS|NNP
   - tag: ^(?:DT|PRP\$)$
   - tag: NN|NNS|NNP|JJ
   - tag: VBZ|VBD|VBP|NNS
