@@ -20,7 +20,7 @@ def remote_owner(url: str) -> str | None:
 
 
 def repository_is_owned(urls: Iterable[str], owners: Sequence[str]) -> bool:
-    """Whether every remote points at an account the configuration lists.
+    """Whether every remote points at one of the configured owner accounts.
 
     A repository with no remotes counts as owned: it exists only on this
     machine, so there is no other account it could belong to.

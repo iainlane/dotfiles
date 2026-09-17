@@ -19,7 +19,7 @@ def effective_levels(
     variant: SpellingVariant,
     overrides: Mapping[str, Level],
 ) -> dict[str, Level]:
-    """The level each rule runs at here.
+    """The level at which each rule runs in this repository.
 
     A house rule is one writer's preference, so outside that writer's own
     repositories it is capped at warning and cannot fail a check. An override

@@ -18,7 +18,7 @@ class Tier(Enum):
 
 
 class Scope(Enum):
-    """The files a rule applies to."""
+    """The set of files to which a rule applies."""
 
     all = "all"
     commit = "commit"
