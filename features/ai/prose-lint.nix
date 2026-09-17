@@ -3,7 +3,7 @@
 # `prose-lint` runs Vale over a file that an agent has just edited, over a
 # commit message, or over the files named on its command line. This module installs it
 # with Vale and the Vale language server and writes the two configuration
-# files they read. ./README.md describes the rule tiers and how a rule is
+# files that they read. ./README.md describes the rule tiers and how a rule is
 # overridden; the Claude Code hooks that call the tool are in
 # ./claude-code/managed-settings-common.nix.
 {
