@@ -1,10 +1,10 @@
 # Checks feature resolution against fixtures, and the class-module merge
-# against the option type this flake declares.
+# against the option type that this flake declares.
 #
 # The fixtures are attribute sets shaped like evaluated `flake.features`
 # entries, children included: a child is a feature value whose name is
-# qualified by its parent's. Each assertion compares the complete module list the resolver
-# returns, including its order. Which definition of an option wins after
+# qualified by its parent's. Each assertion compares the complete module list
+# returned by the resolver, including its order. Which definition of an option wins after
 # resolution is decided by the module system and is not tested here.
 #
 # The merge assertion evaluates two fixture files against the real type of
@@ -36,7 +36,7 @@
     // attrs;
 
   # The resolver reads the kernel from the host's system string, so each OS
-  # in the fixtures gets the system its hosts have.
+  # in the fixtures gets the system of its hosts.
   systemFor = {
     nixos = "x86_64-linux";
     "generic-linux" = "x86_64-linux";
@@ -75,8 +75,8 @@
     os.nixos.includes = [borgmatic];
   };
 
-  # A feature and the children it provides. `shell` includes `zsh` everywhere
-  # and `openssh` on NixOS; `fzf` is a child nothing includes by default.
+  # A feature and its children. `shell` includes `zsh` everywhere and `openssh`
+  # on NixOS; `fzf` is a child that nothing includes by default.
   zsh = mkFeature "shell.zsh" {homeManager = "shell-zsh-home";};
   openssh = mkFeature "shell.openssh" {nixos = "shell-openssh-nixos";};
   fzf = mkFeature "shell.fzf" {homeManager = "shell-fzf-home";};
@@ -108,7 +108,7 @@
 
   # Two files defining one class of one feature, evaluated against the real
   # declaration in `flake/parts/features.nix`, so the merge and the file
-  # tagging are the ones the flake uses.
+  # tagging are the ones that the flake uses.
   mergedClassFiles = let
     evaluated = lib.evalModules {
       specialArgs = {inherit inputs;};
