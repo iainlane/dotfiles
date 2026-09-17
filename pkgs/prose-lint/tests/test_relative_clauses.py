@@ -44,6 +44,18 @@ def alert(match: str, *, line: int = 1, rule: str = "Prose.ZeroRelative") -> Fin
             "The hook runs first. Outside a repository the hook has nothing to do.",
             "repository the hook has",
         ),
+        (
+            "Postgres will not run as root, and at startup it looks up its name.",
+            "startup it looks",
+        ),
+        (
+            "On Linux it polls `a.b.c` every `pollMs`; on macOS it reads the style.",
+            "macOS it reads",
+        ),
+        (
+            "It covers library APIs, and over a whole repository they outnumber it.",
+            "repository they outnumber",
+        ),
     ],
 )
 def test_a_fronted_adverbial_is_dropped(text: str, match: str) -> None:
@@ -62,6 +74,17 @@ def test_a_fronted_adverbial_is_dropped(text: str, match: str) -> None:
             "option the module declares",
         ),
         ("Every option this repository declares is listed.", "option this repository"),
+        (
+            "The tier it belongs to, and the level it runs at, are recorded here.",
+            "tier it belongs",
+        ),
+        (
+            (
+                "It binds a directory, and on a Nix host its entries are"
+                " symlinks into trees the sandbox cannot see."
+            ),
+            "trees the sandbox cannot see",
+        ),
     ],
 )
 def test_a_clause_with_no_fronted_adverbial_is_kept(text: str, match: str) -> None:

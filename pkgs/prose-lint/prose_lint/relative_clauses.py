@@ -18,15 +18,25 @@ RELATIVE_CLAUSE_RULES = frozenset(
 )
 
 _PREPOSITION = (
-    r"(?:In|On|At|For|With|From|By|Under|Within|Outside|Inside|During|After"
-    r"|Before|Without|Against|Across|Per|Between|Through|Among|Beyond|Since"
-    r"|Until|Above|Below|Near|Around|Over)\b"
+    r"(?:in|on|at|for|with|from|by|under|within|outside|inside|during|after"
+    r"|before|without|against|across|per|between|through|among|beyond|since"
+    r"|until|above|below|near|around|over)\b"
 )
 
-# A preposition that opens the sentence, with no sentence boundary between it
-# and the match.
-_FRONTED = re.compile(rf"(?:^|(?<=[.!?]) ){_PREPOSITION}[^.!?]*$")
-_OPENS_A_PHRASE = re.compile(_PREPOSITION)
+# A clause boundary: one of these marks followed by a space, or a comma and a
+# coordinator. The mark has to be followed by a space, because the full stops
+# in `org.gnome.desktop` end no clause.
+_BOUNDARY = re.compile(r"[.!?;:]\s|,\s(?:and|but|or|so|yet)\s", re.IGNORECASE)
+
+_FRONTED = re.compile(rf"{_PREPOSITION}(?P<between>.*)$", re.IGNORECASE)
+_OPENS_A_PHRASE = re.compile(_PREPOSITION, re.IGNORECASE)
+
+# The matched noun is the object of the fronted phrase, so only a determiner
+# and a modifier or two can come between the preposition and the match: three
+# words cover "Outside a git | repository the hook has". Past that the phrase
+# has closed, and the words before the match are a subject and a verb of their
+# own, which is what these rules report.
+_MODIFIERS = 3
 
 # Vale reports a match as it appears in the source, and a clause may wrap over
 # two comment lines. The paragraph is searched with its lines joined by
@@ -97,7 +107,19 @@ def _fronted(text: str, finding: Finding) -> bool:
     if not head:
         return _OPENS_A_PHRASE.match(finding.match) is not None
 
-    return _FRONTED.search(head) is not None
+    found = _FRONTED.match(_last_clause(head))
+
+    return found is not None and len(found.group("between").split()) <= _MODIFIERS
+
+
+def _last_clause(head: str) -> str:
+    """The text of `head` after its last clause boundary."""
+    end = 0
+
+    for boundary in _BOUNDARY.finditer(head):
+        end = boundary.end()
+
+    return head[end:].strip()
 
 
 def _paragraph(lines: Sequence[str], line: int) -> str:

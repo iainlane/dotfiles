@@ -1,0 +1,18 @@
+extends: sequence
+model: Lexicon
+message:
+  "A noun followed by a pronoun and a verb may be an object-relative clause
+  without 'that' or 'which'. Such a clause compresses a relationship into a noun
+  phrase: rewrite it as a prepositional phrase or its own sentence, and add
+  'that' or 'which' only when the clause does nothing but identify the noun."
+level: warning
+tokens:
+  # Anchored so that each tag does not also match a longer sibling; see
+  # ZeroRelative.yml. A reflexive pronoun takes the same PRP tag and never
+  # opens such a clause, so the subject pronouns are listed. Vale bounds a
+  # token pattern on both sides itself, and anchoring one with `^` and `$`
+  # stops it matching at all.
+  - tag: ^(?:NN|NNS)$
+  - pattern: (?:it|they|we|you|he|she)
+    tag: ^PRP$
+  - tag: ^(?:VBZ|VBD|VBP|MD)$
