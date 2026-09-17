@@ -13,7 +13,7 @@
   # macOS has no system-wide default locale to set: each login session takes
   # its locale from the user's Language & Region settings. `LANG` is written to
   # the environment file that /etc/zshenv and /etc/bashrc source, so shells and
-  # the programs they start use the locale the host record specifies.
+  # the programs that they start use the locale from the host record.
   environment.variables.LANG = hostConfig.locale;
 
   system.primaryUser = username;
