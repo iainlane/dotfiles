@@ -15,8 +15,8 @@
   r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";
-  # Nothing is substituted into the script, so it stays a plain shell file that
-  # shellcheck can run over. Every setting arrives in the environment: the
+  # Nothing is substituted into the script, so it stays a plain shell file, and
+  # shellcheck can run over it. Every setting arrives in the environment: the
   # systemd service supplies the non-secret values and the sops env file
   # supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
@@ -32,7 +32,7 @@
     ++ lib.optional cfg.dashboard.present "${cfg.dashboard.containerName}.service";
 
   # A restore is started by a person at a shell, so the script has the values
-  # it needs baked in and reads the credentials from the sops env file itself.
+  # that it needs baked in and reads the credentials from the sops env file itself.
   restoreScript = pkgs.writeShellApplication {
     name = "hermes-restore-r2";
     runtimeInputs = with pkgs; [coreutils findutils podman r2Tool rsync systemd];
