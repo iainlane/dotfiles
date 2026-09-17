@@ -121,7 +121,7 @@ judge criteria, where they cannot coach the candidate.
 
 ## Further documentation
 
-- [docs/evaluation.md]: the evidence a run captures, judging and calibration,
+- [docs/evaluation.md]: the evidence captured by a run, judging and calibration,
   and the result store.
 - [docs/improvement.md]: the prompt-improvement tournament.
 - [docs/isolation.md]: sandboxing and credential handling.
