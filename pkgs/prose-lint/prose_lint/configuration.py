@@ -16,8 +16,8 @@ def render_configuration(
 ) -> str:
     """The packaged Vale configuration with this run's levels in place of its own.
 
-    Vale keeps the first value it reads for a key, so a second [*] section
-    cannot shadow a level the packaged file already sets. The packaged levels
+    Vale keeps the first value that it reads for a key, so a second [*] section
+    cannot shadow a level that the packaged file already sets. The packaged levels
     are therefore removed before the new sections are appended.
 
     Within one file Vale takes the level from the last section that sets it and
