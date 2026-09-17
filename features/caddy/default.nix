@@ -1,14 +1,12 @@
-# Caddy is the single entry point for container services. It resolves each
-# and terminates TLS with certificates issued through the ACME DNS-01
-# challenge, so a certificate can be issued before any traffic arrives.
+# Caddy is the single entry point for a host's container services. It resolves
+# each backend by container name over a network shared with that service alone,
+# and obtains its certificates through the ACME DNS-01 challenge.
 #
 # Caddy's own network has a public IPv6 range delegated from the prefix routed
 # to this host, so Caddy has an IPv6 address the internet routes to directly.
 # The host has only one public IPv4 address, so no IPv4 range can be delegated
 # the same way, and ports 80 and 443 are published on that address instead.
-# The sites to serve come from the containers themselves: anything wrapped in
 # `exposePodman` gets labels giving its domain and whether it
-# requires signing in first. This feature names no individual service.
 {config, ...}: let
   inherit (config.flake) features;
   children = features.caddy.provides;
@@ -33,15 +31,11 @@ in {
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
-      # This plugin completes the ACME DNS-01 challenge by writing a TXT record
-      # through Cloudflare's API. The certificate authority reads that record
-      # from DNS and never connects to this host.
       # renovate: datasource=go depName=github.com/caddy-dns/cloudflare
       cloudflareDnsVersion = "v0.2.4";
 
-      # This plugin matches on the TLS handshake before Caddy hands the
-      # connection to the HTTP server, so a service speaking its own protocol
-      # can share port 443 with the web sites.
+      # Serves `edgeProxy.streams`: this plugin matches a connection on its TLS
+      # handshake, before the HTTP server sees it.
       # renovate: datasource=go depName=github.com/mholt/caddy-l4
       caddyL4Version = "v0.1.2";
 
@@ -63,9 +57,8 @@ in {
       configPath = "/etc/caddy/config.json";
       originPullCaPath = "/etc/caddy/origin-pull-ca.pem";
 
-      # The Cloudflare API token reaches Caddy in the environment. The
-      # generated config refers to it by name, so the token itself stays in the
-      # sops template file and out of the store.
+      # The generated config is world-readable in the store, so it refers to
+      # this variable and the token itself stays in the sops template.
       tokenEnvVar = "CF_API_TOKEN";
 
       authUpstream = "${cfg.auth.containerName}:${toString cfg.auth.port}";
@@ -78,10 +71,10 @@ in {
       authConfigPath = "/etc/oauth2-proxy.cfg";
       authAlphaConfigPath = "/etc/oauth2-proxy.yaml";
 
-      # Which OIDC claim oauth2-proxy returns under which response header.
+      # The OIDC claim that oauth2-proxy returns under each response header.
       # oauth2-proxy is configured from this set, and Caddy copies the same
-      # headers onto the request that it passes to the service, so the header a
-      # site's allow-list matches against is written down once.
+      # headers onto the request that it forwards, so a site's allow-list
+      # matches a header written down once.
       identityClaims = {
         "X-Auth-Request-User" = "user";
         "X-Auth-Request-Email" = "email";
@@ -94,9 +87,9 @@ in {
         values = [{claimSource = {inherit claim;};}];
       };
 
-      # oauth2-proxy's alpha config, which is the only place its provider
-      # definition and its injected response headers can be given. The rest of
-      # the configuration stays in the file below.
+      # The alpha config is the only place where oauth2-proxy accepts a
+      # provider definition and injected response headers. Everything else it
+      # needs is in `authConfigFile`.
       authAlphaConfigFile = (pkgs.formats.yaml {}).generate "oauth2-proxy.yaml" {
         server.bindAddress = "0.0.0.0:${toString cfg.auth.port}";
 
@@ -105,8 +98,8 @@ in {
             id = cfg.auth.clientId;
             provider = "oidc";
             clientID = cfg.auth.clientId;
-            # oauth2-proxy expands this when it loads the file, so the secret
-            # stays in the environment and out of the store.
+            # oauth2-proxy expands this when it reads the file, so the secret
+            # stays in the environment.
             clientSecret = "\${${authClientSecretEnv}}";
 
             oidcConfig.issuerURL = idp.issuer;
@@ -117,12 +110,9 @@ in {
             # without that verifier.
             code_challenge_method = "S256";
 
-            # No extra parameters on the authorisation request. In particular,
-            # no `approval_prompt=force`, which oauth2-proxy's legacy flag
-            # configuration sends by default and which makes the provider ask
-            # for consent at every sign-in. Every client here has the same
-            # operator as the provider, so this configuration does not ask for
-            # that additional prompt.
+            # An empty list is not the same as leaving this out: oauth2-proxy's
+            # legacy configuration defaults to `approval_prompt=force`, which
+            # asks the provider for consent at every sign-in.
             loginURLParameters = [];
           }
         ];
@@ -130,8 +120,8 @@ in {
         injectResponseHeaders = lib.mapAttrsToList authResponseHeader identityClaims;
       };
 
-      # Keys are oauth2-proxy's own option names with underscores for hyphens,
-      # pluralised where the option can be given more than once.
+      # Keys are oauth2-proxy's own option names with hyphens written as
+      # underscores, pluralised where the option can be repeated.
       authConfigFile = (pkgs.formats.toml {}).generate "oauth2-proxy.cfg" {
         # A path with no host, so oauth2-proxy builds the callback from the
         # scheme and host of the incoming request. Each protected site
@@ -141,14 +131,15 @@ in {
         cookie_domains = [cfg.auth.cookieDomain];
         cookie_secure = true;
 
-        # Redirect targets oauth2-proxy will accept after sign-in. Without the
-        # parent domain listed, a sign-in that started on one subdomain cannot
-        # send the visitor on to another.
+        # oauth2-proxy refuses to redirect anywhere else after sign-in. The
+        # parent domain is listed so a sign-in that started on one subdomain
+        # can send the visitor on to another.
         whitelist_domains = [cfg.auth.cookieDomain];
 
-        # Caddy terminates TLS, so oauth2-proxy takes the scheme and host for
-        # its redirects from the forwarded headers. Only Caddy can set them: it
-        # is the only other container on the network oauth2-proxy listens on.
+        # Caddy terminates TLS, so oauth2-proxy takes the scheme and host of
+        # its redirects from the forwarded headers. Caddy is the only other
+        # container on the network that oauth2-proxy listens on, so nothing
+        # else can set them.
         reverse_proxy = true;
         trusted_proxy_ips = containerSources;
 
@@ -171,8 +162,8 @@ in {
         pkgs.dockerTools.fakeNss
       ];
 
-      # The containers passed through `exposePodman`, keyed by container name,
-      # which is also the name podman resolves them by.
+      # Every container wrapped in `exposePodman`, keyed by the name that
+      # podman resolves it by.
       exposed =
         lib.filterAttrs
         (_: container: (container.containerConfig.labels or {}) ? "edge-proxy.domain")
@@ -182,9 +173,8 @@ in {
 
       authenticatedSites = lib.mapAttrsToList (_: container: container.containerConfig.labels."edge-proxy.domain") authenticated;
 
-      # One network per service, with just that service and Caddy on it.
-      # oauth2-proxy gets one too, because Caddy asks it about a request before
-      # serving that request.
+      # oauth2-proxy gets a network of its own as well, because Caddy asks it
+      # about a request before serving that request.
       serviceNetworks =
         map serviceNetwork (lib.attrNames exposed)
         ++ map serviceNetwork (lib.attrNames proxy.streams)
@@ -209,9 +199,6 @@ in {
         upstreams = [{dial = upstream;}];
       };
 
-      # The identity headers that Caddy copies from oauth2-proxy's response
-      # onto the outgoing request. Each header is deleted from the
-      # incoming request first, so a visitor cannot supply their own, and set
       # again only when oauth2-proxy's response included it.
       identityHeaders = lib.attrNames identityClaims;
 
@@ -244,8 +231,6 @@ in {
         handler = "reverse_proxy";
         upstreams = [{dial = authUpstream;}];
 
-        # The check always goes to `/oauth2/auth`, whatever was requested. The
-        # original method and URI travel in the headers below.
         rewrite = {
           method = "GET";
           uri = "/oauth2/auth";
@@ -263,8 +248,6 @@ in {
             routes = lib.concatMap copyIdentityHeader identityHeaders;
           }
 
-          # A visitor who is not signed in is redirected to sign in, and comes
-          # back to the URI they asked for.
           {
             match.status_code = [401];
             routes = [
@@ -282,10 +265,6 @@ in {
         ];
       };
 
-      # Refuses a signed-in visitor whose username is not in `auth.allow`,
-      # reading the header `authGate` has just set from oauth2-proxy's
-      # response. The identity provider decides who may sign in at all; this
-      # decides which of those accounts reach this host.
       allowGate = {
         match = [{not = [{header."X-Auth-Request-Preferred-Username" = cfg.auth.allow;}];}];
         terminal = true;
@@ -298,9 +277,6 @@ in {
         ];
       };
 
-      # `/oauth2/*` on every protected site goes to oauth2-proxy, so signing in
-      # and the callback both happen under the site's own name. The identity
-      # provider is given one redirect URI per site.
       signInRoute = {
         match = [{path = ["/oauth2/*"];}];
         terminal = true;
@@ -330,12 +306,6 @@ in {
         ];
       };
 
-      # A service speaking its own protocol. The ALPN name in the TLS handshake
-      # tells Caddy to hand the connection here, so the service shares port 443
-      # with the web sites and gets the connection decrypted.
-      # These services have no sign-in. The client is identified by its
-      # certificate, which Caddy compares in full against the ones in
-      # `trustedClients`.
       streamRoute = name: stream: {
         match = [
           {
@@ -351,10 +321,9 @@ in {
             connection_policies = [
               {
                 alpn = [stream.alpn];
-                # `require` asks the client for a certificate without checking
-                # it against a certificate authority. These certificates are
-                # self-signed and have no chain, so the leaf verifier below
-                # makes the decision.
+                # `require` asks for a client certificate without checking it
+                # against a certificate authority. These certificates are
+                # self-signed, so `verifiers` makes the decision.
                 client_authentication = {
                   mode = "require";
                   verifiers = [
@@ -406,13 +375,8 @@ in {
         }
         // lib.optionalAttrs (ca != null) {inherit ca;};
 
-      # network and has no Cloudflare certificate to present, so every range
-      # podman draws its networks from is exempt as well.
       containerSources = config.dotfiles.containers.subnetPools;
 
-      # Connections from these addresses are served without being asked for a
-      # certificate. Caddy tries the policies in order, so this one has to come
-      # before `originPolicy`.
       directPolicy = {match.remote_ip.ranges = cfg.originAuth.directSources ++ containerSources;};
 
       originPolicy.client_authentication = {
@@ -432,8 +396,7 @@ in {
 
             # An empty object turns on access logging under the default
             # logger, which the unit collects into the journal. Without it
-            # Caddy logs errors only, and a request that was served is not
-            # recorded at all.
+            # Caddy records only errors.
             logs = {};
           }
           // lib.optionalAttrs (listenerWrappers != []) {
@@ -444,11 +407,10 @@ in {
 
             strict_sni_host = true;
 
-            # The client address comes from the header Cloudflare sets. Every
-            # source is trusted to set it because the connection policies above
-            # already decide who may connect at all: a peer either presented a
-            # Cloudflare origin-pull certificate or came from `directSources`
-            # or a podman network.
+            # Every source is trusted to set the client-address header, because
+            # `tls_connection_policies` already decides who may connect: a peer
+            # either presented a Cloudflare origin-pull certificate or came
+            # from `originAuth.directSources` or a podman network.
             trusted_proxies = {
               source = "static";
               ranges = ["0.0.0.0/0" "::/0"];
@@ -513,9 +475,6 @@ in {
           }
         ];
 
-        # oauth2-proxy answers under each protected site's own domain and the
-        # callback lands on the site where the visitor started, so register a
-        # redirect URI for every site behind single sign-on.
         dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.present && idp.enable) {
           ${cfg.auth.clientId} = {
             displayName = "Sign in";
@@ -550,7 +509,6 @@ in {
         };
 
         virtualisation.quadlet = {
-          # podman allocates the per-service networks itself; nothing on them
           networks =
             lib.genAttrs serviceNetworks (_: {})
             // {
@@ -604,8 +562,9 @@ in {
                 ];
 
                 # The config contains no secrets, so it is mounted straight
-                # from the store. The quadlet names the store path, so a
-                # changed config changes the unit that mounts it.
+                # from the store. The quadlet refers to the config's store
+                # path, so a changed config changes the unit and
+                # system-manager restarts Caddy.
                 volumes =
                   quadlet.mounts [
                     {
@@ -633,7 +592,8 @@ in {
                 environmentFiles = [config.sops.templates."caddy.env".path];
                 environments.XDG_DATA_HOME = "/data";
 
-                # Binding ports 80 and 443 is the one privilege Caddy keeps.
+                # Caddy needs NET_BIND_SERVICE for ports 80 and 443, and
+                # nothing else.
                 dropCapabilities = ["ALL"];
                 addCapabilities = ["NET_BIND_SERVICE"];
                 noNewPrivileges = true;
@@ -666,8 +626,6 @@ in {
                   }
                 ];
 
-                # The client secret and the cookie secret arrive in the
-                # environment, so neither is written into the store.
                 environmentFiles = [config.sops.templates."oauth2-proxy.env".path];
 
                 # oauth2-proxy listens above port 1024, so it needs no
@@ -676,11 +634,10 @@ in {
                 noNewPrivileges = true;
               };
 
-              # oauth2-proxy fetches the identity provider's discovery document
-              # at startup, and reaches the provider by the public name Caddy
-              # answers to, so Caddy has to be running first. Caddy needs
-              # nothing from oauth2-proxy in order to start: it answers 502 on
-              # a protected site until oauth2-proxy is up.
+              # oauth2-proxy fetches the provider's discovery document at
+              # startup, by the public name that Caddy answers to, so Caddy
+              # starts first. The dependency does not run the other way: Caddy
+              # answers 502 on a protected site until oauth2-proxy is up.
               unitConfig = {
                 Description = "Single sign-on for the sites Caddy protects";
                 After = ["network-online.target" "sops-install-secrets.service" "${cfg.containerName}.service"];
