@@ -67,7 +67,7 @@ spelling, `e.g.` and `i.e.`, `please`, exclamation marks. Outside that writer's
 own repositories a house rule is capped at warning, so it can report but never
 fail a check in a project that has made a different choice.
 
-prose-lint decides whose repository it is from the git remotes. It reads the
+prose-lint works out from the git remotes whose repository this is. It reads the
 owner out of every remote URL, in both the SSH and HTTPS GitHub forms, and
 treats the repository as the owner's only when every remote points at an account
 listed in `owners`. That list comes from
