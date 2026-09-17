@@ -1,5 +1,4 @@
 # Caddy is the single entry point for container services. It resolves each
-# backend by container name over a network it shares with that service alone,
 # and terminates TLS with certificates issued through the ACME DNS-01
 # challenge, so a certificate can be issued before any traffic arrives.
 #

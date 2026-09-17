@@ -1,10 +1,9 @@
 # The interface between a container and the reverse proxy in front of it.
 #
 # A service passes its own quadlet through `exposePodman`, which joins it to a
-# network it shares with the proxy and sets labels saying which domain it
-# answers to. The proxy reads those labels back off the containers to work out
-# what to serve, so a service is described in one place: its own container
-# definition.
+# network shared with the proxy and sets labels giving its domain. The proxy
+# reads those labels back off the containers to work out what to serve, so a
+# service is described in one place: its own container definition.
 #
 # Each service gets its own network, with just that service and the proxy on
 # it. podman cannot filter traffic within a network, so two services sharing
