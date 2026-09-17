@@ -77,8 +77,8 @@ in {
 
     pgData = "/var/lib/postgresql/data";
 
-    # Postgres refuses to run as root, and at startup it looks up the name of
-    # the id it runs as, so it needs both an id and a passwd entry for it.
+    # Postgres refuses to run as root, and at startup it looks up the name for
+    # its own id, so it needs both an id and a passwd entry.
     databaseUser = "postgres";
     databaseId = 999;
 
@@ -318,7 +318,7 @@ in {
 
         # The database user has the same host id at every start, so chowning
         # the volume is stable. A container with an auto user namespace needs
-        # `idmap` instead, because the ids it maps to change between starts.
+        # `idmap` instead, because its mapped ids change between starts.
         volumes = quadlet.mounts [
           {
             source.quadletVolume = dataVolume;
@@ -420,7 +420,7 @@ in {
         Description = "AgentsView dashboard";
         # The dashboard reads all of its data from the database, so it waits
         # for the database and stops with it. It also waits for the roles unit,
-        # which creates the role it connects as.
+        # which creates its database role.
         Requires = ["${database.containerName}.service" "${rolesUnit}.service"];
         After = [
           "${database.containerName}.service"
