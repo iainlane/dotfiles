@@ -1,5 +1,5 @@
 # The LCM context engine: swaps the default compressor for the hermes-lcm
-# plugin and the Python packages it needs.
+# plugin and the Python packages that it needs.
 {
   config,
   inputs,
