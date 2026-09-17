@@ -405,6 +405,8 @@ in {
             listener_wrappers = listenerWrappers;
           }
           // lib.optionalAttrs cfg.originAuth.present {
+            # Caddy tries the policies in order, so `directPolicy` has to come
+            # before `originPolicy`.
             tls_connection_policies = [directPolicy originPolicy];
 
             strict_sni_host = true;
