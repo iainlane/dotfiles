@@ -1,9 +1,9 @@
 """Pin the run's program closure against garbage collection while it runs.
 
-Startup reads every document input into memory, but the programs a run spawns
-throughout its lifetime, such as the pinned clients and the evidence MCP
-server, are executed from the Nix store on every process start. Indirect
-garbage-collector roots on the store paths the configuration names pin those
+Startup reads every document input into memory, but the programs that a run
+spawns throughout its lifetime, such as the pinned clients and the evidence
+MCP server, are executed from the Nix store on every process start. Indirect
+garbage-collector roots on the store paths from the configuration pin those
 closures.
 
 The user-side links live under `XDG_RUNTIME_DIR`, which the operating system
@@ -41,7 +41,7 @@ class ClosureRootCreateError(ConformanceError):
 
 
 def runtime_directory(environment: Mapping[str, str]) -> Path:
-    """Return the directory the closure-root links live in.
+    """Return the directory of the closure-root links.
 
     This is `XDG_RUNTIME_DIR`, or the per-user temporary directory when that
     variable is unset.

@@ -103,9 +103,9 @@ SYSTEM_READ_PATHS = (
     "/private/var/select",
     "/usr",
 )
-# Host name resolution goes through this socket, not through a capability the
-# caller declares, so PUBLIC network access keeps it reachable the same way
-# it keeps SYSTEM_READ_PATHS readable.
+# Host name resolution goes through this socket, not through a capability that
+# the caller declares, so PUBLIC network access keeps it reachable just as it
+# keeps SYSTEM_READ_PATHS readable.
 _SYSTEM_UNIX_SOCKETS = (Path("/private/var/run/mDNSResponder"),)
 _KEYCHAIN_ACCOUNT = re.compile(r"^[a-zA-Z0-9._-]+$")
 _KEYCHAIN_FALLBACK_ACCOUNT = "claude-code-user"
