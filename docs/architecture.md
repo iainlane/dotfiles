@@ -177,11 +177,10 @@ it: `features/nixbuild/default.nix` registers `nixbuild-substituter` and
 even when one feature is their only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
-module system. It expands includes depth-first, so a feature comes after the
-features it includes. Each feature is emitted once, and an include cycle throws
-an error naming the features in the cycle.
-`flake/parts/checks/feature-resolution.nix` compares the resolver's module lists
-with fixtures covering each of those.
+module system. It expands includes depth-first, so a feature comes after its own
+includes. Each feature is emitted once, and an include cycle throws an error
+naming the features in the cycle. `flake/parts/checks/feature-resolution.nix`
+compares the resolver's module lists with fixtures covering each of those.
 
 `flake/parts/checks/feature-registration.nix` enforces the layout rules above.
 It reads the file of each definition of `flake.features` and fails when a
