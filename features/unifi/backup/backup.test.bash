@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Runs backup.sh with stub `curl` and `r2` commands, and checks the HTTP
-# which requests it makes and which files it passes to `r2 backup`.
+# Runs backup.sh with stub `curl` and `r2` commands, and checks which HTTP
+# requests the script makes and which files it passes to `r2 backup`.
 
 set -euo pipefail
 
