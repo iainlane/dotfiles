@@ -9,9 +9,9 @@
 }: let
   secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
 
-  # lib/sops.nix states the policy for a per-host secrets file the secrets
-  # input does not have. Without this file the account has no password and can
-  # be logged into only over SSH.
+  # lib/sops.nix states the policy for a per-host secrets file that the secrets
+  # input does not have. When the input has no such file, the account has no
+  # password and can be logged into only over SSH.
   havePassword = builtins.pathExists secretsFile;
 in {
   boot = {
@@ -66,7 +66,7 @@ in {
   programs.zsh.enable = true;
 
   # envfs and nix-ld let binaries and scripts built for other distributions
-  # find `/usr/bin/env` and the dynamic loader they were linked against.
+  # find `/usr/bin/env` and the dynamic loader that they were linked against.
   services.envfs.enable = true;
   programs.nix-ld.enable = true;
 
