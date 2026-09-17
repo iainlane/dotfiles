@@ -9,8 +9,8 @@ inheritContext: false
 
 # Research question
 
-Research this question and summarise the answer with links to the sources you
-used:
+Research this question and summarise the answer with links to the sources that
+you used:
 
 $@
 
