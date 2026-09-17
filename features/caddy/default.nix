@@ -82,7 +82,7 @@ in {
 
       # Which OIDC claim oauth2-proxy returns under which response header.
       # oauth2-proxy is configured from this set, and Caddy copies the same
-      # headers onto the request it passes to the service, so the header a
+      # headers onto the request that it passes to the service, so the header a
       # site's allow-list matches against is written down once.
       identityClaims = {
         "X-Auth-Request-User" = "user";
@@ -136,7 +136,7 @@ in {
       # pluralised where the option can be given more than once.
       authConfigFile = (pkgs.formats.toml {}).generate "oauth2-proxy.cfg" {
         # A path with no host, so oauth2-proxy builds the callback from the
-        # scheme and host of the request it is handling. Each protected site
+        # scheme and host of the incoming request. Each protected site
         # therefore has its own callback under its own name.
         redirect_url = "/oauth2/callback";
 
@@ -155,7 +155,7 @@ in {
         trusted_proxy_ips = containerSources;
 
         # `auth.allow` in front of each site decides which accounts are served,
-        # so oauth2-proxy accepts any address the provider returns.
+        # so oauth2-proxy accepts any address that the provider returns.
         email_domains = ["*"];
 
         skip_provider_button = true;
@@ -201,7 +201,7 @@ in {
         ":alias=${lib.removePrefix "https://" idp.issuer}";
 
       # podman accepts `--ip6` only for a container on a single network, so the
-      # address is given as an option of the network it belongs to.
+      # address is given as an option of its own network.
       proxyNetwork =
         "${proxy.network}.network"
         + lib.optionalString (cfg.ipv6Address != null) ":ip6=${cfg.ipv6Address}";
@@ -211,8 +211,8 @@ in {
         upstreams = [{dial = upstream;}];
       };
 
-      # The identity headers Caddy copies from oauth2-proxy's response onto the
-      # request it passes to the service. Each header is deleted from the
+      # The identity headers that Caddy copies from oauth2-proxy's response
+      # onto the outgoing request. Each header is deleted from the
       # incoming request first, so a visitor cannot supply their own, and set
       # again only when oauth2-proxy's response included it.
       identityHeaders = lib.attrNames identityClaims;
@@ -287,7 +287,7 @@ in {
       # Refuses a signed-in visitor whose username is not in `auth.allow`,
       # reading the header `authGate` has just set from oauth2-proxy's
       # response. The identity provider decides who may sign in at all; this
-      # decides which of those accounts this host serves.
+      # decides which of those accounts reach this host.
       allowGate = {
         match = [{not = [{header."X-Auth-Request-Preferred-Username" = cfg.auth.allow;}];}];
         terminal = true;
@@ -393,7 +393,7 @@ in {
         {wrapper = "tls";}
       ];
 
-      # Caddy obtains a certificate for each hostname it finds in its web
+      # Caddy obtains a certificate for each hostname in its web
       # routes. A stream has no web route, so its domain is listed here.
       streamDomains = lib.mapAttrsToList (_: stream: stream.domain) proxy.streams;
 
@@ -517,7 +517,7 @@ in {
         ];
 
         # oauth2-proxy answers under each protected site's own domain and the
-        # callback lands on the site the visitor started at, so register a
+        # callback lands on the site where the visitor started, so register a
         # redirect URI for every site behind single sign-on.
         dotfiles.containers.identityProvider.clients = lib.mkIf (cfg.auth.present && idp.enable) {
           ${cfg.auth.clientId} = {
