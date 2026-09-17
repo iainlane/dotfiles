@@ -42,8 +42,7 @@ fi
 # The fixtures cover both spelling rules, and the packaged configuration leaves
 # AmericanSpelling off so that only one of the pair runs at a time. Vale keeps
 # the first value that it reads for a key, so this rewrites the line in place
-# rather
-# than appending a second [*] section.
+# rather than appending a second [*] section.
 sed -i.bak 's|^Prose.AmericanSpelling = NO$|Prose.AmericanSpelling = warning|' \
 	"${config}"
 
