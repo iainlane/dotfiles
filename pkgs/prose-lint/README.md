@@ -22,13 +22,19 @@ lints their comments through the packaged Perl mapping, without the
 part-of-speech rules.
 
 The rules that match part-of-speech tags also read a lexicon,
-`styles/config/dictionaries/House.dict`. Each line gives a word one tag, which
-overrides Vale's tagger for that word. The entries are nouns of this domain that
-the tagger can otherwise take for adjectives or verbs. A word with a common verb
-use, such as `store` or `host`, stays out, because a single noun tag would
-mis-tag `we store the key`. Every addition is measured by linting the whole
-repository before and after it, and is kept only when it adds genuine findings
-and no false ones.
+`styles/config/dictionaries/Lexicon.dict`. Each line gives a word its tags, and
+a word with a single tag is tagged that way whatever the surrounding sentence.
+The package builds the file from two sources: `House.dict`, which lists the
+nouns of this domain that Vale's tagger can otherwise take for adjectives or
+verbs, and the `prose-lint-lexicon` package, which converts LanguageTool's
+English part-of-speech dictionary and cuts it to a core of common English. A
+word with a house entry is left out of the converted part, so the house entry
+decides that word's tag.
+
+A house entry for a word with a common verb use, such as `store` or `host`,
+would mis-tag `we store the key`, so those words stay out. Every addition to
+`House.dict` is measured by linting the whole repository before and after it,
+and is kept only when it adds genuine findings and no false ones.
 
 ```console
 nix run .#prose-lint -- check README.md

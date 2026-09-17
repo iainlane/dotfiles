@@ -1,5 +1,5 @@
 extends: sequence
-model: House
+model: Lexicon
 message:
   "'%s' is a general verb; the relationship has its own word: contains, keeps,
   includes, lists, specifies, decides, is."

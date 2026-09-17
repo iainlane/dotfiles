@@ -4,6 +4,7 @@
   gitMinimal,
   lib,
   makeWrapper,
+  prose-lint-lexicon,
   python3Packages,
   ruff,
   runCommandLocal,
@@ -41,6 +42,8 @@
   };
 
   goldens = ./scripts/goldens.bash;
+
+  lexicon = "${prose-lint-lexicon}/share/prose-lint-lexicon/english.dict";
 
   application = python3Packages.buildPythonApplication {
     pname = "prose-lint-cli";
@@ -85,8 +88,19 @@
       mkdir -p "$share"
 
       cp -r ${styleSource}/styles "$share/styles"
+      chmod -R u+w "$share/styles"
       install -Dm644 ${styleSource}/tiers.toml "$share/tiers.toml"
       install -Dm755 ${goldens} "$share/goldens.bash"
+
+      # Vale loads one dictionary per rule, so the house entries and the
+      # general English core have to reach it in one file. A word with a house
+      # entry is left out of the core, and the house entries are written
+      # first.
+      dictionaries="$share/styles/config/dictionaries"
+      house="$dictionaries/House.dict"
+      awk 'NR == FNR { house[$1]; next } !($1 in house)' \
+        "$house" ${lexicon} |
+        cat "$house" - >"$dictionaries/Lexicon.dict"
 
       # This file is also installed as the global Vale configuration under
       # ~/.config/vale, and Vale resolves a relative StylesPath against the

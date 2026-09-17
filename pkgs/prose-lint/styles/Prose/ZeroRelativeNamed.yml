@@ -1,5 +1,5 @@
 extends: sequence
-model: House
+model: Lexicon
 message:
   "A noun followed by a name and a verb may be an object-relative clause without
   'that' or 'which'. Such a clause compresses a relationship into a noun phrase:
