@@ -2,6 +2,10 @@
   inherit (config.flake) features halls;
 
   sharedToolsets = ["kanban" "context_engine"];
+
+  lan = "192.168.1.0/24";
+  iotVlan = "192.168.2.0/24";
+  routedPrefix = "2001:8b0:df29::/48";
 in {
   flake.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
 
@@ -208,11 +212,7 @@ in {
           };
           ipv6Address = "2001:8b0:df29:1a0:c::1";
           email = "iain@orangesquash.org.uk";
-          originAuth.directSources = [
-            "192.168.1.0/24"
-            "192.168.2.0/24"
-            "2001:8b0:df29::/48"
-          ];
+          originAuth.directSources = [lan iotVlan routedPrefix];
           auth = {
             cookieDomain = ".orangesquash.org.uk";
             secretsFile = "ancaster/host-oauth2-proxy.yaml";
