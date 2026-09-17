@@ -12,6 +12,7 @@ in {
       features.base
       features.development
       features.desktop
+      features.inference.provides.ollama
       features.nixbuild-builder
       features.home
     ];
@@ -20,6 +21,7 @@ in {
       dotfiles = {
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;
+        inference.ollama.models = ["bge-m3"];
       };
 
       targets.darwin.defaults = {
