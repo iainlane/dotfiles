@@ -434,10 +434,10 @@ def append_line(destination: Path, value: str) -> None:
 
 
 def open_owned_output(destination: Path) -> IO[bytes]:
-    """Open a file the supervisor writes on a child's behalf, rejecting a symlink.
+    """Open a file that the supervisor writes for a child, refusing a symlink.
 
     An isolated process can have write access to the directory and leave a
-    symlink under the name the supervisor is about to open. `O_NOFOLLOW`
+    symlink under the name that the supervisor is about to open. `O_NOFOLLOW`
     rejects a symbolic link at that final component, so the open fails instead
     of writing through the link from outside the sandbox.
     """
