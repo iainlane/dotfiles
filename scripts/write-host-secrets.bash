@@ -3,9 +3,9 @@
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
-# Write everything a new host needs into a clone of the secrets repository:
-# the sops recipients for its fresh identities, then the files the per-feature
-# generators produce.
+# Write everything that a new host needs into a clone of the secrets
+# repository: the sops recipients for its fresh identities, then the files from
+# the per-feature generators.
 #
 # `generate-host-keys` runs this through `with-secrets-repo`, which clones the
 # repository, passes the clone as the last argument, and commits and pushes
@@ -38,7 +38,7 @@ for option in "${options[@]}"; do
 done
 
 # Whether the repository already has secrets for this host. Either a `<host>/`
-# directory or a `<host>_host` anchor in `.sops.yaml` means it does; a host
+# directory or a `<host>_host` anchor in `.sops.yaml` is enough; a host
 # that was set up before has both.
 host_is_known() {
 	[[ -d "${host}" ]] && return 0
