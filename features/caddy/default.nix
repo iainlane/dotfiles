@@ -103,7 +103,6 @@ in {
             oidcConfig.issuerURL = idp.issuer;
 
             # PKCE: the token request has to include the verifier for the
-            # challenge sent with the authorisation request, so an
             # authorisation code intercepted in flight cannot be redeemed
             # without that verifier.
             code_challenge_method = "S256";
