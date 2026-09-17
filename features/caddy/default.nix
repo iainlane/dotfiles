@@ -333,7 +333,6 @@ in {
       # A service speaking its own protocol. The ALPN name in the TLS handshake
       # tells Caddy to hand the connection here, so the service shares port 443
       # with the web sites and gets the connection decrypted.
-      #
       # These services have no sign-in. The client is identified by its
       # certificate, which Caddy compares in full against the ones in
       # `trustedClients`.
@@ -381,8 +380,9 @@ in {
         ];
       };
 
-      # Caddy gives each connection to the stream routes first. A connection
-      # that matches no stream route goes to the web server.
+      # Every connection is offered to the stream routes first. The `tls`
+      # wrapper after them terminates the connections that they did not match,
+      # and the HTTP server serves those.
       listenerWrappers = lib.optionals (proxy.streams != {}) [
         {
           wrapper = "layer4";
