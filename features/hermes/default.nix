@@ -22,7 +22,7 @@ in {
   flake.features.hermes = {
     # Each platform adds its rendered secrets to `environmentFiles`, and
     # `builders.nix` concatenates those files into the agent's `.env` in the
-    # order they resolve here. Two platforms that define the same variable
+    # order that they resolve here. Two platforms that define the same variable
     # therefore depend on this order.
     includes = [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
 
