@@ -29,8 +29,8 @@ _FRONTED = re.compile(rf"(?:^|(?<=[.!?]) ){_PREPOSITION}[^.!?]*$")
 _OPENS_A_PHRASE = re.compile(_PREPOSITION)
 
 # Vale reports a match as it appears in the source, and a clause may wrap over
-# two comment lines, while the paragraph is searched with its lines joined by
-# spaces. The match is therefore looked up by its first line, cut to this many
+# two comment lines. The paragraph is searched with its lines joined by
+# spaces, so the match is looked up by its first line, cut to this many
 # characters.
 _LOOKUP = 40
 

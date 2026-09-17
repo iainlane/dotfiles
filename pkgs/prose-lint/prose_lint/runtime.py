@@ -299,10 +299,12 @@ def _texts(findings: Sequence[Finding], comments: Mapping[Path, str]) -> dict[st
 
 
 def _source_text(path: Path) -> str:
-    """A file's text, empty when the file cannot be decoded.
+    """A file's text, empty when it cannot be decoded.
 
-    Vale reads files that prose-lint never opens, so decoding can fail here.
-    The corrections then leave that file's alerts alone and the run goes on.
+    prose-lint hands these paths to Vale without opening them, so this is the
+    first time it decodes one, and Vale tolerates bytes that `read_text`
+    raises on. The alerts in such a file are then reported as Vale gave them,
+    uncorrected.
     """
     try:
         return path.read_text()
