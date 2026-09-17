@@ -3,10 +3,10 @@
 # it uses enough of nixpkgs that it takes the package set rather than a list
 # of individual dependencies; `args.nix` supplies all three.
 #
-# The program measures whichever prompt configuration its caller names on the
-# command line. This wrapper supplies the suite's own half of that command
-# line: the fixtures, the machinery, and the settings every prompt is measured
-# with. The `ai` feature supplies the other half and exposes the result as
+# The caller gives the whole prompt configuration on the command line, and the
+# program measures it. This wrapper supplies the suite's own half of that
+# command line: the fixtures, the machinery, and the settings for measuring
+# every prompt. The `ai` feature supplies the other half and exposes the result as
 # `nix run .#claude-prompt-conformance`.
 {
   claudeCode,
@@ -421,8 +421,8 @@ in
     passthru =
       (old.passthru or {})
       // {
-        # The prompt builder, so that a caller assembles the prompt it measures
-        # exactly as a variant build rebuilds it.
+        # The prompt builder, so that a caller assembles the prompt under
+        # measurement exactly as a variant build rebuilds it.
         promptEnvironment = ./prompt-environment.nix;
         catalogue = expectedCatalogue;
         tests =
