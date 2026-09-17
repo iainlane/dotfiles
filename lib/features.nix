@@ -6,7 +6,7 @@
 # modules to whichever of NixOS, nix-darwin and system-manager builds the
 # host, and its `includes` field lists the features that it pulls in.
 # `closure` expands those includes into an ordered list of the given features
-# and everything they include, and `modulesFor` selects one class of module
+# and everything that they include, and `modulesFor` selects one class of module
 # from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
