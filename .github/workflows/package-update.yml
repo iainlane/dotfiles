@@ -41,7 +41,7 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the same binary caches the hosts and the cupboard workflow do,
+      # Trust the same binary caches as the hosts and the cupboard workflow,
       # so anything these steps have to realise can be substituted.
       - name: Trust our binary caches
         run: |
@@ -53,9 +53,9 @@ jobs:
           } >> "${HOME}/.config/nix/nix.conf"
 
       # The `secrets` input lives in the private dotfiles-secrets repo, reachable
-      # only over SSH. Configure the read-only deploy key so evaluating the flake
-      # (and any re-lock an updater performs) can read it, the same key the
-      # cupboard and flake-update workflows use.
+      # only over SSH. Configure the read-only deploy key, the same one that the
+      # cupboard and flake-update workflows use, so evaluating the flake (and any
+      # re-lock by an updater) can read it.
       - name: Set up secrets access
         env:
           DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
