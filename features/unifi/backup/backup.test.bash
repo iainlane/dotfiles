@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Runs backup.sh with stub `curl` and `r2` commands, and checks the HTTP
-# requests it makes and the files it passes to `r2 backup`.
+# requests it makes and which files it passes to `r2 backup`.
 
 set -euo pipefail
 
@@ -112,8 +112,8 @@ report_failure() {
 }
 
 # Runs one scenario and checks its exit status and output. `expected_status`
-# is `zero` for a controller the script has to accept and `nonzero` for a
-# response it has to refuse.
+# is `zero` when the script has to accept the controller and `nonzero` when it
+# has to refuse the response.
 assert_backup() {
 	local scenario="${1}" expected_status="${2}" expected="${3}" output status
 
@@ -156,7 +156,7 @@ echo '{"meta":{"rc":"ok"},"data":[]}' >"${test_dir}/no-url.json"
 echo '{"meta":{"rc":"error","msg":"api.err.Invalid"}}' >"${test_dir}/error.json"
 
 # The whole exchange: the command names the site and the days of statistics,
-# the download fetches the URL the controller returned under the Network
+# the download fetches the URL returned by the controller, under the Network
 # application's prefix, and the key travels in the config on stdin, never on
 # the command line. The script's working directory is the only one under the
 # scratch TMPDIR, so its path is known.
