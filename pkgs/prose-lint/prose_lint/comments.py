@@ -34,8 +34,8 @@ def mirror_pairs(
 ) -> tuple[tuple[Path, Path], ...]:
     """A file under `directory` for each path's comments, paired with that path.
 
-    The names are numbered and padded to a common width, so reading them in
-    name order reads the paths in the order they were given.
+    The names are numbered and padded to a common width, so their name order is
+    the order of `paths`.
     """
     width = len(str(max(len(paths) - 1, 0)))
 
