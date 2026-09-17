@@ -1,8 +1,8 @@
 # Instantiate a specific nixpkgs revision and return its package set.
 #
 # Useful for temporarily pinning a single package to a known-good, cache-
-# populated build while the channel we track catches up to a fix. Callers pick
-# the attributes they need, e.g.:
+# populated build while the tracked channel catches up to a fix. Callers pick
+# the attributes that they need, e.g.:
 #
 #   inherit (import ../lib/nix/nixpkgs-at-rev.nix {
 #     rev = "<40-char sha>";

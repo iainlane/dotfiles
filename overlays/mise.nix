@@ -7,12 +7,12 @@
 #
 #   https://github.com/NixOS/nixpkgs/commit/aa7d436d1a384d1df162f0cd94cba07d8fd36f3d
 #
-# It is on master but has not yet reached the nixpkgs-unstable channel we track,
-# so building the Darwin closures compiles mise from source and fails. Until the
-# channel advances to include that commit, take mise from the nixpkgs revision
-# behind the last cached aarch64-darwin build (2026.6.5); it substitutes from
-# cache.nixos.org. Drop this overlay once a flake update brings the fix. Linux
-# is unaffected: it has the upstream-cached 2026.6.11.
+# It is on master but has not yet reached the nixpkgs-unstable channel that we
+# track, so building the Darwin closures compiles mise from source and fails.
+# Until the channel advances to include that commit, take mise from the nixpkgs
+# revision behind the last cached aarch64-darwin build (2026.6.5); it
+# substitutes from cache.nixos.org. Drop this overlay once a flake update
+# brings the fix. Linux is unaffected: it has the upstream-cached 2026.6.11.
 _: _: prev:
 prev.lib.optionalAttrs prev.stdenv.hostPlatform.isDarwin {
   inherit
