@@ -77,9 +77,9 @@ def test_a_reason_naming_no_file_in_the_repository_is_refused(
         )
 
     assert str(refusal.value) == (
-        "The reason for lowering Latin must quote a path that exists in "
-        "the repository, so the override points at the file that records "
-        "the convention."
+        "The reason for lowering Latin must mention a path that exists "
+        "in the repository, so the override points at the file that "
+        "records the convention."
     )
 
 
@@ -109,7 +109,7 @@ def test_evidence_must_be_a_file_inside_the_repository(
 ) -> None:
     (repository.parent / "outside.md").write_text("x\n")
 
-    with pytest.raises(OverrideRefused, match="must quote a path"):
+    with pytest.raises(OverrideRefused, match="must mention a path"):
         build_override(
             CATALOGUE,
             name="Latin",

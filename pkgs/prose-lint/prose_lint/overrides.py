@@ -49,9 +49,9 @@ def build_override(
 
     if not _names_an_existing_path(because, root):
         raise OverrideRefused(
-            f"The reason for lowering {name} must quote a path that exists in "
-            "the repository, so the override points at the file that records "
-            "the convention."
+            f"The reason for lowering {name} must mention a path that exists "
+            "in the repository, so the override points at the file that "
+            "records the convention."
         )
 
     return Override(rule=name, level=level, because=because)
