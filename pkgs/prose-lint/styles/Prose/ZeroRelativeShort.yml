@@ -8,9 +8,8 @@ message:
 level: warning
 tokens:
   # Anchored so that each tag does not also match a longer sibling; see
-  # ZeroRelative.yml. The head must be a common noun: allowing NNP was
-  # measured at eight matches in this repository and all eight were sentence
-  # openings such as "How a run captures".
+  # ZeroRelative.yml. The head has to be a common noun. With NNP allowed the
+  # rule also matches a sentence opening such as "How a run captures".
   - tag: ^(?:NN|NNS)$
   - tag: ^(?:DT|PRP\$)$
   - tag: ^(?:NN|NNS|NNP|JJ)$

@@ -23,19 +23,17 @@ _PREPOSITION = (
     r"|until|above|below|near|around|over)\b"
 )
 
-# A clause boundary: one of these marks followed by a space, or a comma and a
-# coordinator. The mark has to be followed by a space, because the full stops
-# in `org.gnome.desktop` end no clause.
+# Where one clause ends and the next begins. The space after the mark matters:
+# without it a full stop is part of a name such as `org.gnome.desktop`.
 _BOUNDARY = re.compile(r"[.!?;:]\s|,\s(?:and|but|or|so|yet)\s", re.IGNORECASE)
 
 _FRONTED = re.compile(rf"{_PREPOSITION}(?P<between>.*)$", re.IGNORECASE)
 _OPENS_A_PHRASE = re.compile(_PREPOSITION, re.IGNORECASE)
 
-# The matched noun is the object of the fronted phrase, so only a determiner
-# and a modifier or two can come between the preposition and the match: three
-# words cover "Outside a git | repository the hook has". Past that the phrase
-# has closed, and the words before the match are a subject and a verb of their
-# own, which is what these rules report.
+# In "Outside a git repository the hook has", the rule matched "repository",
+# which is the object of "Outside", and only "a git" comes in between. When
+# more than three words come in between, that phrase has already ended and the
+# rule has found a real clause, so keep the alert.
 _MODIFIERS = 3
 
 # Vale reports a match as it appears in the source, and a clause may wrap over

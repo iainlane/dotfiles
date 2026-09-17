@@ -8,10 +8,10 @@ message:
 level: warning
 tokens:
   # Anchored so that each tag does not also match a longer sibling; see
-  # ZeroRelative.yml. A reflexive pronoun takes the same PRP tag and never
-  # opens such a clause, so the subject pronouns are listed. Vale bounds a
-  # token pattern on both sides itself, and anchoring one with `^` and `$`
-  # stops it matching at all.
+  # ZeroRelative.yml. A reflexive pronoun takes the same PRP tag, so the
+  # pronouns that can be a subject are listed here. Vale already puts word
+  # boundaries around a token pattern, and adding `^` and `$` to one makes it
+  # match nothing.
   - tag: ^(?:NN|NNS)$
   - pattern: (?:it|they|we|you|he|she)
     tag: ^PRP$
