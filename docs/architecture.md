@@ -24,8 +24,8 @@ is a directory, `hosts/<name>/default.nix`, and imports the files beside it from
 its `systemModule`. The files are discovered automatically, so there is no list
 to keep in sync.
 
-A host declares its OS and architecture, the features it has, and any
-configuration that applies to this host alone:
+A host declares its OS and architecture, its features, and any configuration
+that applies to this host alone:
 
 ```nix
 {config, ...}: let
@@ -51,9 +51,9 @@ in {
 
 Features are referenced by value, so a feature that does not exist is an
 evaluation error at the reference. A feature that takes per-host settings
-declares options in the module system it configures, and the host sets those
-options through `systemModule` or `homeModule`, where the module system checks
-them.
+declares options in the module system that it configures, and the host sets
+those options through `systemModule` or `homeModule`, where the module system
+checks them.
 
 The `flake.hosts` option (in `flake/parts/hosts.nix`) types these records and
 computes derived fields such as `system`, `homeDirectory` and `featureNames`,
