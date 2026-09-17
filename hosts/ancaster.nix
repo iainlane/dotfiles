@@ -1,7 +1,6 @@
 {config, ...}: let
   inherit (config.flake) features halls;
 
-  # The toolsets that every platform gets on top of its own preset.
   sharedToolsets = ["kanban" "context_engine"];
 in {
   flake.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
@@ -134,10 +133,9 @@ in {
             exa = "exa_api_key";
           };
           settings = {
-            # `raft-platform` is a bundled gateway adapter that this host does not
-            # use. While it is enabled the agent probes for the absent `raft`
-            # CLI at startup. `google_chat-platform` needs the `google-chat`
-            # dependency group, which the `all` group no longer includes.
+            # Bundled plugins load unless they are disabled here. Re-enabling
+            # `google_chat-platform` also needs its dependency group, which
+            # Hermes keeps out of `all` on purpose.
             plugins.disabled = ["raft-platform" "google_chat-platform" "spotify" "a2a-platform"];
 
             agent.disabled_toolsets = ["computer_use" "browser-cdp"];
