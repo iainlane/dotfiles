@@ -18,8 +18,8 @@
   writeShellApplication,
 }: {
   # Run a package's own update script from its directory in the working tree.
-  # For an upstream whose release metadata needs more than the version number
-  # and per-platform URL that `mkSourcesUpdater` handles.
+  # Use it when the upstream's release metadata needs more than a version
+  # number and a per-platform URL, which is all `mkSourcesUpdater` handles.
   mkScriptUpdater = {
     pname,
     script,
