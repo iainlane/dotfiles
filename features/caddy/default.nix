@@ -552,7 +552,6 @@ in {
 
         virtualisation.quadlet = {
           # podman allocates the per-service networks itself; nothing on them
-          # needs an address anyone has to know in advance.
           networks =
             lib.genAttrs serviceNetworks (_: {})
             // {
