@@ -333,7 +333,7 @@ The rest of the flake is the tooling and the data other things read:
 | `lib/channels.nix`                   | the nixpkgs and Home Manager pair for each host channel   |
 | `lib/container-image.nix`            | images built from a Nix closure                           |
 | `lib/discovery.nix`                  | filesystem discovery: hosts, features, packages, overlays |
-| `lib/exposed-service.nix`            | the options declared by a service the proxy serves        |
+| `lib/exposed-service.nix`            | the options declared by a proxied service                 |
 | `lib/features.nix`                   | feature resolution: includes, ordering, class modules     |
 | `lib/fetch-github-release-asset.nix` | a release asset from a private GitHub repository          |
 | `lib/halls.nix`                      | the message of the day for each host                      |
