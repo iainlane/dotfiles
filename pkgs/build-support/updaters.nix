@@ -118,25 +118,23 @@
     };
 
   # Bump a Pi extension: rewrite `source.json` with the new version and source
-  # hash, and refresh the `npm-deps/` lockfile the build resolves from, so a
-  # version bump needs no hand editing.
+  # hash, and regenerate the build's lockfile under `npm-deps/`.
   #
-  # The registry decides which version to move to in both cases, because that
-  # is the version Pi's own installer would resolve.
-  #
-  # With `gitHub`, the source is that version's release tag, and the lockfile
-  # is whatever upstream committed there. Without it, the source is the
-  # registry tarball, which carries no lockfile, so npm resolves the tarball's
-  # manifest here instead.
+  # The registry decides which version to move to either way, because Pi's own
+  # installer would resolve the same version. With `gitHub`, the source is that
+  # version's release tag, and the lockfile is copied from the same tag.
+  # Without `gitHub`, the source is the registry tarball, which has no lockfile,
+  # so npm resolves the tarball's manifest here.
   mkPiExtensionUpdater = {
     npmName,
     pname,
     # `{owner, repo}` of the source repository, or null for a registry tarball.
     gitHub ? null,
-    # The release tag's prefix before the version.
     tagPrefix ? "v",
-    # the extension cannot use. Meaningless with `gitHub`, which takes
-    # upstream's resolution as it stands.
+    # Replacement version ranges for entries in the manifest's `dependencies`,
+    # applied before resolving. Use one when a dependency's declared range would
+    # let npm pick a version that breaks the extension. Ignored with `gitHub`,
+    # where the committed lockfile is copied as it stands.
     npmDependencies ? {},
   }:
     writeShellApplication {
@@ -183,8 +181,8 @@
             url="https://github.com/${gitHub.owner}/${gitHub.repo}/archive/refs/tags/''${tag}.tar.gz"
 
             # `fetchFromGitHub` records the hash of the unpacked tree, so
-            # `--unpack` is what produces a matching value. It prints base32,
-            # which `nix hash convert` turns into the SRI form Nix expects.
+            # `--unpack` produces the matching value. `nix-prefetch-url` prints
+            # base32, and `nix hash convert` turns it into the SRI form.
             hash="$(nix hash convert --hash-algo sha256 --to sri \
               "$(nix-prefetch-url --unpack --type sha256 "''${url}")")"
 
@@ -219,7 +217,7 @@
               mv "''${manifest}.new" "''${manifest}"
             ''}
 
-            # npm resolves beside the manifest, but only the lockfile is
+            # npm resolves beside the manifest, and only the lockfile is
             # committed: the build reads what it needs from the lockfile's root
             # record. Pass `--ignore-scripts`: only the lockfile is wanted here,
             # and a plain install runs the package's `prepare` script.
