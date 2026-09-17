@@ -381,8 +381,8 @@ class FailurePhase:
     status: int
 
 
-# A caller distinguishes a suite the machine could not start from a suite that
-# started and then broke, so the two phases exit with different statuses.
+# A caller tells a suite that could not start from one that started and then
+# broke, so the two exit with different statuses.
 SETUP_FAILURE = FailurePhase("SetupFailed", "Setup failed", 2)
 RUN_FAILURE = FailurePhase("RunFailed", "Run failed", 3)
 
