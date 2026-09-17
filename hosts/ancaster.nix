@@ -36,8 +36,9 @@ in {
           matchConfig.Name = "eth0";
           address = [
             "192.168.1.138/24"
-            # this address. It is a /32 because it is a single routed address
-            # and shares no subnet with anything else on the LAN.
+            # A second address that the ISP routes to this host; the proxy
+            # publishes its ports on it. A /32, because it is routed here and
+            # shares no subnet with the LAN.
             "81.187.184.100/32"
             # One address out of the /64 routed here. The rest of the prefix is
             # delegated to the proxy's own podman network.
@@ -118,7 +119,6 @@ in {
             # embedding provider reads the same variable.
             baseUrl = "https://openrouter.ai/api/v1";
             apiKeyVariable = "OPENROUTER_API_KEY";
-            # 1024 dimensions, multilingual, $0.01 per million input tokens.
             model = "baai/bge-m3";
           };
           extraDependencyGroups = ["exa"];
@@ -126,9 +126,6 @@ in {
           secretEnv = {
             GROQ_API_KEY = "groq_api_key";
             OPENROUTER_API_KEY = "openrouter_api_key";
-            # web_search uses this key, and the Exa MCP server authenticates
-            # its requests with it instead of falling back to the
-            # unauthenticated free tier.
             EXA_API_KEY = "exa_api_key";
             # Hermes' OpenAI-compatible speech backend reads its key from this
             # variable, so the OpenRouter key sends speech through OpenRouter.
@@ -187,7 +184,6 @@ in {
 
             # The default makes the agent ignore a message in a group room
             # unless the message @mentions it.
-            # as a group room, in which the agent stays silent until it is
             matrix.require_mention = false;
 
             compression.threshold = 0.85;
@@ -210,15 +206,13 @@ in {
           ipv4Address = "81.187.184.100";
           network.v6 = {
             subnet = "2001:8b0:df29:1a0:c::/80";
-            # Set at the far end of the range, leaving the low addresses for
-            # the services. Unset, the bridge would take `::1`.
+            # Without this, netavark gives the bridge the first address in
+            # the subnet, which is the address that `ipv6Address` takes.
             gateway = "2001:8b0:df29:1a0:c::ffff";
             range = "2001:8b0:df29:1a0:c::100/120";
           };
           ipv6Address = "2001:8b0:df29:1a0:c::1";
           email = "iain@orangesquash.org.uk";
-          # The LAN and the IoT VLAN reach this host directly, so clients on
-          # them have no Cloudflare certificate to present.
           originAuth.directSources = [
             "192.168.1.0/24"
             "192.168.2.0/24"
