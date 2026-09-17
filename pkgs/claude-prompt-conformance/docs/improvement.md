@@ -22,12 +22,12 @@ improvement wins the round; ties are settled by the fewest noise regressions and
 then by draft order, so the winner does not depend on scheduling.
 
 Draft prompt variants are built with Nix during the run: the patched sources are
-assembled into a prompt by the same expression that built the prompt the run
-started with, and the suite digests that prompt to identify the variant.
-Everything the variant does not change, the fixtures above all, is read again
-from the run's own retained inputs. Each variant's evaluation is one arm of the
-run. The arms share one run store, so the reference judgements a judge
-calibrates against are produced once and reused by every arm.
+assembled into a prompt by the same expression that built the run's original
+prompt, and the suite digests that prompt to identify the variant. Everything
+that the variant does not change, the fixtures above all, is read again from the
+run's own retained inputs. Each variant's evaluation is one arm of the run. The
+arms share one run store, so the reference judgements for a judge's calibration
+are produced once and reused by every arm.
 
 ## What the improver sees
 
