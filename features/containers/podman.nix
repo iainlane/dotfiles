@@ -5,8 +5,8 @@
 # podman package and socket, /etc/containers/policy.json, registries.conf,
 # storage.conf and containers.conf.
 #
-# Defines the options those modules reference that system-manager does not
-# have. Each description says what happens to the value it is given.
+# Defines the options that those modules reference but system-manager does not
+# have. Each description says what happens to the value that it is given.
 #
 # This is shaped to be proposed to system-manager as
 # nix/modules/upstream/nixpkgs/virtualisation/podman.nix.
