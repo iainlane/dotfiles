@@ -6,23 +6,23 @@
 # `package-lock.json`, which pairs every dependency with a version and an
 # integrity hash, so each package under `pkgs/` commits one in `npm-deps/`.
 #
-# Where that lockfile comes from decides which dependency versions the
-# extension runs against, and there are two cases. `source.json` records which
+# Where that lockfile comes from decides the dependency versions of the
+# extension, and there are two cases. `source.json` records which
 # one applies, and `nix run .#update-<name>` rewrites it and the lockfile
 # together.
 #
 # A project that tags its releases and commits a lockfile has already published
-# a set of versions it tested against. For those, the build takes its source
+# the versions that it tested against. For those, the build takes its source
 # from the release tag and the updater copies the lockfile out of it unchanged.
 #
 # The rest are built from the published registry tarball, because npm removes
 # `package-lock.json` when it packs one. With no lockfile to copy, the updater
-# resolves the manifest's version ranges itself, giving the newest version each
-# range permitted on the day it ran.
+# resolves the manifest's version ranges itself and takes the newest version
+# that each range allowed on the day of the run.
 #
 # Either lockfile then passes through `./project-pi-npm-package.nix`, which
 # removes the records npm writes with a `resolved` URL but no `integrity` hash.
-# `importNpmLock` cannot verify a dependency it has no hash for, so it fails on
+# `importNpmLock` cannot verify a dependency without a hash, so it fails on
 # such a record.
 {
   buildNpmPackage,
@@ -34,7 +34,7 @@
   updaters,
   # The npm package name, scope included.
   npmName,
-  # The pin the updater rewrites: a version, and either a GitHub tag and tree
+  # The pin that the updater rewrites: a version, and either a GitHub tag and tree
   # hash or the registry tarball's hash.
   source,
   # The directory containing the lockfile.
