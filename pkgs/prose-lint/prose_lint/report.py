@@ -24,6 +24,7 @@ class Finding:
     rule: str
     message: str
     severity: Level
+    match: str = ""
 
     def render(self) -> str:
         return f"{self.path}:{self.line}:{self.column} {self.rule}: {self.message}"

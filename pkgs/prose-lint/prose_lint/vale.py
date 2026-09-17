@@ -158,6 +158,7 @@ def _parse(
                     rule=alert["Check"],
                     message=alert["Message"],
                     severity=severity,
+                    match=alert.get("Match", ""),
                 )
             )
 

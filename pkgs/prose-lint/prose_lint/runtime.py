@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import cached_property
 from pathlib import Path
@@ -16,6 +16,11 @@ from prose_lint.levels import Level
 from prose_lint.overrides import Override, read_overrides, write_overrides
 from prose_lint.owners import repository_is_owned
 from prose_lint.policy import effective_levels
+from prose_lint.relative_clauses import (
+    RELATIVE_CLAUSE_RULES,
+    without_contained_duplicates,
+    without_fronted_adverbials,
+)
 from prose_lint.report import Finding, Report
 from prose_lint.rules import HASH_COMMENT_SUFFIXES, RuleCatalogue
 from prose_lint.spelling import SpellingVariant, detect_variant
@@ -117,14 +122,15 @@ class Runtime:
         )
         extracted = tuple(p for p in paths if p.suffix.lower() in HASH_COMMENT_SUFFIXES)
         findings: list[Finding] = []
+        comments = {path: hash_comments(path.read_text()) for path in extracted}
 
         if direct:
             findings.extend(self._lint_directly(direct))
 
-        if extracted:
-            findings.extend(self._lint_comments(extracted))
+        if comments:
+            findings.extend(self._lint_comments(comments))
 
-        return Report(tuple(findings))
+        return Report(_refined(tuple(findings), _texts(findings, comments)))
 
     def lint_added_lines(self) -> Report:
         """The findings on the lines the working tree has added to HEAD.
@@ -196,34 +202,34 @@ class Runtime:
 
         return tuple(findings)
 
-    def _lint_comments(self, paths: tuple[Path, ...]) -> tuple[Finding, ...]:
-        """The findings in the `#` comments of `paths`, read as Markdown.
+    def _lint_comments(self, comments: Mapping[Path, str]) -> tuple[Finding, ...]:
+        """The findings in the extracted `#` comments of several files.
 
         Each file's comments are written to a file of their own in a scratch
-        directory and one Vale process reads them all. Vale keeps a document
+        directory, and one Vale process reads them all. Vale keeps a document
         per file, so a rule that reads a whole document, such as the spelling
-        consistency check, reports what it reports when the file is read on
-        its own. `--ext` makes Vale parse each mirror file as Markdown, which
-        the part-of-speech rules need, while the mirror's own name still
-        selects the rules for code.
+        consistency check, reports the same as it does when the source file is
+        read on its own.
 
-        `hash_comments` writes one line per source line, so an alert's line
-        is its line in the source file.
+        `--ext` makes Vale parse each mirror file as Markdown, which the
+        part-of-speech rules need. The mirror's own name still selects the
+        rules for code. `hash_comments` writes one line per source line, so an
+        alert's line is its line in the source file.
         """
         with tempfile.TemporaryDirectory(prefix="prose-lint-comments-") as scratch:
-            pairs = mirror_pairs(Path(scratch), paths)
+            pairs = mirror_pairs(Path(scratch), tuple(comments))
 
             for mirror, path in pairs:
-                mirror.write_text(hash_comments(path.read_text()))
+                mirror.write_text(comments[path])
 
             return self._lint_mirrors(dict(pairs))
 
     def _lint_mirrors(self, sources: Mapping[Path, Path]) -> tuple[Finding, ...]:
         """The findings in a set of mirror files, reported against their sources.
 
-        As with a batch of files Vale reads for itself, one file that Vale
-        cannot parse fails the whole run, so a failed batch is read again one
-        file at a time.
+        As with a batch of files that Vale reads for itself, one file that
+        Vale cannot parse fails the whole run, so a failed batch is read again
+        one file at a time.
         """
         mirrors = tuple(sources)
 
@@ -254,20 +260,58 @@ class Runtime:
         )
 
     def lint_commit_message(self, text: str, display_path: str) -> Report:
-        return Report(
-            self.vale.lint(
-                ValeInvocation(
-                    config=self.configuration(),
-                    stdin_text=text,
-                    extension=".txt",
-                    display_path=display_path,
-                )
+        findings = self.vale.lint(
+            ValeInvocation(
+                config=self.configuration(),
+                stdin_text=text,
+                extension=".txt",
+                display_path=display_path,
             )
         )
 
+        return Report(_refined(findings, {display_path: text}))
+
+
+def _refined(
+    findings: tuple[Finding, ...], texts: Mapping[str, str]
+) -> tuple[Finding, ...]:
+    """The findings with the two relative-clause corrections applied."""
+    return without_contained_duplicates(without_fronted_adverbials(findings, texts))
+
+
+def _texts(findings: Sequence[Finding], comments: Mapping[Path, str]) -> dict[str, str]:
+    """The text of every file that a relative-clause rule reported on.
+
+    Both corrections read the sentence of the alert. For a file whose comments
+    were extracted, that sentence is in the extracted text, because the
+    alert's line is a line of it.
+    """
+    reported = {
+        Path(finding.path)
+        for finding in findings
+        if finding.rule in RELATIVE_CLAUSE_RULES
+    }
+
+    return {
+        str(path): comments[path] if path in comments else _source_text(path)
+        for path in reported
+    }
+
+
+def _source_text(path: Path) -> str:
+    """A file's text, empty when the file cannot be decoded.
+
+    Vale reads files that prose-lint never opens, so decoding can fail here.
+    The corrections then leave that file's alerts alone and the run goes on.
+    """
+    try:
+        return path.read_text()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
 
 def _against_source(sources: Mapping[Path, Path], finding: Finding) -> Finding:
-    """One alert on a mirror file, reported against the file it was taken from."""
+    """One alert on a mirror file, reported against its source file."""
     source = sources.get(Path(finding.path))
 
     return finding if source is None else replace(finding, path=str(source))

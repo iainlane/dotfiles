@@ -23,9 +23,9 @@ def hash_comments(source: str) -> str:
     return "".join(f"{line}\n" for line in lines)
 
 
-# Every mirror file is given this extension. The scope glob for code covers
-# every extension whose comments prose-lint extracts, so the rules Vale runs
-# on a mirror file are the rules it runs on the source file.
+# Every mirror file is given this extension. One scope glob covers all the
+# extensions that prose-lint extracts comments from, so a mirror named for any
+# one of them selects the rules of the source file.
 MIRROR_SUFFIX = ".nix"
 
 

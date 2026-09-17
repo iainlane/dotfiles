@@ -113,6 +113,28 @@ class LineVale:
 
 
 @dataclass
+class RelativeClauseVale:
+    """A vale that reports one relative-clause alert on line 1 of every file."""
+
+    match: str
+
+    def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+        return tuple(relative_clause(path, self.match) for path in invocation.paths)
+
+
+def relative_clause(path: Path, match: str) -> Finding:
+    return Finding(
+        path=str(path),
+        line=1,
+        column=1,
+        rule="Prose.ZeroRelative",
+        message="An object-relative clause.",
+        severity=Level.error,
+        match=match,
+    )
+
+
+@dataclass
 class MirrorVale:
     """A vale that records what each invocation asked it to read.
 
@@ -352,3 +374,33 @@ def test_nothing_is_linted_outside_a_git_repository(tmp_path: Path) -> None:
     )
 
     assert runtime.lint_added_lines().findings == ()
+
+
+def test_a_fronted_adverbial_in_a_comment_is_not_reported(tmp_path: Path) -> None:
+    module = tmp_path / "module.nix"
+    module.write_text("# Outside a git repository the hook has no HEAD.\n")
+    runtime = build_runtime(tmp_path, RelativeClauseVale("repository the hook has"))
+
+    assert runtime.lint_paths((module,)).findings == ()
+
+
+def test_a_relative_clause_in_a_comment_is_reported(tmp_path: Path) -> None:
+    module = tmp_path / "module.nix"
+    module.write_text("# The operating system the machine runs is chosen here.\n")
+    runtime = build_runtime(tmp_path, RelativeClauseVale("system the machine runs"))
+
+    assert runtime.lint_paths((module,)).findings == (
+        relative_clause(module, "system the machine runs"),
+    )
+
+
+def test_a_fronted_adverbial_in_a_commit_message_is_not_reported(
+    tmp_path: Path,
+) -> None:
+    runtime = build_runtime(tmp_path, RelativeClauseVale("stop the agent closes"))
+
+    report = runtime.lint_commit_message(
+        "On stop the agent closes the transcript.\n", "commit message"
+    )
+
+    assert report.findings == ()

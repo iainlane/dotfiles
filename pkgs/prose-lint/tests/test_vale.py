@@ -83,6 +83,7 @@ def test_the_display_path_replaces_the_path_vale_reports() -> None:
             rule="Prose.Trailers",
             message="'Co-Authored-By:' is a commit trailer this project does not use.",
             severity=Level.error,
+            match="Co-Authored-By:",
         ),
     )
 
