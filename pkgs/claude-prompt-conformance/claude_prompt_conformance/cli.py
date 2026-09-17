@@ -177,8 +177,8 @@ def parser() -> argparse.ArgumentParser:
 def add_suite_arguments(result: argparse.ArgumentParser) -> None:
     """Declare the flags the suite's own wrapper supplies.
 
-    These name the suite's machinery, the clients it pins, and the settings it
-    measures every prompt with. A person can still replace any of them on the
+    These cover the suite's machinery: which clients it pins, and which
+    settings it measures every prompt with. A person can still replace any of them on the
     command line.
     """
 
@@ -229,8 +229,8 @@ def add_suite_arguments(result: argparse.ArgumentParser) -> None:
 def add_prompt_arguments(result: argparse.ArgumentParser) -> None:
     """Declare the flags which name the prompt configuration under test.
 
-    A caller assembles these: the prompt a candidate is given, the managed
-    settings it runs under, the sources a variant patches, and the three
+    A caller assembles these: the prompt for the candidate, the managed
+    settings for the run, the sources that a variant patches, and the three
     models.
     """
 

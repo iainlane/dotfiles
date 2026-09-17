@@ -60,16 +60,16 @@ second Ctrl-C kills every agent process group and exits immediately.
 `--keep-workspaces` retains the checkouts alongside the evidence, and
 `--unlink-first` removes a previous run store and starts again.
 
-## The configuration a run measures
+## Runtime configuration
 
 The caller supplies the whole runtime configuration through command-line flags,
 which name the manifests and directories a run loads. The package wrapper
 supplies the suite's own half of that command line: the fixtures, runtime
 helpers, tool environments, two pinned clients, and the efforts and limits used
-to measure every prompt. The other half names the prompt under test: the
+to measure every prompt. The other half describes the prompt under test: the
 candidate's context directory, the workspace overlay, the prompt manifest, the
-managed settings file, the sources a variant patches, and the candidate, judge
-and improver models.
+managed settings file, the sources that a variant patches, and the candidate,
+judge and improver models.
 
 `nix run .#claude-prompt-conformance` supplies both halves, because the [`ai`
 feature][ai-feature] builds the prompt this repository's own hosts deploy and
