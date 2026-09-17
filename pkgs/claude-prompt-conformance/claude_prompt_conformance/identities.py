@@ -1,4 +1,4 @@
-"""Model client identity capabilities for host-authenticated runs."""
+"""Claude identity capabilities backed by the host's own login."""
 
 import asyncio
 import time
@@ -131,9 +131,6 @@ _DEFAULT_FIRST_PARTY_SCOPES = (
 class ReconciledCredentialUpdate:
     """Complete one credential update even when a lock is lost part-way.
 
-    Both credential backends hold the pinned client's refresh lock while a
-    token is exchanged and its storage lock while the result is published.
-    Losing either lock is no reason to discard a rotation, because the refresh
     token it replaced is already spent. The update is reconciled against the
     credential stored at that moment: if its refresh token has changed, a
     concurrent rotation by the pinned client wins and is kept. Otherwise the
@@ -263,6 +260,14 @@ class AnthropicOAuthRefresher:
     transport: httpx.AsyncBaseTransport | None = field(default=None, repr=False)
 
     def refresh(self, credential: ClaudeOAuth, deadline: float) -> ClaudeOAuth:
+        """Exchange the refresh token for a new access token.
+
+        A credential with no client id was issued to the first-party default
+        client, so the request asks for that client's usual scopes as well as
+        the stored ones. The widening is a guess: a service that answers
+        `invalid_scope` is asked again with the credential's own scopes.
+        """
+
         if (
             "user:inference" not in credential.scopes
             and credential.subscription_type is None
@@ -330,8 +335,8 @@ class AnthropicOAuthRefresher:
         payload: dict[str, str],
         remaining: float,
     ) -> httpx.Response:
-        # Claude cancels the SDK control request after 30 seconds. The outer
-        # timeout bounds the complete exchange, rather than each socket phase.
+        # httpx applies its timeout to each socket phase, so the caller's
+        # deadline needs a timeout around the whole exchange.
         async with asyncio.timeout(remaining):
             async with httpx.AsyncClient(
                 transport=self.transport,
@@ -367,6 +372,8 @@ class AnthropicOAuthRefresher:
         if not refreshed.access_token:
             raise ClaudeCredentialRefreshAccessTokenMissingError
 
+        # Claude's credential stores its expiry as milliseconds since the
+        # epoch, and the OAuth response gives a lifetime in seconds.
         now = round(self.clock() * 1_000)
         refresh_token_expiry = credential.refresh_token_expires_at
         if refreshed.refresh_token_expires_in is not None:
@@ -387,7 +394,7 @@ class AnthropicOAuthRefresher:
 
 
 class ClaudeOAuthIdentity:
-    """Own one renewable Claude login session for every candidate process."""
+    """One renewable Claude login, shared by every candidate process in a run."""
 
     def __init__(
         self,
@@ -418,17 +425,16 @@ class ClaudeOAuthIdentity:
         }
 
     def access_token(self) -> str:
-        """Return the access token currently owned by the run."""
-
         with self._lock:
             return self._credential.oauth.access_token
 
     def refresh_access_token(self, rejected: str, deadline: float) -> str:
-        """Replace a token rejected by Claude and return the current token."""
+        """Replace a token that Claude rejected and return the token now in use."""
 
         with self._lock:
-            # Callers queued behind a winning refresh arrive holding a token the
-            # winner already replaced, so adopt it before consulting the clock.
+            # A caller queued behind a winning refresh arrives with a token
+            # that the winner has already replaced, so take the new one before
+            # looking at the clock.
             oauth = self._credential.oauth
             if oauth.access_token != rejected:
                 return oauth.access_token
@@ -437,7 +443,6 @@ class ClaudeOAuthIdentity:
             if observed_at >= deadline:
                 raise ClaudeCredentialRefreshDeadlineError(deadline, observed_at)
 
-            # A rotation that reaches durable storage is owned by the run even
             # when it finishes after the deadline: discarding it would strand
             # the refresh token.
             self._credential = self._store.mutate(
