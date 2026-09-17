@@ -115,9 +115,6 @@ in {
           };
           contextEngine = "lcm";
           embeddings = {
-            # OpenRouter's embeddings endpoint is OpenAI-compatible. `secretEnv`
-            # already provides OPENROUTER_API_KEY for the agent's models, so the
-            # embedding provider reads the same variable.
             baseUrl = "https://openrouter.ai/api/v1";
             apiKeyVariable = "OPENROUTER_API_KEY";
             model = "baai/bge-m3";
