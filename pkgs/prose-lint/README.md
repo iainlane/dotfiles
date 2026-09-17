@@ -67,13 +67,13 @@ spelling, `e.g.` and `i.e.`, `please`, exclamation marks. Outside that writer's
 own repositories a house rule is capped at warning, so it can report but never
 fail a check in a project that has made a different choice.
 
-prose-lint works out from the git remotes whose repository this is. It reads the
-owner out of every remote URL, in both the SSH and HTTPS GitHub forms, and
-treats the repository as the owner's only when every remote points at an account
-listed in `owners`. That list comes from
-`$XDG_CONFIG_HOME/prose-lint/config.toml`, or `~/.config/prose-lint/config.toml`
-when `XDG_CONFIG_HOME` is unset; `PROSE_LINT_CONFIG` gives the path directly.
-Outside a git repository nothing is owned and every house rule runs at warning.
+The git remotes decide whose repository this is. prose-lint reads the owner out
+of every remote URL, in both the SSH and HTTPS GitHub forms, and treats the
+repository as the owner's only when every remote points at an account listed in
+`owners`. That list comes from `$XDG_CONFIG_HOME/prose-lint/config.toml`, or
+`~/.config/prose-lint/config.toml` when `XDG_CONFIG_HOME` is unset;
+`PROSE_LINT_CONFIG` gives the path directly. Outside a git repository nothing is
+owned and every house rule runs at warning.
 
 Spelling works the same way. `git grep` counts a few British and American forms
 across the tracked files, and the majority decides which of `BritishSpelling`
