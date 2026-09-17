@@ -19,8 +19,8 @@ Guidance specific to the Claude Code harness.
   find comfortable. This applies to every `Bash` call, foreground or background,
   and regardless of your reason: even when you believe that you only need part
   of the output. Truncation hides errors and causes wasted re-runs. Searching a
-  large file for the lines you want, with `grep` or `rg`, is a different thing
-  and is fine.
+  large file for the lines that you want, with `grep` or `rg`, is a different
+  thing and is fine.
 - The user's terminal shows at most a few lines of a command's output. If the
   user needs to read any of it, put it in your reply.
 - The harness handles long output. Foreground output is truncated safely, and
