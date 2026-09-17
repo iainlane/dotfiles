@@ -476,6 +476,6 @@ as a maintainer who did not see this session.
 
 Accuracy wins over style. Preserve the meaning of every sentence that you keep,
 including its facts, conditions, numbers and scope qualifiers. Modal verbs keep
-the strength they had: revising must not turn `can` into `will` or `should` into
-`must`. When the output is too long, remove the least useful facts and leave the
-remaining sentences as they are.
+the strength that they had: revising must not turn `can` into `will` or `should`
+into `must`. When the output is too long, remove the least useful facts and
+leave the remaining sentences as they are.
