@@ -97,7 +97,7 @@ in {
   inherit mcpServersOption excludeServers mcpRemote hostSecretServers serverPackages servers;
 
   # Wrap an AI tool so the shared tools are on its PATH. The result contains
-  # everything the package installs, keeps its `pname`, `version`, `meta` and
+  # everything from the package, keeps its `pname`, `version`, `meta` and
   # `passthru`, and puts the unwrapped package under `passthru.unwrapped`.
   wrapWithTools = {
     package,
