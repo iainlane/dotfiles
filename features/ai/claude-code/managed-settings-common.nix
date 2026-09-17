@@ -127,6 +127,17 @@ in {
           ];
         }
       ];
+      Stop = [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = "${lib.getExe pkgs.prose-lint} hook stop";
+              timeout = 30;
+            }
+          ];
+        }
+      ];
     };
     inputNeededNotifEnabled = true;
     model = "${defaultModels.anthropic}[1m]";
