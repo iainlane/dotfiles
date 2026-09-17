@@ -45,6 +45,9 @@
             entry = "${lib.getExe pkgs.prose-lint} check";
             language = "system";
             types = ["text"];
+            # Every fixture under this path is an example for a rule to
+            # report, so linting the fixtures would always fail.
+            excludes = ["^pkgs/prose-lint/fixtures/"];
           };
 
           nix-format = {
