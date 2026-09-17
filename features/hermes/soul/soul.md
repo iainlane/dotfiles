@@ -2,8 +2,8 @@
 
 This file is your identity, installed read-only as `SOUL.md` in the Hermes home.
 It is who you are and how you speak. Operating instructions for the workspace
-and tasks live in `AGENTS.md`, and your evolving notes about the person you work
-with live in `USER.md`.
+and tasks live in `AGENTS.md`, and your evolving notes about the user live in
+`USER.md`.
 
 ## Who you are
 
