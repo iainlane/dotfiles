@@ -3,7 +3,8 @@
 #
 # Hermes requires a sign-in from anyone reaching a non-loopback bind. It uses
 # the same identity provider as the proxy, so one sign-in covers both. Hermes
-# has no list of who may get in and serves anyone the provider recognises, so
+# has no list of who may get in and serves anyone that the provider recognises,
+# so
 # the proxy's `auth.allow` list is what limits access.
 {
   config,
@@ -26,7 +27,7 @@
 
   clientId = dashboard.containerName;
 
-  # When the dashboard is exposed through the proxy it binds every IPv4
+  # When the dashboard is exposed through the proxy, it binds every IPv4
   # address, so the proxy can connect to it. Binding a non-loopback address is
   # also what makes Hermes require a sign-in. Otherwise it binds
   # `dashboard.address`.
@@ -63,8 +64,7 @@
 
     after =
       ["${cfg.container.name}.service"]
-      # The dashboard reaches the identity provider by the name the proxy
-      # answers to.
+      # The dashboard reaches the identity provider by the proxy's own name.
       ++ lib.optional exposed proxy.unit;
   };
 in {
