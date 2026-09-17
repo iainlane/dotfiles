@@ -606,7 +606,7 @@ def demo_arguments(arguments: argparse.Namespace) -> argparse.Namespace:
 
 
 def validate_demo_options(*, demo: bool, improve: bool) -> None:
-    """Reject options which contradict a scripted demonstration run."""
+    """Reject `--improve` in a demo run, which makes no model requests to measure."""
 
     if demo and improve:
         raise DemoImprovementConflictError
