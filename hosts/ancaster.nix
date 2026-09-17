@@ -36,7 +36,6 @@ in {
           matchConfig.Name = "eth0";
           address = [
             "192.168.1.138/24"
-            # Routed to this host by the ISP. The proxy publishes its ports on
             # this address. It is a /32 because it is a single routed address
             # and shares no subnet with anything else on the LAN.
             "81.187.184.100/32"
