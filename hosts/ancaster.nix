@@ -122,7 +122,6 @@ in {
             # 1024 dimensions, multilingual, $0.01 per million input tokens.
             model = "baai/bge-m3";
           };
-          # Pull in exa-py so the native web_search Exa backend has its client.
           extraDependencyGroups = ["exa"];
           secretEnvFile = "ancaster/host-hermes.yaml";
           secretEnv = {
@@ -132,8 +131,8 @@ in {
             # its requests with it instead of falling back to the
             # unauthenticated free tier.
             EXA_API_KEY = "exa_api_key";
-            # Hermes' OpenAI-compatible TTS backend looks for its key under this
-            # name; reuse the OpenRouter key so speech routes through OpenRouter.
+            # Hermes' OpenAI-compatible speech backend reads its key from this
+            # variable, so the OpenRouter key sends speech through OpenRouter.
             VOICE_TOOLS_OPENAI_KEY = "openrouter_api_key";
           };
           mcp.tokens = {
@@ -162,13 +161,10 @@ in {
               enabled = true;
               provider = "groq";
             };
-            # Image generation through the existing Codex/ChatGPT subscription
-            # (gpt-image-2), so it needs no separate key.
+            # Image generation runs through the Codex OAuth session, so it
+            # needs no OpenAI key.
             image_gen.provider = "openai-codex";
-            # Web search via Exa's neural search API.
             web.backend = "exa";
-            # Text-to-speech through OpenRouter's OpenAI-compatible speech
-            # endpoint, using xAI's Grok Voice TTS with the Leo voice.
             tts = {
               provider = "openai";
               openai = {
@@ -178,8 +174,9 @@ in {
                 speed = 1.2;
               };
             };
-            # Each platform gets its own preset plus the shared toolsets, so the
-            # agent can read and write its task board from either platform.
+            # Each entry replaces the platform's whole toolset list, so the
+            # platform's own toolset has to be listed alongside the shared
+            # ones.
             platform_toolsets.signal = ["hermes-signal"] ++ sharedToolsets;
             platform_toolsets.matrix = ["hermes-matrix"] ++ sharedToolsets;
 
@@ -189,9 +186,9 @@ in {
             security.allow_lazy_installs = false;
             approvals.mode = "smart";
 
-            # The home room is named, so 0.17's stricter DM detection treats it
+            # The default makes the agent ignore a message in a group room
+            # unless the message @mentions it.
             # as a group room, in which the agent stays silent until it is
-            # @mentioned. Respond to every message instead.
             matrix.require_mention = false;
 
             compression.threshold = 0.85;
@@ -201,8 +198,8 @@ in {
 
             gateway = {
               strict = true;
-              # The workspace is the only non-default root; Hermes already allows
-              # its typed media caches (image_cache, audio_cache, ...) by default.
+              # Hermes always trusts its own media cache, so only the workspace
+              # has to be listed here.
               media_delivery_allow_dirs = ["/data/workspace"];
               trust_recent_files = true;
               trust_recent_files_seconds = 600;
@@ -211,17 +208,12 @@ in {
         };
 
         caddy = {
-          # The spare address routed here, not the one the LAN answers on.
           ipv4Address = "81.187.184.100";
-          # Delegated from the /64 routed to this host, so the proxy is reached
-          # over IPv6 without publishing or translation.
           network.v6 = {
             subnet = "2001:8b0:df29:1a0:c::/80";
             # Set at the far end of the range, leaving the low addresses for
             # the services. Unset, the bridge would take `::1`.
             gateway = "2001:8b0:df29:1a0:c::ffff";
-            # Keeps the low addresses free for the services given a fixed one,
-            # `ipv6Address` below among them.
             range = "2001:8b0:df29:1a0:c::100/120";
           };
           ipv6Address = "2001:8b0:df29:1a0:c::1";
