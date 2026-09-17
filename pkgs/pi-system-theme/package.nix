@@ -1,8 +1,8 @@
 # Cross-platform auto dark/light switcher. On Linux it polls `gsettings get
 # org.gnome.desktop.interface color-scheme` every `pollMs`; on macOS it reads
-# `AppleInterfaceStyle`. On both platforms the extension accepts custom theme
-# names via `~/.pi/agent/system-theme.json`, which lets the Pi module map the
-# detected mode to the matching Catppuccin theme it renders.
+# `AppleInterfaceStyle`. The extension accepts custom theme names on either
+# platform, through `~/.pi/agent/system-theme.json`, so the Pi module can map
+# the detected mode to the matching Catppuccin theme that it renders.
 #
 # To update: nix run .#update-pi-system-theme
 {callPackage}:
