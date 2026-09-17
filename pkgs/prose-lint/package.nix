@@ -96,7 +96,7 @@
         --replace-fail '@stylesPath@' "$share/styles"
 
       makeWrapper ${lib.getExe' application "prose-lint"} "$out/bin/prose-lint" \
-        --set PROSE_LINT_SHARE "$share" \
+        --set-default PROSE_LINT_SHARE "$share" \
         --prefix PATH : ${lib.makeBinPath [gitMinimal vale]}
 
       runHook postInstall
@@ -181,6 +181,11 @@
 
       printf '%s\n' '-- A comment with nothing to report.' 'local x = 1' >clean.lua
       prose-lint check clean.lua
+
+      if PROSE_LINT_SHARE=/nonexistent prose-lint check clean.lua; then
+        echo "PROSE_LINT_SHARE from the environment was ignored" >&2
+        exit 1
+      fi
 
       touch "$out"
     '';
