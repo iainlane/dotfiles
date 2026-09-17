@@ -104,7 +104,7 @@
 
       # This file is also installed as the global Vale configuration under
       # ~/.config/vale, and Vale resolves a relative StylesPath against the
-      # directory of the configuration file it read. StylesPath is therefore
+      # directory of the configuration file that it read. StylesPath is therefore
       # written as an absolute path into this output.
       substitute ${styleSource}/vale.ini.in "$share/vale.ini" \
         --replace-fail '@stylesPath@' "$share/styles"
