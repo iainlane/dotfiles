@@ -227,7 +227,7 @@ def add_suite_arguments(result: argparse.ArgumentParser) -> None:
 
 
 def add_prompt_arguments(result: argparse.ArgumentParser) -> None:
-    """Declare the flags which name the prompt configuration under test.
+    """Declare the flags that describe the prompt configuration under test.
 
     A caller assembles these: the prompt for the candidate, the managed
     settings for the run, the sources that a variant patches, and the three
@@ -249,8 +249,6 @@ def add_prompt_arguments(result: argparse.ArgumentParser) -> None:
 def configuration_input(
     arguments: argparse.Namespace,
 ) -> RuntimeConfigurationInput:
-    """Assemble the effective configuration from the parsed command line."""
-
     return RuntimeConfigurationInput(
         fixture_manifest=arguments.fixtures,
         prompt_context=arguments.prompt_context,
@@ -304,8 +302,6 @@ def codex_agent_input(
     model: str,
     effort: str,
 ) -> CodexAgentConfigurationInput:
-    """Combine one Codex agent's model and effort with the shared client limits."""
-
     return CodexAgentConfigurationInput(
         model=model,
         effort=effort,
@@ -455,9 +451,9 @@ def _main(argv: Sequence[str] | None = None) -> int:
                 runtime_directory(os.environ),
                 f"run-{os.getpid()}",
             ),
-            # The run store has yet to retain the configuration, and
-            # authentication needs only the endpoints and the sandbox, so this
-            # names the document the store will write.
+            # Authentication needs only the endpoints and the sandbox, and the
+            # run store has not written its configuration yet, so this passes
+            # the path where the store will write it.
             acquire_run_authentication(
                 RuntimeConfiguration.from_input(
                     configuration_document(output),
