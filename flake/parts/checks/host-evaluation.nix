@@ -4,8 +4,8 @@
 # output. This detects evaluation failures without building the host
 # configuration.
 #
-# Each configuration gets its own check, under the system it is built for,
-# so a failure names the host and the output it came from. Running the flake
+# Each configuration gets its own check, under the system that it is built for,
+# so a failure identifies both the host and the output. Running the flake
 # checks with `--all-systems` covers every host. The checks are derived from
 # the flake outputs and therefore follow changes to the host inventory.
 #
@@ -21,7 +21,7 @@
   operatingSystems = import ../../../lib/operating-systems.nix;
 
   # The top-level derivation of each kind of system configuration. The OS
-  # table names the flake output the configuration is read from.
+  # table gives the flake output for each configuration.
   drvPathFor = {
     nixos = configuration: configuration.config.system.build.toplevel.drvPath;
     darwin = configuration: configuration.config.system.build.toplevel.drvPath;
