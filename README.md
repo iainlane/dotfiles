@@ -20,10 +20,10 @@ These are managed using [Nix].
 
 ## Structure
 
-The flake is composed of _hosts_ and _features_. A host lists the features it
-has. A feature is the configuration for one concern across every module system
-that builds a host (NixOS, nix-darwin, system-manager and Home Manager), plus
-the other features it includes.
+The flake is composed of _hosts_ and _features_. A host lists its features. A
+feature is the configuration for one concern across every module system that
+builds a host (NixOS, nix-darwin, system-manager and Home Manager), plus the
+other features that it includes.
 
 For a fuller walk through `host → features → OS adapter → outputs`, see
 [docs/architecture.md](docs/architecture.md).
