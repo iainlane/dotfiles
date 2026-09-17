@@ -14,4 +14,4 @@ tokens:
   # ZeroRelative.yml.
   - tag: ^(?:DT|PRP\$)$
   - tag: NN|NNS|NNP|JJ
-  - tag: VBZ|VBD|VBP|NNS
+  - tag: VBZ|VBD|VBP|NNS|MD

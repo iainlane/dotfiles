@@ -95,6 +95,17 @@ level = "warning"
 locked = false
 scope = "all"
 
+# The same shape with a possessive noun phrase as the subject of the clause,
+# as in `the version Pi's own installer would resolve`. A possessive subject
+# with its own main verb (`each directory tree's git configuration sets`) reads
+# the same way to the tagger; over this repository two of the three matches
+# were clauses, so this form only warns.
+[rules.ZeroRelativePossessive]
+tier = "portable"
+level = "warning"
+locked = false
+scope = "all"
+
 [rules.RepeatedWords]
 tier = "portable"
 level = "error"

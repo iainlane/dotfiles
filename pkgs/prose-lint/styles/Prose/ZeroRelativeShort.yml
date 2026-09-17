@@ -13,4 +13,4 @@ tokens:
   - tag: ^(?:NN|NNS)$
   - tag: ^(?:DT|PRP\$)$
   - tag: ^(?:NN|NNS|NNP|JJ)$
-  - tag: ^(?:VBZ|VBD|VBP)$
+  - tag: ^(?:VBZ|VBD|VBP|MD)$

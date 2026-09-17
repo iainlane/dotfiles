@@ -12,6 +12,7 @@ RELATIVE_CLAUSE_RULES = frozenset(
         "Prose.ZeroRelative",
         "Prose.ZeroRelativeBare",
         "Prose.ZeroRelativeNamed",
+        "Prose.ZeroRelativePossessive",
         "Prose.ZeroRelativePronoun",
         "Prose.ZeroRelativeShort",
     }

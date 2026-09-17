@@ -94,6 +94,15 @@ def test_a_clause_with_no_fronted_adverbial_is_kept(text: str, match: str) -> No
     assert kept == (alert(match),)
 
 
+def test_a_fronted_adverbial_before_a_possessive_subject_is_dropped() -> None:
+    finding = alert(
+        "the flag Pi's own installer would", rule="Prose.ZeroRelativePossessive"
+    )
+    text = "Without the flag Pi's own installer would fail."
+
+    assert without_fronted_adverbials((finding,), {PATH: text}) == ()
+
+
 def test_a_fronted_adverbial_wrapped_over_two_lines_is_dropped() -> None:
     text = "Outside a git\nrepository the hook has no HEAD.\n"
 

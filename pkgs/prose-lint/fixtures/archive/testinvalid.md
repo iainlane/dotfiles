@@ -14,3 +14,7 @@ Cache the digest after the first read, ensuring consistency.
 
 Naming a variable rather than the key itself lets a key already in `secretEnv`
 serve both the agent and the embedding endpoint.
+
+Pin the image because that is the version Pi's own installer would resolve.
+
+The files the host would export are listed here.

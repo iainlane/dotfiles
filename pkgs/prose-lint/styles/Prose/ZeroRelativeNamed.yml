@@ -13,4 +13,4 @@ tokens:
   - tag: NN|NNS|NNP
   - tag: NNP
   - tag: NN|NNS|NNP|JJ
-  - tag: VBZ|VBD|VBP|NNS
+  - tag: VBZ|VBD|VBP|NNS|MD
