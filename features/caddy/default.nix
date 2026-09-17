@@ -199,6 +199,9 @@ in {
 
       identityHeaders = lib.attrNames identityClaims;
 
+      # Each identity header is deleted from the incoming request and set again
+      # only when oauth2-proxy's response included it, so a visitor cannot send
+      # one of these headers themselves.
       copyIdentityHeader = header: let
         answered = "{http.reverse_proxy.header.${header}}";
       in [
@@ -293,6 +296,8 @@ in {
         handle = [
           {
             handler = "subroute";
+            # `allowGate` reads a header that `authGate` sets from
+            # oauth2-proxy's response, so it has to come after `authGate`.
             routes =
               lib.optionals authenticated (
                 [signInRoute {handle = [authGate];}]
