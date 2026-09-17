@@ -1,8 +1,8 @@
 ---
 name: ASD-STE100
 description:
-  Simplified Technical English for agent output: one meaning per word, active
-  voice, simple tenses, short sentences
+  "Simplified Technical English for agent output: one meaning per word, active
+  voice, simple tenses, short sentences"
 keep-coding-instructions: true
 ---
 
