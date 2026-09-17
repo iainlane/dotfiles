@@ -60,8 +60,8 @@ let
   # Declaration for the MCP server set offered to the AI harnesses. Servers
   # use one common shape (`url` for remote, `command`/`args` for local); a
   # base module seeds the set and features add to it, with the module system
-  # merging the definitions. Each harness applies its own transform to output
-  # in the format it needs.
+  # merging the definitions. Each harness applies its own transform to produce
+  # its own output format.
   mcpServersOption = lib.mkOption {
     type = with lib.types; attrsOf (attrsOf jsonFormat.type);
     default = {};
