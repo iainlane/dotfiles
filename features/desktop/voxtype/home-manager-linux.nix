@@ -73,8 +73,8 @@ in {
   };
 
   # The GTK4 OSD paints with Cairo and is not themeable through GTK CSS. It
-  # reads its colours only from this Omarchy theme file; map the six keys it
-  # parses to the host's catppuccin flavour.
+  # reads its colours only from this Omarchy theme file; map the six keys that
+  # it parses to the host's catppuccin flavour.
   xdg.configFile."omarchy/current/theme/colors.toml".text = ''
     background = "${palette.base.hex}"
     foreground = "${palette.text.hex}"
