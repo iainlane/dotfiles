@@ -176,9 +176,9 @@
 
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
-    # nixpkgs-unstable with two commits the lanzaboote branch above needs: the
+    # nixpkgs-unstable with two commits that the lanzaboote branch above needs: the
     # pcrlock service units and options on the tpm2 module, and the tmpfiles
-    # rules for the PCR credentials the stub deposits. Only lanzaboote
+    # rules for the PCR credentials deposited by the stub. Only lanzaboote
     # evaluates against it. Drop it with the lanzaboote pin.
     nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
