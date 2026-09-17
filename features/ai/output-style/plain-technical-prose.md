@@ -33,10 +33,13 @@ a commit message is a separate question, answered by the always-loaded
 These rules are unconditional. The sections after them explain and illustrate
 them; where an explanation reads like a softening, the rule wins.
 
-1. An object-relative clause takes `that` or `which`. Never write the bare form
-   (`the key this repository sets`): write `the key that this repository sets`,
-   or use a prepositional phrase. One relative clause per noun phrase. A second
-   relationship becomes its own sentence.
+1. Never write a bare object-relative clause (`the key this repository sets`).
+   The fault is a relationship compressed into a noun phrase, so restructure it:
+   as a plain clause (`this repository sets the key`), as a prepositional
+   phrase, or as its own sentence. Add `that` or `which` only where the clause
+   does nothing but identify the noun (`the key that this repository sets`). One
+   relative clause per noun phrase. A second relationship becomes its own
+   sentence.
 2. No em dashes. Use a comma, a colon, parentheses, or a new sentence.
 3. No arrow chains (`a -> b -> c`) in prose. State the relationship in words.
 4. In comments, commit messages and documentation, do not use `hold`, `carry`,
@@ -451,8 +454,9 @@ and sentence length varies naturally.
 Before writing prose into the repository or sending it to the user, read it once
 as a maintainer who did not see this session.
 
-- Does every object-relative clause have `that` or `which`, and does each noun
-  phrase have at most one relative clause?
+- Could each object-relative clause be a plain clause, a prepositional phrase or
+  its own sentence? Does every remaining one have `that` or `which` and only
+  identify its noun?
 - Are there em dashes, arrow chains, or verbs from hard rule 4 left?
 - Is an exception described as an abstract absence?
 - If a sentence says `X rather than Y` or `not just X`, is Y a real alternative?
