@@ -18,7 +18,7 @@
 # skill named in `excludes`. The shared set is linked into `~/.agents/skills`,
 # the harness-neutral location. A harness that reads only its own directory
 # links the tree itself, through the `skillTree` module argument, and that is
-# where it drops the skills it does not want.
+# where it drops unwanted skills.
 #
 # A value in the set is inline SKILL.md content, a directory that is a
 # skill, or a directory that contains skills. Evaluation cannot tell the
