@@ -26,7 +26,7 @@
     binName = "agy";
   };
 
-  # Keys the CLI persists in `settings.json`. The model is stored as its
+  # The keys that the CLI persists in `settings.json`. The model is stored as its
   # display-name string, the same value shown in `agy models` and the `/model`
   # picker. `onboardingComplete` and `securityAgreed` skip the first-run wizard
   # that otherwise blocks at the welcome screen, and `enableTelemetry = false`
