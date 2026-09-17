@@ -34,12 +34,12 @@ Every feature lives in one directory under `features/` and registers itself
 under `flake.features.<name>`. The directories are discovered automatically, and
 only a `<name>/default.nix` one level down is loaded.
 
-A feature is top-level when it is a concern a host composes in its own right.
-Everything else is a child of the feature it belongs to, registered under that
-feature's `provides` and named `<parent>.<child>`, such as `base.zsh` or
-`desktop.gnome`. A child applies only when something lists it in `includes`, so
-a parent lists the children that always apply and puts the rest under the OS
-scopes. Anything can list a single child on its own: `hosts/bonington` takes
+A feature is top-level when a host composes it in its own right. Everything else
+is a child of its parent feature, registered under that feature's `provides` and
+named `<parent>.<child>`, such as `base.zsh` or `desktop.gnome`. A child applies
+only when something lists it in `includes`, so a parent lists the children that
+always apply and puts the rest under the OS scopes. Anything can list a single
+child on its own: `hosts/bonington` takes
 `features.work.provides.claude-managed-settings` without the rest of `work`.
 
 The twenty-one top-level features:
@@ -85,9 +85,9 @@ installs.
 
 ### Hosts
 
-Hosts represent machines. A host record defines OS/architecture, the features
-the host has, and any configuration that applies to this host alone. Each file
-under `hosts/` is a flake-parts module that sets `flake.hosts.<name>`:
+Hosts represent machines. A host record defines OS/architecture, the host's
+features, and any configuration that applies to this host alone. Each file under
+`hosts/` is a flake-parts module that sets `flake.hosts.<name>`:
 
 ```nix
 {config, ...}: let
