@@ -44,7 +44,7 @@ in {
     enable = cfg.enable == true || (cfg.enable == null && allObjects != []);
 
     # Quadlet reads [Install] and writes the .wants symlink into its own
-    # output directory, beside the unit it generates, so the symlink
+    # output directory, beside the unit that it generates, so the symlink
     # resolves. system-manager starts system-manager.target on every
     # activation, so naming that target starts services that are new since the
     # last activation.
