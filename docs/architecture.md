@@ -81,11 +81,11 @@ A feature also has a `provides` field, which is not a module. It contains an
 attribute set of child feature definitions. Declaring a child does not add it to
 a host; a feature or host must include it explicitly.
 
-A feature includes the features it depends on, and a host that lists it resolves
-those as well. Two scopes narrow what a feature contributes. `os.<os>` takes a
-Home Manager module and an `includes` list that apply only on hosts with that
-OS, and `kernel.<linux|darwin>` takes a Home Manager module for every host with
-that kernel:
+A feature includes the features that it depends on, and a host that lists it
+resolves those as well. Two scopes narrow what a feature contributes. `os.<os>`
+takes a Home Manager module and an `includes` list that apply only on hosts with
+that OS, and `kernel.<linux|darwin>` takes a Home Manager module for every host
+with that kernel:
 
 ```nix
 # features/git/default.nix
@@ -296,8 +296,8 @@ the right system builder:
 
 Shared plumbing (feature resolution, Home Manager assembly, the system special
 arguments, sops fragments) lives in `lib/`, so each adapter owns only what its
-system builder needs: the builder function, the modules it prepends, and how
-Home Manager reaches the configuration.
+system builder needs: the builder function, the modules to prepend, and how Home
+Manager reaches the configuration.
 
 ## Flake outputs
 
@@ -324,7 +324,7 @@ The rest of the flake is the tooling and the data other things read:
   `nix`: the flake-parts options this repository declares, readable from a
   script that needs to know what is configured,
 - `agentsviewHosts` and `agentsviewServer`: the hosts that push agent sessions
-  and the server they push to, read by the secrets generator.
+  and their destination server, read by the secrets generator.
 
 ## Helper layout
 
