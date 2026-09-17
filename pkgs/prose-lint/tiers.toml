@@ -75,20 +75,20 @@ level = "warning"
 locked = false
 scope = "all"
 
-# The same shape starting at the head noun, as in "everything the repository
-# declares". A docstring that opens with an imperative reads the same way to
-# the tagger, as in "Hash the exact retained files", so this form only warns.
+# The same shape starting at the head noun, as in `everything the repository
+# declares`. A docstring that opens with an imperative reads the same way to
+# the tagger, as in `Hash the exact retained files`, so this form only warns.
 [rules.ZeroRelativeShort]
 tier = "portable"
 level = "warning"
 locked = false
 scope = "all"
 
-# The same shape with a pronoun as the subject of the clause, as in "the
-# features it includes". The rule lists the pronouns that can be a subject,
-# because a reflexive such as "the policy itself is" reads the same way. A
-# question-word clause ("decides whose repository it is") and a verb's object
-# ("means it does") also read the same way, so this form only warns.
+# The same shape with a pronoun as the subject of the clause, as in `the
+# features it includes`. The rule lists the pronouns that can be a subject,
+# because a reflexive such as `the policy itself is` reads the same way. A
+# question-word clause (`decides whose repository it is`) and a verb's object
+# (`means it does`) also read the same way, so this form only warns.
 [rules.ZeroRelativePronoun]
 tier = "portable"
 level = "warning"
