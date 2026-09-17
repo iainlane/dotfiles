@@ -1,8 +1,8 @@
 # prose-lint
 
 A [Vale][vale] style and a command-line front end that read prose against the
-[Plain technical prose][style] output style. It reads the same three places the
-style covers: comments in source files, Markdown documents, and commit messages.
+[Plain technical prose][style] output style. It reads the same three places as
+the style: comments in source files, Markdown documents, and commit messages.
 Vale finds the constructions; the command line decides which rules run where,
 replies to Claude Code hooks, and records the overrides that a project has
 agreed to.
@@ -54,8 +54,8 @@ every other file reports its findings as usual.
 
 ## Tiers
 
-`tiers.toml` records, for every rule, the tier it belongs to, the level it runs
-at, whether it can be lowered, and the files it applies to.
+For every rule, `tiers.toml` records its tier, its level, whether it can be
+lowered, and which files it applies to.
 
 A **portable** rule belongs to the style itself: arrow chains, abstract
 absences, trailing benefit clauses without a mechanism, stock intensifiers,
@@ -141,8 +141,8 @@ stops the session.
 
 ## Fixtures
 
-Each rule has a directory under `fixtures/` containing a file the rule must
-report, a file it must not report, an `expr` filter that selects that rule's
+Each rule has a directory under `fixtures/` containing one file for the rule to
+report and one for it to leave alone, an `expr` filter that selects that rule's
 alerts, and the golden Vale output for both files. `fixtures/archive/` contains
 sentences taken from this repository's own history, and its golden file records
 which rule catches each one. Its `testvalid.md` is the other half of that
@@ -161,5 +161,5 @@ nix build .#prose-lint
 ./result/share/prose-lint/goldens.bash ./result/share/prose-lint ./fixtures
 ```
 
-Read the diff before committing it. A golden file that changed in a way you
-cannot account for means the rule now reports something you did not intend.
+Read the diff before committing it. If you cannot account for a change in a
+golden file, the rule is now reporting more than you intended.
