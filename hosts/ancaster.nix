@@ -1,7 +1,7 @@
 {config, ...}: let
   inherit (config.flake) features halls;
 
-  # Toolsets every platform gets on top of its own preset.
+  # The toolsets that every platform gets on top of its own preset.
   sharedToolsets = ["kanban" "context_engine"];
 in {
   flake.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
@@ -141,7 +141,7 @@ in {
             exa = "exa_api_key";
           };
           settings = {
-            # `raft-platform` is a bundled gateway adapter this host does not
+            # `raft-platform` is a bundled gateway adapter that this host does not
             # use. While it is enabled the agent probes for the absent `raft`
             # CLI at startup. `google_chat-platform` needs the `google-chat`
             # dependency group, which the `all` group no longer includes.
