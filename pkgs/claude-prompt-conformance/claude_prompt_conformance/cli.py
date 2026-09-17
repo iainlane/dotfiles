@@ -175,11 +175,11 @@ def parser() -> argparse.ArgumentParser:
 
 
 def add_suite_arguments(result: argparse.ArgumentParser) -> None:
-    """Declare the flags the suite's own wrapper supplies.
+    """Declare the flags that the suite's own wrapper supplies.
 
     These cover the suite's machinery: which clients it pins, and which
-    settings it measures every prompt with. A person can still replace any of them on the
-    command line.
+    settings it measures every prompt with. A person can still replace any of
+    them on the command line.
     """
 
     group = result.add_argument_group("suite")
