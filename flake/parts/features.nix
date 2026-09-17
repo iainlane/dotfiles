@@ -2,13 +2,13 @@
 # `featureResolver` module argument so every reader of the registry uses one
 # instance of it.
 #
-# A feature is a module, or a list of modules, for each module system it
-# configures, plus a list of the features it includes. Hosts and other
+# A feature contributes a module, or a list of modules, to each module system
+# that it configures, and it can include other features. Hosts and other
 # features refer to entries by value, so a reference to a feature that does
 # not exist fails at the reference.
 #
 # A feature also registers the concerns that only it uses, as children under
-# `provides`. A child has every field a feature has and its name is qualified
+# `provides`. A child has every field of a feature, and its name is qualified
 # by its parent's, so `closure` and `hasFeature` treat it like any other
 # feature. Registering a child does not apply it: something has to list it in
 # `includes`.
