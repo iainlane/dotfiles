@@ -96,13 +96,13 @@ Most tools still need a wrapped binary so their private tool dependencies are on
 
 `mcp-server-set.nix` is a function that returns a module, so the same servers
 can be declared in two module systems from one file. It takes
-`declareSopsSecrets` and `secretPath`, and the module it returns declares
+`declareSopsSecrets` and `secretPath`, and the module that it returns declares
 `dotfiles.ai.mcpServers` and defines it from the `mcp` argument plus the
 credential-bearing servers for this host.
 
 - `mcp.nix`, the `ai` feature's home-manager module, calls it with the defaults:
-  it declares the sops secrets those servers need and reads each secret's
-  runtime path from `config.sops.secrets.<name>.path`.
+  it declares the sops secrets for those servers and reads each secret's runtime
+  path from `config.sops.secrets.<name>.path`.
 - `codex/system-config.nix` is a system module and calls it with
   `declareSopsSecrets = false` and a `secretPath` built from the user's home
   directory, because the home-manager configuration has already declared the
@@ -150,10 +150,10 @@ by invoking the skill named after it. The `skillTree` argument merges a set of
 skills into one directory and fails the build when two skills share a name and
 differ. The shared tree is linked into `~/.agents/skills`, the harness-neutral
 location; a harness that reads only its own directory calls `skillTree` again
-for a tree of its own. That call is also where a harness leaves out skills it
-does not want: `skillTree` takes an `excludes` list of names, removes them after
-the merge, and fails the build for a name that matches nothing. Claude Code
-exposes this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
+for a tree of its own. That call is also where a harness leaves out unwanted
+skills: `skillTree` takes an `excludes` list of names, removes them after the
+merge, and fails the build for a name that matches nothing. Claude Code exposes
+this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
 
 ## Unstable home-manager modules
 
