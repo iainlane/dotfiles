@@ -11,8 +11,8 @@
 # `flake.agentsviewServer.domain`, which the host with the server feature
 # sets beside its host record. To add a machine, give it the feature.
 #
-# `features` is `config.flake.features`. The predicates take the three
-# features they test for from it, so a rename that misses one of them is an
+# `features` is `config.flake.features`. The predicates draw the three features
+# from that set, so a rename that misses one of them is an
 # evaluation error here. With bare names, a missing feature would simply not
 # match: a wrong client name stops every machine pushing, and a wrong work
 # name makes the work machines push.
@@ -36,7 +36,7 @@
   # machine that runs the database also pushes to it, and a machine that
   # keeps its sessions to itself still shows them on its own dashboard.
   #
-  # Which secrets a machine needs follows from this. The `agentsviewHosts`
+  # This also decides which secrets a machine needs. The `agentsviewHosts`
   # flake output exposes it to `generate-agentsview-secrets`.
   kinds = hosts:
     lib.mapAttrs (_: host:
@@ -115,7 +115,7 @@
   cursorSecret = "agentsview_cursor_secret";
   authTokenSecret = "agentsview_auth_token";
 
-  # A secret's name includes the machine it belongs to, so one host can store
+  # A secret's name includes its machine, so one host can store
   # several machines' passwords without them colliding.
   passwordSecretFor = hostname: "agentsview_password_${hostname}";
 
