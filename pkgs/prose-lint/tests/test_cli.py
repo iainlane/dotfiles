@@ -6,7 +6,7 @@ import pytest
 from prose_lint.cli import main
 
 
-def test_a_broken_vale_is_reported_without_a_traceback(
+def test_a_broken_vale_is_reported_against_the_file_not_as_a_traceback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -19,10 +19,12 @@ def test_a_broken_vale_is_reported_without_a_traceback(
     monkeypatch.chdir(tmp_path)
 
     status = main(["check", "note.md"])
+    captured = capsys.readouterr()
 
-    assert (status, capsys.readouterr().err) == (
-        2,
-        "prose-lint: vale exited 1: boom\n",
+    assert (status, captured.err, captured.out.splitlines()[0]) == (
+        1,
+        "",
+        "note.md:1:1 prose-lint: vale exited 1: boom",
     )
 
 

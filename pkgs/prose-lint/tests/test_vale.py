@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,24 @@ def test_the_display_path_replaces_the_path_vale_reports() -> None:
 def test_blank_output_with_a_failure_status_is_a_failure() -> None:
     with pytest.raises(ValeFailed, match="vale exited 1: boom"):
         _parse("", "boom", None, returncode=1)
+
+
+def test_a_json_error_report_is_read_down_to_its_message() -> None:
+    stderr = """
+    {
+      "Line": 1,
+      "Path": "note.md",
+      "Text": "yaml: line 5: could not find expected ':'",
+      "Code": "E201",
+      "Span": 1
+    }
+    """
+
+    with pytest.raises(
+        ValeFailed,
+        match=re.escape("vale exited 2: yaml: line 5: could not find expected ':'"),
+    ):
+        _parse("", stderr, None, returncode=2)
 
 
 def test_blank_output_with_a_success_status_is_no_findings() -> None:

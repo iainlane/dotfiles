@@ -5,10 +5,11 @@ from pathlib import Path
 import pytest
 
 from prose_lint.config import Config
+from prose_lint.levels import Level
 from prose_lint.report import Finding
 from prose_lint.rules import RuleCatalogue
 from prose_lint.runtime import Runtime
-from prose_lint.vale import ValeInvocation
+from prose_lint.vale import Vale, ValeFailed, ValeInvocation
 
 SOURCE = Path(__file__).resolve().parent.parent
 
@@ -44,16 +45,48 @@ class RecordingVale:
         return ()
 
 
-@pytest.fixture
-def runtime(tmp_path: Path) -> Runtime:
+FAILURE = "vale exited 2: yaml: line 5: could not find expected ':'"
+
+
+@dataclass
+class BrokenFileVale:
+    """A vale that fails on one path and reports one alert for every other."""
+
+    broken: Path
+
+    def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+        paths = invocation.paths or (Path(invocation.path_hint or ""),)
+
+        if self.broken in paths:
+            raise ValeFailed(FAILURE)
+
+        return tuple(
+            Finding(
+                path=str(path),
+                line=2,
+                column=1,
+                rule="Prose.EmDash",
+                message="An em dash.",
+                severity=Level.error,
+            )
+            for path in paths
+        )
+
+
+def build_runtime(tmp_path: Path, vale: Vale) -> Runtime:
     return Runtime(
         share=SOURCE,
         catalogue=RuleCatalogue.load(SOURCE / "tiers.toml"),
         config=Config(),
         git=FakeGit(root_path=tmp_path),
-        vale=RecordingVale(),
+        vale=vale,
         cwd=tmp_path,
     )
+
+
+@pytest.fixture
+def runtime(tmp_path: Path) -> Runtime:
+    return build_runtime(tmp_path, RecordingVale())
 
 
 def section(text: str, header: str) -> list[str]:
@@ -135,3 +168,50 @@ def test_hash_comment_files_are_read_as_markdown_with_their_path(
         ((readme,), None, None, None),
         ((), "A comment.\n\n", ".md", str(module)),
     ]
+
+
+def failure_finding(path: Path) -> Finding:
+    return Finding(
+        path=str(path),
+        line=1,
+        column=1,
+        rule="prose-lint",
+        message=FAILURE,
+        severity=Level.error,
+    )
+
+
+def test_a_file_vale_cannot_read_is_reported_and_the_rest_are_still_linted(
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.md"
+    broken.write_text("Prose.\n")
+    readable = tmp_path / "readable.md"
+    readable.write_text("Prose.\n")
+    runtime = build_runtime(tmp_path, BrokenFileVale(broken=broken))
+
+    report = runtime.lint_paths((broken, readable))
+
+    assert report.findings == (
+        failure_finding(broken),
+        Finding(
+            path=str(readable),
+            line=2,
+            column=1,
+            rule="Prose.EmDash",
+            message="An em dash.",
+            severity=Level.error,
+        ),
+    )
+
+
+def test_a_hash_comment_file_vale_cannot_read_is_reported_the_same_way(
+    tmp_path: Path,
+) -> None:
+    module = tmp_path / "module.nix"
+    module.write_text("# A comment.\n")
+    runtime = build_runtime(tmp_path, BrokenFileVale(broken=module))
+
+    report = runtime.lint_paths((module,))
+
+    assert report.findings == (failure_finding(module),)

@@ -24,6 +24,11 @@ nix run .#prose-lint -- commit-msg .git/COMMIT_EDITMSG
 Both commands exit 1 when a rule reports at error level and 0 otherwise, so
 either can stand in a git hook.
 
+Vale reads several files in one run, and a file that it cannot parse fails that
+run. `check` therefore reads a failed batch again one file at a time: the file
+that Vale still cannot parse is reported as an error against that file, and
+every other file reports its findings as usual.
+
 [vale]: https://vale.sh
 [style]: ../../features/ai/output-style/plain-technical-prose.md
 

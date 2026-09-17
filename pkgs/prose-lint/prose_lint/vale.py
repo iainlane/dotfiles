@@ -48,7 +48,8 @@ class SubprocessVale:
     """Runs the vale binary.
 
     The binary is located when `lint` is first called, not when this object
-    is built, so a hook that has nothing to lint never reports a missing vale.
+    is built, so a hook that returns before it lints anything succeeds even
+    where vale is absent.
     """
 
     cwd: Path
@@ -131,7 +132,7 @@ def _parse(
     a non-zero status does.
     """
     if returncode != 0 and not stdout.strip():
-        raise ValeFailed(f"vale exited {returncode}: {stderr.strip()}")
+        raise ValeFailed(f"vale exited {returncode}: {_error_text(stderr)}")
 
     try:
         document = json.loads(stdout or "{}")
@@ -161,3 +162,20 @@ def _parse(
             )
 
     return tuple(findings)
+
+
+def _error_text(stderr: str) -> str:
+    """What vale said went wrong, on one line.
+
+    Under `--output=JSON` an error is reported as a JSON document with the
+    message in `Text`, so a finding built from it reads as one line.
+    """
+    try:
+        document = json.loads(stderr)
+    except json.JSONDecodeError:
+        return stderr.strip()
+
+    if isinstance(document, dict) and isinstance(document.get("Text"), str):
+        return document["Text"]
+
+    return stderr.strip()
