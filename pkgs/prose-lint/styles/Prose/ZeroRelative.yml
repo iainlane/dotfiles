@@ -7,6 +7,9 @@ level: error
 tokens:
   - tag: DT
   - tag: NN|NNS|NNP
-  - tag: DT|PRP\$
+  # Vale does not anchor a tag pattern, so a bare DT also matches the WDT of
+  # a relative pronoun and the rule would fire on a clause with its pronoun in
+  # place.
+  - tag: ^(?:DT|PRP\$)$
   - tag: NN|NNS|NNP|JJ
   - tag: VBZ|VBD|VBP|NNS

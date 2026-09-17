@@ -9,6 +9,8 @@ level: warning
 tokens:
   - tag: NN|NNS
   - tag: NN|NNS
-  - tag: DT|PRP\$
+  # Anchored so that DT does not also match a relative pronoun's WDT; see
+  # ZeroRelative.yml.
+  - tag: ^(?:DT|PRP\$)$
   - tag: NN|NNS|NNP|JJ
   - tag: VBZ|VBD|VBP|NNS
