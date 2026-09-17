@@ -1,3 +1,12 @@
+"""Supervision of the child processes that a run starts.
+
+Every command runs in a session of its own, so the supervisor can signal a
+whole process group when a run is cancelled or a deadline passes. A secret
+reaches a child through an inherited pipe, a child's output is copied to a
+transcript as it arrives, and an interactive command exchanges line-oriented
+records with a `ProcessSession`.
+"""
+
 import asyncio
 import errno
 import os
@@ -325,7 +334,7 @@ class ProcessInteractiveInputConflictError(ProcessExecutionError):
 
 
 def command_program(command: tuple[str, ...]) -> str:
-    """Return the executable named by a process-boundary command."""
+    """Return the executable at the head of a command, for an error message."""
 
     match command:
         case (program, *_):
@@ -335,13 +344,13 @@ def command_program(command: tuple[str, ...]) -> str:
 
 
 class RunCancelled(asyncio.CancelledError):
-    """Signal that the suite cancelled an active process."""
+    """Raised when the run has been cancelled and no result will be returned."""
 
 
 _DEFAULT_DEADLINE_SECONDS = 2 * 60 * 60
 _STOP_SIGNAL_SECONDS = 2.0
-# A user's interrupt deserves shorter grace windows than a deadline stop: the
-# processes' work is being abandoned, not collected.
+# An interrupt abandons the work in flight, so it allows less time between
+# signals than a deadline stop does.
 _CANCEL_SIGNAL_SECONDS = 0.75
 _STOP_POLL_SECONDS = 0.05
 _TEARDOWN_SECONDS = 3 * _STOP_SIGNAL_SECONDS
@@ -369,11 +378,14 @@ class _ManagedProcess:
 
     @property
     def group(self) -> int:
-        """Return the process group the command being run belongs to."""
+        """Return the process group to signal in order to reach the command.
 
-        # A sandbox that starts its own session leaves the outer group holding
-        # nothing but the sandbox program, so signals sent there never reach
-        # the command; the group the sandbox reports contains the command itself.
+        A sandbox that starts a session of its own leaves the outer group
+        holding nothing but the sandbox program, so a signal sent there never
+        reaches the command. The group that the sandbox reports contains the
+        command itself.
+        """
+
         if self.sandbox_group is None:
             return self.process.pid
         return self.sandbox_group
@@ -381,7 +393,7 @@ class _ManagedProcess:
 
 @dataclass(frozen=True)
 class _ProcessDeadline:
-    """Bound one invocation so a stalled child cannot detain the run."""
+    """Bound one invocation so a stalled child cannot delay the whole run."""
 
     command: tuple[str, ...]
     seconds: float
@@ -407,7 +419,7 @@ _SANDBOX_INFO_MAXIMUM_BYTES = 64 * 1024
 
 
 class _SandboxInfo(msgspec.Struct, rename={"child_pid": "child-pid"}):
-    """The part of a sandbox's information document the supervisor acts on."""
+    """The field that the supervisor reads from a sandbox's information document."""
 
     child_pid: int
 
@@ -435,7 +447,7 @@ class SandboxInfoPipe:
         self.close()
 
     def close_write(self) -> None:
-        """Drop the supervisor's writer so the sandbox's own close ends the read."""
+        """Drop the supervisor's write end, so the sandbox's close ends the read."""
 
         _discard_descriptor(self.write_descriptor)
         self.write_descriptor = -1
@@ -453,13 +465,13 @@ class SandboxInfoPipe:
         command: tuple[str, ...],
         deadline: _ProcessDeadline,
     ) -> int | None:
-        """Return the process group the sandbox reported, if it started one."""
+        """Return the process group that the sandbox reported, or None."""
 
         document = self._read_document(command, deadline)
         self.close()
         if not document:
-            # A sandbox which fails before it creates its session reports
-            # nothing, and then the outer group is the only one left to signal.
+            # A sandbox that fails before creating its session reports nothing,
+            # and then the supervisor's own child is the only group to signal.
             return None
 
         try:
@@ -547,12 +559,12 @@ class _OutputBuffer:
 
 @dataclass
 class _OutputChannel:
-    """Pass one output record at a time between a producer and a consumer.
+    """Pass one output record at a time from the reader to the consumer.
 
-    The channel buffers a single record, so a producer sending another one
-    waits until the consumer has taken the previous record. Stopping the
-    channel wakes any blocked wait and signals the output reader through the
-    wakeup descriptor.
+    The channel keeps a single record, so the reader waits until the consumer
+    has taken the previous one. Stopping the channel wakes a waiting reader and
+    signals it through the wakeup descriptor as well, because it may be blocked
+    in `poll` instead.
     """
 
     command: tuple[str, ...]
@@ -584,7 +596,7 @@ class _OutputChannel:
         self,
         deadline: _ProcessDeadline,
     ) -> ProcessOutputRecord | _OutputEvent | None:
-        """Return the next record or a process/output completion event."""
+        """Return the next record, an event, or None when the reader is done."""
 
         with self.condition:
             while (
@@ -614,7 +626,7 @@ class _OutputChannel:
             return None
 
     def finish(self, error: _OutputReaderError | None) -> None:
-        """Publish producer completion and wake the consumer."""
+        """Record that the reader has finished, and wake the consumer."""
 
         with self.condition:
             self.error = error
@@ -622,7 +634,7 @@ class _OutputChannel:
             self.condition.notify_all()
 
     def stop(self) -> None:
-        """Wake a producer blocked by backpressure after consumer failure."""
+        """Stop the channel and wake a reader that is waiting for room."""
 
         with self.condition:
             if self.stopped or self.finished:
@@ -637,7 +649,11 @@ class _OutputChannel:
                 raise self.stop_error
 
     def drain(self) -> None:
-        """Read currently available output without awaiting future writers."""
+        """Ask the reader for the output already available, and end it.
+
+        A descendant can keep the pipe open after the leader has exited, so the
+        reader must not wait for end of file.
+        """
 
         with self.condition:
             if self.stopped or self.finished or self.draining:
@@ -663,14 +679,18 @@ _ACTIVE_SUPERVISORS: "weakref.WeakSet[ProcessSupervisor]" = weakref.WeakSet()
 
 
 def kill_active_process_groups() -> None:
-    """Kill every process group any live supervisor started, immediately."""
+    """Kill the process groups of every live supervisor at once."""
 
     for supervisor in tuple(_ACTIVE_SUPERVISORS):
         supervisor.kill()
 
 
 class ProcessSupervisor:
-    """Run isolated process groups and cancel every one still running."""
+    """Run commands as children of this process and stop them on demand.
+
+    Stopping escalates through SIGINT, SIGTERM and SIGKILL. A group still
+    running after all three is recorded as a cleanup failure on that process.
+    """
 
     def __init__(self, cancellation: CancellationSignal | None = None) -> None:
         self._lock = threading.Lock()
@@ -694,7 +714,7 @@ class ProcessSupervisor:
         session: ProcessSession,
         sandbox: SandboxInfoPipe | None = None,
     ) -> ProcessResult:
-        """Run a line-oriented child protocol while retaining its output."""
+        """Run a line-oriented protocol with the child while retaining its output."""
 
         if invocation.stdin is not None:
             raise ProcessInteractiveInputConflictError(invocation.stdin)
@@ -793,6 +813,9 @@ class ProcessSupervisor:
                     secret_writers.append(
                         (secret.environment_variable, writer, secret.value)
                     )
+                    # The child is given the descriptor number, not the secret
+                    # itself: a process running as this user can read another's
+                    # environment.
                     environment[secret.environment_variable] = str(read_file)
 
                 inherited = tuple(file for _, file in inherited_files)
@@ -1072,6 +1095,12 @@ class ProcessSupervisor:
         wakeup: int,
         channel: _OutputChannel,
     ) -> None:
+        """Copy the child's output to the transcript and the channel.
+
+        This runs on its own thread and cannot raise to a caller, so every
+        failure is published through the channel.
+        """
+
         error: _OutputReaderError | None = None
         buffered = _OutputBuffer(command)
         try:
@@ -1181,6 +1210,8 @@ class ProcessSupervisor:
         channel: _OutputChannel,
         value: bytes,
     ) -> bool:
+        """Write one record, or return false once the channel has stopped."""
+
         remaining = memoryview(value)
         draining = channel.draining
         try:
@@ -1252,6 +1283,8 @@ class ProcessSupervisor:
     def _discard_secret_read_files(
         inherited_files: list[tuple[str, int]],
     ) -> None:
+        # Used on a path that is already failing: a close error here would
+        # replace the failure being reported.
         while inherited_files:
             _, descriptor = inherited_files.pop()
             try:
@@ -1265,7 +1298,7 @@ class ProcessSupervisor:
         sandbox: SandboxInfoPipe | None,
         deadline: _ProcessDeadline,
     ) -> None:
-        """Take on the process group a sandbox reports for its own session."""
+        """Take the process group that the sandbox reported for its own session."""
 
         if sandbox is None:
             return
@@ -1290,8 +1323,8 @@ class ProcessSupervisor:
     ) -> None:
         for environment_variable, writer, value in writers:
             try:
-                # A blocking pipe write of more than one buffer stalls until the
-                # child drains it, so the deadline needs a non-blocking stream.
+                # A blocking write larger than the pipe buffer stalls until the
+                # child reads, so the deadline needs a non-blocking stream.
                 descriptor = writer.fileno()
                 os.set_blocking(descriptor, False)
                 readiness = select.poll()
@@ -1380,7 +1413,7 @@ class ProcessSupervisor:
         try:
             channel.stop()
         except ProcessOutputWakeupWriteError:
-            # The channel records and publishes the typed failure itself.
+            # The channel has already recorded the failure and will publish it.
             return
 
     def _stop(
@@ -1388,8 +1421,8 @@ class ProcessSupervisor:
         processes: tuple[_ManagedProcess, ...],
         grace_seconds: float = _STOP_SIGNAL_SECONDS,
     ) -> None:
-        # Ordering the per-process locks by process identifier keeps concurrent
-        # teardowns of overlapping sets from deadlocking against each other.
+        # Take the per-process locks in process-id order, so two teardowns of
+        # overlapping sets cannot deadlock against each other.
         ordered = tuple(sorted(processes, key=lambda managed: managed.process.pid))
         with ExitStack() as stack:
             for managed in ordered:
@@ -1419,7 +1452,10 @@ class ProcessSupervisor:
         signal_number: int,
         grace_seconds: float = _STOP_SIGNAL_SECONDS,
     ) -> tuple[_ManagedProcess, ...]:
-        """Await one signal's grace window, then raise the survivors' signal."""
+        """Wait out the previous signal, then send this one to the survivors.
+
+        Returns the groups still running when the window closed.
+        """
 
         remaining = ProcessSupervisor._wait_until(
             processes,
@@ -1459,7 +1495,7 @@ class ProcessSupervisor:
             managed.finished.wait(timeout=max(0.0, deadline - time.monotonic()))
             while ProcessSupervisor._group_is_running(managed):
                 # The leader has gone but a descendant keeps the group open, so
-                # poll instead of spending the whole window on one observation.
+                # poll instead of spending the whole window in one wait.
                 step = min(_STOP_POLL_SECONDS, deadline - time.monotonic())
                 if step <= 0:
                     remaining.append(managed)
