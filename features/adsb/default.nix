@@ -1,6 +1,5 @@
 # The ADS-B feeder stack: an ultrafeeder decoding from the RTL-SDR, and one
 # container per aggregator relaying from it.
-# cannot route into, so the whole stack runs on a rootful netavark bridge.
 {config, ...}: {
   flake.features.adsb = {
     includes = [config.flake.features.containers];
@@ -22,7 +21,9 @@
 
       network = config.virtualisation.quadlet.networks.adsbnet.ref;
 
-      # quadlet names a container's unit after its quadlet file, with no
+      # The relaying feeders reach the ultrafeeder by container name, and they
+      # write that name into their own `BEASTHOST`, so renaming it here alone
+      # breaks them.
       ultrafeederName = "ultrafeeder";
       ultrafeederService = "${ultrafeederName}.service";
 
