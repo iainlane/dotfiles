@@ -4,8 +4,7 @@
 # Hermes requires a sign-in from anyone reaching a non-loopback bind. It uses
 # the same identity provider as the proxy, so one sign-in covers both. Hermes
 # has no list of who may get in and serves anyone that the provider recognises,
-# so
-# the proxy's `auth.allow` list is what limits access.
+# so the proxy's `auth.allow` list is what limits access.
 {
   config,
   exposePodman,
