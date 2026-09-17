@@ -10,8 +10,9 @@ disable-model-invocation: true
 
 # `weekly-update`
 
-Write one Linear project status update per project the user worked on this week,
-and post it after approval. Every update is posted under the user's name.
+Write one Linear project status update for each project that the user worked on
+this week, and post it after approval. Every update is posted under the user's
+name.
 
 Resolve the user at run time from the authenticated Linear identity. Never
 hard-code a name, a team, or an identifier.
@@ -22,10 +23,10 @@ hard-code a name, a team, or an identifier.
    a Friday afternoon re-run must not pull in the previous Friday.
 
 2. Find the candidate projects. Prefer Linear's own signal: if the project data
-   the MCP returns marks an update as due or overdue, use that. Otherwise list
-   started projects the user leads or has issues assigned in, and treat a
-   project as due when it has no status update since the window start. Read each
-   candidate's latest status update so the new one can build on it.
+   returned by the MCP marks an update as due or overdue, use that. Otherwise
+   list started projects that the user leads or has issues assigned in, and
+   treat a project as due when it has no status update since the window start.
+   Read each candidate's latest status update so the new one can build on it.
 
 3. Show the candidates with one line each: name, status, last update date, and
    why it qualified. Ask which to cover, with all of them as the default. This
@@ -60,11 +61,11 @@ hard-code a name, a team, or an identifier.
 ## Output
 
 The update body is a high-level summary of two to four sentences, then one
-bullet per piece of non-trivial work, then any closing line the reader needs
-(remaining work, or the main risk to the target). The summary is judgement, not
-the bullets restated in sentence form: say what the week added up to. Bullets
-lead with what changed, never with an issue key, and link PRs and issues inline
-on the phrase they substantiate.
+bullet per piece of non-trivial work, then any closing line that the reader
+needs (remaining work, or the main risk to the target). The summary is
+judgement, not the bullets restated in sentence form: say what the week added up
+to. Bullets lead with what changed, never with an issue key, and link PRs and
+issues inline on the phrase that they substantiate.
 
 An update in the expected shape:
 
