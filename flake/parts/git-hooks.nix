@@ -42,7 +42,7 @@
           prose-lint = {
             enable = true;
             name = "prose-lint";
-            entry = "${lib.getExe pkgs.prose-lint} check";
+            entry = "${lib.getExe pkgs.prose-lint} check --staged";
             language = "system";
             types = ["text"];
             # Every fixture under this path is an example for a rule to
