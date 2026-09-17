@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Build the prompt-conformance checks named on the command line, but only when
-# the change under review touches a file they read.
+# the change under review touches one of their inputs.
 #
-# The pre-commit hook passes the checks it needs. This script skips the build
+# The pre-commit hook passes the checks to run. This script skips the build
 # when none of their inputs changed.
 #
 # Usage: check-prompt-conformance <flake check>...
