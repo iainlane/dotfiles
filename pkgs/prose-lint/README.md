@@ -16,6 +16,15 @@ code-only rules apply and the report shows the file's path. Vale run directly on
 those files, as an editor does, still lints their comments through the packaged
 Perl mapping, without the part-of-speech rules.
 
+The rules that match part-of-speech tags also read a lexicon,
+`styles/config/dictionaries/House.dict`. Each line gives a word one tag, which
+overrides Vale's tagger for that word. The entries are nouns of this domain that
+the tagger can otherwise take for adjectives or verbs. A word with a common verb
+use, such as `store` or `host`, stays out, because a single noun tag would
+mis-tag `we store the key`. Every addition is measured by linting the whole
+repository before and after it, and is kept only when it adds genuine findings
+and no false ones.
+
 ```console
 nix run .#prose-lint -- check README.md
 nix run .#prose-lint -- commit-msg .git/COMMIT_EDITMSG

@@ -1,4 +1,5 @@
 extends: sequence
+model: House
 message:
   "A compound noun followed by a determiner, a noun and a verb may be an
   object-relative clause without 'that' or 'which'. Such a clause compresses a
