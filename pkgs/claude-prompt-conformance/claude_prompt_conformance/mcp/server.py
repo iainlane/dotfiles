@@ -42,7 +42,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 130
     except (BrokenPipeError, anyio.BrokenResourceError, anyio.ClosedResourceError):
         # The model process owns this server's lifetime and ends it by closing
-        # the pipe, which is not a failure of the evidence it served.
+        # the pipe, which is not a failure of the evidence that it served.
         print("the MCP client closed the connection", file=sys.stderr)
         return 3
 
