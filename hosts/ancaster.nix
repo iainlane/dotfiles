@@ -130,7 +130,6 @@ in {
           };
           mcp.tokens = {
             browser-rendering = "cloudflare_browser_token";
-            exa = "exa_api_key";
           };
           settings = {
             # Bundled plugins load unless they are disabled here. Re-enabling
