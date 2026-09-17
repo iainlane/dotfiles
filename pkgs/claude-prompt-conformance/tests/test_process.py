@@ -1504,7 +1504,8 @@ def test_leader_completion_stops_waiting_for_an_escaped_output_owner(
 
 
 # A sandbox which starts its own session, as bubblewrap's --new-session does,
-# reports the session leader it created; only that group contains the command.
+# reports the session leader that it created; only that group contains the
+# command.
 SANDBOX_LEADER = (
     "import os, pathlib, signal, sys\n"
     "descriptor = int(sys.argv[1])\n"
