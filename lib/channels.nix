@@ -1,17 +1,14 @@
-# The nixpkgs, Home Manager and package sets a host's `channel` selects.
-#
-# Two nixpkgs inputs and two Home Manager inputs are locked, and a host's
-# `channel` selects one pair. The NixOS and nix-darwin configurations, both
-# forms of the Home Manager configuration and the netboot installer all take
-# the pair from here, so they are built from one nixpkgs. A generic-linux
-# host's system configuration is the exception: system-manager evaluates it
-# against the nixpkgs its own flake input follows.
+# Resolves a host's `channel` to the locked nixpkgs and Home Manager inputs and
+# the package sets built from them.
 {inputs}: {
-  # `pkgs` and `pkgs-stable` are the package sets flake-parts instantiated for
-  # the host's system, and `channel` is the host record's field. `primary` is
-  # the set the host builds from. `stable` and `unstable` are both sets, for
-  # a module that needs a package from the channel the host does not build
-  # from.
+  # `pkgs` and `pkgs-stable` are the two package sets flake-parts instantiated
+  # for the host's system.
+  #
+  # `primary` is the set that the host builds from. `stable` and `unstable` are
+  # returned whatever the channel, for a module that needs a package from the
+  # channel that the host does not build from. `nixpkgs` and `home-manager` are
+  # the flake inputs themselves, for a caller that needs their modules or
+  # `lib`.
   channelFor = {
     channel,
     pkgs,
