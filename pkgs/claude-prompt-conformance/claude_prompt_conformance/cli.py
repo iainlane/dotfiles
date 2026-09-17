@@ -1,3 +1,5 @@
+"""Command line, signal handling and run assembly for the suite."""
+
 import argparse
 import json
 import os
@@ -353,9 +355,9 @@ class InterruptEscalation:
                 b" immediately.\n",
             )
             if sys.stdout.isatty():
-                # The live display never stops on this path; leave the
-                # terminal with its cursor visible and synchronised updates
-                # off.
+                # This path never unwinds, so Rich's live display never
+                # restores the terminal. Turn synchronised updates off and the
+                # cursor back on by hand.
                 os.write(sys.stdout.fileno(), b"\x1b[?2026l\x1b[?25h\n")
             self._kill()
             self._exit(130)
@@ -611,8 +613,6 @@ def validate_demo_options(*, demo: bool, improve: bool) -> None:
 
 
 def positive_integer(value: str) -> int:
-    """Parse a command-line integer which can represent worker capacity."""
-
     result = int(value)
     if result < 1:
         raise argparse.ArgumentTypeError("must be at least one")
@@ -620,7 +620,7 @@ def positive_integer(value: str) -> int:
 
 
 def validate_run_mode(improve: bool, skip_calibration: bool) -> None:
-    """Reject option combinations whose semantics would be ambiguous."""
+    """Reject a combination that would measure drafts with an unvalidated judge."""
 
     if improve and skip_calibration:
         raise ImprovementCalibrationConflictError

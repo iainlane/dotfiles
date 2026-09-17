@@ -20,10 +20,9 @@ class WorkerCountError(ConformanceError):
 class SlotPool:
     """Limit how many agent processes one run keeps active at the same time.
 
-    Every candidate, judge, and improver invocation holds one slot for as long
-    as its process runs. Cheap phases such as repository preparation and
-    workspace inspection hold none, so the limit describes model concurrency
-    rather than task concurrency.
+    Only invocations that run a model take a slot. Adding one around
+    repository preparation or evidence capture would change what `--jobs`
+    counts.
     """
 
     def __init__(self, capacity: int) -> None:
@@ -34,14 +33,10 @@ class SlotPool:
 
     @property
     def capacity(self) -> int:
-        """Return the number of agent processes this run may keep active."""
-
         return self._capacity
 
     @contextmanager
     def hold(self) -> Iterator[None]:
-        """Hold one slot for the duration of a single agent process."""
-
         self._semaphore.acquire()
         try:
             yield
