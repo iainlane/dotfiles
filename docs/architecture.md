@@ -218,7 +218,7 @@ to them.
    defaults to `<hostConfig.name>/host-<feature>.yaml`. A child that shares its
    parent's secrets defaults to the parent's file, and a backup child defaults
    to `<hostConfig.name>/host-r2.yaml`. A host sets one only to deviate.
-4. **One root for everything the repository declares.** Every option lives under
+4. **One root for every option in the repository.** Every option lives under
    `dotfiles.<declaring feature or child>`, camelCased. A switch child nests
    under its parent's root (`dotfiles.hermes.signal.*`,
    `dotfiles.caddy.auth.*`); every other child has a root of its own. Options
@@ -327,7 +327,8 @@ The rest of the flake is the tooling and the data other things read:
 
 ## Helper layout
 
-`lib/` is split by responsibility, and each caller imports the file it needs:
+`lib/` is split by responsibility, and each caller imports the file that it
+needs:
 
 | File                                 | Responsibility                                            |
 | ------------------------------------ | --------------------------------------------------------- |
