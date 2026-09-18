@@ -1,0 +1,13 @@
+# actionlint reads the self-repository `uses: $/...` form as a malformed action
+# or reusable workflow reference. Support is unmerged upstream in pull request
+# #732: https://github.com/rhysd/actionlint/pull/732
+#
+# Ignore those two messages for the `$/` form. Remove the entries once the
+# actionlint release in use can handle this form correctly.
+paths:
+  .github/workflows/cupboard-test.yml:
+    ignore:
+      - 'reusable workflow call "\$/[^"]*" at "uses" is not following the format'
+  .github/workflows/prompt-conformance.yml:
+    ignore:
+      - 'reusable workflow call "\$/[^"]*" at "uses" is not following the format'

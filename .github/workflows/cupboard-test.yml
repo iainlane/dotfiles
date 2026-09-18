@@ -28,7 +28,7 @@ jobs:
       attestations: write # required by the called workflow; unused without push
       contents: read
       id-token: write # required by the called workflow; unused without push
-    uses: ./.github/workflows/cupboard-publish.yml
+    uses: $/.github/workflows/cupboard-publish.yml
     with:
       push: false
     secrets:
