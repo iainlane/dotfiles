@@ -7,7 +7,7 @@ name = "hermes-inbox"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-  "agentmail>=0.5.10,<0.6",
+  "agentmail>=2,<3",
   "beautifulsoup4>=4.12,<5",
   "markdownify>=1.2,<2",
   "pydantic>=2,<3",
