@@ -1,8 +1,17 @@
-# The model each provider's tools default to. The harnesses under this
-# directory, the Hermes feature and the prompt-conformance suite all read this
-# table, so a change here reaches every one of them.
-{
-  anthropic = "claude-fable-5-1";
-  google = "Gemini 3.1 Pro (High)";
-  openai = "gpt-6-astra";
+let
+  anthropic.fable = "claude-fable-5-1";
+  google.geminiPro = "Gemini 3.1 Pro (High)";
+  openai = {
+    astra = "gpt-6-astra";
+    sol = "gpt-5.6-sol";
+  };
+  openrouter.sol = "~openai/gpt-sol-latest";
+in {
+  inherit anthropic google openai openrouter;
+
+  defaults = {
+    anthropic = anthropic.fable;
+    google = google.geminiPro;
+    openai = openai.astra;
+  };
 }

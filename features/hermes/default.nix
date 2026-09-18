@@ -1,7 +1,7 @@
 {config, ...}: let
   inherit (config.flake) features;
   children = features.hermes.provides;
-  defaultModels = import ../ai/models.nix;
+  defaultModels = (import ../ai/models.nix).defaults;
 in {
   imports = [
     ./agents

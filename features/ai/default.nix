@@ -5,12 +5,15 @@
   ...
 }: let
   children = config.flake.features.ai.provides;
+  modelCatalog = import ./models.nix;
 
-  # Passes the model table to the feature's modules as the `defaultModels`
-  # argument. The key lets a module list that imports this twice count it once.
+  # The key prevents duplicate imports from applying this module twice.
   modelDefaults = {
     key = "dotfiles-ai-model-defaults";
-    _module.args.defaultModels = import ./models.nix;
+    _module.args = {
+      inherit modelCatalog;
+      defaultModels = modelCatalog.defaults;
+    };
   };
 in {
   imports = [

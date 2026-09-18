@@ -11,7 +11,7 @@
   ...
 }: {
   perSystem = {pkgs, ...}: let
-    defaultModels = import ./models.nix;
+    defaultModels = (import ./models.nix).defaults;
     instructions =
       (import ./agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
     managedSettings =

@@ -7,6 +7,7 @@
   instructions,
   lib,
   mcp,
+  modelCatalog,
   system,
   ...
 }: let
@@ -89,14 +90,7 @@
       xhigh = 64000;
     };
     hideThinkingBlock = true;
-    enabledModels = [
-      "claude-mythos-*"
-      "claude-fable-*"
-      "claude-opus-*"
-      "claude-sonnet-*"
-      "claude-haiku-*"
-      "gpt-*"
-    ];
+    enabledModels = ["**/{claude-{mythos,fable,opus,sonnet,haiku},gpt}-*"];
 
     # pi-system-theme overrides this when the OS reports a light/dark
     # preference. This value applies if detection fails.
@@ -131,7 +125,6 @@
     packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions;
 
     extensions = [];
-    prompts = ["prompts/*.md"];
     themes = ["themes/*.json"];
     enableSkillCommands = true;
 
@@ -269,14 +262,28 @@
   toJson = builtins.toJSON;
 
   promptDir = ./prompts;
+  promptModels.sol = "${modelCatalog.openai.sol}, openrouter/${modelCatalog.openrouter.sol}";
+  renderPrompt = prompt:
+    lib.concatStringsSep "\n" [
+      "---"
+      (lib.generators.toYAML {} (removeAttrs prompt ["body"]))
+      "---"
+      ""
+      prompt.body
+    ];
+
+  # Pi scans only the top level, while pi-prompt-template-model recurses.
+  # A subdirectory prevents Pi from registering a second command.
   promptFiles =
     lib.mapAttrs'
-    (name: _:
-      lib.nameValuePair ".pi/agent/prompts/${name}" {
-        source = promptDir + "/${name}";
+    (name: _: let
+      promptName = lib.removeSuffix ".nix" name;
+    in
+      lib.nameValuePair ".pi/agent/prompts/${promptName}/${promptName}.md" {
+        text = renderPrompt (import (promptDir + "/${name}") {models = promptModels;});
       })
     (lib.filterAttrs
-      (name: type: type == "regular" && lib.hasSuffix ".md" name)
+      (name: type: type == "regular" && lib.hasSuffix ".nix" name)
       (builtins.readDir promptDir));
 
   themeFiles =
