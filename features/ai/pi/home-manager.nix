@@ -247,6 +247,11 @@
     pollMs = 2000;
   };
 
+  piWebSearchConfig.fetch = {
+    answerProvider = "openai";
+    answerModel = modelCatalog.openai.sol;
+  };
+
   piSubagentsConfig = {
     asyncByDefault = false;
     forceTopLevelAsync = false;
@@ -322,6 +327,7 @@ in {
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
         ".pi/agent/system-theme.json".text = toJson piSystemThemeConfig;
+        ".pi/agent/web-search.json".text = toJson piWebSearchConfig;
         ".pi/agent/AGENTS.md".text = instructions.concatenated;
       }
       // themeFiles

@@ -47,11 +47,14 @@
       A plain prompt.
     '';
     settings = builtins.fromJSON piConfig.home.file.".pi/agent/settings.json".text;
+    webSearchSettings = builtins.fromJSON piConfig.home.file.".pi/agent/web-search.json".text;
     pi = builtins.head piConfig.home.packages;
+    webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
     startupProbe = pkgs.writeText "pi-startup-probe.ts" ''
       import assert from "node:assert/strict";
       import { writeFileSync } from "node:fs";
       import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
+      import { findModelWithProviderRouting, modelMatchesEnabledPatterns } from "${webAccessRoot}/summary-model-scope.ts";
 
       export default function () {
         const prompts = ${builtins.toJSON prompts};
@@ -63,6 +66,38 @@
           path, "gpt-test-sol, openrouter/~openai/gpt-test-sol-latest",
         ]));
         assert.deepStrictEqual(actual, expected);
+
+        const routedSol = {
+          provider: "openrouter",
+          id: "openai/${modelCatalog.openai.sol}",
+        };
+        const enabledPatterns = ${builtins.toJSON settings.enabledModels};
+        assert.equal(modelMatchesEnabledPatterns(routedSol, enabledPatterns), true);
+        assert.equal(
+          modelMatchesEnabledPatterns(
+            { provider: "OPENROUTER", id: "OPENAI/${lib.toUpper modelCatalog.openai.sol}" },
+            enabledPatterns,
+          ),
+          true,
+        );
+        assert.equal(
+          modelMatchesEnabledPatterns(routedSol, ["**/[a-z]pt-*:high"]),
+          true,
+        );
+        assert.equal(
+          modelMatchesEnabledPatterns(
+            { provider: "openrouter", id: "meta-llama/llama-4" },
+            enabledPatterns,
+          ),
+          false,
+        );
+        assert.deepStrictEqual(
+          findModelWithProviderRouting({
+            find: () => undefined,
+            getAvailable: () => [routedSol],
+          }, "openai", "${modelCatalog.openai.sol}"),
+          routedSol,
+        );
         writeFileSync("startup-probe-ok", "");
       }
     '';
@@ -95,12 +130,15 @@
       export PI_OFFLINE=1
       mkdir -p "$PI_CODING_AGENT_DIR"
       cp ${testSettings} "$PI_CODING_AGENT_DIR/settings.json"
+      cp ${pkgs.writeText "web-search.json" (builtins.toJSON webSearchSettings)} "$PI_CODING_AGENT_DIR/web-search.json"
       ${lib.concatStringsSep "\n" (lib.mapAttrsToList (path: text: ''
           install -Dm644 ${pkgs.writeText (baseNameOf path) text} "$HOME/"${lib.escapeShellArg path}
         '')
         prompts)}
       install -Dm644 ${plainPrompt} "$PI_CODING_AGENT_DIR/prompts/plain-fixture.md"
       ${pkgs.jq}/bin/jq --sort-keys 'sort_by(.name)' ${expectedCommands} >expected-commands.json
+      test ${lib.escapeShellArg webSearchSettings.fetch.answerProvider} = openai
+      test ${lib.escapeShellArg webSearchSettings.fetch.answerModel} = ${lib.escapeShellArg modelCatalog.openai.sol}
 
       for models in ${modelsFile ""} ${modelsFile "vendor/"}; do
         rm -f startup-probe-ok
