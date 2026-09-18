@@ -1,12 +1,4 @@
-# Configure Pi (badlogic/pi-mono via numtide/llm-agents) with the shared MCP
-# servers, instructions, and skills.
-#
-# Pi reads its config from `~/.pi/agent/`, which this module owns. Published
-# extensions are packaged under `pkgs/` and come in through `home.file`
-# symlinks, so `pi update` has nothing to fetch at runtime, and the few written
-# here live in `./extensions/`. `pi-mcp-adapter` picks up
-# `~/.config/mcp/mcp.json` (written by `programs.mcp`) automatically. Logging in
-# is interactive: `/login` covers both ChatGPT Plus/Pro and Claude Pro/Max.
+# pi-mcp-adapter reads ~/.config/mcp/mcp.json automatically.
 {
   pkgs,
   config,
@@ -18,8 +10,6 @@
   system,
   ...
 }: let
-  # The extensions to install, each packaged under `pkgs/<name>/` and bumped by
-  # `nix run .#update-<name>`.
   piExtensions =
     lib.getAttrs [
       "pi-footer"
@@ -40,8 +30,7 @@
     ]
     pkgs;
 
-  # Extensions written here, kept in `./extensions/`. Pi discovers
-  # `~/.pi/agent/extensions/*/index.ts` on its own, so these need no setting.
+  # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
   localExtensions = ["quota-status" "service-tier-status"];
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
@@ -62,10 +51,8 @@
     ];
   };
 
-  # Anthropic serves the subscription quota windows from an endpoint that only
-  # accepts an OAuth token, so an API key cannot read them and `pi-sub-core`
-  # shows nothing. Claude Code stores a token with the scope that endpoint
-  # wants, so hand Pi a copy when one is there to read.
+  # Anthropic's quota endpoint requires an OAuth token with user:profile;
+  # API keys cannot query it. Claude Code stores a token with that scope.
   piWithQuotaToken = pkgs.writeShellApplication {
     name = "pi";
 
@@ -111,10 +98,8 @@
       "gpt-*"
     ];
 
-    # Resting theme, matching the system Catppuccin flavour. `pi-system-theme`
-    # overrides it whenever the desktop reports light or dark, reading
-    # `AppleInterfaceStyle` on macOS and `color-scheme` on GNOME. Pi keeps this
-    # value when neither reports a preference, and when detection fails.
+    # pi-system-theme overrides this when the OS reports a light/dark
+    # preference. This value applies if detection fails.
     theme = "catppuccin-${config.catppuccin.flavor}";
 
     quietStartup = true;
@@ -142,9 +127,8 @@
     warnings.anthropicExtraUsage = false;
     npmCommand = ["nix" "shell" "nixpkgs#nodejs" "-c" "npm"];
 
-    # Point Pi at stable symlinks in ~/.pi/agent/packages. Home Manager keeps
-    # those symlinks rooted in the current generation, while the settings file
-    # stays readable and avoids leaking long store paths into the prompt.
+    # Stable symlinks keep store paths out of prompts. Home Manager retains
+    # their targets in the active generation.
     packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions;
 
     extensions = [];
@@ -162,8 +146,6 @@
     enabled = true;
   };
 
-  # Same role assignments as `features/ai/claude-code/ccstatusline`, so Pi's footer
-  # reads like Claude Code's statusline at a glance.
   piFooterConfig = {
     version = 1;
     enabled = true;
@@ -216,9 +198,6 @@
           text = " used";
         })
       ]
-      # Second line, matching what ccstatusline shows for Claude Code: where
-      # the working tree stands on the left, and what the session is costing
-      # on the right.
       [
         (piFooterWidget "git-branch" "git-branch" {
           raw = true;
@@ -236,14 +215,12 @@
           hideWhenEmpty = true;
         })
         (piFooterWidget "gap" "flex-separator" {})
-        # Published by `./extensions/quota-status` from pi-sub-core's data.
         (piFooterWidget "quota" "event" {
           widgetId = "quota";
           icon = " ";
           fg = "pi:thinkingHigh";
           hideWhenEmpty = true;
         })
-        # Published by `./extensions/service-tier-status` from pi-service-tier.
         (piFooterWidget "service-tier" "event" {
           widgetId = "service-tier";
           icon = " ";
@@ -262,8 +239,6 @@
     ];
   };
 
-  # pi-sub-core publishes cached quota state and refreshes it on its own
-  # timer. The quota-status extension displays that state through pi-footer.
   piSubCoreConfig = {
     version = 3;
     behavior = {
@@ -274,9 +249,6 @@
     };
   };
 
-  # `pi-system-theme` reads this file (or `/system-theme` writes to it).
-  # Mapping both modes to Catppuccin keeps the same visual identity across
-  # light and dark, just with the matching palette.
   piSystemThemeConfig = {
     darkTheme = "catppuccin-mocha";
     lightTheme = "catppuccin-latte";
@@ -316,8 +288,7 @@
       {text = toJson theme;})
     catppuccin.themes;
 
-  # Each extension is installed as an npm package, so the directory Pi loads
-  # is the one that contains its `package.json`, not the derivation root.
+  # Pi needs the directory containing package.json, not the derivation root.
   extensionFiles =
     lib.mapAttrs'
     (name: drv:

@@ -1,7 +1,3 @@
-# Web search, URL fetching, GitHub repository cloning, PDF extraction, YouTube
-# understanding, and local video analysis. The builtin pi-subagents researcher
-# uses this package when it is available.
-#
 # To update: nix run .#update-pi-web-access
 {callPackage}:
 callPackage ../build-support/pi-extension.nix {

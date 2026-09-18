@@ -1,8 +1,3 @@
-# Render the Catppuccin palette as Pi theme JSON.
-#
-# The palette data comes from the upstream `catppuccin/palette` repo via the
-# `catppuccin-palette` flake input, so the colour values stay in sync with
-# the rest of the ecosystem without IFD or vendored JSON.
 {
   lib,
   catppuccinPaletteSource,
@@ -11,15 +6,9 @@
   paletteFile = catppuccinPaletteSource + "/palette.json";
   palette = builtins.fromJSON (builtins.readFile paletteFile);
 
-  # Each flavor entry has the shape:
-  #   { name; emoji; order; dark; colors = { rosewater = { hex; rgb; hsl; }; ... }; }
-  # Pi only needs the hex strings.
   hexVars = flavor:
     lib.mapAttrs (_: c: c.hex) palette.${flavor}.colors;
 
-  # Role-to-palette-name mapping shared by every flavor. `accent` follows
-  # the user's `config.catppuccin.accent` preference; everything else
-  # references named palette entries directly.
   baseRoleMap = {
     inherit accent;
     border = "surface2";
@@ -79,10 +68,8 @@
     bashMode = "peach";
   };
 
-  # Catppuccin Latte's yellow `#df8e1d` on the cream base `#eff1f5` misses
-  # the WCAG AA contrast ratio. Swap the roles that show yellow as
-  # foreground text to peach `#fe640b`, which catppuccin/delta and
-  # catppuccin/bat use for the same purpose on Latte.
+  # Latte's yellow foreground text falls below WCAG AA contrast on its base.
+  # Catppuccin's bat and delta themes also use peach for this purpose.
   flavorRoleOverrides = {
     latte = {
       warning = "peach";
@@ -105,7 +92,6 @@
     };
   };
 
-  # The palette JSON's top-level has "version" alongside the flavor keys.
   flavors = builtins.filter (k: k != "version") (lib.attrNames palette);
 in {
   themes = lib.genAttrs flavors mkTheme;

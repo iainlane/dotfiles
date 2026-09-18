@@ -1,6 +1,3 @@
-# Lets a prompt template's frontmatter declare `model`, `skill`, and
-# `thinking`, switching them for the prompt and restoring them after.
-#
 # To update: nix run .#update-pi-prompt-template-model
 {callPackage}:
 callPackage ../build-support/pi-extension.nix {

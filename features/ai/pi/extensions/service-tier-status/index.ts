@@ -1,17 +1,7 @@
-// Show the active provider service tier in the footer.
-//
-// `pi-service-tier` publishes its state for a different statusline extension,
-// pi-fancy-footer, using that project's event name and payload. We run
-// pi-footer, which reads a plain string from a widget id. This extension
-// subscribes to the pi-fancy-footer event, takes the service tier out of its
-// payload, and publishes that string to pi-footer's widget.
-//
-// pi-service-tier publishes once when it loads and again whenever it sees a
-// fancy-footer `ready` event. Emitting that on startup covers the case where
-// pi-service-tier loaded first and we missed its initial publish.
+// pi-service-tier publishes through the pi-fancy-footer protocol, even when
+// pi-fancy-footer is not installed.
 
-// These standalone extensions have no npm project from which to resolve Pi's
-// types. Declare only the event-bus interface used here.
+// Pi's SDK types are unavailable in this standalone extension.
 interface ExtensionAPI {
   events: {
     on(event: string, listener: (message: unknown) => void): unknown;
@@ -31,8 +21,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-// Read the widget text out of pi-service-tier's payload, returning null for
-// anything that is not the service-tier widget carrying text.
 function readText(message: unknown): string | null {
   if (!isRecord(message) || message.protocol !== FANCY_FOOTER_PROTOCOL)
     return null;
@@ -57,5 +45,6 @@ export default function (pi: ExtensionAPI) {
     });
   });
 
+  // Request the current state in case pi-service-tier loaded first.
   pi.events.emit(FANCY_FOOTER_READY_EVENT, { protocol: FANCY_FOOTER_PROTOCOL });
 }

@@ -1,14 +1,4 @@
-// Put the subscription quota in the footer.
-//
-// `@marckrenn/pi-sub-core` fetches and caches usage but renders nothing of its
-// own. It announces each refresh on pi's event bus, and `pi-footer` renders
-// whatever an extension publishes to a widget id. This joins the two.
-//
-// The `sub-core:ready` event covers pi-sub-core loading first, and
-// `sub-core:update-current` carries every later refresh.
-
-// These standalone extensions have no npm project from which to resolve Pi's
-// types. Declare only the event-bus interface used here.
+// Pi's SDK types are unavailable in this standalone extension.
 interface ExtensionAPI {
   events: {
     on(event: string, listener: (message: unknown) => void): unknown;
@@ -29,8 +19,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-// The windows come off the event bus untyped, so read them defensively: a
-// shape change upstream should blank the widget, not throw inside the footer.
 function readWindows(message: unknown): RateWindow[] {
   if (!isRecord(message) || !isRecord(message.state)) return [];
 
@@ -59,8 +47,7 @@ export default function (pi: ExtensionAPI) {
     pi.events.on(event, (message: unknown) => {
       const value = format(readWindows(message));
 
-      // A null value clears the widget, which is what an empty read means:
-      // pi-sub-core has no usage to show for the current provider.
+      // pi-footer requires null to clear the widget.
       pi.events.emit(FOOTER_UPDATE_EVENT, {
         widgetId: WIDGET_ID,
         value: value === "" ? null : value,
