@@ -21,6 +21,7 @@ in {
       features.base
       features.containers
       features.dex
+      features.larapaper
       features.matrix
       features.hermes
       features.hermes.provides.agentsview
