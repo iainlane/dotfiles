@@ -1,6 +1,3 @@
-# `package.nix` uses enough of nixpkgs to take the package set itself, and it
-# drives the two agent clients this flake pins, which come from `llm-agents`
-# and not from the package set.
 {
   final,
   inputs,
