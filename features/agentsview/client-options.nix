@@ -22,6 +22,15 @@
       '';
     };
 
+    disabledAgents = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = ''
+        Session providers that AgentsView excludes from local filesystem
+        discovery. Existing archived sessions remain available.
+      '';
+    };
+
     sync = {
       enable = lib.mkOption {
         type = lib.types.bool;

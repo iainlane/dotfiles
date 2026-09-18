@@ -87,6 +87,7 @@
     authToken,
     cursorSecret,
     codexSessionsDirs,
+    disabledAgents,
     url,
     vector,
     vectorBackend,
@@ -96,6 +97,7 @@
       cursor_secret = "${cursorSecret}"
       disable_update_check = true
       codex_sessions_dirs = [${lib.concatMapStringsSep ", " builtins.toJSON codexSessionsDirs}]
+      disabled_agents = [${lib.concatMapStringsSep ", " builtins.toJSON disabledAgents}]
     ''
     + lib.optionalString (url != null) ''
 
@@ -361,7 +363,7 @@ in {
 
             content = configContent {
               inherit codexSessionsDirs;
-              inherit (cfg) vector;
+              inherit (cfg) disabledAgents vector;
               vectorBackend =
                 if common.hasLocalEmbeddings hostConfig
                 then "local"

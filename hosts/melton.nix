@@ -18,6 +18,7 @@ in {
 
     homeModule = {
       dotfiles = {
+        agentsview.disabledAgents = ["warp"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;
       };
