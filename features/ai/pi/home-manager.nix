@@ -26,6 +26,7 @@
       "pi-lens"
       "pi-mcp-adapter"
       "pi-notify"
+      "pi-plan-mode"
       "pi-pretty"
       "pi-prompt-template-model"
       "pi-service-tier"
