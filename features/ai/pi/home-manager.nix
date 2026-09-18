@@ -156,10 +156,6 @@
     };
   };
 
-  piKeybindings = {
-    "app.thinking.cycle" = ["ctrl+shift+t"];
-  };
-
   piFooterWidget = id: type: options: {
     inherit id type options;
     enabled = true;
@@ -344,7 +340,6 @@ in {
     file =
       {
         ".pi/agent/settings.json".text = toJson piSettings;
-        ".pi/agent/keybindings.json".text = toJson piKeybindings;
         ".pi/agent/extensions/pi-footer.json".text = toJson piFooterConfig;
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;

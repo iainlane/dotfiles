@@ -58,14 +58,16 @@
 
   # The preamble tells the model to adopt the style from this point on; the
   # style body follows verbatim.
-  styleSkill = stem: style: ''
-    ---
-    name: ${stem}
-    description: Adopt the ${style.name} output style (${style.description}). ${
+  styleSkill = stem: style: let
+    description = "Adopt the ${style.name} output style (${style.description}). ${
       if stem == outputStyles.default.stem
       then "Use when writing or auditing comments, commit messages, documentation or any prose that goes into a repository, and whenever the user asks for this style."
       else "Use when the user asks for output in this style."
-    }
+    }";
+  in ''
+    ---
+    name: ${stem}
+    description: ${builtins.toJSON description}
     ---
 
     Apply the ${style.name} output style below to all prose you write for the
