@@ -119,16 +119,14 @@
     AGENTSVIEW_NO_DAEMON = "1";
   };
 
-  # Activation restarts a service only when its unit file changes, and the
-  # settings live in a sops template outside the unit. Folding a hash of the
-  # template into the unit makes a settings change alter the unit, so the
-  # daemons restart on switch and read the new file. This is what NixOS's
-  # `restartTriggers` does for systemd; launchd and systemd both ignore the
-  # unknown key.
+  # Home Manager restarts a systemd service only when its unit file changes,
+  # while these settings live in a sops template outside the unit. Folding a
+  # hash of the template into an unknown unit key makes a settings change alter
+  # the unit. systemd ignores the key after Home Manager detects the change.
   #
   # The hash covers the template with its placeholders, not the rendered
   # secrets, so rotating a secret's value still needs a manual restart.
-  restartTrigger = config:
+  systemdRestartTrigger = config:
     builtins.hashString "sha256" config.sops.templates.${configTemplate}.content;
 
   systemdModule = {
@@ -144,7 +142,7 @@
         systemd.user.services.agentsview = {
           Unit = {
             Description = "Agent session archive and dashboard";
-            X-Restart-Triggers = [(restartTrigger config)];
+            X-Restart-Triggers = [(systemdRestartTrigger config)];
           };
 
           Service = {
@@ -165,7 +163,7 @@
             Description = "agentsview PostgreSQL auto-push";
             After = ["network-online.target"];
             Wants = ["network-online.target"];
-            X-Restart-Triggers = [(restartTrigger config)];
+            X-Restart-Triggers = [(systemdRestartTrigger config)];
           };
 
           Service = {
@@ -190,15 +188,25 @@
   launchdModule = {
     config,
     lib,
+    pkgs,
     system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
+    agentName =
+      if cfg.sync.enable
+      then "agentsview-push"
+      else "agentsview";
 
     # launchd keeps no record of the output of a job. These files are that
     # record, and they are the first place to look when one of these jobs
     # stops.
     logDir = "${config.home.homeDirectory}/Library/Logs";
+    reloadLog = "${logDir}/agentsview-config-reload.log";
+    reloadScript = pkgs.writeShellScript "agentsview-config-reload" ''
+      exec /bin/launchctl kickstart -k \
+        "gui/$UID/org.nix-community.home.${agentName}"
+    '';
   in {
     config = lib.mkMerge [
       (lib.mkIf (!cfg.sync.enable) {
@@ -217,7 +225,6 @@
             KeepAlive = true;
             StandardOutPath = "${logDir}/agentsview.log";
             StandardErrorPath = "${logDir}/agentsview.log";
-            X-Restart-Triggers = restartTrigger config;
           };
         };
       })
@@ -238,10 +245,22 @@
             KeepAlive = true;
             StandardOutPath = pushLog cfg;
             StandardErrorPath = pushLog cfg;
-            X-Restart-Triggers = restartTrigger config;
           };
         };
       })
+
+      {
+        launchd.agents.agentsview-config-reload = {
+          enable = true;
+          config = {
+            Program = reloadScript;
+            WatchPaths = [config.sops.templates.${configTemplate}.path];
+            ProcessType = "Background";
+            StandardOutPath = reloadLog;
+            StandardErrorPath = reloadLog;
+          };
+        };
+      }
     ];
   };
 in {
