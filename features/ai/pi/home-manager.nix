@@ -56,7 +56,7 @@
   piWithQuotaToken = pkgs.writeShellApplication {
     name = "pi";
 
-    runtimeInputs = [pkgs.jq];
+    runtimeInputs = [pkgs.jq pkgs.nodejs];
 
     text = ''
       credentials="''${CLAUDE_CONFIG_DIR:-''${HOME}/.claude}/.credentials.json"
@@ -125,7 +125,6 @@
     };
     markdown.codeBlockIndent = " ";
     warnings.anthropicExtraUsage = false;
-    npmCommand = ["nix" "shell" "nixpkgs#nodejs" "-c" "npm"];
 
     # Stable symlinks keep store paths out of prompts. Home Manager retains
     # their targets in the active generation.

@@ -1,24 +1,51 @@
 # To update: nix run .#update-pi-lens
-{callPackage}:
-callPackage ../build-support/pi-extension.nix {
-  npmName = "pi-lens";
-  source = ./source.json;
-  npmRoot = ./npm-deps;
+{
+  callPackage,
+  jq,
+  pkgsCross,
+}: let
+  luaGrammar = pkgsCross.wasi32.tree-sitter-grammars.tree-sitter-lua;
+in
+  (callPackage ../build-support/pi-extension.nix {
+    npmName = "pi-lens";
+    source = ./source.json;
+    npmRoot = ./npm-deps;
 
-  # The registry tarball, not the release tag. pi-lens builds `dist/` and
-  # downloads its tree-sitter grammars in a `prepare` script, both of which
-  # need network access the sandbox does not have. The published tarball
-  # contains the result of that script already.
+    # The registry tarball includes dist/ and the core grammars. Building from
+    # the release tag would run prepare, which requires network access.
 
-  # 4.1.x imports the TypeScript compiler API at runtime but declares
-  # TypeScript as a development dependency, so an install that omits the dev
-  # tree leaves the extension unable to load. Resolve it as a direct
-  # dependency until upstream moves it.
-  npmDependencies.typescript = "7.0.2";
+    # pi-lens imports TypeScript at runtime but declares it as a dev dependency.
+    # The shared builder omits dev dependencies.
+    npmDependencies.typescript = "7.0.2";
 
-  # ast-grep is a Rust binary behind a Node addon, so pi-lens cannot do its
-  # structural analysis without the optional dependency matching this system.
-  omitOptional = false;
+    # ast-grep distributes its native addon through optional dependencies.
+    omitOptional = false;
 
-  description = "Real-time code feedback for pi through LSP, linters, formatters, type checking and structural analysis";
-}
+    description = "Real-time code feedback for pi through LSP, linters, formatters, type checking and structural analysis";
+  }).overrideAttrs (previous: {
+    # pi-lens downloads Lua on demand into its package directory, which is
+    # read-only in the Nix store. Its runtime hash check must use the Nix-built
+    # grammar's hash, not the hash of the npm binary.
+    postInstall =
+      (previous.postInstall or "")
+      + ''
+        package="$out/${previous.passthru.packageRoot}"
+        install -m644 ${luaGrammar}/parser.wasm "$package/grammars/tree-sitter-lua.wasm"
+        hash="$(sha256sum "$package/grammars/tree-sitter-lua.wasm")"
+
+        ${jq}/bin/jq --arg hash "sha256:''${hash%% *}" --arg version ${luaGrammar.version} '
+          .grammars["tree-sitter-lua.wasm"] = $hash
+          | .overrides["tree-sitter-lua.wasm"] = {
+              package: "nixpkgs/tree-sitter-lua",
+              version: $version
+            }
+        ' "$package/scripts/grammars.lock.json" > "$package/scripts/grammars.lock.json.new"
+        mv "$package/scripts/grammars.lock.json.new" "$package/scripts/grammars.lock.json"
+
+        ${jq}/bin/jq '{
+          npmPackage: .overrides["tree-sitter-lua.wasm"].package,
+          version: .overrides["tree-sitter-lua.wasm"].version,
+          sha256: .grammars["tree-sitter-lua.wasm"]
+        }' "$package/scripts/grammars.lock.json" > "$package/grammars/tree-sitter-lua.wasm.json"
+      '';
+  })
