@@ -7,15 +7,16 @@
 in {
   environment = {
     etc = {
-      # zsh on non-NixOS sources /etc/zshenv for all shells (including SSH
-      # logins) before user-level .zshenv, and reads nothing that pulls in
-      # /etc/profile. system-manager writes the PATH and variables for its
-      # own packages as a profile.d snippet, which bash picks up and zsh
-      # never would, so source it from here.
+      # On non-NixOS systems, zsh reads /etc/zshenv before the user's
+      # .zshenv, including for SSH logins, but does not read /etc/profile.
+      # Source system-manager's profile.d script here to set PATH and the
+      # other environment variables for system-manager packages.
       #
-      # TERMINFO_DIRS goes alongside it so Home Manager's TERM reset does
-      # not error for xterm-ghostty. Both run once per shell tree: zshenv
-      # is read again by every nested zsh, and each would prepend afresh.
+      # Set TERMINFO_DIRS before Home Manager resets the terminal so the
+      # reset can find the xterm-ghostty terminfo entry.
+      #
+      # Child zsh processes also read /etc/zshenv. They inherit the exported
+      # guard, so they skip this setup and do not prepend the paths again.
       "zshenv".text = ''
         if [ -z "''${__SYSTEM_MANAGER_ENV_DONE-}" ]; then
           export __SYSTEM_MANAGER_ENV_DONE=1
