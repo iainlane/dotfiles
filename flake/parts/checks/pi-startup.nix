@@ -54,7 +54,7 @@
       import assert from "node:assert/strict";
       import { writeFileSync } from "node:fs";
       import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
-      import { findModelWithProviderRouting, modelMatchesEnabledPatterns } from "${webAccessRoot}/summary-model-scope.ts";
+      import { findModelWithProviderRouting } from "${webAccessRoot}/summary-model-scope.ts";
 
       export default function () {
         const prompts = ${builtins.toJSON prompts};
@@ -71,26 +71,6 @@
           provider: "openrouter",
           id: "openai/${modelCatalog.openai.sol}",
         };
-        const enabledPatterns = ${builtins.toJSON settings.enabledModels};
-        assert.equal(modelMatchesEnabledPatterns(routedSol, enabledPatterns), true);
-        assert.equal(
-          modelMatchesEnabledPatterns(
-            { provider: "OPENROUTER", id: "OPENAI/${lib.toUpper modelCatalog.openai.sol}" },
-            enabledPatterns,
-          ),
-          true,
-        );
-        assert.equal(
-          modelMatchesEnabledPatterns(routedSol, ["**/[a-z]pt-*:high"]),
-          true,
-        );
-        assert.equal(
-          modelMatchesEnabledPatterns(
-            { provider: "openrouter", id: "meta-llama/llama-4" },
-            enabledPatterns,
-          ),
-          false,
-        );
         assert.deepStrictEqual(
           findModelWithProviderRouting({
             find: () => undefined,
@@ -102,7 +82,6 @@
       }
     '';
     testSettings = pkgs.writeText "pi-test-settings.json" (builtins.toJSON {
-      inherit (settings) enabledModels;
       extensions = ["${startupProbe}"];
       packages = ["${pkgs.pi-prompt-template-model}/${pkgs.pi-prompt-template-model.packageRoot}"];
       prompts = settings.prompts or [];

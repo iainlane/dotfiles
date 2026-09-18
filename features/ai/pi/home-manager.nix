@@ -90,7 +90,6 @@
       xhigh = 64000;
     };
     hideThinkingBlock = true;
-    enabledModels = ["**/{claude-{mythos,fable,opus,sonnet,haiku},gpt}-*"];
 
     # pi-system-theme overrides this when the OS reports a light/dark
     # preference. This value applies if detection fails.
