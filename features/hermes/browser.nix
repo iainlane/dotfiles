@@ -65,7 +65,7 @@
 
       curl --fail --silent --output /dev/null ${cdpUrl}/json/version
 
-      /data/.hermes/current-package/bin/hermes "$@" &
+      /data/current-package/bin/hermes "$@" &
       hermes_pid=$!
 
       status=0
