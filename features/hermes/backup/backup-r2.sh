@@ -31,7 +31,6 @@ mkdir -p "${snap}/.hermes"
 # reproducible, so not worth backing up, and their host-side mountpoint stubs
 # can be owned by a container subuid and unreadable to this user.
 rsync -a --numeric-ids \
-	--exclude=/current-package \
 	--exclude='/.hermes/config.yaml' \
 	--exclude='/.hermes/SOUL.md' \
 	--exclude='/workspace/AGENTS.md' \

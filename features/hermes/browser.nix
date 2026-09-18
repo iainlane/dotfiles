@@ -1,10 +1,13 @@
 {
   config,
+  hermesBuilders,
   inputs,
   lib,
   pkgs,
   ...
 }: let
+  cfg = config.dotfiles.hermes;
+
   # Chromium cannot use Nixpkgs' SUID helper inside the mapped-user container.
   # Podman supplies the isolation boundary for the unsandboxed browser process.
   chromium = pkgs.chromium.override {
@@ -24,54 +27,17 @@
     inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agent-browser.override
     {inherit chromium;};
 
-  cdpPort = 9222;
-  cdpUrl = "http://127.0.0.1:${toString cdpPort}";
+  browserProfile = "/data/.hermes/chromium";
 
-  # browser-harness 0.1.13 exits before it can auto-launch a cold browser.
-  gateway = pkgs.writeShellApplication {
-    name = "hermes-browser-gateway";
-    runtimeInputs = [pkgs.coreutils pkgs.curl];
+  inherit (hermesBuilders) hermesStateVolume;
+
+  prepareBrowserProfile = pkgs.writeShellApplication {
+    name = "hermes-prepare-browser-profile";
+    runtimeInputs = [pkgs.coreutils config.virtualisation.podman.package];
     text = ''
-      browser_pid=
-      hermes_pid=
+      state="$(podman volume inspect --format '{{.Mountpoint}}' ${hermesStateVolume})"
 
-      stop_children() {
-        trap - EXIT INT TERM
-        kill "''${browser_pid}" "''${hermes_pid}" 2>/dev/null || true
-        wait "''${browser_pid}" "''${hermes_pid}" 2>/dev/null || true
-      }
-
-      trap 'stop_children; exit 143' INT TERM
-      trap stop_children EXIT
-
-      ${lib.getExe chromium} \
-        --remote-debugging-address=127.0.0.1 \
-        --remote-debugging-port=${toString cdpPort} \
-        --user-data-dir=/data/.hermes/chromium \
-        about:blank &
-      browser_pid=$!
-
-      for _ in {1..100}; do
-        if curl --fail --silent --output /dev/null ${cdpUrl}/json/version; then
-          break
-        fi
-
-        if ! kill -0 "''${browser_pid}" 2>/dev/null; then
-          wait "''${browser_pid}"
-        fi
-
-        sleep 0.1
-      done
-
-      curl --fail --silent --output /dev/null ${cdpUrl}/json/version
-
-      /data/current-package/bin/hermes "$@" &
-      hermes_pid=$!
-
-      status=0
-      wait -n "''${browser_pid}" "''${hermes_pid}" || status=$?
-      stop_children
-      exit "''${status}"
+      rm -f "$state"/.hermes/chromium/Singleton{Lock,Socket,Cookie}
     '';
   };
 in {
@@ -79,27 +45,20 @@ in {
     agentPackages = [
       agentBrowser
       chromium
-      gateway
       # Fontconfig reads /etc/fonts; its default output only supplies tools.
       pkgs.fontconfig.out
     ];
 
-    environment.AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
+    environment = {
+      AGENT_BROWSER_EXECUTABLE_PATH = lib.mkDefault (lib.getExe chromium);
+      AGENT_BROWSER_PROFILE = lib.mkDefault browserProfile;
+    };
   };
 
-  # Chromium records the hostname and pid holding a profile in
-  # `SingletonLock`, and only reclaims the lock when the hostname is its
-  # own. Every container run has a fresh hostname, so a lock left by a
-  # container that was not stopped cleanly is never reclaimed and
-  # Chromium exits with "profile in use" on every start. No other
-  # container uses this profile, so any lock present before a start is
-  # stale.
-  dotfiles.hermes.container.extraSetup = ''
-    rm -f "$state"/.hermes/chromium/Singleton{Lock,Socket,Cookie}
-  '';
-
-  virtualisation.quadlet.containers.${config.dotfiles.hermes.container.name}.containerConfig = {
-    entrypoint = lib.mkForce (lib.getExe gateway);
-    environments.BROWSER_CDP_URL = cdpUrl;
-  };
+  # Chromium records the hostname and pid that use a profile in
+  # `SingletonLock`. A new container has a new hostname, so Chromium cannot
+  # reclaim a lock left by the previous container. No other process uses this
+  # profile before agent-browser starts, so a lock at gateway startup is stale.
+  virtualisation.quadlet.containers.${cfg.container.name}.serviceConfig.ExecStartPre =
+    lib.mkAfter ["${prepareBrowserProfile}/bin/hermes-prepare-browser-profile"];
 }

@@ -195,8 +195,8 @@
   );
 
   # Everything that the agent needs in place before it starts: the state tree,
-  # its package, the file that tells the host CLI how to reach it,
-  # and the environment assembled from the sops-rendered files.
+  # the file that tells the host CLI how to reach it, and the environment
+  # assembled from the sops-rendered files.
   setupScript = pkgs.writeShellApplication {
     name = "hermes-prepare-state";
 
@@ -222,7 +222,7 @@
         	install -d -m 0700 -o "$owner" -g "$owner" "$state/$dir"
         done
 
-        ln -sfn "${package}" "$state/current-package"
+        rm -f "$state/current-package"
 
         # Hermes copies the bundled skills out of the read-only image, so they
         # arrive read-only. Make the tree writable so the agent can write and
