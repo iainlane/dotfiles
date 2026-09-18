@@ -3,7 +3,7 @@
   inputs,
 }: {
   inherit (final) agentmail;
-  hermesAgent = inputs.hermes-agent.packages.${final.stdenv.hostPlatform.system}.default;
+  hermesAgent = final.hermes-agent;
   hermesSource = inputs.hermes-agent;
   pkgs = final;
   pythonPackages = import ../../lib/hermes-python.nix {

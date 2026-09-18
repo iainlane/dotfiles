@@ -36,7 +36,7 @@
     if cfg.package != null
     then cfg.package
     else
-      inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
+      pkgs.hermes-agent.override {
         inherit (cfg) extraDependencyGroups;
         extraPythonPackages = leafPythonPackages;
       };
