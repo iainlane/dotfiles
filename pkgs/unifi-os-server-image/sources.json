@@ -1,16 +1,16 @@
 {
-  "imageTag": "uosserver:f77bca81ecbf",
-  "version": "5.1.15",
+  "imageTag": "uosserver:c9603dec9010",
+  "version": "5.1.42",
   "platforms": {
     "aarch64-linux": {
       "firmwarePlatform": "linux-arm64",
-      "url": "https://fw-download.ubnt.com/data/unifi-os-server/adc4-linux-arm64-5.1.15-53ab1f2c-4cd5-4a5f-b750-d1aa35679b4f.15-arm64",
-      "hash": "sha256-bP8MHu2vvYLd2vuDJMLiF0mBTaWGKSqVVPYwQ7jEVfU="
+      "url": "https://fw-download.ubnt.com/data/unifi-os-server/f730-linux-arm64-5.1.42-d2bca8bd-d6fc-4d20-99e5-b78235843c2f.42-arm64",
+      "hash": "sha256-jim9UM3o94Gs5LhVmSVu9iwCcjvcdRBE1NuQoIf7Ugc="
     },
     "x86_64-linux": {
       "firmwarePlatform": "linux-x64",
-      "url": "https://fw-download.ubnt.com/data/unifi-os-server/24e0-linux-x64-5.1.15-926621de-c9d7-48cd-8921-a0ff3eebd3f4.15-x64",
-      "hash": "sha256-BMjkAes0Mw/pnZTzWqNR4ODpeJXw2aS0Wf80+1DK0rs="
+      "url": "https://fw-download.ubnt.com/data/unifi-os-server/5172-linux-x64-5.1.42-12e9e3cf-8f8b-4e54-928c-76b80a10c8a4.42-x64",
+      "hash": "sha256-9hEek5akLHQBb13emwH770hqb+ae/hN5Nebji3wi+U0="
     }
   }
 }

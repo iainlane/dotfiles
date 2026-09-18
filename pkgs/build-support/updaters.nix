@@ -103,7 +103,9 @@
   # hash, and dependency hashes such as `vendorHash` or `pnpmDeps`.
   mkNixUpdateUpdater = {
     attr,
+    filename ? "pkgs/${attr}/package.nix",
     extraFlags ? [],
+    unsetEnv ? [],
   }:
     writeShellApplication {
       name = "update-${attr}";
@@ -113,7 +115,9 @@
       text = ''
         cd "$(git rev-parse --show-toplevel)"
 
-        nix-update --flake --override-filename "pkgs/${attr}/package.nix" ${lib.escapeShellArgs extraFlags} "${attr}"
+        ${lib.concatMapStringsSep "\n" (name: "unset ${lib.escapeShellArg name}") unsetEnv}
+
+        nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${attr}"
       '';
     };
 

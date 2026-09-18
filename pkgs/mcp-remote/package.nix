@@ -4,6 +4,7 @@
   fetchPnpmDeps,
   lib,
   makeWrapper,
+  husky,
   nodejs,
   pnpm_10,
   pnpmConfigHook,
@@ -14,25 +15,24 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "mcp-remote";
-    version = "0.1.38";
+    version = "0.14.2";
 
     src = fetchFromGitHub {
-      owner = "geelen";
+      owner = "punkpeye";
       repo = "mcp-remote";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-+oNI2Uq7gW3sLzJS4ky2+BXhTmo44+WpcdYgieGPpmI=";
+      hash = "sha256-b3IEAVwxTb2c/2ENRgQqluuZ5BE3alXsqProDwWQ1eA=";
     };
-
-    patches = [./optional-oauth-scope.patch];
 
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname version src;
       inherit pnpm;
       fetcherVersion = 3;
-      hash = "sha256-8aV/WRBrcezMb8HyRKW89v11MumgQnQwSBde5MZkzos=";
+      hash = "sha256-KPasWdU7aLVWOO+hdGlhYsylgJRD5Xses0wL1s6yt8w=";
     };
 
     nativeBuildInputs = [
+      husky
       makeWrapper
       nodejs
       pnpm
@@ -49,17 +49,6 @@ in
 
     doCheck = true;
 
-    checkPhase = ''
-      runHook preCheck
-
-      # vitest's worker RPC has a fixed 60-second timeout that flakes when
-      # the build machine is under load (vitest-dev/vitest#4106). The suite
-      # runs in under a second, so parallel workers save no time.
-      pnpm test:unit -- --no-file-parallelism
-
-      runHook postCheck
-    '';
-
     installPhase = ''
       runHook preInstall
 
@@ -67,8 +56,8 @@ in
 
       # pnpm writes metadata files containing timestamps and the build
       # directory, and its .bin shims hard-code NODE_PATH under the build
-      # directory. None of it works or is needed at runtime, and it makes
-      # the output unreproducible.
+      # directory. This makes the output unreproducible, so delete them. The
+      # .bin shims are not needed because we wrap the main scripts.
       rm node_modules/.modules.yaml node_modules/.pnpm-workspace-state-v1.json
       find node_modules -type d -name .bin -exec rm -r {} +
 

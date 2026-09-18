@@ -23,7 +23,13 @@ rustPlatform.buildRustPackage (finalAttrs: {
   nativeBuildInputs = [pkg-config];
   buildInputs = [libxkbcommon];
 
-  passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "eitype";};
+  passthru.updateScript = updaters.mkNixUpdateUpdater {
+    attr = "eitype";
+    extraFlags = [
+      "--system"
+      "x86_64-linux"
+    ];
+  };
 
   meta = {
     description = "CLI tool for typing text via the emulated-input (EI) protocol on Wayland";
