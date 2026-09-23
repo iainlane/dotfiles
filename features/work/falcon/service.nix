@@ -1,9 +1,9 @@
 # CrowdStrike Falcon sensor NixOS module.
-# Falcon is fetched from a private GitHub release as a fixed-output derivation,
-# then staged into /opt/CrowdStrike when the service starts so the upstream
-# layout continues to work with the existing service wiring.
+# Falcon is staged into /opt/CrowdStrike when the service starts so the
+# upstream layout continues to work with the existing service wiring.
 {
   config,
+  inputs,
   lib,
   pkgs,
   ...
@@ -19,56 +19,7 @@
     ;
   cfg = config.services.falcon-sensor;
   installDir = "/opt/CrowdStrike";
-  rpmArch =
-    if pkgs.stdenv.hostPlatform.system == "x86_64-linux"
-    then "x86_64"
-    else if pkgs.stdenv.hostPlatform.system == "aarch64-linux"
-    then "aarch64"
-    else throw "Unsupported system for Falcon sensor: ${pkgs.stdenv.hostPlatform.system}";
-
-  falconRelease =
-    cfg.release
-    // {
-      hash = cfg.release.hashes.${rpmArch};
-      rpmFilename = "falcon-sensor-${cfg.release.version}.el10.${rpmArch}.rpm";
-      releaseTag = "v${cfg.release.version}";
-    };
-
-  fetchGitHubReleaseAsset = pkgs.callPackage ../../../lib/fetch-github-release-asset.nix {};
-
-  falconSensorPackage = pkgs.stdenvNoCC.mkDerivation {
-    pname = "falcon-sensor";
-    inherit (falconRelease) version;
-    src = fetchGitHubReleaseAsset {
-      inherit (falconRelease) repo hash;
-      tag = falconRelease.releaseTag;
-      filename = falconRelease.rpmFilename;
-    };
-    nativeBuildInputs = with pkgs; [
-      cpio
-      patchelf
-      rpm
-    ];
-    dontUnpack = true;
-    installPhase = ''
-      runHook preInstall
-
-      mkdir -p "$out"
-      extract_dir="$TMPDIR/extracted"
-      mkdir -p "$extract_dir"
-      cd "$extract_dir"
-      rpm2cpio "$src" | cpio -idm --quiet
-
-      cp -r opt "$out/"
-
-      interp="$(patchelf --print-interpreter ${pkgs.bash}/bin/bash)"
-      find "$out/opt/CrowdStrike" -maxdepth 1 -type f -perm -0100 -print0 | while IFS= read -r -d $'\0' binary; do
-        patchelf --set-interpreter "$interp" "$binary" 2>/dev/null || true
-      done
-
-      runHook postInstall
-    '';
-  };
+  falconSensorPackage = inputs.secrets.packages.${pkgs.stdenv.hostPlatform.system}.falcon;
 
   # The sensor writes registration state into its install directory, so it
   # must run from a mutable copy of the package. Staging in
@@ -172,37 +123,6 @@ in {
       type = types.nullOr types.path;
       default = null;
       description = "Path to a file containing a provisioning token for sensor registration.";
-    };
-
-    release = mkOption {
-      type = types.submodule {
-        options = {
-          repo = mkOption {
-            type = types.str;
-            description = "GitHub owner/repo containing Falcon release assets.";
-          };
-          version = mkOption {
-            type = types.str;
-            description = "Falcon sensor version to install.";
-          };
-          hashes = mkOption {
-            type = types.submodule {
-              options = {
-                x86_64 = mkOption {
-                  type = types.str;
-                  description = "Fixed-output hash of the x86_64 Falcon RPM.";
-                };
-                aarch64 = mkOption {
-                  type = types.str;
-                  description = "Fixed-output hash of the aarch64 Falcon RPM.";
-                };
-              };
-            };
-            description = "Fixed-output hashes of the Falcon RPM, by RPM architecture.";
-          };
-        };
-      };
-      description = "Pinned Falcon release metadata.";
     };
   };
 

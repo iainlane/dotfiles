@@ -189,10 +189,7 @@
     # writes user units, so rootful containers need this instead.
     quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
 
-    secrets = {
-      url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
-      flake = false;
-    };
+    secrets.url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
 
     sops-nix = {
       url = "github:Mic92/sops-nix";

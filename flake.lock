@@ -167,12 +167,12 @@
         "nixpkgs-x86_64-darwin": "nixpkgs-x86_64-darwin"
       },
       "locked": {
-        "lastModified": 1787666389,
-        "narHash": "sha256-OZEdPE7KZqpDmh9/eu7kNTIAuaeBIQz/eu5Fb25hreg=",
-        "rev": "f5f91e081caa0b36e77073e69a293b72f3864328",
-        "revCount": 1110,
+        "lastModified": 1790097596,
+        "narHash": "sha256-Kfvj357uHKAC150c6QPnJLcADqW7rDwb4fidEnS6+ds=",
+        "rev": "79fe1609401f234acb63a69282fa50d9e934b53c",
+        "revCount": 1263,
         "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.33/01a03951-5f51-7da0-afee-293194dde823/source.tar.gz"
+        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.34/01a0cc6e-b2b1-7ec0-9392-c4d482ca2435/source.tar.gz"
       },
       "original": {
         "type": "tarball",
@@ -1259,6 +1259,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_6": {
+      "locked": {
+        "lastModified": 1787498568,
+        "narHash": "sha256-9i/VTdusq/+NM/tz+J1Re+ojkMB8MBf0QshnYfzHz30=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "56c02bc00adcf003215cc4bd996d6efaf4cff188",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "56c02bc00adcf003215cc4bd996d6efaf4cff188",
+        "type": "github"
+      }
+    },
     "npm-lockfile-fix": {
       "inputs": {
         "nixpkgs": [
@@ -1494,13 +1510,15 @@
       }
     },
     "secrets": {
-      "flake": false,
+      "inputs": {
+        "nixpkgs": "nixpkgs_6"
+      },
       "locked": {
-        "lastModified": 1789764108,
-        "narHash": "sha256-Ke/of38qPptnpWKEEr1CpLjmKT9IWtnBhEomwL1TOeU=",
+        "lastModified": 1790137147,
+        "narHash": "sha256-lnP1iSelG11FB3rpJsrVPWE/DF2up++F2PjV39qjvTs=",
         "ref": "refs/heads/main",
-        "rev": "f25494e86fbae9a965db32fcbd7a5c7018daac33",
-        "revCount": 66,
+        "rev": "69aa464b7a2629cb6c79c649952a0d5cbf48e256",
+        "revCount": 67,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },

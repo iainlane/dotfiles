@@ -32,5 +32,6 @@ jobs:
     with:
       push: false
     secrets:
+      falcon_cache_password: ${{ secrets.FALCON_CACHE_PASSWORD }}
       nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
       secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}

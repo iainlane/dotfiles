@@ -50,6 +50,7 @@ jobs:
       # trusted, Nix substitutes the outputs they already have instead of
       # building them.
       - name: Trust our binary caches
+        id: cache-config
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.config/nix"
@@ -57,6 +58,9 @@ jobs:
             printf '\n'
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
+
+          echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
+          echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
 
       # The `host-evaluation-*` and `deploy-*` checks evaluate host
       # configurations, which reads the private secrets input. Exclude them
@@ -80,6 +84,7 @@ jobs:
         id: secrets
         env:
           DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+          FALCON_CACHE_PASSWORD: ${{ secrets.FALCON_CACHE_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -89,10 +94,26 @@ jobs:
             exit 0
           fi
 
+          if [ -z "${FALCON_CACHE_PASSWORD}" ]; then
+            echo "The Falcon cache password is missing." >&2
+            exit 1
+          fi
+
           key="${RUNNER_TEMP}/secrets_deploy_key"
           install -m 600 /dev/null "${key}"
 
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          netrc="${RUNNER_TEMP}/falcon-cache.netrc"
+          install -m 600 /dev/null "${netrc}"
+          {
+            echo "machine cupboard.supply"
+            echo "login cupboard"
+            printf 'password %s\n' "${FALCON_CACHE_PASSWORD}"
+          } > "${netrc}"
+          {
+            echo "extra-substituters = https://cupboard.supply/t/laney/cache/falcon"
+            echo "netrc-file = ${netrc}"
+          } >> "${HOME}/.config/nix/nix.conf"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
@@ -103,6 +124,9 @@ jobs:
         if: ${{ steps.secrets.outputs.have_key == 'true' }}
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+          settings: |
+            substituters = ${{ steps.cache-config.outputs.remoteSubstituters }},https://cupboard:${{ secrets.FALCON_CACHE_PASSWORD }}@cupboard.supply/t/laney/cache/falcon
+            trusted-public-keys = ${{ steps.cache-config.outputs.remoteTrustedKeys }}
 
       # The host-evaluation checks in `flake/parts/checks/host-evaluation.nix`
       # force the toplevel derivation of every host configuration. Forcing the
@@ -165,5 +189,6 @@ jobs:
     # from cupboard's separately trusted released workflow.
     uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main # zizmor: ignore[unpinned-uses]
     secrets:
+      falcon_cache_password: ${{ secrets.FALCON_CACHE_PASSWORD }}
       nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
       secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}
