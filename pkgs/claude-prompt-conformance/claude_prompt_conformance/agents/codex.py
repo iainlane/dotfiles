@@ -784,6 +784,7 @@ def codex_isolated_features() -> dict[str, bool]:
     """Disable extension and model-visible tools outside the evidence MCP."""
 
     return {
+        "api_key_model_discovery": False,
         "apps": False,
         "auth_elicitation": False,
         "background_paginated_rollout_migration": False,
@@ -796,6 +797,7 @@ def codex_isolated_features() -> dict[str, bool]:
         # delegated back through Codex. Disabling the host leaves the judge
         # with no tools at all.
         "code_mode_host": True,
+        "codex_apps_mcp_2026_07_28": False,
         "computer_use": False,
         # A `request_user_input` call arrives as a server request, and the
         # session ends the child on a server request. The judge has no
@@ -820,6 +822,7 @@ def codex_isolated_features() -> dict[str, bool]:
         "tool_suggest": False,
         "undo": False,
         "unified_exec": False,
+        "windows_sandbox_service": False,
     }
 
 
