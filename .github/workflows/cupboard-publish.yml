@@ -71,7 +71,6 @@ jobs:
       targets: .#cupboardOutputs
       preset: pull-request-and-branch
       reuse-view: pull-requests
-      maximise-space: true
       nix-config: .#nix.substituterConfig
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}
       input-known-hosts: >-
