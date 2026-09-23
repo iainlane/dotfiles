@@ -3,7 +3,7 @@ let
   google.geminiPro = "Gemini 3.1 Pro (High)";
   openai = {
     astra = "gpt-6-astra";
-    sol = "gpt-5.6-sol";
+    sol = "gpt-6-sol";
   };
   openrouter.sol = "~openai/gpt-sol-latest";
 in {
