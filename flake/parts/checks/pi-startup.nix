@@ -35,6 +35,10 @@
       prompts
       ++ [
         {
+          name = "anthropic-auth:status";
+          source = "extension";
+        }
+        {
           name = "plain-fixture";
           source = "prompt";
         }
@@ -83,7 +87,10 @@
     '';
     testSettings = pkgs.writeText "pi-test-settings.json" (builtins.toJSON {
       extensions = ["${startupProbe}"];
-      packages = ["${pkgs.pi-prompt-template-model}/${pkgs.pi-prompt-template-model.packageRoot}"];
+      packages = [
+        "${pkgs.pi-anthropic-auth}/${pkgs.pi-anthropic-auth.packageRoot}"
+        "${pkgs.pi-prompt-template-model}/${pkgs.pi-prompt-template-model.packageRoot}"
+      ];
       prompts = settings.prompts or [];
     });
     modelIds = [

@@ -13,6 +13,7 @@
 }: let
   piExtensions =
     lib.getAttrs [
+      "pi-anthropic-auth"
       "pi-footer"
       "pi-lens"
       "pi-mcp-adapter"
