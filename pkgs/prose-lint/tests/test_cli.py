@@ -1,5 +1,7 @@
 import io
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -75,7 +77,6 @@ def test_the_stop_hook_reports_nothing_while_it_is_already_active(
 EM_DASH = "—"
 
 FAKE_VALE = """\
-#!/usr/bin/env python3
 import json
 import sys
 
@@ -99,10 +100,25 @@ print(json.dumps({path: alerts} if alerts else {}))
 def fake_vale(directory: Path) -> Path:
     """A vale that reports an error on every line containing an em dash."""
     script = directory / "vale"
-    script.write_text(FAKE_VALE)
+    script.write_text(f"#!{sys.executable}\n{FAKE_VALE}")
     script.chmod(0o755)
 
     return script
+
+
+def test_fake_vale_runs_without_python_on_path(tmp_path: Path) -> None:
+    note = tmp_path / "note.md"
+    note.write_text("A clean sentence.\n")
+
+    result = subprocess.run(
+        [str(fake_vale(tmp_path)), str(note)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(tmp_path)},
+    )
+
+    assert (result.returncode, result.stdout, result.stderr) == (0, "{}\n", "")
 
 
 @pytest.mark.parametrize(
