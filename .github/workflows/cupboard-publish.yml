@@ -70,7 +70,6 @@ jobs:
       url: https://cupboard.supply/t/laney
       targets: .#cupboardOutputs
       preset: pull-request-and-branch
-      reuse-view: pull-requests
       nix-config: .#nix.substituterConfig
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}
       input-known-hosts: >-
@@ -99,5 +98,5 @@ jobs:
           PreferredAuthentications none
           ServerAliveInterval 60
           IPQoS throughput
-          SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }} NIXBUILDNET_SUBSTITUTERS=${{ needs.sources.outputs.remoteSubstituters }},https://cupboard:${{ secrets.falcon_cache_password }}@cupboard.supply/t/laney/cache/falcon,https://cupboard.supply/t/laney/reuse/pull-requests NIXBUILDNET_TRUSTED_PUBLIC_KEYS=${{ needs.sources.outputs.remoteTrustedKeys }}
+          SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }} NIXBUILDNET_SUBSTITUTERS=${{ needs.sources.outputs.remoteSubstituters }},https://cupboard:${{ secrets.falcon_cache_password }}@cupboard.supply/t/laney/cache/falcon,https://cupboard.supply/t/laney/reuse/pull-requests-${{ github.repository_id }} NIXBUILDNET_TRUSTED_PUBLIC_KEYS=${{ needs.sources.outputs.remoteTrustedKeys }}
       input_ssh_key: ${{ secrets.secrets_deploy_key }}
