@@ -146,6 +146,23 @@
         "type": "github"
       }
     },
+    "codex-plugin-cc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783469820,
+        "narHash": "sha256-S/R4kHTcIHBcG0TRX063C7ILXZZm0oMqunchPGg6ToU=",
+        "owner": "openai",
+        "repo": "codex-plugin-cc",
+        "rev": "db52e28f4d9ded852ab3942cea316258ae4ef346",
+        "type": "github"
+      },
+      "original": {
+        "owner": "openai",
+        "ref": "v1.0.6",
+        "repo": "codex-plugin-cc",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1780532242,
@@ -1420,6 +1437,7 @@
         "catppuccin-bottom": "catppuccin-bottom",
         "catppuccin-palette": "catppuccin-palette",
         "catppuccin-stable": "catppuccin-stable",
+        "codex-plugin-cc": "codex-plugin-cc",
         "cupboard": "cupboard",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",

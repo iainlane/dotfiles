@@ -21,6 +21,7 @@
   # updater named `update-<input>`.
   flakeInputs = {
     catppuccin-palette.repo = "catppuccin/palette";
+    codex-plugin-cc.repo = "openai/codex-plugin-cc";
     gh-stack-skill.repo = "github/gh-stack";
     hermes-agent.repo = "NousResearch/hermes-agent";
   };
