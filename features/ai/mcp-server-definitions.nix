@@ -11,11 +11,6 @@
 }: let
   inherit (pkgs) lib;
   programs = {
-    codex = {
-      enable = true;
-      package = pkgs.codex;
-    };
-
     context7.enable = true;
 
     fetch.enable = false;

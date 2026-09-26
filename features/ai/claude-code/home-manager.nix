@@ -23,9 +23,20 @@
     // lib.optionalAttrs (server ? command) {type = "stdio";}
     // {enabled = !(server.disabled or false);};
 
+  # The Codex plugin's hooks and commands run `node`, and its scripts start
+  # `codex app-server`, both from PATH.
   wrappedClaudeCode = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.claude-code;
     binName = "claude";
+    extraWrapperArgs = [
+      "--prefix"
+      "PATH"
+      ":"
+      (lib.makeBinPath [
+        pkgs.nodejs
+        inputs.llm-agents.packages.${system}.codex
+      ])
+    ];
   };
 in {
   options.dotfiles.claudeCode = {
@@ -92,12 +103,14 @@ in {
       enable = true;
       package = wrappedClaudeCode;
 
-      # Source the shared set directly, dropping any servers a feature has
-      # excluded for Claude Code.
+      # Source the shared set directly, without the servers listed in
+      # `dotfiles.claudeCode.excludeMcpServers`.
       enableMcpIntegration = false;
       mcpServers =
         lib.mapAttrs (_name: mkMcpServer)
         (mcp.excludeServers cfg.excludeMcpServers config.dotfiles.ai.mcpServers);
+
+      plugins.codex = "${inputs.codex-plugin-cc}/plugins/codex";
 
       # Shared instructions as auto-loaded rule files.
       rules = claudeCodeInstructions.files;

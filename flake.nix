@@ -44,6 +44,14 @@
       flake = false;
     };
 
+    # OpenAI's Codex plugin for Claude Code. `features/ai/claude-code` links its
+    # `plugins/codex` directory as a personal plugin. Pinned to a release tag;
+    # bumped by `nix run .#update-codex-plugin-cc`.
+    codex-plugin-cc = {
+      url = "github:openai/codex-plugin-cc/v1.0.6";
+      flake = false;
+    };
+
     cupboard.url = "https://flakehub.com/f/underwhelmingperformance/cupboard/0.0";
 
     deploy-rs = {

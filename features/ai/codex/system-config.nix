@@ -6,7 +6,6 @@
   config,
   defaultModels,
   hostConfig,
-  mcp,
   ...
 }: let
   systemConfig = {
@@ -41,7 +40,7 @@
             enabled = !(server.disabled or false);
           }
       )
-      (mcp.excludeServers ["codex"] config.dotfiles.ai.mcpServers);
+      config.dotfiles.ai.mcpServers;
     model = defaultModels.openai;
     model_reasoning_effort = "high";
     personality = "pragmatic";
