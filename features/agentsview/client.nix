@@ -92,19 +92,15 @@
     vector,
     vectorBackend,
   }:
-    ''
-      auth_token = "${authToken}"
-      cursor_secret = "${cursorSecret}"
-      disable_update_check = true
-      codex_sessions_dirs = [${lib.concatMapStringsSep ", " builtins.toJSON codexSessionsDirs}]
-      disabled_agents = [${lib.concatMapStringsSep ", " builtins.toJSON disabledAgents}]
-    ''
-    + lib.optionalString (url != null) ''
-
-      [pg]
-      url = "${url}"
-    ''
-    + lib.optionalString vector (common.vectorConfig vectorBackend);
+    common.toTOML ({
+        auth_token = authToken;
+        cursor_secret = cursorSecret;
+        disable_update_check = true;
+        codex_sessions_dirs = codexSessionsDirs;
+        disabled_agents = disabledAgents;
+      }
+      // lib.optionalAttrs (url != null) {pg = {inherit url;};}
+      // lib.optionalAttrs vector (common.vectorConfig vectorBackend));
 
   # The log of the push. `agentsview pg service logs` reads this path, so that
   # command works against the units declared here.

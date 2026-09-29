@@ -114,17 +114,16 @@ in {
     # two of them share. The certificate the pushing machines check belongs to
     # the proxy, which terminates TLS and passes the connection on unencrypted.
     # `allow_insecure` confirms to AgentsView that this is deliberate.
-    configContent =
-      ''
-        auth_token = "${config.sops.placeholder.${common.authTokenSecret}}"
-        cursor_secret = "${config.sops.placeholder.${common.cursorSecret}}"
-        disable_update_check = true
-
-        [pg]
-        url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable"
-        allow_insecure = true
-      ''
-      + lib.optionalString embeddingsEnabled (common.vectorConfig "openrouter");
+    configContent = common.toTOML ({
+        auth_token = config.sops.placeholder.${common.authTokenSecret};
+        cursor_secret = config.sops.placeholder.${common.cursorSecret};
+        disable_update_check = true;
+        pg = {
+          url = "postgres://${dashboardRole}:${config.sops.placeholder.${dashboardSecret}}@${database.containerName}:${toString database.port}/${cfg.database}?sslmode=disable";
+          allow_insecure = true;
+        };
+      }
+      // lib.optionalAttrs embeddingsEnabled (common.vectorConfig "openrouter"));
 
     # The proxy joins the database's network only to pass pushes on. With no
     # machine pushing, the dashboard is the only thing that connects.
