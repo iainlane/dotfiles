@@ -178,12 +178,18 @@
         serverName = "openrouter";
         endpoint = "https://openrouter.ai/api/v1";
         apiKeyEnvironment = "OPENROUTER_API_KEY";
+        timeout = "30s";
       };
       local = {
         serverName = "local";
         endpoint = "http://localhost:11434/v1";
         apiKeyEnvironment = null;
         ollamaModel = lib.last (lib.splitString "/" model);
+        # The embedding model is not always resident in Ollama's GPU
+        # memory. A cold-start load can take 20–35 seconds for this
+        # 1.2 GB model. The default 30 s is at the edge of that range,
+        # so a search can time out before the model finishes loading.
+        timeout = "120s";
       };
     };
 
@@ -213,29 +219,84 @@
   # `agentsview.embeddings.local` child feature.
   hasLocalEmbeddings = hostConfig: helpers.hasFeature hostConfig localEmbeddingsFeature;
 
-  # The `[vector]` block of `config.toml`, naming the given backend. A
-  # publisher building the index and the dashboard querying it both need
-  # this: AgentsView reads the model and dimension to interpret stored
-  # vectors, and reads the server to embed new text, whether that text is a
-  # session message or a search query.
-  vectorConfig = backend: let
-    inherit (embeddings.backends.${backend}) serverName endpoint apiKeyEnvironment;
+  # Serialises a nested attrset as a TOML document. Nested attrsets become
+  # TOML sections; at each level, scalar keys come before section headers,
+  # separated by a blank line.
+  toTOML = let
+    tomlString = s: let
+      escaped =
+        builtins.replaceStrings
+        [
+          "\\"
+          "\""
+          "\n"
+          "\r"
+          "\t"
+          (builtins.fromJSON ''"\u0008"'')
+          (builtins.fromJSON ''"\u000C"'')
+        ]
+        [
+          "\\\\"
+          "\\\""
+          "\\n"
+          "\\r"
+          "\\t"
+          "\\b"
+          "\\f"
+        ]
+        s;
+    in ''"${escaped}"'';
+    value = v:
+      if builtins.isBool v
+      then
+        (
+          if v
+          then "true"
+          else "false"
+        )
+      else if builtins.isInt v
+      then toString v
+      else if builtins.isFloat v
+      then builtins.toJSON v
+      else if builtins.isString v
+      then tomlString v
+      else if builtins.isList v
+      then "[${lib.concatMapStringsSep ", " value v}]"
+      else throw "toTOML: cannot serialise ${builtins.typeOf v}";
+    lines = prefix: attrs: let
+      scalars = lib.filterAttrs (_: v: !builtins.isAttrs v) attrs;
+      sections = lib.filterAttrs (_: builtins.isAttrs) attrs;
+      scalarLines = lib.mapAttrsToList (k: v: "${k} = ${value v}") scalars;
+      sectionLines = lib.concatMap (k: let
+        full =
+          if prefix == ""
+          then k
+          else "${prefix}.${k}";
+      in
+        ["" "[${full}]"] ++ lines full sections.${k}) (builtins.attrNames sections);
+    in
+      scalarLines ++ sectionLines;
   in
-    ''
+    attrs: lib.concatStringsSep "\n" (lines "" attrs);
 
-      [vector]
-      enabled = true
-
-      [vector.embeddings]
-      model = "${embeddings.model}"
-      dimension = ${toString embeddings.dimension}
-
-      [vector.embeddings.servers.${serverName}]
-      endpoint = "${endpoint}"
-    ''
-    + lib.optionalString (apiKeyEnvironment != null) ''
-      api_key_env = "${apiKeyEnvironment}"
-    '';
+  # A publisher building the index and the dashboard querying it both need this:
+  # AgentsView reads the model and dimension to interpret stored vectors, and
+  # reads the server to embed new text, whether that text is a session message
+  # or a search query.
+  vectorConfig = backend: let
+    inherit (embeddings.backends.${backend}) serverName endpoint apiKeyEnvironment timeout;
+    serverAttrs =
+      {inherit endpoint timeout;}
+      // lib.optionalAttrs (apiKeyEnvironment != null) {api_key_env = apiKeyEnvironment;};
+  in {
+    vector = {
+      enabled = true;
+      embeddings = {
+        inherit (embeddings) model dimension;
+        servers.${serverName} = serverAttrs;
+      };
+    };
+  };
 in {
   inherit
     authTokenSecret
@@ -258,6 +319,7 @@ in {
     role
     serverSettings
     syncingHosts
+    toTOML
     userSecretsFile
     vectorConfig
     ;
