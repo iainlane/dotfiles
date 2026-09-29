@@ -48,14 +48,15 @@ in {
     addCapabilities = ["NET_RAW" "NET_ADMIN"];
     podmanArgs = ["--systemd=always"];
 
-    # UniFi OS serves this endpoint on port 80 inside the container once its
-    # init has brought the controller up. Podman restarts the container after
-    # three consecutive failed checks, one minute apart.
-    healthCmd = "curl --fail http://127.0.0.1/api/ping";
+    # The backup uses the controller's TLS port, so readiness checks that
+    # listener. Podman restarts the container after three consecutive failed
+    # checks, one minute apart.
+    healthCmd = "curl --fail --insecure https://127.0.0.1/api/ping";
     healthInterval = "60s";
     healthTimeout = "5s";
     healthRetries = 3;
     healthOnFailure = "restart";
+    notify = "healthy";
 
     environments = {
       APP_MODEL = "UOSSERVER";
