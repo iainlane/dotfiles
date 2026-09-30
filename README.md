@@ -56,12 +56,13 @@ The twenty-one top-level features:
   Children: `debuginfod`, `orbstack`.
 - `work`: Work-specific project shells, identity defaults, and tooling.
   Children: `falcon`, `kolide`, `claude-managed-settings`.
-- `home`: Personal identity. On hosts with `ai` it adds the Cloudflare MCP
-  servers, and on non-NixOS Linux it adds the `debian` child with the Debian,
-  Ubuntu and GNOME project directories.
+- `home`: Personal identity. On hosts with `ai` it adds TeamClaude and the
+  Cloudflare MCP servers, and on non-NixOS Linux it adds the `debian` child with
+  the Debian, Ubuntu and GNOME project directories.
 - `ai`: The shared MCP servers, skills and instructions, with one child per
-  harness (`claude-code`, `codex`, `pi`, `opencode`, ...), plus `claude-desktop`
-  and `cloudflare-mcp`, which other features list.
+  harness (`claude-code`, `codex`, `pi`, `opencode`, ...), plus
+  `claude-desktop`, `cloudflare-mcp` and `claude-code.teamclaude`, which other
+  features list.
 - `git`: Git defaults, aliases, signing, and ignore behaviour.
 - `cloud`: Cloud SDK and CLI packages (AWS, Azure, GCP).
 - `containers`: Linux rootless container prerequisites (`newuidmap`/`newgidmap`

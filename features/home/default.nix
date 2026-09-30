@@ -5,8 +5,8 @@
 # host currently does that packaging work, so `home` has no `os.nixos.includes`
 # entry; a host that needed one would list the same child there.
 #
-# `ai.cloudflare-mcp` configures options that `ai` declares, so `home`
-# includes it only on a host that has `ai`.
+# `ai.claude-code.teamclaude` and `ai.cloudflare-mcp` configure options that
+# `ai` declares, so `home` includes them only on a host that has `ai`.
 {
   config,
   featureResolver,
@@ -23,6 +23,7 @@ in {
   flake.features.home = {
     includes = [
       (when features.ai [
+        features.ai.provides.claude-code.provides.teamclaude
         features.ai.provides.cloudflare-mcp
       ])
       features.git
