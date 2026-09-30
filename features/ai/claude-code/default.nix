@@ -10,6 +10,8 @@
 # macOS the target is under /Library, so an activation script symlinks the
 # store path into place, which is the mechanism `environment.etc` uses itself.
 {
+  imports = [./teamclaude];
+
   flake.features.ai.provides.claude-code = {
     homeManager = ./home-manager.nix;
     # The two managed-settings modules are registered per class instead of

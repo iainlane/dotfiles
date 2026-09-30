@@ -40,6 +40,18 @@
   };
 in {
   options.dotfiles.claudeCode = {
+    package = lib.mkOption {
+      type = lib.types.package;
+      readOnly = true;
+      default = wrappedClaudeCode;
+      description = ''
+        Claude Code with the shared tools on its PATH. `programs.claude-code`
+        installs this package, except on a host with
+        `ai.claude-code.teamclaude`, where it installs a launcher around this
+        package.
+      '';
+    };
+
     excludeMcpServers = lib.mkOption {
       type = with lib.types; listOf str;
       default = [];
@@ -101,7 +113,7 @@ in {
 
     programs.claude-code = {
       enable = true;
-      package = wrappedClaudeCode;
+      package = lib.mkDefault cfg.package;
 
       # Source the shared set directly, without the servers listed in
       # `dotfiles.claudeCode.excludeMcpServers`.

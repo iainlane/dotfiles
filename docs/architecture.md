@@ -174,15 +174,16 @@ host that has every feature in the condition:
 # features/home/default.nix
 includes = [
   (when features.ai [
+    features.ai.provides.claude-code.provides.teamclaude
     features.ai.provides.cloudflare-mcp
   ])
   features.git
 ];
 ```
 
-`ai.cloudflare-mcp` does not include `ai`, so a host without `ai` does not get
-it. `ai.claude-desktop` and `work.claude-managed-settings` include `ai`
-themselves, so including either of them adds `ai` to the host.
+Neither child includes `ai`, so a host without `ai` gets neither of them.
+`ai.claude-desktop` and `work.claude-managed-settings` include `ai` themselves,
+so including either of them adds `ai` to the host.
 
 The condition can also be a predicate. The resolver calls it with `hasFeature`,
 a function that returns whether the host has a given feature, so a predicate can

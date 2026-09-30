@@ -114,6 +114,27 @@ does not include this child, and `home` includes it on hosts that have `ai`.
 Both the Home Manager and the system level read the server set, so the same
 module is registered for each.
 
+## Pooling Claude accounts
+
+`claude-code/teamclaude/` runs Claude Code through [TeamClaude][teamclaude], a
+local proxy for several Claude subscription accounts. The proxy sends each
+request with the token of an account that has quota left. When an account
+reaches its limit, the proxy sends the request again with another account's
+token. `ai` does not include this child. `home`, the personal machines' feature,
+includes it on hosts that have `ai`.
+
+The child replaces the `claude` binary with a launcher. When the proxy is
+running, the launcher sets the environment variables that `teamclaude env`
+prints and then runs Claude Code. Otherwise the launcher runs Claude Code
+unchanged, and Claude Code uses its own login.
+
+The proxy runs as a user service under systemd or launchd. TeamClaude's server
+exits with an error when its config lists no accounts, so the service runs the
+server only once the config lists an account. The service manager watches the
+config file, so the first `teamclaude login` starts the server.
+
+[teamclaude]: https://github.com/KarpelesLab/teamclaude
+
 ## Instructions, output styles and skills
 
 `skills.nix` publishes three values through `_module.args`, beside `mcp`: the
