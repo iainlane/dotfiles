@@ -106,19 +106,27 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # The v1.0.0-rc.1 tag plus the three commits of
-    # stephenschoettler/hermes-lcm#551, on the fork's
-    # `openai-embeddings-on-v1.0.0-rc.1` branch. #551 adds an
-    # OpenAI-compatible embedding provider, which ancaster uses to send
-    # embedding requests to OpenRouter with the API key that Hermes already
-    # has for its models. None of upstream's three providers suits ancaster:
-    # Voyage would need a second account, Ollama would need another service
-    # on the Pi, and nixpkgs lists aarch64-linux in fastembed's
-    # `badPlatforms`. When #551 merges, restore the release tag and add
-    # hermes-lcm to `flakeInputs` in flake/parts/updaters.nix so it follows
-    # releases again.
+    # The v1.0.0-rc.1 tag plus the commits of stephenschoettler/hermes-lcm
+    # #551, #597 and #647, on the fork's
+    # `openai-embeddings-sqlite-locks-on-v1.0.0-rc.1` branch.
+    #
+    # #551 adds an OpenAI-compatible embedding provider, which ancaster uses
+    # to send embedding requests to OpenRouter with the API key that Hermes
+    # already has for its models. None of upstream's three providers suits
+    # ancaster: Voyage would need a second account, Ollama would need another
+    # service on the Pi, and nixpkgs lists aarch64-linux in fastembed's
+    # `badPlatforms`.
+    #
+    # #597 and #647 stop LCM's permission checks from opening and closing
+    # `lcm.db` and its WAL files. Closing any descriptor for a file releases
+    # the SQLite locks that the gateway's open connections have on it. Another
+    # process that then closed its last connection deleted the live WAL, and
+    # the database became corrupt.
+    #
+    # When all three merge, restore the release tag and add hermes-lcm to
+    # `flakeInputs` in flake/parts/updaters.nix so it follows releases again.
     hermes-lcm = {
-      url = "github:iainlane/hermes-lcm/34444ff9ba99a79f791044156fa9641c46210e9e";
+      url = "github:iainlane/hermes-lcm/e5abec7d903bc56a474b00f308f288fa5adfec8a";
       flake = false;
     };
 
