@@ -10,6 +10,7 @@
 # below, which the server's host sets.
 {
   config,
+  featureResolver,
   inputs,
   lib,
   ...
@@ -19,7 +20,7 @@
     inherit (config.flake) features;
   };
 in {
-  imports = [./embeddings ./server-backup];
+  imports = [./embeddings ./server-backup ./skills];
 
   options.flake = {
     agentsviewServer.domain = lib.mkOption {
@@ -90,7 +91,7 @@ in {
       }) (common.pushers config.flake.hosts);
 
     features = {
-      agentsview = import ./client.nix {inherit config inputs lib;};
+      agentsview = import ./client.nix {inherit config featureResolver inputs lib;};
       agentsview-server = import ./server.nix {inherit config inputs lib;};
     };
   };

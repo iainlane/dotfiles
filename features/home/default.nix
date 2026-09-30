@@ -4,8 +4,16 @@
 # That child sets up the Debian, Ubuntu and GNOME project directories. No NixOS
 # host currently does that packaging work, so `home` has no `os.nixos.includes`
 # entry; a host that needed one would list the same child there.
-{config, ...}: let
+#
+# `ai.cloudflare-mcp` configures options that `ai` declares, so `home`
+# includes it only on a host that has `ai`.
+{
+  config,
+  featureResolver,
+  ...
+}: let
   inherit (config.flake) features;
+  inherit (featureResolver) when;
   children = features.home.provides;
 in {
   imports = [
@@ -13,7 +21,12 @@ in {
   ];
 
   flake.features.home = {
-    includes = [features.ai.provides.cloudflare-mcp features.git];
+    includes = [
+      (when features.ai [
+        features.ai.provides.cloudflare-mcp
+      ])
+      features.git
+    ];
 
     os.generic-linux.includes = [children.debian];
 

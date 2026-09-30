@@ -18,7 +18,7 @@
   ...
 }: let
   featureResolver = import ../../lib/features.nix {inherit lib;};
-  inherit (featureResolver) featureType;
+  inherit (featureResolver) conditionalType featureType;
 
   # A module for one module system, or a list of them. Several files may
   # define the same class of the same feature; every definition ends up in
@@ -58,9 +58,9 @@
     };
 
   includesOption = lib.mkOption {
-    type = lib.types.listOf featureType;
+    type = lib.types.listOf (lib.types.either featureType conditionalType);
     default = [];
-    description = "Features to include when resolving this feature. Each included feature appears before this one in the resolved list.";
+    description = "Features to include when resolving this feature. An entry made with `featureResolver.when` includes its features only on some hosts. Each included feature appears before this one in the resolved list.";
   };
 
   osScope = lib.types.submodule {

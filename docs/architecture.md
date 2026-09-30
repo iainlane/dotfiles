@@ -162,9 +162,31 @@ of `featureNames` on the other OSes, so `hasFeature` never claims
 `desktop.gnome` on a darwin host.
 
 A child that its parent includes must not include the parent: the resolver
-reports that as a cycle. A child that something else selects uses options
-declared by other features, and it must include those features. That is why
-`ai.claude-desktop` and `work.claude-managed-settings` both include `ai`.
+reports that as a cycle.
+
+A child can configure options that its parent declares, and it then works only
+on a host that also has the parent. A feature that includes another feature's
+child makes the include conditional with `featureResolver.when`. `when` takes a
+condition and a list of features, and includes the listed features only on a
+host that has every feature in the condition:
+
+```nix
+# features/home/default.nix
+includes = [
+  (when features.ai [
+    features.ai.provides.cloudflare-mcp
+  ])
+  features.git
+];
+```
+
+`ai.cloudflare-mcp` does not include `ai`, so a host without `ai` does not get
+it. `ai.claude-desktop` and `work.claude-managed-settings` include `ai`
+themselves, so including either of them adds `ai` to the host.
+
+The condition can also be a predicate. The resolver calls it with `hasFeature`,
+a function that returns whether the host has a given feature, so a predicate can
+combine features with `||` or require one to be absent.
 
 Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
 it is loaded only when that `default.nix` imports it. A directory registers the
@@ -178,9 +200,23 @@ even when one feature is their only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after its own
-includes. Each feature is emitted once, and an include cycle throws an error
-naming the features in the cycle. `flake/parts/checks/feature-resolution.nix`
-compares the resolver's module lists with fixtures covering each of those.
+includes. Each feature is emitted once. An include cycle throws an error that
+lists the features in the cycle.
+
+A `when` condition asks about the host's features, and the walk does not know
+them until it has finished. The resolver therefore walks again, answers each
+condition from the features that the previous walk found, and stops when two
+consecutive walks find the same features. As a result, the order in which a host
+lists its features does not change what it gets.
+
+A condition given as features always lets the walks stop, because each walk then
+finds at least the features of the walk before it. A predicate that requires a
+feature to be absent can instead send the walks back to a set of features that
+they found before, for example when its own includes add that feature. The
+resolver throws an error when that happens.
+
+`flake/parts/checks/feature-resolution.nix` compares the resolver's module lists
+with fixtures covering each of those.
 
 `flake/parts/checks/feature-registration.nix` enforces the layout rules above.
 It reads the file of each definition of `flake.features` and fails when a
@@ -210,8 +246,10 @@ to them.
    `config.flake.hosts`. A module body may call `hasFeature` when one feature's
    behaviour depends on another being present on the host, but it cannot decide
    an `includes` list, because includes are registry-level and no host is in
-   scope there; the only host-dependent include is `os.<os>.includes`. A value
-   more than one feature needs is a typed field of the host record (`name`,
+   scope there. Only two kinds of include depend on the host: `os.<os>.includes`
+   depends on the host's OS, and a `featureResolver.when` entry depends on the
+   host's other features. Neither depends on the host's settings. A value more
+   than one feature needs is a typed field of the host record (`name`,
    `hostname`, `os`, `arch`, `channel`, `stateVersion`, `motd`, `timezone`,
    `flakePath`). A value one feature needs is that feature's option, which the
    host sets in `systemModule` or `homeModule`. A feature's `secretsFile`

@@ -110,10 +110,9 @@ credential-bearing servers for this host.
 
 `cloudflare-mcp/` adds two more servers to the set: Cloudflare's account server
 and its documentation server. Cloudflare is personal infrastructure, so `ai`
-does not include this child, and a feature or a host that should reach it lists
-`ai.provides.cloudflare-mcp`, which brings `ai` with it. Both the Home Manager
-and the system level read the server set, so the same module is registered for
-each.
+does not include this child, and `home` includes it on hosts that have `ai`.
+Both the Home Manager and the system level read the server set, so the same
+module is registered for each.
 
 ## Instructions, output styles and skills
 

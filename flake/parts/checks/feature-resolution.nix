@@ -106,6 +106,22 @@
     };
   };
 
+  # `personal` includes `vault.passwords`, a child of `vault`, only on a host
+  # that also has `vault`. `keyring` includes `vault` unconditionally.
+  inherit (featureResolver) when;
+  hasVault = {hasFeature, ...}: hasFeature vault;
+
+  vault = mkFeature "vault" {homeManager = "vault-home";};
+  passwords = mkFeature "vault.passwords" {homeManager = "vault-passwords-home";};
+  personal = mkFeature "personal" {
+    includes = [(when vault [passwords])];
+    homeManager = "personal-home";
+  };
+  keyring = mkFeature "keyring" {
+    includes = [vault];
+    homeManager = "keyring-home";
+  };
+
   # Two files defining one class of one feature, evaluated against the real
   # declaration in `flake/parts/features.nix`, so the merge and the file
   # tagging are the ones that the flake uses.
@@ -258,6 +274,130 @@
         featureResolver.hasFeature hostConfig editor
         && !(featureResolver.hasFeature hostConfig prompt)
         && !(featureResolver.hasFeature hostConfig direnv);
+    }
+    {
+      name = "a conditional include applies when the host has the feature in its condition, and comes before the feature that includes it";
+      pass =
+        resolve "homeManager" "darwin" [vault personal]
+        == ["vault-home" "vault-passwords-home" "personal-home"];
+    }
+    {
+      name = "a conditional include applies whichever order the host lists the features in";
+      pass =
+        resolve "homeManager" "darwin" [personal vault]
+        == ["vault-passwords-home" "personal-home" "vault-home"];
+    }
+    {
+      name = "a conditional include is left out when the host lacks the feature in its condition";
+      pass =
+        featureResolver.featureNames {
+          features = [personal];
+          os = "darwin";
+        }
+        == ["personal"];
+    }
+    {
+      name = "a condition counts features that the host has only through an include";
+      pass =
+        resolve "homeManager" "darwin" [personal keyring]
+        == ["vault-passwords-home" "personal-home" "vault-home" "keyring-home"];
+    }
+    {
+      name = "a conditional include cannot bring in the feature that its own condition asks for";
+      pass = let
+        lure = mkFeature "lure" {
+          includes = [(when hasVault [keyring])];
+          homeManager = "lure-home";
+        };
+      in
+        resolve "homeManager" "darwin" [lure] == ["lure-home"];
+    }
+    {
+      name = "conditional includes that depend on each other all apply";
+      pass = let
+        audit = mkFeature "vault.audit" {homeManager = "vault-audit-home";};
+        auditor = mkFeature "auditor" {
+          includes = [(when ({hasFeature, ...}: hasFeature passwords) [audit])];
+          homeManager = "auditor-home";
+        };
+      in
+        resolve "homeManager" "darwin" [auditor personal vault]
+        == ["vault-audit-home" "auditor-home" "vault-passwords-home" "personal-home" "vault-home"];
+    }
+    {
+      name = "a conditional include under os.<os>.includes applies only on that OS";
+      pass = let
+        linuxPersonal = mkFeature "linux-personal" {
+          os.nixos.includes = [(when hasVault [passwords])];
+          homeManager = "linux-personal-home";
+        };
+      in
+        resolve "homeManager" "nixos" [vault linuxPersonal]
+        == ["vault-home" "vault-passwords-home" "linux-personal-home"]
+        && resolve "homeManager" "darwin" [vault linuxPersonal] == ["vault-home" "linux-personal-home"];
+    }
+    {
+      name = "a list of features in place of a predicate applies only when the host has all of them";
+      pass = let
+        both = mkFeature "both" {
+          includes = [(when [vault keyring] [passwords])];
+          homeManager = "both-home";
+        };
+      in
+        resolve "homeManager" "darwin" [vault both]
+        == ["vault-home" "both-home"]
+        && resolve "homeManager" "darwin" [keyring both]
+        == ["vault-home" "keyring-home" "vault-passwords-home" "both-home"];
+    }
+    {
+      name = "a chain of conditional includes longer than ten walks resolves";
+      pass = let
+        links = lib.genList (index: mkFeature "link${toString index}" {}) 13;
+        chain = mkFeature "chain" {
+          includes =
+            lib.genList
+            (index: when (lib.elemAt links index) [(lib.elemAt links (index + 1))])
+            12;
+        };
+      in
+        featureResolver.featureNames {
+          features = [chain (lib.head links)];
+          os = "darwin";
+        }
+        == map (link: link.name) (lib.tail links) ++ ["chain" "link0"];
+    }
+    {
+      name = "a predicate that its own includes make false is rejected";
+      pass = let
+        contrary = mkFeature "contrary" {
+          includes = [(when ({hasFeature, ...}: !(hasFeature vault)) [vault])];
+        };
+      in
+        throws (resolve "homeManager" "darwin" [contrary]);
+    }
+    {
+      name = "predicates that each rule out the other's includes are rejected";
+      pass = let
+        left = mkFeature "left" {
+          includes = [(when ({hasFeature, ...}: !(hasFeature passwords)) [keyring])];
+        };
+        right = mkFeature "right" {
+          includes = [(when ({hasFeature, ...}: !(hasFeature keyring)) [passwords])];
+        };
+      in
+        throws (resolve "homeManager" "darwin" [left right]);
+    }
+    {
+      name = "a condition treats an excluded feature as absent";
+      pass =
+        resolveExcluding [vault] "homeManager" "darwin" [keyring personal]
+        == ["keyring-home" "personal-home"];
+    }
+    {
+      name = "a conditional include can be excluded";
+      pass =
+        resolveExcluding [passwords] "homeManager" "darwin" [vault personal]
+        == ["vault-home" "personal-home"];
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";
