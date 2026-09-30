@@ -1,12 +1,11 @@
 {
-  inputs,
   instructions,
   mcp,
-  system,
+  pkgs,
   ...
 }: let
   wrappedCodex = mcp.wrapWithTools {
-    package = inputs.llm-agents.packages.${system}.codex;
+    package = pkgs.codex;
     binName = "codex";
   };
 in {
