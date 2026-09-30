@@ -65,6 +65,20 @@
         accountId = "fixture";
       };
     });
+    # Pi's HOST_PROVIDED_EXTENSION_PACKAGES. An installed copy of one of these
+    # modules can bypass Pi's extension loader.
+    hostProvidedModules = [
+      "@earendil-works/pi-agent-core"
+      "@earendil-works/pi-ai"
+      "@earendil-works/pi-coding-agent"
+      "@earendil-works/pi-tui"
+      "@mariozechner/pi-agent-core"
+      "@mariozechner/pi-ai"
+      "@mariozechner/pi-coding-agent"
+      "@mariozechner/pi-tui"
+      "@sinclair/typebox"
+      "typebox"
+    ];
     installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file: ''
         mkdir -p "$HOME/"${lib.escapeShellArg (dirOf path)}
         ln -s ${file.source or (pkgs.writeText (baseNameOf path) file.text)} "$HOME/"${lib.escapeShellArg path}
@@ -173,6 +187,11 @@
       export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
       ${installHomeFiles}
       install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
+      find -L "$PI_CODING_AGENT_DIR/packages" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
+      if [[ -s host-provided-copies.txt ]]; then
+        cat host-provided-copies.txt >&2
+        exit 1
+      fi
       if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
         --mode rpc --no-session --no-context-files >responses.jsonl 2>errors.txt; then
         cat errors.txt responses.jsonl >&2
