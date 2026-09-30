@@ -1,4 +1,4 @@
-"""Codex evaluator adapter and its instance-specific evidence descriptor."""
+"""Run Codex as the blind evaluator, and describe the evidence for each subject."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,7 +47,7 @@ class JudgementEvidenceUnreadError(ConformanceError):
 
 
 class CodexJudge:
-    """Run Codex as a blind evaluator with a bespoke read-only MCP server."""
+    """Run Codex as a blind evaluator, with a read-only MCP server per subject."""
 
     def __init__(
         self,
@@ -77,6 +77,10 @@ class CodexJudge:
             raise CodexJudgeInputWriteError(response, error) from error
         access_record = instance.control / "judge" / f"tool-calls-{subject.name}.txt"
         try:
+            # The evidence server appends every served tool call to this
+            # record, and a resumed fixture judges again in the same
+            # directory. Truncating it first keeps require_evaluation_brief
+            # from passing on an earlier attempt's calls.
             reset_file(instance.root, access_record)
         except (OSError, RetainedPathUnsafeError) as error:
             raise CodexJudgeInputWriteError(access_record, error) from error
@@ -123,7 +127,7 @@ class CodexJudge:
 
 
 def require_evaluation_brief(source: Path) -> None:
-    """Reject a judgement reached without the evidence the evaluator was given."""
+    """Reject a judgement reached without requesting the evaluation brief."""
 
     try:
         served = source.read_text().splitlines()
@@ -134,7 +138,11 @@ def require_evaluation_brief(source: Path) -> None:
 
 
 def judge_prompt() -> str:
-    """Describe the evaluator's decision contract without task-specific hints."""
+    """Return the evaluator's standing instructions.
+
+    They are the same for every fixture. A fixture's own requirements reach
+    the judge as criteria, through the evidence server.
+    """
 
     return (
         "You are an independent, blind evaluator. Judge the work in its original "
