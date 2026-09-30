@@ -1,5 +1,5 @@
 let
-  anthropic.fable = "claude-fable-5-1";
+  anthropic.opus = "claude-opus-5-5";
   google.geminiPro = "Gemini 3.1 Pro (High)";
   openai = {
     astra = "gpt-6-astra";
@@ -10,7 +10,7 @@ in {
   inherit anthropic google openai openrouter;
 
   defaults = {
-    anthropic = anthropic.fable;
+    anthropic = anthropic.opus;
     google = google.geminiPro;
     openai = openai.astra;
   };
