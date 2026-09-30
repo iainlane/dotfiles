@@ -83,8 +83,11 @@ in
 
       inherit (importNpmLock) npmConfigHook;
 
+      # Pi installs extensions without peer dependencies and provides its own
+      # modules to them. Without `--omit=peer`, npm also installs the peers of
+      # an extension's dependencies, such as `typebox`.
       npmInstallFlags =
-        ["--omit=dev"]
+        ["--omit=dev" "--omit=peer"]
         ++ lib.optional omitOptional "--omit=optional";
 
       dontNpmBuild = true;
