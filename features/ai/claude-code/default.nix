@@ -1,6 +1,7 @@
-# Configure Claude Code: home-manager module for the package and shared MCP
-# integration, plus system-level managed settings so that
-# ~/.claude/settings.json can be written using `/config` etc.
+# Claude Code. The Home Manager module installs the package and the shared MCP
+# servers. The settings go into system-level managed settings, so Claude Code
+# can still write ~/.claude/settings.json when a setting is changed with
+# `/config`.
 #
 # Claude Code looks for managed settings at OS-specific paths:
 #   Linux: /etc/claude-code/managed-settings.json
@@ -14,10 +15,10 @@
 
   flake.features.ai.provides.claude-code = {
     homeManager = ./home-manager.nix;
-    # The two managed-settings modules are registered per class instead of
-    # under `system`: system-manager's `system.activationScripts` is narrower
-    # than nix-darwin's and rejects the darwin definition even under
-    # `lib.mkIf false`.
+    # The managed-settings modules are registered for each class, not under
+    # `system`. system-manager declares `system.activationScripts` with a
+    # narrower type than nix-darwin, and it rejects the darwin definition even
+    # inside `lib.mkIf false`.
     nixos = ./managed-settings-linux.nix;
     systemManager = ./managed-settings-linux.nix;
     darwin = ./managed-settings-darwin.nix;

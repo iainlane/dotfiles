@@ -269,8 +269,8 @@ to them.
 5. **An option's value is data, not a function.** A function is a module
    argument. `exposePodman`, `serviceNetwork` and `mkLanguageShell` are set
    through `_module.args`.
-6. **`readOnly` marks a derived value**, never a default a host might want to
-   change.
+6. **`readOnly` marks a derived value.** If a host might want to change an
+   option's default, the option is not read-only.
 
 ### Excludes
 
@@ -330,7 +330,7 @@ the right system builder:
   the unstable `lib.hm` onto stable hosts so unstable HM modules evaluate),
 - `os/darwin` → `nix-darwin.lib.darwinSystem` (embeds Home Manager),
 - `os/generic-linux` → `system-manager.lib.makeSystemConfig` (Home Manager is
-  deployed standalone rather than embedded).
+  built and deployed separately).
 
 Shared plumbing (feature resolution, Home Manager assembly, the system special
 arguments, sops fragments) lives in `lib/`, so each adapter owns only what its
