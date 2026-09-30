@@ -1,7 +1,7 @@
 {config, ...}: let
   inherit (config.flake) features;
   children = features.hermes.provides;
-  defaultModels = (import ../ai/models.nix).defaults;
+  modelCatalog = import ../ai/models.nix;
 in {
   imports = [
     ./agents
@@ -52,11 +52,11 @@ in {
         _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
 
         dotfiles.hermes.settings = {
-          model.default = lib.mkDefault defaultModels.openai;
+          model.default = lib.mkDefault modelCatalog.openai.sol;
           fallback_providers = lib.mkDefault [
             {
               provider = "openrouter";
-              model = "openai/${defaultModels.openai}";
+              model = "openai/${modelCatalog.openai.sol}";
             }
           ];
         };
