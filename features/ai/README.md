@@ -58,8 +58,11 @@ module writes that directory, so `pi/` writes it with `home.file`. Pinned Pi
 extensions are packaged under `pkgs/<name>/` and installed as local-path
 packages, so Pi never downloads them itself. Each extension is bumped by
 `nix run .#update-<name>`, which the scheduled `package update` workflow runs
-alongside the other packages. `pi-mcp-adapter` reads the shared
-`~/.config/mcp/mcp.json`, and auth stays interactive through `pi /login`.
+alongside the other packages. Pi's built-in MCP support reads
+`~/.pi/agent/mcp.json`, which `pi/` generates from the shared MCP server set.
+The file is read-only, so changes that `/mcp` would save there have to be made
+in Nix instead. Auth stays interactive through `pi /login`, and OAuth MCP
+servers sign in with `pi mcp login <server>`.
 
 ### Managed config files
 

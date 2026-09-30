@@ -8,9 +8,12 @@
     modelCatalog = import ../../../features/ai/models.nix;
     piArgs = {
       inherit pkgs inputs lib system modelCatalog;
-      config.catppuccin = {
-        accent = "blue";
-        flavor = "mocha";
+      config = {
+        catppuccin = {
+          accent = "blue";
+          flavor = "mocha";
+        };
+        dotfiles.ai.mcpServers = {};
       };
       defaultModels = modelCatalog.defaults;
       instructions.concatenated = "";
@@ -53,6 +56,11 @@
     settings = builtins.fromJSON piConfig.home.file.".pi/agent/settings.json".text;
     webSearchSettings = builtins.fromJSON piConfig.home.file.".pi/agent/web-search.json".text;
     pi = builtins.head piConfig.home.packages;
+    installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file: ''
+        mkdir -p "$HOME/"${lib.escapeShellArg (dirOf path)}
+        ln -s ${file.source or (pkgs.writeText (baseNameOf path) file.text)} "$HOME/"${lib.escapeShellArg path}
+      '')
+      piConfig.home.file);
     webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
     startupProbe = pkgs.writeText "pi-startup-probe.ts" ''
       import assert from "node:assert/strict";
@@ -151,6 +159,19 @@
         ' responses.jsonl >commands.json
         diff -u expected-commands.json commands.json
       done
+
+      export HOME="$TMPDIR/configured-home"
+      export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
+      ${installHomeFiles}
+      if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
+        --mode rpc --no-session --no-context-files >responses.jsonl 2>errors.txt; then
+        cat errors.txt responses.jsonl >&2
+        exit 1
+      fi
+      if [[ -s errors.txt ]]; then
+        cat errors.txt >&2
+        exit 1
+      fi
 
       touch "$out"
     '';

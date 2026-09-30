@@ -1,4 +1,3 @@
-# pi-mcp-adapter reads ~/.config/mcp/mcp.json automatically.
 {
   pkgs,
   config,
@@ -16,7 +15,6 @@
       "pi-anthropic-auth"
       "pi-footer"
       "pi-lens"
-      "pi-mcp-adapter"
       "pi-notify"
       "pi-plan-mode"
       "pi-pretty"
@@ -329,6 +327,7 @@ in {
         ".pi/agent/system-theme.json".text = toJson piSystemThemeConfig;
         ".pi/agent/web-search.json".text = toJson piWebSearchConfig;
         ".pi/agent/AGENTS.md".text = instructions.concatenated;
+        ".pi/agent/mcp.json".text = toJson {mcpServers = config.dotfiles.ai.mcpServers;};
       }
       // themeFiles
       // promptFiles
