@@ -36,9 +36,9 @@
       url = "github:catppuccin/bottom";
       flake = false;
     };
-    # Canonical Catppuccin palette JSON. Read directly via
-    # `inputs.catppuccin-palette + "/palette.json"`, keeping upstream as the
-    # single source of the colour data.
+    # Canonical Catppuccin palette JSON. Modules import
+    # `inputs.catppuccin-palette + "/palette.json"` directly, so the colour
+    # values come from upstream and are not copied into this repository.
     catppuccin-palette = {
       url = "github:catppuccin/palette/v1.8.0";
       flake = false;
