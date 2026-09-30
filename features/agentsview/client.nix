@@ -8,10 +8,11 @@
 # machines. Such a machine runs only the push watcher, which ingests the
 # session files and pushes them in one process; it has no local dashboard.
 #
-# The agents also get the AgentsView skill, which tells them how to search
-# the archive for past decisions and instructions.
+# On a host with `ai`, the agents also get the AgentsView skill from the
+# `skills` child.
 {
   config,
+  featureResolver,
   inputs,
   lib,
 }: let
@@ -32,28 +33,6 @@
   configTemplate = "agentsview-config.toml";
 
   agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
-
-  # The package ships one copy of its skills per harness: the `claude` copy
-  # names Claude Code's Task tool, and the `agents` copy is generic. Each file
-  # starts with a header containing a hash of its body, and `agentsview skills
-  # list` compares that hash with the hash of the skill that it generates for the
-  # harness in use, so each harness has to be given the copy built for it.
-  skillsFor = system: harness: "${agentsviewFor system}/share/agentsview/skills/${harness}";
-
-  # The harness modules, and with them the `dotfiles.ai` and
-  # `dotfiles.claudeCode` options, exist only on a host that also composes
-  # the `ai` feature.
-  skillsModule = {
-    lib,
-    options,
-    system,
-    ...
-  }: {
-    config = lib.optionalAttrs (options ? dotfiles && options.dotfiles ? ai) {
-      dotfiles.ai.skills.agentsview = skillsFor system "agents";
-      dotfiles.claudeCode.skills.agentsview = skillsFor system "claude";
-    };
-  };
 
   # The database answers on 443, the port that the web sites already use, and the
   # proxy tells the two apart by the ALPN name in the TLS handshake. That name
@@ -260,6 +239,12 @@
     ];
   };
 in {
+  includes = [
+    (featureResolver.when config.flake.features.ai [
+      config.flake.features.agentsview.provides.skills
+    ])
+  ];
+
   homeManager = {
     config,
     hostConfig,
@@ -288,7 +273,7 @@ in {
       "${codexHome}/archived_sessions"
     ];
   in {
-    imports = [./client-options.nix skillsModule];
+    imports = [./client-options.nix];
 
     config = lib.mkMerge [
       {
