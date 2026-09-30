@@ -157,11 +157,11 @@ in rec {
     inherit (result) ordered excluded;
   };
 
-  # An error message for an `excludes` entry the host's composition cannot act
-  # on, or null when every entry excludes something. A feature the host also
-  # lists directly is asked for and refused at the same time. A feature the
-  # closure never includes changes nothing, and is usually a typo or a
-  # leftover.
+  # An error message for a host whose `excludes` list cannot be applied, or
+  # null when every entry drops a feature. Two kinds of entry are refused. If
+  # the host also lists the feature, the feature is both requested and
+  # refused. If the resolution never reaches the feature, the entry changes
+  # nothing, which usually means a typo or a leftover.
   excludeError = {
     name,
     features,
@@ -216,9 +216,10 @@ in rec {
   in
     lib.concatMap modulesOf ordered;
 
-  # The modules of class `class` for a host, refusing an `excludes` list its
-  # composition cannot act on. Every class of every host goes through here,
-  # so the refusal reaches whichever output is being built.
+  # The modules of class `class` for a host. It throws the error from
+  # `excludeError` when the host's `excludes` list cannot be applied. Every
+  # class of every host is resolved here, so the error appears whichever
+  # output is being built.
   resolveFeatures = {
     class,
     hostConfig,

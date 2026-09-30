@@ -210,9 +210,8 @@ with `./just diff <gen1> <gen2>`.
 
 ## NixOS
 
-Some hosts in this repo are full [NixOS][nixos] hosts rather than `nix-darwin`
-or `system-manager` machines. You can find them in `hosts/` by looking for host
-records with `os = "nixos"`.
+Some hosts in this repo run [NixOS][nixos] itself; the others use `nix-darwin`
+or `system-manager`. A NixOS host's record in `hosts/` sets `os = "nixos"`.
 
 Like everything else in this repo, these systems are declarative, but a full OS
 install has to be provisioned before it can be updated. The steps below cover
@@ -228,10 +227,10 @@ A new NixOS host needs cryptographic keys before it can decrypt secrets. Run:
 ./just generate-host-keys <host>
 ```
 
-This creates an SSH host key, derives an age key from it, generates a user age
-key, and updates `.sops.yaml` in the secrets repo. You will be prompted to
-create any host-specific secrets (e.g. borgmatic SSH keys) via `sops`. The
-recipe commits and pushes the secrets repo when done.
+The recipe generates the host's SSH and age keys and a user SSH key, and asks
+you for the user's login password. It writes the new keys and the host's secrets
+to the secrets repo, commits and pushes that repo, and then adds the user SSH
+key to your GitHub account. `scripts/generate-host-keys.bash` lists each step.
 
 ### Netboot / PXE
 
@@ -329,8 +328,8 @@ Then derive the age public key and add it to `.sops.yaml` in the
 nix shell nixpkgs#age -c age-keygen -y ~/.config/sops/age/keys.txt
 ```
 
-To reuse an SSH private key that you already have, convert it into `keys.txt`
-instead of generating a fresh age key:
+You can also use an SSH private key that you already have as the age identity.
+Convert it into `keys.txt` in place of the `age-keygen -o` step above:
 
 ```sh
 mkdir -p ~/.config/sops/age
