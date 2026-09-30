@@ -78,7 +78,7 @@
   };
 
   piSettings = {
-    defaultProvider = "openai";
+    defaultProvider = "openai-codex";
     defaultModel = defaultModels.openai;
     defaultThinkingLevel = "high";
     thinkingBudgets = {

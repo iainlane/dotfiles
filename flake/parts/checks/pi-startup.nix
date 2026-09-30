@@ -56,6 +56,15 @@
     settings = builtins.fromJSON piConfig.home.file.".pi/agent/settings.json".text;
     webSearchSettings = builtins.fromJSON piConfig.home.file.".pi/agent/web-search.json".text;
     pi = builtins.head piConfig.home.packages;
+    codexAuth = pkgs.writeText "pi-test-auth.json" (builtins.toJSON {
+      openai-codex = {
+        type = "oauth";
+        access = "fixture";
+        refresh = "fixture";
+        expires = 4102444800000;
+        accountId = "fixture";
+      };
+    });
     installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file: ''
         mkdir -p "$HOME/"${lib.escapeShellArg (dirOf path)}
         ln -s ${file.source or (pkgs.writeText (baseNameOf path) file.text)} "$HOME/"${lib.escapeShellArg path}
@@ -163,6 +172,7 @@
       export HOME="$TMPDIR/configured-home"
       export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
       ${installHomeFiles}
+      install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
       if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
         --mode rpc --no-session --no-context-files >responses.jsonl 2>errors.txt; then
         cat errors.txt responses.jsonl >&2
@@ -172,6 +182,10 @@
         cat errors.txt >&2
         exit 1
       fi
+      ${pkgs.jq}/bin/jq --exit-status --slurp '
+        [.[] | select(.command == "get_state") | .data.model | "\(.provider)/\(.id)"]
+          == ["openai-codex/${modelCatalog.defaults.openai}"]
+      ' responses.jsonl >/dev/null || { cat responses.jsonl >&2; exit 1; }
 
       touch "$out"
     '';
