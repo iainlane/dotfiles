@@ -10,12 +10,12 @@
   ...
 }: let
   systemConfig = {
+    approvals_reviewer = "auto_review";
     # Updates come from Nix, not codex's self-check.
     check_for_update_on_startup = false;
     features = {
       apps = true;
       memories = true;
-      smart_approvals = true;
       undo = true;
     };
     mcp_servers =
@@ -48,7 +48,6 @@
     service_tier = "fast";
     suppress_unstable_features_warning = true;
     web_search = "live";
-    zsh_path = "${pkgs.zsh}/bin/zsh";
   };
 
   systemConfigFile = (pkgs.formats.toml {}).generate "codex-system-config.toml" systemConfig;
