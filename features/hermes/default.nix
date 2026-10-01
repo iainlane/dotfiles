@@ -1,7 +1,6 @@
 {config, ...}: let
   inherit (config.flake) features;
   children = features.hermes.provides;
-  modelCatalog = import ../ai/models.nix;
 in {
   imports = [
     ./agents
@@ -50,16 +49,6 @@ in {
         # result as a module argument means the image is constructed once per
         # evaluation.
         _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
-
-        dotfiles.hermes.settings = {
-          model.default = lib.mkDefault modelCatalog.openai.sol;
-          fallback_providers = lib.mkDefault [
-            {
-              provider = "openrouter";
-              model = "openai/${modelCatalog.openai.sol}";
-            }
-          ];
-        };
 
         # Reserved for the agent, the dashboard and signal-cli, which share
         # state volumes and so map their ids from one range to see the same
