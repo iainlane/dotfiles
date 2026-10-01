@@ -11,7 +11,8 @@
   ...
 }: {
   perSystem = {pkgs, ...}: let
-    defaultModels = (import ./models.nix).defaults;
+    modelCatalog = import ./models.nix;
+    defaultModels = modelCatalog.defaults;
     instructions =
       (import ./agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
     managedSettings =
@@ -48,7 +49,7 @@
 
     # Configure the judge independently so changing the candidate or improver
     # defaults does not also change the model that assesses their evidence.
-    judgeModel = "gpt-5.6-terra";
+    judgeModel = modelCatalog.openai.terra;
     configurationFlags = [
       "--managed-settings"
       "${promptEnvironment.managedSettingsFile}"
