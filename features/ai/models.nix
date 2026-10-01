@@ -4,6 +4,7 @@ let
   openai = {
     astra = "gpt-6-astra";
     sol = "gpt-6.1-sol";
+    terra = "gpt-5.6-terra";
   };
   openrouter.sol = "~openai/gpt-sol-latest";
 in {
