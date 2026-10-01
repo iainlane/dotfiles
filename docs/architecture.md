@@ -358,9 +358,9 @@ The rest of the flake is the tooling and the data other things read:
   `packages.direnv-shells`, which builds them all,
 - `cupboardOutputs` and `updaterNames`: the lists the cupboard publish and
   package update workflows iterate,
-- `features`, `hosts`, `operatingSystems`, `username`, `direnvLanguages` and
-  `nix`: the flake-parts options declared in this repository, readable from a
-  script that needs to know what is configured,
+- `features`, `hosts`, `operatingSystems`, `username`, `direnvLanguages`,
+  `modelCatalog` and `nix`: the flake-parts options declared in this repository,
+  readable from a script that needs to know what is configured,
 - `agentsviewHosts` and `agentsviewServer`: the hosts that push agent sessions
   and their destination server, read by the secrets generator.
 

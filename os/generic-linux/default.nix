@@ -14,6 +14,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
+  inherit (config.flake) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -28,7 +29,7 @@
       };
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
-        inherit hostConfig mcpByChannel pkgs pkgs-stable;
+        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
       };
       mkSystemConfig = _:
         inputs.system-manager.lib.makeSystemConfig {
@@ -50,7 +51,7 @@
           # a module needs to instantiate a package set that matches the host's.
           specialArgs =
             mkSystemSpecialArgs {
-              inherit hostConfig username mcpByChannel channel;
+              inherit hostConfig username mcpByChannel channel modelCatalog;
             }
             // {inherit nixpkgsConfig;};
         };

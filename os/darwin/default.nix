@@ -12,6 +12,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
+  inherit (config.flake) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -26,7 +27,7 @@
       };
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
-        inherit hostConfig mcpByChannel pkgs pkgs-stable;
+        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
       };
       mkSystemConfig = homeDefinition:
         inputs.nix-darwin.lib.darwinSystem {
@@ -50,7 +51,7 @@
               (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
           specialArgs = mkSystemSpecialArgs {
-            inherit hostConfig username mcpByChannel channel;
+            inherit hostConfig username mcpByChannel channel modelCatalog;
           };
         };
     }

@@ -3,16 +3,18 @@
 # The suite package builds the program, its fixtures and the machinery of a
 # run, and takes the configuration to measure on the command line. This module
 # assembles that configuration from the instruction set, the managed settings
-# and the model table of this feature, wraps the program with it, and exposes
-# the result as `nix run .#claude-prompt-conformance`.
+# and the flake's model catalogue, wraps the program with it, and exposes the
+# result as `nix run .#claude-prompt-conformance`.
 {
+  config,
   inputs,
   lib,
   ...
-}: {
+}: let
+  inherit (config.flake) modelCatalog;
+  defaultModels = modelCatalog.defaults;
+in {
   perSystem = {pkgs, ...}: let
-    modelCatalog = import ./models.nix;
-    defaultModels = modelCatalog.defaults;
     instructions =
       (import ./agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
     managedSettings =

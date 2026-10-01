@@ -12,6 +12,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
+  inherit (config.flake) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -26,7 +27,7 @@
       };
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
-        inherit hostConfig mcpByChannel pkgs pkgs-stable;
+        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
       };
       # `stateVersion` is `nullOr str` on the host record because only NixOS
       # reads it, and `system.stateVersion` is `str`. Refuse a NixOS host that
@@ -58,7 +59,7 @@
                 (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
               ];
             specialArgs = mkSystemSpecialArgs {
-              inherit hostConfig username mcpByChannel channel;
+              inherit hostConfig username mcpByChannel channel modelCatalog;
             };
           };
     }

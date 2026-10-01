@@ -9,9 +9,11 @@
     username,
     mcpByChannel,
     channel,
+    modelCatalog,
   }: {
-    inherit inputs hostConfig username;
+    inherit inputs hostConfig username modelCatalog;
     mcp = mcpByChannel.${hostConfig.channel};
+    defaultModels = modelCatalog.defaults;
     pkgs-unstable = channel.unstable;
   };
 }

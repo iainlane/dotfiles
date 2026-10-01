@@ -1,10 +1,10 @@
 {
   config,
   lib,
+  modelCatalog,
   ...
 }: let
   cfg = config.dotfiles.hermes;
-  modelCatalog = import ../ai/models.nix;
 in {
   options.dotfiles.hermes.smallModel = lib.mkOption {
     type = lib.types.nonEmptyStr;
