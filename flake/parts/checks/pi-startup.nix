@@ -1,11 +1,16 @@
-{inputs, ...}: {
+{
+  config,
+  inputs,
+  ...
+}: let
+  inherit (config.flake) modelCatalog;
+in {
   perSystem = {
     pkgs,
     system,
     ...
   }: let
     inherit (pkgs) lib;
-    modelCatalog = import ../../../features/ai/models.nix;
     piArgs = {
       inherit pkgs inputs lib system modelCatalog;
       config = {

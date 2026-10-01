@@ -12,6 +12,7 @@ in {
       ./features.nix
       ./git-hooks.nix
       ./hosts.nix
+      ./models.nix
       ./nix.nix
       ./pkgs.nix
       ./treefmt.nix

@@ -58,6 +58,7 @@ in rec {
   mkHomeSpecialArgs = {
     hostConfig,
     mcpByChannel,
+    modelCatalog,
     pkgs,
     pkgs-stable,
   }: let
@@ -67,9 +68,10 @@ in rec {
     };
   in
     {
-      inherit inputs hostConfig;
+      inherit inputs hostConfig modelCatalog;
       inherit (hostConfig) system flakePath;
       mcp = mcpByChannel.${hostConfig.channel};
+      defaultModels = modelCatalog.defaults;
       pkgs-unstable = channel.unstable;
     }
     // lib.optionalAttrs (hostConfig.channel == "stable") {

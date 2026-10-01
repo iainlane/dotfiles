@@ -5,16 +5,6 @@
   ...
 }: let
   children = config.flake.features.ai.provides;
-  modelCatalog = import ./models.nix;
-
-  # The key prevents duplicate imports from applying this module twice.
-  modelDefaults = {
-    key = "dotfiles-ai-model-defaults";
-    _module.args = {
-      inherit modelCatalog;
-      defaultModels = modelCatalog.defaults;
-    };
-  };
 in {
   imports = [
     ./antigravity-cli
@@ -44,10 +34,7 @@ in {
       codex
     ];
 
-    system = [modelDefaults];
-
     homeManager = [
-      modelDefaults
       ./unstable-hm-modules.nix
       ./mcp.nix
       ./prose-lint.nix
