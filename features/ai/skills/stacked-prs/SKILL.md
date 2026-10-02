@@ -53,9 +53,9 @@ Each PR's description should be like this:
 
 This PR is part of a _stack_:
 
-- <title of PR 1>
+- #<number of PR 1>
 - ...
-  - <title of this PR> ← _you are here_
+  - #<number of this PR> ← _you are here_
 - ...
 
 ## Description
