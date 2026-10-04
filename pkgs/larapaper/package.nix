@@ -8,7 +8,7 @@
   nodejs_24,
   autoPatchelfHook,
   stdenv,
-  callPackage,
+  larapaper-web-libraries,
   trmnl-framework,
   updaters,
   gh,
@@ -71,7 +71,7 @@
       cp -r public/build node_modules "$out/"
     '';
   };
-  webLibraries = callPackage ./web-libraries.nix {};
+  webLibraries = larapaper-web-libraries;
 in
   php.buildComposerProject2 {
     pname = "larapaper";

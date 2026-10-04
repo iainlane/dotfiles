@@ -4,7 +4,12 @@
   bundlerEnv,
   ruby_3_4,
   makeWrapper,
+  callPackage,
+  updaters,
+  python3,
+  bundix,
 }: let
+  source = lib.importJSON ./source.json;
   gems = bundlerEnv {
     name = "trmnl-liquid-cli-gems";
     ruby = ruby_3_4;
@@ -13,7 +18,7 @@
 in
   stdenvNoCC.mkDerivation {
     pname = "trmnl-liquid-cli";
-    version = "0.2.0";
+    version = lib.last (lib.splitString ":" source.image);
     src = ./trmnl-liquid-cli.rb;
     dontUnpack = true;
     nativeBuildInputs = [makeWrapper];
@@ -27,7 +32,15 @@ in
       printf '{{ value | upcase }}' > template.liquid
       test "$("$out/bin/trmnl-liquid-cli" --input template.liquid --context '{"value":"local"}')" = LOCAL
     '';
-    passthru = {inherit gems;};
+    passthru = {
+      inherit gems;
+      extractSource = callPackage ./extract-source.nix {};
+      updateScript = updaters.mkScriptUpdater {
+        pname = "trmnl-liquid-cli";
+        script = ./update.sh;
+        extraRuntimeInputs = [python3 bundix];
+      };
+    };
     meta = {
       description = "TRMNL Liquid renderer rebuilt from the published CLI source";
       platforms = lib.platforms.all;
