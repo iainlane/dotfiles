@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from prose_lint.comments import hash_comments, mirror_pairs
+from prose_lint.comments import hash_comments, mirror_pairs, php_comments
 
 
 @pytest.mark.parametrize(
@@ -17,6 +17,25 @@ from prose_lint.comments import hash_comments, mirror_pairs
 )
 def test_comments_keep_their_line_numbers(source: str, expected: str) -> None:
     assert hash_comments(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("<?php\n// A comment.\n$x = 1;\n", "\nA comment.\n\n"),
+        ("<?php\n// * A list item.\n", "\n* A list item.\n"),
+        ("<?php\n$x = 1; # A comment.\n", "\nA comment.\n"),
+        ("<?php\n/**\n * A comment.\n */\n", "\n\nA comment.\n\n"),
+        ("<?php\n/* A comment. */\n", "\nA comment.\n"),
+        ("<?php\n$x = '// A string.';\n", "\n\n"),
+        ("<?php\n$x = <<<'TEXT'\n// A string.\nTEXT;\n", "\n\n\n\n"),
+        ("<p>// HTML</p>\n<?php // A comment.\n", "\nA comment.\n"),
+    ],
+)
+def test_php_comments_exclude_code_and_keep_line_numbers(
+    source: str, expected: str
+) -> None:
+    assert php_comments(source) == expected
 
 
 @pytest.mark.parametrize(

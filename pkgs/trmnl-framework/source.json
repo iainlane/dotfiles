@@ -1,0 +1,10 @@
+{
+  "version": "3.4.0",
+  "hash": "sha256-bEaDV2Mgk4JT2JqSgsrDez9QCLxJ7hCNDnT+KIKlPjw=",
+  "legacy": [
+    {
+      "version": "3.3.2",
+      "hash": "sha256-Utnl+O3fsMmTe6IZtFmEh7VuROSkYEce/8dQHYN1OI4="
+    }
+  ]
+}

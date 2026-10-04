@@ -4,7 +4,11 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
+from pygments.lexers.php import PhpLexer
+from pygments.token import Comment, String
+
 _COMMENT_LINE = re.compile(r"^\s*#(?!!)\s?(?P<text>.*)$")
+_BLOCK_LINE = re.compile(r"^\s*\*(?: |$)")
 
 
 def hash_comments(source: str) -> str:
@@ -19,6 +23,37 @@ def hash_comments(source: str) -> str:
     for line in source.splitlines():
         match = _COMMENT_LINE.match(line)
         lines.append(match.group("text") if match else "")
+
+    return "".join(f"{line}\n" for line in lines)
+
+
+def php_comments(source: str) -> str:
+    """PHP comments as Markdown, with the source's line numbers.
+
+    The lexer distinguishes comments from strings, heredocs and HTML outside
+    PHP tags. Blank lines replace code, as they do for hash comments.
+    """
+    lines = [""] * len(source.splitlines())
+    first_line = 0
+    previous_position = 0
+
+    for position, token, text in PhpLexer().get_tokens_unprocessed(source):
+        first_line += source[previous_position:position].count("\n")
+        previous_position = position
+        block_comment = token in Comment.Multiline or token in String.Doc
+
+        if token in Comment.Single:
+            body = text[2:] if text.startswith("//") else text[1:]
+        elif block_comment:
+            body = text[2:-2]
+        else:
+            continue
+
+        for offset, line in enumerate(body.splitlines()):
+            content = _BLOCK_LINE.sub("", line) if block_comment else line
+            content = content.removeprefix(" ").rstrip()
+            index = first_line + offset
+            lines[index] = " ".join(part for part in (lines[index], content) if part)
 
     return "".join(f"{line}\n" for line in lines)
 

@@ -8,7 +8,7 @@ from functools import cached_property
 from pathlib import Path
 
 from prose_lint.changes import added_lines, every_line
-from prose_lint.comments import hash_comments, mirror_pairs
+from prose_lint.comments import hash_comments, mirror_pairs, php_comments
 from prose_lint.config import Config, state_home
 from prose_lint.configuration import render_configuration
 from prose_lint.git import Git
@@ -23,7 +23,7 @@ from prose_lint.relative_clauses import (
     without_mistagged_adverbials,
 )
 from prose_lint.report import Finding, Report
-from prose_lint.rules import HASH_COMMENT_SUFFIXES, RuleCatalogue
+from prose_lint.rules import EXTRACTED_COMMENT_SUFFIXES, RuleCatalogue
 from prose_lint.spelling import SpellingVariant, detect_variant
 from prose_lint.vale import Vale, ValeFailed, ValeInvocation
 
@@ -119,15 +119,20 @@ class Runtime:
 
     def lint_paths(self, paths: tuple[Path, ...]) -> Report:
         direct = tuple(
-            p for p in paths if p.suffix.lower() not in HASH_COMMENT_SUFFIXES
+            p for p in paths if p.suffix.lower() not in EXTRACTED_COMMENT_SUFFIXES
         )
-        extracted = tuple(p for p in paths if p.suffix.lower() in HASH_COMMENT_SUFFIXES)
+        extracted = tuple(
+            p for p in paths if p.suffix.lower() in EXTRACTED_COMMENT_SUFFIXES
+        )
         comments: dict[Path, str] = {}
         unreadable: list[Finding] = []
 
         for path in extracted:
             try:
-                comments[path] = hash_comments(path.read_text())
+                extract = (
+                    php_comments if path.suffix.lower() == ".php" else hash_comments
+                )
+                comments[path] = extract(path.read_text())
             except (OSError, UnicodeDecodeError) as error:
                 unreadable.append(_failure_finding(path, error))
 

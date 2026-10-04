@@ -52,7 +52,7 @@
     pyproject = true;
 
     build-system = [python3Packages.setuptools];
-    dependencies = [python3Packages.tomli-w];
+    dependencies = [python3Packages.pygments python3Packages.tomli-w];
 
     nativeCheckInputs = [
       basedpyright
@@ -195,6 +195,24 @@
 
       printf '%s\n' '-- A comment with nothing to report.' 'local x = 1' >clean.lua
       prose-lint check clean.lua
+
+      printf '%s\n' \
+        '<?php' \
+        '// The image uses local assets.' \
+        '$value = "A string — which is code.";' \
+        >clean.php
+      prose-lint check clean.php
+
+      printf '%s\n' '<?php' '// The image — with local assets — starts.' \
+        '// Every option this repository declares is listed.' >dirty.php
+      if prose-lint check dirty.php >php.txt; then
+        echo "an em dash in a PHP comment passed" >&2
+        exit 1
+      fi
+
+      grep --fixed-strings --quiet 'dirty.php:2:' php.txt
+      grep --fixed-strings --quiet 'Prose.EmDash' php.txt
+      grep --fixed-strings --quiet 'Prose.ZeroRelative' php.txt
 
       if PROSE_LINT_SHARE=/nonexistent prose-lint check clean.lua; then
         echo "PROSE_LINT_SHARE from the environment was ignored" >&2

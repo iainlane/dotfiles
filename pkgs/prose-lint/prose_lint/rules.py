@@ -36,6 +36,7 @@ _MARKUP_SUFFIXES = frozenset({".adoc", ".markdown", ".org", ".rst"})
 HASH_COMMENT_SUFFIXES = frozenset(
     {".bash", ".cfg", ".conf", ".ini", ".nix", ".sh", ".toml", ".yaml", ".yml"}
 )
+EXTRACTED_COMMENT_SUFFIXES = HASH_COMMENT_SUFFIXES | frozenset({".php"})
 
 _GLOB = re.compile(r"^\*\.(?:\{(?P<many>[^}]+)\}|(?P<one>[A-Za-z0-9]+))$")
 
