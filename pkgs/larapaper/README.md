@@ -9,8 +9,8 @@ Nix packages provide Noto, CJK, emoji and Open Sans fallback fonts for Chromium.
 The source starts from [LaraPaper 0.43.1] and applies the [asset configuration
 PR] and [local fonts PR]. The Composer lockfile pins [trmnl-blade's asset
 configuration PR]. `trmnl-framework` builds the released framework with the
-patch from [framework PR 31]. Highcharts 12.3.0, Chartkick 5.0.1 and MapLibre
-5.24.0 come from hashed npm archives.
+patch from [framework PR 31]. Highcharts, Chartkick and MapLibre come from
+hashed npm archives. Their versions follow the packaged renderer configuration.
 
 [asset configuration PR]: https://github.com/usetrmnl/larapaper/pull/299
 [LaraPaper 0.43.1]: https://github.com/usetrmnl/larapaper/releases/tag/0.43.1
@@ -63,5 +63,13 @@ hashes. The package-update workflow discovers this updater automatically.
 release. Both commands preserve the pinned patches and restore the package file
 if an update fails. `nix run .#update-trmnl-framework` updates the framework
 release while retaining the PR patch and archiving the previous release's
-published CSS, fonts and images. The Liquid wrapper and chart/map library pins
-still require manual updates.
+published CSS, fonts and images.
+
+`nix run .#update-larapaper-web-libraries` reads the versions from the packaged
+`trmnl-blade` configuration and refreshes the npm archive hashes. Asset URLs use
+those versions. `nix run .#update-trmnl-liquid-cli` selects the latest stable
+container tag, verifies the manifest and layers, extracts the wrapper and
+original lockfile, checks the embedded Liquid gem against RubyGems, and
+regenerates the gemset and provenance record. Extraction uses a Linux Nix
+builder, including when the updater runs on macOS. Both updaters accept
+`--force` to refresh the current pins and run in the package-update workflow.

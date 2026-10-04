@@ -4,6 +4,7 @@
   python3,
   scowl,
   stdenvNoCC,
+  updaters,
 }: let
   # SCOWL grades its word lists by how common the words are. Size 40 is the
   # largest grade that keeps the result under 50,000 entries, and Vale loads
@@ -13,7 +14,7 @@
 in
   stdenvNoCC.mkDerivation {
     pname = "prose-lint-lexicon";
-    version = "0-unstable-2026-07-29";
+    version = "0.3-unstable-2026-07-29";
 
     src = fetchFromGitHub {
       owner = "languagetool-org";
@@ -70,6 +71,11 @@ in
 
       runHook postInstallCheck
     '';
+
+    passthru.updateScript = updaters.mkNixUpdateUpdater {
+      attr = "prose-lint-lexicon";
+      extraFlags = ["--version=branch=main"];
+    };
 
     meta = {
       description = "LanguageTool's English part-of-speech dictionary in Vale's format";

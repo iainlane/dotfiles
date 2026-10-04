@@ -2,34 +2,25 @@
 # export by istupakov. The file set matches what `voxtype setup --download
 # --model parakeet-tdt-0.6b-v3` fetches, so the output directory can be used
 # directly as `programs.voxtype.model.path`.
-#
-# This package has no automatic updater. When voxtype moves, check which model
-# files that version's downloader fetches, then update the revision and the
-# file hashes here to match.
 {
   fetchurl,
   lib,
   stdenvNoCC,
+  updaters,
+  python3,
 }: let
-  revision = "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce";
-
-  files = {
-    "encoder-model.onnx" = "sha256-mKdLIbTMABfB5wMDGaSpb0qVBuUPBwjzpRbQKnfJa7E=";
-    "encoder-model.onnx.data" = "sha256-miLTcsUUVcNPE0BdolILrvtxJb0WmBOXVhQj7TLSTzY=";
-    "decoder_joint-model.onnx" = "sha256-6Xjd9miFJxgsEP3i60uDBoQhZImF7yP3qGvnMr6HBsE=";
-    "vocab.txt" = "sha256-1YVEZ56kvGrFY9H1Ret9R0vWz6Rn8KbiwdwcfTfjw10=";
-    "config.json" = "sha256-ZmkDx2uXmMrywhCv1PbNYLCKjb+YAOyNejvA0hSKxGY=";
-  };
+  source = lib.importJSON ./source.json;
+  inherit (source) revision files;
 in
   stdenvNoCC.mkDerivation {
     pname = "parakeet-tdt-onnx";
-    version = "0.6b-v3";
+    inherit (source) version;
 
     srcs =
       lib.mapAttrsToList (
         name: hash:
           fetchurl {
-            url = "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/${revision}/${name}";
+            url = "https://huggingface.co/${source.repository}/resolve/${revision}/${name}";
             inherit name hash;
           }
       )
@@ -48,6 +39,12 @@ in
 
       runHook postInstall
     '';
+
+    passthru.updateScript = updaters.mkScriptUpdater {
+      pname = "parakeet-tdt-onnx";
+      script = ./update.sh;
+      extraRuntimeInputs = [python3];
+    };
 
     meta = {
       description = "NVIDIA Parakeet TDT 0.6B v3 speech-recognition model, full-precision ONNX export";

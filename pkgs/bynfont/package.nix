@@ -2,10 +2,11 @@
   lib,
   fetchFromGitHub,
   stdenvNoCC,
+  updaters,
 }:
 stdenvNoCC.mkDerivation {
   pname = "bynfont";
-  version = "0-unstable-2024-06-02";
+  version = "2.1-unstable-2024-07-23";
 
   src = fetchFromGitHub {
     owner = "bynux-gh";
@@ -19,6 +20,11 @@ stdenvNoCC.mkDerivation {
     install -Dm444 bynfont.psfu.gz $out/share/consolefonts/bynfont.psfu.gz
     runHook postInstall
   '';
+
+  passthru.updateScript = updaters.mkNixUpdateUpdater {
+    attr = "bynfont";
+    extraFlags = ["--version=branch=main" "--system" "aarch64-linux"];
+  };
 
   meta = {
     description = "A modern bitmap font for Linux terminal";

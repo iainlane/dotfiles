@@ -22,6 +22,7 @@
 }: let
   app = "${larapaper}/share/php/larapaper";
   inherit (larapaper) php;
+  libraries = larapaper.webLibraries.sources;
   fonts = makeFontsConf {
     fontDirectories = [
       noto-fonts
@@ -137,11 +138,11 @@
       export TRMNL_BLADE_FRAMEWORK_BASE_URL="$asset_base"
       export TRMNL_BLADE_FRAMEWORK_VERSION=${trmnl-framework.version}
       export TRMNL_BLADE_FRAMEWORK_JS_URL="$asset_base/js/${trmnl-framework.version}/plugins.js"
-      export TRMNL_BLADE_HIGHCHARTS_JS_URL="$asset_base/js/highcharts/12.3.0/highcharts.js"
-      export TRMNL_BLADE_HIGHCHARTS_PATTERN_FILL_URL="$asset_base/js/highcharts/12.3.0/pattern-fill.js"
-      export TRMNL_BLADE_CHARTKICK_JS_URL="$asset_base/js/chartkick/5.0.1/chartkick.min.js"
-      export TRMNL_BLADE_MAPLIBRE_JS_URL="$asset_base/js/maplibre-gl/5.24.0/maplibre-gl.js"
-      export TRMNL_BLADE_MAPLIBRE_CSS_URL="$asset_base/js/maplibre-gl/5.24.0/maplibre-gl.css"
+      export TRMNL_BLADE_HIGHCHARTS_JS_URL="$asset_base/js/highcharts/${libraries.highcharts.version}/highcharts.js"
+      export TRMNL_BLADE_HIGHCHARTS_PATTERN_FILL_URL="$asset_base/js/highcharts/${libraries.highcharts.version}/pattern-fill.js"
+      export TRMNL_BLADE_CHARTKICK_JS_URL="$asset_base/js/chartkick/${libraries.chartkick.version}/chartkick.min.js"
+      export TRMNL_BLADE_MAPLIBRE_JS_URL="$asset_base/js/maplibre-gl/${libraries.maplibre-gl.version}/maplibre-gl.js"
+      export TRMNL_BLADE_MAPLIBRE_CSS_URL="$asset_base/js/maplibre-gl/${libraries.maplibre-gl.version}/maplibre-gl.css"
       mkdir -p /var/lib/larapaper/{cache,database,storage/app/private,storage/app/public/images/generated,storage/framework/cache/data,storage/framework/sessions,storage/framework/views,storage/logs}
       touch "$DB_DATABASE"
       cd ${app}
