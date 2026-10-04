@@ -22,6 +22,7 @@ in {
       config,
       inputs,
       lib,
+      pkgs,
       quadlet,
       ...
     }: let
@@ -30,9 +31,7 @@ in {
 
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
 
-      # renovate: datasource=docker depName=ghcr.io/usetrmnl/larapaper versioning=docker
-      tag = "0.42.0@sha256:2e0bd58aff9feaa082fc5e19aab6b91144ff2dab91939c8c610d72e2264d5a9e";
-      image = "ghcr.io/usetrmnl/larapaper:${tag}";
+      image = pkgs.larapaper-image;
 
       envTemplate = "larapaper.env";
 
@@ -71,6 +70,11 @@ in {
         virtualisation.quadlet = {
           networks.larapapernet = {};
 
+          images.${cfg.containerName}.imageConfig = {
+            image = "docker-archive:${image}";
+            tag = "localhost/${cfg.containerName}:${image.imageTag}";
+          };
+
           volumes = {
             ${paths.databaseVolume} = {};
             ${paths.storageVolume} = {};
@@ -80,7 +84,7 @@ in {
             autoStart = true;
 
             containerConfig = {
-              inherit image;
+              image = config.virtualisation.quadlet.images.${cfg.containerName}.ref;
 
               networks = [config.virtualisation.quadlet.networks.larapapernet.ref];
 
@@ -106,8 +110,7 @@ in {
                 APP_DEBUG = "false";
                 APP_URL = cfg.appUrl;
                 DB_CONNECTION = "sqlite";
-                DB_DATABASE = "database/storage/database.sqlite";
-                PHP_OPCACHE_ENABLE = "1";
+                DB_DATABASE = "${paths.databaseDir}/${paths.databaseFile}";
                 TRMNL_PROXY_REFRESH_MINUTES = "15";
               };
 

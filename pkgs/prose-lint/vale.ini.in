@@ -8,9 +8,9 @@ MinAlertLevel = suggestion
 #
 # The second group are languages Vale parses. Mapping each to Markdown makes
 # Vale read the extracted comments as Markdown too, so code spans are skipped
-# and the part-of-speech rules run. Lua is not in the group: Vale rejects the
-# file as an unsupported extension when Lua is mapped, and lints its comments
-# without the mapping.
+# and the part-of-speech rules run. Lua and PHP reject Markdown mappings.
+# Vale can lint their comments without the mapping; prose-lint extracts PHP
+# comments so its Markdown rules also run.
 [formats]
 bash = pl
 cfg = pl
@@ -31,7 +31,6 @@ hpp = md
 java = md
 js = md
 jsx = md
-php = md
 py = md
 r = md
 rb = md

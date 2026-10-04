@@ -21,6 +21,9 @@ read on its own. Vale run directly on those files, as an editor does, still
 lints their comments through the packaged Perl mapping, without the
 part-of-speech rules.
 
+PHP comments use a PHP lexer before the same Markdown pass. The lexer
+distinguishes comments from strings, heredocs and HTML outside PHP tags.
+
 The rules that match part-of-speech tags also read a lexicon,
 `styles/config/dictionaries/Lexicon.dict`. Each line gives a word its tags, and
 a word with a single tag is tagged that way whatever the surrounding sentence.

@@ -1,0 +1,18 @@
+{
+  "image": "bnussbau/trmnl-liquid-cli:0.2.0",
+  "platform": "linux/arm64",
+  "manifest_digest": "sha256:cc128a4add836b2c223c82caeaa1ee82974de2ec4a455d7f6037f89411ee1bb7",
+  "layer_digest": "sha256:3d8e875933ec768458b2a28492c67fa243da0359cb2a3e9636348e84d8884de0",
+  "binary_sha256": "54aa106e521bc3eb7e1c8c40a630dacde22dcc49d1ccc9d0ca198a07d1f870a6",
+  "cli_source_sha256": "a48dc35c128e56cf83d4ecbb6f5779e5c18658fc630f1679f56c8d12dd983b40",
+  "lockfile_sha256": "6c0def6bd2d69703d18e87f0114713498a5668a6db473d548927476cf0983c68",
+  "ruby_version": "3.4.1",
+  "library": "trmnl-liquid 0.4.0",
+  "library_git_tag": "v0.4.0",
+  "library_git_commit": "50a2f807e8e045d91ed9ececc6dcabb18e0f4e2d",
+  "library_gem_sha256": "33cf217c9a38799e7f735dd9c67af6e4ebaaa3fdb1c6672685f87ff64a095793",
+  "library_comparison": "All 7 source gem files match the embedded files byte for byte",
+  "wrapper_git_provenance": "No public repository or revision identified; exact source recovered from the pinned published binary",
+  "packaged_cli_source_sha256": "d7e7675398c42b5f6cf1b393a405ce787c580ef812d8f8eb2f224b963114bf57",
+  "packaged_cli_source_change": "Removed one trailing blank line; all other source bytes match the recovered file"
+}
