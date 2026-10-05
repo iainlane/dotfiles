@@ -30,6 +30,43 @@ function string(value: unknown): string {
   return String(value);
 }
 
+interface SubstituterConfiguration {
+  readonly substituters: readonly string[];
+  readonly trustedPublicKeys: readonly string[];
+}
+
+function nixConfigurationText(installable: string): string {
+  const files: Readonly<Record<string, string | undefined>> = {
+    ".#nix.substituterConfig": process.env.CUPBOARD_SHARED_NIX_CONFIG,
+    ".#nix.publishSubstituterConfig": process.env.CUPBOARD_PUBLISH_NIX_CONFIG,
+  };
+  const file = files[installable];
+
+  if (file !== undefined) return readFileSync(file, "utf8");
+
+  const result = spawnSync("nix", ["eval", "--raw", installable], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
+}
+
+function nixConfiguration(installable: string): SubstituterConfiguration {
+  const settings = Object.fromEntries(
+    nixConfigurationText(installable)
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const [key, value] = line.split(" = ");
+        return [key, value];
+      }),
+  );
+  return {
+    substituters: string(settings["extra-substituters"]).split(" "),
+    trustedPublicKeys: string(settings["extra-trusted-public-keys"]).split(" "),
+  };
+}
+
 interface Event {
   readonly name: string;
   readonly action?: string;
@@ -257,5 +294,27 @@ describe("Cupboard workflow concurrency", () => {
         cancelInProgress: [true, true, false, false, true, false, false, false],
       },
     );
+  });
+});
+
+describe("Cupboard workflow runner read configuration", () => {
+  it("separates the publisher's tenant read session from shared-host release caches", () => {
+    const inputs = record(record(record(wrapper.jobs).publish).with);
+    const tenant = new URL(string(inputs.url));
+    const shared = nixConfiguration(".#nix.substituterConfig");
+    const publish = nixConfiguration(string(inputs["nix-config"]));
+    const readable = shared.substituters.filter((substituter) => {
+      const cache = new URL(substituter);
+      return (
+        cache.hostname !== tenant.hostname ||
+        cache.pathname === tenant.pathname ||
+        cache.pathname.startsWith(`${tenant.pathname}/`)
+      );
+    });
+
+    assert.deepEqual(publish, {
+      substituters: readable,
+      trustedPublicKeys: shared.trustedPublicKeys,
+    });
   });
 });
