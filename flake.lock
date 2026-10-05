@@ -167,12 +167,12 @@
         "nixpkgs-x86_64-darwin": "nixpkgs-x86_64-darwin"
       },
       "locked": {
-        "lastModified": 1790174638,
-        "narHash": "sha256-VgEeyfv1KgaXAyb3aWOQ2SzBZ67VKgp4AYoHLGVkRlQ=",
-        "rev": "7a66380701d0fdfef3cdba68efea0d5d5975ccee",
-        "revCount": 1269,
+        "lastModified": 1791226714,
+        "narHash": "sha256-+7ihZ0ECWV+D4iYgohRenbDbOzt9tUhOj685OLvrawA=",
+        "rev": "7e064e11d72db1a69a2be6ce41ec08f0f946adcb",
+        "revCount": 1494,
         "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.35/01a0cf16-0236-7ae3-89d2-eeeec7d861a8/source.tar.gz"
+        "url": "https://api.flakehub.com/f/pinned/underwhelmingperformance/cupboard/0.0.36/01a10db2-8cd2-7bf3-9e0f-00490e84c74e/source.tar.gz"
       },
       "original": {
         "type": "tarball",
@@ -1514,11 +1514,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1790137147,
-        "narHash": "sha256-lnP1iSelG11FB3rpJsrVPWE/DF2up++F2PjV39qjvTs=",
+        "lastModified": 1791207030,
+        "narHash": "sha256-hdyr3jGZBTK79K/A6qMDRQxnqlHy0tDa1ZC0eVAT2RQ=",
         "ref": "refs/heads/main",
-        "rev": "69aa464b7a2629cb6c79c649952a0d5cbf48e256",
-        "revCount": 67,
+        "rev": "3b7aeea96e780e182a52f45e2ee4265184efa5bc",
+        "revCount": 68,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },
