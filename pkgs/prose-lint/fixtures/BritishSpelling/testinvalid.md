@@ -1,5 +1,7 @@
 The badge colors come from the theme.
 
+Add a license file to the repository.
+
 The color-coded output is easier to read.
 
 X-Color-Mode: dark

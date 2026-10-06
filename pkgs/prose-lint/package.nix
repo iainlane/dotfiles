@@ -270,6 +270,25 @@
         fi
       done
 
+      # A determiner and the noun after it can be on different lines of a
+      # wrapped comment. The noun is still reported; the verb is not.
+      printf '%s\n' \
+        '// Read the' \
+        '// license before you start.' \
+        '// You may license the code.' \
+        'fn main() {}' \
+        >licence.rs
+
+      prose-lint check licence.rs >licence.txt || true
+
+      grep --quiet '^licence.rs:2:.*Prose.BritishSpelling' licence.txt
+
+      if grep --quiet '^licence.rs:3:' licence.txt; then
+        echo "the verb license was reported" >&2
+        cat licence.txt >&2
+        exit 1
+      fi
+
       if PROSE_LINT_SHARE=/nonexistent prose-lint check clean.lua; then
         echo "PROSE_LINT_SHARE from the environment was ignored" >&2
         exit 1

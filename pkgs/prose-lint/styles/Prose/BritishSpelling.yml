@@ -89,7 +89,17 @@ swap:
   initializing: initialising
   labeled: labelled
   labeling: labelling
-  license: licence
+  # British English spells the verb "license" with an "s" and the noun with a
+  # "c", and a substitution cannot tell them apart. These keys match the noun
+  # after a determiner, even across a line break, or before "file", "header"
+  # or "key". "that" and "which" are left out because they also introduce a
+  # clause, as in "projects that license their code". "files" and "text" are
+  # left out because they can follow the verb as its object, as in "license
+  # files with REUSE". The case-sensitive lookahead skips `LICENSE`, which is
+  # usually the name of the file.
+  (?<=\b(?:a|an|any|each|every|its|my|no|our|same|the|their|this|your)\s+)(?-i:(?!LICENSE))license: licence
+  (?<=\b(?:both|other|the|these|those)\s+)(?-i:(?!LICENSES))licenses: licences
+  (?-i:(?!LICENSE))license(?=\s+(?:file|header|key)\b): licence
   maximization: maximisation
   maximizations: maximisations
   maximize: maximise

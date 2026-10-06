@@ -93,7 +93,8 @@ either:
   initializing: initialising
   labeled: labelled
   labeling: labelling
-  license: licence
+  # "license" and its spelling with a "c" are left out: British English uses
+  # both, for the verb and the noun.
   maximization: maximisation
   maximizations: maximisations
   maximize: maximise
