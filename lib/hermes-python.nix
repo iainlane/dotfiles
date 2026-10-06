@@ -7,11 +7,16 @@
   interpreterArguments =
     lib.filter (lib.hasPrefix "python3")
     (lib.attrNames (lib.functionArgs agentPackage.override));
+
+  python = pkgs.${lib.head interpreterArguments}.override {
+    packageOverrides = import ./hermes-python-overrides.nix {
+      inherit (pkgs) fetchpatch lib stdenv;
+    };
+    self = python;
+  };
 in
   if lib.length interpreterArguments == 1
-  then
-    pkgs.${lib.head interpreterArguments}.pkgs.overrideScope
-    (import ./hermes-python-overrides.nix {inherit (pkgs) fetchpatch lib stdenv;})
+  then python.pkgs
   else
     throw ''
       The hermes-agent package is expected to take one python3 interpreter
