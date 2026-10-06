@@ -7,11 +7,12 @@
   husky,
   nodejs,
   pnpm_10,
+  pnpm_10_latest ? pnpm_10,
   pnpmConfigHook,
   stdenv,
   updaters,
 }: let
-  pnpm = pnpm_10;
+  pnpm = pnpm_10_latest;
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "mcp-remote";

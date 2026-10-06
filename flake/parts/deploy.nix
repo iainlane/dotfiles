@@ -7,11 +7,12 @@
   inherit (config.flake) username;
   inherit (config.flake) hosts;
   operatingSystems = import ../../lib/operating-systems.nix;
+  deployLibFor = system: (import ../../lib/deploy-rs {inherit inputs system;}).lib;
 
   nodes =
     lib.mapAttrs (
       hostname: hostConfig: let
-        deployLib = inputs.deploy-rs.lib.${hostConfig.system};
+        deployLib = deployLibFor hostConfig.system;
         configuration =
           config.flake.${operatingSystems.${hostConfig.os}.outputName}.${hostname};
         systemProfile =
@@ -89,7 +90,7 @@
     nodes;
 
   mkChecks = system: let
-    inherit (inputs.deploy-rs.lib.${system}) deployChecks;
+    inherit (deployLibFor system) deployChecks;
     # `deploy-activate` builds each profile to look for its activation script,
     # so it gets the hosts this system builds and no others.
     nativeNodes =
