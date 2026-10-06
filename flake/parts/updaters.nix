@@ -9,7 +9,6 @@
 # `flake.updaterNames` lists the updater names for the package-update workflow
 # to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
 {
-  inputs,
   config,
   lib,
   ...
@@ -17,29 +16,36 @@
   discovery = import ../../lib/discovery.nix {inherit lib;};
   packageNames = discovery.discoverPackages ../../pkgs;
 
-  # Flake inputs pinned to an immutable release tag, each bumped by a generated
-  # updater named `update-<input>`.
-  flakeInputs = {
-    catppuccin-palette.repo = "catppuccin/palette";
-    codex-plugin-cc.repo = "openai/codex-plugin-cc";
-    gh-stack-skill.repo = "github/gh-stack";
-    hermes-agent.repo = "NousResearch/hermes-agent";
-  };
+  # Flake inputs pinned to an immutable release tag in a `github:` URL, each
+  # bumped by a generated updater named `update-<input>`.
+  flakeInputs = [
+    "catppuccin-palette"
+    "codex-plugin-cc"
+    "gh-stack-skill"
+    "hermes-agent"
+  ];
 
-  # Every key must match an input in `flake.nix`. An updater generated for a
-  # key that matches none would leave `flake.nix` unchanged and report
-  # success.
-  flakeInputsExist =
-    lib.assertMsg
-    (lib.all (name: inputs ? ${name}) (lib.attrNames flakeInputs))
-    "flake/parts/updaters.nix: flakeInputs names an input flake.nix does not have";
+  # A flake input exposes only the revision that it is locked to. The owner,
+  # repository and tag come from the `original` reference, which
+  # `nix flake update` records in flake.lock.
+  lockNodes = (lib.importJSON ../../flake.lock).nodes;
+  lockedReference = input: (lockNodes.${lockNodes.root.inputs.${input} or ""} or {}).original or {};
+
+  flakeInputsArePinned =
+    lib.all (
+      input:
+        lib.assertMsg
+        ((lockedReference input).type or null == "github" && lockedReference input ? ref)
+        "flake/parts/updaters.nix: ${input} is not a flake input pinned to a tag in a github: URL"
+    )
+    flakeInputs;
 
   hasUpdateScript = packages: name: (packages.${name}.updateScript or null) != null;
 
   # `flake.packages` omits packages that are not available on a system, so a
   # package gets an updater when it defines an update script in at least one
   # system's package set.
-  updaterNames = assert flakeInputsExist;
+  updaterNames = assert flakeInputsArePinned;
     lib.filter (
       name:
         lib.any
@@ -47,7 +53,7 @@
         (lib.attrValues config.flake.packages)
     )
     packageNames
-    ++ lib.attrNames flakeInputs;
+    ++ flakeInputs;
 in {
   perSystem = {pkgs, ...}: let
     packageUpdaters =
@@ -55,14 +61,11 @@ in {
       (lib.filter (hasUpdateScript pkgs) packageNames)
       (name: pkgs.${name}.updateScript);
 
-    flakeInputUpdaters =
-      lib.mapAttrs
-      (input: cfg:
-        pkgs.updaters.mkFlakeInputUpdater {
-          inherit input;
-          inherit (cfg) repo;
-        })
-      flakeInputs;
+    flakeInputUpdaters = lib.genAttrs flakeInputs (input:
+      pkgs.updaters.mkFlakeInputUpdater {
+        inherit input;
+        inherit (lockedReference input) owner repo ref;
+      });
 
     updaters = packageUpdaters // flakeInputUpdaters;
 

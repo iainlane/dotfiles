@@ -26,6 +26,15 @@ in {
           pkgs.runCommandLocal "package-updater-coverage" {} ''
             touch $out
           '';
+
+        flake-input-updater =
+          pkgs.runCommandLocal "flake-input-updater-test" {
+            nativeBuildInputs = [pkgs.bash pkgs.jq pkgs.diffutils];
+          } ''
+            bash ${../../../pkgs/build-support/replace-once.test.sh} \
+              ${../../../pkgs/build-support/replace-once.jq}
+            touch $out
+          '';
       }
       // lib.mapAttrs' (name: directory:
         lib.nameValuePair "${name}-updater" (

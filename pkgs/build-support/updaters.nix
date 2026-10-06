@@ -6,8 +6,6 @@
   coreutils,
   gh,
   git,
-  gnugrep,
-  gnused,
   gnutar,
   jq,
   lib,
@@ -248,26 +246,28 @@
 
   # Bump a flake input pinned to an immutable release tag in its URL, which
   # `nix flake update` cannot move on its own: read the latest GitHub release,
-  # rewrite the tag in flake.nix, and re-lock.
+  # rewrite the input's URL in flake.nix, and re-lock.
   mkFlakeInputUpdater = {
     input,
+    owner,
     repo,
+    # The tag in the input's current URL.
+    ref,
   }:
     writeShellApplication {
       name = "update-${input}";
 
-      runtimeInputs = [gh git gnugrep gnused nix];
+      runtimeInputs = [coreutils gh git jq nix];
 
       text = ''
         cd "$(git rev-parse --show-toplevel)"
 
-        if ! latest_tag="$(gh api "repos/${repo}/releases/latest" --jq .tag_name)"; then
+        current_tag=${lib.escapeShellArg ref}
+
+        if ! latest_tag="$(gh api "repos/${owner}/${repo}/releases/latest" --jq .tag_name)"; then
           echo "Could not fetch the latest ${input} release from GitHub" >&2
           exit 1
         fi
-
-        current_tag="$(grep -oE "github:${repo}/[^\"]+" flake.nix | head -n1)"
-        current_tag="''${current_tag##*/}"
 
         if [[ "''${current_tag}" == "''${latest_tag}" ]]; then
           echo "${input} is already on the latest release (''${latest_tag})" >&2
@@ -275,7 +275,17 @@
         fi
 
         echo "Bumping ${input}: ''${current_tag} -> ''${latest_tag}" >&2
-        sed -E -i "s#(github:${repo})/[^\"]+#\1/''${latest_tag}#" flake.nix
+
+        # Keep the temporary file beside flake.nix so the rename stays atomic.
+        staged="$(mktemp flake.nix.XXXXXX)"
+        trap 'rm -f "''${staged}"' EXIT
+
+        jq --raw-input --slurp --join-output \
+          --arg old "github:${owner}/${repo}/''${current_tag}" \
+          --arg new "github:${owner}/${repo}/''${latest_tag}" \
+          --from-file ${./replace-once.jq} \
+          flake.nix >"''${staged}"
+        mv "''${staged}" flake.nix
 
         echo "Re-locking ${input}" >&2
         nix flake update "${input}"
