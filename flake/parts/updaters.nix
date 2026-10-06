@@ -8,6 +8,8 @@
 #
 # `flake.updaterNames` lists the updater names for the package-update workflow
 # to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
+# `flake.updaterVersions` maps each of those names to its current version, which
+# the workflow lists in the pull request.
 {
   config,
   lib,
@@ -45,15 +47,24 @@
   # `flake.packages` omits packages that are not available on a system, so a
   # package gets an updater when it defines an update script in at least one
   # system's package set.
-  updaterNames = assert flakeInputsArePinned;
+  packageUpdaterNames =
     lib.filter (
       name:
         lib.any
         (packages: hasUpdateScript packages name)
         (lib.attrValues config.flake.packages)
     )
-    packageNames
-    ++ flakeInputs;
+    packageNames;
+
+  updaterNames = assert flakeInputsArePinned;
+    packageUpdaterNames ++ flakeInputs;
+
+  packageVersion = name:
+    (lib.findFirst (packages: packages ? ${name}) {} (lib.attrValues config.flake.packages)).${name}.version or "";
+
+  updaterVersions =
+    lib.genAttrs packageUpdaterNames packageVersion
+    // lib.genAttrs flakeInputs (input: (lockedReference input).ref);
 in {
   perSystem = {pkgs, ...}: let
     packageUpdaters =
@@ -111,4 +122,5 @@ in {
   };
 
   flake.updaterNames = updaterNames;
+  flake.updaterVersions = updaterVersions;
 }

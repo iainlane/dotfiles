@@ -13,6 +13,7 @@
     "voxtype-osd-gtk4"
   ];
   missing = lib.subtractLists (config.flake.updaterNames ++ localOrDerived) (discovery.discoverPackages ../../../pkgs);
+  unversioned = lib.filter (name: (config.flake.updaterVersions.${name} or "") == "") config.flake.updaterNames;
   scripts = {
     parakeet-tdt-onnx = ../../../pkgs/parakeet-tdt-onnx;
     trmnl-liquid-cli = ../../../pkgs/trmnl-liquid-cli;
@@ -24,6 +25,11 @@ in {
       {
         package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without updaters: ${lib.concatStringsSep ", " missing}";
           pkgs.runCommandLocal "package-updater-coverage" {} ''
+            touch $out
+          '';
+
+        package-updater-versions = assert lib.assertMsg (unversioned == []) "Updaters without a version: ${lib.concatStringsSep ", " unversioned}";
+          pkgs.runCommandLocal "package-updater-versions" {} ''
             touch $out
           '';
 

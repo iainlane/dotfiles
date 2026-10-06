@@ -100,12 +100,7 @@ jobs:
               continue
             fi
 
-            # Packages expose their version on the flake; a tag-pinned input does
-            # not, so fall back to the tag now written into flake.nix.
-            version="$(nix eval --raw ".#${name}.version" 2>/dev/null || true)"
-            if [[ -z "${version}" ]]; then
-              version="$(grep -oE "github:[^\"]*/${name}/[^\"]+" flake.nix | head -n1 | sed 's#.*/##' || true)"
-            fi
+            version="$(nix eval --raw ".#updaterVersions.${name}")"
 
             printf '%s %s\n' "${name}" "${version}" >> "${RUNNER_TEMP}/changed.txt"
             git add -A
