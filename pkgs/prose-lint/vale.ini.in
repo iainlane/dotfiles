@@ -40,6 +40,11 @@ swift = md
 ts = md
 tsx = md
 
+# prose-lint passes a commit message on standard input with `--ext=.commit`.
+# Reading it as Markdown skips the identifiers that a message writes as code
+# spans.
+commit = md
+
 [*]
 BasedOnStyles = Prose
 Prose.AmericanSpelling = NO
@@ -50,7 +55,7 @@ Prose.PrTalk = NO
 Prose.ReviewRationale = NO
 Prose.Trailers = NO
 
-[*.txt]
+[*.{commit,txt}]
 Prose.Chronology = warning
 Prose.DiffWalkthrough = warning
 Prose.PrTalk = warning

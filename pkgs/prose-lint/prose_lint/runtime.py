@@ -306,7 +306,7 @@ class Runtime:
             ValeInvocation(
                 config=self.configuration(),
                 stdin_text=text,
-                extension=".txt",
+                extension=".commit",
                 display_path=display_path,
             )
         )

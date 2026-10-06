@@ -24,6 +24,11 @@ part-of-speech rules.
 PHP comments use a PHP lexer before the same Markdown pass. The lexer
 distinguishes comments from strings, heredocs and HTML outside PHP tags.
 
+Commit messages are read as Markdown too. `prose-lint commit-msg` passes the
+message to Vale with `--ext=.commit`, which the packaged configuration maps to
+Markdown, so an identifier written as a code span is skipped. The commit rules,
+such as the trailer check, apply to the `*.commit` and `*.txt` scope.
+
 The rules that match part-of-speech tags also read a lexicon,
 `styles/config/dictionaries/Lexicon.dict`. Each line gives a word its tags, and
 a word with a single tag is tagged that way whatever the surrounding sentence.

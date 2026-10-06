@@ -175,6 +175,31 @@
 
       grep --fixed-strings --quiet 'Prose.EmDash' findings.txt
 
+      # A commit message is read as Markdown, so a code span is skipped, and
+      # the commit rules still see its trailers.
+      printf '%s\n\n%s\n%s\n\n%s\n' \
+        'fix(ui): read the colour setting' \
+        'The `ui.color` setting was ignored.' \
+        'The color is now read at start-up.' \
+        'Co-Authored-By: Someone <someone@example.com>' \
+        >trailer.txt
+
+      if prose-lint commit-msg trailer.txt >trailer-findings.txt; then
+        echo "a message with a Co-Authored-By trailer passed" >&2
+        exit 1
+      fi
+
+      grep --fixed-strings --quiet 'Prose.Trailers' trailer-findings.txt
+      # Line 4 has the same word outside a code span. Its finding shows that
+      # the spelling rule ran, so the absence of one on line 3 means something.
+      grep --fixed-strings --quiet 'trailer.txt:4:' trailer-findings.txt
+
+      if grep --quiet 'trailer.txt:3:.*Prose.BritishSpelling' trailer-findings.txt; then
+        echo "a word inside a code span in a commit message was reported" >&2
+        cat trailer-findings.txt >&2
+        exit 1
+      fi
+
       printf '%s\n' \
         '# Every option this repository declares is listed, see `a -> b`.' \
         '{}' \

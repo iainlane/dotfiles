@@ -1,1 +1,1 @@
-testinvalid.txt:5:1:Prose.Trailers:'Co-Authored-By:' is a commit trailer this project does not use.
+testinvalid.commit:5:1:Prose.Trailers:'Co-Authored-By:' is a commit trailer this project does not use.

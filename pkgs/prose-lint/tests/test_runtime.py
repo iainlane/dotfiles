@@ -203,7 +203,7 @@ def section(text: str, header: str) -> list[str]:
     return sections[-1] if sections else []
 
 
-def test_a_commit_message_is_linted_as_text_from_standard_input(
+def test_a_commit_message_is_linted_as_markdown_from_standard_input(
     runtime: Runtime,
 ) -> None:
     vale = runtime.vale
@@ -217,13 +217,13 @@ def test_a_commit_message_is_linted_as_text_from_standard_input(
         invocation.stdin_text,
         invocation.extension,
         invocation.display_path,
-    ) == ((), "fix(db): index foo by quux\n", ".txt", "commit message")
+    ) == ((), "fix(db): index foo by quux\n", ".commit", "commit message")
 
 
 def test_the_commit_section_enables_only_the_commit_rules(runtime: Runtime) -> None:
     rendered = runtime.configuration().read_text()
 
-    assert section(rendered, "[*.txt]") == [
+    assert section(rendered, "[*.{commit,txt}]") == [
         "Prose.Chronology = warning",
         "Prose.DiffWalkthrough = warning",
         "Prose.PrTalk = warning",
