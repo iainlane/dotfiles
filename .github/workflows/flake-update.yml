@@ -1,7 +1,8 @@
 # Relock the flake inputs on a schedule, and on demand, then open a pull
 # request with the result. Merging that PR is what puts fresh builds in the
 # cupboard cache: the push to main triggers the `cupboard` workflow, which
-# rebuilds the updated closure and publishes it to the default cache.
+# builds the requested deploy-profile outputs and publishes selected outputs
+# and intermediates built during that run to the default cache.
 #
 # A PR opened with the default `GITHUB_TOKEN` does not trigger other workflows.
 # Instead, it presents an approval button so a maintainer can start them. Set a
@@ -112,7 +113,7 @@ jobs:
             "" \
             "${summary}" \
             "" \
-            "Merging this publishes the rebuilt closure to the cupboard cache through the \`cupboard\` workflow's push-to-main build.")"
+            "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.")"
 
           gh pr create \
             --base main \

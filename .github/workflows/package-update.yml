@@ -169,7 +169,7 @@ jobs:
             fi
 
             echo
-            echo "Merging this publishes the rebuilt packages to the cupboard cache through the \`cupboard\` workflow's push-to-main build."
+            echo "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache."
           } > "${RUNNER_TEMP}/body.md"
 
           if gh pr view "${branch}" --json state >/dev/null 2>&1; then

@@ -1,14 +1,14 @@
-# Publish build outputs to the personal cupboard cache. Pushes to main publish
-# to the default cache with permanent retention; pull requests publish to a
-# short-lived per-PR cache so changes can be tested without touching the default
+# Publish selected deploy-profile outputs and intermediates built during the
+# run to the personal cupboard cache. Pushes to main publish to the default
+# cache with permanent retention; pull requests publish to a short-lived per-PR
+# cache so changes can be tested without touching the default
 # cache. The local reusable workflow supplies the repository-specific builder
 # configuration and delegates the work to cupboard's released flake-publish
 # workflow, whose `job_workflow_ref` the laney tenant trusts.
 #
-# The deploy key is passed on pull requests too, so the host and home closures
-# build there as well. GitHub withholds secrets from fork pull requests, so a
-# fork build receives an empty key and skips those closures; only same-repo
-# branches (own pushes and the flake-update PR) receive it.
+# The publish job passes the deploy key for same-repository pull requests, so
+# their host and home closures can build. Fork pull requests and merge groups
+# run configuration and package validation without the publish job.
 #
 # The closure builds in the publish path are best-effort, so they cannot gate a
 # merge. Two jobs are the strict gate. `configuration-validation` builds the
@@ -22,17 +22,21 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   merge_group:
   workflow_dispatch:
 
 concurrency:
-  group: cupboard-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: cupboard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' && github.event.action != 'closed'
+    }}
 
 permissions: {}
 
 jobs:
   configuration-validation:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
     name: Validate configurations
     runs-on: ubuntu-latest
     permissions:
@@ -152,6 +156,7 @@ jobs:
                 "ok"'
 
   packages:
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
     name: Build the packages
     runs-on: ubuntu-latest
     permissions:
@@ -180,7 +185,19 @@ jobs:
 
           nix build --no-link --print-out-paths .#local-packages
 
+  publication-skipped:
+    name: Explain skipped publication
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped publication
+        run: |
+          echo '::notice::Merge-group validation runs without Cupboard publication because the publication preset accepts pull requests and main branch runs.'
+
   publish:
+    if: >-
+      github.event_name != 'merge_group' && (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.id == github.repository_id)
     permissions:
       attestations: write # write build provenance attestations for the outputs
       contents: read

@@ -37,11 +37,19 @@
   remoteSubstituters = lib.concatStringsSep "," (substitutersOf cacheSettings.binaryCaches);
   remoteTrustedKeys = lib.concatStringsSep "," (trustedPublicKeysOf ciBinaryCaches);
 
-  # Substituters for `nix` used on the CI system itself.
-  substituterConfig = ''
-    extra-substituters = ${lib.concatStringsSep " " (substitutersOf cacheSettings.binaryCaches)}
+  substituterConfigOf = caches: ''
+    extra-substituters = ${lib.concatStringsSep " " (substitutersOf caches)}
     extra-trusted-public-keys = ${lib.concatStringsSep " " (trustedPublicKeysOf ciBinaryCaches)}
   '';
+
+  # Substituters for `nix` used on the CI system itself.
+  substituterConfig = substituterConfigOf cacheSettings.binaryCaches;
+
+  # Nix netrc credentials apply to the whole host. The publisher's OIDC read
+  # configuration must exclude the other tenant's releases cache.
+  publishSubstituterConfig = substituterConfigOf (
+    lib.removeAttrs cacheSettings.binaryCaches ["cupboard.supply/t/cupboard/cache/releases"]
+  );
 
   substitutersModule = {config, ...}: let
     binaryCacheType = lib.types.submodule {
@@ -100,6 +108,11 @@ in {
           default = null;
           description = "`nix.conf` lines a CI job appends so the runner trusts the same caches the hosts do.";
         };
+        publishSubstituterConfig = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Nix settings for the laney publisher's OIDC read session.";
+        };
         publishInputs = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
           default = {};
@@ -111,7 +124,7 @@ in {
   };
 
   config.flake.nix = {
-    inherit substitutersModule substituterConfig;
+    inherit substitutersModule substituterConfig publishSubstituterConfig;
 
     publishInputs = {
       # The cupboard cache's public key. The publish workflow trusts this key
