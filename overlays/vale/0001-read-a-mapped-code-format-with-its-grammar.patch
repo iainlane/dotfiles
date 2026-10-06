@@ -1,0 +1,90 @@
+From 7a73b130768e22c1d914dafddb3ac5e053e67ead Mon Sep 17 00:00:00 2001
+From: Iain Lane <iain@orangesquash.org.uk>
+Date: Tue, 6 Oct 2026 12:07:15 +0100
+Subject: [PATCH] fix: read a file mapped onto a code format with that format's
+ grammar
+
+lintCode looks up a tree-sitter grammar by the file's real extension. If
+there is none, it falls back to lintCodeOld, which looks up comment
+patterns by the extension that `[formats]` maps the file onto. For a
+file such as `default.nix` under `nix = pl`, Vale therefore reads the
+comments only if the mapped format has patterns.
+
+e82432d7 moved Perl, Lua, PHP, Haskell and R to tree-sitter and removed
+their patterns. It also removed the C-family patterns, which C#, Sass,
+Less, Scala and Swift used. Since 3.18.0, Vale skips every comment in a
+file mapped onto one of these formats. A file mapped onto a format that
+only ever had a grammar, such as Python, Go or JavaScript, has always
+had its comments skipped.
+
+When the real extension has no grammar, use the grammar of the mapped
+format before falling back to the patterns. Vale then reads the comments
+of files mapped onto the formats that regressed, and, for the first
+time, of files mapped onto Python, Go, JavaScript and the other formats
+with a grammar. The file's own grammar still comes first, so a `.ts`
+file under `ts = js` is parsed as TypeScript, as before.
+
+Assisted-by: Claude Code
+---
+ internal/lint/code.go  |  7 +++++++
+ testdata/e2e/lint.yaml | 27 +++++++++++++++++++++++++++
+ 2 files changed, 34 insertions(+)
+
+diff --git a/internal/lint/code.go b/internal/lint/code.go
+index 07ae7260..7640b4e1 100755
+--- a/internal/lint/code.go
++++ b/internal/lint/code.go
+@@ -43,6 +43,13 @@ func (l *Linter) skipsComment(scope string) bool {
+ 
+ func (l *Linter) lintCode(f *core.File) error {
+ 	lang, err := code.GetLanguageFromExt(f.RealExt)
++	if err != nil {
++		// A file with no grammar of its own, such as `.nix` under `nix = pl`,
++		// is read with the grammar of the format that `[formats]` maps it onto.
++		// The file's own grammar still comes first, so a `.ts` file under
++		// `ts = js` is parsed as TypeScript, not JavaScript.
++		lang, err = code.GetLanguageFromExt(f.NormedExt)
++	}
+ 	if err != nil {
+ 		// No tree-sitter grammar available for this file type.
+ 		return l.lintCodeOld(f)
+diff --git a/testdata/e2e/lint.yaml b/testdata/e2e/lint.yaml
+index f7a3c596..ea786150 100644
+--- a/testdata/e2e/lint.yaml
++++ b/testdata/e2e/lint.yaml
+@@ -1822,6 +1822,33 @@ cases:
+       test.pl:5:21:vale.Annotations:'XXX' left in text
+       test.pl:8:7:vale.Annotations:'TODO' left in text
+ 
++  - name: perl-format-mapping
++    about: a file with no grammar of its own reads its comments with the
++      grammar of the code format that `[formats]` maps it onto
++    files:
++      .vale.ini: |
++        StylesPath = styles
++        MinAlertLevel = suggestion
++
++        [formats]
++        nix = pl
++
++        [*]
++        T.Tok = YES
++      styles/T/Tok.yml: |
++        extends: existence
++        message: "'%s' found"
++        level: error
++        tokens:
++          - ZQX
++      default.nix: |
++        # A ZQX in a comment.
++        { value = "ZQX"; }
++    args: default.nix
++    exit: 1
++    want: |
++      default.nix:1:5:T.Tok:'ZQX' found
++
+   - name: php
+     args: test.php
+     exit: 0
+-- 
+2.55.0
