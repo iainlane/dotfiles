@@ -16,7 +16,7 @@
   scripts = {
     parakeet-tdt-onnx = ../../../pkgs/parakeet-tdt-onnx;
     trmnl-liquid-cli = ../../../pkgs/trmnl-liquid-cli;
-    larapaper-web-libraries = ../../../pkgs/larapaper-web-libraries;
+    larapaper-web-library = ../../../pkgs/build-support/larapaper-web-library;
   };
 in {
   perSystem = {pkgs, ...}: {

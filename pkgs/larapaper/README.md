@@ -65,11 +65,17 @@ if an update fails. `nix run .#update-trmnl-framework` updates the framework
 release while retaining the PR patch and archiving the previous release's
 published CSS, fonts and images.
 
-`nix run .#update-larapaper-web-libraries` reads the versions from the packaged
-`trmnl-blade` configuration and refreshes the npm archive hashes. Asset URLs use
-those versions. `nix run .#update-trmnl-liquid-cli` selects the latest stable
-container tag, verifies the manifest and layers, extracts the wrapper and
-original lockfile, checks the embedded Liquid gem against RubyGems, and
-regenerates the gemset and provenance record. Extraction uses a Linux Nix
-builder, including when the updater runs on macOS. Both updaters accept
-`--force` to refresh the current pins and run in the package-update workflow.
+Highcharts, Chartkick and MapLibre are separate packages:
+`larapaper-highcharts`, `larapaper-chartkick` and `larapaper-maplibre-gl`. Each
+package's updater, such as `nix run .#update-larapaper-highcharts`, reads that
+library's version from the packaged `trmnl-blade` configuration and refreshes
+its npm archive hash. Asset URLs use those versions.
+
+`nix run .#update-trmnl-liquid-cli` selects the latest stable container tag,
+verifies the manifest and layers, extracts the wrapper and original lockfile,
+checks the embedded Liquid gem against RubyGems, and regenerates the gemset and
+provenance record. Extraction uses a Linux Nix builder, including when the
+updater runs on macOS.
+
+The library updaters and the Liquid updater accept `--force` to refresh the
+current pins, and all of them run in the package-update workflow.

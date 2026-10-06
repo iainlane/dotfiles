@@ -2,7 +2,7 @@
   testers,
   larapaper-image,
 }: let
-  libraries = larapaper-image.larapaper.webLibraries.sources;
+  libraries = larapaper-image.larapaper.webLibraries;
 in
   testers.runNixOSTest {
     name = "larapaper";

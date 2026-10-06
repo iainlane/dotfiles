@@ -22,7 +22,7 @@
 }: let
   app = "${larapaper}/share/php/larapaper";
   inherit (larapaper) php;
-  libraries = larapaper.webLibraries.sources;
+  libraries = larapaper.webLibraries;
   fonts = makeFontsConf {
     fontDirectories = [
       noto-fonts

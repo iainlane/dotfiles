@@ -8,7 +8,9 @@
   nodejs_24,
   autoPatchelfHook,
   stdenv,
-  larapaper-web-libraries,
+  larapaper-highcharts,
+  larapaper-chartkick,
+  larapaper-maplibre-gl,
   trmnl-framework,
   updaters,
   gh,
@@ -71,7 +73,11 @@
       cp -r public/build node_modules "$out/"
     '';
   };
-  webLibraries = larapaper-web-libraries;
+  webLibraries = {
+    highcharts = larapaper-highcharts;
+    chartkick = larapaper-chartkick;
+    maplibre-gl = larapaper-maplibre-gl;
+  };
 in
   php.buildComposerProject2 {
     pname = "larapaper";
@@ -90,8 +96,8 @@ in
           mkdir -p "$app/public/$directory"
           cp -rs ${trmnl-framework}/"$directory"/. "$app/public/$directory/"
         done
-      cp -rs ${webLibraries}/js "$app/public/js"
-      chmod u+w "$app/public/js"
+      mkdir -p "$app/public/js"
+      ${lib.concatMapStringsSep "\n" (library: ''cp -rs ${library}/js/. "$app/public/js/"'') (lib.attrValues webLibraries)}
       cp -rs ${trmnl-framework}/js/. "$app/public/js/"
     '';
     passthru = {

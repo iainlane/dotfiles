@@ -14,16 +14,13 @@ class UpdateError(Exception):
     pass
 
 
-def versions(config: str) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for name in ["highcharts", "chartkick", "maplibre-gl"]:
-        found = set(re.findall(rf"/js/{name}/(\d+\.\d+\.\d+)/", config))
-        if len(found) != 1:
-            raise UpdateError(
-                f"Expected one {name} version in the packaged renderer configuration."
-            )
-        result[name] = found.pop()
-    return result
+def version(config: str, library: str) -> str:
+    found = set(re.findall(rf"/js/{re.escape(library)}/(\d+\.\d+\.\d+)/", config))
+    if len(found) != 1:
+        raise UpdateError(
+            f"Expected one {library} version in the packaged renderer configuration."
+        )
+    return found.pop()
 
 
 def fetch(url: str) -> bytes:
@@ -31,20 +28,16 @@ def fetch(url: str) -> bytes:
         return response.read()
 
 
-def update(source: Path, config: str, force: bool) -> None:
+def update(source: Path, config: str, library: str, force: bool) -> None:
     current = json.loads(source.read_bytes())
-    wanted = versions(config)
-    if {
-        name: value["version"] for name, value in current.items()
-    } == wanted and not force:
-        print("LaraPaper web libraries already match the packaged renderer.")
+    wanted = version(config, library)
+    if current.get("version") == wanted and not force:
+        print(f"{library} already matches the packaged renderer.")
         return
 
-    record: dict[str, dict[str, str]] = {}
-    for name, version in wanted.items():
-        archive = fetch(f"https://registry.npmjs.org/{name}/-/{name}-{version}.tgz")
-        digest = base64.b64encode(hashlib.sha256(archive).digest()).decode()
-        record[name] = {"version": version, "hash": "sha256-" + digest}
+    archive = fetch(f"https://registry.npmjs.org/{library}/-/{library}-{wanted}.tgz")
+    digest = base64.b64encode(hashlib.sha256(archive).digest()).decode()
+    record = {"version": wanted, "hash": "sha256-" + digest}
 
     with tempfile.NamedTemporaryFile(dir=source.parent, delete=False) as temporary:
         staged = Path(temporary.name)
@@ -53,11 +46,12 @@ def update(source: Path, config: str, force: bool) -> None:
         os.replace(staged, source)
     finally:
         staged.unlink(missing_ok=True)
-    print("Updated LaraPaper web libraries from the packaged renderer.")
+    print(f"Updated {library} to {wanted} from the packaged renderer.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("library")
     parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()
     try:
@@ -77,7 +71,7 @@ def main() -> None:
         config = (
             Path(vendor) / "vendor/bnussbau/trmnl-blade/config/trmnl-blade.php"
         ).read_text()
-        update(Path("sources.json"), config, arguments.force)
+        update(Path("source.json"), config, arguments.library, arguments.force)
     except (
         UpdateError,
         OSError,
@@ -86,7 +80,7 @@ def main() -> None:
         TypeError,
         subprocess.CalledProcessError,
     ) as error:
-        parser.exit(1, f"LaraPaper web library update failed: {error}\n")
+        parser.exit(1, f"{arguments.library} update failed: {error}\n")
 
 
 if __name__ == "__main__":
