@@ -27,7 +27,7 @@ in {
       {
         deploy-rs = {
           type = "app";
-          program = lib.getExe inputs.deploy-rs.packages.${system}.deploy-rs;
+          program = lib.getExe (import ../../lib/deploy-rs {inherit inputs system;}).deploy-rs;
           meta.description = "Multi-profile Nix deployment tool";
         };
         disko = {

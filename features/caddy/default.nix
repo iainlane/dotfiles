@@ -46,7 +46,7 @@ in {
               "github.com/caddy-dns/cloudflare@${cloudflareDnsVersion}"
               "github.com/mholt/caddy-l4@${caddyL4Version}"
             ];
-            hash = "sha256-6HJkIfqacmsEaubClOVjzPM+7Jy5Z7xHVORzf6+5OxU=";
+            hash = "sha256-AV85IaY63+Jkb3JadhQFZ6CeBkzbk9AWqY0/B3KP/4U=";
           };
 
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
