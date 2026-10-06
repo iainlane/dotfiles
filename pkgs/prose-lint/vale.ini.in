@@ -67,3 +67,22 @@ Prose.ReviewRationale = error
 [*.md]
 Prose.BoldLabelBullets = warning
 BlockIgnores = (?s) *(```text\nBAD:.*?```)
+
+# Identifier-shaped tokens are not prose, so every rule skips them: a
+# hyphenated name with a capitalised part after the first, such as
+# `SPDX-License-Identifier` or `Content-Type`; a dotted name of lowercase parts
+# with two or more characters each, such as `kern.argmax`; and a long option
+# such as `--color`. Ordinary hyphenated compounds are lowercase after the
+# first part, so the rules still read them, but a Title Case compound, as in a
+# heading, is skipped too. The two-character parts keep `e.g.` visible to the
+# Latin rule.
+#
+# Vale separates the patterns with commas, so none of them contains one.
+#
+# The section lists the markup formats and the code formats whose comments
+# Vale or prose-lint reads as Markdown. Lua is left out: Vale reads its
+# comments as plain lines, where TokenIgnores has no effect. Commit messages
+# are Markdown as well but are left out too, because the first pattern would
+# hide `Co-Authored-By:` from the trailer rule.
+[*.{adoc,markdown,md,org,rst,bash,c,cc,cfg,conf,cpp,cs,go,h,hpp,ini,java,js,jsx,nix,php,pl,py,r,rb,rs,scala,sh,swift,toml,ts,tsx,yaml,yml}]
+TokenIgnores = \b[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*-[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*\b, \b[a-z][a-z0-9_]+(?:\.[a-z0-9_][a-z0-9_]+)+\b, \B--[A-Za-z][A-Za-z0-9-]*

@@ -119,3 +119,17 @@ def test_the_lintable_suffixes_come_from_the_scope_globs() -> None:
 )
 def test_lintable_is_decided_by_suffix(path: Path, expected: bool) -> None:
     assert CATALOGUE.lintable(path) is expected
+
+
+def test_identifier_patterns_cover_the_markup_and_the_code_read_as_markdown() -> None:
+    """Vale reads Lua comments as plain lines, which TokenIgnores cannot change."""
+    source = Path(__file__).resolve().parent.parent
+    catalogue = RuleCatalogue.load(source / "tiers.toml")
+    lines = (source / "vale.ini.in").read_text().splitlines()
+    ignores = next(i for i, line in enumerate(lines) if line.startswith("TokenIgnores"))
+    header = next(line for line in reversed(lines[:ignores]) if line.startswith("["))
+    code = catalogue.scopes[Scope.code].removeprefix("*.{").removesuffix("}")
+
+    assert set(header.removeprefix("[*.{").removesuffix("}]").split(",")) == (
+        set(code.split(",")) - {"lua"}
+    ) | {"adoc", "markdown", "md", "org", "rst"}

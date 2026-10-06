@@ -1,1 +1,3 @@
 testinvalid.md:1:11:Prose.BritishSpelling:British English writes 'colours' where 'colors' is the American spelling.
+testinvalid.md:3:5:Prose.BritishSpelling:British English writes 'colour' where 'color' is the American spelling.
+testinvalid.md:10:18:Prose.BritishSpelling:British English writes 'colour' where 'color' is the American spelling.

@@ -29,6 +29,13 @@ message to Vale with `--ext=.commit`, which the packaged configuration maps to
 Markdown, so an identifier written as a code span is skipped. The commit rules,
 such as the trailer check, apply to the `*.commit` and `*.txt` scope.
 
+In markup documents and in comments read as Markdown, every rule skips
+identifier-shaped tokens outside code spans: hyphenated names with a capitalised
+later part, such as `SPDX-License-Identifier`, dotted names of lowercase parts,
+such as `kern.argmax`, and long options, such as `--color`. Lua comments are the
+exception, because Vale reads them as plain lines. `vale.ini.in` lists the
+patterns.
+
 The rules that match part-of-speech tags also read a lexicon,
 `styles/config/dictionaries/Lexicon.dict`. Each line gives a word its tags, and
 a word with a single tag is tagged that way whatever the surrounding sentence.

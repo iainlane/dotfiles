@@ -239,6 +239,37 @@
       grep --fixed-strings --quiet 'Prose.EmDash' php.txt
       grep --fixed-strings --quiet 'Prose.ZeroRelative' php.txt
 
+      # Identifier-shaped tokens are not prose: a header name such as
+      # `X-Color-Mode`, a dotted name such as `ui.color`, and a long option
+      # such as `--color`. Only the sentence on the last comment line is prose
+      # to report.
+      printf '%s\n' \
+        '// X-Color-Mode: dark' \
+        '//' \
+        '//! The ui.color setting and the --color flag set the Content-Color header.' \
+        '//! The color is wrong.' \
+        'fn main() {}' \
+        >identifiers.rs
+      printf '%s\n' \
+        '# X-Color-Mode: dark' \
+        '#' \
+        '# The ui.color setting and the --color flag set the Content-Color header.' \
+        '# The color is wrong.' \
+        '{}' \
+        >identifiers.nix
+
+      prose-lint check identifiers.rs identifiers.nix >identifiers.txt || true
+
+      for file in identifiers.rs identifiers.nix; do
+        grep --fixed-strings --quiet "$file:4:" identifiers.txt
+
+        if grep --quiet "^$file:[123]:" identifiers.txt; then
+          echo "an identifier in $file was reported" >&2
+          cat identifiers.txt >&2
+          exit 1
+        fi
+      done
+
       if PROSE_LINT_SHARE=/nonexistent prose-lint check clean.lua; then
         echo "PROSE_LINT_SHARE from the environment was ignored" >&2
         exit 1
