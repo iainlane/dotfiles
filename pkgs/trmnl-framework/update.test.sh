@@ -10,12 +10,12 @@ export PATH="${fixture}/bin:${PATH}"
 export FRAMEWORK_TEST_TAG=v3.5.0
 export FRAMEWORK_TEST_FAIL=0
 
-cat >"${fixture}/bin/gh" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/gh"
+cat >>"${fixture}/bin/gh" <<'SH'
 printf '%s\n' "${FRAMEWORK_TEST_TAG}"
 SH
-cat >"${fixture}/bin/nix" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/nix"
+cat >>"${fixture}/bin/nix" <<'SH'
 if [[ "${FRAMEWORK_TEST_FAIL}" == 1 ]]; then exit 1; fi
 printf '%s\n' '{"hash":"new-release"}'
 SH

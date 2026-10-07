@@ -23,13 +23,13 @@ export UPDATE_TEST_ROOT="${fixture}"
 export UPDATE_TEST_VERSION="0.44.0"
 export UPDATE_TEST_FAIL=0
 
-cat >"${fixture}/bin/git" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/git"
+cat >>"${fixture}/bin/git" <<'SH'
 printf '%s\n' "${UPDATE_TEST_ROOT}"
 SH
 
-cat >"${fixture}/bin/gh" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/gh"
+cat >>"${fixture}/bin/gh" <<'SH'
 set -euo pipefail
 case "$2" in
 repos/usetrmnl/larapaper/releases/latest) printf '%s\n' "${UPDATE_TEST_VERSION}" ;;
@@ -38,8 +38,8 @@ repos/usetrmnl/larapaper/commits/*) printf '%040d\n' 1 ;;
 esac
 SH
 
-cat >"${fixture}/bin/nix" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/nix"
+cat >>"${fixture}/bin/nix" <<'SH'
 set -euo pipefail
 case "$1" in
 eval) printf '%s\n' '{"version":"0.43.1","rev":"f849ce24562bcc218fdc43246c9410f78b71ce91","hash":"sha256-QK6EWpxrp36aSoaF4wECUNcUVnrp3ZaZ7Vn2IB84Ae4="}' ;;
@@ -48,8 +48,8 @@ flake) printf '%s\n' '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 esac
 SH
 
-cat >"${fixture}/bin/nix-update" <<'SH'
-#!/usr/bin/env bash
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/nix-update"
+cat >>"${fixture}/bin/nix-update" <<'SH'
 set -euo pipefail
 printf '%s\n' "$@" >"${UPDATE_TEST_ROOT}/arguments"
 if [[ "${UPDATE_TEST_FAIL}" == 1 ]]; then
