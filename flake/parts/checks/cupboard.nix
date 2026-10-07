@@ -210,6 +210,15 @@
       system = "x86_64-linux";
     }
     {
+      attr = ".#checks.x86_64-linux.falcon-kernel-bonington";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-falcon-kernel-bonington";
+      system = "x86_64-linux";
+    }
+    {
       attr = ".#checks.x86_64-linux.feature-registration";
       bestEffort = false;
       cohort = "x86_64-linux";

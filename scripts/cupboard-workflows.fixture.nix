@@ -43,6 +43,7 @@
     checks.x86_64-linux = {
       deploy-schema = fakePackage "deploy";
       example = fakePackage "example";
+      falcon-kernel-test = fakePackage "falcon";
       host-evaluation-home-test = fakePackage "host";
       prompt-conformance-configuration = fakePackage "configuration";
     };
@@ -58,6 +59,7 @@
           fixtureConfig.flake.checks.x86_64-linux
           // {
             deploy-schema = throw "A private deploy check was evaluated.";
+            falcon-kernel-test = throw "A private Falcon check was evaluated.";
             host-evaluation-home-test = throw "A private host check was evaluated.";
           };
       };

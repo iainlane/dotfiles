@@ -79,7 +79,7 @@
   checks = config.flake.checks.${validationSystem};
   checkEntries = checkEntriesFor checks;
   publicCheckEntries = checkEntriesFor (lib.filterAttrs
-    (name: _: !(lib.hasPrefix "host-evaluation-" name || lib.hasPrefix "deploy-" name))
+    (name: _: !(lib.hasPrefix "host-evaluation-" name || lib.hasPrefix "deploy-" name || lib.hasPrefix "falcon-kernel-" name))
     checks);
 
   promptEntries =

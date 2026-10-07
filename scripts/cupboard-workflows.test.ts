@@ -507,6 +507,11 @@ describe("Cupboard strict build ownership", () => {
           ),
           publicTargets[1],
           expectedTarget(
+            ".#checks.x86_64-linux.falcon-kernel-test",
+            "checks-falcon-kernel-test",
+            "falcon",
+          ),
+          expectedTarget(
             ".#checks.x86_64-linux.host-evaluation-home-test",
             "checks-host-evaluation-home-test",
             "host",
