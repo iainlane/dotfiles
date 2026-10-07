@@ -87,7 +87,6 @@
       ControlMaster = "no";
       IPQoS = "le";
       PubkeyAcceptedKeyTypes = "ssh-ed25519";
-      RemoteCommand = "shell";
     };
   };
 
