@@ -73,8 +73,8 @@ The twenty-one top-level features:
   so a host can run one without the other.
 - `nixbuild-builder`: nixbuild.net remote build configuration, including
   build-machine registration and cross-architecture build support.
-- `nixbuild-substituter`: nixbuild.net SSH substituter configuration without
-  registering the host as a remote-build client.
+- `nixbuild`: nixbuild.net SSH aliases and credentials for remote-store access
+  and optional account administration.
 - `agentsview` and `agentsview-server`: the archive of agent sessions on a
   machine that runs agents, and the shared database behind it.
 - `hermes`: the containerised Hermes agent and its messaging, archive, webhook,

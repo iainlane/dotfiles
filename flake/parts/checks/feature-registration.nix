@@ -13,7 +13,7 @@
 #
 # One directory may register several features when the names extend the
 # directory's own. `features/nixbuild/default.nix` registers
-# `nixbuild-substituter` and `nixbuild-builder`, and
+# `nixbuild` and `nixbuild-builder`, and
 # `features/agentsview/default.nix` registers `agentsview` and
 # `agentsview-server`; each pair shares constants that only make sense
 # together.

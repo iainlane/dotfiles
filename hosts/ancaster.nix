@@ -29,7 +29,7 @@ in {
       features.hermes.provides.inbox
       features.hermes.provides.webhook
       features.network
-      features.nixbuild-substituter
+      features.nixbuild
       features.unifi
       features.caddy
     ];

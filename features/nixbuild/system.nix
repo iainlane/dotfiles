@@ -3,11 +3,7 @@
   inputs,
   username,
   ...
-}: let
-  nixbuild = import ../../lib/nixbuild.nix {inherit (inputs.nixpkgs) lib;};
-in {
-  dotfiles.nix.binaryCaches."${nixbuild.builderAlias}" = nixbuild.binaryCaches."${nixbuild.builderAlias}";
-
+}: {
   sops = {
     defaultSopsFile = inputs.secrets + "/nixbuild.yaml";
     secrets = {

@@ -1,11 +1,11 @@
-# The nixbuild.net account, as two features. `nixbuild-substituter` gives a
-# host the SSH substituter and the keys for it; `nixbuild-builder` also
-# registers the account as a remote builder, so builds are offloaded to it.
+# The nixbuild.net connection and remote builder features. `nixbuild` provides
+# the SSH aliases and credentials; `nixbuild-builder` also registers the
+# account as a remote builder.
 #
 # `lib/nixbuild.nix` defines the constants both features and CI read.
 {config, ...}: {
   flake.features = {
-    nixbuild-substituter = {
+    nixbuild = {
       homeManager = ./home-manager.nix;
       system = ./system.nix;
       nixos = ./nixos.nix;
@@ -14,7 +14,7 @@
     };
 
     nixbuild-builder = {
-      includes = [config.flake.features.nixbuild-substituter];
+      includes = [config.flake.features.nixbuild];
 
       nixos = ./builder-nixos.nix;
       darwin = ./builder-darwin.nix;

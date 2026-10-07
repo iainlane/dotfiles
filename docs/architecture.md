@@ -192,12 +192,12 @@ combine features with `||` or require one to be absent.
 Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
 it is loaded only when that `default.nix` imports it. A directory registers the
 top-level feature of its own name, and may register others whose names extend
-it: `features/nixbuild/default.nix` registers `nixbuild-substituter` and
-`nixbuild-builder`. Module files are named after their module system:
-`nixos.nix`, `darwin.nix`, `system-manager.nix`, `home-manager.nix`, with
-`home-manager-linux.nix` for the kernel scope and `home-manager-nixos.nix` or
-`home-manager-generic-linux.nix` for the OS scope. Packages live under `pkgs/`,
-even when one feature is their only consumer.
+it: `features/nixbuild/default.nix` registers `nixbuild` and `nixbuild-builder`.
+Module files are named after their module system: `nixos.nix`, `darwin.nix`,
+`system-manager.nix`, `home-manager.nix`, with `home-manager-linux.nix` for the
+kernel scope and `home-manager-nixos.nix` or `home-manager-generic-linux.nix`
+for the OS scope. Packages live under `pkgs/`, even when one feature is their
+only consumer.
 
 `lib/features.nix` resolves a host's feature list into the modules for one
 module system. It expands includes depth-first, so a feature comes after its own
