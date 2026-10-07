@@ -243,6 +243,9 @@ in {
     (featureResolver.when config.flake.features.ai [
       config.flake.features.agentsview.provides.skills
     ])
+    (featureResolver.when config.flake.features.inference.provides.acceleration [
+      config.flake.features.agentsview.provides.embeddings.provides.local
+    ])
   ];
 
   homeManager = {

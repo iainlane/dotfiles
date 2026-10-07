@@ -289,13 +289,25 @@
       {inherit endpoint timeout;}
       // lib.optionalAttrs (apiKeyEnvironment != null) {api_key_env = apiKeyEnvironment;};
   in {
-    vector = {
-      enabled = true;
-      embeddings = {
-        inherit (embeddings) model dimension;
-        servers.${serverName} = serverAttrs;
+    vector =
+      {
+        enabled = true;
+        embeddings = {
+          inherit (embeddings) model dimension;
+          servers.${serverName} = serverAttrs;
+        };
+      }
+      // lib.optionalAttrs (backend == "local") {
+        # The Linux embedding service waits for the model loader to download the
+        # model and create its alias. It also checks GPU use when acceleration
+        # is required. AgentsView's after-sync and periodic builds run inside
+        # the daemon, bypassing those service prerequisites. Keep both triggers
+        # disabled so automatic local builds run through the managed timer.
+        embed = {
+          run_after_sync = false;
+          backstop_interval = "-1s";
+        };
       };
-    };
   };
 in {
   inherit

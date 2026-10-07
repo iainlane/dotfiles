@@ -16,6 +16,7 @@ in {
       features.cloud
       features.containers
       features.inference
+      features.inference.provides.acceleration.provides.vulkan
       features.work
       features.work.provides.claude-managed-settings
     ];

@@ -45,16 +45,33 @@
     config,
     hostConfig,
     inputs,
+    lib,
+    pkgs,
     system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
     usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
     agentsview = agentsviewFor inputs system;
+    probe = lib.escapeShellArgs ([
+        "${pkgs.python3}/bin/python3"
+        "${./local/check.py}"
+        "--endpoint"
+        (lib.removeSuffix "/v1" common.embeddings.backends.local.endpoint)
+        "--model"
+        common.embeddings.model
+        "--dimension"
+        (toString common.embeddings.dimension)
+      ]
+      ++ lib.optional config.dotfiles.inference.ollama.requireAcceleration "--require-acceleration");
   in {
     config = {
       systemd.user.services.agentsview-embed = {
-        Unit.Description = "Build the AgentsView semantic-search embedding index";
+        Unit = {
+          Description = "Build the AgentsView semantic-search embedding index";
+          After = lib.optional (!usesOpenRouter) "ollama-model-loader.service";
+          Requires = lib.optional (!usesOpenRouter) "ollama-model-loader.service";
+        };
 
         Service =
           {
@@ -64,6 +81,9 @@
           }
           // lib.optionalAttrs usesOpenRouter {
             EnvironmentFile = config.sops.templates.${envTemplate}.path;
+          }
+          // lib.optionalAttrs (!usesOpenRouter) {
+            ExecStartPre = probe;
           };
       };
 

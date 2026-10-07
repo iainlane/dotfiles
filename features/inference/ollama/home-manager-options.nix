@@ -19,25 +19,36 @@
     };
   };
 in {
-  options.dotfiles.inference.ollama.models = lib.mkOption {
-    type = lib.types.listOf (lib.types.coercedTo lib.types.str (name: {
-        inherit name;
-        aliases = [];
-      })
-      modelType);
-    default = [];
-    example = [
-      "qwen3:4b"
-      {
-        name = "bge-m3";
-        aliases = ["baai/bge-m3"];
-      }
-    ];
-    description = ''
-      Models to download with `ollama pull` whenever this configuration is
-      activated. Search for models at <https://ollama.com/library>. A plain
-      string pulls that model; a `{name, aliases}` set also gives it each
-      alias with `ollama cp`.
-    '';
+  options.dotfiles.inference.ollama = {
+    requireAcceleration = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Require GPU acceleration before scheduled local AgentsView index builds.
+        Set this to false to permit CPU inference on this machine.
+      '';
+    };
+
+    models = lib.mkOption {
+      type = lib.types.listOf (lib.types.coercedTo lib.types.str (name: {
+          inherit name;
+          aliases = [];
+        })
+        modelType);
+      default = [];
+      example = [
+        "qwen3:4b"
+        {
+          name = "bge-m3";
+          aliases = ["baai/bge-m3"];
+        }
+      ];
+      description = ''
+        Models to download with `ollama pull` whenever this configuration is
+        activated. Search for models at <https://ollama.com/library>. A plain
+        string pulls that model; a `{name, aliases}` set also gives it each
+        alias with `ollama cp`.
+      '';
+    };
   };
 }
