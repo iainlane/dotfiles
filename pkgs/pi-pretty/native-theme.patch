@@ -1,0 +1,187 @@
+--- a/src/render.ts
++++ b/src/render.ts
+@@ -7,6 +7,7 @@
+ 
+ import { basename, dirname } from "node:path";
+ import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
++import { highlightCode } from "@earendil-works/pi-coding-agent";
+ // Top-level value import so jiti's pi-tui alias applies (it only rewrites
+ // static top-level import/require, not function-body require — see tui-text.ts).
+ import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
+@@ -126,6 +127,8 @@
+ 	if (!code) return [""];
+ 	if (!language || code.length > MAX_HL_CHARS) return code.split("\n");
+ 
++	if (!process.env.PRETTY_THEME && !loadConfig().theme) return highlightCode(code, language);
++
+ 	const k = `${getTheme()}\0${language}\0${code}`;
+ 	const hit = _cache.get(k);
+ 	if (hit) return _touch(k, hit);
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -14,14 +14,14 @@
+ 
+ export let RST = "\x1b[0m";
+ 
+-export const FG_LNUM = "\x1b[38;2;100;100;100m";
+-export const FG_DIM = "\x1b[38;2;80;80;80m";
+-export const FG_RULE = "\x1b[38;2;50;50;50m";
+-export const FG_GREEN = "\x1b[38;2;100;180;120m";
+-export const FG_RED = "\x1b[38;2;200;100;100m";
+-export const FG_YELLOW = "\x1b[38;2;220;180;80m";
+-export const FG_BLUE = "\x1b[38;2;100;140;220m";
+-export const FG_MUTED = "\x1b[38;2;139;148;158m";
++export let FG_LNUM = "\x1b[38;2;100;100;100m";
++export let FG_DIM = "\x1b[38;2;80;80;80m";
++export let FG_RULE = "\x1b[38;2;50;50;50m";
++export let FG_GREEN = "\x1b[38;2;100;180;120m";
++export let FG_RED = "\x1b[38;2;200;100;100m";
++export let FG_YELLOW = "\x1b[38;2;220;180;80m";
++export let FG_BLUE = "\x1b[38;2;100;140;220m";
++export let FG_MUTED = "\x1b[38;2;139;148;158m";
+ 
+ const BG_DEFAULT = "\x1b[49m";
+ export let BG_BASE = BG_DEFAULT;
+@@ -32,6 +32,7 @@
+ // ---------------------------------------------------------------------------
+ 
+ type BgThemeLike = {
++	fg?: (key: string, text: string) => string;
+ 	getBgAnsi?: (key: string) => string;
+ 	bg?: (key: string, text: string) => string;
+ };
+@@ -263,6 +264,16 @@
+ }
+ 
+ export function resolveBaseBackground(theme: BgThemeLike | null | undefined): void {
++	if (theme?.fg) {
++		FG_LNUM = theme.fg("muted", "\0").split("\0")[0];
++		FG_DIM = theme.fg("dim", "\0").split("\0")[0];
++		FG_RULE = theme.fg("borderMuted", "\0").split("\0")[0];
++		FG_GREEN = theme.fg("success", "\0").split("\0")[0];
++		FG_RED = theme.fg("error", "\0").split("\0")[0];
++		FG_YELLOW = theme.fg("warning", "\0").split("\0")[0];
++		FG_BLUE = theme.fg("accent", "\0").split("\0")[0];
++		FG_MUTED = theme.fg("muted", "\0").split("\0")[0];
++	}
+ 	const configDir = getConfigDir();
+ 	if (applyPrettyConfigBg(configDir)) return;
+ 	if (!theme?.getBgAnsi && !theme?.bg) return;
+--- a/src/tools/read.ts
++++ b/src/tools/read.ts
+@@ -186,6 +186,20 @@
+ 					offset,
+ 					maxLines: maxShow,
+ 					width: cw,
++					themeKey: [
++						"mdCodeBlock",
++						"syntaxComment",
++						"syntaxKeyword",
++						"syntaxFunction",
++						"syntaxVariable",
++						"syntaxString",
++						"syntaxNumber",
++						"syntaxType",
++						"syntaxOperator",
++						"syntaxPunctuation",
++					]
++						.map((key) => theme.fg(key, key))
++						.join(""),
+ 				};
+ 				const cachedHighlight = getCachedReadHighlight(ctx, highlightRequest);
+ 				if (cachedHighlight !== undefined) {
+@@ -242,6 +256,7 @@
+ const READ_HIGHLIGHT_CACHE = "__piPrettyReadHighlightCache";
+ 
+ type ReadHighlightRequest = {
++	themeKey: string;
+ 	content: string;
+ 	filePath: string;
+ 	offset: number;
+@@ -272,6 +287,7 @@
+ 		cache.filePath !== request.filePath ||
+ 		cache.offset !== request.offset ||
+ 		cache.maxLines !== request.maxLines ||
++		cache.themeKey !== request.themeKey ||
+ 		cache.width !== request.width
+ 	) {
+ 		return undefined;
+--- a/dist/render.js
++++ b/dist/render.js
+@@ -5,6 +5,7 @@
+  * They are async only when Shiki syntax highlighting is involved.
+  */
+ import { basename, dirname } from "node:path";
++import { highlightCode } from "@earendil-works/pi-coding-agent";
+ // Top-level value import so jiti's pi-tui alias applies (it only rewrites
+ // static top-level import/require, not function-body require — see tui-text.ts).
+ import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
+@@ -93,6 +94,8 @@
+         return [""];
+     if (!language || code.length > MAX_HL_CHARS)
+         return code.split("\n");
++    if (!process.env.PRETTY_THEME && !loadConfig().theme) return highlightCode(code, language);
++
+     const k = `${getTheme()}\0${language}\0${code}`;
+     const hit = _cache.get(k);
+     if (hit)
+--- a/dist/config.js
++++ b/dist/config.js
+@@ -9,14 +9,14 @@
+ /** Left indent for rendered tool result lines (was two spaces; one matches tighter TUI layout). */
+ export const TOOL_RESULT_INDENT = " ";
+ export let RST = "\x1b[0m";
+-export const FG_LNUM = "\x1b[38;2;100;100;100m";
+-export const FG_DIM = "\x1b[38;2;80;80;80m";
+-export const FG_RULE = "\x1b[38;2;50;50;50m";
+-export const FG_GREEN = "\x1b[38;2;100;180;120m";
+-export const FG_RED = "\x1b[38;2;200;100;100m";
+-export const FG_YELLOW = "\x1b[38;2;220;180;80m";
+-export const FG_BLUE = "\x1b[38;2;100;140;220m";
+-export const FG_MUTED = "\x1b[38;2;139;148;158m";
++export let FG_LNUM = "\x1b[38;2;100;100;100m";
++export let FG_DIM = "\x1b[38;2;80;80;80m";
++export let FG_RULE = "\x1b[38;2;50;50;50m";
++export let FG_GREEN = "\x1b[38;2;100;180;120m";
++export let FG_RED = "\x1b[38;2;200;100;100m";
++export let FG_YELLOW = "\x1b[38;2;220;180;80m";
++export let FG_BLUE = "\x1b[38;2;100;140;220m";
++export let FG_MUTED = "\x1b[38;2;139;148;158m";
+ const BG_DEFAULT = "\x1b[49m";
+ export let BG_BASE = BG_DEFAULT;
+ export let BG_ERROR = BG_DEFAULT;
+@@ -203,6 +203,16 @@
+     return true;
+ }
+ export function resolveBaseBackground(theme) {
++    if (theme?.fg) {
++        FG_LNUM = theme.fg("muted", "\0").split("\0")[0];
++        FG_DIM = theme.fg("dim", "\0").split("\0")[0];
++        FG_RULE = theme.fg("borderMuted", "\0").split("\0")[0];
++        FG_GREEN = theme.fg("success", "\0").split("\0")[0];
++        FG_RED = theme.fg("error", "\0").split("\0")[0];
++        FG_YELLOW = theme.fg("warning", "\0").split("\0")[0];
++        FG_BLUE = theme.fg("accent", "\0").split("\0")[0];
++        FG_MUTED = theme.fg("muted", "\0").split("\0")[0];
++    }
+     const configDir = getConfigDir();
+     if (applyPrettyConfigBg(configDir))
+         return;
+--- a/dist/tools/read.js
++++ b/dist/tools/read.js
+@@ -140,6 +140,7 @@
+                     offset,
+                     maxLines: maxShow,
+                     width: cw,
++                    themeKey: ["mdCodeBlock", "syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable", "syntaxString", "syntaxNumber", "syntaxType", "syntaxOperator", "syntaxPunctuation"].map(key => theme.fg(key, key)).join(""),
+                 };
+                 const cachedHighlight = getCachedReadHighlight(ctx, highlightRequest);
+                 if (cachedHighlight !== undefined) {
+@@ -200,6 +201,7 @@
+         cache.filePath !== request.filePath ||
+         cache.offset !== request.offset ||
+         cache.maxLines !== request.maxLines ||
++        cache.themeKey !== request.themeKey ||
+         cache.width !== request.width) {
+         return undefined;
+     }

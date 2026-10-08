@@ -9,6 +9,13 @@
   hexVars = flavor:
     lib.mapAttrs (_: c: c.hex) palette.${flavor}.colors;
 
+  readableLatteVars = lib.mapAttrs' (name: color:
+    lib.nameValuePair "readable-${name}" ("#"
+      + lib.concatMapStrings (channel:
+        lib.fixedWidthString 2 "0" (lib.toLower (lib.toHexString (builtins.div (color.rgb.${channel} * 55) 100))))
+      ["r" "g" "b"]))
+  palette.latte.colors;
+
   baseRoleMap = {
     inherit accent;
     border = "surface2";
@@ -68,22 +75,34 @@
     bashMode = "peach";
   };
 
-  # Latte's yellow foreground text falls below WCAG AA contrast on its base.
-  # Catppuccin's bat and delta themes also use peach for this purpose.
-  flavorRoleOverrides = {
-    latte = {
-      warning = "peach";
-      syntaxType = "peach";
-    };
-  };
-
   roleMapFor = flavor:
-    baseRoleMap // (flavorRoleOverrides.${flavor} or {});
+    if flavor != "latte"
+    then
+      baseRoleMap
+      // lib.optionalAttrs (flavor == "mocha") {
+        dim = "subtext0";
+        syntaxComment = "subtext0";
+        syntaxPunctuation = "subtext0";
+        thinkingMinimal = "subtext0";
+        thinkingOff = "subtext0";
+        thinkingText = "subtext0";
+        toolDiffContext = "subtext0";
+      }
+    else
+      lib.mapAttrs (role: color:
+        if lib.hasSuffix "Bg" role || lib.hasPrefix "border" role || builtins.elem role ["text" "userMessageText" "customMessageText" "mdCodeBlock" "syntaxVariable" "mdHr" "mdQuoteBorder" "mdCodeBlockBorder"]
+        then color
+        else "readable-${
+          if role == "thinkingOff"
+          then "overlay0"
+          else color
+        }")
+      baseRoleMap;
 
   mkTheme = flavor: {
     "$schema" = "https://raw.githubusercontent.com/badlogic/pi-mono/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json";
     name = "catppuccin-${flavor}";
-    vars = hexVars flavor;
+    vars = hexVars flavor // lib.optionalAttrs (flavor == "latte") readableLatteVars;
     colors = roleMapFor flavor;
     export = {
       pageBg = "base";

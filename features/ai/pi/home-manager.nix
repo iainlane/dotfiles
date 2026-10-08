@@ -23,7 +23,6 @@
       "pi-simplify"
       "pi-sub-core"
       "pi-subagents"
-      "pi-system-theme"
       "pi-web-access"
       "rpiv-btw"
       "rpiv-todo"
@@ -90,16 +89,16 @@
     };
     hideThinkingBlock = true;
 
-    # pi-system-theme overrides this when the OS reports a light/dark
-    # preference. This value applies if detection fails.
-    theme = "catppuccin-${config.catppuccin.flavor}";
+    theme = "catppuccin-latte/catppuccin-mocha";
 
-    quietStartup = true;
+    quietStartup = "header";
     collapseChangelog = true;
     enableInstallTelemetry = false;
     doubleEscapeAction = "tree";
     treeFilterMode = "default";
     autocompleteMaxVisible = 8;
+    defaultTools = ["+codemode"];
+    codemode.mode = "on";
 
     compaction = {
       enabled = true;
@@ -111,7 +110,7 @@
       maxRetries = 5;
       baseDelayMs = 3000;
       provider = {
-        maxRetries = 3;
+        maxRetries = 0;
         maxRetryDelayMs = 120000;
       };
     };
@@ -128,6 +127,23 @@
 
     subagents = {
       disableBuiltins = false;
+      agentOverrides = {
+        reviewer = {
+          thinking = "high";
+          tools = ["read" "grep" "find" "ls" "watchdog_diff" "contact_supervisor"];
+        };
+        researcher = {
+          thinking = "medium";
+          tools =
+            ["read" "write" "web_search" "fetch_content" "get_search_content" "source_check" "codemode"]
+            ++ map (name: "mcp:${name}") (builtins.filter (name: builtins.hasAttr name config.dotfiles.ai.mcpServers) ["nixos" "context7" "cloudflare-docs" "exa"]);
+          subagentOnlyExtensions = ["~/.pi/agent/packages/pi-web-access"];
+        };
+      };
+      agentOverridesByProvider.openai-codex = {
+        reviewer.model = "openai-codex/${modelCatalog.openai.sol}";
+        researcher.model = "openai-codex/${modelCatalog.openai.sol}";
+      };
     };
   };
 
@@ -239,10 +255,9 @@
     };
   };
 
-  piSystemThemeConfig = {
-    darkTheme = "catppuccin-mocha";
-    lightTheme = "catppuccin-latte";
-    pollMs = 2000;
+  piPrettyConfig = {
+    workingIndicator.enabled = false;
+    thinkingIndicator.enabled = false;
   };
 
   piWebSearchConfig.fetch = {
@@ -324,7 +339,7 @@ in {
         ".pi/agent/extensions/pi-footer.json".text = toJson piFooterConfig;
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
-        ".pi/agent/system-theme.json".text = toJson piSystemThemeConfig;
+        ".pi/agent/pi-pretty.json".text = toJson piPrettyConfig;
         ".pi/agent/web-search.json".text = toJson piWebSearchConfig;
         ".pi/agent/AGENTS.md".text = instructions.concatenated;
         ".pi/agent/mcp.json".text = toJson {mcpServers = config.dotfiles.ai.mcpServers;};

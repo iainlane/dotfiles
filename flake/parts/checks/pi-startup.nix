@@ -93,6 +93,41 @@ in {
       '')
       piConfig.home.file);
     webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
+    subagentsRoot = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
+    roleProbe = pkgs.writeText "pi-role-probe.ts" ''
+      import assert from "node:assert/strict";
+      import { writeFileSync } from "node:fs";
+      import { discoverAgents } from "${subagentsRoot}/src/agents/agents.ts";
+
+      export default function (pi) {
+        pi.on("session_start", () => {
+          assert.ok(pi.getActiveTools().includes("codemode"));
+          const roles = provider => discoverAgents(process.cwd(), "user", provider, { globalNpmRoot: null }).agents
+            .filter(agent => ["reviewer", "researcher"].includes(agent.name))
+            .map(({ name, model, thinking, tools, subagentOnlyExtensions }) => ({ name, model, thinking, tools, subagentOnlyExtensions }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          const expected = [
+            {
+              name: "researcher",
+              model: "openai-codex/${modelCatalog.openai.sol}",
+              thinking: "medium",
+              tools: ["read", "write", "web_search", "fetch_content", "get_search_content", "source_check", "codemode"],
+              subagentOnlyExtensions: ["~/.pi/agent/packages/pi-web-access"],
+            },
+            {
+              name: "reviewer",
+              model: "openai-codex/${modelCatalog.openai.sol}",
+              thinking: "high",
+              tools: ["read", "grep", "find", "ls", "watchdog_diff", "contact_supervisor"],
+              subagentOnlyExtensions: undefined,
+            },
+          ];
+          assert.deepStrictEqual(roles("openai-codex"), expected);
+          assert.deepStrictEqual(roles("anthropic"), expected.map(role => ({ ...role, model: undefined })));
+          writeFileSync("role-probe-ok", "");
+        });
+      }
+    '';
     startupProbe = pkgs.writeText "pi-startup-probe.ts" ''
       import assert from "node:assert/strict";
       import { writeFileSync } from "node:fs";
@@ -201,12 +236,12 @@ in {
         exit 1
       fi
       if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
-        --mode rpc --no-session --no-context-files >responses.jsonl 2>errors.txt; then
+        --mode rpc --no-session --no-context-files -e ${roleProbe} >responses.jsonl 2>errors.txt; then
         cat errors.txt responses.jsonl >&2
         exit 1
       fi
-      if [[ -s errors.txt ]]; then
-        cat errors.txt >&2
+      if [[ -s errors.txt || ! -f role-probe-ok ]]; then
+        cat errors.txt responses.jsonl >&2
         exit 1
       fi
       ${pkgs.jq}/bin/jq --exit-status --slurp '

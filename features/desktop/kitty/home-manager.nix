@@ -5,7 +5,7 @@
     autoThemeFiles = {
       light = "Catppuccin-Latte";
       dark = "Catppuccin-Mocha";
-      noPreference = "Catppuccin-Mocha";
+      noPreference = "Catppuccin-Latte";
     };
 
     shellIntegration.enableZshIntegration = true;
