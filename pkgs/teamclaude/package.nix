@@ -9,13 +9,13 @@
 }:
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "teamclaude";
-  version = "1.1.22";
+  version = "1.1.24";
 
   src = fetchFromGitHub {
     owner = "KarpelesLab";
     repo = "teamclaude";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-97RTFysHpQ3pUv4Q1eHdknqywzDQ6Ym/BjM6s+KmfCs=";
+    hash = "sha256-g8e1MNFTk/3GTvRBAo0UuqNKPrvb7NO9WBpej9gCP1M=";
   };
 
   nativeBuildInputs = [makeWrapper];

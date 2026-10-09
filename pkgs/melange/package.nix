@@ -7,9 +7,9 @@
 (melange.override {
   buildGoModule = buildGoLatestModule;
 }).overrideAttrs (_finalAttrs: prevAttrs: {
-  version = "0.61.2";
-  src = prevAttrs.src.overrideAttrs {outputHash = "sha256-4U+wPzmQC+vM+MEdmQXE14+XnzMQq9uQxPji2r7wRLU=";};
-  vendorHash = "sha256-zPGHUuh6LpYNY+yKWeKqD/OtlOoCumuUA9H60oAVxB0=";
+  version = "0.62.0";
+  src = prevAttrs.src.overrideAttrs {outputHash = "sha256-ScKfpJ8+NKhxvNZYQrYFQWoD4tjgZ+XAEqTJ14r9ZzA=";};
+  vendorHash = "sha256-R2fxo5Dcjn0dvk7xnAUvBazJmtXC8PKngY1iysxJFdI=";
 
   passthru =
     (prevAttrs.passthru or {})
