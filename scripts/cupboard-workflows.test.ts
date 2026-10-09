@@ -121,7 +121,7 @@ assert.ok(evaluation);
 
 function admittedJobs(event: Event): Record<string, boolean> {
   return Object.fromEntries(
-    ["configuration-validation", "packages", "publish"].map((name) => [
+    ["validation", "publish"].map((name) => [
       name,
       allows(record(jobs[name]).if, event),
     ]),
@@ -133,8 +133,7 @@ describe("Cupboard workflow event admission", () => {
     for (const fork of [false, true]) {
       it(`${action} from ${fork ? "a fork" : "this repository"}`, () => {
         assert.deepEqual(admittedJobs({ name: "pull_request", action, fork }), {
-          "configuration-validation": action !== "closed",
-          packages: action !== "closed",
+          validation: fork && action !== "closed",
           publish: !fork,
         });
       });
@@ -153,8 +152,7 @@ describe("Cupboard workflow event admission", () => {
   for (const name of ["push", "workflow_dispatch", "merge_group"]) {
     it(`${name} preserves validation`, () => {
       assert.deepEqual(admittedJobs({ name }), {
-        "configuration-validation": true,
-        packages: true,
+        validation: name === "merge_group",
         publish: name !== "merge_group",
       });
     });
@@ -325,15 +323,170 @@ describe("Cupboard workflow runner read configuration", () => {
   });
 });
 
-describe("Cupboard strict build ownership", () => {
-  const packageSteps = record(jobs.packages).steps;
-  assert.ok(Array.isArray(packageSteps));
-  const buildSteps = packageSteps.map(record);
+function targetFixture(): Record<string, unknown> {
+  const file = process.env.CUPBOARD_TARGET_FIXTURE;
+  if (file !== undefined) return record(JSON.parse(readFileSync(file, "utf8")));
 
-  it("builds packages and public checks in one invocation", () => {
-    const build = buildSteps.find(
-      (step) => step.name === "Build packages and checks",
+  const result = spawnSync(
+    "nix",
+    [
+      "eval",
+      "--impure",
+      "--json",
+      "--expr",
+      "import ./scripts/cupboard-workflows.fixture.nix { lib = (builtins.getFlake (toString ./.)).inputs.nixpkgs.lib; }",
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return record(JSON.parse(result.stdout));
+}
+
+interface FixtureTarget {
+  readonly attr: string;
+  readonly rootSuffix: string;
+  readonly rootDrvPath: string;
+  readonly system: string;
+  readonly bestEffort: boolean;
+  readonly cohort: string;
+  readonly os: string;
+  readonly remote: boolean;
+}
+
+function expectedTarget(
+  attr: string,
+  suffix: string,
+  derivation: string,
+  system = "x86_64-linux",
+): FixtureTarget {
+  return {
+    attr,
+    rootSuffix: `${system}/${suffix}`,
+    rootDrvPath: `/nix/store/00000000000000000000000000000000-${derivation}.drv`,
+    system,
+    bestEffort: false,
+    cohort: system,
+    os: system.endsWith("-darwin") ? "macos-latest" : "ubuntu-latest",
+    remote: !system.endsWith("-darwin"),
+  };
+}
+
+function expectedPublicTargets(): readonly FixtureTarget[] {
+  return [
+    expectedTarget(
+      ".#packages.x86_64-linux.local-packages",
+      "packages",
+      "packages",
+    ),
+    expectedTarget(
+      ".#checks.x86_64-linux.example",
+      "checks-example",
+      "example",
+    ),
+    expectedTarget(
+      ".#checks.x86_64-linux.prompt-conformance-configuration",
+      "checks-prompt-conformance-configuration",
+      "configuration",
+    ),
+    ...[
+      "claudeEndpoint",
+      "codexEndpoint",
+      "codexProtocol",
+      "fixtureEnvironments",
+      "python",
+    ].map((name) =>
+      expectedTarget(
+        `.#packages.x86_64-linux.claude-prompt-conformance.tests.${name}`,
+        `prompt-conformance-${name}`,
+        name,
+      ),
+    ),
+  ];
+}
+
+describe("Cupboard strict build ownership", () => {
+  it("uses one publisher and removes duplicate build workflows", () => {
+    assert.deepEqual(
+      {
+        jobs: Object.keys(jobs),
+        publisher: record(jobs.publish).uses,
+        targets: record(record(record(wrapper.jobs).publish).with).targets,
+        duplicateWorkflows: [
+          "prompt-conformance.yml",
+          "cupboard-test.yml",
+        ].filter((file) => existsSync(join(workflows, file))),
+      },
+      {
+        jobs: ["validation", "publish"],
+        publisher:
+          "iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main",
+        targets: ".#cupboardOutputs",
+        duplicateWorkflows: [],
+      },
     );
+  });
+
+  it("groups hosts, packages and all checks into strict system cohorts", () => {
+    const fixture = targetFixture();
+    const publicTargets = expectedPublicTargets();
+    assert.deepEqual(
+      { outputs: fixture.outputs, publicOutputs: fixture.publicOutputs },
+      {
+        publicOutputs: publicTargets,
+        outputs: [
+          expectedTarget(
+            ".#deploy.nodes.mac.profiles.system.path",
+            "darwin-mac",
+            "system-mac",
+            "aarch64-darwin",
+          ),
+          expectedTarget(
+            ".#deploy.nodes.test.profiles.system.path",
+            "nixos-test",
+            "system-test",
+          ),
+          expectedTarget(
+            ".#deploy.nodes.mac.profiles.tester.path",
+            "home-mac",
+            "home-mac",
+            "aarch64-darwin",
+          ),
+          expectedTarget(
+            ".#deploy.nodes.test.profiles.tester.path",
+            "home-test",
+            "home-test",
+          ),
+          publicTargets[0],
+          expectedTarget(
+            ".#checks.x86_64-linux.deploy-schema",
+            "checks-deploy-schema",
+            "deploy",
+          ),
+          publicTargets[1],
+          expectedTarget(
+            ".#checks.x86_64-linux.host-evaluation-home-test",
+            "checks-host-evaluation-home-test",
+            "host",
+          ),
+          ...publicTargets.slice(2),
+        ],
+      },
+    );
+  });
+
+  it("evaluates public targets without reading private profiles or checks", () => {
+    assert.deepEqual(
+      targetFixture().publicOutputsWithoutSecrets,
+      expectedPublicTargets(),
+    );
+  });
+
+  it("builds the public manifest once on events without publication", () => {
+    const validation = record(jobs.validation);
+    assert.ok(Array.isArray(validation.steps));
+    const build = validation.steps
+      .map(record)
+      .find((step) => step.name === "Build public packages and checks");
     assert.ok(build);
     const directory = mkdtempSync(join(tmpdir(), "cupboard-builds-"));
     const calls = join(directory, "calls");
@@ -343,12 +496,11 @@ describe("Cupboard strict build ownership", () => {
       `#!/bin/sh
 printf '%s\n' "$@" '' >> "$NIX_CALLS"
 if [ "$1" = eval ]; then
-  printf '%s\n' '["deploy-x86_64-linux","host-evaluation-home-test","larapaper","nix-retry","prompt-conformance-configuration"]'
+  printf '%s\n' '[{"attr":".#packages.x86_64-linux.local-packages"},{"attr":".#checks.x86_64-linux.example"},{"attr":".#packages.x86_64-linux.claude-prompt-conformance.tests.codexEndpoint"}]'
 fi
 `,
       { mode: 0o755 },
     );
-
     try {
       const result = spawnSync(
         process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
@@ -376,22 +528,15 @@ fi
           status: 0,
           stderr: "",
           calls: [
-            [
-              "eval",
-              "--json",
-              ".#checks.x86_64-linux",
-              "--apply",
-              "builtins.attrNames",
-            ],
+            ["eval", "--json", ".#cupboardPublicOutputs"],
             [
               "build",
               "--keep-going",
               "--out-link",
               join(directory, "strict-build"),
-              ".#local-packages",
-              ".#checks.x86_64-linux.larapaper",
-              ".#checks.x86_64-linux.nix-retry",
-              ".#checks.x86_64-linux.prompt-conformance-configuration",
+              ".#packages.x86_64-linux.local-packages",
+              ".#checks.x86_64-linux.example",
+              ".#packages.x86_64-linux.claude-prompt-conformance.tests.codexEndpoint",
             ],
           ],
         },
@@ -400,46 +545,10 @@ fi
       rmSync(directory, { recursive: true, force: true });
     }
   });
-
-  it("runs all prompt endpoint and fixture checks in the package job", () => {
-    const prompt = buildSteps.find(
-      (step) => step.name === "Run all prompt conformance checks",
-    );
-    assert.ok(prompt);
-    assert.deepEqual(
-      {
-        targets: string(prompt.run).match(
-          /\.#(?:claude-prompt-conformance|checks)\S*/g,
-        ),
-        separateWorkflow: existsSync(join(workflows, "prompt-conformance.yml")),
-      },
-      {
-        targets: [
-          ".#claude-prompt-conformance.tests.python",
-          ".#claude-prompt-conformance.tests.fixtureEnvironments",
-          ".#claude-prompt-conformance.tests.codexProtocol",
-          ".#claude-prompt-conformance.tests.codexEndpoint",
-          ".#claude-prompt-conformance.tests.claudeEndpoint",
-          ".#checks.x86_64-linux.prompt-conformance-configuration",
-        ],
-        separateWorkflow: false,
-      },
-    );
-  });
-
-  it("configures remote builds before the strict build", () => {
-    const builder = buildSteps.findIndex((step) =>
-      string(step.uses ?? "").startsWith("nixbuild/nixbuild-action@"),
-    );
-    const build = buildSteps.findIndex(
-      (step) => step.name === "Build packages and checks",
-    );
-    assert.ok(builder >= 0 && builder < build);
-  });
 });
 
 describe("Cupboard publication disk cleanup", () => {
-  it("frees runner space and collects between published targets", () => {
+  it("prepares runner space and collects after publication", () => {
     const inputs = record(record(record(wrapper.jobs).publish).with);
     assert.deepEqual(
       {

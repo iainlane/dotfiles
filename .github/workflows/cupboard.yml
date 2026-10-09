@@ -1,9 +1,6 @@
-# Publish deploy profiles to the default cache on main and a temporary cache
-# on same-repository pull requests. Fork pull requests and merge groups run
-# strict validation without publication.
-#
-# Host evaluation runs separately from the strict package and check builds.
-# Packages, public checks and prompt conformance share one runner's Nix store.
+# Build hosts, packages and checks in strict cohorts, and publish the results
+# on main and same-repository pull requests. Fork pull requests and merge groups
+# build public packages and checks without publication.
 name: cupboard
 
 on:
@@ -23,9 +20,12 @@ concurrency:
 permissions: {}
 
 jobs:
-  configuration-validation:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    name: Validate configurations
+  validation:
+    if: >-
+      github.event_name == 'merge_group' || (github.event_name == 'pull_request'
+      && github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.id != github.repository_id)
+    name: Build public packages and checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,15 +34,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+        with:
+          hatchet-protocol: holster
+          nix-permission-edict: true
+
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      # Trust the binary caches used by the hosts, as in the publish path.
-      # Some home configurations import from derivation while evaluating, so
-      # Nix has to realise those outputs during evaluation. With the caches
-      # trusted, Nix substitutes the outputs they already have instead of
-      # building them.
       - name: Trust our binary caches
         id: cache-config
+        env:
+          NIXBUILD_TOKEN: ${{ secrets.NIXBUILD_NET_SECRET }}
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.config/nix"
@@ -53,6 +55,9 @@ jobs:
 
           echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
           echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
+          if [ -n "${NIXBUILD_TOKEN}" ]; then
+            echo "have_builder=true" >> "${GITHUB_OUTPUT}"
+          fi
 
       # Evaluating the host and home configurations reads the private secrets
       # input, so the host-evaluation checks need the deploy key. Fork pull
@@ -95,11 +100,8 @@ jobs:
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" | tee -a "${GITHUB_ENV}"
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
-      # The host evaluations import from derivation, so Nix realises those
-      # derivations mid-evaluation. nixbuild.net supplies them, as a
-      # substituter and as a remote builder for the rest.
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
-        if: ${{ steps.secrets.outputs.have_key == 'true' }}
+        if: ${{ steps.cache-config.outputs.have_builder == 'true' }}
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
           settings: |
@@ -129,94 +131,15 @@ jobs:
                   checks)
                 "ok"'
 
-  packages:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    name: Build packages and checks
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
-        with:
-          hatchet-protocol: holster
-          nix-permission-edict: true
-
-      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
-
-      - name: Trust our binary caches
-        id: cache-config
-        env:
-          NIXBUILD_TOKEN: ${{ secrets.NIXBUILD_NET_SECRET }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.config/nix"
-          {
-            printf '\n'
-            nix eval --raw .#nix.substituterConfig
-          } >> "${HOME}/.config/nix/nix.conf"
-
-          echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
-          echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
-          if [ -n "${NIXBUILD_TOKEN}" ]; then
-            echo "have_builder=true" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
-        if: ${{ steps.cache-config.outputs.have_builder == 'true' }}
-        with:
-          nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
-          settings: |
-            substituters = ${{ steps.cache-config.outputs.remoteSubstituters }}
-            trusted-public-keys = ${{ steps.cache-config.outputs.remoteTrustedKeys }}
-
-      # Host-evaluation and deploy checks read the private secrets input.
-      # The strict build also runs for fork pull requests, which have no key.
-      - name: Build packages and checks
+      - name: Build public packages and checks
         run: |
           set -euo pipefail
 
-          nix eval --json .#checks.x86_64-linux --apply builtins.attrNames |
-            jq --raw-output '.[] | select((startswith("host-evaluation-") or startswith("deploy-")) | not)' > "${RUNNER_TEMP}/checks.txt"
-          mapfile -t names < "${RUNNER_TEMP}/checks.txt"
+          nix eval --json .#cupboardPublicOutputs |
+            jq --raw-output '.[].attr' > "${RUNNER_TEMP}/targets.txt"
+          mapfile -t targets < "${RUNNER_TEMP}/targets.txt"
 
-          nix build --keep-going --out-link "${RUNNER_TEMP}/strict-build" .#local-packages "${names[@]/#/.#checks.x86_64-linux.}"
-
-      - name: Run all prompt conformance checks
-        env:
-          FROM_REF:
-            ${{ github.event.pull_request.base.sha || github.event.before }}
-          TO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          from_ref="${FROM_REF}"
-          if [[ -z "${from_ref}" || "${from_ref}" =~ ^0+$ ]]; then
-            from_ref="$(git rev-parse HEAD^)"
-          fi
-
-          export PRE_COMMIT_FROM_REF="${from_ref}"
-          export PRE_COMMIT_TO_REF="${TO_REF}"
-          ./scripts/check-prompt-conformance.bash \
-            .#claude-prompt-conformance.tests.python \
-            .#claude-prompt-conformance.tests.fixtureEnvironments \
-            .#claude-prompt-conformance.tests.codexProtocol \
-            .#claude-prompt-conformance.tests.codexEndpoint \
-            .#claude-prompt-conformance.tests.claudeEndpoint \
-            .#checks.x86_64-linux.prompt-conformance-configuration
-
-  publication-skipped:
-    name: Explain skipped publication
-    if: github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain skipped publication
-        run: |
-          echo '::notice::Merge-group validation runs without Cupboard publication because the publication preset accepts pull requests and main branch runs.'
+          nix build --keep-going --out-link "${RUNNER_TEMP}/strict-build" "${targets[@]}"
 
   publish:
     if: >-
