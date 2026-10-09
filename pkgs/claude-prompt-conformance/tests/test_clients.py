@@ -35,7 +35,6 @@ from claude_prompt_conformance.agents.codex import (
     CodexStructuredAgent,
     CodexWebSearchModeError,
     codex_effective_isolated_features,
-    codex_isolated_features,
 )
 from claude_prompt_conformance.agents.judge import JudgementEvidenceUnreadError
 from claude_prompt_conformance.clients import (
@@ -473,6 +472,7 @@ class CodexProbeFailure(StrEnum):
     INVENTORY = "inventory"
     TRANSPORT = "transport"
     FEATURES = "features"
+    FEATURES_CYBER_ACCESS = "features-cyber-access"
     FEATURES_STRUCTURED = "features-structured"
     AGENTS = "agents"
     SKILLS = "skills"
@@ -593,6 +593,8 @@ class FailingCodexProbeRunner:
                 | (
                     {"multi_agent_v2": {"enabled": True}}
                     if self.failure is CodexProbeFailure.FEATURES_STRUCTURED
+                    else {"api_key_cyber_access_programs": True}
+                    if self.failure is CodexProbeFailure.FEATURES_CYBER_ACCESS
                     else {"apps": self.failure is CodexProbeFailure.FEATURES}
                 ),
                 "agents": {
@@ -1562,7 +1564,40 @@ def test_codex_judge_uses_bespoke_mcp_and_shared_auth(
             "compact_prompt": "",
             "personality": "none",
             "default_permissions": "conformance_judge",
-            "features": codex_isolated_features(),
+            "features": {
+                "api_key_cyber_access_programs": False,
+                "api_key_model_discovery": False,
+                "apps": False,
+                "auth_elicitation": False,
+                "background_paginated_rollout_migration": False,
+                "browser_use": False,
+                "browser_use_external": False,
+                "browser_use_full_cdp_access": False,
+                "code_mode_host": True,
+                "codex_apps_mcp_2026_07_28": False,
+                "computer_use": False,
+                "default_mode_request_user_input": False,
+                "goals": False,
+                "hooks": False,
+                "image_generation": False,
+                "in_app_browser": False,
+                "memories": False,
+                "mcp_2026_07_28": False,
+                "mentions_v2": False,
+                "multi_agent": False,
+                "plugins": False,
+                "remote_control": False,
+                "remote_plugin": False,
+                "shell_snapshot": False,
+                "shell_tool": False,
+                "skill_mcp_dependency_install": False,
+                "skill_search": False,
+                "smart_approvals": False,
+                "tool_suggest": False,
+                "undo": False,
+                "unified_exec": False,
+                "windows_sandbox_service": False,
+            },
             "agents": {"enabled": False},
             "skills": {
                 "bundled": {"enabled": False},
@@ -1670,11 +1705,19 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                 default_tools_approval_mode="approve",
             ),
         )
-    elif failure is CodexProbeFailure.FEATURES:
+    elif failure in (
+        CodexProbeFailure.FEATURES,
+        CodexProbeFailure.FEATURES_CYBER_ACCESS,
+    ):
         actual_features: dict[str, CodexFeatureValue] = dict(
             codex_effective_isolated_features()
         )
-        actual_features["apps"] = True
+        feature = (
+            "api_key_cyber_access_programs"
+            if failure is CodexProbeFailure.FEATURES_CYBER_ACCESS
+            else "apps"
+        )
+        actual_features[feature] = True
         expected_error = CodexFeatureIsolationError(
             actual_features,
             codex_effective_isolated_features(),
@@ -1890,6 +1933,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.INVENTORY,
                     CodexProbeFailure.TRANSPORT,
                     CodexProbeFailure.FEATURES,
+                    CodexProbeFailure.FEATURES_CYBER_ACCESS,
                     CodexProbeFailure.FEATURES_STRUCTURED,
                     CodexProbeFailure.AGENTS,
                     CodexProbeFailure.SKILLS,
@@ -1913,6 +1957,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.INVENTORY,
                     CodexProbeFailure.TRANSPORT,
                     CodexProbeFailure.FEATURES,
+                    CodexProbeFailure.FEATURES_CYBER_ACCESS,
                     CodexProbeFailure.FEATURES_STRUCTURED,
                     CodexProbeFailure.AGENTS,
                     CodexProbeFailure.SKILLS,

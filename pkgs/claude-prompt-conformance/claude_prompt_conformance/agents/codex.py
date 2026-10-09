@@ -784,6 +784,7 @@ def codex_isolated_features() -> dict[str, bool]:
     """Disable extension and model-visible tools outside the evidence MCP."""
 
     return {
+        "api_key_cyber_access_programs": False,
         "api_key_model_discovery": False,
         "apps": False,
         "auth_elicitation": False,
