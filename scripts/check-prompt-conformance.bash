@@ -13,7 +13,7 @@ set -euo pipefail
 relevant_paths=(
 	flake.lock
 	flake.nix
-	.github/workflows/prompt-conformance.yml
+	.github/workflows/cupboard.yml
 	flake/parts/git-hooks.nix
 	features/ai/default.nix
 	features/ai/prompt-conformance.nix

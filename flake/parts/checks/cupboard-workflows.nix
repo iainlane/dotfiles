@@ -2,7 +2,7 @@
   perSystem = {pkgs, ...}: {
     checks.cupboard-workflows =
       pkgs.runCommandLocal "cupboard-workflows-test" {
-        nativeBuildInputs = [pkgs.yq-go];
+        nativeBuildInputs = [pkgs.jq pkgs.yq-go];
       }
       ''
         CUPBOARD_SHARED_NIX_CONFIG=${pkgs.writeText "shared-nix.conf" config.flake.nix.substituterConfig} \

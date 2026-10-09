@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -316,5 +322,131 @@ describe("Cupboard workflow runner read configuration", () => {
       substituters: readable,
       trustedPublicKeys: shared.trustedPublicKeys,
     });
+  });
+});
+
+describe("Cupboard strict build ownership", () => {
+  const packageSteps = record(jobs.packages).steps;
+  assert.ok(Array.isArray(packageSteps));
+  const buildSteps = packageSteps.map(record);
+
+  it("builds packages and public checks in one invocation", () => {
+    const build = buildSteps.find(
+      (step) => step.name === "Build packages and checks",
+    );
+    assert.ok(build);
+    const directory = mkdtempSync(join(tmpdir(), "cupboard-builds-"));
+    const calls = join(directory, "calls");
+    writeFileSync(calls, "");
+    writeFileSync(
+      join(directory, "nix"),
+      `#!/bin/sh
+printf '%s\n' "$@" '' >> "$NIX_CALLS"
+if [ "$1" = eval ]; then
+  printf '%s\n' '["deploy-x86_64-linux","host-evaluation-home-test","larapaper","nix-retry","prompt-conformance-configuration"]'
+fi
+`,
+      { mode: 0o755 },
+    );
+
+    try {
+      const result = spawnSync(
+        process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+        ["-c", string(build.run)],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PATH: `${directory}:${process.env.PATH}`,
+            RUNNER_TEMP: directory,
+            NIX_CALLS: calls,
+          },
+        },
+      );
+      assert.deepEqual(
+        {
+          status: result.status,
+          stderr: result.stderr,
+          calls: readFileSync(calls, "utf8")
+            .trim()
+            .split("\n\n")
+            .map((call) => call.split("\n")),
+        },
+        {
+          status: 0,
+          stderr: "",
+          calls: [
+            [
+              "eval",
+              "--json",
+              ".#checks.x86_64-linux",
+              "--apply",
+              "builtins.attrNames",
+            ],
+            [
+              "build",
+              "--keep-going",
+              "--out-link",
+              join(directory, "strict-build"),
+              ".#local-packages",
+              ".#checks.x86_64-linux.larapaper",
+              ".#checks.x86_64-linux.nix-retry",
+              ".#checks.x86_64-linux.prompt-conformance-configuration",
+            ],
+          ],
+        },
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("runs all prompt endpoint and fixture checks in the package job", () => {
+    const prompt = buildSteps.find(
+      (step) => step.name === "Run all prompt conformance checks",
+    );
+    assert.ok(prompt);
+    assert.deepEqual(
+      {
+        targets: string(prompt.run).match(
+          /\.#(?:claude-prompt-conformance|checks)\S*/g,
+        ),
+        separateWorkflow: existsSync(join(workflows, "prompt-conformance.yml")),
+      },
+      {
+        targets: [
+          ".#claude-prompt-conformance.tests.python",
+          ".#claude-prompt-conformance.tests.fixtureEnvironments",
+          ".#claude-prompt-conformance.tests.codexProtocol",
+          ".#claude-prompt-conformance.tests.codexEndpoint",
+          ".#claude-prompt-conformance.tests.claudeEndpoint",
+          ".#checks.x86_64-linux.prompt-conformance-configuration",
+        ],
+        separateWorkflow: false,
+      },
+    );
+  });
+
+  it("configures remote builds before the strict build", () => {
+    const builder = buildSteps.findIndex((step) =>
+      string(step.uses ?? "").startsWith("nixbuild/nixbuild-action@"),
+    );
+    const build = buildSteps.findIndex(
+      (step) => step.name === "Build packages and checks",
+    );
+    assert.ok(builder >= 0 && builder < build);
+  });
+});
+
+describe("Cupboard publication disk cleanup", () => {
+  it("frees runner space and collects between published targets", () => {
+    const inputs = record(record(record(wrapper.jobs).publish).with);
+    assert.deepEqual(
+      {
+        maximiseSpace: inputs["maximise-space"],
+        collectBetweenCohorts: inputs["gc-between-cohorts"],
+      },
+      { maximiseSpace: true, collectBetweenCohorts: true },
+    );
   });
 });

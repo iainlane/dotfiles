@@ -85,6 +85,8 @@ jobs:
       reuse-view: pull-requests-585180069
       read-caches: https://cupboard.supply/t/laney/cache/falcon
       nix-config: .#nix.publishSubstituterConfig
+      maximise-space: true
+      gc-between-cohorts: true
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}
       input-known-hosts: >-
         ${{ needs.sources.outputs.githubKnownHost }}

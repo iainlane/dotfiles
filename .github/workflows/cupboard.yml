@@ -1,21 +1,9 @@
-# Publish selected deploy-profile outputs and intermediates built during the
-# run to the personal cupboard cache. Pushes to main publish to the default
-# cache with permanent retention; pull requests publish to a short-lived per-PR
-# cache so changes can be tested without touching the default
-# cache. The local reusable workflow supplies the repository-specific builder
-# configuration and delegates the work to cupboard's released flake-publish
-# workflow, whose `job_workflow_ref` the laney tenant trusts.
+# Publish deploy profiles to the default cache on main and a temporary cache
+# on same-repository pull requests. Fork pull requests and merge groups run
+# strict validation without publication.
 #
-# The publish job passes the deploy key for same-repository pull requests, so
-# their host and home closures can build. Fork pull requests and merge groups
-# run configuration and package validation without the publish job.
-#
-# The closure builds in the publish path are best-effort, so they cannot gate a
-# merge. Two jobs are the strict gate. `configuration-validation` builds the
-# checks that need no secrets, then evaluates every NixOS, nix-darwin,
-# system-manager and standalone Home Manager configuration without building the
-# resulting host closures. `packages` builds everything under `pkgs/` that the
-# runner can build.
+# Host evaluation runs separately from the strict package and check builds.
+# Packages, public checks and prompt conformance share one runner's Nix store.
 name: cupboard
 
 on:
@@ -65,20 +53,6 @@ jobs:
 
           echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
           echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
-
-      # The `host-evaluation-*` and `deploy-*` checks evaluate host
-      # configurations, which reads the private secrets input. Exclude them
-      # here so a fork pull request can build the rest without a deploy key.
-      - name: Build the checks
-        run: |
-          set -euo pipefail
-
-          mapfile -t names < <(
-            nix eval --json .#checks.x86_64-linux --apply builtins.attrNames |
-              jq --raw-output '.[] | select((startswith("host-evaluation-") or startswith("deploy-")) | not)'
-          )
-
-          nix build "${names[@]/#/.#checks.x86_64-linux.}"
 
       # Evaluating the host and home configurations reads the private secrets
       # input, so the host-evaluation checks need the deploy key. Fork pull
@@ -157,18 +131,27 @@ jobs:
 
   packages:
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
-    name: Build the packages
+    name: Build packages and checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+        with:
+          hatchet-protocol: holster
+          nix-permission-edict: true
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
       - name: Trust our binary caches
+        id: cache-config
+        env:
+          NIXBUILD_TOKEN: ${{ secrets.NIXBUILD_NET_SECRET }}
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.config/nix"
@@ -177,13 +160,54 @@ jobs:
             nix eval --raw .#nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-      # `local-packages` covers every package under `pkgs/` that this runner
-      # can build.
-      - name: Build the packages
+          echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
+          echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
+          if [ -n "${NIXBUILD_TOKEN}" ]; then
+            echo "have_builder=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
+        if: ${{ steps.cache-config.outputs.have_builder == 'true' }}
+        with:
+          nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+          settings: |
+            substituters = ${{ steps.cache-config.outputs.remoteSubstituters }}
+            trusted-public-keys = ${{ steps.cache-config.outputs.remoteTrustedKeys }}
+
+      # Host-evaluation and deploy checks read the private secrets input.
+      # The strict build also runs for fork pull requests, which have no key.
+      - name: Build packages and checks
         run: |
           set -euo pipefail
 
-          nix build --no-link --print-out-paths .#local-packages
+          nix eval --json .#checks.x86_64-linux --apply builtins.attrNames |
+            jq --raw-output '.[] | select((startswith("host-evaluation-") or startswith("deploy-")) | not)' > "${RUNNER_TEMP}/checks.txt"
+          mapfile -t names < "${RUNNER_TEMP}/checks.txt"
+
+          nix build --keep-going --out-link "${RUNNER_TEMP}/strict-build" .#local-packages "${names[@]/#/.#checks.x86_64-linux.}"
+
+      - name: Run all prompt conformance checks
+        env:
+          FROM_REF:
+            ${{ github.event.pull_request.base.sha || github.event.before }}
+          TO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          from_ref="${FROM_REF}"
+          if [[ -z "${from_ref}" || "${from_ref}" =~ ^0+$ ]]; then
+            from_ref="$(git rev-parse HEAD^)"
+          fi
+
+          export PRE_COMMIT_FROM_REF="${from_ref}"
+          export PRE_COMMIT_TO_REF="${TO_REF}"
+          ./scripts/check-prompt-conformance.bash \
+            .#claude-prompt-conformance.tests.python \
+            .#claude-prompt-conformance.tests.fixtureEnvironments \
+            .#claude-prompt-conformance.tests.codexProtocol \
+            .#claude-prompt-conformance.tests.codexEndpoint \
+            .#claude-prompt-conformance.tests.claudeEndpoint \
+            .#checks.x86_64-linux.prompt-conformance-configuration
 
   publication-skipped:
     name: Explain skipped publication
