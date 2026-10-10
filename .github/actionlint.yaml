@@ -2,6 +2,9 @@
 # or reusable workflow reference. Support is unmerged upstream in pull request
 # #732: https://github.com/rhysd/actionlint/pull/732
 #
+# GitHub supports self-repository syntax in reusable workflow calls:
+# https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
+#
 # Ignore those two messages for the `$/` form. Remove the entries once the
 # actionlint release in use can handle this form correctly.
 paths:
@@ -9,5 +12,8 @@ paths:
     ignore:
       - 'reusable workflow call "\$/[^"]*" at "uses" is not following the format'
   .github/workflows/prompt-conformance.yml:
+    ignore:
+      - 'reusable workflow call "\$/[^"]*" at "uses" is not following the format'
+  .github/workflows/cupboard.yml:
     ignore:
       - 'reusable workflow call "\$/[^"]*" at "uses" is not following the format'
