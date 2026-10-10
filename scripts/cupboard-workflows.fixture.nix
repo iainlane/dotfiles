@@ -24,6 +24,8 @@
         tester.path = fakePackage "home-mac";
       };
     };
+    packages.aarch64-darwin.deploy-rs = fakePackage "deploy-rs-darwin";
+    packages.x86_64-linux.deploy-rs = fakePackage "deploy-rs-linux";
     packages.x86_64-linux.local-packages = fakePackage "packages";
     checks.x86_64-linux = {
       deploy-schema = fakePackage "deploy";

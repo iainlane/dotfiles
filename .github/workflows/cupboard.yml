@@ -149,6 +149,7 @@ jobs:
       attestations: write # write build provenance attestations for the outputs
       contents: read
       id-token: write # issue the OIDC token the cupboard cache trusts for push
+      pull-requests: read # let the trusted wrapper identify the merged PR
     # Keep the repository-specific inputs on main; the jobs themselves come
     # from cupboard's separately trusted released workflow.
     uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main # zizmor: ignore[unpinned-uses]

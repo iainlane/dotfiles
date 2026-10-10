@@ -47,6 +47,17 @@
     lib.mapAttrsToList systemEntry hosts
     ++ lib.mapAttrsToList homeEntry hosts;
 
+  deployToolEntries =
+    map
+    (system:
+      baseFor system
+      // {
+        attr = ".#packages.${system}.deploy-rs";
+        rootDrvPath = config.flake.packages.${system}.deploy-rs.drvPath;
+        rootSuffix = "${system}/deploy-rs";
+      })
+    (lib.sort builtins.lessThan (lib.unique (map (host: host.system) (lib.attrValues hosts))));
+
   validationEntry = attr: suffix: package:
     baseFor validationSystem
     // {
@@ -80,7 +91,7 @@
     config.flake.packages.${validationSystem}.claude-prompt-conformance.tests;
 in {
   flake = {
-    cupboardOutputs = profileEntries ++ [packageEntry] ++ checkEntries ++ promptEntries;
+    cupboardOutputs = profileEntries ++ deployToolEntries ++ [packageEntry] ++ checkEntries ++ promptEntries;
     cupboardPublicOutputs = [packageEntry] ++ publicCheckEntries ++ promptEntries;
   };
 }

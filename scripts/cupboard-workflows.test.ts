@@ -301,6 +301,38 @@ describe("Cupboard workflow concurrency", () => {
   });
 });
 
+describe("Cupboard merged pull request reuse", () => {
+  it("selects the trusted wrapper without exposing every PR cache to builders", () => {
+    const publication = record(record(wrapper.jobs).publish);
+    const inputs = record(publication.with);
+    const secrets = record(publication.secrets);
+
+    assert.deepEqual(
+      {
+        workflow: publication.uses,
+        callerPermission: record(record(jobs.publish).permissions)[
+          "pull-requests"
+        ],
+        wrapperPermission: record(publication.permissions)["pull-requests"],
+        preset: inputs.preset,
+        reuseView: inputs["reuse-view"],
+        builderReadsEveryPr: string(secrets.builder_ssh_config).includes(
+          "/reuse/",
+        ),
+      },
+      {
+        workflow:
+          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@v0.0.43",
+        callerPermission: "read",
+        wrapperPermission: "read",
+        preset: "pull-request-and-branch",
+        reuseView: undefined,
+        builderReadsEveryPr: false,
+      },
+    );
+  });
+});
+
 describe("Cupboard workflow runner read configuration", () => {
   it("separates the publisher's tenant read session from shared-host release caches", () => {
     const inputs = record(record(record(wrapper.jobs).publish).with);
@@ -455,6 +487,17 @@ describe("Cupboard strict build ownership", () => {
             ".#deploy.nodes.test.profiles.tester.path",
             "home-test",
             "home-test",
+          ),
+          expectedTarget(
+            ".#packages.aarch64-darwin.deploy-rs",
+            "deploy-rs",
+            "deploy-rs-darwin",
+            "aarch64-darwin",
+          ),
+          expectedTarget(
+            ".#packages.x86_64-linux.deploy-rs",
+            "deploy-rs",
+            "deploy-rs-linux",
           ),
           publicTargets[0],
           expectedTarget(

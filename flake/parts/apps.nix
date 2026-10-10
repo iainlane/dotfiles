@@ -22,12 +22,14 @@ in {
     pkgs-stable,
     system,
     ...
-  }: {
+  }: let
+    deployPackage = (import ../../lib/deploy-rs {inherit inputs system;}).deploy-rs;
+  in {
     apps =
       {
         deploy-rs = {
           type = "app";
-          program = lib.getExe (import ../../lib/deploy-rs {inherit inputs system;}).deploy-rs;
+          program = lib.getExe deployPackage;
           meta.description = "Multi-profile Nix deployment tool";
         };
         disko = {
@@ -52,6 +54,8 @@ in {
         };
       };
 
-    packages = netboot.packagesForSystem {inherit pkgs pkgs-stable;};
+    packages =
+      netboot.packagesForSystem {inherit pkgs pkgs-stable;}
+      // {deploy-rs = deployPackage;};
   };
 }
