@@ -99,7 +99,7 @@ jobs:
           ref: f3f125f64022b41d61f67435d30296ae8ba0f8d7
           path: dotfiles-source
           persist-credentials: false
-      - uses: underwhelmingperformance/cupboard/actions/prepare@14de539c487021ff0fcce62d89ed44241a02f3d9
+      - uses: underwhelmingperformance/cupboard/actions/prepare@72e0cebd86026b5a441e100df66c44814b6d4b91
         with:
           ssh-key: ${{ secrets.secrets_deploy_key }}
           input-known-hosts: ${{ needs.sources.outputs.githubKnownHost }}
@@ -126,7 +126,7 @@ jobs:
             --original ./dotfiles-source \
             --wrapper ./validation-source \
             --wrapper-commit "${IDENTITY_WORKFLOW_COMMIT}" \
-            --prepare-commit 14de539c487021ff0fcce62d89ed44241a02f3d9 \
+            --prepare-commit 72e0cebd86026b5a441e100df66c44814b6d4b91 \
             --output "${RUNNER_TEMP}/cupboard-identity" \
             --timeout 900
       - name: Upload sanitised complete identity data and receipts
