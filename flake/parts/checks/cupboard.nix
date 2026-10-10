@@ -120,6 +120,33 @@
       system = "x86_64-linux";
     }
     {
+      attr = ".#packages.aarch64-darwin.deploy-rs";
+      bestEffort = false;
+      cohort = "aarch64-darwin";
+      os = "macos-latest";
+      remote = false;
+      rootSuffix = "aarch64-darwin/deploy-rs";
+      system = "aarch64-darwin";
+    }
+    {
+      attr = ".#packages.aarch64-linux.deploy-rs";
+      bestEffort = false;
+      cohort = "aarch64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "aarch64-linux/deploy-rs";
+      system = "aarch64-linux";
+    }
+    {
+      attr = ".#packages.x86_64-linux.deploy-rs";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/deploy-rs";
+      system = "x86_64-linux";
+    }
+    {
       attr = ".#packages.x86_64-linux.local-packages";
       bestEffort = false;
       cohort = "x86_64-linux";

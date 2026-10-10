@@ -24,24 +24,28 @@
         tester.path = fakePackage "home-mac";
       };
     };
-    packages.aarch64-darwin.deploy-rs = fakePackage "deploy-rs-darwin";
-    packages.x86_64-linux.deploy-rs = fakePackage "deploy-rs-linux";
-    packages.x86_64-linux.local-packages = fakePackage "packages";
+    packages = {
+      aarch64-darwin.deploy-rs = fakePackage "deploy-rs-darwin";
+      x86_64-linux = {
+        deploy-rs = fakePackage "deploy-rs-linux";
+        local-packages = fakePackage "packages";
+        claude-prompt-conformance.tests =
+          lib.genAttrs [
+            "claudeEndpoint"
+            "codexEndpoint"
+            "codexProtocol"
+            "fixtureEnvironments"
+            "python"
+          ]
+          fakePackage;
+      };
+    };
     checks.x86_64-linux = {
       deploy-schema = fakePackage "deploy";
       example = fakePackage "example";
       host-evaluation-home-test = fakePackage "host";
       prompt-conformance-configuration = fakePackage "configuration";
     };
-    packages.x86_64-linux.claude-prompt-conformance.tests =
-      lib.genAttrs [
-        "claudeEndpoint"
-        "codexEndpoint"
-        "codexProtocol"
-        "fixtureEnvironments"
-        "python"
-      ]
-      fakePackage;
   };
   subject = config: import ../flake/parts/cupboard.nix {inherit lib config;};
   complete = subject fixtureConfig;
