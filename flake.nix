@@ -50,8 +50,7 @@
       cohort = "validation-controlled-failure";
       outputs = ["out"];
     };
-  in {
-    inherit (dotfiles) deploy nix;
+  in dotfiles.outputs // {
     inherit packages;
 
     cupboardValidationOriginal = dotfiles.cupboardOutputs;
