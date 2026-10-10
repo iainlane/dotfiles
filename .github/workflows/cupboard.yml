@@ -25,7 +25,7 @@ jobs:
       id-token: write
     uses: $/.github/workflows/cupboard-publish.yml
     with:
-      targets: .#cupboardValidationOriginal
+      targets: .#cupboardOutputs
     secrets:
       falcon_cache_password: ${{ secrets.FALCON_CACHE_PASSWORD }}
       nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
