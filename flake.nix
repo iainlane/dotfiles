@@ -1,247 +1,60 @@
 {
-  description = "Nix-based dotfiles for multiple machines";
+  description = "Disposable Cupboard publication validation";
 
-  inputs = {
-    # bacon-ls for Rust development in neovim
-    bacon-ls = {
-      url = "github:crisidev/bacon-ls";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.naersk.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.dotfiles.url = "github:iainlane/dotfiles/f3f125f64022b41d61f67435d30296ae8ba0f8d7";
+
+  outputs = {dotfiles, ...}: let
+    system = "x86_64-linux";
+    pkgs = dotfiles.inputs.nixpkgs.legacyPackages.${system};
+    successful = pkgs.runCommand "cupboard-publication-validation-success-off-20261009" {} ''
+      echo "Cupboard publication validation: native success off 20261009"
+      mkdir -p "$out"
+      printf '%s\n' 'Cupboard publication validation off 20261009' > "$out/control-marker"
+    '';
+    failing = pkgs.runCommand "cupboard-publication-validation-failure" {} ''
+      echo >&2 "Cupboard publication validation: controlled failure"
+      exit 17
+    '';
+
+    packages =
+      dotfiles.packages
+      // {
+        ${system} =
+          (dotfiles.packages.${system} or {})
+          // {
+            cupboard-publication-validation-failure = failing;
+            cupboard-publication-validation-success = successful;
+          };
+      };
+
+    successfulTarget = {
+      attr = ".#packages.${system}.cupboard-publication-validation-success";
+      rootDrvPath = successful.drvPath;
+      rootSuffix = "${system}/validation-native-success-off";
+      inherit system;
+      os = "ubuntu-latest";
+      remote = false;
+      bestEffort = false;
+      cohort = "validation-native-success-off";
+      outputs = ["out"];
     };
 
-    catppuccin = {
-      url = "github:catppuccin/nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+    failureTarget = {
+      attr = ".#packages.${system}.cupboard-publication-validation-failure";
+      rootDrvPath = failing.drvPath;
+      rootSuffix = "${system}/validation-controlled-failure";
+      inherit system;
+      os = "ubuntu-latest";
+      remote = true;
+      bestEffort = true;
+      cohort = "validation-controlled-failure";
+      outputs = ["out"];
     };
-    catppuccin-stable = {
-      url = "github:catppuccin/nix/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs-stable";
-    };
+  in {
+    inherit (dotfiles) deploy nix;
+    inherit packages;
 
-    # The bat theme repository, read by `programs.bat.themes` in
-    # features/base/cli-tools/home-manager.nix. bat is themed through Home
-    # Manager's own bat module, not through `catppuccin/nix`.
-    catppuccin-bat = {
-      url = "github:catppuccin/bat";
-      flake = false;
-    };
-    # The bottom theme repository. features/base/catppuccin/home-manager.nix
-    # sets `catppuccin.sources.bottom` to this input's `themes` directory.
-    # Upstream builds each port's `catppuccin.sources.<port>` with
-    # `fetchFromGitHub`, so the Home Manager module's `importTOML` and
-    # `importJSON` reads of that source force a build during evaluation. This
-    # input is fetched natively and its path exists at evaluation time, so the
-    # same reads need no import from derivation.
-    catppuccin-bottom = {
-      url = "github:catppuccin/bottom";
-      flake = false;
-    };
-    # Canonical Catppuccin palette JSON. Modules import
-    # `inputs.catppuccin-palette + "/palette.json"` directly, so the colour
-    # values come from upstream and are not copied into this repository.
-    catppuccin-palette = {
-      url = "github:catppuccin/palette/v1.8.0";
-      flake = false;
-    };
-
-    # OpenAI's Codex plugin for Claude Code. `features/ai/claude-code` links its
-    # `plugins/codex` directory as a personal plugin. Pinned to a release tag;
-    # bumped by `nix run .#update-codex-plugin-cc`.
-    codex-plugin-cc = {
-      url = "github:openai/codex-plugin-cc/v1.0.6";
-      flake = false;
-    };
-
-    cupboard.url = "https://flakehub.com/f/underwhelmingperformance/cupboard/0.0";
-
-    deploy-rs = {
-      url = "github:serokell/deploy-rs";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/3";
-
-    disko = {
-      url = "github:nix-community/disko";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    flake-parts = {
-      url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-
-    # Agent skill shipped in the `gh-stack` repository's `skills/gh-stack/`.
-    # The shared skills set (`features/ai/skills.nix`) reads it from this
-    # native-fetched input, so the skill directory exists at evaluation time
-    # on every platform. Pinned to a release tag; bumped by
-    # `nix run .#update-gh-stack-skill`.
-    gh-stack-skill = {
-      url = "github:github/gh-stack/v0.2.0";
-      flake = false;
-    };
-
-    git-hooks-nix = {
-      url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    home-manager-stable = {
-      url = "github:nix-community/home-manager/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs-stable";
-    };
-
-    hermes-agent = {
-      url = "github:NousResearch/hermes-agent/v2026.9.24";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # The v1.0.0-rc.1 tag plus the commits of stephenschoettler/hermes-lcm
-    # #551, #597 and #647, on the fork's
-    # `openai-embeddings-sqlite-locks-on-v1.0.0-rc.1` branch.
-    #
-    # #551 adds an OpenAI-compatible embedding provider, which ancaster uses
-    # to send embedding requests to OpenRouter with the API key that Hermes
-    # already has for its models. None of upstream's three providers suits
-    # ancaster: Voyage would need a second account, Ollama would need another
-    # service on the Pi, and nixpkgs lists aarch64-linux in fastembed's
-    # `badPlatforms`.
-    #
-    # #597 and #647 stop LCM's permission checks from opening and closing
-    # `lcm.db` and its WAL files. Closing any descriptor for a file releases
-    # the SQLite locks that the gateway's open connections have on it. Another
-    # process that then closed its last connection deleted the live WAL, and
-    # the database became corrupt.
-    #
-    # When all three merge, restore the release tag and add hermes-lcm to
-    # `flakeInputs` in flake/parts/updaters.nix so it follows releases again.
-    hermes-lcm = {
-      url = "github:iainlane/hermes-lcm/e5abec7d903bc56a474b00f308f288fa5adfec8a";
-      flake = false;
-    };
-
-    just-sublime = {
-      url = "github:nk9/just_sublime";
-      flake = false;
-    };
-
-    kolide-launcher = {
-      url = "github:kolide/nix-agent";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # `measured-boot` is our branch of lanzaboote. It adds support for
-    # predicting the boot components' TPM2 measurements, generating a
-    # systemd-pcrlock policy from them, and enrolling that policy into the LUKS
-    # volumes. This is what lets bonington unlock its disk without a
-    # passphrase. Upstream is taking the work in pieces, most recently
-    # nix-community/lanzaboote#637. The branch needs the two NixOS commits on
-    # `nixpkgs-measured-boot` below, so the two pins move together. Drop both
-    # once a lanzaboote release includes measured boot.
-    lanzaboote = {
-      url = "github:iainlane/lanzaboote/measured-boot";
-      inputs.nixpkgs.follows = "nixpkgs-measured-boot";
-    };
-
-    llm-agents = {
-      url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    mcp-servers-nix = {
-      url = "github:natsukium/mcp-servers-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nix-darwin = {
-      url = "github:LnL7/nix-darwin";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nix-direnv = {
-      url = "github:nix-community/nix-direnv/8c7ebb294d997bc1720ddf3f7ee9ed27c290a0e6";
-      flake = false;
-    };
-
-    # Pre-built nix-index database for faster `nix-locate` queries
-    nix-index-database = {
-      url = "github:nix-community/nix-index-database";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nix-system-graphics = {
-      url = "github:soupglasses/nix-system-graphics";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nixos-anywhere = {
-      url = "github:nix-community/nixos-anywhere";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nixos-stable.follows = "nixpkgs-stable";
-    };
-
-    nixos-hardware.url = "github:NixOS/nixos-hardware";
-
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-
-    # nixpkgs-unstable with two commits that the lanzaboote branch above needs: the
-    # pcrlock service units and options on the tpm2 module, and the tmpfiles
-    # rules for the PCR credentials deposited by the stub. Only lanzaboote
-    # evaluates against it. Drop it with the lanzaboote pin.
-    nixpkgs-measured-boot.url = "github:iainlane/nixpkgs/measured-boot";
-    nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
-
-    # Declarative Podman quadlets. Home Manager's `services.podman` only ever
-    # writes user units, so rootful containers need this instead.
-    quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
-
-    secrets.url = "git+ssh://git@github.com/iainlane/dotfiles-secrets";
-
-    sops-nix = {
-      url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # Our branch of starship, with starship/starship#6834 applied. The patch
-    # adds zsh glitch sequences so the shell accounts for wide characters when
-    # positioning the cursor after the prompt. Drop this input when the pull
-    # request merges and reaches a release.
-    starship-custom = {
-      url = "github:iainlane/starship/iainlane/feat-zsh-wide-char-support";
-      flake = false;
-    };
-
-    system-manager = {
-      url = "github:numtide/system-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    cupboardValidationOriginal = dotfiles.cupboardOutputs;
+    cupboardOutputs = dotfiles.cupboardOutputs ++ [successfulTarget failureTarget];
   };
-
-  outputs = inputs @ {flake-parts, ...}:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [
-        ./flake/parts
-      ];
-
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "aarch64-darwin"
-      ];
-    };
 }

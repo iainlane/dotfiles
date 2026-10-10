@@ -5,6 +5,7 @@
         "flake-utils": "flake-utils",
         "naersk": "naersk",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -42,18 +43,22 @@
     "bun2nix": {
       "inputs": {
         "flake-parts": [
+          "dotfiles",
           "llm-agents",
           "flake-parts"
         ],
         "nixpkgs": [
+          "dotfiles",
           "llm-agents",
           "nixpkgs"
         ],
         "systems": [
+          "dotfiles",
           "llm-agents",
           "systems"
         ],
         "treefmt-nix": [
+          "dotfiles",
           "llm-agents",
           "treefmt-nix"
         ]
@@ -76,6 +81,7 @@
     "catppuccin": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -145,6 +151,7 @@
     "catppuccin-stable": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs-stable"
         ]
       },
@@ -217,6 +224,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "utils": "utils"
@@ -295,6 +303,7 @@
     "disko": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -315,6 +324,7 @@
     "disko_2": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixos-anywhere",
           "nixpkgs"
         ]
@@ -334,9 +344,67 @@
         "type": "github"
       }
     },
+    "dotfiles": {
+      "inputs": {
+        "bacon-ls": "bacon-ls",
+        "catppuccin": "catppuccin",
+        "catppuccin-bat": "catppuccin-bat",
+        "catppuccin-bottom": "catppuccin-bottom",
+        "catppuccin-palette": "catppuccin-palette",
+        "catppuccin-stable": "catppuccin-stable",
+        "codex-plugin-cc": "codex-plugin-cc",
+        "cupboard": "cupboard",
+        "deploy-rs": "deploy-rs",
+        "determinate": "determinate",
+        "disko": "disko",
+        "fenix": "fenix_2",
+        "flake-parts": "flake-parts_2",
+        "gh-stack-skill": "gh-stack-skill",
+        "git-hooks-nix": "git-hooks-nix_2",
+        "hermes-agent": "hermes-agent",
+        "hermes-lcm": "hermes-lcm",
+        "home-manager": "home-manager_2",
+        "home-manager-stable": "home-manager-stable",
+        "just-sublime": "just-sublime",
+        "kolide-launcher": "kolide-launcher",
+        "lanzaboote": "lanzaboote",
+        "llm-agents": "llm-agents",
+        "mcp-servers-nix": "mcp-servers-nix",
+        "nix-darwin": "nix-darwin",
+        "nix-direnv": "nix-direnv",
+        "nix-index-database": "nix-index-database",
+        "nix-system-graphics": "nix-system-graphics",
+        "nixos-anywhere": "nixos-anywhere",
+        "nixos-hardware": "nixos-hardware",
+        "nixpkgs": "nixpkgs_5",
+        "nixpkgs-measured-boot": "nixpkgs-measured-boot_2",
+        "nixpkgs-stable": "nixpkgs-stable",
+        "quadlet-nix": "quadlet-nix",
+        "secrets": "secrets",
+        "sops-nix": "sops-nix",
+        "starship-custom": "starship-custom",
+        "system-manager": "system-manager",
+        "treefmt-nix": "treefmt-nix_3"
+      },
+      "locked": {
+        "lastModified": 1791539114,
+        "narHash": "sha256-LGaXE/7CmUfzaH4P7uc4a6tDamWBUlvqSmo/POMiTp0=",
+        "owner": "iainlane",
+        "repo": "dotfiles",
+        "rev": "f3f125f64022b41d61f67435d30296ae8ba0f8d7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "iainlane",
+        "repo": "dotfiles",
+        "rev": "f3f125f64022b41d61f67435d30296ae8ba0f8d7",
+        "type": "github"
+      }
+    },
     "fenix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "bacon-ls",
           "naersk",
           "nixpkgs"
@@ -360,6 +428,7 @@
     "fenix_2": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "rust-analyzer-src": "rust-analyzer-src_2"
@@ -477,6 +546,7 @@
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
+          "dotfiles",
           "determinate",
           "nix",
           "nixpkgs"
@@ -498,6 +568,7 @@
     "flake-parts_2": {
       "inputs": {
         "nixpkgs-lib": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -518,6 +589,7 @@
     "flake-parts_3": {
       "inputs": {
         "nixpkgs-lib": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ]
@@ -539,6 +611,7 @@
     "flake-parts_4": {
       "inputs": {
         "nixpkgs-lib": [
+          "dotfiles",
           "llm-agents",
           "nixpkgs"
         ]
@@ -560,6 +633,7 @@
     "flake-parts_5": {
       "inputs": {
         "nixpkgs-lib": [
+          "dotfiles",
           "system-manager",
           "userborn",
           "nixpkgs"
@@ -618,6 +692,7 @@
       "inputs": {
         "flake-compat": "flake-compat_2",
         "nixpkgs": [
+          "dotfiles",
           "determinate",
           "nix",
           "nixpkgs"
@@ -640,6 +715,7 @@
       "inputs": {
         "flake-compat": "flake-compat_3",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -660,6 +736,7 @@
     "gitignore": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "lanzaboote",
           "pre-commit",
           "nixpkgs"
@@ -682,6 +759,7 @@
     "gitignore_2": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "system-manager",
           "userborn",
           "pre-commit-hooks-nix",
@@ -707,6 +785,7 @@
         "flake-parts": "flake-parts_3",
         "home-manager": "home-manager",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "npm-lockfile-fix": "npm-lockfile-fix",
@@ -749,6 +828,7 @@
     "home-manager": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ]
@@ -770,6 +850,7 @@
     "home-manager-stable": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs-stable"
         ]
       },
@@ -791,6 +872,7 @@
     "home-manager_2": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -828,6 +910,7 @@
       "inputs": {
         "flake-compat": "flake-compat_4",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -849,6 +932,7 @@
       "inputs": {
         "crane": "crane",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs-measured-boot"
         ],
         "nixpkgs-measured-boot": "nixpkgs-measured-boot",
@@ -875,6 +959,7 @@
         "bun2nix": "bun2nix",
         "flake-parts": "flake-parts_4",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "systems": "systems_3",
@@ -897,6 +982,7 @@
     "mcp-servers-nix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -918,6 +1004,7 @@
       "inputs": {
         "fenix": "fenix",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -960,6 +1047,7 @@
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -997,6 +1085,7 @@
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -1017,6 +1106,7 @@
     "nix-system-graphics": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -1037,6 +1127,7 @@
     "nix-vm-test": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixos-anywhere",
           "nixpkgs"
         ]
@@ -1061,9 +1152,11 @@
         "nix-vm-test": "nix-vm-test",
         "nixos-images": "nixos-images",
         "nixos-stable": [
+          "dotfiles",
           "nixpkgs-stable"
         ],
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "treefmt-nix": "treefmt-nix_2"
@@ -1103,10 +1196,12 @@
     "nixos-images": {
       "inputs": {
         "nixos-stable": [
+          "dotfiles",
           "nixos-anywhere",
           "nixos-stable"
         ],
         "nixos-unstable": [
+          "dotfiles",
           "nixos-anywhere",
           "nixpkgs"
         ]
@@ -1313,6 +1408,7 @@
     "npm-lockfile-fix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ]
@@ -1336,6 +1432,7 @@
         "flake-compat": "flake-compat_5",
         "gitignore": "gitignore",
         "nixpkgs": [
+          "dotfiles",
           "lanzaboote",
           "nixpkgs"
         ]
@@ -1357,12 +1454,14 @@
     "pre-commit-hooks-nix": {
       "inputs": {
         "flake-compat": [
+          "dotfiles",
           "system-manager",
           "userborn",
           "flake-compat"
         ],
         "gitignore": "gitignore_2",
         "nixpkgs": [
+          "dotfiles",
           "system-manager",
           "userborn",
           "nixpkgs"
@@ -1385,14 +1484,17 @@
     "pyproject-build-systems": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ],
         "pyproject-nix": [
+          "dotfiles",
           "hermes-agent",
           "pyproject-nix"
         ],
         "uv2nix": [
+          "dotfiles",
           "hermes-agent",
           "uv2nix"
         ]
@@ -1414,6 +1516,7 @@
     "pyproject-nix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ]
@@ -1449,45 +1552,7 @@
     },
     "root": {
       "inputs": {
-        "bacon-ls": "bacon-ls",
-        "catppuccin": "catppuccin",
-        "catppuccin-bat": "catppuccin-bat",
-        "catppuccin-bottom": "catppuccin-bottom",
-        "catppuccin-palette": "catppuccin-palette",
-        "catppuccin-stable": "catppuccin-stable",
-        "codex-plugin-cc": "codex-plugin-cc",
-        "cupboard": "cupboard",
-        "deploy-rs": "deploy-rs",
-        "determinate": "determinate",
-        "disko": "disko",
-        "fenix": "fenix_2",
-        "flake-parts": "flake-parts_2",
-        "gh-stack-skill": "gh-stack-skill",
-        "git-hooks-nix": "git-hooks-nix_2",
-        "hermes-agent": "hermes-agent",
-        "hermes-lcm": "hermes-lcm",
-        "home-manager": "home-manager_2",
-        "home-manager-stable": "home-manager-stable",
-        "just-sublime": "just-sublime",
-        "kolide-launcher": "kolide-launcher",
-        "lanzaboote": "lanzaboote",
-        "llm-agents": "llm-agents",
-        "mcp-servers-nix": "mcp-servers-nix",
-        "nix-darwin": "nix-darwin",
-        "nix-direnv": "nix-direnv",
-        "nix-index-database": "nix-index-database",
-        "nix-system-graphics": "nix-system-graphics",
-        "nixos-anywhere": "nixos-anywhere",
-        "nixos-hardware": "nixos-hardware",
-        "nixpkgs": "nixpkgs_5",
-        "nixpkgs-measured-boot": "nixpkgs-measured-boot_2",
-        "nixpkgs-stable": "nixpkgs-stable",
-        "quadlet-nix": "quadlet-nix",
-        "secrets": "secrets",
-        "sops-nix": "sops-nix",
-        "starship-custom": "starship-custom",
-        "system-manager": "system-manager",
-        "treefmt-nix": "treefmt-nix_3"
+        "dotfiles": "dotfiles"
       }
     },
     "rust-analyzer-src": {
@@ -1527,6 +1592,7 @@
     "rust-overlay": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "lanzaboote",
           "nixpkgs"
         ]
@@ -1566,6 +1632,7 @@
     "sops-nix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -1604,6 +1671,7 @@
       "inputs": {
         "flake-compat": "flake-compat_6",
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ],
         "userborn": "userborn"
@@ -1685,6 +1753,7 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "llm-agents",
           "nixpkgs"
         ]
@@ -1706,6 +1775,7 @@
     "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixos-anywhere",
           "nixpkgs"
         ]
@@ -1727,6 +1797,7 @@
     "treefmt-nix_3": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "nixpkgs"
         ]
       },
@@ -1747,11 +1818,13 @@
     "userborn": {
       "inputs": {
         "flake-compat": [
+          "dotfiles",
           "system-manager",
           "flake-compat"
         ],
         "flake-parts": "flake-parts_5",
         "nixpkgs": [
+          "dotfiles",
           "system-manager",
           "nixpkgs"
         ],
@@ -1794,10 +1867,12 @@
     "uv2nix": {
       "inputs": {
         "nixpkgs": [
+          "dotfiles",
           "hermes-agent",
           "nixpkgs"
         ],
         "pyproject-nix": [
+          "dotfiles",
           "hermes-agent",
           "pyproject-nix"
         ]

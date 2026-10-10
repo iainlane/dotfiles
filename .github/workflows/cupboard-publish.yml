@@ -3,6 +3,11 @@ name: cupboard publish
 on:
   workflow_call:
     inputs:
+      targets:
+        description: Validation target manifest from the immutable dotfiles input.
+        type: string
+        default: '.#cupboardValidationOriginal'
+        required: false
       push:
         description:
           Attest and publish the results. When false, each target is only built.
@@ -50,6 +55,8 @@ jobs:
       - if:
           github.event_name != 'pull_request' || github.event.action != 'closed'
         uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+        with:
+          nix_version: 2.34.7
 
       - id: publish-inputs
         name: Evaluate the publish inputs
@@ -68,21 +75,95 @@ jobs:
             | jq -r 'to_entries[] | "\(.key)=\(.value)"' \
             | tee -a "${GITHUB_OUTPUT}"
 
-  publish:
+  identity:
+    name: Verify the original and wrapper target identities
     needs: sources
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'ready_for_review' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.id == github.repository_id &&
+      inputs.targets == '.#cupboardValidationOriginal'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          path: validation-source
+          persist-credentials: false
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: f3f125f64022b41d61f67435d30296ae8ba0f8d7
+          path: dotfiles-source
+          persist-credentials: false
+      - uses: underwhelmingperformance/cupboard/actions/prepare@14de539c487021ff0fcce62d89ed44241a02f3d9
+        with:
+          ssh-key: ${{ secrets.secrets_deploy_key }}
+          input-known-hosts: ${{ needs.sources.outputs.githubKnownHost }}
+          nix-config: ./dotfiles-source#nix.publishSubstituterConfig
+          remote: true
+          builders: ${{ needs.sources.outputs.builders }}
+          builder-known-hosts: ${{ needs.sources.outputs.builderKnownHosts }}
+          builder-ssh-config: |
+            Host eu.nixbuild.net
+              User authtoken
+              PreferredAuthentications none
+              ServerAliveInterval 60
+              IPQoS throughput
+              SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }} NIXBUILDNET_SUBSTITUTERS=${{ needs.sources.outputs.remoteSubstituters }},https://cupboard:${{ secrets.falcon_cache_password }}@cupboard.supply/t/laney/cache/falcon NIXBUILDNET_TRUSTED_PUBLIC_KEYS=${{ needs.sources.outputs.remoteTrustedKeys }}
+      - name: Compare the complete manifest and output identities
+        env:
+          IDENTITY_WORKFLOW_COMMIT: ${{ github.sha }}
+          IDENTITY_SECRET_FALCON_PASSWORD: ${{ secrets.falcon_cache_password }}
+          IDENTITY_SECRET_BUILDER_TOKEN: ${{ secrets.nixbuild_token }}
+          IDENTITY_SECRET_INPUT_KEY: ${{ secrets.secrets_deploy_key }}
+        run: |
+          python3 validation-source/publication-validation/identity.py \
+            --mode off \
+            --original ./dotfiles-source \
+            --wrapper ./validation-source \
+            --wrapper-commit "${IDENTITY_WORKFLOW_COMMIT}" \
+            --prepare-commit 14de539c487021ff0fcce62d89ed44241a02f3d9 \
+            --output "${RUNNER_TEMP}/cupboard-identity" \
+            --timeout 900
+      - name: Upload sanitised complete identity data and receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cupboard-identity-off-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/cupboard-identity/original-manifest.json
+            ${{ runner.temp }}/cupboard-identity/wrapper-original-manifest.json
+            ${{ runner.temp }}/cupboard-identity/wrapper-manifest.json
+            ${{ runner.temp }}/cupboard-identity/original-derivations.json
+            ${{ runner.temp }}/cupboard-identity/wrapper-original-derivations.json
+            ${{ runner.temp }}/cupboard-identity/wrapper-derivations.json
+            ${{ runner.temp }}/cupboard-identity/original-selected-outputs.json
+            ${{ runner.temp }}/cupboard-identity/wrapper-selected-outputs.json
+            ${{ runner.temp }}/cupboard-identity/results.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    needs: [sources, identity]
+    if: >-
+      always() && !cancelled() && needs.sources.result == 'success' &&
+      (needs.identity.result == 'success' || needs.identity.result == 'skipped')
     permissions:
       attestations: write # write build provenance attestations for the outputs
       contents: read
-      id-token: write # issue the OIDC token the cupboard cache trusts for push
+      id-token: write
 
-    # cupboard's trust policy requires the `job_workflow_ref` to end in a
-    # `v*` tag, so this reference cannot be pinned to a commit SHA.
-    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.40 # zizmor: ignore[unpinned-uses]
+    uses: underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish.yml@v0.0.43 # zizmor: ignore[unpinned-uses]
     with:
       url: https://cupboard.supply/t/laney
-      targets: .#cupboardOutputs
+      targets: ${{ inputs.targets }}
       preset: pull-request-and-branch
-      reuse-view: pull-requests-585180069
+      branch: codex/publication-validation-off-20261009
+      cache-access-mode: public
       read-caches: https://cupboard.supply/t/laney/cache/falcon
       nix-config: .#nix.publishSubstituterConfig
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}
@@ -112,5 +193,5 @@ jobs:
           PreferredAuthentications none
           ServerAliveInterval 60
           IPQoS throughput
-          SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }} NIXBUILDNET_SUBSTITUTERS=${{ needs.sources.outputs.remoteSubstituters }},https://cupboard:${{ secrets.falcon_cache_password }}@cupboard.supply/t/laney/cache/falcon,https://cupboard.supply/t/laney/reuse/pull-requests-585180069 NIXBUILDNET_TRUSTED_PUBLIC_KEYS=${{ needs.sources.outputs.remoteTrustedKeys }}
+          SetEnv NIXBUILDNET_TOKEN=${{ secrets.nixbuild_token }} NIXBUILDNET_SUBSTITUTERS=${{ needs.sources.outputs.remoteSubstituters }},https://cupboard:${{ secrets.falcon_cache_password }}@cupboard.supply/t/laney/cache/falcon NIXBUILDNET_TRUSTED_PUBLIC_KEYS=${{ needs.sources.outputs.remoteTrustedKeys }}
       input_ssh_key: ${{ secrets.secrets_deploy_key }}
