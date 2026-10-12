@@ -15,10 +15,11 @@ trap cleanup EXIT
 
 data_namespace="agent-plugin-hermes-inbox-1234abcd"
 
-# Every SQLite database the agent keeps open while the backup runs, relative
-# to the state directory. A writer holds each one open with an uncommitted
-# row, so a copy not taken through the backup API shows up as a missing file,
-# a stray -wal, or the uncommitted row.
+# The list includes every SQLite database that the agent keeps open while
+# the backup runs. Paths are relative to the state directory. The test
+# writer keeps each database open with an uncommitted row, so a copy taken
+# without the backup API shows up as a missing file, a stray -wal, or the
+# uncommitted row.
 databases=(
 	.hermes/state.db
 	.hermes/memory_store.db
