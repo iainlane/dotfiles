@@ -1,8 +1,8 @@
 import errno
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 package = Path(sys.argv[1])
@@ -20,6 +20,8 @@ def refuse_install(name: str) -> dict:
 
 home = Path(os.environ["HERMES_HOME"])
 before = (home / "config.yaml").read_bytes()
+managed_file = Path(os.environ["HERMES_MANAGED_DIR"]) / "config.yaml"
+managed_before = managed_file.read_bytes()
 notices: list[str] = []
 
 with patch(
@@ -36,6 +38,7 @@ assert (installed, notices, write.call_count) == ([], [], 0), (
     write.call_count,
 )
 assert (home / "config.yaml").read_bytes() == before
+assert managed_file.read_bytes() == managed_before
 
 discover_plugins()
 plugins = {plugin["name"]: plugin for plugin in get_plugin_manager().list_plugins()}

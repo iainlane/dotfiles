@@ -227,6 +227,8 @@
 
         rm -f "$state/current-package"
 
+        bash ${./prepare-config.sh} "$state/.hermes" "$owner:$owner"
+
         # Hermes copies the bundled skills out of the read-only image, so they
         # arrive read-only. Make the tree writable so the agent can write and
         # edit skills in place.
@@ -341,13 +343,9 @@
               source.quadletVolume = hermesCacheVolume;
               target = "/data/.hermes/cache";
             }
-            # config.yaml, SOUL.md and AGENTS.md come straight from the Nix
-            # store, read only. Hermes never writes them, and a change flips
-            # the store path, so the unit changes and the container restarts
-            # to pick it up.
             {
               source.bind = generatedConfigFile;
-              target = "/data/.hermes/config.yaml";
+              target = "/etc/hermes/config.yaml";
               readOnly = true;
             }
           ]
@@ -372,7 +370,7 @@
             HOME = "/home/hermes";
             HERMES_CONTAINER = "true";
             HERMES_HOME = "/data/.hermes";
-            HERMES_MANAGED = "true";
+            HERMES_MANAGED_DIR = "/etc/hermes";
             PATH = "${hermesBinDir}:${agentBinPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
           }
           // environments;

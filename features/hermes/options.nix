@@ -47,10 +47,13 @@ in {
       default = {};
       example = lib.literalExpression ''{model.provider = "openai-codex";}'';
       description = ''
-        The agent's `config.yaml`, mounted read-only from the store. Several
-        modules here write into it and the host writes the rest; the format's
-        type merges them by key, so two modules may set different keys under
-        one table.
+        Managed settings, mounted read-only at `/etc/hermes/config.yaml`.
+        These values take precedence over the writable runtime config at
+        `/data/.hermes/config.yaml`. Hermes can change keys that are absent
+        from the managed settings. Managed lists replace runtime lists.
+
+        Modules and the host add settings here. The format's type merges them
+        by key, so two modules may set different keys under one table.
       '';
     };
 

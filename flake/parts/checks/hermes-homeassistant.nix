@@ -32,11 +32,13 @@ in {
         pkgs.runCommand "hermes-homeassistant-test" {} ''
           export HOME="$TMPDIR/home"
           export HERMES_HOME="$TMPDIR/hermes"
-          export HERMES_MANAGED=true
+          export HERMES_MANAGED_DIR="$TMPDIR/managed"
           export HASS_TOKEN=test-not-a-credential
           mkdir -p "$HOME" "$HERMES_HOME/plugins" "$HERMES_HOME/cron" \
             "$HERMES_HOME/sessions" "$HERMES_HOME/logs" "$HERMES_HOME/memories"
-          cp ${configuration} "$HERMES_HOME/config.yaml"
+          mkdir -p "$HERMES_MANAGED_DIR"
+          cp ${configuration} "$HERMES_MANAGED_DIR/config.yaml"
+          touch "$HERMES_HOME/config.yaml"
           ${lib.optionalString (plugin != null) ''
             ln -s ${lib.escapeShellArg (toString plugin)} "$HERMES_HOME/plugins/nix-managed-homeassistant"
           ''}

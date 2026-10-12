@@ -36,11 +36,17 @@ for db in "${databases[@]}"; do
 	mkdir -p "$(dirname "${test_dir}/state/${db}")"
 done
 
+printf 'command_allowlist: ["git status"]\n' >"${test_dir}/state/.hermes/config.yaml"
+
 cat >"${test_dir}/bin/r2" <<EOF
 #!${BASH}
 set -euo pipefail
 test "\${1}" = backup
 status=0
+if ! cmp "${test_dir}/state/.hermes/config.yaml" "\${BACKUP_SOURCE}/.hermes/config.yaml"; then
+	echo "runtime config missing or changed in the snapshot" >&2
+	status=1
+fi
 for db in ${databases[*]@Q}; do
 	path="\${BACKUP_SOURCE}/\${db}"
 	if [ ! -f "\${path}" ]; then

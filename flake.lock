@@ -715,11 +715,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1791735487,
-        "narHash": "sha256-PNIfj6CH2nV0Qngo3EsMMyzBjfxY34CUNRi4OxyyCHU=",
+        "lastModified": 1791800491,
+        "narHash": "sha256-KwPVS3mJf4rTEtEqN7pIGpB8YsIWVhXdRu7ZXb8/ufo=",
         "owner": "iainlane",
         "repo": "hermes-agent",
-        "rev": "e452652df41f52b453be6620a25446d2cf9bdfeb",
+        "rev": "6c3fe1d054b3cec1cd27e0286ef2c09dcce0be91",
         "type": "github"
       },
       "original": {
