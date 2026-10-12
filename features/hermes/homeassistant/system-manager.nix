@@ -35,8 +35,17 @@ in {
       '';
     };
 
-    dotfiles.hermes.environmentFiles = [
-      config.sops.templates."hermes-homeassistant.env".path
-    ];
+    dotfiles.hermes = {
+      extraPlugins.homeassistant = inputs.hermes-homeassistant;
+      environmentFiles = [
+        config.sops.templates."hermes-homeassistant.env".path
+      ];
+      settings = {
+        plugins.enabled = ["homeassistant"];
+        _left_core_installed = ["homeassistant"];
+        _left_core_scoped = ["homeassistant"];
+        known_plugin_toolsets = lib.genAttrs ["acp" "webhook"] (_: ["homeassistant"]);
+      };
+    };
   };
 }

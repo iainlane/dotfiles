@@ -9,7 +9,7 @@
 }: let
   cfg = config.dotfiles.hermes;
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
-  hermesPythonPackages = import ../../lib/hermes-python.nix {inherit inputs lib pkgs;};
+  hermesPythonPackages = import ../../lib/hermes-python.nix {inherit inputs pkgs;};
 
   yaml = pkgs.formats.yaml {};
 
@@ -36,7 +36,10 @@
     if cfg.package != null
     then cfg.package
     else
-      inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
+      (import ../../lib/hermes-package.nix {
+        inherit inputs;
+        system = pkgs.stdenv.hostPlatform.system;
+      }).override {
         inherit (cfg) extraDependencyGroups;
         extraPythonPackages = leafPythonPackages;
       };

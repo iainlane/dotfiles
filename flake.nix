@@ -102,8 +102,13 @@
     };
 
     hermes-agent = {
-      url = "github:NousResearch/hermes-agent/v2026.9.24";
+      url = "github:iainlane/hermes-agent/codex/final-private-upstream-integration";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    hermes-homeassistant = {
+      url = "github:NousResearch/hermes-homeassistant/ba30cb0cf86c52bdb5cde98974bc062e97966529";
+      flake = false;
     };
 
     # The v1.0.0-rc.1 tag plus the commits of stephenschoettler/hermes-lcm

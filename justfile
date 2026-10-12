@@ -32,11 +32,11 @@ default:
     @just --list
 
 # Update flake inputs (all, or specific ones if provided). Inputs pinned to a
-# release tag, such as hermes-agent, can't be moved this way; use update-pkg.
+# release tag, such as catppuccin-palette, can't be moved this way; use update-pkg.
 update-flake *inputs:
     nix flake update {{ inputs }}
 
-# Update a local package or tag-pinned input to its latest upstream version
+# Update a local package or selected flake input to its latest upstream version
 # (e.g. just update-pkg chainctl, just update-pkg hermes-agent)
 update-pkg name:
     nix run .#update-{{ name }}

@@ -715,17 +715,34 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1790244527,
-        "narHash": "sha256-y6NaoG+HCeMPhxRsBXrRFef4hp3FF1svSPNKpI6Xz/E=",
-        "owner": "NousResearch",
+        "lastModified": 1791735487,
+        "narHash": "sha256-PNIfj6CH2nV0Qngo3EsMMyzBjfxY34CUNRi4OxyyCHU=",
+        "owner": "iainlane",
         "repo": "hermes-agent",
-        "rev": "f97608f178d1ffeca59860195ab7da295f7c8e5f",
+        "rev": "e452652df41f52b453be6620a25446d2cf9bdfeb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "iainlane",
+        "ref": "codex/final-private-upstream-integration",
+        "repo": "hermes-agent",
+        "type": "github"
+      }
+    },
+    "hermes-homeassistant": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791065309,
+        "narHash": "sha256-Pg4smvkiVpmcmUola0rziMBfq5V7UjzX8864Dem76pI=",
+        "owner": "NousResearch",
+        "repo": "hermes-homeassistant",
+        "rev": "ba30cb0cf86c52bdb5cde98974bc062e97966529",
         "type": "github"
       },
       "original": {
         "owner": "NousResearch",
-        "ref": "v2026.9.24",
-        "repo": "hermes-agent",
+        "repo": "hermes-homeassistant",
+        "rev": "ba30cb0cf86c52bdb5cde98974bc062e97966529",
         "type": "github"
       }
     },
@@ -1465,6 +1482,7 @@
         "gh-stack-skill": "gh-stack-skill",
         "git-hooks-nix": "git-hooks-nix_2",
         "hermes-agent": "hermes-agent",
+        "hermes-homeassistant": "hermes-homeassistant",
         "hermes-lcm": "hermes-lcm",
         "home-manager": "home-manager_2",
         "home-manager-stable": "home-manager-stable",

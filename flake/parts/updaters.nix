@@ -3,8 +3,8 @@
 # `nix run .#update-<name>`. `update-all` runs the lot in sequence.
 #
 # Package updaters come from each derivation's `passthru.updateScript`
-# (attached via `pkgs/build-support/updaters.nix`). Flake inputs pinned to a
-# release tag, which `nix flake update` cannot move, get an updater here.
+# (attached via `pkgs/build-support/updaters.nix`). Flake inputs get an updater
+# here that either advances the release tag or refreshes the branch revision.
 #
 # `flake.updaterNames` lists the updater names for the package-update workflow
 # to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
@@ -20,25 +20,27 @@
 
   # Flake inputs pinned to an immutable release tag in a `github:` URL, each
   # bumped by a generated updater named `update-<input>`.
-  flakeInputs = [
+  releaseInputs = [
     "catppuccin-palette"
     "codex-plugin-cc"
     "gh-stack-skill"
-    "hermes-agent"
   ];
 
+  branchInputs = ["hermes-agent"];
+  flakeInputs = releaseInputs ++ branchInputs;
+
   # A flake input exposes only the revision that it is locked to. The owner,
-  # repository and tag come from the `original` reference, which
+  # repository and ref come from the `original` reference, which
   # `nix flake update` records in flake.lock.
   lockNodes = (lib.importJSON ../../flake.lock).nodes;
   lockedReference = input: (lockNodes.${lockNodes.root.inputs.${input} or ""} or {}).original or {};
 
-  flakeInputsArePinned =
+  flakeInputsHaveGithubRefs =
     lib.all (
       input:
         lib.assertMsg
         ((lockedReference input).type or null == "github" && lockedReference input ? ref)
-        "flake/parts/updaters.nix: ${input} is not a flake input pinned to a tag in a github: URL"
+        "flake/parts/updaters.nix: ${input} must use a github: URL with an explicit ref"
     )
     flakeInputs;
 
@@ -56,7 +58,7 @@
     )
     packageNames;
 
-  updaterNames = assert flakeInputsArePinned;
+  updaterNames = assert flakeInputsHaveGithubRefs;
     packageUpdaterNames ++ flakeInputs;
 
   packageVersion = name:
@@ -64,7 +66,8 @@
 
   updaterVersions =
     lib.genAttrs packageUpdaterNames packageVersion
-    // lib.genAttrs flakeInputs (input: (lockedReference input).ref);
+    // lib.genAttrs releaseInputs (input: (lockedReference input).ref)
+    // lib.genAttrs branchInputs (input: lockNodes.${lockNodes.root.inputs.${input}}.locked.rev);
 in {
   perSystem = {pkgs, ...}: let
     packageUpdaters =
@@ -72,11 +75,14 @@ in {
       (lib.filter (hasUpdateScript pkgs) packageNames)
       (name: pkgs.${name}.updateScript);
 
-    flakeInputUpdaters = lib.genAttrs flakeInputs (input:
-      pkgs.updaters.mkFlakeInputUpdater {
-        inherit input;
-        inherit (lockedReference input) owner repo ref;
-      });
+    flakeInputUpdaters =
+      lib.genAttrs releaseInputs (input:
+        pkgs.updaters.mkFlakeInputUpdater {
+          inherit input;
+          inherit (lockedReference input) owner repo ref;
+        })
+      // lib.genAttrs branchInputs (input:
+        pkgs.updaters.mkFlakeBranchUpdater {inherit input;});
 
     updaters = packageUpdaters // flakeInputUpdaters;
 

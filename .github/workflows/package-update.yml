@@ -1,11 +1,11 @@
-# Bump the locally packaged tools and the tag-pinned flake inputs, gathering
+# Bump the locally packaged tools and the selected flake inputs, gathering
 # every bump from one run into a single pull request. Each updater is
 # `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
 # surfaced by `flake/parts/updaters.nix`.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
-# on its own; this workflow owns everything with a pinned version: the `pkgs/`
-# packages and inputs pinned to an immutable release tag, such as hermes-agent.
+# on its own; this workflow updates the `pkgs/` packages, release-tag inputs
+# and the Hermes integration branch.
 #
 # The updaters run in one job: each only fetches assets and records
 # platform-independent hashes, so a single run produces correct results for

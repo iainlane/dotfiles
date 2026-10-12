@@ -244,6 +244,19 @@
       '';
     };
 
+  mkFlakeBranchUpdater = {input}:
+    writeShellApplication {
+      name = "update-${input}";
+
+      runtimeInputs = [git nix];
+
+      text = ''
+        cd "$(git rev-parse --show-toplevel)"
+
+        nix flake update ${lib.escapeShellArg input}
+      '';
+    };
+
   # Bump a flake input pinned to an immutable release tag in its URL, which
   # `nix flake update` cannot move on its own: read the latest GitHub release,
   # rewrite the input's URL in flake.nix, and re-lock.

@@ -15,7 +15,7 @@
 }: let
   mismatchesFor = system:
     withSystem system ({pkgs, ...}: let
-      scope = import ../../../lib/hermes-python.nix {inherit inputs lib pkgs;};
+      scope = import ../../../lib/hermes-python.nix {inherit inputs pkgs;};
       buildScope = scope.python.pythonOnBuildForHost.pkgs;
       overrides = import ../../../lib/hermes-python-overrides.nix {
         inherit (pkgs) fetchpatch lib stdenv;

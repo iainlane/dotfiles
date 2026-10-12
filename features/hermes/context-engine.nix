@@ -9,7 +9,7 @@
 }: let
   cfg = config.dotfiles.hermes;
 
-  pythonPackages = import ../../lib/hermes-python.nix {inherit inputs lib pkgs;};
+  pythonPackages = import ../../lib/hermes-python.nix {inherit inputs pkgs;};
 in {
   config = lib.mkIf (cfg.contextEngine == "lcm") {
     dotfiles.hermes = {

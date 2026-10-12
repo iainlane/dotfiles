@@ -8,7 +8,7 @@
   cfg = config.dotfiles.hermes;
   inherit (cfg) inbox;
   package = pkgs.hermes-inbox;
-  pythonPackages = import ../../../lib/hermes-python.nix {inherit inputs lib pkgs;};
+  pythonPackages = import ../../../lib/hermes-python.nix {inherit inputs pkgs;};
   inherit (import ../../../lib/sops-keys.nix {inherit lib;}) hasKey;
   secretsPath = inputs.secrets + "/${inbox.secretsFile}";
   inboxSecretsAvailable = lib.all (hasKey secretsPath) [
