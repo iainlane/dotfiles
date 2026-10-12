@@ -219,6 +219,24 @@
       system = "x86_64-linux";
     }
     {
+      attr = ".#checks.x86_64-linux.fastflowlm";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-fastflowlm";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#checks.x86_64-linux.fastflowlm-updater";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-fastflowlm-updater";
+      system = "x86_64-linux";
+    }
+    {
       attr = ".#checks.x86_64-linux.feature-registration";
       bestEffort = false;
       cohort = "x86_64-linux";
@@ -261,6 +279,15 @@
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/checks-hermes-python-overrides";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#checks.x86_64-linux.host-evaluation-caches";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-host-evaluation-caches";
       system = "x86_64-linux";
     }
     {
@@ -363,12 +390,39 @@
       system = "x86_64-linux";
     }
     {
+      attr = ".#checks.x86_64-linux.local-embeddings";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-local-embeddings";
+      system = "x86_64-linux";
+    }
+    {
       attr = ".#checks.x86_64-linux.nix-retry";
       bestEffort = false;
       cohort = "x86_64-linux";
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/checks-nix-retry";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#checks.x86_64-linux.ollama-embedding-probe";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-ollama-embedding-probe";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#checks.x86_64-linux.ollama-model-loader";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-ollama-model-loader";
       system = "x86_64-linux";
     }
     {
@@ -540,6 +594,15 @@
       os = "ubuntu-latest";
       remote = true;
       rootSuffix = "x86_64-linux/checks-unifi-backup";
+      system = "x86_64-linux";
+    }
+    {
+      attr = ".#checks.x86_64-linux.xrt-updater";
+      bestEffort = false;
+      cohort = "x86_64-linux";
+      os = "ubuntu-latest";
+      remote = true;
+      rootSuffix = "x86_64-linux/checks-xrt-updater";
       system = "x86_64-linux";
     }
     {
