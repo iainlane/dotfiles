@@ -117,7 +117,7 @@ in {
       ];
       PreToolUse = [
         {
-          matcher = "Bash";
+          matcher = "Bash|Edit|Write|MultiEdit";
           hooks = [
             {
               type = "command";

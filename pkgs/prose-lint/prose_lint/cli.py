@@ -271,6 +271,8 @@ def _stop(runtime: Runtime, payload: dict[str, object]) -> dict[str, object] | N
 def _pre_tool_use(
     runtime: Runtime, payload: dict[str, object]
 ) -> dict[str, object] | None:
+    runtime.record_baseline()
+
     if payload.get("tool_name") != "Bash":
         return None
 

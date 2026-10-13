@@ -141,17 +141,33 @@ the file an `Edit`, `Write` or `MultiEdit` call has just written. Errors come
 back as a `block` decision, warnings as additional context, and a file with
 neither produces no output at all.
 
-`prose-lint hook pre-tool-use` reads a `Bash` payload and acts only on a
-`git commit` that supplies its message inline, whether through one or more `-m`
-options, a heredoc feeding `-F -`, or `-F` with a path. Errors deny the call;
-warnings let it through with the findings attached. Every other command produces
-no output.
+`prose-lint hook pre-tool-use` runs before every `Bash`, `Edit`, `Write` and
+`MultiEdit` call. On its first run in a session, it records the session's
+baseline for the repository: the SHA-256 digest of every lintable file that
+differs from HEAD. For a `Bash` call, it then lints a `git commit` that supplies
+its message inline, whether through one or more `-m` options, a heredoc feeding
+`-F -`, or `-F` with a path. Errors deny the call; warnings let it through with
+the findings attached. Every other call produces no output.
 
-`prose-lint hook stop` reads a Stop payload and lints the working tree against
-HEAD: every file that git reports as changed, and every untracked file. It
-reports only the findings on lines that the working tree added or rewrote, so
-the hook reads the prose of this session and leaves the rest of each file alone.
+`prose-lint hook stop` reads a Stop payload and lints the files that this
+session changed. A file is in scope when it differs from HEAD and its digest no
+longer matches the baseline. That includes files written by shell commands, and
+it excludes files that were already changed or untracked before the session's
+first tool call and that the session has not touched since. The hook reports
+only the findings on lines that the file adds or rewrites relative to HEAD.
 Errors come back as a `block` decision and warnings as a system message.
+
+Lines are compared with HEAD, not with the baseline. When the session edits a
+file that already had uncommitted changes, the hook therefore also reports the
+lines that were added before the session began. Changes made by another process
+during the session, such as a second agent in the same working tree, count as
+the session's own.
+
+A session that reaches Stop without a baseline has run no tool that can change
+files, so the hook records a baseline and reports nothing. Without a
+`session_id` in the payload or `PROSE_LINT_SESSION_ID` in the environment, the
+hook has no baseline and lints every file that differs from HEAD. Baselines are
+kept in `$XDG_STATE_HOME/prose-lint/baselines/` and deleted after 30 days.
 
 Claude Code sets `stop_hook_active` when the model is already answering a block
 from this hook, and the hook then returns nothing, so the same turn cannot be

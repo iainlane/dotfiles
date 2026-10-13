@@ -169,7 +169,12 @@ def em_dash(path: Path, line: int) -> Finding:
     )
 
 
-def build_runtime(tmp_path: Path, vale: Vale, git: FakeGit | None = None) -> Runtime:
+def build_runtime(
+    tmp_path: Path,
+    vale: Vale,
+    git: FakeGit | None = None,
+    session_id: str = "default",
+) -> Runtime:
     return Runtime(
         share=SOURCE,
         catalogue=RuleCatalogue.load(SOURCE / "tiers.toml"),
@@ -177,6 +182,7 @@ def build_runtime(tmp_path: Path, vale: Vale, git: FakeGit | None = None) -> Run
         git=git or FakeGit(root_path=tmp_path),
         vale=vale,
         cwd=tmp_path,
+        session_id=session_id,
     )
 
 
@@ -385,6 +391,50 @@ def test_an_untracked_file_that_is_not_utf8_counts_as_added(tmp_path: Path) -> N
         em_dash(latin, 1),
         em_dash(latin, 2),
     )
+
+
+def test_a_session_reports_only_the_files_it_changed(tmp_path: Path) -> None:
+    (tmp_path / "theirs.md").write_text("Changed before the session.\n")
+    (tmp_path / "older.md").write_text("Written before the session.\n")
+    notes = tmp_path / "notes.md"
+    notes.write_text("Changed before the session.\n")
+    git = FakeGit(
+        root_path=tmp_path,
+        changed=(Path("theirs.md"), Path("notes.md")),
+        untracked=(Path("older.md"),),
+        diffs={
+            Path("theirs.md"): "@@ -1 +1 @@\n",
+            Path("notes.md"): "@@ -1 +1,2 @@\n",
+        },
+    )
+    runtime = build_runtime(tmp_path, LineVale(lines=(1, 2)), git, session_id="s")
+    runtime.record_baseline()
+
+    notes.write_text("Changed before the session.\nAnd during it.\n")
+    fresh = tmp_path / "fresh.md"
+    fresh.write_text("Written during the session.\n")
+    git.untracked = (Path("older.md"), Path("fresh.md"))
+
+    assert runtime.lint_added_lines().findings == (
+        em_dash(notes, 1),
+        em_dash(notes, 2),
+        em_dash(fresh, 1),
+    )
+
+
+def test_a_session_with_no_baseline_records_one_and_reports_nothing(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "older.md").write_text("Written before the session.\n")
+    git = FakeGit(root_path=tmp_path, untracked=(Path("older.md"),))
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)), git, session_id="s")
+
+    first = runtime.lint_added_lines().findings
+    fresh = tmp_path / "fresh.md"
+    fresh.write_text("Written during the session.\n")
+    git.untracked = (Path("older.md"), Path("fresh.md"))
+
+    assert (first, runtime.lint_added_lines().findings) == ((), (em_dash(fresh, 1),))
 
 
 def test_nothing_is_linted_outside_a_git_repository(tmp_path: Path) -> None:

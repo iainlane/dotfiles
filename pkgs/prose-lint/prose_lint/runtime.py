@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -7,6 +8,7 @@ from dataclasses import dataclass, field, replace
 from functools import cached_property
 from pathlib import Path
 
+from prose_lint.baseline import Baseline, prune
 from prose_lint.changes import added_lines, every_line
 from prose_lint.comments import hash_comments, mirror_pairs, php_comments
 from prose_lint.config import Config, state_home
@@ -28,6 +30,14 @@ from prose_lint.spelling import SpellingVariant, detect_variant
 from prose_lint.vale import Vale, ValeFailed, ValeInvocation
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+@dataclass(frozen=True)
+class TreeChanges:
+    """The lintable files that differ from HEAD, relative to the repository root."""
+
+    tracked: tuple[Path, ...]
+    untracked: tuple[Path, ...]
 
 
 @dataclass
@@ -148,36 +158,84 @@ class Runtime:
 
         return Report(_refined(tuple(findings), _texts(findings, comments)))
 
-    def lint_added_lines(self) -> Report:
-        """The findings on the lines the working tree has added to HEAD.
+    @property
+    def _baselines_directory(self) -> Path:
+        return state_home() / "prose-lint" / "baselines"
 
-        An untracked file counts as added in full. Outside a git repository
-        the report is empty, because there is no HEAD to compare the working
-        tree with.
+    def _baseline_path(self, root: Path) -> Path | None:
+        """Where this session keeps its baseline for the repository at `root`.
+
+        The path is None when the harness gave no session id, because every
+        run would then share one baseline.
+        """
+        if self.session_id == "default" or not _SESSION_ID.match(self.session_id):
+            return None
+
+        repository = hashlib.sha256(str(root).encode()).hexdigest()[:16]
+
+        return self._baselines_directory / f"{self.session_id}.{repository}.json"
+
+    def record_baseline(self) -> None:
+        """Record which files differ from HEAD, unless this session already has.
+
+        The hooks call this before every tool that can change files, so the
+        baseline lists the files that differed from HEAD before the session
+        changed any of them.
+        """
+        root = self.git.root()
+        if root is None:
+            return
+
+        path = self._baseline_path(root)
+        if path is None or path.exists():
+            return
+
+        changes = self._lintable_changes(root)
+        Baseline.capture(root, changes.tracked + changes.untracked).write_once(path)
+        prune(self._baselines_directory)
+
+    def lint_added_lines(self) -> Report:
+        """The findings on the lines that this session added to HEAD.
+
+        A file is in scope when it differs from HEAD and its contents have
+        changed since the session's baseline. An untracked file counts as
+        added in full.
+
+        A session has no baseline until it runs a tool that can change files,
+        so a session without one has changed nothing. It records a baseline
+        and the report is empty. Without a session id, every file that differs
+        from HEAD is in scope. Outside a git repository the report is empty,
+        because there is no HEAD to compare the working tree with.
         """
         root = self.git.root()
         if root is None:
             return Report(())
 
+        path = self._baseline_path(root)
+        baseline = Baseline(digests={}) if path is None else Baseline.read(path)
+
+        if baseline is None:
+            self.record_baseline()
+            return Report(())
+
+        changes = self._lintable_changes(root)
         added = {
             root / relative: added_lines(self.git.diff_against_head(relative))
-            for relative in self.git.changed_paths()
+            for relative in changes.tracked
+            if not baseline.unchanged(root, relative)
         }
         added.update(
             {
                 root / relative: every_line(root / relative)
-                for relative in self.git.untracked_paths()
+                for relative in changes.untracked
+                if not baseline.unchanged(root, relative)
             }
         )
 
-        paths = tuple(
-            path for path in added if path.is_file() and self.catalogue.lintable(path)
-        )
-
-        if not paths:
+        if not added:
             return Report(())
 
-        report = self.lint_paths(paths)
+        report = self.lint_paths(tuple(added))
 
         return Report(
             tuple(
@@ -185,6 +243,19 @@ class Runtime:
                 for finding in report.findings
                 if finding.line in added.get(Path(finding.path), frozenset())
             )
+        )
+
+    def _lintable_changes(self, root: Path) -> TreeChanges:
+        return TreeChanges(
+            tracked=self._lintable(root, self.git.changed_paths()),
+            untracked=self._lintable(root, self.git.untracked_paths()),
+        )
+
+    def _lintable(self, root: Path, paths: tuple[Path, ...]) -> tuple[Path, ...]:
+        return tuple(
+            path
+            for path in paths
+            if self.catalogue.lintable(path) and (root / path).is_file()
         )
 
     def lint_staged_lines(self, paths: tuple[Path, ...]) -> Report:

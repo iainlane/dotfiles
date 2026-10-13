@@ -2,6 +2,7 @@ import io
 import json
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -80,20 +81,23 @@ FAKE_VALE = """\
 import json
 import sys
 
-path = [argument for argument in sys.argv[1:] if not argument.startswith("-")][0]
-alerts = [
-    {
-        "Line": number,
-        "Span": [1, 1],
-        "Check": "Prose.EmDash",
-        "Message": "An em dash.",
-        "Severity": "error",
-    }
-    for number, line in enumerate(open(path).read().splitlines(), start=1)
-    if chr(0x2014) in line
-]
+paths = [argument for argument in sys.argv[1:] if not argument.startswith("-")]
+alerts = {
+    path: [
+        {
+            "Line": number,
+            "Span": [1, 1],
+            "Check": "Prose.EmDash",
+            "Message": "An em dash.",
+            "Severity": "error",
+        }
+        for number, line in enumerate(open(path).read().splitlines(), start=1)
+        if chr(0x2014) in line
+    ]
+    for path in paths
+}
 
-print(json.dumps({path: alerts} if alerts else {}))
+print(json.dumps({path: found for path, found in alerts.items() if found}))
 """
 
 
@@ -151,3 +155,46 @@ def test_the_staged_check_reports_only_the_lines_the_index_adds(
     status = main(["check", "--staged", "notes.md"])
 
     assert (status, capsys.readouterr().out) == expected
+
+
+def answer_hook(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    event: str,
+    payload: Mapping[str, object],
+) -> str:
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+
+    assert main(["hook", event]) == 0
+
+    return capsys.readouterr().out
+
+
+def test_the_stop_hook_reports_only_the_files_changed_after_the_first_edit(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("PROSE_LINT_VALE", str(fake_vale(repository)))
+    (repository / "older.md").write_text(f"Written before {EM_DASH} the session.\n")
+    session = {"session_id": "session", "cwd": str(repository)}
+    edit = {"tool_name": "Edit", "tool_input": {"file_path": "fresh.md"}}
+
+    before = answer_hook(monkeypatch, capsys, "pre-tool-use", {**session, **edit})
+    subprocess.run(
+        ["sh", "-c", f"printf 'Written by a shell {EM_DASH} command.\\n' > fresh.md"],
+        cwd=repository,
+        check=True,
+    )
+    stop = answer_hook(monkeypatch, capsys, "stop", session)
+
+    assert (before, json.loads(stop)) == (
+        "",
+        {
+            "decision": "block",
+            "reason": (
+                f"errors\n{repository / 'fresh.md'}:1:1 Prose.EmDash: An em dash."
+                f"\n\n{ADVICE}"
+            ),
+        },
+    )

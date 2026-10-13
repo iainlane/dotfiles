@@ -24,6 +24,16 @@ def git(repository: Path, *arguments: str) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def state_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    state = tmp_path_factory.mktemp("state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))
+
+    return state
+
+
 @pytest.fixture
 def repository(tmp_path: Path) -> Path:
     git(tmp_path, "init", "--initial-branch=main")
