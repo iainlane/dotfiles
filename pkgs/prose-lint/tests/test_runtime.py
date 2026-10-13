@@ -371,6 +371,22 @@ def test_every_line_of_an_untracked_file_counts_as_added(tmp_path: Path) -> None
     )
 
 
+def test_an_untracked_file_that_is_not_utf8_counts_as_added(tmp_path: Path) -> None:
+    (tmp_path / "program").write_bytes(b"\x7fELF\x02\x01\x01\x00\xc0\xff\n")
+    latin = tmp_path / "latin.md"
+    latin.write_bytes(b"Caf\xe9.\nTwo.\n")
+    runtime = build_runtime(
+        tmp_path,
+        LineVale(lines=(1, 2)),
+        FakeGit(root_path=tmp_path, untracked=(Path("program"), Path("latin.md"))),
+    )
+
+    assert runtime.lint_added_lines().findings == (
+        em_dash(latin, 1),
+        em_dash(latin, 2),
+    )
+
+
 def test_nothing_is_linted_outside_a_git_repository(tmp_path: Path) -> None:
     (tmp_path / "notes.md").write_text("One.\n")
     runtime = build_runtime(

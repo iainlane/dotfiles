@@ -30,8 +30,8 @@ def added_lines(diff: str) -> frozenset[int]:
 def every_line(path: Path) -> frozenset[int]:
     """Every line number in a file. An untracked file counts as added in full."""
     try:
-        text = path.read_text()
+        contents = path.read_bytes()
     except OSError:
         return frozenset()
 
-    return frozenset(range(1, len(text.splitlines()) + 1))
+    return frozenset(range(1, len(contents.splitlines()) + 1))
