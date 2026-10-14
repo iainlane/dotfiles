@@ -14,6 +14,7 @@ in {
     ./codex
     ./copilot-cli
     ./crush
+    ./herdr
     ./opencode
     ./opencode2
     ./pi
@@ -27,6 +28,7 @@ in {
       antigravity-cli
       copilot-cli
       crush
+      herdr
       opencode
       opencode2
       pi

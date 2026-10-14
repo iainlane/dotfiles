@@ -177,15 +177,91 @@ skills: `skillTree` takes an `excludes` list of names, removes them after the
 merge, and fails the build for a name that matches nothing. Claude Code exposes
 this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
 
+## Herdr
+
+`herdr/` installs [Herdr][herdr], a terminal workspace manager for coding
+agents, from the `llm-agents` input. Home Manager writes `config.toml` through
+the unstable `programs.herdr` module, and the generation fails to build when
+`herdr config check` rejects the file. Herdr would otherwise ignore the whole
+file and start with its defaults.
+
+[herdr]: https://herdr.dev
+
+### The server
+
+A user service runs `herdr server`: `herdr.service` under systemd on Linux, and
+a launchd agent on macOS. It starts with the user manager or at login. The
+systemd unit sets `X-SwitchMethod=keep-old`, so a switch never restarts a
+running server and the processes in its panes. To run a new Herdr version, run
+`systemctl --user restart herdr`, which ends every pane's processes.
+
+A `herdr` client starts a server of its own when none is running. When that
+server has the socket, the service skips its start. To move to the service,
+detach the clients, run `herdr server stop`, and start the service.
+
+A server that starts before the desktop session imports its display variables
+gives its panes no display. On Linux, zsh in a Herdr pane without a display
+copies `DISPLAY`, `WAYLAND_DISPLAY` and the related variables from the user
+manager.
+
+### Plugins
+
+`dotfiles.herdr.plugins` lists the plugin packages to link from the Nix store.
+Each package specifies the plugin's directory in `passthru.pluginRoot`.
+Activation links and enables every listed plugin, then removes the plugins
+linked from the Nix store that the list no longer contains. Plugins linked from
+elsewhere are left alone.
+
+The default list has two plugins, which `pkgs/` packages with their manifests
+pointed at the Python in the Nix store:
+
+- [Context Bar][ctx-bar] draws a bar under each agent in the sidebar. Its colour
+  shows how much of the context window the session uses.
+- [Model Display][disp-model] shows each agent's model and reasoning effort. A
+  patch keeps the agent's plain name in the sidebar, and the sidebar rows place
+  the model and effort after it.
+
+Herdr runs a plugin's startup command only when the server starts. After an
+update, Context Bar's daemon keeps running from the old store path until the
+server restarts.
+
+[ctx-bar]: https://github.com/pdalinis/herdr-ctx-bar
+[disp-model]: https://github.com/pdalinis/herdr-disp-model
+
+### Agent integrations
+
+Herdr learns each agent's session from a hook, and Context Bar reads that
+session's transcript. Herdr's package contains a hook for each agent that Herdr
+supports. The feature installs the hooks for each harness on the host, so
+`herdr integration install` is not needed:
+
+- Claude Code and Codex run Herdr's hook and the Model Display hooks from their
+  system configuration. `dotfiles.claudeCode.managedSettings` and
+  `dotfiles.codex.hooks` concatenate the hooks of each event, so the prose-lint
+  hooks remain. Herdr's settings show an integration as installed only when the
+  hook script is in the agent's configuration directory, so Home Manager links a
+  copy there as well.
+- Pi loads Herdr's extension and the Model Display adapter from
+  `~/.pi/agent/extensions`.
+- OpenCode loads Herdr's plugin from `~/.config/opencode/plugins`, and its TUI
+  loads Herdr's session plugin through `tui.json`.
+- OpenCode 2 lists its TUI plugins in `cli.json`, which OpenCode 2 rewrites
+  itself, so Nix cannot add Herdr's plugin to that file. The `opencode2` wrapper
+  passes `dotfiles.opencode2.cliConfig` in `OPENCODE_CLI_CONFIG_CONTENT`
+  instead, and OpenCode 2 merges it over `cli.json`. The Herdr feature lists its
+  plugin there. A list in that variable replaces the list in `cli.json`, so
+  OpenCode 2 ignores any plugins that `cli.json` lists.
+
 ## Unstable home-manager modules
 
 `unstable-hm-modules.nix` replaces `programs.antigravity-cli`,
 `programs.claude-code`, `programs.codex`, `programs.mcp` and `programs.opencode`
 with the copies from the unstable home-manager input, on every host with `ai`.
 These tools move fast enough that the stable channel's copies lack options the
-modules here set. `disabledModules` names both the single-file and the directory
-form of each module, because the two channels disagree on the layout and
-unmatched entries are ignored.
+modules here set. The stable channel has no `programs.herdr` module, so the file
+imports that module from unstable as well. `disabledModules` names both the
+single-file and the directory form of each module, because the two channels
+disagree on the layout and unmatched entries are ignored.
 
 The replacements are imported as values and not listed as paths in `imports`. A
 path in `imports` keeps the module key that `disabledModules` matches on, so
