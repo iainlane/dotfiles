@@ -5,9 +5,10 @@
 #
 # The policy itself is exposed as the option
 # `dotfiles.claudeCode.managedSettings`. Other modules may contribute
-# additional keys (e.g. `permissions.deny` lists); definitions are merged by
-# concatenating and deduplicating the `permissions.{deny,ask,allow}` lists
-# and recursively updating everything else.
+# additional keys, such as `permissions.deny` lists or hooks. Definitions are
+# merged by concatenating and deduplicating the `permissions.{deny,ask,allow}`
+# lists and the list of each hook event, and by recursively updating everything
+# else.
 {
   lib,
   pkgs,
@@ -25,11 +26,16 @@
   fileSuggestionCommand = pkgs.callPackage ./file-suggestion {};
 
   # Fields named here are merged as sets: their lists are concatenated and
-  # deduplicated, first occurrence winning for ordering. Every other field
-  # follows recursive update: objects deep-merge, scalar leaves are replaced.
-  setMergedPaths.permissions = lib.genAttrs ["deny" "ask" "allow"] (_: true);
+  # deduplicated, first occurrence winning for ordering. The list of every hook
+  # event is merged the same way, so several modules can add hooks for one
+  # event. Every other field follows recursive update: objects deep-merge,
+  # scalar leaves are replaced.
+  setMergedPaths = l: r: {
+    permissions = lib.genAttrs ["deny" "ask" "allow"] (_: true);
+    hooks = lib.genAttrs (lib.attrNames ((l.hooks or {}) // (r.hooks or {}))) (_: true);
+  };
 
-  mergeSettings = let
+  mergeSettings = left: right: let
     walk = paths: l: r: let
       setMerged =
         lib.mapAttrs (
@@ -47,7 +53,7 @@
       lib.recursiveUpdate l r
       // lib.filterAttrs (_: v: v != [] && v != {}) setMerged;
   in
-    walk setMergedPaths;
+    walk (setMergedPaths left right) left right;
 
   mergeSettingsList = builtins.foldl' mergeSettings {};
 in {
@@ -62,9 +68,10 @@ in {
     default = {};
     description = ''
       Contents of Claude Code's system-wide managed-settings.json policy.
-      Other modules may contribute to this attrset; definitions are merged
+      Other modules may contribute to this attrset. Definitions are merged
       by concatenating and deduplicating the `permissions.{deny,ask,allow}`
-      lists and recursively updating everything else.
+      lists and the list of each hook event, and by recursively updating
+      everything else.
     '';
   };
 
