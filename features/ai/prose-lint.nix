@@ -4,8 +4,9 @@
 # commit message, or over the files named on its command line. This module installs it
 # with Vale and the Vale language server and writes the two configuration
 # files that they read. ./README.md describes the rule tiers and how a rule is
-# overridden; the Claude Code hooks that call the tool are in
-# ./claude-code/managed-settings-common.nix.
+# overridden. ./prose-lint-hooks.nix defines the hooks that Claude Code and
+# Codex run, and ./pi/home-manager.nix installs the pi extension that runs
+# the same hooks.
 {
   config,
   lib,

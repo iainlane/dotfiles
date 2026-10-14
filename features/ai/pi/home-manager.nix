@@ -332,6 +332,9 @@ in {
       // themeFiles
       // promptFiles
       // extensionFiles
-      // localExtensionFiles;
+      // localExtensionFiles
+      // lib.optionalAttrs config.dotfiles.ai.proseLint.enable {
+        ".pi/agent/extensions/prose-lint/index.ts".source = "${pkgs.prose-lint}/share/prose-lint/pi/index.ts";
+      };
   };
 }

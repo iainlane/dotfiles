@@ -20,10 +20,10 @@ from prose_lint.overrides import OverrideRefused, build_override
 from prose_lint.report import ADVICE
 from prose_lint.rules import RuleCatalogue
 from prose_lint.runtime import Runtime
+from prose_lint.tool_calls import edited_paths
 from prose_lint.vale import SubprocessVale, ValeFailed, ValeMissing
 
 _SCISSORS = "------------------------ >8 ------------------------"
-_EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -73,7 +73,7 @@ def _parser() -> argparse.ArgumentParser:
     listing = commands.add_parser("overrides", help="list the overrides in force")
     listing.set_defaults(run=_overrides)
 
-    hook = commands.add_parser("hook", help="answer a Claude Code hook")
+    hook = commands.add_parser("hook", help="answer a Claude Code or Codex hook")
     hook.add_argument("event", choices=["post-tool-use", "pre-tool-use", "stop"])
     hook.set_defaults(run=_hook)
 
@@ -236,21 +236,20 @@ def _answer_hook(event: str, raw_payload: str) -> dict[str, object] | None:
 def _post_tool_use(
     runtime: Runtime, payload: dict[str, object]
 ) -> dict[str, object] | None:
-    if payload.get("tool_name") not in _EDIT_TOOLS:
-        return None
-
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return None
 
-    file_path = tool_input.get("file_path")
-    if not isinstance(file_path, str) or not Path(file_path).is_file():
+    paths = tuple(
+        path
+        for path in edited_paths(payload.get("tool_name"), tool_input, runtime.cwd)
+        if path.is_file() and runtime.catalogue.lintable(path)
+    )
+
+    if not paths:
         return None
 
-    if not runtime.catalogue.lintable(Path(file_path)):
-        return None
-
-    report = runtime.lint_paths((Path(file_path),))
+    report = runtime.lint_paths(paths)
 
     return post_tool_use_payload(report, runtime.overrides())
 

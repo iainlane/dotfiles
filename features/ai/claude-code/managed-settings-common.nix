@@ -102,43 +102,7 @@ in {
       type = "command";
       command = lib.getExe fileSuggestionCommand;
     };
-    hooks = {
-      PostToolUse = [
-        {
-          matcher = "Edit|Write|MultiEdit";
-          hooks = [
-            {
-              type = "command";
-              command = "${lib.getExe pkgs.prose-lint} hook post-tool-use";
-              timeout = 30;
-            }
-          ];
-        }
-      ];
-      PreToolUse = [
-        {
-          matcher = "Bash|Edit|Write|MultiEdit";
-          hooks = [
-            {
-              type = "command";
-              command = "${lib.getExe pkgs.prose-lint} hook pre-tool-use";
-              timeout = 30;
-            }
-          ];
-        }
-      ];
-      Stop = [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = "${lib.getExe pkgs.prose-lint} hook stop";
-              timeout = 30;
-            }
-          ];
-        }
-      ];
-    };
+    hooks = import ../prose-lint-hooks.nix {inherit lib pkgs;};
     inputNeededNotifEnabled = true;
     model = "${defaultModels.anthropic}[1m]";
     outputStyle = outputStyles.default.name;

@@ -18,7 +18,10 @@ in {
           accent = "blue";
           flavor = "mocha";
         };
-        dotfiles.ai.mcpServers = {};
+        dotfiles.ai = {
+          mcpServers = {};
+          proseLint.enable = true;
+        };
       };
       defaultModels = modelCatalog.defaults;
       instructions.concatenated = "";

@@ -198,3 +198,32 @@ def test_the_stop_hook_reports_only_the_files_changed_after_the_first_edit(
             ),
         },
     )
+
+
+def test_a_codex_patch_has_the_files_it_writes_linted(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("PROSE_LINT_VALE", str(fake_vale(repository)))
+    (repository / "fresh.md").write_text(f"Written by {EM_DASH} a patch.\n")
+    patch = (
+        "*** Begin Patch\n*** Add File: fresh.md\n"
+        f"+Written by {EM_DASH} a patch.\n*** End Patch\n"
+    )
+    payload = {
+        "session_id": "session",
+        "cwd": str(repository),
+        "tool_name": "apply_patch",
+        "tool_input": {"command": patch},
+    }
+
+    response = answer_hook(monkeypatch, capsys, "post-tool-use", payload)
+
+    assert json.loads(response) == {
+        "decision": "block",
+        "reason": (
+            f"errors\n{repository / 'fresh.md'}:1:1 Prose.EmDash: An em dash."
+            f"\n\n{ADVICE}"
+        ),
+    }

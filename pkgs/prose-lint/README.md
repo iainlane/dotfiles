@@ -4,7 +4,7 @@ A [Vale][vale] style and a command-line front end that read prose against the
 [Plain technical prose][style] output style. It reads the same three places as
 the style: comments in source files, Markdown documents, and commit messages.
 Vale finds the constructions; the command line decides which rules run where,
-replies to Claude Code hooks, and records the overrides that a project has
+replies to coding-agent hooks, and records the overrides that a project has
 agreed to.
 
 Comments are read as Markdown, so code spans inside them are skipped and the
@@ -134,12 +134,18 @@ Overrides live in `<git-common-dir>/info/prose-lint.toml`, which git does not
 track, so they stay on the machine that made them. Outside a git repository they
 go to `$XDG_STATE_HOME/prose-lint/sessions/<session id>.toml` instead.
 
-## Claude Code hooks
+## Agent hooks
 
-`prose-lint hook post-tool-use` reads a hook payload on standard input and lints
-the file an `Edit`, `Write` or `MultiEdit` call has just written. Errors come
-back as a `block` decision, warnings as additional context, and a file with
-neither produces no output at all.
+The `prose-lint hook` commands read a Claude Code hook payload on standard input
+and print a Claude Code hook response. Codex uses the same payload and response
+formats, and pi runs the same commands through an extension, as described at the
+end of this section.
+
+`prose-lint hook post-tool-use` lints the files that an edit tool call has just
+written: the `file_path` of an `Edit`, `Write` or `MultiEdit` call, or every
+file that a Codex `apply_patch` call adds, updates or moves. Errors come back as
+a `block` decision, warnings as additional context, and a call with neither
+produces no output at all.
 
 `prose-lint hook pre-tool-use` runs before every `Bash`, `Edit`, `Write` and
 `MultiEdit` call. On its first run in a session, it records the session's
@@ -176,6 +182,21 @@ working tree with, and it produces no output.
 
 Every hook exits 0 whatever it finds, so a failure to parse a payload never
 stops the session.
+
+Codex runs the hooks from `/etc/codex/config.toml`. Codex treats hooks from that
+system configuration as managed, so they run without being trusted in `/hooks`.
+Codex's hook payloads call the shell tool `Bash`, and the `Edit` and `Write`
+matchers select its `apply_patch` tool.
+
+For pi, the package installs `share/prose-lint/pi/index.ts`, a pi extension that
+sends each event to the matching hook command as a Claude Code payload. The
+extension runs `pre-tool-use` before each `bash`, `edit` or `write` call, and a
+denied commit message blocks the call. After a successful `edit` or `write`
+call, the extension runs `post-tool-use` and appends the findings to the tool
+result. At `agent_before_settle` it runs `stop`, and a `block` decision
+continues the run with the findings as a custom message. The extension then
+passes `stop_hook_active` at the next settle, so it continues a run at most once
+in a row. System messages appear as pi notifications.
 
 ## Fixtures
 

@@ -17,6 +17,7 @@
       apps = true;
       memories = true;
     };
+    hooks = import ../prose-lint-hooks.nix {inherit lib pkgs;};
     mcp_servers =
       lib.mapAttrs (
         _name: server: let

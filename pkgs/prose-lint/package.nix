@@ -113,6 +113,10 @@
         --set-default PROSE_LINT_SHARE "$share" \
         --prefix PATH : ${lib.makeBinPath [gitMinimal vale]}
 
+      mkdir -p "$share/pi"
+      substitute ${./pi/index.ts} "$share/pi/index.ts" \
+        --replace-fail '@proseLint@' "$out/bin/prose-lint"
+
       runHook postInstall
     '';
 
@@ -121,8 +125,8 @@
       longDescription = ''
         prose-lint reads code comments, Markdown and commit messages and
         reports the constructions the Plain technical prose style rules out.
-        It runs from the command line, as a git commit-msg hook, and as a
-        Claude Code PreToolUse and PostToolUse hook.
+        It runs from the command line, as a git commit-msg hook, as Claude
+        Code and Codex hooks, and as a pi extension.
       '';
       license = lib.licenses.mit;
       mainProgram = "prose-lint";
