@@ -72,6 +72,7 @@ in {
           import os
           import shlex
           import subprocess
+          import sys
           from http.server import BaseHTTPRequestHandler, HTTPServer
           from threading import Thread
 
@@ -101,14 +102,18 @@ in {
               def log_message(self, *args):
                   pass
 
-          server = HTTPServer(("127.0.0.1", 11434), Ollama)
+          server = HTTPServer(("127.0.0.1", 0), Ollama)
+          endpoint = f"http://127.0.0.1:{server.server_port}"
+          command = shlex.split(os.environ["preflight"])
+          command[0] = sys.executable
+          command[command.index("--endpoint") + 1] = endpoint
           worker = Thread(target=server.serve_forever, daemon=True)
           worker.start()
           try:
               for size_vram, status in ((1024, 0), (0, 1)):
                   requests.clear()
                   result = subprocess.run(
-                      shlex.split(os.environ["preflight"]), capture_output=True, text=True, timeout=10,
+                      command, capture_output=True, text=True, timeout=10,
                   )
                   expected_requests = [
                       ("/v1/embeddings", model),
