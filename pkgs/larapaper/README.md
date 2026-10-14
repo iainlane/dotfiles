@@ -1,23 +1,20 @@
 # LaraPaper
 
 `larapaper` packages the application and its Composer dependencies. Its frontend
-build uses the npm lockfile, including Inter from Fontsource. `larapaper-image`
-adds PHP 8.4 with Imagick, nginx, Chromium, Node.js and the Ruby Liquid
-renderer. Supervisor runs PHP-FPM, nginx, the queue worker and the scheduler.
-Nix packages provide Noto, CJK, emoji and Open Sans fallback fonts for Chromium.
+build uses the npm lockfile. `larapaper-image` adds PHP 8.4 with Imagick, nginx,
+Chromium, Node.js and the Ruby Liquid renderer. Supervisor runs PHP-FPM, nginx,
+the queue worker and the scheduler. Nix packages provide Noto, CJK, emoji and
+Open Sans fallback fonts for Chromium.
 
-The source starts from [LaraPaper 0.43.1] and applies the [asset configuration
-PR] and [local fonts PR]. The Composer lockfile pins [trmnl-blade's asset
-configuration PR]. `trmnl-framework` builds the released framework with the
-patch from [framework PR 31]. Highcharts, Chartkick and MapLibre come from
-hashed npm archives. Their versions follow the packaged renderer configuration.
+The source is a LaraPaper release with `recipe-chart-assets.patch` applied. The
+patch passes the configured Highcharts and Chartkick URLs to recipe markup, so
+the bundled pollen recipe loads those scripts from `APP_URL`. The patch contains
+the part of [LaraPaper PR 299] that upstream has not merged. `trmnl-framework`
+builds the released framework without patches. Highcharts, Chartkick and
+MapLibre come from hashed npm archives. Their versions follow the packaged
+renderer configuration.
 
-[asset configuration PR]: https://github.com/usetrmnl/larapaper/pull/299
-[LaraPaper 0.43.1]: https://github.com/usetrmnl/larapaper/releases/tag/0.43.1
-[local fonts PR]: https://github.com/usetrmnl/larapaper/pull/298
-[trmnl-blade's asset configuration PR]:
-  https://github.com/bnussbau/trmnl-blade/pull/18
-[framework PR 31]: https://github.com/usetrmnl/trmnl-framework/pull/31
+[LaraPaper PR 299]: https://github.com/usetrmnl/larapaper/pull/299
 
 HTML image rendering keeps the browser's file origin. The image permits
 cross-origin requests for public font files, including requests from that file
@@ -62,8 +59,7 @@ hashes. The package-update workflow discovers this updater automatically.
 `nix run .#update-larapaper -- --force` refreshes the hashes for the current
 release. Both commands preserve the pinned patches and restore the package file
 if an update fails. `nix run .#update-trmnl-framework` updates the framework
-release while retaining the PR patch and archiving the previous release's
-published CSS, fonts and images.
+release and archives the previous release's published CSS, fonts and images.
 
 Highcharts, Chartkick and MapLibre are separate packages:
 `larapaper-highcharts`, `larapaper-chartkick` and `larapaper-maplibre-gl`. Each

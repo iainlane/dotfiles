@@ -19,7 +19,7 @@ $html = Blade::render(<<<'BLADE'
         .probe table, .probe tr, .probe th, .probe td { margin: 0; padding: 0; border: 0; }
         .probe tr, .probe th, .probe td { box-sizing: border-box; height: 24px; line-height: 24px; }
     </style>
-    <p style="font-family: Inter">Größe Αθήνα Київ</p>
+    <p style="font-family: 'Inter Variable'">Größe Αθήνα Київ</p>
     <div class="probe">
         <table class="table" data-table-limit="true">
             <thead><tr><th>Heading</th></tr></thead>
@@ -36,13 +36,13 @@ BLADE);
 $browser = Browsershot::html($html)
     ->noSandbox()
     ->waitUntilNetworkIdle()
-    ->blockDomains(['trmnl.com', 'fonts.bunny.net']);
+    ->blockDomains(['trmnl.com']);
 
 $script = <<<'JS'
 Promise.all([300,400,500,600].map(async weight => {
-    const faces = await document.fonts.load(`${weight} 20px Inter`, 'Größe Αθήνα Київ');
-    if (faces.length !== 3 || faces.some(face => face.status !== 'loaded')) {
-        throw new Error(`Inter ${weight} did not load all language subsets`);
+    const faces = await document.fonts.load(`${weight} 20px "Inter Variable"`, 'Größe Αθήνα Київ');
+    if (faces.length !== 1 || faces[0].status !== 'loaded') {
+        throw new Error(`Inter ${weight} did not load from the framework`);
     }
 })).then(async () => {
     await window.terminalize();

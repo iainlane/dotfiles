@@ -2,7 +2,6 @@
   lib,
   php84,
   fetchFromGitHub,
-  fetchurl,
   applyPatches,
   buildNpmPackage,
   nodejs_24,
@@ -17,7 +16,7 @@
   python3,
   nix-update,
 }: let
-  version = "0.43.1";
+  version = "0.44.0";
   php = php84.buildEnv {
     extensions = {
       enabled,
@@ -34,24 +33,15 @@
     src = fetchFromGitHub {
       owner = "usetrmnl";
       repo = "larapaper";
-      rev = "f849ce24562bcc218fdc43246c9410f78b71ce91";
-      hash = "sha256-QK6EWpxrp36aSoaF4wECUNcUVnrp3ZaZ7Vn2IB84Ae4=";
+      rev = "8d87dd8a3d0c81382b71b1bc99a1312b7d5a9e61";
+      hash = "sha256-JNn9UV4y84DeUp747OEKLCLlaGy9epSjm5vrf4AxzkY=";
     };
-    patches = [
-      (fetchurl {
-        url = "https://github.com/usetrmnl/larapaper/commit/f3d85b79a7176f81b59890247ba8948c7c99151d.patch";
-        hash = "sha256-wneTUNwdLfWNMu3m8+N3f1Jd9c5KUtUr+fPrLC6rojY=";
-      })
-      (fetchurl {
-        url = "https://github.com/usetrmnl/larapaper/commit/1f00bacd70b33b48256b14c090f66f3ccf9c8177.patch";
-        hash = "sha256-3Aa+KduISR/i4TSnRdn+qj4Kd6gZl8BhACsnof2l+oc=";
-      })
-    ];
+    patches = [./recipe-chart-assets.patch];
   };
   composerVendor = php.mkComposerVendor {
     pname = "larapaper";
     inherit version src;
-    vendorHash = "sha256-O+bl2HWV6f0G+91LTOvh0pDYissx6zSZ295ODXJR4FA=";
+    vendorHash = "sha256-2ReTl2Bpp/hk77KdtqEDXye0DeyeATb5devjGiNWC/0=";
     postBuild = ''
       find vendor -type d -name .git -prune -exec rm -rf {} +
     '';
@@ -60,7 +50,7 @@
     pname = "larapaper-frontend";
     inherit version src;
     nodejs = nodejs_24;
-    npmDepsHash = "sha256-pMQHgRsALtNyo0dYdcVlhJMn4J8y48hqF+pFkz516p0=";
+    npmDepsHash = "sha256-nYaZoWuzqO9MLaxcPEHH2kpQ39sOM94SsscK/Jm8VmU=";
     env.PUPPETEER_SKIP_DOWNLOAD = "true";
     nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook];
     buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];

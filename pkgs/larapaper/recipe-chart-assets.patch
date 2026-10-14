@@ -1,0 +1,197 @@
+From 9be02dc0f927b5daee3e40f8bbaee3dc5e288c9f Mon Sep 17 00:00:00 2001
+From: Iain Lane <iain@orangesquash.org.uk>
+Date: Sun, 4 Oct 2026 14:04:06 +0100
+Subject: [PATCH] feat: pass configured chart script URLs to recipes
+
+TRMNL_BLADE_HIGHCHARTS_JS_URL and TRMNL_BLADE_CHARTKICK_JS_URL change
+the chart scripts that trmnl-blade components load, but recipe markup
+cannot read them. The bundled pollen recipe therefore loads Highcharts
+and Chartkick from trmnl.com even when the server publishes its own
+copies.
+
+Add the two URLs to the trmnl render context as trmnl.assets. Every
+renderer uses that context, so stock views, inline Blade, inline Liquid
+and the external Liquid renderer all receive the values. The pollen
+recipe reads them and falls back to the hosted URLs. The fallback keeps
+exported recipes working on clients that do not provide trmnl.assets.
+Saved templates with literal URLs keep those URLs until they are
+edited.
+---
+ app/Models/Plugin.php                         |   4 +
+ .../getting-started/environment-variables.md  |   4 +
+ .../views/recipes/pollen-forecast-eu.liquid   |   4 +-
+ tests/Feature/RecipeAssetsTest.php            | 124 ++++++++++++++++++
+ 4 files changed, 134 insertions(+), 2 deletions(-)
+ create mode 100644 tests/Feature/RecipeAssetsTest.php
+
+diff --git a/app/Models/Plugin.php b/app/Models/Plugin.php
+index 8248414..c0217e2 100644
+--- a/app/Models/Plugin.php
++++ b/app/Models/Plugin.php
+@@ -763,6 +763,10 @@ private function trmnlContext(?Device $device = null): array
+         $utcOffset = (string) Carbon::now($timezone)->getOffset();
+ 
+         return [
++            'assets' => [
++                'highcharts_js_url' => config('trmnl-blade.highcharts_js_url'),
++                'chartkick_js_url' => config('trmnl-blade.chartkick_js_url'),
++            ],
+             'system' => [
+                 'timestamp_utc' => now()->utc()->timestamp,
+             ],
+diff --git a/docs/docs/getting-started/environment-variables.md b/docs/docs/getting-started/environment-variables.md
+index 99bfad9..b3d68b8 100644
+--- a/docs/docs/getting-started/environment-variables.md
++++ b/docs/docs/getting-started/environment-variables.md
+@@ -28,5 +28,9 @@ ## Browser assets
+ | `TRMNL_BLADE_FRAMEWORK_BASE_URL` | Base URL for versioned framework assets (`plugins.css`, `plugins.js`) | `https://trmnl.com` |
+ | `TRMNL_BLADE_FRAMEWORK_CSS_URL` | Override the framework stylesheet URL | `null` |
+ | `TRMNL_BLADE_FRAMEWORK_JS_URL` | Override the framework JavaScript URL | `null` |
++| `TRMNL_BLADE_HIGHCHARTS_JS_URL` | Highcharts script URL | `https://trmnl.com/js/highcharts/12.3.0/highcharts.js` |
++| `TRMNL_BLADE_CHARTKICK_JS_URL` | Chartkick script URL | `https://trmnl.com/js/chartkick/5.0.1/chartkick.min.js` |
+ 
+ Explicit stylesheet and JavaScript URLs take precedence over the base URL and per-recipe framework version.
++
++Recipe render contexts expose the chart URLs as `trmnl.assets.highcharts_js_url` and `trmnl.assets.chartkick_js_url`, and the bundled pollen recipe uses them. Inline Blade and Liquid markup, including markup rendered by the external Liquid renderer, receive the same context. Saved templates with literal script URLs keep those URLs until the template is edited.
+diff --git a/resources/views/recipes/pollen-forecast-eu.liquid b/resources/views/recipes/pollen-forecast-eu.liquid
+index 4140f81..cebc1a2 100644
+--- a/resources/views/recipes/pollen-forecast-eu.liquid
++++ b/resources/views/recipes/pollen-forecast-eu.liquid
+@@ -1,5 +1,5 @@
+-<script src="https://trmnl.com/js/highcharts/12.3.0/highcharts.js"></script>
+-<script src="https://trmnl.com/js/chartkick/5.0.1/chartkick.min.js"></script>
++<script src="{{ trmnl.assets.highcharts_js_url | default: 'https://trmnl.com/js/highcharts/12.3.0/highcharts.js' | escape }}"></script>
++<script src="{{ trmnl.assets.chartkick_js_url | default: 'https://trmnl.com/js/chartkick/5.0.1/chartkick.min.js' | escape }}"></script>
+ 
+ <div class="view view--{{ size }}">
+     <div class="layout layout--col gap--space-between">
+diff --git a/tests/Feature/RecipeAssetsTest.php b/tests/Feature/RecipeAssetsTest.php
+new file mode 100644
+index 0000000..d6343f9
+--- /dev/null
++++ b/tests/Feature/RecipeAssetsTest.php
+@@ -0,0 +1,124 @@
++<?php
++
++declare(strict_types=1);
++
++use App\Models\Plugin;
++use App\Models\User;
++use App\Services\PluginExportService;
++use Illuminate\Support\Facades\Process;
++
++beforeEach(function (): void {
++    config([
++        'trmnl-blade.highcharts_js_url' => 'https://assets.example.com/highcharts.js',
++        'trmnl-blade.chartkick_js_url' => 'https://assets.example.com/chartkick.js',
++    ]);
++});
++
++test('bundled and copied pollen recipes use configured chart scripts', function (bool $copied, bool $standalone): void {
++    $hourly = ['time' => array_fill(0, 48, '2026-10-04T12:00')];
++    $current = [];
++
++    foreach (['birch', 'grass', 'alder', 'mugwort', 'ragweed'] as $pollen) {
++        $hourly[$pollen.'_pollen'] = array_fill(0, 48, 0);
++        $current[$pollen.'_pollen'] = 0;
++    }
++
++    $plugin = Plugin::factory()->create([
++        'plugin_type' => 'recipe',
++        'render_markup' => null,
++        'render_markup_view' => 'recipes.pollen-forecast-eu',
++        'data_payload' => ['current' => $current, 'hourly' => $hourly],
++    ]);
++
++    if ($copied) {
++        $plugin = $plugin->duplicate();
++    }
++
++    $html = $plugin->render(standalone: $standalone);
++    preg_match_all('/<script src="([^\"]*(?:highcharts|chartkick)[^\"]*)"><\/script>/', $html, $matches);
++
++    expect($matches[1])->toBe([
++        'https://assets.example.com/highcharts.js',
++        'https://assets.example.com/chartkick.js',
++    ]);
++})->with([
++    'stock standalone' => [false, true],
++    'stock partial' => [false, false],
++    'copy standalone' => [true, true],
++    'copy partial' => [true, false],
++]);
++
++test('exported pollen recipes retain chart scripts without an asset context', function (bool $copied): void {
++    $plugin = Plugin::factory()->create([
++        'plugin_type' => 'recipe',
++        'markup_language' => 'liquid',
++        'render_markup' => null,
++        'render_markup_view' => 'recipes.pollen-forecast-eu',
++    ]);
++
++    if ($copied) {
++        $plugin = $plugin->duplicate();
++    }
++
++    $response = app(PluginExportService::class)->exportToZip($plugin, User::factory()->make());
++    $zip = new ZipArchive;
++    expect($zip->open($response->getFile()->getPathname()))->toBeTrue();
++    $markup = $zip->getFromName('full.liquid');
++    $zip->close();
++    expect($markup)->toBeString();
++
++    $scripts = implode("\n", array_slice(explode("\n", $markup), 0, 2));
++    $environment = app('liquid.environment');
++    $html = $environment->parseString($scripts)->render($environment->newRenderContext(data: [
++        'trmnl' => ['user' => [], 'device' => [], 'system' => [], 'plugin_settings' => []],
++    ]));
++
++    expect($html)->toBe(
++        '<script src="https://trmnl.com/js/highcharts/12.3.0/highcharts.js"></script>'."\n".
++        '<script src="https://trmnl.com/js/chartkick/5.0.1/chartkick.min.js"></script>'
++    );
++})->with([
++    'stock' => [false],
++    'copy' => [true],
++]);
++
++test('inline markup receives the configured chart assets', function (string $language, string $markup): void {
++    $plugin = Plugin::factory()->create([
++        'plugin_type' => 'recipe',
++        'markup_language' => $language,
++        'render_markup' => $markup,
++    ]);
++
++    expect($plugin->render(standalone: false))->toBe(
++        '<script src="https://assets.example.com/highcharts.js"></script><script src="https://assets.example.com/chartkick.js"></script>'
++    );
++})->with([
++    'liquid' => ['liquid', '<script src="{{ trmnl.assets.highcharts_js_url }}"></script><script src="{{ trmnl.assets.chartkick_js_url }}"></script>'],
++    'blade' => ['blade', '<script src="{{ $trmnl[\'assets\'][\'highcharts_js_url\'] }}"></script><script src="{{ $trmnl[\'assets\'][\'chartkick_js_url\'] }}"></script>'],
++]);
++
++test('external Liquid renderer receives the configured chart assets', function (): void {
++    config([
++        'services.trmnl.liquid_enabled' => true,
++        'services.trmnl.liquid_path' => '/usr/local/bin/trmnl-liquid-cli',
++    ]);
++    Process::fake(['*' => Process::result(output: 'rendered', exitCode: 0)]);
++
++    $plugin = Plugin::factory()->create([
++        'plugin_type' => 'recipe',
++        'markup_language' => 'liquid',
++        'preferred_renderer' => 'trmnl-liquid',
++        'render_markup' => '{{ trmnl.assets.chartkick_js_url }}',
++    ]);
++
++    expect($plugin->render(standalone: false))->toBe("rendered\n");
++
++    Process::assertRan(function ($process): bool {
++        $context = json_decode($process->command[4], true, flags: JSON_THROW_ON_ERROR);
++
++        return ($context['trmnl']['assets'] ?? null) === [
++            'highcharts_js_url' => 'https://assets.example.com/highcharts.js',
++            'chartkick_js_url' => 'https://assets.example.com/chartkick.js',
++        ];
++    });
++});
