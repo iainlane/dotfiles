@@ -2,7 +2,6 @@
   lib,
   stdenvNoCC,
   fetchFromGitHub,
-  fetchurl,
   dart-sass,
   updaters,
   gh,
@@ -21,12 +20,6 @@ in
     pname = "trmnl-framework";
     inherit (source) version;
     src = fetchRelease source;
-    patches = [
-      (fetchurl {
-        url = "https://github.com/usetrmnl/trmnl-framework/commit/2159940809f7d9e68401c34ce315a66027bc09a7.patch";
-        hash = "sha256-awceJWxHJdHcV48nsJSvTh2nY8S7t98Ooa7ifaGmRoY=";
-      })
-    ];
     nativeBuildInputs = [dart-sass];
     buildPhase = ''
       runHook preBuild
@@ -53,7 +46,7 @@ in
       extraRuntimeInputs = [gh];
     };
     meta = {
-      description = "TRMNL framework assets with the scaled table overflow fix";
+      description = "TRMNL framework assets built from source";
       homepage = "https://github.com/usetrmnl/trmnl-framework";
       license = lib.licenses.mit;
       platforms = lib.platforms.all;
