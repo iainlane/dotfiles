@@ -73,7 +73,7 @@
           fastcgi_pass 127.0.0.1:9000;
           fastcgi_read_timeout 120s;
         }
-        location ~ ^/(build/assets|fonts)/.*\.(woff2?|ttf|otf)$ {
+        location ~ ^/fonts/.*\.(woff2?|ttf|otf)$ {
           add_header Access-Control-Allow-Origin "*" always;
           try_files $uri =404;
         }
