@@ -322,7 +322,7 @@ describe("Cupboard merged pull request reuse", () => {
       },
       {
         workflow:
-          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@v0.0.44",
+          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@v0.0.45",
         callerPermission: "read",
         wrapperPermission: "read",
         preset: "pull-request-and-branch",
