@@ -17,7 +17,7 @@
       apps = true;
       memories = true;
     };
-    hooks = import ../prose-lint-hooks.nix {inherit lib pkgs;};
+    inherit (config.dotfiles.codex) hooks;
     mcp_servers =
       lib.mapAttrs (
         _name: server: let
@@ -64,7 +64,21 @@ in {
     })
   ];
 
+  options.dotfiles.codex.hooks = lib.mkOption {
+    type = with lib.types; attrsOf (listOf (attrsOf anything));
+    default = {};
+    description = ''
+      Codex hooks by event, in the format that Codex shares with Claude Code.
+      They are written to `/etc/codex/config.toml`, and Codex runs hooks from
+      its system configuration without asking for them to be trusted. A
+      module adds hooks by defining this option, and the hook groups of each
+      event are concatenated.
+    '';
+  };
+
   config = {
+    dotfiles.codex.hooks = import ../prose-lint-hooks.nix {inherit lib pkgs;};
+
     environment.etc."codex/config.toml".source = systemConfigFile;
   };
 }
