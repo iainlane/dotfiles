@@ -13,9 +13,9 @@
     # Updates come from Nix, not codex's self-check.
     check_for_update_on_startup = false;
     features = {
+      analytics_plan_history = true;
       apps = true;
       memories = true;
-      undo = true;
     };
     mcp_servers =
       lib.mapAttrs (
