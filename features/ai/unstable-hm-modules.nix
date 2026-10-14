@@ -1,6 +1,6 @@
-# Import the AI-related home-manager program modules from unstable, even when
-# the host is on the stable channel. These tools move fast enough that we always
-# want the latest module options (enableMcpIntegration, skills, etc.).
+# Use unstable Home Manager's modules for the AI tools, including on hosts that
+# follow the stable channel. The tools change faster than the stable channel,
+# and the harness modules here are written against the unstable modules.
 {inputs, ...}: let
   hmPrograms = "${inputs.home-manager}/modules/programs";
 in {
