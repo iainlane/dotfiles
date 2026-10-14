@@ -10,6 +10,9 @@ use Spatie\Browsershot\Browsershot;
 require getcwd().'/vendor/autoload.php';
 $app = require getcwd().'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
+// Laravel's handler reports an uncaught exception and then lets PHP exit
+// with status 0, which the VM check would treat as a pass.
+restore_exception_handler();
 
 $html = Blade::render(<<<'BLADE'
 <x-trmnl::screen deviceVariant="v2" scaleLevel="xxlarge">
