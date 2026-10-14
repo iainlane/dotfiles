@@ -1,0 +1,72 @@
+diff --git a/adapters/pi-model-display.ts b/adapters/pi-model-display.ts
+index 9b5c4ee..bebdfff 100644
+--- a/adapters/pi-model-display.ts
++++ b/adapters/pi-model-display.ts
+@@ -36,7 +36,6 @@ function report(model: unknown, effort: unknown): void {
+     "pane", "report-metadata", paneId!,
+     "--source", source,
+     "--agent", "pi",
+-    "--display-agent", `pi - ${value}${compactEffort ? ` - ${compactEffort}` : ""}`,
+     "--token", `model=${value}`,
+   ];
+   args.push(
+@@ -51,7 +50,6 @@ function clear(): void {
+     "pane", "report-metadata", paneId!,
+     "--source", source,
+     "--agent", "pi",
+-    "--clear-display-agent",
+     "--clear-token", "model",
+     "--clear-token", "effort",
+   ]);
+diff --git a/src/model_display.py b/src/model_display.py
+index 03ac2c2..2bb96a8 100644
+--- a/src/model_display.py
++++ b/src/model_display.py
+@@ -150,9 +150,6 @@ def report_model(pane_id: str, harness: str, model: str, effort: str = "") -> in
+         return 0
+ 
+     effort = compact_effort_level(effort)
+-    label = f"{harness} - {model}"
+-    if effort:
+-        label += f" - {effort}"
+     command = [
+         herdr_command(),
+         "pane",
+@@ -162,8 +159,6 @@ def report_model(pane_id: str, harness: str, model: str, effort: str = "") -> in
+         f"herdr-model-display:{harness}",
+         "--agent",
+         harness,
+-        "--display-agent",
+-        label,
+         "--token",
+         f"model={model}",
+     ]
+@@ -186,7 +181,6 @@ def clear_model(pane_id: str, harness: str) -> int:
+         f"herdr-model-display:{harness}",
+         "--agent",
+         harness,
+-        "--clear-display-agent",
+         "--clear-token",
+         "model",
+         "--clear-token",
+diff --git a/tests/test_model_display.py b/tests/test_model_display.py
+index 9f41590..a19e658 100644
+--- a/tests/test_model_display.py
++++ b/tests/test_model_display.py
+@@ -39,14 +39,14 @@ class ModelDisplayTests(unittest.TestCase):
+         self.assertEqual(model_display.compact_effort_level("ultra"), "ult")
+ 
+     @patch.object(model_display.subprocess, "run", return_value=Completed())
+-    def test_reports_display_name_and_token(self, run):
++    def test_reports_tokens_without_display_name(self, run):
+         with patch.dict(os.environ, {"HERDR_BIN_PATH": "/bin/herdr"}):
+             result = model_display.report_model(
+                 "1-2", "codex", "openai/gpt-5.6", "medium"
+             )
+         self.assertEqual(result, 0)
+         command = run.call_args.args[0]
+-        self.assertIn("codex - gpt-5.6 - med", command)
++        self.assertNotIn("--display-agent", command)
+         self.assertIn("model=gpt-5.6", command)
+         self.assertIn("effort=med", command)
+ 
