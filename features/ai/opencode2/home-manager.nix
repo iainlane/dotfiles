@@ -9,7 +9,8 @@
 # `cli.json` (theme, keybindings) is deliberately not managed here: OpenCode 2
 # rewrites that file itself whenever the theme or a setting changes in the TUI.
 # To still get a theme on a fresh machine, `tui.json` below is seeded and
-# OpenCode 2's v1 migration folds it into `cli.json` on first launch.
+# OpenCode 2's v1 migration folds it into `cli.json` on first launch. Settings
+# that must always apply go in `dotfiles.opencode2.cliConfig` instead.
 {
   config,
   inputs,
@@ -20,6 +21,8 @@
   system,
   ...
 }: let
+  cfg = config.dotfiles.opencode2;
+
   jsonFormat = pkgs.formats.json {};
 
   configDir = "opencode2";
@@ -67,22 +70,42 @@
   wrappedOpencode2 = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.opencode2;
     binName = "opencode2";
-    extraWrapperArgs = [
-      "--set"
-      "OPENCODE_CONFIG_DIR"
-      "${config.xdg.configHome}/${configDir}"
-    ];
+    extraWrapperArgs =
+      [
+        "--set"
+        "OPENCODE_CONFIG_DIR"
+        "${config.xdg.configHome}/${configDir}"
+      ]
+      ++ lib.optionals (cfg.cliConfig != {}) [
+        "--set"
+        "OPENCODE_CLI_CONFIG_CONTENT"
+        (builtins.toJSON cfg.cliConfig)
+      ];
   };
 in {
-  home.packages = [wrappedOpencode2];
+  options.dotfiles.opencode2.cliConfig = lib.mkOption {
+    inherit (jsonFormat) type;
+    default = {};
+    description = ''
+      Settings that OpenCode 2 merges over `cli.json`. The wrapper passes them
+      in `OPENCODE_CLI_CONFIG_CONTENT`, and OpenCode 2 does not write them to
+      `cli.json`. A list here replaces the list of the same setting in
+      `cli.json`: while `plugins` is set here, OpenCode 2 ignores the plugins
+      that `cli.json` lists.
+    '';
+  };
 
-  xdg.configFile = {
-    "${configDir}/opencode.json".source =
-      jsonFormat.generate "opencode.json" settings;
+  config = {
+    home.packages = [wrappedOpencode2];
 
-    "${configDir}/tui.json".source =
-      jsonFormat.generate "tui.json" tui;
+    xdg.configFile = {
+      "${configDir}/opencode.json".source =
+        jsonFormat.generate "opencode.json" settings;
 
-    "${configDir}/AGENTS.md".text = instructions.concatenated;
+      "${configDir}/tui.json".source =
+        jsonFormat.generate "tui.json" tui;
+
+      "${configDir}/AGENTS.md".text = instructions.concatenated;
+    };
   };
 }
