@@ -22,6 +22,9 @@ in {
       ExecStart = "${lib.getExe herdr} server";
       Restart = "on-failure";
       RestartSec = 30;
+      # The panes' processes run in this unit. With the default policy, the OOM
+      # killer killing one of them makes systemd stop the server and every pane.
+      OOMPolicy = "continue";
       # Herdr saves the session as it stops.
       TimeoutStopSec = 60;
     };
