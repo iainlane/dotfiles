@@ -10,7 +10,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   # The repository has no release tags, so the package builds a commit from
   # `main`. The version is the `version` field of that commit's manifest,
   # followed by the commit date.
-  version = "0.3.0-unstable-2026-09-19";
+  version = "0-unstable-2026-09-19";
 
   src = fetchFromGitHub {
     owner = "pdalinis";
