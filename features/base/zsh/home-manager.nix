@@ -75,8 +75,8 @@ in {
 
     initContent = lib.mkMerge [
       (lib.mkBefore zstylesPre)
-      # Home Manager runs `completionInit` at order 570, and bun.plugin.zsh
-      # extends `fpath` with the directory compinit has to scan.
+      # Home Manager loads antidote at order 550, and cursor.plugin.zsh has to
+      # redefine a widget from zephyr's editor plugin after antidote loads it.
       (lib.mkOrder 560 (
         lib.concatMapStringsSep "\n" (name: "source ${pluginsDir}/${name}") localPlugins
       ))
