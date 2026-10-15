@@ -62,6 +62,11 @@ in {
           # to `config.toml`, which Home Manager makes read-only.
           onboarding = false;
 
+          update = {
+            version_check = false;
+            manifest_check = false;
+          };
+
           theme = {
             name = "catppuccin";
             auto_switch = true;
