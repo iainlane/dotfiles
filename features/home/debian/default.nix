@@ -1,16 +1,10 @@
 # The Debian, Ubuntu and GNOME project directories.
 #
-# The shells are derivations, so this flake-parts module exports them for
-# every system. `home` lists this child only on generic-linux hosts, so only
-# those get the project directories.
-{
-  config,
-  lib,
-  withSystem,
-  ...
-}: let
+# Shared output selection exports the shells for every system. The `home`
+# feature includes this child only on generic-linux hosts, so only those hosts
+# get the project directories.
+{lib, ...}: let
   inherit (import ../../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
-
   projects = let
     defaults = {
       name = "Iain Lane";
@@ -45,7 +39,7 @@
       };
   };
 
-  mkShell = pkgs: _kernel: def:
+  mkShell = pkgs: _platform: def:
     mkProjectShell {
       inherit pkgs def;
 
@@ -68,13 +62,14 @@
     };
 
   projectShells = mkProjectShells {
-    inherit config withSystem mkShell projects;
+    inherit mkShell projects;
   };
 in {
-  imports = [projectShells.flakeModule];
-
-  flake.features.home.provides.debian.homeManager = [
-    projectShells.homeManagerModule
-    ./home-manager.nix
-  ];
+  flake.features.home.provides.debian = {
+    inherit (projectShells) devShells legacyPackages;
+    homeManager = [
+      projectShells.homeManagerModule
+      ./home-manager.nix
+    ];
+  };
 }

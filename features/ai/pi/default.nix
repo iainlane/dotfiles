@@ -1,3 +1,6 @@
-{
-  flake.features.ai.provides.pi.homeManager = ./home-manager.nix;
+{config, ...}: {
+  flake.features.ai.provides.pi = {
+    checks = [./pi-lens-check.nix ./pi-theme-check.nix (import ./pi-startup-check.nix {inherit (config.flake) modelCatalog;})];
+    homeManager = ./home-manager.nix;
+  };
 }

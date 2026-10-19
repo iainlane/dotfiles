@@ -1,9 +1,7 @@
 # The personal machines' Home Manager configuration.
 #
-# The Linux half of it is the `debian` child, listed under `os.generic-linux`.
-# That child sets up the Debian, Ubuntu and GNOME project directories. No NixOS
-# host currently does that packaging work, so `home` has no `os.nixos.includes`
-# entry; a host that needed one would list the same child there.
+# The `debian` child configures the Debian, Ubuntu and GNOME project
+# directories on generic-linux hosts.
 #
 # `ai.claude-code.teamclaude` and `ai.cloudflare-mcp` configure options that
 # `ai` declares, so `home` includes them only on a host that has `ai`.
@@ -21,15 +19,17 @@ in {
   ];
 
   flake.features.home = {
-    includes = [
-      (when features.ai [
-        features.ai.provides.claude-code.provides.teamclaude
-        features.ai.provides.cloudflare-mcp
-      ])
-      features.git
-    ];
-
-    os.generic-linux.includes = [children.debian];
+    includes =
+      [
+        (when features.ai [
+          features.ai.provides.claude-code.provides.teamclaude
+          features.ai.provides.cloudflare-mcp
+        ])
+        features.git
+      ]
+      ++ [
+        (featureResolver.when featureResolver.isGenericLinux [children.debian])
+      ];
 
     homeManager = ./home-manager.nix;
   };

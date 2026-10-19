@@ -1,8 +1,8 @@
 {
+  featureResolver,
   config,
   lib,
   mkLanguageShell,
-  withSystem,
   ...
 }: let
   inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
@@ -40,28 +40,29 @@
     };
   };
 
-  mkShell = pkgs: kernel: def:
+  mkShell = pkgs: platform: def:
     mkProjectShell {
       inherit pkgs def;
-      base = mkLanguageShell pkgs kernel (def.languages or []);
+      base = mkLanguageShell pkgs platform (def.languages or []);
     };
 
   projectShells = mkProjectShells {
-    inherit config withSystem mkShell projects;
+    inherit mkShell projects;
   };
 in {
   imports = [
-    projectShells.flakeModule
     ./debuginfod
     ./orbstack
   ];
 
   flake.features.development = {
-    includes = [children.debuginfod];
-
-    kernel.linux.homeManager = ./home-manager-linux.nix;
-
-    os.darwin.includes = [children.orbstack];
+    inherit (projectShells) devShells legacyPackages;
+    includes =
+      [children.debuginfod]
+      ++ [
+        (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
+        (featureResolver.when featureResolver.isDarwin [children.orbstack])
+      ];
 
     homeManager = [
       projectShells.homeManagerModule

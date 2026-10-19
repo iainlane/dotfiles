@@ -6,10 +6,11 @@
   config,
   lib,
   withSystem,
+  featureResolver,
   ...
 }: let
-  nixosHosts = lib.filterAttrs (_: h: h.os == "nixos") config.flake.hosts;
-  netboot = import ../../lib/netboot {inherit inputs;} {
+  nixosHosts = lib.filterAttrs (_: h: featureResolver.isNixos (featureResolver.contextForHost h)) config.flake.hosts;
+  netboot = import ../../lib/netboot {inherit inputs featureResolver;} {
     inherit
       config
       nixosHosts
@@ -55,7 +56,10 @@ in {
       };
 
     packages =
-      netboot.packagesForSystem {inherit pkgs pkgs-stable;}
+      netboot.packagesForSystem {
+        inherit pkgs pkgs-stable;
+        inherit ((featureResolver.contextForSystem system)) platform;
+      }
       // {deploy-rs = deployPackage;};
   };
 }

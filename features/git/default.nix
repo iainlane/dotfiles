@@ -1,7 +1,9 @@
-{
+{featureResolver, ...}: {
   flake.features.git = {
+    includes = [
+      (featureResolver.when featureResolver.isLinux [{homeManager = [./home-manager-linux.nix ./gitsign.nix];}])
+      (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])
+    ];
     homeManager = ./home-manager.nix;
-    kernel.linux.homeManager = [./home-manager-linux.nix ./gitsign.nix];
-    os.darwin.homeManager = ./home-manager-darwin.nix;
   };
 }

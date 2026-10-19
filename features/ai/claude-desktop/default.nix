@@ -4,13 +4,19 @@
 # `desktop` lists this child; `ai` does not, because a host can have `ai`
 # without a graphical session. The child renders its configuration from
 # `dotfiles.ai.mcpServers`, which `ai` declares, so it includes `ai`.
-{config, ...}: {
+{
+  config,
+  featureResolver,
+  ...
+}: {
   flake.features.ai.provides.claude-desktop = {
-    includes = [config.flake.features.ai];
+    includes =
+      [config.flake.features.ai]
+      ++ [
+        (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
+        (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])
+      ];
 
     darwin = ./darwin.nix;
-
-    kernel.linux.homeManager = ./home-manager-linux.nix;
-    os.darwin.homeManager = ./home-manager-darwin.nix;
   };
 }

@@ -57,5 +57,10 @@
     }
   );
 in {
+  toplevel = configuration: configuration.config.system.build.toplevel;
+  systemProfile = deployLib: configuration: {
+    user = "root";
+    path = deployLib.activate.darwin configuration;
+  };
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

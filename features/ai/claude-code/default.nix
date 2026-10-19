@@ -10,10 +10,11 @@
 # On Linux, `environment.etc` writes to /etc, which is the right location. On
 # macOS the target is under /Library, so an activation script symlinks the
 # store path into place, which is the mechanism `environment.etc` uses itself.
-{
+{config, ...}: {
   imports = [./teamclaude];
 
   flake.features.ai.provides.claude-code = {
+    checks = [(import ./claude-managed-settings-merge-check.nix {inherit (config.flake) modelCatalog;}) ./claude-managed-settings-layout-check.nix];
     homeManager = ./home-manager.nix;
     # The managed-settings modules are registered for each class, not under
     # `system`. system-manager declares `system.activationScripts` with a

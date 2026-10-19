@@ -239,14 +239,20 @@
     ];
   };
 in {
-  includes = [
-    (featureResolver.when config.flake.features.ai [
-      config.flake.features.agentsview.provides.skills
-    ])
-    (featureResolver.when config.flake.features.inference.provides.acceleration [
-      config.flake.features.agentsview.provides.embeddings.provides.local
-    ])
-  ];
+  checks = [./agentsview-secrets-check.nix];
+  includes =
+    [
+      (featureResolver.when config.flake.features.ai [
+        config.flake.features.agentsview.provides.skills
+      ])
+      (featureResolver.when config.flake.features.inference.provides.acceleration [
+        config.flake.features.agentsview.provides.embeddings.provides.local
+      ])
+    ]
+    ++ [
+      (featureResolver.when featureResolver.isLinux [{homeManager = systemdModule;}])
+      (featureResolver.when featureResolver.isDarwin [{homeManager = launchdModule;}])
+    ];
 
   homeManager = {
     config,
@@ -404,10 +410,5 @@ in {
         };
       })
     ];
-  };
-
-  kernel = {
-    linux.homeManager = systemdModule;
-    darwin.homeManager = launchdModule;
   };
 }

@@ -48,7 +48,11 @@
       prompt-conformance-configuration = fakePackage "configuration";
     };
   };
-  subject = config: import ../flake/parts/cupboard.nix {inherit lib config;};
+  subject = config:
+    import ../flake/parts/cupboard.nix {
+      inherit lib config;
+      featureResolver = import ../lib/features.nix {inherit lib;};
+    };
   complete = subject fixtureConfig;
   publicOnly = subject {
     flake =

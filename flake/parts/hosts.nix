@@ -81,6 +81,18 @@
         }
     );
 
+  hostResults =
+    lib.mapAttrs (hostname: hostConfig: {
+      inherit hostConfig;
+      inherit (operatingSystems.${hostConfig.os}) outputName systemClass;
+      configuration = systemConfigurations.${hostname};
+      homeConfiguration = mkStandaloneHome hostname hostConfig;
+      inherit (hostAdapters.${hostname}) homeSpecialArgs systemProfile;
+      deployment = hostAdapters.${hostname}.deployment or {};
+      toplevel = hostAdapters.${hostname}.toplevel systemConfigurations.${hostname};
+    })
+    hosts;
+
   hostModule = {
     name,
     config,
@@ -170,7 +182,10 @@
       featureNames = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         readOnly = true;
-        default = featureResolver.featureNames {inherit (config) features os excludes;};
+        default = featureResolver.featureNames {
+          inherit (config) features excludes;
+          context = featureResolver.contextForHost config;
+        };
         description = "The name of every feature the host has, including the ones its features include.";
       };
       homeDirectory = lib.mkOption {
@@ -220,16 +235,16 @@ in {
     };
   };
 
+  config._module.args = {inherit hostResults;};
+
   config.flake =
     systemOutputs
     // {
       # Standalone home-manager configurations for all hosts
       homeConfigurations =
         lib.mapAttrs' (
-          hostname: hostConfig:
-            lib.nameValuePair "${username}@${hostname}" (
-              mkStandaloneHome hostname hostConfig
-            )
+          hostname: _hostConfig:
+            lib.nameValuePair "${username}@${hostname}" hostResults.${hostname}.homeConfiguration
         )
         hosts;
     };

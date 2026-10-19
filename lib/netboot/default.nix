@@ -1,4 +1,7 @@
-{inputs}: {
+{
+  inputs,
+  featureResolver,
+}: {
   config,
   nixosHosts,
   withSystem,
@@ -185,8 +188,9 @@ in {
   packagesForSystem = {
     pkgs,
     pkgs-stable,
+    platform,
   }: let
-    inherit (pkgs.stdenv.hostPlatform) system;
+    inherit (platform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
 
     # The netboot image and the ISO contents are built for the target, so they
@@ -196,7 +200,7 @@ in {
     # a Mac. No NixOS host has a darwin system, so a darwin build system
     # exports `-iso` for every host.
     isoHosts =
-      if pkgs.stdenv.hostPlatform.isDarwin
+      if featureResolver.isDarwin {inherit platform;}
       then nixosHosts
       else systemHosts;
   in

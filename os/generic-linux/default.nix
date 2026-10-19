@@ -57,6 +57,16 @@
         };
     }
   );
-in {
+in rec {
+  deployment = {
+    # sudo-rs can remove the Nix binaries from PATH; a login shell loads the
+    # nix-daemon profile before activation.
+    sudo = "sudo -S -i -u";
+  };
+  toplevel = configuration: configuration.config.build.toplevel;
+  systemProfile = deployLib: configuration: {
+    user = "root";
+    path = deployLib.activate.custom (toplevel configuration) "$PROFILE/bin/activate";
+  };
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

@@ -1,4 +1,8 @@
-{config, ...}: let
+{
+  config,
+  featureResolver,
+  ...
+}: let
   inherit (config.flake) features;
   children = features.hermes.provides;
 in {
@@ -19,11 +23,12 @@ in {
   ];
 
   flake.features.hermes = {
+    checks = ./managed-config-check.nix;
     # Each platform adds its rendered secrets to `environmentFiles`, and
     # `builders.nix` concatenates those files into the agent's `.env` in the
     # order that they resolve here. Two platforms that define the same variable
     # therefore depend on this order.
-    includes = [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
+    includes = [(featureResolver.when featureResolver.isGenericLinux [{checks = ./managed-config-host-check.nix;}])] ++ [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
 
     systemManager = {
       config,

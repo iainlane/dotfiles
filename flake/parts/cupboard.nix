@@ -6,6 +6,7 @@
 {
   config,
   lib,
+  featureResolver,
   ...
 }: let
   inherit (config.flake) username;
@@ -17,10 +18,10 @@
     bestEffort = false;
     cohort = system;
     os =
-      if lib.hasSuffix "-darwin" system
+      if featureResolver.isDarwin (featureResolver.contextForSystem system)
       then "macos-latest"
       else "ubuntu-latest";
-    remote = !lib.hasSuffix "-darwin" system;
+    remote = !featureResolver.isDarwin (featureResolver.contextForSystem system);
   };
 
   systemEntry = name: host: let

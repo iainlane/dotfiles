@@ -17,12 +17,12 @@
   hasHarness = hostConfig: harness: featureResolver.hasFeature hostConfig harnesses.${harness};
 in {
   flake.features.ai.provides.herdr = {
+    checks = [./herdr-check.nix];
+    includes = [
+      (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
+      (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])
+    ];
     homeManager = import ./home-manager.nix {inherit hasHarness;};
     system = import ./system.nix {inherit hasHarness;};
-
-    kernel = {
-      linux.homeManager = ./home-manager-linux.nix;
-      darwin.homeManager = ./home-manager-darwin.nix;
-    };
   };
 }

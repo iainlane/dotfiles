@@ -3,6 +3,7 @@
 {
   config,
   lib,
+  featureResolver,
   ...
 }: let
   common = import ../../common.nix {
@@ -13,7 +14,9 @@
   inherit (config.flake) features;
 in {
   flake.features.agentsview.provides.embeddings.provides.local = {
+    checks = [./probe-check.nix (import ./gates-check.nix {inherit features featureResolver;})];
     includes = [
+      (featureResolver.when featureResolver.isLinux [{checks = import ./host-check.nix {inherit features;};}])
       features.agentsview.provides.embeddings
       features.inference.provides.ollama
     ];

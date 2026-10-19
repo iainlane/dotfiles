@@ -3,6 +3,7 @@
 # embeddings endpoint unless the machine also has the `local` child, which
 # switches it to a local Ollama server instead.
 {
+  featureResolver,
   config,
   lib,
   ...
@@ -142,8 +143,10 @@ in {
   imports = [./local];
 
   flake.features.agentsview.provides.embeddings = {
+    includes = [
+      (featureResolver.when featureResolver.isLinux [{homeManager = systemdModule;}])
+      (featureResolver.when featureResolver.isDarwin [{homeManager = launchdModule;}])
+    ];
     inherit homeManager;
-    kernel.linux.homeManager = systemdModule;
-    kernel.darwin.homeManager = launchdModule;
   };
 }

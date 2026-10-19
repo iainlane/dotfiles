@@ -4,6 +4,10 @@
   lib,
   ...
 }: let
+  promptOutputs = import ./prompt-conformance.nix {
+    inherit inputs lib;
+    inherit (config.flake) modelCatalog;
+  };
   children = config.flake.features.ai.provides;
 in {
   imports = [
@@ -18,10 +22,10 @@ in {
     ./opencode
     ./opencode2
     ./pi
-    ./prompt-conformance.nix
   ];
 
   flake.features.ai = {
+    inherit (promptOutputs) apps checks;
     # One child per harness. `claude-desktop` and `cloudflare-mcp` are not
     # here: a feature or a host that wants them lists them.
     includes = with children; [

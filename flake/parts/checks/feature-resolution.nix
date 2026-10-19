@@ -29,8 +29,6 @@
       systemManager = null;
       homeManager = null;
       system = null;
-      os = {};
-      kernel = {};
       provides = {};
     }
     // attrs;
@@ -59,7 +57,7 @@
 
   git = mkFeature "git" {
     homeManager = "git-home";
-    os."generic-linux".homeManager = "git-linux";
+    includes = [(when featureResolver.isGenericLinux [{homeManager = "git-linux";}])];
   };
   gh = mkFeature "gh" {
     includes = [git];
@@ -67,12 +65,11 @@
   };
   borgmatic = mkFeature "borgmatic" {nixos = "borgmatic-nixos";};
   base = mkFeature "base" {
-    includes = [gh git];
+    includes = [gh git (when featureResolver.isNixos [borgmatic])];
     nixos = "base-nixos";
     systemManager = "base-system-manager";
     system = "base-system";
     homeManager = "base-home";
-    os.nixos.includes = [borgmatic];
   };
 
   # A feature and its children. `shell` includes `zsh` everywhere and `openssh`
@@ -81,9 +78,8 @@
   openssh = mkFeature "shell.openssh" {nixos = "shell-openssh-nixos";};
   fzf = mkFeature "shell.fzf" {homeManager = "shell-fzf-home";};
   shell = mkFeature "shell" {
-    includes = [zsh];
+    includes = [zsh (when featureResolver.isNixos [openssh])];
     homeManager = "shell-home";
-    os.nixos.includes = [openssh];
   };
 
   # A feature whose child includes a feature of its own, so excluding the
@@ -100,10 +96,10 @@
 
   terminal = mkFeature "terminal" {
     homeManager = "terminal-home";
-    kernel = {
-      linux.homeManager = "terminal-linux";
-      darwin.homeManager = "terminal-darwin";
-    };
+    includes = [
+      (when featureResolver.isLinux [{homeManager = "terminal-linux";}])
+      (when featureResolver.isDarwin [{homeManager = "terminal-darwin";}])
+    ];
   };
 
   # `personal` includes `vault.passwords`, a child of `vault`, only on a host
@@ -149,20 +145,45 @@
   in
     map (module: module._file) evaluated.config.flake.features.demo.homeManager.imports;
 
+  inlineClassFiles = let
+    evaluated = lib.evalModules {
+      modules = [
+        ../features.nix
+        {
+          _file = "inline.nix";
+          flake.features.demo.includes = [
+            (when featureResolver.isLinux [{homeManager = [{home.first = true;} {home.second = true;}];}])
+          ];
+        }
+      ];
+    };
+    modules = featureResolver.resolveFeatures {
+      class = "homeManager";
+      hostConfig = {
+        name = "fixture";
+        os = "nixos";
+        system = "x86_64-linux";
+        features = [evaluated.config.flake.features.demo];
+        excludes = [];
+      };
+    };
+  in
+    map (module: module._file or null) modules;
+
   assertions = [
     {
       name = "a feature's includes come before it, and a feature reached twice appears once";
       pass = resolve "homeManager" "darwin" [base] == ["git-home" "gh-home" "base-home"];
     }
     {
-      name = "an OS-scoped Home Manager module applies only on that OS";
+      name = "a host-conditional Home Manager module applies only on that OS";
       pass =
         resolve "homeManager" "generic-linux" [git]
-        == ["git-home" "git-linux"]
+        == ["git-linux" "git-home"]
         && resolve "homeManager" "darwin" [git] == ["git-home"];
     }
     {
-      name = "OS-scoped includes are followed only on that OS";
+      name = "host-conditional includes are followed only on that OS";
       pass =
         resolve "nixos" "nixos" [base]
         == ["borgmatic-nixos" "base-nixos" "base-system"]
@@ -180,7 +201,10 @@
       pass =
         featureResolver.featureNames {
           features = [base];
-          os = "nixos";
+          context = featureResolver.contextForHost {
+            os = "nixos";
+            system = systemFor.nixos;
+          };
         }
         == ["git" "gh" "borgmatic" "base"];
     }
@@ -197,7 +221,7 @@
       pass = resolve "homeManager" "darwin" [shell] == ["shell-zsh-home" "shell-home"];
     }
     {
-      name = "a child under os.<os>.includes is resolved only on that OS";
+      name = "a host-conditional child is resolved only on that OS";
       pass =
         resolve "nixos" "nixos" [shell]
         == ["shell-openssh-nixos"]
@@ -214,17 +238,20 @@
       pass =
         featureResolver.featureNames {
           features = [shell];
-          os = "nixos";
+          context = featureResolver.contextForHost {
+            os = "nixos";
+            system = systemFor.nixos;
+          };
         }
         == ["shell.zsh" "shell.openssh" "shell"];
     }
     {
-      name = "a kernel-scoped Home Manager module follows the host's kernel, not its OS";
+      name = "a kernel-conditional Home Manager module follows the host's kernel, not its OS";
       pass =
         resolve "homeManager" "nixos" [terminal]
-        == ["terminal-home" "terminal-linux"]
-        && resolve "homeManager" "generic-linux" [terminal] == ["terminal-home" "terminal-linux"]
-        && resolve "homeManager" "darwin" [terminal] == ["terminal-home" "terminal-darwin"];
+        == ["terminal-linux" "terminal-home"]
+        && resolve "homeManager" "generic-linux" [terminal] == ["terminal-linux" "terminal-home"]
+        && resolve "homeManager" "darwin" [terminal] == ["terminal-darwin" "terminal-home"];
     }
     {
       name = "hasFeature is true for a listed or included feature and false for an absent one";
@@ -232,7 +259,10 @@
         hostConfig = {
           featureNames = featureResolver.featureNames {
             features = [base];
-            os = "darwin";
+            context = featureResolver.contextForHost {
+              os = "darwin";
+              system = systemFor.darwin;
+            };
           };
         };
       in
@@ -266,7 +296,10 @@
         hostConfig = {
           featureNames = featureResolver.featureNames {
             features = [editor];
-            os = "darwin";
+            context = featureResolver.contextForHost {
+              os = "darwin";
+              system = systemFor.darwin;
+            };
             excludes = [prompt];
           };
         };
@@ -292,7 +325,10 @@
       pass =
         featureResolver.featureNames {
           features = [personal];
-          os = "darwin";
+          context = featureResolver.contextForHost {
+            os = "darwin";
+            system = systemFor.darwin;
+          };
         }
         == ["personal"];
     }
@@ -325,10 +361,10 @@
         == ["vault-audit-home" "auditor-home" "vault-passwords-home" "personal-home" "vault-home"];
     }
     {
-      name = "a conditional include under os.<os>.includes applies only on that OS";
+      name = "a nested conditional include applies only on that OS";
       pass = let
         linuxPersonal = mkFeature "linux-personal" {
-          os.nixos.includes = [(when hasVault [passwords])];
+          includes = [(when featureResolver.isNixos [(when hasVault [passwords])])];
           homeManager = "linux-personal-home";
         };
       in
@@ -362,7 +398,10 @@
       in
         featureResolver.featureNames {
           features = [chain (lib.head links)];
-          os = "darwin";
+          context = featureResolver.contextForHost {
+            os = "darwin";
+            system = systemFor.darwin;
+          };
         }
         == map (link: link.name) (lib.tail links) ++ ["chain" "link0"];
     }
@@ -398,6 +437,10 @@
       pass =
         resolveExcluding [passwords] "homeManager" "darwin" [vault personal]
         == ["vault-home" "personal-home"];
+    }
+    {
+      name = "inline class modules retain the declaration's source file";
+      pass = inlineClassFiles == ["inline.nix"];
     }
     {
       name = "a class defined in several files merges every file's modules, each tagged with its file";

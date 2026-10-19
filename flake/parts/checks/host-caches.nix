@@ -1,9 +1,10 @@
 {
   config,
   lib,
+  hostResults,
+  featureResolver,
   ...
 }: let
-  operatingSystems = import ../../../lib/operating-systems.nix;
   cacheSettings = import ../../../lib/nix/cache-settings.nix;
   nixbuild = import ../../../lib/nixbuild.nix {inherit lib;};
   cupboard = cacheSettings.binaryCaches."cupboard.supply/t/laney";
@@ -22,10 +23,9 @@ in {
   }: let
     hosts = lib.filterAttrs (_: host: host.system == system) config.flake.hosts;
     failures = lib.concatLists (lib.mapAttrsToList (hostname: host: let
-      inherit (operatingSystems.${host.os}) outputName;
-      configuration = config.flake.${outputName}.${hostname}.config;
+      configuration = hostResults.${hostname}.configuration.config;
       settings =
-        if host.os == "darwin"
+        if featureResolver.isDarwin (featureResolver.contextForHost host)
         then configuration.determinateNix.customSettings
         else configuration.nix.settings;
       inherit (settings) substituters;

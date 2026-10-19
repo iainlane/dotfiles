@@ -6,15 +6,13 @@
 # and the flake's model catalogue, wraps the program with it, and exposes the
 # result as `nix run .#claude-prompt-conformance`.
 {
-  config,
+  modelCatalog,
   inputs,
   lib,
   ...
 }: let
-  inherit (config.flake) modelCatalog;
   defaultModels = modelCatalog.defaults;
-in {
-  perSystem = {pkgs, ...}: let
+  outputsFor = {pkgs, ...}: let
     instructions =
       (import ./agent-instructions.nix {inherit lib;}).harnesses.claudeCode;
     managedSettings =
@@ -128,4 +126,7 @@ in {
         touch "$out"
       '';
   };
+in {
+  apps = {pkgs, ...}: (outputsFor {inherit pkgs;}).apps;
+  checks = {pkgs, ...}: (outputsFor {inherit pkgs;}).checks;
 }

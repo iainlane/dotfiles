@@ -1,24 +1,36 @@
-# The resolver that turns a host's feature list into the modules for one
-# module system.
-#
-# A feature can define a module, or a list of modules, for each of NixOS,
-# nix-darwin, system-manager and Home Manager. Its `system` field contributes
-# modules to whichever of NixOS, nix-darwin and system-manager builds the
-# host, and its `includes` field lists the features that it pulls in.
-# `closure` expands those includes into an ordered list of the given features
-# and everything that they include, and `modulesFor` selects one class of module
-# from that list.
 {lib}: let
   operatingSystems = import ./operating-systems.nix;
+  compositionArgs = ["platform" "hostConfig" "systemConfig" "homeConfig"];
+  isConditionalEntry = entry: lib.isAttrs entry && (entry._type or null) == "conditional-include";
+  selectEntries = applies: context: owner: entries:
+    lib.concatLists (lib.imap0 (index: value: let
+      identity = "${owner}/includes/${toString index}";
+    in
+      if isConditionalEntry value
+      then lib.optionals (applies context value.predicate) (selectEntries applies context identity value.includes)
+      else [{inherit identity value;}])
+    entries);
 in rec {
-  systemClassFor = os: operatingSystems.${os}.systemClass;
+  classes = import ./feature-classes.nix {inherit lib;};
+  outputClasses = lib.attrNames (lib.filterAttrs (_: class: class.kind == "output") classes);
 
-  # The kernel of a host, taken from the last component of its Nix system
-  # string. NixOS and the Linux hosts built by system-manager share `linux`.
-  kernelFor = system: lib.last (lib.splitString "-" system);
+  contextForSystem = system: {platform = lib.systems.elaborate system;};
+  contextForHost = hostConfig:
+    contextForSystem hostConfig.system
+    // {
+      inherit hostConfig;
+      systemClass = operatingSystems.${hostConfig.os}.systemClass;
+    };
 
-  # An evaluated `flake.features` entry. The entries are plain submodule
-  # configs, so the check looks for the attributes common to every entry.
+  isLinux = {platform, ...}: platform.isLinux;
+  isDarwin = {platform, ...}: platform.isDarwin;
+  isAarch64 = {platform, ...}: platform.isAarch64;
+  isx86_64 = {platform, ...}: platform.isx86_64;
+  isNixos = {hostConfig, ...}: hostConfig.os == "nixos";
+  isGenericLinux = {hostConfig, ...}: hostConfig.os == "generic-linux";
+  isStable = {hostConfig, ...}: hostConfig.channel == "stable";
+  isUnstable = {hostConfig, ...}: hostConfig.channel == "unstable";
+
   featureType = lib.mkOptionType {
     name = "feature";
     description = "feature from flake.features";
@@ -27,19 +39,39 @@ in rec {
     merge = lib.mergeEqualOption;
   };
 
-  # An entry of `includes` that applies only on some hosts. `condition` is a
-  # feature or a list of features, and the entry applies on a host that has all
-  # of them:
-  #
-  #   includes = [
-  #     (when features.ai [features.ai.provides.cloudflare-mcp])
-  #   ];
-  #
-  # `condition` can instead be a predicate. The resolver calls it with an
-  # attribute set containing `hasFeature`, a function that returns whether the
-  # host has a given feature, and applies the entry when the predicate returns
-  # true. The predicate receives nothing else about the host, so an include
-  # never depends on a host's settings.
+  isConditional = isConditionalEntry;
+
+  includeType = lib.mkOptionType {
+    name = "featureInclude";
+    description = "feature, fragment or conditional include";
+    descriptionClass = "noun";
+    check = value:
+      featureType.check value
+      || (isConditional value && lib.isFunction value.predicate && lib.isList value.includes && lib.all includeType.check value.includes)
+      || (lib.isAttrs value
+        && lib.all (key: key == "includes" || classes ? ${key}) (lib.attrNames value)
+        && (!(value ? includes) || (lib.isList value.includes && lib.all includeType.check value.includes)));
+    merge = location: definitions: let
+      tag = file: entry:
+        if isConditional entry
+        then entry // {includes = map (tag file) entry.includes;}
+        else if featureType.check entry
+        then entry
+        else
+          lib.mapAttrs (field: value:
+            if field == "includes"
+            then map (tag file) value
+            else if value == null
+            then null
+            else {
+              _file = file;
+              imports = lib.toList value;
+            })
+          entry;
+    in
+      lib.mergeOneOption location (map (definition: definition // {value = tag definition.file definition.value;}) definitions);
+  };
+
   when = condition: includes: let
     required = lib.toList condition;
   in {
@@ -54,94 +86,74 @@ in rec {
     inherit includes;
   };
 
-  isConditional = entry: (entry._type or null) == "conditional-include";
+  predicateApplies = context: predicate: let
+    arguments = lib.functionArgs predicate;
+    required = lib.attrNames (lib.filterAttrs (_: optional: !optional) arguments);
+  in
+    lib.all (argument: context ? ${argument}) required
+    && predicate (
+      if arguments == {}
+      then context
+      else lib.intersectAttrs arguments context
+    );
 
-  conditionalType = lib.mkOptionType {
-    name = "conditionalInclude";
-    description = "conditional include made by `when`";
-    descriptionClass = "noun";
-    check = entry: isConditional entry && lib.all featureType.check entry.includes;
-    merge = lib.mergeOneOption;
-  };
+  select = context: entries: map (entry: entry.value) (selectEntries predicateApplies context "<selection>" entries);
 
-  # Resolves `features` and their transitive includes into composition order.
-  # Each feature comes after its own includes, and a feature reached more than
-  # once appears once. The includes under `os.<os>` are followed only for the
-  # host's OS. An include cycle is an error: `closure` throws and lists the
-  # features in the cycle.
-  #
-  # A `when` condition asks about the host's features, and the walk does not
-  # know them until it has finished. `closure` therefore walks repeatedly. The
-  # first walk answers every `hasFeature` with false, and each later walk
-  # answers it from the features that the walk before it found. The repetition
-  # stops when two consecutive walks find the same features.
-  #
-  # Conditions given as features cannot make the walks run forever: each walk
-  # finds at least the features that the walk before it found, and a host can
-  # reach only finitely many features. A predicate can also ask for a feature to
-  # be absent, and the walks can then return to an earlier set of features. The
-  # walks would repeat from there forever, so `closure` throws when a walk finds
-  # a set that an earlier walk found.
-  #
-  # `excludes` names features to drop. A dropped feature contributes no
-  # modules, and the walk does not follow its includes, so a feature that
-  # nothing else includes is dropped with it. The result is `ordered`, the
-  # remaining features in composition order, and `excluded`, the names that
-  # the walk met and dropped. `excludeError` compares `excluded` with the host's
-  # `excludes` to find an entry that dropped nothing.
   closure = {
     features,
-    os,
+    context,
     excludes ? [],
   }: let
     excludedNames = map (feature: feature.name) excludes;
 
-    # `present` is the set of feature names that the previous walk found.
     resolveWith = present: let
-      hasFeature = feature: present ? ${feature.name};
+      predicateContext = context // {hasFeature = feature: present ? ${feature.name};};
 
-      expand = entry:
-        if isConditional entry
-        then lib.optionals (entry.predicate {inherit hasFeature;}) entry.includes
-        else [entry];
+      walkEntries = state: path: owner: entries:
+        lib.foldl' (current: entry: walk current path entry.identity entry.value)
+        state (selectEntries predicateApplies predicateContext owner entries);
 
-      includesOf = feature:
-        lib.concatMap expand
-        (feature.includes ++ lib.attrByPath ["os" os "includes"] [] feature);
-
-      walk = state: path: feature:
-        if state.seen ? ${feature.name}
+      walk = state: path: identity: entry: let
+        registered = featureType.check entry;
+        node =
+          if registered
+          then entry
+          else
+            entry
+            // {
+              name = identity;
+              __fragment = true;
+            };
+        inherit (node) name;
+      in
+        if state.seen ? ${name}
         then state
-        else if lib.elem feature.name excludedNames
+        else if registered && lib.elem name excludedNames
         then {
-          seen = state.seen // {${feature.name} = true;};
+          seen = state.seen // {${name} = true;};
           inherit (state) ordered;
-          excluded = state.excluded ++ [feature.name];
+          excluded = state.excluded ++ [name];
         }
-        else if lib.elem feature.name path
-        then throw "Feature '${feature.name}' includes itself: ${lib.concatStringsSep " -> " (path ++ [feature.name])}"
+        else if lib.elem name path
+        then throw "Feature '${name}' includes itself: ${lib.concatStringsSep " -> " (path ++ [name])}"
         else let
-          withIncludes =
-            lib.foldl'
-            (innerState: included: walk innerState (path ++ [feature.name]) included)
-            state
-            (includesOf feature);
+          withIncludes = walkEntries state (path ++ [name]) name (node.includes or []);
         in {
-          seen = withIncludes.seen // {${feature.name} = true;};
-          ordered = withIncludes.ordered ++ [feature];
+          seen = withIncludes.seen // {${name} = true;};
+          ordered = withIncludes.ordered ++ [node];
           inherit (withIncludes) excluded;
         };
     in
-      lib.foldl' (state: feature: walk state [] feature) {
+      walkEntries {
         seen = {};
         ordered = [];
         excluded = [];
-      }
+      } [] "<selection>"
       features;
 
-    namesOf = result: lib.genAttrs (map (feature: feature.name) result.ordered) (_: true);
+    namesOf = result:
+      lib.genAttrs (map (feature: feature.name) (lib.filter (feature: !(feature.__fragment or false)) result.ordered)) (_: true);
 
-    # `earlier` lists the sets of names that the walks before `present` found.
     resolveFrom = earlier: present: let
       result = resolveWith present;
       resolved = namesOf result;
@@ -151,17 +163,9 @@ in rec {
       else if lib.elem resolved earlier
       then throw "Resolving ${lib.concatStringsSep ", " (map (feature: feature.name) features)} returned to a set of features that an earlier walk found, so the walks would repeat forever. A `when` predicate probably requires a feature to be absent, and its own includes add that feature."
       else resolveFrom (earlier ++ [present]) resolved;
+  in
+    resolveFrom [] (namesOf (resolveWith {}));
 
-    result = resolveFrom [] (namesOf (resolveWith {}));
-  in {
-    inherit (result) ordered excluded;
-  };
-
-  # An error message for a host whose `excludes` list cannot be applied, or
-  # null when every entry drops a feature. Two kinds of entry are refused. If
-  # the host also lists the feature, the feature is both requested and
-  # refused. If the resolution never reaches the feature, the entry changes
-  # nothing, which usually means a typo or a leftover.
   excludeError = {
     name,
     features,
@@ -169,9 +173,7 @@ in rec {
     excluded,
   }: let
     excludedNames = map (feature: feature.name) excludes;
-
     listed = lib.intersectLists (map (feature: feature.name) features) excludedNames;
-
     unreached = lib.subtractLists excluded excludedNames;
   in
     if listed != []
@@ -180,66 +182,63 @@ in rec {
     then "Host '${name}' excludes features not reached during feature resolution: ${lib.concatStringsSep ", " unreached}."
     else null;
 
-  featureNames = args: map (feature: feature.name) (closure args).ordered;
-
-  # Whether the host has the feature, directly or through an include. The
-  # feature is an entry of `flake.features`, so a name missing from the
-  # registry is an evaluation error where the caller writes it.
-  hasFeature = hostConfig: feature: lib.elem feature.name hostConfig.featureNames;
-
-  # The modules of class `class` from `ordered`, a closure's feature list.
-  #
-  # Each feature contributes, in order: its `<class>` module, its `system`
-  # module when `class` is the module system that builds this OS, and its
-  # `kernel.<kernel>` and `os.<os>` modules for that class. Only
-  # `homeManager` is declared inside those two scopes, so the last two are
-  # empty for every other class. The module system's merge functions and
-  # priorities decide which definition of an option wins; this order does
-  # not.
-  modulesFor = {
-    class,
-    os,
-    kernel,
-    ordered,
+  resolveSelection = args @ {
+    features,
+    excludes ? [],
+    name ? "outputs",
+    ...
   }: let
-    systemClass = systemClassFor os;
-
-    modulesOf = feature:
-      lib.filter (module: module != null) (
-        [feature.${class}]
-        ++ lib.optional (class == systemClass) feature.system
-        ++ [
-          (lib.attrByPath ["kernel" kernel class] null feature)
-          (lib.attrByPath ["os" os class] null feature)
-        ]
-      );
-  in
-    lib.concatMap modulesOf ordered;
-
-  # The modules of class `class` for a host. It throws the error from
-  # `excludeError` when the host's `excludes` list cannot be applied. Every
-  # class of every host is resolved here, so the error appears whichever
-  # output is being built.
-  resolveFeatures = {
-    class,
-    hostConfig,
-  }: let
-    resolved = closure {
-      inherit (hostConfig) features os excludes;
-    };
-
+    resolved = closure (removeAttrs args ["name"]);
     error = excludeError {
-      inherit (hostConfig) name features excludes;
+      inherit name features excludes;
       inherit (resolved) excluded;
     };
   in
     if error != null
     then throw error
-    else
-      modulesFor {
-        inherit class;
-        inherit (hostConfig) os;
-        inherit (resolved) ordered;
-        kernel = kernelFor hostConfig.system;
-      };
+    else resolved;
+
+  featureNames = args:
+    map (feature: feature.name) (lib.filter (feature: !(feature.__fragment or false)) (closure args).ordered);
+
+  hasFeature = hostConfig: feature: lib.elem feature.name hostConfig.featureNames;
+
+  contributionsFor = {
+    class,
+    context,
+    ordered,
+  }: let
+    sources = lib.sort (a: b: classes.${a}.kind != "alias" && classes.${b}.kind == "alias") (lib.attrNames (lib.filterAttrs (_: entry: entry.destination context == class) classes));
+  in
+    lib.concatMap (feature:
+      lib.concatMap (source:
+        lib.imap0 (index: module: {
+          inherit module;
+          identity = "${feature.name}/${source}/${toString index}";
+        })
+        (lib.optionals ((feature.${source} or null) != null) (lib.toList feature.${source})))
+      sources)
+    ordered;
+
+  modulesFor = args: map (entry: entry.module) (contributionsFor args);
+
+  resolveFeatures = {
+    class,
+    hostConfig,
+  }: let
+    context = contextForHost hostConfig;
+    resolved = resolveSelection {
+      inherit context;
+      inherit (hostConfig) name features excludes;
+    };
+  in
+    modulesFor {
+      inherit class context;
+      inherit (resolved) ordered;
+    };
+
+  contextArguments = module:
+    if lib.isFunction module
+    then lib.intersectLists compositionArgs (lib.attrNames (lib.functionArgs module))
+    else [];
 }

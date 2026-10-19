@@ -15,19 +15,10 @@
 {
   config,
   lib,
+  hostResults,
   ...
 }: let
   inherit (config.flake) username;
-  operatingSystems = import ../../../lib/operating-systems.nix;
-
-  # The top-level derivation of each kind of system configuration. The OS
-  # table gives the flake output for each configuration.
-  drvPathFor = {
-    nixos = configuration: configuration.config.system.build.toplevel.drvPath;
-    darwin = configuration: configuration.config.system.build.toplevel.drvPath;
-    "generic-linux" = configuration: configuration.config.build.toplevel.drvPath;
-  };
-
   traceEvaluating = outputName: configurationName:
     builtins.traceVerbose
     "host-evaluation: evaluating ${outputName}.${configurationName}";
@@ -49,14 +40,13 @@ in {
     systemChecks =
       lib.mapAttrs' (
         hostname: hostConfig: let
-          inherit (operatingSystems.${hostConfig.os}) outputName;
-          configuration = config.flake.${outputName}.${hostname};
+          inherit (hostResults.${hostname}) outputName toplevel;
         in
           mkCheck
           "host-evaluation-${hostConfig.os}-${hostname}"
           outputName
           hostname
-          (drvPathFor.${hostConfig.os} configuration)
+          toplevel.drvPath
       )
       hosts;
 
@@ -67,7 +57,7 @@ in {
           "host-evaluation-home-${hostname}"
           "homeConfigurations"
           "${username}@${hostname}"
-          config.flake.homeConfigurations."${username}@${hostname}".activationPackage.drvPath
+          hostResults.${hostname}.homeConfiguration.activationPackage.drvPath
       )
       hosts;
   in {

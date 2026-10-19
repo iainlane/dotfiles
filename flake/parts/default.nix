@@ -13,6 +13,7 @@ in {
       ./git-hooks.nix
       ./hosts.nix
       ./models.nix
+      ./outputs.nix
       ./nix.nix
       ./pkgs.nix
       ./treefmt.nix

@@ -12,13 +12,9 @@
 # by its parent's, so `closure` and `hasFeature` treat it like any other
 # feature. Registering a child does not apply it: something has to list it in
 # `includes`.
-{
-  config,
-  lib,
-  ...
-}: let
+{lib, ...}: let
   featureResolver = import ../../lib/features.nix {inherit lib;};
-  inherit (featureResolver) conditionalType featureType;
+  inherit (featureResolver) featureType includeType;
 
   # A module for one module system, or a list of them. Several files may
   # define the same class of the same feature; every definition ends up in
@@ -58,23 +54,12 @@
     };
 
   includesOption = lib.mkOption {
-    type = lib.types.listOf (lib.types.either featureType conditionalType);
+    type = lib.types.listOf includeType;
     default = [];
-    description = "Features to include when resolving this feature. An entry made with `featureResolver.when` includes its features only on some hosts. Each included feature appears before this one in the resolved list.";
+    description = "Features and inline fragments to compose. Conditional entries use the selection context. Includes precede their parent.";
   };
 
-  osScope = lib.types.submodule {
-    options = {
-      homeManager = classOption "Home Manager module applied only on hosts with this OS.";
-      includes = includesOption;
-    };
-  };
-
-  kernelScope = lib.types.submodule {
-    options = {
-      homeManager = classOption "Home Manager module applied only on hosts with this kernel.";
-    };
-  };
+  classOptions = lib.mapAttrs (_: class: classOption class.description) featureResolver.classes;
 
   featureModule = parentName: {name, ...}: let
     qualifiedName =
@@ -82,58 +67,43 @@
       then name
       else "${parentName}.${name}";
   in {
-    options = {
-      name = lib.mkOption {
-        type = lib.types.str;
-        readOnly = true;
-        default = qualifiedName;
-        description = "The feature's key in `flake.features`, prefixed with its parent's name when it is a child.";
-      };
-
-      includes = includesOption;
-
-      nixos = classOption "NixOS module.";
-      darwin = classOption "nix-darwin module.";
-      systemManager = classOption "system-manager module, for Linux hosts that are not NixOS.";
-      homeManager = classOption "Home Manager module.";
-      system = classOption "Module for whichever of NixOS, nix-darwin or system-manager builds the host.";
-
-      os = lib.mkOption {
-        type = lib.types.submodule {
-          options = lib.genAttrs config.flake.operatingSystems (_:
-            lib.mkOption {
-              type = osScope;
-              default = {};
-            });
+    options =
+      classOptions
+      // {
+        name = lib.mkOption {
+          type = lib.types.str;
+          readOnly = true;
+          default = qualifiedName;
+          description = "The feature's key in `flake.features`, prefixed with its parent's name when it is a child.";
         };
-        default = {};
-        description = "One entry per operating system, each with the Home Manager module and the includes that apply only on hosts with that OS.";
-      };
 
-      kernel = lib.mkOption {
-        type = lib.types.submodule {
-          options = lib.genAttrs ["linux" "darwin"] (_:
-            lib.mkOption {
-              type = kernelScope;
-              default = {};
-            });
+        includes = includesOption;
+
+        provides = lib.mkOption {
+          type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule qualifiedName));
+          default = {};
+          description = "Features registered by this one. Registering a child does not apply it: a host lists it in `features`, or a feature lists it in `includes`.";
         };
-        default = {};
-        description = "One entry per kernel, each with the Home Manager module that applies only on hosts with that kernel. NixOS and the Linux hosts system-manager builds share the `linux` entry.";
       };
-
-      provides = lib.mkOption {
-        type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule qualifiedName));
-        default = {};
-        description = "Features registered by this one. Registering a child does not apply it: a host lists it in `features`, or a feature lists it in `includes`.";
-      };
-    };
   };
 in {
-  options.flake.features = lib.mkOption {
-    type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule null));
-    default = {};
-    description = "Features that hosts list and that other features include.";
+  options.flake = {
+    features = lib.mkOption {
+      type = lib.types.lazyAttrsOf (lib.types.submodule (featureModule null));
+      default = {};
+      description = "Features that hosts list and that other features include.";
+    };
+
+    outputFeatures = lib.mkOption {
+      type = lib.types.listOf featureType;
+      default = [];
+      description = "Features whose shared outputs are exported independently of host selection.";
+    };
+    outputExcludes = lib.mkOption {
+      type = lib.types.listOf featureType;
+      default = [];
+      description = "Features excluded from the shared output selection.";
+    };
   };
 
   config._module.args = {inherit featureResolver;};

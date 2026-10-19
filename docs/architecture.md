@@ -4,13 +4,8 @@ This repo is a [flake-parts] flake that produces NixOS, nix-darwin,
 [system-manager], and [Home Manager] configurations for several machines from
 one shared set of building blocks.
 
-The data flows in one direction:
-
-```text
-host  →  features  →  OS adapter  →  flake outputs
-```
-
-Each stage is described below.
+Hosts select features. The resolver composes their modules, OS adapters evaluate
+host configurations, and the output evaluator exports the selected tooling.
 
 [flake-parts]: https://flake.parts
 [system-manager]: https://github.com/numtide/system-manager
@@ -61,168 +56,191 @@ the names of every feature on the host once includes are followed.
 
 ## Features
 
-A feature is the configuration for one concern across the module systems that
-build a host. It is registered under `flake.features.<name>` with one field per
-module system, named after the module system that evaluates it:
+A feature is registered under `flake.features.<name>`. It contributes modules to
+classes from the registry in `lib/feature-classes.nix`:
 
-| Field           | Evaluated by                                                        |
-| --------------- | ------------------------------------------------------------------- |
-| `nixos`         | NixOS                                                               |
-| `darwin`        | nix-darwin                                                          |
-| `systemManager` | system-manager, on Linux hosts that are not NixOS                   |
-| `homeManager`   | Home Manager                                                        |
-| `system`        | whichever of `nixos`, `darwin` and `systemManager` builds this host |
+| Class            | Evaluation                                              |
+| ---------------- | ------------------------------------------------------- |
+| `nixos`          | NixOS                                                   |
+| `darwin`         | nix-darwin                                              |
+| `systemManager`  | system-manager                                          |
+| `homeManager`    | Home Manager                                            |
+| `system`         | Alias for the host's primary configuration class        |
+| `packages`       | Packages exported under `packages.<system>`             |
+| `apps`           | Applications exported under `apps.<system>`             |
+| `checks`         | Checks exported under `checks.<system>`                 |
+| `devShells`      | Shells exported under `devShells.<system>`              |
+| `legacyPackages` | Nested outputs exported under `legacyPackages.<system>` |
 
-Each of those fields takes a module, or a list of modules. Several files may
-define the same field of the same feature; the definitions merge into one
-module.
+Each class accepts a module, a path, or a list of modules and paths. Definitions
+from several files merge, and errors retain the source file of each definition.
+`system` uses the destination from the OS metadata; the resolver has no separate
+traversal for that alias.
 
-A feature also has a `provides` field, which is not a module. It contains an
-attribute set of child feature definitions. Declaring a child does not add it to
-a host; a feature or host must include it explicitly.
+### Conditional composition
 
-A feature includes the features that it depends on, and a host that lists it
-resolves those as well. Two scopes narrow what a feature contributes. `os.<os>`
-takes a Home Manager module and an `includes` list that apply only on hosts with
-that OS, and `kernel.<linux|darwin>` takes a Home Manager module for every host
-with that kernel:
+Features include other features by value. Included features precede their
+parent, and each registered feature is resolved once. A reference to an unknown
+feature fails at the reference. An include cycle reports the features in the
+cycle.
+
+Use `featureResolver.when` for conditional composition. An include can also be
+an inline fragment with class fields and its own includes:
 
 ```nix
-# features/git/default.nix
-{
+{featureResolver, ...}: let
+  inherit (featureResolver) when isLinux isDarwin;
+in {
   flake.features.git = {
     homeManager = ./home-manager.nix;
-    kernel = {
-      darwin.homeManager = ./home-manager-darwin.nix;
-      linux.homeManager = [./home-manager-linux.nix ./gitsign.nix];
-    };
-  };
-}
-
-# features/adsb/default.nix
-{config, ...}: {
-  flake.features.adsb = {
-    includes = [config.flake.features.containers];
-    systemManager = {config, pkgs, ...}: {
-      imports = [./options.nix];
-      # ...
-    };
+    includes = [
+      (when isLinux [{homeManager = [./home-manager-linux.nix ./gitsign.nix];}])
+      (when isDarwin [{homeManager = ./home-manager-darwin.nix;}])
+    ];
   };
 }
 ```
 
-`nixos`, `darwin` and `systemManager` each imply an OS, so they need no OS
-scoping. `system` is the exception: it goes to whichever of those three builds
-the host.
+There are no `os` or `kernel` fields. The same composition mechanism applies to
+all classes. Fragment modules precede the module of their parent, just as other
+includes do. Use native module ordering and priorities when values need explicit
+ordering or overrides.
 
-`kernel.linux` covers NixOS as well as the Linux hosts system-manager builds,
-which is why `git` above puts its Linux modules there. `os.nixos` and
-`os."generic-linux"` are the two halves of that: a NixOS host takes nothing from
-`os."generic-linux"`, and a system-manager host takes nothing from `os.nixos`.
+The resolver constructs `platform` with `lib.systems.elaborate system`.
+Selection does not instantiate a package set. Host contexts also contain
+`hostConfig` and `systemClass`. Helpers are available directly on
+`featureResolver`: `isLinux`, `isDarwin`, `isNixos`, `isGenericLinux`,
+`isAarch64`, `isx86_64`, `isStable` and `isUnstable`.
 
-### Top-level features and children
+A predicate runs only when its required arguments exist in the selection
+context. For example, `isGenericLinux` is skipped during shared output
+selection, because that context has a platform but no host. Selection cannot
+depend on evaluated system or Home Manager settings.
 
-A feature is top-level when a host composes it in its own right, such as `base`
-or `desktop`. Every other concern is a child of its parent feature, registered
-under that feature's `provides`. A child has every field of a feature, including
-its own `provides`, and its name is qualified by its parent's, so `base`'s zsh
-configuration is `base.zsh` and appears under that name in `featureNames`.
-
-Registering a child does not apply it. Something has to list it in `includes`,
-so a parent lists the children that always apply and puts the conditional ones
-under `os.<os>.includes`:
+`when` also accepts a feature or a list of features. The condition succeeds when
+all those features are selected. A custom predicate receives `hasFeature`:
 
 ```nix
-# features/base/default.nix
-{config, ...}: let
-  inherit (config.flake) features;
-  children = features.base.provides;
-in {
-  imports = [./zsh ./neovim ./nix ./sudo ./openssh ./restic];
-
-  flake.features.base = {
-    includes = with children; [zsh neovim nix sudo features.git];
-    os.nixos.includes = with children; [restic openssh];
-    homeManager = ./home-manager.nix;
-  };
-}
-
-# features/base/zsh/default.nix
-{
-  flake.features.base.provides.zsh = {
-    homeManager = ./home-manager.nix;
-    os."generic-linux".homeManager = ./home-manager-linux.nix;
-  };
-}
-```
-
-A child with only system-class fields is still scoped under `os.<os>.includes`,
-although its class already implies the OS: the scope is what keeps the child out
-of `featureNames` on the other OSes, so `hasFeature` never claims
-`desktop.gnome` on a darwin host.
-
-A child that its parent includes must not include the parent: the resolver
-reports that as a cycle.
-
-A child can configure options that its parent declares, and it then works only
-on a host that also has the parent. A feature that includes another feature's
-child makes the include conditional with `featureResolver.when`. `when` takes a
-condition and a list of features, and includes the listed features only on a
-host that has every feature in the condition:
-
-```nix
-# features/home/default.nix
 includes = [
-  (when features.ai [
-    features.ai.provides.claude-code.provides.teamclaude
-    features.ai.provides.cloudflare-mcp
-  ])
-  features.git
+  (when features.ai [features.ai.provides.claude-code.provides.teamclaude])
+  (when ({hasFeature, ...}: hasFeature features.git) [children.gitTools])
 ];
 ```
 
-Neither child includes `ai`, so a host without `ai` gets neither of them.
-`ai.claude-desktop` and `work.claude-managed-settings` include `ai` themselves,
-so including either of them adds `ai` to the host.
+The resolver repeats selection until membership stops changing. Each walk tests
+membership from the preceding walk, so the order of roots does not determine
+which conditions succeed. Predicates that cause membership to oscillate fail
+with an error.
 
-The condition can also be a predicate. The resolver calls it with `hasFeature`,
-a function that returns whether the host has a given feature, so a predicate can
-combine features with `||` or require one to be absent.
+### Registered children and inline fragments
 
-Discovery loads `features/<name>/default.nix` and nothing else, so a file beside
-it is loaded only when that `default.nix` imports it. A directory registers the
-top-level feature of its own name, and may register others whose names extend
-it: `features/nixbuild/default.nix` registers `nixbuild` and `nixbuild-builder`.
-Module files are named after their module system: `nixos.nix`, `darwin.nix`,
-`system-manager.nix`, `home-manager.nix`, with `home-manager-linux.nix` for the
-kernel scope and `home-manager-nixos.nix` or `home-manager-generic-linux.nix`
-for the OS scope. Packages live under `pkgs/`, even when one feature is their
-only consumer.
+A feature registers independently selectable concerns under `provides`. A child
+has all feature fields and can register children of its own. Its qualified name,
+such as `base.zsh`, appears in `featureNames` and works with `hasFeature`,
+`when` and `excludes`. Registering a child does not select it.
 
-`lib/features.nix` resolves a host's feature list into the modules for one
-module system. It expands includes depth-first, so a feature comes after its own
-includes. Each feature is emitted once. An include cycle throws an error that
-lists the features in the cycle.
+```nix
+{config, featureResolver, ...}: let
+  inherit (config.flake) features;
+  children = features.base.provides;
+  inherit (featureResolver) when isNixos;
+in {
+  imports = [./zsh ./openssh ./restic];
+  flake.features.base = {
+    includes = [children.zsh (when isNixos [children.openssh children.restic])];
+    homeManager = ./home-manager.nix;
+  };
+}
+```
 
-A `when` condition asks about the host's features, and the walk does not know
-them until it has finished. The resolver therefore walks again, answers each
-condition from the features that the previous walk found, and stops when two
-consecutive walks find the same features. As a result, the order in which a host
-lists its features does not change what it gets.
+Conditional selection keeps OS-specific children out of `featureNames` on other
+hosts, even if their class already implies the OS. A child that its parent
+includes cannot include the parent.
 
-A condition given as features always lets the walks stop, because each walk then
-finds at least the features of the walk before it. A predicate that requires a
-feature to be absent can instead send the walks back to a set of features that
-they found before, for example when its own includes add that feature. The
-resolver throws an error when that happens.
+Inline fragments group conditional modules that do not need a separate switch.
+They have deterministic internal identities derived from their owner and list
+position. Those identities deduplicate contributions but do not appear in
+`featureNames`. Use a registered child when callers need to select, exclude or
+test membership of the concern independently.
 
-`flake/parts/checks/feature-resolution.nix` compares the resolver's module lists
-with fixtures covering each of those.
+Discovery loads `features/<name>/default.nix`. That module explicitly imports
+files beside it. Checks and other outputs have no separate discovery mechanism.
+A directory registers its own top-level feature and any related features whose
+keys extend the directory's key, such as `nixbuild-builder` under `nixbuild`.
+`feature-registration` checks this layout.
 
-`flake/parts/checks/feature-registration.nix` enforces the layout rules above.
-It reads the file of each definition of `flake.features` and fails when a
-top-level feature is registered outside the `default.nix` of its own directory,
-or when a file adds children to a feature outside that directory.
+Configuration modules retain their existing filenames, such as `nixos.nix`,
+`home-manager-linux.nix` and `home-manager-generic-linux.nix`. Packages remain
+under `pkgs/`. Feature-owned output modules belong beside the feature;
+repository and package invariants remain under `flake/parts/checks/`.
+
+### Output evaluation
+
+Output selection and evaluation are separate. `flake.outputFeatures` explicitly
+selects shared output roots for every supported system. `flake.outputExcludes`
+excludes features from that selection. These roots preserve standalone tooling
+coverage when no host on a system selects the feature.
+
+The evaluator also collects contributions from each selected host graph under
+that host's system. Shared contributions are deduplicated by feature, class and
+contribution identity across roots and hosts. A host exclusion affects that
+host's graph; another host or a shared root can still select shared outputs.
+
+An ordinary output module receives the usual evaluation arguments:
+
+```nix
+checks = {pkgs, ...}: {
+  parser = pkgs.runCommandLocal "parser-test" {} "touch $out";
+};
+```
+
+A context-dependent output uses two functions. The outer function selects or
+binds composition values; the inner function is an ordinary module:
+
+```nix
+checks = {hostConfig, systemConfig}: {pkgs, ...}: {
+  "host-evaluation-parser-${hostConfig.name}" =
+    builtins.deepSeq systemConfig.services.example
+      (pkgs.runCommandLocal "parser-config-test" {} "touch $out");
+};
+```
+
+The composition arguments are `platform`, `hostConfig`, `systemConfig` and
+`homeConfig`. The last two are lazy evaluated `.config` values. The binder
+passes only the composition arguments requested by the outer function. A flat
+function such as `{hostConfig, pkgs, ...}:` therefore fails with Nix's normal
+missing argument error. The inner `config` refers to the current output class.
+
+A module requesting only `platform` is shared per system. Requesting any host
+argument makes the contribution specific to each selected host. Shared output
+modules use the overlaid unstable package set; host-bound modules use the host's
+selected channel. Authors choose public output keys, including host qualifiers.
+The evaluator adds no prefixes. Host checks that read private configuration use
+`host-evaluation-`. The public CI export excludes checks with that prefix.
+
+Each class is evaluated separately for the shared context and each host context.
+`packages`, `apps`, `checks` and `devShells` use flake-parts' native option
+types, including validation, defaults, module priorities and ordering. The
+evaluator then merges those results with the same types. Conflicting definitions
+fail. `legacyPackages` recursively merges attribute sets, concatenates lists in
+module order, accepts equal leaves and rejects conflicting leaves. Derivations
+are opaque leaves.
+
+The resolver and evaluator fixtures cover selection, contexts, merging and
+provenance. The host evaluation checks force each selected configuration's
+top-level derivation without building the host.
+
+### Project shells
+
+`lib/projects.nix` returns a Home Manager module and modules for `devShells` and
+`legacyPackages`. Flat `devShells.direnvs-*` keys provide `nix develop` entry
+points. `legacyPackages.<system>.direnvs` contains the nested directory tree;
+`direnvs.<system>` derives from that tree for existing `.envrc` consumers.
+
+Language definitions contain a `fragments` list of `pkgs: attrs` functions and
+`when` groups. The language helper uses the same context, predicates and
+conditional-list selector as feature composition. It concatenates `packages` and
+`shellHook` values while later fragments override other shell attributes.
 
 ## Options
 
@@ -242,21 +260,20 @@ to them.
    `agents`, `mcp`, `embeddings` and `backup`; `caddy` includes `auth` and
    `origin-auth`; `agentsview-server` and `matrix` include `backup`. A child
    that is not a default, such as `ai.cloudflare-mcp`, is listed by whatever
-   feature or host wants it, or under `os.<os>.includes`.
+   feature or host wants it, or through a conditional include.
 3. **Host values reach a feature through `hostConfig`.** No class module reads
    `config.flake.hosts`. A module body may call `hasFeature` when one feature's
    behaviour depends on another being present on the host, but it cannot decide
    an `includes` list, because includes are registry-level and no host is in
-   scope there. Only two kinds of include depend on the host: `os.<os>.includes`
-   depends on the host's OS, and a `featureResolver.when` entry depends on the
-   host's other features. Neither depends on the host's settings. A value more
-   than one feature needs is a typed field of the host record (`name`,
-   `hostname`, `os`, `arch`, `channel`, `stateVersion`, `motd`, `timezone`,
-   `flakePath`). A value one feature needs is that feature's option, which the
-   host sets in `systemModule` or `homeModule`. A feature's `secretsFile`
-   defaults to `<hostConfig.name>/host-<feature>.yaml`. A child that shares its
-   parent's secrets defaults to the parent's file, and a backup child defaults
-   to `<hostConfig.name>/host-r2.yaml`. A host sets one only to deviate.
+   scope there. Conditional includes use the selection context and `hasFeature`;
+   they cannot read evaluated system or home settings. A value more than one
+   feature needs is a typed field of the host record (`name`, `hostname`, `os`,
+   `arch`, `channel`, `stateVersion`, `motd`, `timezone`, `flakePath`). A value
+   one feature needs is that feature's option, which the host sets in
+   `systemModule` or `homeModule`. A feature's `secretsFile` defaults to
+   `<hostConfig.name>/host-<feature>.yaml`. A child that shares its parent's
+   secrets defaults to the parent's file, and a backup child defaults to
+   `<hostConfig.name>/host-r2.yaml`. A host sets one only to deviate.
 4. **One root for every option in the repository.** Every option lives under
    `dotfiles.<declaring feature or child>`, camelCased. A switch child nests
    under its parent's root (`dotfiles.hermes.signal.*`,
@@ -326,16 +343,21 @@ For a given host, the features resolve to a flat list of modules for each module
 system. The OS adapters in `os/<os>/default.nix` take that list and hand it to
 the right system builder:
 
-- `os/nixos` → `nixpkgs.lib.nixosSystem` (also embeds Home Manager, and grafts
-  the unstable `lib.hm` onto stable hosts so unstable HM modules evaluate),
-- `os/darwin` → `nix-darwin.lib.darwinSystem` (embeds Home Manager),
-- `os/generic-linux` → `system-manager.lib.makeSystemConfig` (Home Manager is
+- `os/nixos` uses `nixpkgs.lib.nixosSystem` (also embeds Home Manager, and
+  grafts the unstable `lib.hm` onto stable hosts so unstable HM modules
+  evaluate),
+- `os/darwin` uses `nix-darwin.lib.darwinSystem` (embeds Home Manager),
+- `os/generic-linux` uses `system-manager.lib.makeSystemConfig` (Home Manager is
   built and deployed separately).
 
 Shared plumbing (feature resolution, Home Manager assembly, the system special
 arguments, sops fragments) lives in `lib/`, so each adapter owns only what its
 system builder needs: the builder function, the modules to prepend, and how Home
-Manager reaches the configuration.
+Manager reaches the configuration. The shared host result contains the system
+configuration, its top-level derivation, the standalone Home Manager
+configuration, class and output metadata, home arguments and the deployment
+profile constructor. Output contexts, evaluation checks and deployment use this
+result. OS dispatch remains in the adapters.
 
 ## Flake outputs
 
@@ -354,13 +376,15 @@ The rest of the flake is the tooling and the data other things read:
   inputs, the per-host netboot installers, and one `update-<name>` app per
   updater,
 - `checks` and `formatter`: what `nix flake check` and `nix fmt` run,
-- `direnvs` and `devShells.direnvs-*`: per-directory development shells, and
-  `packages.direnv-shells`, which builds them all,
+- `legacyPackages.<system>.direnvs`, `direnvs` and `devShells.direnvs-*`:
+  per-directory development shells, and `packages.direnv-shells`, which builds
+  them all,
 - `cupboardOutputs` and `updaterNames`: the lists the cupboard publish and
   package update workflows iterate,
 - `features`, `hosts`, `operatingSystems`, `username`, `direnvLanguages`,
-  `modelCatalog` and `nix`: the flake-parts options declared in this repository,
-  readable from a script that needs to know what is configured,
+  `outputFeatures`, `outputExcludes`, `modelCatalog` and `nix`: the flake-parts
+  options declared in this repository, readable from a script that needs to know
+  what is configured,
 - `agentsviewHosts` and `agentsviewServer`: the hosts that push agent sessions
   and their destination server, read by the secrets generator.
 
@@ -375,6 +399,8 @@ needs:
 | `lib/container-image.nix`   | images built from a Nix closure                           |
 | `lib/discovery.nix`         | filesystem discovery: hosts, features, packages, overlays |
 | `lib/exposed-service.nix`   | the options declared by a proxied service                 |
+| `lib/feature-classes.nix`   | configuration classes, output classes and aliases         |
+| `lib/feature-outputs.nix`   | output collection, context binding and class evaluation   |
 | `lib/features.nix`          | feature resolution: includes, ordering, class modules     |
 | `lib/halls.nix`             | the message of the day for each host                      |
 | `lib/home.nix`              | Home Manager modules and special arguments                |

@@ -2,40 +2,18 @@
   inputs,
   config,
   lib,
+  hostResults,
   ...
 }: let
   inherit (config.flake) username;
   inherit (config.flake) hosts;
-  operatingSystems = import ../../lib/operating-systems.nix;
   deployLibFor = system: (import ../../lib/deploy-rs {inherit inputs system;}).lib;
 
   nodes =
     lib.mapAttrs (
       hostname: hostConfig: let
         deployLib = deployLibFor hostConfig.system;
-        configuration =
-          config.flake.${operatingSystems.${hostConfig.os}.outputName}.${hostname};
-        systemProfile =
-          {
-            nixos = {
-              user = "root";
-              path = deployLib.activate.nixos configuration;
-            };
-            "generic-linux" = {
-              user = "root";
-              path =
-                deployLib.activate.custom
-                configuration.config.build.toplevel
-                "$PROFILE/bin/activate";
-            };
-            darwin = {
-              user = "root";
-              path = deployLib.activate.darwin configuration;
-            };
-          }
-          .${
-            hostConfig.os
-          };
+        systemProfile = hostResults.${hostname}.systemProfile deployLib hostResults.${hostname}.configuration;
       in
         {
           inherit (hostConfig) hostname;
@@ -56,12 +34,7 @@
             };
           };
         }
-        // lib.optionalAttrs (hostConfig.os == "generic-linux") {
-          # `sudo-rs` on some Linux hosts does not preserve a PATH that
-          # includes the Nix binaries; run as a login shell so root picks up
-          # the nix-daemon profile.
-          sudo = "sudo -S -i -u";
-        }
+        // hostResults.${hostname}.deployment
     )
     hosts;
 

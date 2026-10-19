@@ -1,4 +1,8 @@
-{config, ...}: let
+{
+  config,
+  featureResolver,
+  ...
+}: let
   inherit (config.flake) features;
   children = features.desktop.provides;
 in {
@@ -23,33 +27,36 @@ in {
   ];
 
   flake.features.desktop = {
-    includes = with children; [
-      features.ai
-      features.ai.provides.claude-desktop
-      ghostty
-      kitty
-      voxtype
-      zed-editor
-      vscode
-      cursor
-      chrome
-      fonts
-      gpg-agent
-    ];
-
-    os = {
-      nixos.includes = with children; [
-        gnome
-        vm-host
-        secure-boot
-        plymouth
-        console
-        tailscale
-        usbguard
+    includes =
+      (with children; [
+        features.ai
+        features.ai.provides.claude-desktop
+        ghostty
+        kitty
+        voxtype
+        zed-editor
+        vscode
+        cursor
+        chrome
+        fonts
+        gpg-agent
+      ])
+      ++ [
+        (featureResolver.when featureResolver.isNixos [
+          {
+            includes = with children; [
+              gnome
+              vm-host
+              secure-boot
+              plymouth
+              console
+              tailscale
+              usbguard
+            ];
+          }
+        ])
+        (featureResolver.when featureResolver.isDarwin [children.wine])
       ];
-
-      darwin.includes = [children.wine];
-    };
 
     homeManager = ./home-manager.nix;
     darwin = ./darwin.nix;

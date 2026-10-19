@@ -1,6 +1,6 @@
-{
-  flake.features.work.provides.falcon.nixos = [
-    ./service.nix
-    ./nixos.nix
-  ];
+{featureResolver, ...}: {
+  flake.features.work.provides.falcon = {
+    includes = [(featureResolver.when featureResolver.isNixos [{checks = ./checks.nix;}])];
+    nixos = [./service.nix ./nixos.nix];
+  };
 }

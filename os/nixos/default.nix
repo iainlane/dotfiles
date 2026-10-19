@@ -65,5 +65,10 @@
     }
   );
 in {
+  toplevel = configuration: configuration.config.system.build.toplevel;
+  systemProfile = deployLib: configuration: {
+    user = "root";
+    path = deployLib.activate.nixos configuration;
+  };
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

@@ -1,8 +1,8 @@
 {
+  featureResolver,
   config,
   lib,
   mkLanguageShell,
-  withSystem,
   ...
 }: let
   inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
@@ -39,11 +39,11 @@
       };
   };
 
-  mkShell = pkgs: kernel: def:
+  mkShell = pkgs: platform: def:
     mkProjectShell {
       inherit pkgs def;
 
-      base = mkLanguageShell pkgs kernel (def.languages or []);
+      base = mkLanguageShell pkgs platform (def.languages or []);
 
       environment =
         {
@@ -60,20 +60,22 @@
     };
 
   projectShells = mkProjectShells {
-    inherit config withSystem mkShell projects;
+    inherit mkShell projects;
   };
 in {
   imports = [
-    projectShells.flakeModule
     ./claude-managed-settings
     ./falcon
     ./kolide
   ];
 
   flake.features.work = {
-    includes = [config.flake.features.ai config.flake.features.git];
-
-    os.nixos.includes = with children; [falcon kolide];
+    inherit (projectShells) devShells legacyPackages;
+    includes =
+      [config.flake.features.ai config.flake.features.git]
+      ++ [
+        (featureResolver.when featureResolver.isNixos (with children; [falcon kolide]))
+      ];
 
     homeManager = [
       projectShells.homeManagerModule
