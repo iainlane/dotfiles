@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,31 @@ import update
 
 class UpdateTests(unittest.TestCase):
     config = "'https://trmnl.com/js/highcharts/12.3.0/highcharts.js' 'https://trmnl.com/js/chartkick/5.0.1/chartkick.min.js' 'https://trmnl.com/js/maplibre-gl/5.24.0/maplibre-gl.js'"
+
+    def test_main_reads_the_packaged_renderer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            vendor = Path(directory)
+            config = (
+                vendor / "vendor/bnussbau/laravel-trmnl-blade/config/trmnl-blade.php"
+            )
+            config.parent.mkdir(parents=True)
+            config.write_text(self.config)
+            for library in ["highcharts", "chartkick", "maplibre-gl"]:
+                with (
+                    self.subTest(library=library),
+                    patch.object(sys, "argv", ["update.py", library]),
+                    patch.object(
+                        update.subprocess,
+                        "check_output",
+                        side_effect=[directory, str(vendor)],
+                    ),
+                    patch.object(update, "update") as refresh,
+                ):
+                    update.main()
+                    self.assertEqual(
+                        refresh.call_args.args,
+                        (Path("source.json"), self.config, library, False),
+                    )
 
     def test_version_follows_renderer_configuration(self):
         for library, version in [

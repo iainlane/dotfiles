@@ -7,7 +7,6 @@
   gh,
   python3,
   cargo,
-  nix-update,
   autoPatchelfHook,
   cmake,
   makeBinaryWrapper,
@@ -31,7 +30,7 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "fastflowlm";
-    version = "1.0.7";
+    version = "1.0.9";
 
     __structuredAttrs = true;
     strictDeps = true;
@@ -40,7 +39,7 @@ in
       owner = "ROCm";
       repo = "FastFlowLM";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-1toIh1vCNIWcKOIPmqn4WXxlg5YbSDwIKCRiGg+fiz8=";
+      hash = "sha256-ZxfIMPDQ4FCEsRqek+jULzYnCIw2hLY7b7+i6EhkSao=";
     };
 
     sourceRoot = "${finalAttrs.src.name}/src";
@@ -80,7 +79,7 @@ in
     ];
 
     postInstall = ''
-      install -Dm644 ${finalAttrs.src}/LICENSE_RUNTIME.txt ${finalAttrs.src}/TERMS.md \
+      install -Dm644 ${finalAttrs.src}/LICENSE_RUNTIME.txt ${finalAttrs.src}/LICENSE_BINARY.txt \
         -t $out/share/licenses/fastflowlm
     '';
 
@@ -100,7 +99,7 @@ in
       updateScript = updaters.mkScriptUpdater {
         pname = "fastflowlm";
         script = ./update.sh;
-        extraRuntimeInputs = [gh python3 cargo nix-update];
+        extraRuntimeInputs = [gh python3 cargo];
       };
     };
 
@@ -109,7 +108,7 @@ in
       homepage = "https://fastflowlm.com";
       downloadPage = "https://github.com/ROCm/FastFlowLM/releases";
       changelog = "https://github.com/ROCm/FastFlowLM/releases/tag/${finalAttrs.src.tag}";
-      # TERMS.md restricts commercial use of the prebuilt NPU kernels.
+      # The prebuilt NPU binaries cannot be modified.
       license = with lib.licenses; [
         mit
         unfree

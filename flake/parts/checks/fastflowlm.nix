@@ -44,9 +44,11 @@
             expected = {
                 f'{family}:{size}': False
                 for family, variants in catalog['models'].items()
-                for size in variants
+                if not family.endswith('-rai')
+                for size, model in variants.items()
+                if 'aie2p' in model.get('supported_platforms', ['aie2p'])
             }
-            assert actual == expected
+            assert actual == expected, {'actual': actual, 'expected': expected}
             PY
             touch $out
           '';

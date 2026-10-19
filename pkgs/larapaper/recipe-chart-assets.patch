@@ -43,7 +43,7 @@ diff --git a/docs/docs/getting-started/environment-variables.md b/docs/docs/gett
 index 99bfad9..b3d68b8 100644
 --- a/docs/docs/getting-started/environment-variables.md
 +++ b/docs/docs/getting-started/environment-variables.md
-@@ -28,5 +28,9 @@ ## Browser assets
+@@ -28,8 +28,12 @@ ## Browser assets
  | `TRMNL_BLADE_FRAMEWORK_BASE_URL` | Base URL for versioned framework assets (`plugins.css`, `plugins.js`) | `https://trmnl.com` |
  | `TRMNL_BLADE_FRAMEWORK_CSS_URL` | Override the framework stylesheet URL | `null` |
  | `TRMNL_BLADE_FRAMEWORK_JS_URL` | Override the framework JavaScript URL | `null` |
@@ -53,6 +53,9 @@ index 99bfad9..b3d68b8 100644
  Explicit stylesheet and JavaScript URLs take precedence over the base URL and per-recipe framework version.
 +
 +Recipe render contexts expose the chart URLs as `trmnl.assets.highcharts_js_url` and `trmnl.assets.chartkick_js_url`, and the bundled pollen recipe uses them. Inline Blade and Liquid markup, including markup rendered by the external Liquid renderer, receive the same context. Saved templates with literal script URLs keep those URLs until the template is edited.
+ 
+ ## OpenID Connect
+ 
 diff --git a/resources/views/recipes/pollen-forecast-eu.liquid b/resources/views/recipes/pollen-forecast-eu.liquid
 index 4140f81..cebc1a2 100644
 --- a/resources/views/recipes/pollen-forecast-eu.liquid

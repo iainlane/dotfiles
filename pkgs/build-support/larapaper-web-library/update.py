@@ -69,7 +69,7 @@ def main() -> None:
             text=True,
         ).strip()
         config = (
-            Path(vendor) / "vendor/bnussbau/trmnl-blade/config/trmnl-blade.php"
+            Path(vendor) / "vendor/bnussbau/laravel-trmnl-blade/config/trmnl-blade.php"
         ).read_text()
         update(Path("source.json"), config, arguments.library, arguments.force)
     except (

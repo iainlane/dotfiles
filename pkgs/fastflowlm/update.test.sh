@@ -20,7 +20,7 @@ cat >>"${fixture}/bin/gh" <<'SH'
 set -euo pipefail
 case "$2" in
 repos/ROCm/FastFlowLM/releases/latest) printf 'v%s\n' "${UPDATE_TEST_VERSION}" ;;
-repos/ROCm/FastFlowLM/contents/third_party/tokenizers-cpp?ref=v1.2.3) printf '%040d\n' 1 ;;
+repos/ROCm/FastFlowLM/contents/third_party/tokenizers-cpp?ref=v*) printf '%040d\n' 1 ;;
 repos/mlc-ai/tokenizers-cpp/commits/*) printf '2026-03-01\n' ;;
 *) exit 1 ;;
 esac
@@ -28,27 +28,24 @@ SH
 cat >>"${fixture}/bin/nix" <<'SH'
 set -euo pipefail
 case "$1" in
-eval) printf '{"version":"1.0.7","tokenizersVersion":"0.1.1-unstable-2026-02-20","rev":"old-revision","hash":"old-hash"}\n' ;;
-flake) printf '{"hash":"new-hash","storePath":"%s/source"}\n' "${UPDATE_TEST_ROOT}" ;;
+eval) printf '{"version":"1.0.7","sourceHash":"old-source-hash","tokenizersVersion":"0.1.1-unstable-2026-02-20","rev":"old-revision","hash":"old-hash"}\n' ;;
+flake)
+  case "$4" in
+  github:ROCm/FastFlowLM/v*)
+    if [[ "${UPDATE_TEST_FAIL:-}" == prefetch ]]; then exit 2; fi
+    touch "${UPDATE_TEST_ROOT}/called"
+    printf '{"hash":"new-source-hash"}\n'
+    ;;
+  github:mlc-ai/tokenizers-cpp/*) printf '{"hash":"new-hash","storePath":"%s/source"}\n' "${UPDATE_TEST_ROOT}" ;;
+  *) exit 1 ;;
+  esac
+  ;;
 *) exit 1 ;;
 esac
 SH
 cat >>"${fixture}/bin/nix-update" <<'SH'
-set -euo pipefail
-touch "${UPDATE_TEST_ROOT}/called"
-python3 - "$@" <<'PY'
-import argparse
-from pathlib import Path
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--override-filename', required=True)
-parser.add_argument('--version', required=True)
-options, _ = parser.parse_known_args()
-package = Path(options.override_filename)
-if options.version != 'skip':
-    package.write_text(package.read_text().replace('1.0.7', options.version))
-PY
-if [[ "${UPDATE_TEST_FAIL:-}" == nix-update ]]; then exit 2; fi
+echo 'Source hashing must not build target-system derivations.' >&2
+exit 1
 SH
 cat >>"${fixture}/bin/cargo" <<'SH'
 set -euo pipefail
@@ -59,7 +56,7 @@ chmod +x "${fixture}/bin/"*
 cd "${fixture}/pkgs/fastflowlm"
 
 reset_fixture() {
-	printf 'version = "1.0.7";\n' >package.nix
+	printf 'version = "1.0.7";\nhash = "old-source-hash";\n' >package.nix
 	printf 'version = "0.1.1-unstable-2026-02-20";\nrev = "old-revision";\nhash = "old-hash";\n' >tokenizers-cpp/default.nix
 	printf 'old lock\n' >tokenizers-cpp/Cargo.lock
 }
@@ -82,7 +79,7 @@ assert {
     'tokenizers': declarations('tokenizers-cpp/default.nix'),
     'lock': Path('tokenizers-cpp/Cargo.lock').read_text(),
 } == {
-    'release': {'version': '1.2.3'},
+    'release': {'version': '1.2.3', 'hash': 'new-source-hash'},
     'tokenizers': {
         'version': '0.1.1-unstable-2026-03-01',
         'rev': '0000000000000000000000000000000000000001',
@@ -92,12 +89,24 @@ assert {
 }
 PY
 
-reset_fixture
-cp -r . "${fixture}/original"
-for failure in cargo nix-update; do
+for failure in cargo prefetch tokenizer; do
+	reset_fixture
+	if [[ "${failure}" == tokenizer ]]; then
+		printf 'hash = "old-hash";\n' >>tokenizers-cpp/default.nix
+	fi
+	rm -rf "${fixture}/original"
+	cp -r . "${fixture}/original"
 	if UPDATE_TEST_FAIL="${failure}" bash "${updater}"; then
 		echo "The failed ${failure} update unexpectedly succeeded." >&2
 		exit 1
 	fi
 	diff -r . "${fixture}/original"
 done
+
+reset_fixture
+UPDATE_TEST_VERSION=1.0.7 bash "${updater}" --force
+python3 - <<'PY'
+from pathlib import Path
+
+assert Path('package.nix').read_text() == 'version = "1.0.7";\nhash = "new-source-hash";\n'
+PY

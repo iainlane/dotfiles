@@ -6,6 +6,8 @@
   perSystem = {pkgs, ...}: {
     checks =
       {
+        larapaper-source = pkgs.larapaper.src;
+
         trmnl-framework-updater = assert builtins.elem "trmnl-framework" config.flake.updaterNames;
           pkgs.runCommandLocal "trmnl-framework-updater-test" {
             nativeBuildInputs = [pkgs.bash pkgs.jq pkgs.diffutils];
