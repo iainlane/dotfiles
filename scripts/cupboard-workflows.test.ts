@@ -168,7 +168,7 @@ describe("Cupboard workflow source preparation", () => {
     try {
       const result = spawnSync(
         process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
-        ["-c", string(evaluation.run)],
+        ["--noprofile", "--norc", "-c", string(evaluation.run)],
         {
           encoding: "utf8",
           env: {
@@ -565,7 +565,7 @@ describe("Cupboard strict build ownership", () => {
     try {
       const result = spawnSync(
         process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
-        ["-c", string(step.run)],
+        ["--noprofile", "--norc", "-c", string(step.run)],
         {
           encoding: "utf8",
           env: {
@@ -627,7 +627,7 @@ fi
       try {
         const result = spawnSync(
           process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
-          ["-c", string(build.run)],
+          ["--noprofile", "--norc", "-c", string(build.run)],
           {
             encoding: "utf8",
             env: {
