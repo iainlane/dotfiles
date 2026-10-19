@@ -68,8 +68,11 @@
     # so it gets the hosts this system builds and no others.
     nativeNodes =
       lib.filterAttrs (hostname: _: hosts.${hostname}.system == system) nodes;
+    schema = (deployChecks {nodes = schemaNodes;}).deploy-schema;
   in {
-    inherit (deployChecks {nodes = schemaNodes;}) deploy-schema;
+    deploy-schema = schema.overrideAttrs (previous: {
+      passthru = (previous.passthru or {}) // {ci.runOnce = true;};
+    });
     inherit (deployChecks {nodes = nativeNodes;}) deploy-activate;
   };
 in {

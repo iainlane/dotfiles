@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          matrix=$(nix eval --json .#cupboardPublicOutputs |
+          matrix=$(./scripts/check-evaluation.bash --json .#cupboardPublicOutputs |
             jq --compact-output '{include: (map({system, os}) | unique_by(.system))}')
           printf 'matrix=%s\n' "${matrix}" >> "${GITHUB_OUTPUT}"
 
@@ -69,7 +69,7 @@ jobs:
 
       - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
 
-      - name: Trust our binary caches
+      - name: Configure evaluation and binary caches
         id: cache-config
         env:
           NIXBUILD_TOKEN: ${{ secrets.NIXBUILD_NET_SECRET }}
@@ -78,7 +78,7 @@ jobs:
           mkdir -p "${HOME}/.config/nix"
           {
             printf '\n'
-            nix eval --raw .#nix.substituterConfig
+            ./scripts/check-evaluation.bash --raw .#nix.ciConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
           echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"

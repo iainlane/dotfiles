@@ -135,7 +135,8 @@ fmt *args:
 
 # Evaluate all systems and build checks for the native system
 check *args:
-    nix flake check --all-systems {{ args }}
+    ./scripts/check-evaluation.bash
+    NIX_CONFIG="${NIX_CONFIG:-}"$'\n'"$(<lib/nix/evaluation.conf)" nix flake check --all-systems {{ args }} --option allow-import-from-derivation false
 
 # Lint: format and check the flake
 lint: fmt check

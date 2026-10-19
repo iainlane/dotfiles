@@ -14,8 +14,19 @@ paths and leave unrelated untracked files alone.
 Run Nix commands through `direnv exec .` when the allowed `.envrc` is not
 already active.
 
-`./just check` evaluates all configured systems and builds checks for the native
-system. It does not build checks for other systems. CI builds checks for every
-system through the Cupboard target lists. Public validation uses native runners
-for each system; publication uses the configured per-system cohorts and remote
-builders.
+`./scripts/check-evaluation.bash` evaluates every host profile and planned CI
+target with import-from-derivation disabled. Evaluation must not build packages,
+even when their outputs are cached. Local validation, pre-commit and the
+Cupboard workflows use the policy in `lib/nix/evaluation.conf`. The gate
+enforces the policy after command-line options. Update workflows use the
+cache-only settings in `nix.substituterConfig`.
+
+`./just check` runs that evaluation gate, evaluates all configured systems and
+builds checks for the native system. CI builds checks for every system through
+the Cupboard target lists. Public validation uses native runners for each
+system; publication uses the configured per-system cohorts and remote builders.
+
+Checks remain available locally on every supported system. A check can set
+`passthru.ci.runOnce = true` when CI should run one instance on the validation
+system defined in `lib/ci.nix`. The deployment schema uses this policy;
+activation checks remain on each host's system.

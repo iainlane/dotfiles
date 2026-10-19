@@ -62,7 +62,7 @@
           flake-check = {
             enable = true;
             name = "nix flake check";
-            entry = "nix flake check --all-systems";
+            entry = "${lib.getExe pkgs.just} check";
             language = "system";
             pass_filenames = false;
           };

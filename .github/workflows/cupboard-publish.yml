@@ -64,7 +64,7 @@ jobs:
             exit 0
           fi
 
-          nix eval --json .#nix.publishInputs \
+          ./scripts/check-evaluation.bash --json .#nix.publishInputs \
             | jq -r 'to_entries[] | "\(.key)=\(.value)"' \
             | tee -a "${GITHUB_OUTPUT}"
 
@@ -84,7 +84,7 @@ jobs:
       targets: .#cupboardOutputs
       preset: pull-request-and-branch
       read-caches: https://cupboard.supply/t/laney/cache/falcon
-      nix-config: .#nix.publishSubstituterConfig
+      nix-config: .#nix.publishCiConfig
       maximise-space: true
       gc-between-cohorts: true
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}

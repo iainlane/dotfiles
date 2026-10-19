@@ -15,7 +15,11 @@
       }
       ''
         CUPBOARD_SHARED_NIX_CONFIG=${pkgs.writeText "shared-nix.conf" config.flake.nix.substituterConfig} \
-          CUPBOARD_PUBLISH_NIX_CONFIG=${pkgs.writeText "publish-nix.conf" config.flake.nix.publishSubstituterConfig} \
+          CUPBOARD_PUBLISH_CACHE_CONFIG=${pkgs.writeText "publish-cache.conf" config.flake.nix.publishSubstituterConfig} \
+          CUPBOARD_CI_NIX_CONFIG=${pkgs.writeText "ci-nix.conf" config.flake.nix.ciConfig} \
+          CUPBOARD_PUBLISH_NIX_CONFIG=${pkgs.writeText "publish-nix.conf" config.flake.nix.publishCiConfig} \
+          CUPBOARD_EVALUATION_SCRIPT=${../../../scripts/check-evaluation.bash} \
+          CUPBOARD_EVALUATION_CONFIG=${../../../lib/nix/evaluation.conf} \
           CUPBOARD_TARGET_FIXTURE=${pkgs.writeText "cupboard-target-fixture.json" (builtins.toJSON fixture)} \
           CUPBOARD_WORKFLOWS=${../../../.github/workflows} \
           CUPBOARD_WORKFLOWS_BASH=${pkgs.bash}/bin/bash \

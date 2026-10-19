@@ -5,7 +5,7 @@
   ...
 }: let
   inherit (config.flake) hosts username;
-  validationSystem = "x86_64-linux";
+  inherit (import ../../../lib/ci.nix) validationSystem;
 
   entry = attr: system: rootSuffix:
     lib.nameValuePair attr {inherit system rootSuffix;};
@@ -28,7 +28,7 @@
     (system: systemChecks:
       map
       (name: entry ".#checks.${system}.${name}" system "${system}/checks-${name}")
-      (lib.attrNames systemChecks))
+      (lib.attrNames (lib.filterAttrs (_: check: !(check.ci.runOnce or false) || system == validationSystem) systemChecks)))
     config.flake.checks);
 
   promptTests =
@@ -45,6 +45,10 @@
   );
 
   expected = {
+    schema = {
+      availableSystems = lib.sort builtins.lessThan config.systems;
+      selectedSystems = [validationSystem];
+    };
     coverage = lib.attrNames required;
     policy =
       lib.mapAttrs (_: target: {
@@ -64,6 +68,10 @@
 
   targets = config.flake.cupboardOutputs;
   actual = {
+    schema = {
+      availableSystems = lib.sort builtins.lessThan (lib.filter (system: config.flake.checks.${system} ? deploy-schema) config.systems);
+      selectedSystems = map (target: target.system) (lib.filter (target: target.attr == ".#checks.${target.system}.deploy-schema") targets);
+    };
     coverage = lib.sort builtins.lessThan (map (target: target.attr) targets);
     policy = lib.listToAttrs (map
       (target: lib.nameValuePair target.attr (removeAttrs target ["attr" "rootDrvPath"]))
@@ -81,7 +89,7 @@ in {
         printf '%s' "$expected" >expected.json
         printf '%s' "$actual" >actual.json
 
-        for check in coverage policy; do
+        for check in coverage policy schema; do
           jq --sort-keys ".$check" expected.json >"$check.expected.json"
           jq --sort-keys ".$check" actual.json >"$check.actual.json"
 

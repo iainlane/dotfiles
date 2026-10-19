@@ -2,6 +2,7 @@
   lib,
   systems,
 }: let
+  inherit (import ../lib/ci.nix) validationSystem;
   fakePackage = name: {
     drvPath = "/nix/store/00000000000000000000000000000000-${name}.drv";
   };
@@ -44,8 +45,9 @@
       };
     };
     checks = lib.genAttrs systems (_: {
-      deploy-schema = fakePackage "deploy";
+      deploy-schema = fakePackage "deploy" // {ci.runOnce = true;};
       example = fakePackage "example";
+      global = fakePackage "global" // {ci.runOnce = true;};
       falcon-kernel-test = fakePackage "falcon";
       host-evaluation-home-test = fakePackage "host";
       prompt-conformance-configuration = fakePackage "configuration";
@@ -73,6 +75,7 @@
       };
   };
 in {
+  inherit validationSystem;
   checkSystems = lib.attrNames fixtureConfig.flake.checks;
   outputs = complete.flake.cupboardOutputs;
   publicOutputs = complete.flake.cupboardPublicOutputs or [];

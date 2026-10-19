@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { runInNewContext } from "node:vm";
 
@@ -44,7 +46,9 @@ interface SubstituterConfiguration {
 function nixConfigurationText(installable: string): string {
   const files: Readonly<Record<string, string | undefined>> = {
     ".#nix.substituterConfig": process.env.CUPBOARD_SHARED_NIX_CONFIG,
-    ".#nix.publishSubstituterConfig": process.env.CUPBOARD_PUBLISH_NIX_CONFIG,
+    ".#nix.publishSubstituterConfig": process.env.CUPBOARD_PUBLISH_CACHE_CONFIG,
+    ".#nix.ciConfig": process.env.CUPBOARD_CI_NIX_CONFIG,
+    ".#nix.publishCiConfig": process.env.CUPBOARD_PUBLISH_NIX_CONFIG,
   };
   const file = files[installable];
 
@@ -70,6 +74,47 @@ function nixConfiguration(installable: string): SubstituterConfiguration {
   return {
     substituters: string(settings["extra-substituters"]).split(" "),
     trustedPublicKeys: string(settings["extra-trusted-public-keys"]).split(" "),
+  };
+}
+
+function prepareEvaluation(
+  directory: string,
+  response: unknown,
+): { manifest: string; calls: string } {
+  const manifest = join(directory, "response.json");
+  const calls = join(directory, "calls");
+  writeFileSync(manifest, JSON.stringify(response));
+  const evaluatorFiles: readonly (readonly [string, string])[] = [
+    [
+      "scripts/check-evaluation.bash",
+      process.env.CUPBOARD_EVALUATION_SCRIPT ?? "scripts/check-evaluation.bash",
+    ],
+    [
+      "lib/nix/evaluation.conf",
+      process.env.CUPBOARD_EVALUATION_CONFIG ?? "lib/nix/evaluation.conf",
+    ],
+  ];
+  for (const [relativePath, sourcePath] of evaluatorFiles) {
+    const destination = join(directory, relativePath);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(sourcePath, destination);
+  }
+  writeFileSync(
+    join(directory, "nix"),
+    `#!/bin/sh
+printf '%s\\n' "$NIX_CONFIG" > "$NIX_CALLS.config"
+printf '%s\\n' "$@" > "$NIX_CALLS.args"
+cat "$NIX_TARGETS"
+`,
+    { mode: 0o755 },
+  );
+  return { manifest, calls };
+}
+
+function evaluationCall(calls: string): { args: string[]; config: string } {
+  return {
+    args: readFileSync(`${calls}.args`, "utf8").trim().split("\n"),
+    config: readFileSync(`${calls}.config`, "utf8"),
   };
 }
 
@@ -160,6 +205,66 @@ describe("Cupboard workflow event admission", () => {
 });
 
 describe("Cupboard workflow source preparation", () => {
+  it("enforces the evaluation policy when preparing publish inputs", () => {
+    const directory = mkdtempSync(join(tmpdir(), "cupboard-inputs-"));
+    const output = join(directory, "output");
+    writeFileSync(output, "");
+    const { manifest, calls } = prepareEvaluation(directory, {
+      trustedPublicKey: "fixture-key",
+      builders: "fixture-builder",
+    });
+
+    try {
+      const result = spawnSync(
+        process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+        ["--noprofile", "--norc", "-c", string(evaluation.run)],
+        {
+          cwd: directory,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PATH: `${directory}:${process.env.PATH}`,
+            NIX_CONFIG: "allow-import-from-derivation = true",
+            EVENT_NAME: "push",
+            EVENT_ACTION: "",
+            GITHUB_OUTPUT: output,
+            NIX_TARGETS: manifest,
+            NIX_CALLS: calls,
+          },
+        },
+      );
+      assert.deepEqual(
+        {
+          status: result.status,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          output: readFileSync(output, "utf8"),
+          evaluation: evaluationCall(calls),
+        },
+        {
+          status: 0,
+          stdout: "trustedPublicKey=fixture-key\nbuilders=fixture-builder\n",
+          stderr: "",
+          output: "trustedPublicKey=fixture-key\nbuilders=fixture-builder\n",
+          evaluation: {
+            args: [
+              "eval",
+              "--json",
+              ".#nix.publishInputs",
+              "--option",
+              "allow-import-from-derivation",
+              "false",
+            ],
+            config:
+              "allow-import-from-derivation = true\nallow-import-from-derivation = false\n",
+          },
+        },
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("skips fetching and evaluating inputs on close without blocking retirement", () => {
     const directory = mkdtempSync(join(tmpdir(), "cupboard-workflows-"));
     const output = join(directory, "output");
@@ -334,6 +439,29 @@ describe("Cupboard merged pull request reuse", () => {
 });
 
 describe("Cupboard workflow runner read configuration", () => {
+  it("rejects evaluation-time builds in both CI configurations", () => {
+    const setting = (installable: string): string | undefined =>
+      nixConfigurationText(installable)
+        .split("\n")
+        .find((line) => line.startsWith("allow-import-from-derivation = "));
+    const publisher = record(record(record(wrapper.jobs).publish).with);
+
+    assert.deepEqual(
+      {
+        public: setting(".#nix.ciConfig"),
+        publish: setting(string(publisher["nix-config"])),
+        sharedCaches: setting(".#nix.substituterConfig"),
+        publishCaches: setting(".#nix.publishSubstituterConfig"),
+      },
+      {
+        public: "allow-import-from-derivation = false",
+        publish: "allow-import-from-derivation = false",
+        sharedCaches: undefined,
+        publishCaches: undefined,
+      },
+    );
+  });
+
   it("separates the publisher's tenant read session from shared-host release caches", () => {
     const inputs = record(record(record(wrapper.jobs).publish).with);
     const tenant = new URL(string(inputs.url));
@@ -410,6 +538,7 @@ function expectedTarget(
 const fixture = targetFixture();
 assert.ok(Array.isArray(fixture.checkSystems));
 const checkSystems = fixture.checkSystems.map(string);
+const validationSystem = string(fixture.validationSystem);
 
 function expectedChecks(
   system: string,
@@ -420,22 +549,30 @@ function expectedChecks(
         ["deploy-schema", "deploy"],
         ["example", "example"],
         ["falcon-kernel-test", "falcon"],
+        ["global", "global"],
         ["host-evaluation-home-test", "host"],
         ["prompt-conformance-configuration", "configuration"],
       ]
     : [
         ["example", "example"],
+        ["global", "global"],
         ["prompt-conformance-configuration", "configuration"],
       ];
 
-  return checks.map(([name, derivation]) =>
-    expectedTarget(
-      `.#checks.${system}.${name}`,
-      `checks-${name}`,
-      derivation,
-      system,
-    ),
-  );
+  return checks
+    .filter(
+      ([name]) =>
+        !["deploy-schema", "global"].includes(name) ||
+        system === validationSystem,
+    )
+    .map(([name, derivation]) =>
+      expectedTarget(
+        `.#checks.${system}.${name}`,
+        `checks-${name}`,
+        derivation,
+        system,
+      ),
+    );
 }
 
 function expectedPublicTargets(): readonly FixtureTarget[] {
@@ -446,20 +583,24 @@ function expectedPublicTargets(): readonly FixtureTarget[] {
       "packages",
     ),
     ...checkSystems.flatMap((system) => expectedChecks(system, false)),
-    ...[
-      "claudeEndpoint",
-      "codexEndpoint",
-      "codexProtocol",
-      "fixtureEnvironments",
-      "python",
-    ].map((name) =>
-      expectedTarget(
-        `.#packages.x86_64-linux.claude-prompt-conformance.tests.${name}`,
-        `prompt-conformance-${name}`,
-        name,
-      ),
-    ),
+    ...expectedPromptTargets(),
   ];
+}
+
+function expectedPromptTargets(): readonly FixtureTarget[] {
+  return [
+    "claudeEndpoint",
+    "codexEndpoint",
+    "codexProtocol",
+    "fixtureEnvironments",
+    "python",
+  ].map((name) =>
+    expectedTarget(
+      `.#packages.x86_64-linux.claude-prompt-conformance.tests.${name}`,
+      `prompt-conformance-${name}`,
+      name,
+    ),
+  );
 }
 
 describe("Cupboard strict build ownership", () => {
@@ -535,7 +676,7 @@ describe("Cupboard strict build ownership", () => {
           ),
           publicTargets[0],
           ...checkSystems.flatMap((system) => expectedChecks(system, true)),
-          ...publicTargets.slice(1 + checkSystems.length * 2),
+          ...expectedPromptTargets(),
         ],
       },
     );
@@ -555,24 +696,26 @@ describe("Cupboard strict build ownership", () => {
     assert.ok(step);
     const directory = mkdtempSync(join(tmpdir(), "cupboard-matrix-"));
     const output = join(directory, "output");
-    const manifest = join(directory, "targets.json");
     writeFileSync(output, "");
-    writeFileSync(manifest, JSON.stringify(expectedPublicTargets()));
-    writeFileSync(join(directory, "nix"), '#!/bin/sh\ncat "$NIX_TARGETS"\n', {
-      mode: 0o755,
-    });
+    const { manifest, calls } = prepareEvaluation(
+      directory,
+      expectedPublicTargets(),
+    );
 
     try {
       const result = spawnSync(
         process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
         ["--noprofile", "--norc", "-c", string(step.run)],
         {
+          cwd: directory,
           encoding: "utf8",
           env: {
             ...process.env,
             PATH: `${directory}:${process.env.PATH}`,
+            NIX_CONFIG: "allow-import-from-derivation = true",
             GITHUB_OUTPUT: output,
             NIX_TARGETS: manifest,
+            NIX_CALLS: calls,
           },
         },
       );
@@ -581,6 +724,7 @@ describe("Cupboard strict build ownership", () => {
         {
           status: result.status,
           stderr: result.stderr,
+          evaluation: evaluationCall(calls),
           matrix: JSON.parse(
             readFileSync(output, "utf8").replace(/^matrix=/, ""),
           ),
@@ -588,6 +732,18 @@ describe("Cupboard strict build ownership", () => {
         {
           status: 0,
           stderr: "",
+          evaluation: {
+            args: [
+              "eval",
+              "--json",
+              ".#cupboardPublicOutputs",
+              "--option",
+              "allow-import-from-derivation",
+              "false",
+            ],
+            config:
+              "allow-import-from-derivation = true\nallow-import-from-derivation = false\n",
+          },
           matrix: {
             include: checkSystems.map((system) => ({
               system,

@@ -396,6 +396,7 @@ needs:
 | File                        | Responsibility                                            |
 | --------------------------- | --------------------------------------------------------- |
 | `lib/channels.nix`          | the nixpkgs and Home Manager pair for each host channel   |
+| `lib/ci.nix`                | the system for checks that CI runs once                   |
 | `lib/container-image.nix`   | images built from a Nix closure                           |
 | `lib/discovery.nix`         | filesystem discovery: hosts, features, packages, overlays |
 | `lib/exposed-service.nix`   | the options declared by a proxied service                 |
@@ -405,7 +406,7 @@ needs:
 | `lib/halls.nix`             | the message of the day for each host                      |
 | `lib/home.nix`              | Home Manager modules and special arguments                |
 | `lib/netboot/`              | the PXE and ISO installers, and the netboot server        |
-| `lib/nix/`                  | the shared cache settings and a pinned nixpkgs revision   |
+| `lib/nix/`                  | shared caches, evaluation policy and pinned nixpkgs       |
 | `lib/nixbuild.nix`          | the nixbuild.net account constants, read by CI too        |
 | `lib/operating-systems.nix` | what varies by OS and is not code                         |
 | `lib/presence.nix`          | the option a child feature defines to say it is there     |

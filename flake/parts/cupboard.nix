@@ -11,7 +11,7 @@
 }: let
   inherit (config.flake) username;
   inherit (config.flake) deploy hosts;
-  validationSystem = "x86_64-linux";
+  inherit (import ../../lib/ci.nix) validationSystem;
 
   baseFor = system: let
     platform = featureResolver.contextForSystem system;
@@ -79,9 +79,10 @@
     "packages"
     config.flake.packages.${validationSystem}.local-packages;
 
-  checkEntriesFor = system:
+  checkEntriesFor = system: systemChecks:
     lib.mapAttrsToList
-    (name: outputEntry system ".#checks.${system}.${name}" "checks-${name}");
+    (name: outputEntry system ".#checks.${system}.${name}" "checks-${name}")
+    (lib.filterAttrs (_: check: !(check.ci.runOnce or false) || system == validationSystem) systemChecks);
 
   checks = config.flake.checks;
   checkEntries = lib.concatLists (lib.mapAttrsToList checkEntriesFor checks);

@@ -51,6 +51,10 @@
     lib.removeAttrs cacheSettings.binaryCaches ["cupboard.supply/t/cupboard/cache/releases"]
   );
 
+  evaluationConfig = builtins.readFile ../../lib/nix/evaluation.conf;
+  ciConfig = evaluationConfig + substituterConfig;
+  publishCiConfig = evaluationConfig + publishSubstituterConfig;
+
   substitutersModule = {config, ...}: let
     binaryCacheType = lib.types.submodule {
       options = {
@@ -106,12 +110,20 @@ in {
         substituterConfig = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "`nix.conf` lines a CI job appends so the runner trusts the same caches the hosts do.";
+          description = "Nix settings for shared binary caches.";
         };
         publishSubstituterConfig = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "Nix settings for the laney publisher's OIDC read session.";
+          description = "Nix cache settings for the laney publisher's OIDC read session.";
+        };
+        ciConfig = lib.mkOption {
+          type = lib.types.str;
+          description = "Nix evaluation policy and shared binary caches for configuration validation.";
+        };
+        publishCiConfig = lib.mkOption {
+          type = lib.types.str;
+          description = "Nix evaluation policy and caches for the laney publisher's OIDC read session.";
         };
         publishInputs = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
@@ -124,7 +136,7 @@ in {
   };
 
   config.flake.nix = {
-    inherit substitutersModule substituterConfig publishSubstituterConfig;
+    inherit substitutersModule substituterConfig publishSubstituterConfig ciConfig publishCiConfig;
 
     publishInputs = {
       # The cupboard cache's public key. The publish workflow trusts this key
