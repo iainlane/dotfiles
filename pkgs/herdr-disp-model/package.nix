@@ -1,6 +1,7 @@
 {
   fetchFromGitHub,
   lib,
+  nix-update,
   python3,
   stdenvNoCC,
   updaters,
@@ -74,9 +75,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     piExtension = "${pluginRoot}/adapters/pi-model-display.ts";
 
-    updateScript = updaters.mkNixUpdateUpdater {
-      attr = "herdr-disp-model";
-      extraFlags = ["--version=branch=main"];
+    updateScript = updaters.mkScriptUpdater {
+      pname = "herdr-disp-model";
+      script = ./update.sh;
+      extraRuntimeInputs = [nix-update];
     };
   };
 
