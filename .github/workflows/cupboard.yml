@@ -20,13 +20,40 @@ concurrency:
 permissions: {}
 
 jobs:
-  validation:
+  validation-plan:
     if: >-
       github.event_name == 'merge_group' || (github.event_name == 'pull_request'
       && github.event.action != 'closed' &&
       github.event.pull_request.head.repo.id != github.repository_id)
-    name: Build public packages and checks
+    name: Plan public builds
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+
+      - name: Plan public system cohorts
+        id: targets
+        run: |
+          set -euo pipefail
+
+          matrix=$(nix eval --json .#cupboardPublicOutputs |
+            jq --compact-output '{include: (map({system, os}) | unique_by(.system))}')
+          printf 'matrix=%s\n' "${matrix}" >> "${GITHUB_OUTPUT}"
+
+  validation:
+    needs: validation-plan
+    name: Build public packages and checks (${{ matrix.system }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.validation-plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     steps:
@@ -35,6 +62,7 @@ jobs:
           persist-credentials: false
 
       - uses: wimpysworld/nothing-but-nix@687c797a730352432950c707ab493fcc951818d7 # v10
+        if: runner.os == 'Linux'
         with:
           hatchet-protocol: holster
           nix-permission-edict: true
@@ -101,7 +129,9 @@ jobs:
           echo "have_key=true" | tee -a "${GITHUB_OUTPUT}"
 
       - uses: nixbuild/nixbuild-action@edba7779b0a251b622d4250d263540f50c0f1a0b # v25
-        if: ${{ steps.cache-config.outputs.have_builder == 'true' }}
+        if:
+          ${{ runner.os == 'Linux' && steps.cache-config.outputs.have_builder ==
+          'true' }}
         with:
           nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
           settings: |
@@ -132,12 +162,18 @@ jobs:
                 "ok"'
 
       - name: Build public packages and checks
+        env:
+          TARGET_SYSTEM: ${{ matrix.system }}
         run: |
           set -euo pipefail
 
           nix eval --json .#cupboardPublicOutputs |
-            jq --raw-output '.[].attr' > "${RUNNER_TEMP}/targets.txt"
-          mapfile -t targets < "${RUNNER_TEMP}/targets.txt"
+            jq --raw-output --arg system "${TARGET_SYSTEM}" \
+              '.[] | select(.system == $system) | .attr' > "${RUNNER_TEMP}/targets.txt"
+          targets=()
+          while IFS= read -r target; do
+            targets+=("${target}")
+          done < "${RUNNER_TEMP}/targets.txt"
 
           nix build --keep-going --out-link "${RUNNER_TEMP}/strict-build" "${targets[@]}"
 

@@ -120,12 +120,12 @@ const evaluation = steps.find((step) => step.id === "publish-inputs");
 assert.ok(evaluation);
 
 function admittedJobs(event: Event): Record<string, boolean> {
-  return Object.fromEntries(
-    ["validation", "publish"].map((name) => [
-      name,
-      allows(record(jobs[name]).if, event),
-    ]),
-  );
+  return {
+    validation:
+      allows(record(jobs["validation-plan"]).if, event) &&
+      allows(record(jobs.validation).if, event),
+    publish: allows(record(jobs.publish).if, event),
+  };
 }
 
 describe("Cupboard workflow event admission", () => {
@@ -366,7 +366,7 @@ function targetFixture(): Record<string, unknown> {
       "--impure",
       "--json",
       "--expr",
-      "import ./scripts/cupboard-workflows.fixture.nix { lib = (builtins.getFlake (toString ./.)).inputs.nixpkgs.lib; }",
+      "let flake = builtins.getFlake (toString ./.); in import ./scripts/cupboard-workflows.fixture.nix { lib = flake.inputs.nixpkgs.lib; systems = builtins.attrNames flake.checks; }",
     ],
     { encoding: "utf8" },
   );
@@ -398,9 +398,44 @@ function expectedTarget(
     system,
     bestEffort: false,
     cohort: system,
-    os: system.endsWith("-darwin") ? "macos-latest" : "ubuntu-latest",
+    os: system.endsWith("-darwin")
+      ? "macos-latest"
+      : system.startsWith("aarch64-")
+        ? "ubuntu-24.04-arm"
+        : "ubuntu-latest",
     remote: !system.endsWith("-darwin"),
   };
+}
+
+const fixture = targetFixture();
+assert.ok(Array.isArray(fixture.checkSystems));
+const checkSystems = fixture.checkSystems.map(string);
+
+function expectedChecks(
+  system: string,
+  includePrivate: boolean,
+): readonly FixtureTarget[] {
+  const checks: readonly (readonly [string, string])[] = includePrivate
+    ? [
+        ["deploy-schema", "deploy"],
+        ["example", "example"],
+        ["falcon-kernel-test", "falcon"],
+        ["host-evaluation-home-test", "host"],
+        ["prompt-conformance-configuration", "configuration"],
+      ]
+    : [
+        ["example", "example"],
+        ["prompt-conformance-configuration", "configuration"],
+      ];
+
+  return checks.map(([name, derivation]) =>
+    expectedTarget(
+      `.#checks.${system}.${name}`,
+      `checks-${name}`,
+      derivation,
+      system,
+    ),
+  );
 }
 
 function expectedPublicTargets(): readonly FixtureTarget[] {
@@ -410,16 +445,7 @@ function expectedPublicTargets(): readonly FixtureTarget[] {
       "packages",
       "packages",
     ),
-    expectedTarget(
-      ".#checks.x86_64-linux.example",
-      "checks-example",
-      "example",
-    ),
-    expectedTarget(
-      ".#checks.x86_64-linux.prompt-conformance-configuration",
-      "checks-prompt-conformance-configuration",
-      "configuration",
-    ),
+    ...checkSystems.flatMap((system) => expectedChecks(system, false)),
     ...[
       "claudeEndpoint",
       "codexEndpoint",
@@ -443,23 +469,31 @@ describe("Cupboard strict build ownership", () => {
         jobs: Object.keys(jobs),
         publisher: record(jobs.publish).uses,
         targets: record(record(record(wrapper.jobs).publish).with).targets,
+        validationPlan: record(jobs.validation).needs,
+        validationRunner: record(jobs.validation)["runs-on"],
+        validationStrategy: record(jobs.validation).strategy,
         duplicateWorkflows: [
           "prompt-conformance.yml",
           "cupboard-test.yml",
         ].filter((file) => existsSync(join(workflows, file))),
       },
       {
-        jobs: ["validation", "publish"],
+        jobs: ["validation-plan", "validation", "publish"],
         publisher:
           "iainlane/dotfiles/.github/workflows/cupboard-publish.yml@main",
         targets: ".#cupboardOutputs",
+        validationPlan: "validation-plan",
+        validationRunner: "${{ matrix.os }}",
+        validationStrategy: {
+          "fail-fast": false,
+          matrix: "${{ fromJSON(needs.validation-plan.outputs.matrix) }}",
+        },
         duplicateWorkflows: [],
       },
     );
   });
 
   it("groups hosts, packages and all checks into strict system cohorts", () => {
-    const fixture = targetFixture();
     const publicTargets = expectedPublicTargets();
     assert.deepEqual(
       { outputs: fixture.outputs, publicOutputs: fixture.publicOutputs },
@@ -500,23 +534,8 @@ describe("Cupboard strict build ownership", () => {
             "deploy-rs-linux",
           ),
           publicTargets[0],
-          expectedTarget(
-            ".#checks.x86_64-linux.deploy-schema",
-            "checks-deploy-schema",
-            "deploy",
-          ),
-          publicTargets[1],
-          expectedTarget(
-            ".#checks.x86_64-linux.falcon-kernel-test",
-            "checks-falcon-kernel-test",
-            "falcon",
-          ),
-          expectedTarget(
-            ".#checks.x86_64-linux.host-evaluation-home-test",
-            "checks-host-evaluation-home-test",
-            "host",
-          ),
-          ...publicTargets.slice(2),
+          ...checkSystems.flatMap((system) => expectedChecks(system, true)),
+          ...publicTargets.slice(1 + checkSystems.length * 2),
         ],
       },
     );
@@ -524,75 +543,134 @@ describe("Cupboard strict build ownership", () => {
 
   it("evaluates public targets without reading private profiles or checks", () => {
     assert.deepEqual(
-      targetFixture().publicOutputsWithoutSecrets,
+      fixture.publicOutputsWithoutSecrets,
       expectedPublicTargets(),
     );
   });
 
-  it("builds the public manifest once on events without publication", () => {
-    const validation = record(jobs.validation);
-    assert.ok(Array.isArray(validation.steps));
-    const build = validation.steps
-      .map(record)
-      .find((step) => step.name === "Build public packages and checks");
-    assert.ok(build);
-    const directory = mkdtempSync(join(tmpdir(), "cupboard-builds-"));
-    const calls = join(directory, "calls");
-    writeFileSync(calls, "");
-    writeFileSync(
-      join(directory, "nix"),
-      `#!/bin/sh
-printf '%s\n' "$@" '' >> "$NIX_CALLS"
-if [ "$1" = eval ]; then
-  printf '%s\n' '[{"attr":".#packages.x86_64-linux.local-packages"},{"attr":".#checks.x86_64-linux.example"},{"attr":".#packages.x86_64-linux.claude-prompt-conformance.tests.codexEndpoint"}]'
-fi
-`,
-      { mode: 0o755 },
-    );
+  it("derives the public build matrix from the target manifest", () => {
+    const plan = record(jobs["validation-plan"]);
+    assert.ok(Array.isArray(plan.steps));
+    const step = plan.steps.map(record).find((step) => step.id === "targets");
+    assert.ok(step);
+    const directory = mkdtempSync(join(tmpdir(), "cupboard-matrix-"));
+    const output = join(directory, "output");
+    const manifest = join(directory, "targets.json");
+    writeFileSync(output, "");
+    writeFileSync(manifest, JSON.stringify(expectedPublicTargets()));
+    writeFileSync(join(directory, "nix"), '#!/bin/sh\ncat "$NIX_TARGETS"\n', {
+      mode: 0o755,
+    });
+
     try {
       const result = spawnSync(
         process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
-        ["-c", string(build.run)],
+        ["-c", string(step.run)],
         {
           encoding: "utf8",
           env: {
             ...process.env,
             PATH: `${directory}:${process.env.PATH}`,
-            RUNNER_TEMP: directory,
-            NIX_CALLS: calls,
+            GITHUB_OUTPUT: output,
+            NIX_TARGETS: manifest,
           },
         },
       );
+
       assert.deepEqual(
         {
           status: result.status,
           stderr: result.stderr,
-          calls: readFileSync(calls, "utf8")
-            .trim()
-            .split("\n\n")
-            .map((call) => call.split("\n")),
+          matrix: JSON.parse(
+            readFileSync(output, "utf8").replace(/^matrix=/, ""),
+          ),
         },
         {
           status: 0,
           stderr: "",
-          calls: [
-            ["eval", "--json", ".#cupboardPublicOutputs"],
-            [
-              "build",
-              "--keep-going",
-              "--out-link",
-              join(directory, "strict-build"),
-              ".#packages.x86_64-linux.local-packages",
-              ".#checks.x86_64-linux.example",
-              ".#packages.x86_64-linux.claude-prompt-conformance.tests.codexEndpoint",
-            ],
-          ],
+          matrix: {
+            include: checkSystems.map((system) => ({
+              system,
+              os: expectedTarget("", "", "", system).os,
+            })),
+          },
         },
       );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  for (const system of checkSystems) {
+    it(`builds only the public targets for ${system}`, () => {
+      const validation = record(jobs.validation);
+      assert.ok(Array.isArray(validation.steps));
+      const build = validation.steps
+        .map(record)
+        .find((step) => step.name === "Build public packages and checks");
+      assert.ok(build);
+      const directory = mkdtempSync(join(tmpdir(), "cupboard-builds-"));
+      const calls = join(directory, "calls");
+      const manifest = join(directory, "targets.json");
+      writeFileSync(calls, "");
+      writeFileSync(manifest, JSON.stringify(expectedPublicTargets()));
+      writeFileSync(
+        join(directory, "nix"),
+        `#!/bin/sh
+printf '%s\n' "$@" '' >> "$NIX_CALLS"
+if [ "$1" = eval ]; then
+  cat "$NIX_TARGETS"
+fi
+`,
+        { mode: 0o755 },
+      );
+      try {
+        const result = spawnSync(
+          process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+          ["-c", string(build.run)],
+          {
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              PATH: `${directory}:${process.env.PATH}`,
+              RUNNER_TEMP: directory,
+              NIX_CALLS: calls,
+              NIX_TARGETS: manifest,
+              TARGET_SYSTEM: system,
+            },
+          },
+        );
+        assert.deepEqual(
+          {
+            status: result.status,
+            stderr: result.stderr,
+            calls: readFileSync(calls, "utf8")
+              .trim()
+              .split("\n\n")
+              .map((call) => call.split("\n")),
+          },
+          {
+            status: 0,
+            stderr: "",
+            calls: [
+              ["eval", "--json", ".#cupboardPublicOutputs"],
+              [
+                "build",
+                "--keep-going",
+                "--out-link",
+                join(directory, "strict-build"),
+                ...expectedPublicTargets()
+                  .filter((target) => target.system === system)
+                  .map((target) => target.attr),
+              ],
+            ],
+          },
+        );
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
 });
 
 describe("Cupboard publication disk cleanup", () => {

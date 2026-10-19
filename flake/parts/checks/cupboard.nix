@@ -24,10 +24,12 @@
   validationEntry = attr: suffix:
     entry attr validationSystem "${validationSystem}/${suffix}";
 
-  checks =
-    map
-    (name: validationEntry ".#checks.${validationSystem}.${name}" "checks-${name}")
-    (lib.attrNames config.flake.checks.${validationSystem});
+  checks = lib.concatLists (lib.mapAttrsToList
+    (system: systemChecks:
+      map
+      (name: entry ".#checks.${system}.${name}" system "${system}/checks-${name}")
+      (lib.attrNames systemChecks))
+    config.flake.checks);
 
   promptTests =
     map
@@ -52,6 +54,8 @@
         os =
           if featureResolver.isDarwin (featureResolver.contextForSystem target.system)
           then "macos-latest"
+          else if featureResolver.isAarch64 (featureResolver.contextForSystem target.system)
+          then "ubuntu-24.04-arm"
           else "ubuntu-latest";
         remote = !featureResolver.isDarwin (featureResolver.contextForSystem target.system);
       })

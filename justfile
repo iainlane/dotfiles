@@ -133,7 +133,7 @@ repl *args:
 fmt *args:
     nix fmt {{ args }}
 
-# Check the flake for errors
+# Evaluate all systems and build checks for the native system
 check *args:
     nix flake check --all-systems {{ args }}
 

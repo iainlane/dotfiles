@@ -1,4 +1,7 @@
-{lib}: let
+{
+  lib,
+  systems,
+}: let
   fakePackage = name: {
     drvPath = "/nix/store/00000000000000000000000000000000-${name}.drv";
   };
@@ -40,13 +43,13 @@
           fakePackage;
       };
     };
-    checks.x86_64-linux = {
+    checks = lib.genAttrs systems (_: {
       deploy-schema = fakePackage "deploy";
       example = fakePackage "example";
       falcon-kernel-test = fakePackage "falcon";
       host-evaluation-home-test = fakePackage "host";
       prompt-conformance-configuration = fakePackage "configuration";
-    };
+    });
   };
   subject = config:
     import ../flake/parts/cupboard.nix {
@@ -59,16 +62,18 @@
       fixtureConfig.flake
       // {
         deploy = throw "Private deploy profiles were evaluated.";
-        checks.x86_64-linux =
-          fixtureConfig.flake.checks.x86_64-linux
+        checks = lib.mapAttrs (_: checks:
+          checks
           // {
             deploy-schema = throw "A private deploy check was evaluated.";
             falcon-kernel-test = throw "A private Falcon check was evaluated.";
             host-evaluation-home-test = throw "A private host check was evaluated.";
-          };
+          })
+        fixtureConfig.flake.checks;
       };
   };
 in {
+  checkSystems = lib.attrNames fixtureConfig.flake.checks;
   outputs = complete.flake.cupboardOutputs;
   publicOutputs = complete.flake.cupboardPublicOutputs or [];
   publicOutputsWithoutSecrets = publicOnly.flake.cupboardPublicOutputs or [];

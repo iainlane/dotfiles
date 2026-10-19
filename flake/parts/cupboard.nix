@@ -13,15 +13,19 @@
   inherit (config.flake) deploy hosts;
   validationSystem = "x86_64-linux";
 
-  baseFor = system: {
+  baseFor = system: let
+    platform = featureResolver.contextForSystem system;
+  in {
     inherit system;
     bestEffort = false;
     cohort = system;
     os =
-      if featureResolver.isDarwin (featureResolver.contextForSystem system)
+      if featureResolver.isDarwin platform
       then "macos-latest"
+      else if featureResolver.isAarch64 platform
+      then "ubuntu-24.04-arm"
       else "ubuntu-latest";
-    remote = !featureResolver.isDarwin (featureResolver.contextForSystem system);
+    remote = !featureResolver.isDarwin platform;
   };
 
   systemEntry = name: host: let
@@ -59,13 +63,15 @@
       })
     (lib.sort builtins.lessThan (lib.unique (map (host: host.system) (lib.attrValues hosts))));
 
-  validationEntry = attr: suffix: package:
-    baseFor validationSystem
+  outputEntry = system: attr: suffix: package:
+    baseFor system
     // {
       inherit attr;
       rootDrvPath = package.drvPath;
-      rootSuffix = "${validationSystem}/${suffix}";
+      rootSuffix = "${system}/${suffix}";
     };
+
+  validationEntry = outputEntry validationSystem;
 
   packageEntry =
     validationEntry
@@ -73,14 +79,17 @@
     "packages"
     config.flake.packages.${validationSystem}.local-packages;
 
-  checkEntriesFor =
+  checkEntriesFor = system:
     lib.mapAttrsToList
-    (name: validationEntry ".#checks.${validationSystem}.${name}" "checks-${name}");
+    (name: outputEntry system ".#checks.${system}.${name}" "checks-${name}");
 
-  checks = config.flake.checks.${validationSystem};
-  checkEntries = checkEntriesFor checks;
-  publicCheckEntries = checkEntriesFor (lib.filterAttrs
-    (name: _: !(lib.hasPrefix "host-evaluation-" name || lib.hasPrefix "deploy-" name || lib.hasPrefix "falcon-kernel-" name))
+  checks = config.flake.checks;
+  checkEntries = lib.concatLists (lib.mapAttrsToList checkEntriesFor checks);
+  publicCheckEntries = lib.concatLists (lib.mapAttrsToList
+    (system: systemChecks:
+      checkEntriesFor system (lib.filterAttrs
+        (name: _: !(lib.hasPrefix "host-evaluation-" name || lib.hasPrefix "deploy-" name || lib.hasPrefix "falcon-kernel-" name))
+        systemChecks))
     checks);
 
   promptEntries =
