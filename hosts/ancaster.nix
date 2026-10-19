@@ -34,7 +34,11 @@ in {
       features.caddy
     ];
 
-    systemModule = {pkgs, ...}: {
+    systemModule = {
+      config,
+      pkgs,
+      ...
+    }: {
       environment.etc."networkd-dispatcher/routable.d/50-tailscale".source = pkgs.writeShellScript "tailscale-udp-gro" ''
         ${pkgs.ethtool}/bin/ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
       '';
@@ -82,6 +86,8 @@ in {
           domain = "auth.orangesquash.org.uk";
           auth = false;
         };
+
+        larapaper.trustedProxies = [config.dotfiles.network.lanAddress];
 
         matrix = {
           serverName = "orangesquash.org.uk";

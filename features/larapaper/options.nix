@@ -70,6 +70,16 @@ in {
       '';
     };
 
+    trustedProxies = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      example = ["192.168.1.138"];
+      description = ''
+        IP addresses or CIDR ranges from which LaraPaper trusts forwarded
+        headers. Exported as the comma-separated `TRUSTED_PROXIES` value.
+      '';
+    };
+
     backup.present = presence.option "scheduled backups of the database and generated images to Cloudflare R2";
   };
 

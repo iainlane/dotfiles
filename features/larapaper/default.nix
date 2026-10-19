@@ -112,6 +112,7 @@ in {
                 DB_CONNECTION = "sqlite";
                 DB_DATABASE = "${paths.databaseDir}/${paths.databaseFile}";
                 TRMNL_PROXY_REFRESH_MINUTES = "15";
+                TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
               };
 
               environmentFiles = [config.sops.templates.${envTemplate}.path];
