@@ -1,0 +1,36 @@
+--- a/extensions/discover.ts
++++ b/extensions/discover.ts
+@@ -44,6 +44,7 @@
+ 
+ /** Context pi passes to refreshModels(). */
+ export interface RefreshContext {
++	allowNetwork?: boolean;
+ 	signal?: AbortSignal;
+ 	credential?: { key?: string };
+ }
+--- a/extensions/index.ts
++++ b/extensions/index.ts
+@@ -216,8 +216,22 @@
+ 	return { models: [...liveModels, ...staticModels], outcomes, url, raw: items, staticCount: staticModels.length, warnings };
+ }
+ 
+-function makeRefreshModels(rt: ProviderRuntime, state: ExtensionState): (context: RefreshContext) => Promise<ModelDef[]> {
++function makeRefreshModels(rt: ProviderRuntime, state: ExtensionState): (context: RefreshContext) => Promise<ModelDef[] | undefined> {
+ 	return async (context: RefreshContext) => {
++		if (context.allowNetwork === false) {
++			const cached = state.cache.providers[rt.id];
++			if (cached?.raw?.length) {
++				const { liveModels, staticModels } = buildCatalog(cached.raw, {
++					entry: rt.entry,
++					filters: rt.filters,
++					staticById: collectStaticById(rt.id),
++					providerId: rt.id,
++				});
++				return liveModels.length ? [...liveModels, ...staticModels] : undefined;
++			}
++			const models = cached?.models?.filter((model) => applyFilters(model.id, rt.filters).kept);
++			return models?.length ? models : undefined;
++		}
+ 		// Captures `state` (not a cache instance): /live-models-reload swaps
+ 		// state.cache in place, so even in-flight closures created before the
+ 		// reload read+write the CURRENT cache instance — no stale-instance

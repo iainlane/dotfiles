@@ -122,6 +122,97 @@
       });
     }
   '';
+  liveModelsProbe = pkgs.writeText "pi-live-models-probe.ts" ''
+    import assert from "node:assert/strict";
+    import { writeFileSync } from "node:fs";
+
+    export default function (pi) {
+      pi.on("session_start", async (_, ctx) => {
+        const originalFetch = globalThis.fetch;
+        const requests = [];
+        const alias = {
+          type: "chat",
+          id: "~openai/gpt-test-sol-latest",
+          name: "Sol Latest",
+          provider: "openrouter",
+          api: "openai-completions",
+          baseUrl: "https://openrouter.ai/api/v1",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 128000,
+          maxTokens: 4096,
+          cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+        };
+        globalThis.fetch = async (url, options) => {
+          const address = String(url);
+          requests.push(address);
+          if (address.startsWith("https://pi.dev/api/models/providers/openrouter")) {
+            return Response.json([alias], { headers: { "last-modified": "Fri, 01 Jan 2100 00:00:00 GMT" } });
+          }
+          if (address === "https://openrouter.ai/api/v1/models/user") {
+            return new Response(null, { status: 404 });
+          }
+          assert.equal(address, "https://openrouter.ai/api/v1/models");
+          assert.equal(options.headers.Authorization, "Bearer openrouter-fixture");
+          return Response.json({ data: [{
+            id: "deepseek/deepseek-v4.1-flash-1017",
+            name: "DeepSeek: DeepSeek V4.1 Flash 1017",
+            context_length: 1048576,
+            architecture: { input_modalities: ["text", "image"], output_modalities: ["text"] },
+            top_provider: { max_completion_tokens: 393216 },
+            pricing: { prompt: "0.00000015", completion: "0.0000006", input_cache_read: "0.000000003" },
+            reasoning: { mandatory: false, supported_efforts: ["max", "high", "low", "none"] },
+          }] });
+        };
+
+        try {
+          const offline = await ctx.modelRegistry.refresh({ providers: ["openrouter"], allowNetwork: false });
+          assert.deepStrictEqual([...offline.errors], []);
+          assert.deepStrictEqual(requests, []);
+
+          const result = await ctx.modelRegistry.refresh({ providers: ["openrouter"], allowNetwork: true, force: true });
+          assert.deepStrictEqual([...result.errors], []);
+          assert.ok(requests.includes("https://openrouter.ai/api/v1/models"));
+          const { type, ...aliasConfig } = alias;
+          assert.deepStrictEqual(ctx.modelRegistry.find("openrouter", alias.id), {
+            ...aliasConfig, headers: undefined, ctxSource: "static", maxSource: "static",
+          });
+          const model = ctx.modelRegistry.find("openrouter", "deepseek/deepseek-v4.1-flash-1017");
+          assert.deepStrictEqual(model, {
+            id: "deepseek/deepseek-v4.1-flash-1017",
+            name: "DeepSeek: DeepSeek V4.1 Flash 1017",
+            provider: "openrouter",
+            api: "openai-completions",
+            baseUrl: "https://openrouter.ai/api/v1",
+            reasoning: true,
+            input: ["text", "image"],
+            contextWindow: 1048576,
+            maxTokens: 393216,
+            headers: undefined,
+            ctxSource: "live",
+            maxSource: "live",
+            cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
+            thinkingLevelMap: { off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max" },
+            compat: {
+              supportsDeveloperRole: false,
+              thinkingFormat: "openrouter",
+              supportsStrictMode: true,
+              sendSessionAffinityHeaders: true,
+              requiresReasoningContentOnAssistantMessages: true,
+            },
+          });
+          requests.length = 0;
+          const restored = await ctx.modelRegistry.refresh({ providers: ["openrouter"], allowNetwork: false });
+          assert.deepStrictEqual([...restored.errors], []);
+          assert.deepStrictEqual(requests, []);
+          assert.deepStrictEqual(ctx.modelRegistry.find("openrouter", model.id), model);
+          writeFileSync("live-models-probe-ok", "");
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+      });
+    }
+  '';
   startupProbe = pkgs.writeText "pi-startup-probe.ts" ''
     import assert from "node:assert/strict";
     import { writeFileSync } from "node:fs";
@@ -224,17 +315,20 @@ in {
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     ${installHomeFiles}
     install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
+    ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
+      "$PI_CODING_AGENT_DIR/auth.json" >auth.json
+    mv auth.json "$PI_CODING_AGENT_DIR/auth.json"
     find -L "$PI_CODING_AGENT_DIR/packages" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
     if [[ -s host-provided-copies.txt ]]; then
       cat host-provided-copies.txt >&2
       exit 1
     fi
     if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
-      --mode rpc --no-session --no-context-files -e ${roleProbe} >responses.jsonl 2>errors.txt; then
+      --mode rpc --no-session --no-context-files -e ${roleProbe} -e ${liveModelsProbe} >responses.jsonl 2>errors.txt; then
       cat errors.txt responses.jsonl >&2
       exit 1
     fi
-    if [[ -s errors.txt || ! -f role-probe-ok ]]; then
+    if [[ -s errors.txt || ! -f role-probe-ok || ! -f live-models-probe-ok ]]; then
       cat errors.txt responses.jsonl >&2
       exit 1
     fi

@@ -1,0 +1,10 @@
+--- a/extensions/discover.ts
++++ b/extensions/discover.ts
+@@ -219,6 +219,7 @@
+ 	add("input", "pricing.prompt");
+ 	add("output", "pricing.completion");
+ 	add("cacheRead", "pricing.prompt_cache_read");
++	add("cacheRead", "pricing.input_cache_read");
+ 	return Object.keys(cost).length ? cost : undefined;
+ }
+ 

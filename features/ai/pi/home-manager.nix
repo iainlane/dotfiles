@@ -15,6 +15,7 @@
       "pi-anthropic-auth"
       "pi-footer"
       "pi-lens"
+      "pi-live-models"
       "pi-notify"
       "pi-plan-mode"
       "pi-pretty"
@@ -143,6 +144,34 @@
       agentOverridesByProvider.openai-codex = {
         reviewer.model = "openai-codex/${modelCatalog.openai.sol}";
         researcher.model = "openai-codex/${modelCatalog.openai.sol}";
+      };
+    };
+  };
+
+  piLiveModelsConfig.providers.openrouter = {
+    baseUrl = "https://openrouter.ai/api/v1";
+    api = "openai-completions";
+    catalog = false;
+    costFromLive = "always";
+    mergeStatic = "union";
+    overrides."deepseek/deepseek-v4.1-flash-1017" = {
+      reasoning = true;
+      input = ["text" "image"];
+      thinkingLevelMap = {
+        off = "none";
+        minimal = null;
+        low = "low";
+        medium = null;
+        high = "high";
+        xhigh = null;
+        max = "max";
+      };
+      compat = {
+        supportsDeveloperRole = false;
+        thinkingFormat = "openrouter";
+        supportsStrictMode = true;
+        sendSessionAffinityHeaders = true;
+        requiresReasoningContentOnAssistantMessages = true;
       };
     };
   };
@@ -336,6 +365,7 @@ in {
     file =
       {
         ".pi/agent/settings.json".text = toJson piSettings;
+        ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
         ".pi/agent/extensions/pi-footer.json".text = toJson piFooterConfig;
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
