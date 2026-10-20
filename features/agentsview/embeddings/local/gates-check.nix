@@ -16,6 +16,10 @@
       enabled = true;
     }
     {
+      features = [features.agentsview features.inference.provides.acceleration.provides.vulkan.provides.integrated];
+      enabled = true;
+    }
+    {
       features = [features.inference.provides.acceleration.provides.vulkan];
       enabled = false;
     }
