@@ -31,7 +31,7 @@ in {
     defaults = {
       anthropic = anthropic.opus;
       google = google.geminiPro;
-      openai = openai.astra;
+      openai = openai.sol;
     };
   };
 }
