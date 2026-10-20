@@ -28,9 +28,12 @@
     text = builtins.readFile ./backup-r2.sh;
   };
 in {
+  imports = [../../../lib/backup-resources.nix];
+
   config = lib.mkMerge [
     {
       dotfiles.larapaper.backup.present = true;
+      dotfiles.backups.units = [unit];
 
       assertions = r2Backup.assertions {
         inherit lib secretsFile;

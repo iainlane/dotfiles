@@ -46,9 +46,12 @@
     text = builtins.readFile ./restore-r2.sh;
   };
 in {
+  imports = [../../../lib/backup-resources.nix];
+
   config = lib.mkMerge [
     {
       dotfiles.hermes.backup.present = true;
+      dotfiles.backups.units = ["hermes-backup"];
 
       assertions = r2Backup.assertions {
         inherit lib secretsFile;

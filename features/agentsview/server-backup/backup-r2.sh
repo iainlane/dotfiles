@@ -9,6 +9,7 @@
 #   AGENTSVIEW_DATABASE    database to dump
 #   AGENTSVIEW_SUPERUSER   role to connect as
 #   AGENTSVIEW_SOCKET_DIR  directory containing the Postgres socket
+#   AGENTSVIEW_DUMP_RATE_LIMIT maximum dump output rate in bytes per second
 #
 # plus everything `r2 backup` reads.
 #
@@ -23,6 +24,7 @@ umask 077
 
 : "${AGENTSVIEW_CONTAINER:?}" "${AGENTSVIEW_PG_DUMP:?}" "${AGENTSVIEW_DATABASE:?}"
 : "${AGENTSVIEW_SUPERUSER:?}" "${AGENTSVIEW_SOCKET_DIR:?}"
+: "${AGENTSVIEW_DUMP_RATE_LIMIT:?}"
 
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
@@ -40,7 +42,8 @@ podman exec "${AGENTSVIEW_CONTAINER}" \
 	--compress=0 \
 	--host="${AGENTSVIEW_SOCKET_DIR}" \
 	--username="${AGENTSVIEW_SUPERUSER}" \
-	"${AGENTSVIEW_DATABASE}" >"${dump}"
+	"${AGENTSVIEW_DATABASE}" |
+	pv --quiet --rate-limit "${AGENTSVIEW_DUMP_RATE_LIMIT}" >"${dump}"
 
 # A failing `pg_dump` already stops this script. This catches the other case:
 # a clean exit that wrote nothing, which would upload an empty archive.

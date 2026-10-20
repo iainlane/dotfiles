@@ -27,8 +27,11 @@
   };
   secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {
+  imports = [../../../lib/backup-resources.nix];
+
   config = {
     dotfiles.matrix.backup.present = true;
+    dotfiles.backups.units = [unit];
 
     assertions = r2Backup.assertions {
       inherit lib secretsFile;

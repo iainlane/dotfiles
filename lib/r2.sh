@@ -8,7 +8,7 @@
 #                      then expire old copies
 #   r2 verify          check that a recent, plausible-looking backup is in R2
 #   r2 restore list    print the backups in the bucket, newest last
-#   r2 restore fetch   fetch one, decrypt it, and unpack it
+#   r2 restore fetch   download, decrypt, and unpack an archive
 #
 # Nothing is substituted into this script, so it stays a plain shell file
 # that shellcheck can run over. Every setting arrives in the environment,
@@ -66,7 +66,7 @@ backup() {
 	ts="$(date -u +%Y%m%dT%H%M%SZ)"
 	archive="${work}/${BACKUP_NAME}-${ts}.tar.zst.age"
 
-	tar --use-compress-program='zstd -T0 -9' --numeric-owner -C "${BACKUP_SOURCE}" -cf - . |
+	tar --use-compress-program='zstd -T1 -3' --numeric-owner -C "${BACKUP_SOURCE}" -cf - . |
 		age -r "${BACKUP_AGE_RECIPIENT}" -o "${archive}"
 
 	rclone copy "${archive}" "${dest}/"

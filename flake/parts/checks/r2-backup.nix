@@ -7,6 +7,20 @@
 {lib, ...}: let
   r2Backup = import ../../../lib/r2-backup.nix;
 
+  backupResources = units:
+    (lib.evalModules {
+      modules = [
+        ../../../lib/backup-resources.nix
+        {
+          options.systemd = lib.mkOption {
+            type = lib.types.attrsOf lib.types.anything;
+            default = {};
+          };
+          config.dotfiles.backups.units = units;
+        }
+      ];
+    }).config.systemd;
+
   serviceConfig = {
     Type = "oneshot";
     EnvironmentFile = "/run/secrets/rendered/example-backup.env";
@@ -18,7 +32,7 @@
   };
 
   # A feature splices the declarations under a root of its own, so evaluate
-  # them the same way to read the defaults a host would see.
+  # them the same way to read the host defaults.
   backupSettings =
     (lib.evalModules {
       modules = [
@@ -51,6 +65,34 @@
   };
 
   assertions = [
+    {
+      name = "backup services share low CPU and I/O weights with accounting";
+      pass =
+        backupResources ["one-backup" "two-backup"]
+        == {
+          slices.system-backup = {
+            description = "Background backups";
+            sliceConfig = {
+              CPUAccounting = true;
+              IOAccounting = true;
+              CPUWeight = 20;
+              IOWeight = 10;
+            };
+          };
+          services = lib.genAttrs ["one-backup" "two-backup"] (_: {
+            serviceConfig = {
+              Slice = "system-backup.slice";
+              CPUAccounting = true;
+              IOAccounting = true;
+              Nice = 10;
+            };
+          });
+        };
+    }
+    {
+      name = "hosts without backup services get no resource units";
+      pass = backupResources [] == {};
+    }
     {
       name = "the option defaults come from the arguments the feature passes";
       pass =
@@ -121,9 +163,28 @@
   report = lib.concatMapStringsSep "\n" (assertion: "  x ${assertion.name}") failures;
 in {
   perSystem = {pkgs, ...}: {
-    checks.r2-backup =
-      if failures == []
-      then pkgs.runCommandLocal "r2-backup" {} "touch $out"
-      else throw "r2 backup library checks failed:\n${report}";
+    checks = {
+      r2-backup =
+        if failures == []
+        then pkgs.runCommandLocal "r2-backup" {} "touch $out"
+        else throw "r2 backup library checks failed:\n${report}";
+
+      r2-archive =
+        pkgs.runCommandLocal "r2-archive-test" {
+          nativeBuildInputs = with pkgs; [age bash coreutils diffutils gnutar zstd];
+        } ''
+          bash ${../../../lib/r2-backup.test.bash} ${../../../lib/r2.sh} ${pkgs.zstd}/bin/zstd
+          touch $out
+        '';
+
+      agentsview-backup =
+        pkgs.runCommandLocal "agentsview-backup-test" {
+          nativeBuildInputs = with pkgs; [bash coreutils diffutils findutils pv];
+        } ''
+          bash ${../../../features/agentsview/server-backup/backup.test.bash} \
+            ${../../../features/agentsview/server-backup/backup-r2.sh} ${pkgs.pv}/bin/pv
+          touch $out
+        '';
+    };
   };
 }

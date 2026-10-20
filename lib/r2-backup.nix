@@ -69,9 +69,8 @@ in {
       type = lib.types.str;
       default = defaultSchedule;
       description = ''
-        systemd `OnCalendar` schedule for the backup. Each service backing
-        itself up to R2 has a default hour of its own: one host runs several
-        of them, and `zstd -T0 -9` takes every core it is given.
+        systemd `OnCalendar` schedule for the backup. Each service has a
+        separate default hour to reduce competition for disk I/O.
       '';
     };
 

@@ -5,6 +5,10 @@
 }: let
   secretsFile = inputs.secrets + "/${config.networking.hostName}/host-borgmatic.yaml";
 in {
+  imports = [../../../lib/backup-resources.nix];
+
+  dotfiles.backups.units = ["borgmatic"];
+
   sops.secrets."encryption_passphrase" = {
     sopsFile = secretsFile;
   };

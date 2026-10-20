@@ -24,14 +24,17 @@
   # supplies the R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "agentsview-backup-r2";
-    runtimeInputs = with pkgs; [coreutils podman r2Tool];
+    runtimeInputs = with pkgs; [coreutils podman pv r2Tool];
     text = builtins.readFile ./backup-r2.sh;
   };
   secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {
+  imports = [../../../lib/backup-resources.nix];
+
   config = lib.mkMerge [
     {
       dotfiles.agentsviewServer.backup.present = true;
+      dotfiles.backups.units = ["agentsview-backup"];
 
       assertions = r2Backup.assertions {
         inherit lib secretsFile;
@@ -64,6 +67,7 @@ in {
             "AGENTSVIEW_DATABASE=${cfg.database}"
             "AGENTSVIEW_SUPERUSER=${database.superuser}"
             "AGENTSVIEW_SOCKET_DIR=${database.socketDir}"
+            "AGENTSVIEW_DUMP_RATE_LIMIT=${toString cfg.backup.dumpRateLimit}"
             "BACKUP_NAME=${backupName}"
             "BACKUP_AGE_RECIPIENT=${cfg.backup.ageRecipient}"
             "BACKUP_PREFIX=${cfg.backup.prefix}"

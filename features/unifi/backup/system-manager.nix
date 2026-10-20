@@ -44,8 +44,12 @@
     text = builtins.readFile ./backup.sh;
   };
 in {
+  imports = [../../../lib/backup-resources.nix];
+
   config = lib.mkMerge [
     {
+      dotfiles.backups.units = [unit];
+
       assertions =
         r2Backup.assertions {
           inherit lib secretsFile;
