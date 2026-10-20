@@ -5,6 +5,7 @@
 }: let
   discovery = import ../../../lib/discovery.nix {inherit lib;};
   localOrDerived = [
+    "agentsview"
     "claude-prompt-conformance"
     "flake-lock-summary"
     "hermes-inbox"

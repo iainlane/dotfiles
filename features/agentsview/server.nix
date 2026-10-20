@@ -91,7 +91,7 @@ in {
 
     inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
-    agentsview = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview;
+    inherit (pkgs) agentsview;
 
     dashboardImage = mkNixImage dashboardName [
       agentsview

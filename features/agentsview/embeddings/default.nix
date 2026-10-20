@@ -15,8 +15,6 @@
 
   envTemplate = "agentsview-embeddings.env";
 
-  agentsviewFor = inputs: system: inputs.llm-agents.packages.${system}.agentsview;
-
   homeManager = {
     config,
     hostConfig,
@@ -45,15 +43,13 @@
   systemdModule = {
     config,
     hostConfig,
-    inputs,
     lib,
     pkgs,
-    system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
     usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
-    agentsview = agentsviewFor inputs system;
+    inherit (pkgs) agentsview;
     probe = lib.escapeShellArgs ([
         "${pkgs.python3}/bin/python3"
         "${./local/check.py}"
@@ -107,13 +103,12 @@
   launchdModule = {
     config,
     hostConfig,
-    inputs,
-    system,
+    pkgs,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
     usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
-    agentsview = agentsviewFor inputs system;
+    inherit (pkgs) agentsview;
     logDir = "${config.home.homeDirectory}/Library/Logs";
 
     build = "exec \"${agentsview}/bin/agentsview\" embeddings build --yes";

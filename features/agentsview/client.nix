@@ -32,8 +32,6 @@
 
   configTemplate = "agentsview-config.toml";
 
-  agentsviewFor = system: inputs.llm-agents.packages.${system}.agentsview;
-
   # The database answers on 443, the port that the web sites already use, and the
   # proxy tells the two apart by the ALPN name in the TLS handshake. That name
   # is present only if the driver opens the connection with TLS, which is what
@@ -107,7 +105,7 @@
   systemdModule = {
     config,
     lib,
-    system,
+    pkgs,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
@@ -121,7 +119,7 @@
           };
 
           Service = {
-            ExecStart = "${agentsviewFor system}/bin/agentsview serve --no-browser --port ${toString cfg.port}";
+            ExecStart = "${pkgs.agentsview}/bin/agentsview serve --no-browser --port ${toString cfg.port}";
             Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
             Restart = "on-failure";
             RestartSec = 10;
@@ -145,7 +143,7 @@
             # This command updates the local archive and pushes the changes.
             # It then stays active and repeats the work after each new
             # session.
-            ExecStart = "${agentsviewFor system}/bin/agentsview pg push --watch";
+            ExecStart = "${pkgs.agentsview}/bin/agentsview pg push --watch";
             Environment =
               lib.mapAttrsToList (name: value: "${name}=${value}")
               (pushEnvironment cfg);
@@ -164,7 +162,6 @@
     config,
     lib,
     pkgs,
-    system,
     ...
   }: let
     cfg = config.dotfiles.agentsview;
@@ -189,7 +186,7 @@
           enable = true;
           config = {
             ProgramArguments = [
-              "${agentsviewFor system}/bin/agentsview"
+              "${pkgs.agentsview}/bin/agentsview"
               "serve"
               "--no-browser"
               "--port"
@@ -210,7 +207,7 @@
           enable = true;
           config = {
             ProgramArguments = [
-              "${agentsviewFor system}/bin/agentsview"
+              "${pkgs.agentsview}/bin/agentsview"
               "pg"
               "push"
               "--watch"
@@ -258,7 +255,7 @@ in {
     config,
     hostConfig,
     lib,
-    system,
+    pkgs,
     ...
   }: let
     inherit (hostConfig) name;
@@ -290,7 +287,7 @@ in {
         dotfiles.agentsview.vector = common.hasEmbeddings hostConfig;
       }
 
-      {home.packages = [(agentsviewFor system)];}
+      {home.packages = [pkgs.agentsview];}
 
       {
         assertions = [

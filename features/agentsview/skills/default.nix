@@ -7,12 +7,8 @@
 # list` compares that hash with the hash of the skill that it generates for the
 # harness in use, so each harness has to be given the copy built for it.
 {
-  flake.features.agentsview.provides.skills.homeManager = {
-    inputs,
-    system,
-    ...
-  }: let
-    skillsFor = harness: "${inputs.llm-agents.packages.${system}.agentsview}/share/agentsview/skills/${harness}";
+  flake.features.agentsview.provides.skills.homeManager = {pkgs, ...}: let
+    skillsFor = harness: "${pkgs.agentsview}/share/agentsview/skills/${harness}";
   in {
     dotfiles.ai.skills.agentsview = skillsFor "agents";
     dotfiles.claudeCode.skills.agentsview = skillsFor "claude";

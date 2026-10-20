@@ -19,7 +19,7 @@
   environmentFile = "hermes-agentsview.env";
   stateDirectory = "hermes-agentsview";
   dataDir = "/var/lib/${stateDirectory}";
-  agentsview = inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview;
+  inherit (pkgs) agentsview;
   push = pkgs.writeShellApplication {
     name = "hermes-agentsview-push";
     runtimeInputs = [config.virtualisation.podman.package];
