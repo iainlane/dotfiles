@@ -12,6 +12,7 @@
       };
       # Stop Photos opening when a camera or a phone is plugged in.
       "com.apple.ImageCapture".disableHotPlug = true;
+      "com.apple.screencapture".captureHDR = true;
       "com.apple.SoftwareUpdate" = {
         AutomaticCheckEnabled = true;
         # Check for software updates daily (1 = daily).
@@ -72,7 +73,7 @@
     };
     screencapture = {
       location = "~/Pictures/Screenshots";
-      type = "png";
+      type = "heic";
     };
     menuExtraClock = {
       ShowAMPM = true;
