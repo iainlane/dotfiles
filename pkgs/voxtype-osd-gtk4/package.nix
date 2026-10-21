@@ -43,6 +43,8 @@ rustPlatform.buildRustPackage {
 
   env.LIBCLANG_PATH = "${lib.getLib libclang}/lib";
 
+  passthru.updateScript = null;
+
   meta = {
     description = "GTK4 on-screen display frontend for voxtype";
     homepage = "https://voxtype.io";

@@ -101,6 +101,16 @@ in
         script = ./update.sh;
         extraRuntimeInputs = [gh python3 cargo];
       };
+
+      tests = {
+        runtime = callPackage ./test.nix {fastflowlm = finalAttrs.finalPackage;};
+        updater = updaters.mkScriptUpdaterTest {
+          pname = "fastflowlm";
+          script = ./update.sh;
+          test = ./update.test.sh;
+          extraInputs = [python3];
+        };
+      };
     };
 
     meta = {

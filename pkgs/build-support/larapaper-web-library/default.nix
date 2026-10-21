@@ -10,6 +10,7 @@
   git,
   nix,
   python3,
+  updaters,
   # The npm package name, which is also the directory under `js/`.
   library,
   # The parsed `source.json`, with the npm `version` and the archive's `hash`.
@@ -44,6 +45,12 @@ in
 
         python3 ${./update.py} ${lib.escapeShellArg library} "$@"
       '';
+    };
+
+    passthru.tests.updater = updaters.mkPythonUpdaterTest {
+      pname = "larapaper-web-library";
+      script = ./update.py;
+      test = ./test_update.py;
     };
 
     meta.platforms = lib.platforms.all;

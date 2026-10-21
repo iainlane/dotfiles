@@ -45,6 +45,11 @@ in
       script = ./update.sh;
       extraRuntimeInputs = [gh];
     };
+    passthru.tests.updater = updaters.mkScriptUpdaterTest {
+      pname = "trmnl-framework";
+      script = ./update.sh;
+      test = ./update.test.sh;
+    };
     meta = {
       description = "TRMNL framework assets built from source";
       homepage = "https://github.com/usetrmnl/trmnl-framework";

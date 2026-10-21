@@ -171,8 +171,9 @@ keys extend the directory's key, such as `nixbuild-builder` under `nixbuild`.
 
 Configuration modules retain their existing filenames, such as `nixos.nix`,
 `home-manager-linux.nix` and `home-manager-generic-linux.nix`. Packages remain
-under `pkgs/`. Feature-owned output modules belong beside the feature;
-repository and package invariants remain under `flake/parts/checks/`.
+under `pkgs/` and declare their own tests, as [Packages](#packages) describes.
+Feature-owned output modules belong beside the feature; repository invariants
+remain under `flake/parts/checks/`.
 
 ### Output evaluation
 
@@ -359,6 +360,27 @@ configuration, class and output metadata, home arguments and the deployment
 profile constructor. Output contexts, evaluation checks and deployment use this
 result. OS dispatch remains in the adapters.
 
+## Packages
+
+Each directory under `pkgs/` that contains a `package.nix` is a package.
+`overlays/local-pkgs.nix` adds it to the package set as `pkgs.<name>`, and
+`flake/parts/pkgs.nix` exports it on every system where it is available.
+
+A package declares what the flake builds from it in its own `passthru`:
+
+- `updateScript` is the updater, exported as the app `update-<name>`. A package
+  without an updater sets it to `null`, and `package-updater-coverage` fails for
+  a package that leaves it out.
+- `tests` are exported as `checks.<system>.<name>-<test>`, so every
+  `nix flake check` builds them. The test of an updater is `tests.updater`.
+- `slowTests` are exported as
+  `legacyPackages.<system>.slowChecks.<name>-<test>`. They are too expensive to
+  build on every check run. CI builds them on the validation system, and the
+  prompt suite's pre-commit hook builds one of them when its inputs change.
+
+A test is exported only where both it and its package are available, so a test
+that needs a particular system sets `meta.platforms`.
+
 ## Flake outputs
 
 The adapters feed the configuration outputs:
@@ -376,6 +398,8 @@ The rest of the flake is the tooling and the data other things read:
   inputs, the per-host netboot installers, and one `update-<name>` app per
   updater,
 - `checks` and `formatter`: what `nix flake check` and `nix fmt` run,
+- `legacyPackages.<system>.slowChecks`: the package tests that CI builds only on
+  the validation system,
 - `legacyPackages.<system>.direnvs`, `direnvs` and `devShells.direnvs-*`:
   per-directory development shells, and `packages.direnv-shells`, which builds
   them all,
@@ -409,6 +433,7 @@ needs:
 | `lib/nix/`                  | shared caches, evaluation policy and pinned nixpkgs       |
 | `lib/nixbuild.nix`          | the nixbuild.net account constants, read by CI too        |
 | `lib/operating-systems.nix` | what varies by OS and is not code                         |
+| `lib/package-outputs.nix`   | the package, check and slow-check outputs of `pkgs/`      |
 | `lib/presence.nix`          | the option a child feature defines to say it is there     |
 | `lib/project-directories/`  | the Home Manager module that writes the `.envrc` files    |
 | `lib/projects.nix`          | project shell and direnv generation                       |

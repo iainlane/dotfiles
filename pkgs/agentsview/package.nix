@@ -33,8 +33,9 @@ in
           // {
             hash = "sha256-FVUzcTbXurndDePaxz3+qhlXs7nya8I6YXUn7KUKD8c=";
           });
-    }).overrideAttrs (finalAttrs: _prevAttrs: {
+    }).overrideAttrs (finalAttrs: prevAttrs: {
       inherit src;
+      passthru = (prevAttrs.passthru or {}) // {updateScript = null;};
       version = "${release}-unstable-2026-10-19";
       vendorHash = "sha256-20Wd41Ecb+x57SsqshqzthbLhPKVVCP8q264K9VlfXI=";
 

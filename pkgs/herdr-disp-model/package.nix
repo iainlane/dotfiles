@@ -80,6 +80,12 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       script = ./update.sh;
       extraRuntimeInputs = [nix-update];
     };
+    tests.updater = updaters.mkScriptUpdaterTest {
+      pname = "herdr-disp-model";
+      script = ./update.sh;
+      test = ./update.test.sh;
+      extraArgs = [../build-support/replace-once.jq];
+    };
   };
 
   meta = {

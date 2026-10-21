@@ -591,23 +591,16 @@ function expectedPublicTargets(): readonly FixtureTarget[] {
       "packages",
     ),
     ...checkSystems.flatMap((system) => expectedChecks(system, false)),
-    ...expectedPromptTargets(),
+    expectedSlowCheckTarget(),
   ];
 }
 
-function expectedPromptTargets(): readonly FixtureTarget[] {
-  return [
-    "claudeEndpoint",
-    "codexEndpoint",
-    "codexProtocol",
-    "fixtureEnvironments",
-    "python",
-  ].map((name) =>
-    expectedTarget(
-      `.#packages.x86_64-linux.claude-prompt-conformance.tests.${name}`,
-      `prompt-conformance-${name}`,
-      name,
-    ),
+function expectedSlowCheckTarget(): FixtureTarget {
+  return expectedTarget(
+    `.#legacyPackages.${validationSystem}.slowChecks.example-slow`,
+    "slow-checks-example-slow",
+    `slow-${validationSystem}`,
+    validationSystem,
   );
 }
 
@@ -684,7 +677,7 @@ describe("Cupboard strict build ownership", () => {
           ),
           publicTargets[0],
           ...checkSystems.flatMap((system) => expectedChecks(system, true)),
-          ...expectedPromptTargets(),
+          expectedSlowCheckTarget(),
         ],
       },
     );

@@ -1,5 +1,6 @@
 {
   lib,
+  callPackage,
   dockerTools,
   larapaper,
   trmnl-framework,
@@ -194,6 +195,10 @@ in
         "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
       ];
     };
-    passthru = {inherit larapaper trmnl-framework entrypoint;};
+    passthru = {
+      inherit larapaper trmnl-framework entrypoint;
+      updateScript = null;
+      tests.smoke = callPackage ./test.nix {};
+    };
     meta.platforms = lib.platforms.linux;
   }

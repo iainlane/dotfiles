@@ -425,14 +425,13 @@ in
         # measurement exactly as a variant build rebuilds it.
         promptEnvironment = ./prompt-environment.nix;
         catalogue = expectedCatalogue;
-        tests =
-          (old.passthru.tests or {})
-          // {
-            claudeEndpoint = claudeEndpointCheck;
-            codexEndpoint = codexEndpointCheck;
-            codexProtocol = codexProtocolCheck;
-            fixtureEnvironments = fixtureEnvironmentCheck;
-            python = pythonApplication;
-          };
+        updateScript = null;
+        slowTests = {
+          claudeEndpoint = claudeEndpointCheck;
+          codexEndpoint = codexEndpointCheck;
+          codexProtocol = codexProtocolCheck;
+          fixtureEnvironments = fixtureEnvironmentCheck;
+          python = pythonApplication;
+        };
       };
   })

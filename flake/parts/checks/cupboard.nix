@@ -35,17 +35,17 @@
       (lib.attrNames (lib.filterAttrs (_: check: buildable system check && (!(check.ci.runOnce or false) || system == validationSystem)) systemChecks)))
     config.flake.checks);
 
-  promptTests =
+  slowChecks =
     map
-    (name: validationEntry ".#packages.${validationSystem}.claude-prompt-conformance.tests.${name}" "prompt-conformance-${name}")
-    (lib.attrNames (lib.filterAttrs (_: buildable validationSystem) config.flake.packages.${validationSystem}.claude-prompt-conformance.tests));
+    (name: validationEntry ".#legacyPackages.${validationSystem}.slowChecks.${name}" "slow-checks-${name}")
+    (lib.attrNames (lib.filterAttrs (_: buildable validationSystem) config.flake.legacyPackages.${validationSystem}.slowChecks));
 
   required = lib.listToAttrs (
     profiles
     ++ deployTools
     ++ [(validationEntry ".#packages.${validationSystem}.local-packages" "packages")]
     ++ checks
-    ++ promptTests
+    ++ slowChecks
   );
 
   expected = {

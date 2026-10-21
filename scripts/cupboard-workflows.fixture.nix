@@ -33,17 +33,11 @@
       x86_64-linux = {
         deploy-rs = fakePackage "deploy-rs-linux";
         local-packages = fakePackage "packages";
-        claude-prompt-conformance.tests =
-          lib.genAttrs [
-            "claudeEndpoint"
-            "codexEndpoint"
-            "codexProtocol"
-            "fixtureEnvironments"
-            "python"
-          ]
-          fakePackage;
       };
     };
+    legacyPackages = lib.genAttrs systems (system: {
+      slowChecks.example-slow = fakePackage "slow-${system}";
+    });
     checks = lib.genAttrs systems (system:
       {
         deploy-schema = fakePackage "deploy" // {ci.runOnce = true;};

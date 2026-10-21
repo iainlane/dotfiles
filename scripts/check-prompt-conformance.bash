@@ -16,6 +16,8 @@ relevant_paths=(
 	.github/workflows/cupboard.yml
 	flake/parts/cupboard.nix
 	flake/parts/git-hooks.nix
+	flake/parts/pkgs.nix
+	lib/package-outputs.nix
 	features/ai/default.nix
 	features/ai/prompt-conformance.nix
 	features/ai/agent-instructions.nix

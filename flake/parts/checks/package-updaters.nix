@@ -4,60 +4,32 @@
   ...
 }: let
   discovery = import ../../../lib/discovery.nix {inherit lib;};
-  localOrDerived = [
-    "agentsview"
-    "claude-prompt-conformance"
-    "flake-lock-summary"
-    "hermes-inbox"
-    "larapaper-image"
-    "prose-lint"
-    "voxtype-osd-gtk4"
-  ];
-  missing = lib.subtractLists (config.flake.updaterNames ++ localOrDerived) (discovery.discoverPackages ../../../pkgs);
+  declaresUpdater = name: lib.any (packages: packages ? ${name} && packages.${name} ? updateScript) (lib.attrValues config.flake.packages);
+  missing = lib.filter (name: !declaresUpdater name) (discovery.discoverPackages ../../../pkgs);
   unversioned = lib.filter (name: (config.flake.updaterVersions.${name} or "") == "") config.flake.updaterNames;
-  scripts = {
-    parakeet-tdt-onnx = ../../../pkgs/parakeet-tdt-onnx;
-    trmnl-liquid-cli = ../../../pkgs/trmnl-liquid-cli;
-    larapaper-web-library = ../../../pkgs/build-support/larapaper-web-library;
-  };
 in {
   perSystem = {pkgs, ...}: {
-    checks =
-      {
-        package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without updaters: ${lib.concatStringsSep ", " missing}";
-          pkgs.runCommandLocal "package-updater-coverage" {} ''
-            touch $out
-          '';
+    checks = {
+      package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without passthru.updateScript (set it to null when a package has no updater): ${lib.concatStringsSep ", " missing}";
+        pkgs.runCommandLocal "package-updater-coverage" {} ''
+          touch $out
+        '';
 
-        package-updater-versions = assert lib.assertMsg (unversioned == []) "Updaters without a version: ${lib.concatStringsSep ", " unversioned}";
-          pkgs.runCommandLocal "package-updater-versions" {} ''
-            touch $out
-          '';
+      package-updater-versions = assert lib.assertMsg (unversioned == []) "Updaters without a version: ${lib.concatStringsSep ", " unversioned}";
+        pkgs.runCommandLocal "package-updater-versions" {} ''
+          touch $out
+        '';
 
-        flake-input-updater =
-          pkgs.runCommandLocal "flake-input-updater-test" {
-            nativeBuildInputs = [pkgs.bash pkgs.jq pkgs.diffutils pkgs.git pkgs.nix];
-          } ''
-            bash ${../../../pkgs/build-support/replace-once.test.sh} \
-              ${../../../pkgs/build-support/replace-once.jq}
-            bash ${../../../pkgs/build-support/flake-branch-updater.test.bash} \
-              ${lib.getExe (pkgs.updaters.mkFlakeBranchUpdater {input = "hermes-agent";})}
-            touch $out
-          '';
-      }
-      // lib.mapAttrs' (name: directory:
-        lib.nameValuePair "${name}-updater" (
-          pkgs.runCommandLocal "${name}-updater-test" {
-            nativeBuildInputs = [pkgs.python3 pkgs.ruff pkgs.pyright];
-          } ''
-            cp ${directory}/update.py ${directory}/test_update.py .
-            ruff check update.py test_update.py
-            ruff format --check update.py test_update.py
-            pyright --project .
-            python3 -m unittest -v
-            touch $out
-          ''
-        ))
-      scripts;
+      flake-input-updater =
+        pkgs.runCommandLocal "flake-input-updater-test" {
+          nativeBuildInputs = [pkgs.bash pkgs.jq pkgs.diffutils pkgs.git pkgs.nix];
+        } ''
+          bash ${../../../pkgs/build-support/replace-once.test.sh} \
+            ${../../../pkgs/build-support/replace-once.jq}
+          bash ${../../../pkgs/build-support/flake-branch-updater.test.bash} \
+            ${lib.getExe (pkgs.updaters.mkFlakeBranchUpdater {input = "hermes-agent";})}
+          touch $out
+        '';
+    };
   };
 }

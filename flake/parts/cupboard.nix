@@ -100,16 +100,16 @@
         systemChecks))
     checks);
 
-  promptEntries =
+  slowCheckEntries =
     lib.mapAttrsToList
     (name:
       validationEntry
-      ".#packages.${validationSystem}.claude-prompt-conformance.tests.${name}"
-      "prompt-conformance-${name}")
-    (lib.filterAttrs (_: buildable validationSystem) config.flake.packages.${validationSystem}.claude-prompt-conformance.tests);
+      ".#legacyPackages.${validationSystem}.slowChecks.${name}"
+      "slow-checks-${name}")
+    (lib.filterAttrs (_: buildable validationSystem) config.flake.legacyPackages.${validationSystem}.slowChecks);
 in {
   flake = {
-    cupboardOutputs = profileEntries ++ deployToolEntries ++ [packageEntry] ++ checkEntries ++ promptEntries;
-    cupboardPublicOutputs = [packageEntry] ++ publicCheckEntries ++ promptEntries;
+    cupboardOutputs = profileEntries ++ deployToolEntries ++ [packageEntry] ++ checkEntries ++ slowCheckEntries;
+    cupboardPublicOutputs = [packageEntry] ++ publicCheckEntries ++ slowCheckEntries;
   };
 }

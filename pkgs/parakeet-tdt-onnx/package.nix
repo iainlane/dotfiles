@@ -46,6 +46,12 @@ in
       extraRuntimeInputs = [python3];
     };
 
+    passthru.tests.updater = updaters.mkPythonUpdaterTest {
+      pname = "parakeet-tdt-onnx";
+      script = ./update.py;
+      test = ./test_update.py;
+    };
+
     meta = {
       description = "NVIDIA Parakeet TDT 0.6B v3 speech-recognition model, full-precision ONNX export";
       homepage = "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx";

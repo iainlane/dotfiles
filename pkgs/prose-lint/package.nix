@@ -306,6 +306,7 @@ in
       (old.passthru or {})
       // {
         inherit application;
+        updateScript = null;
         tests =
           (old.passthru.tests or {})
           // {

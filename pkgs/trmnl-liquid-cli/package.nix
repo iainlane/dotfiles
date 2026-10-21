@@ -40,6 +40,11 @@ in
         script = ./update.sh;
         extraRuntimeInputs = [python3 bundix];
       };
+      tests.updater = updaters.mkPythonUpdaterTest {
+        pname = "trmnl-liquid-cli";
+        script = ./update.py;
+        test = ./test_update.py;
+      };
     };
     meta = {
       description = "TRMNL Liquid renderer rebuilt from the published CLI source";

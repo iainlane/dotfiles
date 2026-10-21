@@ -70,7 +70,7 @@
           prompt-conformance = {
             enable = true;
             name = "prompt conformance Python checks";
-            entry = "./scripts/check-prompt-conformance.bash .#claude-prompt-conformance.tests.python";
+            entry = "./scripts/check-prompt-conformance.bash .#claude-prompt-conformance.slowTests.python";
             language = "system";
             pass_filenames = false;
             always_run = true;

@@ -97,6 +97,15 @@ in
         script = ./update.sh;
         extraRuntimeInputs = [gh python3 nix-update];
       };
+      tests = {
+        source = src;
+        updater = updaters.mkScriptUpdaterTest {
+          pname = "larapaper";
+          script = ./update.sh;
+          test = ./update.test.sh;
+          extraInputs = [python3];
+        };
+      };
     };
     meta = {
       description = "Self-hosted TRMNL server with packaged rendering assets";

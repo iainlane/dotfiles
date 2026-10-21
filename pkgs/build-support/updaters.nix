@@ -2,8 +2,11 @@
 # derivation that refreshes a package's pinned version and hashes in the
 # working tree. Packages attach one as `passthru.updateScript`, and
 # `flake/parts/updaters.nix` surfaces them all as `update-<name>` apps.
+# Packages attach the test of an updater as `passthru.tests.updater`.
 {
+  bash,
   coreutils,
+  diffutils,
   gh,
   git,
   gnutar,
@@ -12,6 +15,10 @@
   nix,
   nix-update,
   nodejs,
+  pyright,
+  python3,
+  ruff,
+  runCommandLocal,
   wget,
   writeShellApplication,
 }: {
@@ -34,6 +41,42 @@
         ${builtins.readFile script}
       '';
     };
+
+  # Test the script of a `mkScriptUpdater` updater. The test receives the
+  # script's path, followed by `extraArgs`.
+  mkScriptUpdaterTest = {
+    pname,
+    script,
+    test,
+    extraArgs ? [],
+    extraInputs ? [],
+  }:
+    runCommandLocal "${pname}-updater-test" {
+      nativeBuildInputs = [bash diffutils jq] ++ extraInputs;
+    } ''
+      bash ${test} ${script} ${lib.concatMapStringsSep " " (arg: lib.escapeShellArg "${arg}") extraArgs}
+      touch "$out"
+    '';
+
+  # Lint, type-check and run the tests of a Python updater. The test module
+  # imports the updater as `update`, so both files keep their conventional
+  # names in the build directory.
+  mkPythonUpdaterTest = {
+    pname,
+    script,
+    test,
+  }:
+    runCommandLocal "${pname}-updater-test" {
+      nativeBuildInputs = [pyright python3 ruff];
+    } ''
+      cp ${script} update.py
+      cp ${test} test_update.py
+      ruff check update.py test_update.py
+      ruff format --check update.py test_update.py
+      pyright --project .
+      python3 -m unittest -v
+      touch "$out"
+    '';
 
   # Regenerate a package's `sources.json`: discover the latest upstream
   # version, then download and hash one prebuilt binary per platform.

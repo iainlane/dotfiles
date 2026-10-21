@@ -19,7 +19,7 @@ selects the platform adapter and concrete clients. Unit tests inject fakes for
 every backend capability and compare complete domain structures. Platform tests
 compare complete Seatbelt profiles and Bubblewrap commands.
 
-Pre-commit builds `claude-prompt-conformance.tests.python`, which runs Ruff,
+Pre-commit builds `claude-prompt-conformance.slowTests.python`, which runs Ruff,
 BasedPyright, pytest, and import checks while building the Python package. Its
 source includes only the Python code, tests and package metadata, so changes to
 prompts, model defaults or fixtures reuse the cached package.
@@ -32,10 +32,10 @@ the same checks locally with:
 
 ```console
 nix build --no-link \
-  .#claude-prompt-conformance.tests.fixtureEnvironments \
-  .#claude-prompt-conformance.tests.codexProtocol \
-  .#claude-prompt-conformance.tests.codexEndpoint \
-  .#claude-prompt-conformance.tests.claudeEndpoint \
+  .#claude-prompt-conformance.slowTests.fixtureEnvironments \
+  .#claude-prompt-conformance.slowTests.codexProtocol \
+  .#claude-prompt-conformance.slowTests.codexEndpoint \
+  .#claude-prompt-conformance.slowTests.claudeEndpoint \
   ".#checks.$(nix config show system).prompt-conformance-configuration"
 ```
 

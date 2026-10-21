@@ -6,6 +6,7 @@
   updaters,
   gh,
   nix-update,
+  python3,
   cmake,
   pkg-config,
   gitMinimal,
@@ -102,6 +103,12 @@ stdenv.mkDerivation (finalAttrs: {
       pname = "xrt";
       script = ./update.sh;
       extraRuntimeInputs = [gh nix-update];
+    };
+    tests.updater = updaters.mkScriptUpdaterTest {
+      pname = "xrt";
+      script = ./update.sh;
+      test = ./update.test.sh;
+      extraInputs = [python3];
     };
   };
 
