@@ -54,4 +54,4 @@ podman exec "${AGENTSVIEW_CONTAINER}" \
 
 echo "dumped ${AGENTSVIEW_DATABASE}: $(stat -c %s "${dump}") bytes"
 
-BACKUP_SOURCE="${snapshot}" exec r2 backup
+BACKUP_SOURCE="${snapshot}" r2 backup

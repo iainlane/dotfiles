@@ -5,7 +5,7 @@
 #
 # `r2 restore` fetches and unpacks an archive. Putting the contents back takes
 # different steps for each service, and only Hermes provides a command for it.
-# Restoring the AgentsView database means feeding the dump to `psql`,
+# Restoring the AgentsView database means feeding the dump to `pg_restore`,
 # Continuwuity's means putting the files back in its backup volume and telling
 # it to load one, and UniFi's means uploading the `.unf` file on the
 # controller's restore page. Each is a hand-run job for a person with the

@@ -79,6 +79,8 @@ set -euo pipefail
 for path in "${BACKUP_SOURCE}"/*; do
 	printf '%s %s\n' "${path##*/}" "$(stat -c %s "${path}")"
 done >"${FAKE_R2_LOG}"
+printf '%s\n' "${BACKUP_SOURCE}" >"${FAKE_R2_SOURCE}"
+exit "${FAKE_R2_STATUS}"
 EOF
 
 run_backup() {
@@ -86,6 +88,8 @@ run_backup() {
 		TMPDIR="${test_dir}/scratch" \
 		FAKE_CURL_LOG="${test_dir}/curl.log" \
 		FAKE_R2_LOG="${test_dir}/r2.log" \
+		FAKE_R2_SOURCE="${test_dir}/r2-source.log" \
+		FAKE_R2_STATUS="${upload_status:-0}" \
 		FAKE_COMMAND_RESPONSE="${test_dir}/${1}.json" \
 		FAKE_BACKUP_FILE="${test_dir}/${2}.unf" \
 		UNIFI_URL=https://192.0.2.1:11443 \
@@ -111,13 +115,10 @@ report_failure() {
 	exit 1
 }
 
-# Runs one scenario and checks its exit status and output. `expected_status`
-# is `zero` when the script has to accept the controller's responses and
-# `nonzero` when it has to refuse them.
 assert_backup() {
 	local scenario="${1}" expected_status="${2}" expected="${3}" output status
 
-	rm -rf "${test_dir}/curl.log" "${test_dir}/r2.log" "${test_dir}/scratch"
+	rm -rf "${test_dir}/curl.log" "${test_dir}/r2.log" "${test_dir}/r2-source.log" "${test_dir}/scratch"
 	mkdir "${test_dir}/scratch"
 
 	set +e
@@ -135,10 +136,18 @@ assert_backup() {
 		[[ "${status}" -ne 0 ]] ||
 			report_failure "${scenario}" "expected failure, got success: ${output}"
 		;;
+
+	*)
+		[[ "${status}" == "${expected_status}" ]] ||
+			report_failure "${scenario}" "expected status ${expected_status}, got ${status}: ${output}"
+		;;
 	esac
 
 	[[ "${output}" == *"${expected}"* ]] ||
 		report_failure "${scenario}" "expected output to contain '${expected}', got: ${output}"
+
+	[[ -z "$(find "${test_dir}/scratch" -mindepth 1 -print -quit)" ]] ||
+		report_failure "${scenario}" "temporary snapshot remains after script exit"
 }
 
 assert_file_equals() {
@@ -158,11 +167,10 @@ echo '{"meta":{"rc":"error","msg":"api.err.Invalid"}}' >"${test_dir}/error.json"
 # The whole exchange: the command names the site and the days of statistics,
 # the download fetches the URL returned by the controller, under the Network
 # application's prefix, and the key travels in the config on stdin, never on
-# the command line. The script's working directory is the only one under the
-# scratch TMPDIR, so its path is known.
+# the command line. The stub records the snapshot path before cleanup.
 assert_backup ok zero "downloaded 10.6.101.unf: 18 bytes"
 
-work_dir="$(find "${test_dir}/scratch" -mindepth 1 -maxdepth 1 -type d)"
+work_dir="$(dirname "$(cat "${test_dir}/r2-source.log")")"
 
 assert_file_equals ok "${test_dir}/curl.log" '--- request
 header = "X-API-KEY: hunter2"
@@ -212,3 +220,7 @@ assert_backup error nonzero "no backup URL"
 # A download that completes with no bytes would upload an empty archive.
 assert_backup ok nonzero "10.6.101.unf is empty" empty
 [ ! -f "${test_dir}/r2.log" ] || report_failure empty "r2 was run"
+
+upload_status=23 assert_backup ok 23 "downloaded 10.6.101.unf: 18 bytes"
+assert_file_equals upload-failure "${test_dir}/r2.log" '10.6.101.unf 18
+'

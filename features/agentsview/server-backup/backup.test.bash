@@ -35,9 +35,10 @@ stub r2 <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" >"${TEST_DIR}/r2.args"
 cp "${BACKUP_SOURCE}/agentsview.dump" "${TEST_DIR}/uploaded.dump"
+if [ "${SCENARIO}" = upload-failure ]; then exit 23; fi
 EOF
 
-for scenario in success empty dump-failure pacing-failure; do
+for scenario in success empty dump-failure pacing-failure upload-failure; do
 	rm -f "${test_dir}"/{podman.args,pv.args,r2.args,uploaded.dump}
 	status=0
 	PATH="${test_dir}/bin:${PATH}" TMPDIR="${test_dir}/scratch" \
@@ -46,6 +47,21 @@ for scenario in success empty dump-failure pacing-failure; do
 		AGENTSVIEW_SUPERUSER=postgres AGENTSVIEW_SOCKET_DIR=/run/postgresql \
 		AGENTSVIEW_DUMP_RATE_LIMIT=10485760 \
 		bash "${backup_script}" >"${test_dir}/output" 2>&1 || status=$?
+
+	if [ -n "$(find "${test_dir}/scratch" -mindepth 1 -print -quit)" ]; then
+		echo "${scenario}: temporary snapshot remains after script exit" >&2
+		exit 1
+	fi
+
+	if [ "${scenario}" = upload-failure ]; then
+		if [ "${status}" -ne 23 ]; then
+			echo "${scenario}: expected uploader exit status 23, got ${status}" >&2
+			exit 1
+		fi
+
+		diff -u "${test_dir}/dump" "${test_dir}/uploaded.dump"
+		continue
+	fi
 
 	if [ "${scenario}" != success ]; then
 		if [ "${status}" -eq 0 ] || [ -e "${test_dir}/uploaded.dump" ]; then

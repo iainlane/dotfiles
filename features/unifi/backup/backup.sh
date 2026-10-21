@@ -64,4 +64,4 @@ request --output "${file}" "${UNIFI_URL}/proxy/network${path}"
 
 echo "downloaded ${file##*/}: $(stat -c %s "${file}") bytes"
 
-BACKUP_SOURCE="${snapshot}" exec r2 backup
+BACKUP_SOURCE="${snapshot}" r2 backup
