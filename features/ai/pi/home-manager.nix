@@ -13,7 +13,7 @@
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
-      "pi-footer"
+      "pi-prs"
       "pi-lens"
       "pi-live-models"
       "pi-notify"
@@ -31,7 +31,7 @@
     pkgs;
 
   # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
-  localExtensions = ["quota-status" "service-tier-status"];
+  sessionFooter = import ./session-footer-package.nix {inherit pkgs;};
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -56,7 +56,7 @@
   piWithQuotaToken = pkgs.writeShellApplication {
     name = "pi";
 
-    runtimeInputs = [pkgs.jq pkgs.nodejs];
+    runtimeInputs = [pkgs.jq pkgs.nodejs pkgs.gh];
 
     text = ''
       credentials="''${CLAUDE_CONFIG_DIR:-''${HOME}/.claude}/.credentials.json"
@@ -176,104 +176,6 @@
     };
   };
 
-  piFooterWidget = id: type: options: {
-    inherit id type options;
-    enabled = true;
-  };
-
-  piFooterConfig = {
-    version = 1;
-    enabled = true;
-    preset = "pi-footer";
-    separator = "none";
-    separatorFg = "default";
-    separatorBg = "default";
-    iconMode = "text";
-    minimalist = false;
-    terminal = {
-      widthMode = "full";
-      colorLevel = "ansi256";
-    };
-    lines = [
-      [
-        (piFooterWidget "model-provider" "model-provider" {
-          raw = true;
-          fg = "pi:warning";
-        })
-        (piFooterWidget "thinking" "thinking-level" {
-          icon = " · ";
-          fg = "pi:thinkingHigh";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "cwd" "cwd" {
-          icon = " · ";
-          fg = "pi:success";
-          cwdDisplayStyle = "full-home";
-          segments = 3;
-        })
-        (piFooterWidget "context-window" "context-window" {
-          icon = " · ";
-          fg = "pi:bashMode";
-          tokenFormatStyle = "compact";
-          contextConditionalColors = true;
-          warningFg = "pi:warning";
-          dangerFg = "pi:error";
-        })
-        (piFooterWidget "context-used" "context" {
-          icon = " · Context ";
-          fg = "pi:bashMode";
-          tokenFormatStyle = "compact";
-          contextConditionalColors = true;
-          warningFg = "pi:warning";
-          dangerFg = "pi:error";
-        })
-        (piFooterWidget "context-used-label" "custom-text" {
-          raw = true;
-          fg = "pi:bashMode";
-          text = " used";
-        })
-      ]
-      [
-        (piFooterWidget "git-branch" "git-branch" {
-          raw = true;
-          fg = "pi:success";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "git-status" "git-status" {
-          icon = " ";
-          fg = "pi:warning";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "git-ahead-behind" "git-ahead-behind" {
-          icon = " ";
-          fg = "pi:warning";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "gap" "flex-separator" {})
-        (piFooterWidget "quota" "event" {
-          widgetId = "quota";
-          icon = " ";
-          fg = "pi:thinkingHigh";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "service-tier" "event" {
-          widgetId = "service-tier";
-          icon = " ";
-          fg = "pi:warning";
-          hideWhenEmpty = true;
-        })
-        (piFooterWidget "session-cost" "cost" {
-          icon = " ";
-          fg = "pi:bashMode";
-        })
-        (piFooterWidget "session-elapsed" "elapsed" {
-          icon = " ";
-          fg = "pi:bashMode";
-        })
-      ]
-    ];
-  };
-
   piSubCoreConfig = {
     version = 3;
     behavior = {
@@ -295,6 +197,7 @@
   };
 
   piSubagentsConfig = {
+    asyncWidget = false;
     asyncByDefault = false;
     forceTopLevelAsync = false;
     parallel = {
@@ -350,15 +253,10 @@
       })
     piExtensions;
 
-  localExtensionFiles =
-    lib.listToAttrs
-    (map
-      (name:
-        lib.nameValuePair ".pi/agent/extensions/${name}/index.ts" {
-          source = ./extensions + "/${name}/index.ts";
-        })
-      localExtensions);
+  localExtensionFiles.".pi/agent/extensions/session-footer".source = sessionFooter;
 in {
+  xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
+
   home = {
     packages = [piWithQuotaToken];
 
@@ -366,7 +264,10 @@ in {
       {
         ".pi/agent/settings.json".text = toJson piSettings;
         ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
-        ".pi/agent/extensions/pi-footer.json".text = toJson piFooterConfig;
+        ".pi-lens/config.json".text = toJson {
+          widget.visible = false;
+          ui.compactLspStatus = true;
+        };
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;
         ".pi/agent/pi-pretty.json".text = toJson piPrettyConfig;

@@ -1,0 +1,171 @@
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -3,13 +3,22 @@
+  */
+ 
+ import type { ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
++import type { RateWindow as SharedRateWindow, UsageSnapshot as SharedUsageSnapshot } from "@marckrenn/pi-sub-shared";
++
++export interface RateWindow extends SharedRateWindow {
++	windowSeconds?: number;
++}
++
++export interface UsageSnapshot extends Omit<SharedUsageSnapshot, "windows"> {
++	windows: RateWindow[];
++	accountId?: string;
++	credentialSource?: string;
++}
+ 
+ export type {
+ 	ProviderName,
+ 	StatusIndicator,
+ 	ProviderStatus,
+-	RateWindow,
+-	UsageSnapshot,
+ 	UsageError,
+ 	UsageErrorCode,
+ 	ProviderUsageEntry,
+--- a/src/providers/impl/codex.ts
++++ b/src/providers/impl/codex.ts
+@@ -30,7 +30,7 @@
+  * Load Codex credentials from auth.json
+  * First tries pi's auth.json, then falls back to legacy codex location
+  */
+-function loadCodexCredentials(deps: Dependencies): { accessToken?: string; accountId?: string } {
++function loadCodexCredentials(deps: Dependencies): { accessToken?: string; accountId?: string; credentialSource?: string } {
+ 	// Explicit override via env var
+ 	const envAccessToken = (
+ 		deps.env.OPENAI_CODEX_OAUTH_TOKEN ||
+@@ -40,7 +40,7 @@
+ 	)?.trim();
+ 	const envAccountId = (deps.env.OPENAI_CODEX_ACCOUNT_ID || deps.env.CHATGPT_ACCOUNT_ID)?.trim();
+ 	if (envAccessToken) {
+-		return { accessToken: envAccessToken, accountId: envAccountId || undefined };
++		return { accessToken: envAccessToken, accountId: envAccountId || undefined, credentialSource: "environment" };
+ 	}
+ 
+ 	// Try pi's auth.json first
+@@ -52,6 +52,7 @@
+ 				return {
+ 					accessToken: data["openai-codex"].access,
+ 					accountId: data["openai-codex"].accountId,
++					credentialSource: "pi",
+ 				};
+ 			}
+ 		}
+@@ -66,11 +67,12 @@
+ 		if (deps.fileExists(authPath)) {
+ 			const data = JSON.parse(deps.readFile(authPath) ?? "{}");
+ 			if (data.OPENAI_API_KEY) {
+-				return { accessToken: data.OPENAI_API_KEY };
++				return { accessToken: data.OPENAI_API_KEY, credentialSource: "codex" };
+ 			} else if (data.tokens?.access_token) {
+ 				return {
+ 					accessToken: data.tokens.access_token,
+ 					accountId: data.tokens.account_id,
++					credentialSource: "codex",
+ 				};
+ 			}
+ 		}
+@@ -110,6 +112,7 @@
+ 	windows.push({
+ 		label: windowLabel,
+ 		usedPercent: window.used_percent || 0,
++		windowSeconds: typeof window.limit_window_seconds === "number" && Number.isFinite(window.limit_window_seconds) && window.limit_window_seconds > 0 ? window.limit_window_seconds : undefined,
+ 		resetDescription: resetDate ? formatReset(resetDate) : undefined,
+ 		resetAt: resetDate?.toISOString(),
+ 	});
+@@ -129,7 +132,7 @@
+ 	}
+ 
+ 	async fetchUsage(deps: Dependencies): Promise<UsageSnapshot> {
+-		const { accessToken, accountId } = loadCodexCredentials(deps);
++		const { accessToken, accountId, credentialSource } = loadCodexCredentials(deps);
+ 		if (!accessToken) {
+ 			return this.emptySnapshot(noCredentials());
+ 		}
+@@ -176,7 +179,7 @@
+ 				}
+ 			}
+ 
+-			return this.snapshot({ windows });
++			return this.snapshot({ windows, accountId, credentialSource });
+ 		} catch {
+ 			clear();
+ 			return this.emptySnapshot(fetchFailed());
+--- a/src/providers/impl/anthropic.ts
++++ b/src/providers/impl/anthropic.ts
+@@ -13,17 +13,17 @@
+ /**
+  * Load Claude API token from various sources
+  */
+-function loadClaudeToken(deps: Dependencies): string | undefined {
++function loadClaudeToken(deps: Dependencies): { token: string; source: string } | undefined {
+ 	// Explicit override via env var (useful in CI / menu bar apps)
+ 	const envToken = deps.env.ANTHROPIC_OAUTH_TOKEN?.trim();
+-	if (envToken) return envToken;
++	if (envToken) return { token: envToken, source: "environment" };
+ 
+ 	// Try pi auth.json next
+ 	const piAuthPath = path.join(deps.homedir(), ".pi", "agent", "auth.json");
+ 	try {
+ 		if (deps.fileExists(piAuthPath)) {
+ 			const data = JSON.parse(deps.readFile(piAuthPath) ?? "{}");
+-			if (data.anthropic?.access) return data.anthropic.access;
++			if (data.anthropic?.access) return { token: data.anthropic.access, source: "pi" };
+ 		}
+ 	} catch {
+ 		// Ignore parse errors
+@@ -40,7 +40,7 @@
+ 			const parsed = JSON.parse(keychainData);
+ 			const scopes = parsed.claudeAiOauth?.scopes || [];
+ 			if (scopes.includes("user:profile") && parsed.claudeAiOauth?.accessToken) {
+-				return parsed.claudeAiOauth.accessToken;
++				return { token: parsed.claudeAiOauth.accessToken, source: "claude-code-keychain" };
+ 			}
+ 		}
+ 	} catch {
+@@ -90,7 +90,7 @@
+ 		try {
+ 			const res = await deps.fetch("https://api.anthropic.com/api/oauth/usage", {
+ 				headers: {
+-					Authorization: `Bearer ${token}`,
++					Authorization: `Bearer ${token.token}`,
+ 					"anthropic-beta": "oauth-2025-04-20",
+ 				},
+ 				signal: controller.signal,
+@@ -118,6 +118,7 @@
+ 				const resetAt = data.five_hour.resets_at ? new Date(data.five_hour.resets_at) : undefined;
+ 				windows.push({
+ 					label: "5h",
++					windowSeconds: 18_000,
+ 					usedPercent: data.five_hour.utilization,
+ 					resetDescription: resetAt ? formatReset(resetAt) : undefined,
+ 					resetAt: resetAt?.toISOString(),
+@@ -128,6 +129,7 @@
+ 				const resetAt = data.seven_day.resets_at ? new Date(data.seven_day.resets_at) : undefined;
+ 				windows.push({
+ 					label: "Week",
++					windowSeconds: 604_800,
+ 					usedPercent: data.seven_day.utilization,
+ 					resetDescription: resetAt ? formatReset(resetAt) : undefined,
+ 					resetAt: resetAt?.toISOString(),
+@@ -164,6 +166,7 @@
+ 				windows,
+ 				extraUsageEnabled,
+ 				fiveHourUsage,
++				credentialSource: token.source,
+ 			});
+ 		} catch {
+ 			clear();
+--- a/index.ts
++++ b/index.ts
+@@ -142,7 +142,7 @@
+ 
+ 	const unsubscribeCache = onCacheUpdate((provider, entry) => {
+ 		if (!controllerState.currentProvider || provider !== controllerState.currentProvider) return;
+-		const usage = entry?.usage ? { ...entry.usage, status: entry.status } : undefined;
++		const usage = entry?.usage ? { ...entry.usage, status: entry.status, lastSuccessAt: entry.fetchedAt } : undefined;
+ 		controllerState.cachedUsage = usage;
+ 		emitCurrentUpdate(controllerState.currentProvider, usage);
+ 	});

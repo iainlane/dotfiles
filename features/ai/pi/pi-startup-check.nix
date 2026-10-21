@@ -81,11 +81,12 @@
     "@sinclair/typebox"
     "typebox"
   ];
+  allHomeFiles = piConfig.home.file // lib.mapAttrs' (path: file: lib.nameValuePair ".config/${path}" file) piConfig.xdg.configFile;
   installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file: ''
       mkdir -p "$HOME/"${lib.escapeShellArg (dirOf path)}
       ln -s ${file.source or (pkgs.writeText (baseNameOf path) file.text)} "$HOME/"${lib.escapeShellArg path}
     '')
-    piConfig.home.file);
+    allHomeFiles);
   webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
   subagentsRoot = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
   roleProbe = pkgs.writeText "pi-role-probe.ts" ''
@@ -96,6 +97,8 @@
     export default function (pi) {
       pi.on("session_start", () => {
         assert.ok(pi.getActiveTools().includes("codemode"));
+        assert.ok(pi.getCommands().some(command => command.name === "footer"));
+        assert.ok(pi.getCommands().some(command => command.name === "pr"));
         const roles = provider => discoverAgents(process.cwd(), "user", provider, { globalNpmRoot: null }).agents
           .filter(agent => ["reviewer", "researcher"].includes(agent.name))
           .map(({ name, model, thinking, tools, subagentOnlyExtensions }) => ({ name, model, thinking, tools, subagentOnlyExtensions }))

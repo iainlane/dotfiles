@@ -1,0 +1,298 @@
+import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, expect, it, vi } from "vitest";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import { PiTerminal } from "./tui/terminal.ts";
+
+const colors = new Map<string, number | undefined>();
+
+async function seed(
+  root: string,
+  cwd: string,
+  quiet: boolean,
+): Promise<string> {
+  const timestamp = new Date().toISOString();
+  const tasks = Array.from({ length: 24 }, (_, index) => ({
+    id: index + 1,
+    subject: index === 23 ? "Verify layout" : `Task ${index + 1}`,
+    status: !quiet && index === 23 ? "in_progress" : "completed",
+    blockedBy: [],
+  }));
+  const records = [
+    { type: "session", version: 3, id: randomUUID(), timestamp, cwd },
+    {
+      type: "message",
+      id: "a",
+      parentId: null,
+      timestamp,
+      message: {
+        role: "toolResult",
+        toolCallId: "fixture",
+        toolName: "todo",
+        isError: false,
+        timestamp: Date.now(),
+        content: [{ type: "text", text: "Synthetic footer tasks" }],
+        details: { tasks, nextId: 25 },
+      },
+    },
+    {
+      type: "message",
+      id: "b",
+      parentId: "a",
+      timestamp,
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Footer fixture. No model requests." }],
+        api: "openai-codex-responses",
+        provider: "openai-codex",
+        model: "gpt-5.4",
+        stopReason: "stop",
+        timestamp: Date.now(),
+        usage: {
+          input: 18_000,
+          output: 320,
+          cacheRead: 82_000,
+          cacheWrite: 0,
+          totalTokens: 100_320,
+          cost: {
+            input: 0.01,
+            output: 0.01,
+            cacheRead: 0.02,
+            cacheWrite: 0,
+            total: 0.04,
+          },
+        },
+      },
+    },
+  ];
+  const session = join(root, "session.jsonl");
+
+  await writeFile(
+    session,
+    records.map((entry) => JSON.stringify(entry) + "\n").join(""),
+  );
+
+  return session;
+}
+
+async function footer(terminal: PiTerminal, width: number): Promise<string[]> {
+  let lines: string[] = [];
+
+  await vi.waitFor(
+    async () => {
+      lines = (await terminal.screen()).slice(-2);
+
+      expect(lines[0]).toContain("ctx 20.1%/500k");
+      expect(lines[0]).toContain(" footer-fixture");
+      expect(lines[1]).toContain("5h 40% used");
+      if (width >= 120) expect(lines[1]).toContain("week 42% used");
+      expect(lines.join("\n")).not.toContain("unavailable");
+      expect(lines.map(visibleWidth)).toStrictEqual([width, width]);
+    },
+    { timeout: 10_000, interval: 25 },
+  );
+
+  return lines;
+}
+
+async function restored(
+  terminal: PiTerminal,
+  expected: string[],
+): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      expect((await terminal.screen()).slice(-2)).toStrictEqual(expected);
+    },
+    { timeout: 5000, interval: 25 },
+  );
+}
+
+it.each([
+  { theme: "dark", quiet: false },
+  { theme: "dark", quiet: true },
+  { theme: "light", quiet: false },
+  { theme: "light", quiet: true },
+])(
+  "runs real Pi with $theme theme and quiet=$quiet through resizing and inspection",
+  async ({ theme, quiet }) => {
+    const root = await mkdtemp(join(tmpdir(), "pi-footer-tui-"));
+    const work = join(root, "work");
+    const agent = join(root, "agent");
+    let terminal: PiTerminal | undefined;
+
+    try {
+      await mkdir(work);
+      await mkdir(agent);
+      execFileSync("git", ["init", "-b", "footer-fixture", work], {
+        stdio: "ignore",
+      });
+      await writeFile(
+        join(agent, "settings.json"),
+        JSON.stringify({ quietStartup: "all", theme }),
+      );
+
+      const session = await seed(root, work, quiet);
+      const networkLog = join(root, "network.log");
+      const modelLog = join(root, "model.log");
+      const updateLog = join(root, "updates.log");
+
+      terminal = new PiTerminal({
+        command: [
+          process.execPath,
+          "--import",
+          fileURLToPath(new URL("./tui/network.mjs", import.meta.url)),
+          fileURLToPath(
+            new URL(
+              "./bundle/cli.js",
+              import.meta.resolve("@earendil-works/pi-coding-agent"),
+            ),
+          ),
+          "--offline",
+          "--no-extensions",
+          "--no-skills",
+          "--no-mcp",
+          "--no-context-files",
+          "--no-prompt-templates",
+          "--no-approve",
+          "--no-tools",
+          "--provider",
+          "openai-codex",
+          "--model",
+          "gpt-5.4",
+          "--thinking",
+          "high",
+          "--session",
+          session,
+          "--use-theme",
+          theme,
+          "-e",
+          fileURLToPath(new URL("../index.ts", import.meta.url)),
+          "-e",
+          fileURLToPath(new URL("./tui/fixture.ts", import.meta.url)),
+        ],
+        cwd: work,
+        columns: 220,
+        rows: 24,
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: root,
+          TMPDIR: root,
+          XDG_CONFIG_HOME: join(root, "config"),
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+          PI_CODING_AGENT_DIR: agent,
+          PI_OFFLINE: "1",
+          PI_SKIP_VERSION_CHECK: "1",
+          PI_FOOTER_QUIET: quiet ? "1" : "0",
+          PI_FOOTER_NETWORK_LOG: networkLog,
+          PI_FOOTER_MODEL_LOG: modelLog,
+          PI_FOOTER_UPDATE_LOG: updateLog,
+        },
+      });
+
+      const wide = await footer(terminal, 220);
+
+      expect(terminal.color()).toBeDefined();
+      colors.set(`${theme}/${quiet}`, terminal.color());
+
+      await vi.waitFor(
+        async () => {
+          expect(
+            Number(await readFile(updateLog, "utf8")),
+          ).toBeGreaterThanOrEqual(3);
+        },
+        { timeout: 5000 },
+      );
+
+      await restored(terminal, wide);
+      terminal.resize(72);
+
+      const narrow = await footer(terminal, 72);
+
+      if (quiet) expect(narrow[1]).toMatch(/^ + 5h/);
+      else {
+        expect(narrow[1]).toMatch(/1E 1W.*runs failed 1.*CI 1 failed/);
+        expect(narrow[1]).not.toContain("1h59m");
+      }
+
+      terminal.resize(220);
+
+      await restored(terminal, wide);
+
+      terminal.input("/footer quota\r");
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.join("\n")).toContain(
+            "Footer: quota",
+          );
+        },
+        { timeout: 5000 },
+      );
+
+      terminal.input("\u001b");
+
+      await restored(terminal, wide);
+
+      terminal.input("/footer workflow\r");
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.join("\n")).toContain(
+            "#1 [completed] Task 1",
+          );
+        },
+        { timeout: 5000 },
+      );
+
+      terminal.input("\u001b[6~");
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.join("\n")).not.toContain(
+            "#1 [completed] Task 1",
+          );
+        },
+        { timeout: 5000 },
+      );
+
+      terminal.input("\u001b[6~");
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.join("\n")).toContain(
+            "Use /todos and /subagents",
+          );
+        },
+        { timeout: 5000 },
+      );
+
+      terminal.input("\u001b");
+
+      await restored(terminal, wide);
+      expect({
+        network: existsSync(networkLog),
+        model: existsSync(modelLog),
+      }).toStrictEqual({ network: false, model: false });
+    } catch (error) {
+      throw new Error(
+        `${theme}/${quiet}\n${(await terminal?.screen())?.join("\n")}\n${terminal?.diagnostics()}`,
+        { cause: error },
+      );
+    } finally {
+      await terminal?.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);
+
+afterAll(() => {
+  if (colors.has("dark/false") && colors.has("light/false"))
+    expect(colors.get("dark/false")).not.toBe(colors.get("light/false"));
+});
