@@ -187,6 +187,8 @@
         endpoint = "https://openrouter.ai/api/v1";
         apiKeyEnvironment = "OPENROUTER_API_KEY";
         timeout = "30s";
+        batchSize = null;
+        concurrency = null;
       };
       local = {
         serverName = "local";
@@ -197,6 +199,12 @@
         # 1.2 GB model. The default 30 s is at the edge of that range,
         # so a search can time out before the model finishes loading.
         timeout = "120s";
+        # Ollama embeds one input at a time, so concurrent requests queue
+        # and the last ones reach the timeout before Ollama starts them.
+        # Eight inputs at the model's full context length take about a
+        # minute on Bonington's integrated GPU.
+        batchSize = 8;
+        concurrency = 1;
       };
     };
 
@@ -291,10 +299,12 @@
   # reads the server to embed new text, whether that text is a session message
   # or a search query.
   vectorConfig = backend: let
-    inherit (embeddings.backends.${backend}) serverName endpoint apiKeyEnvironment timeout;
+    inherit (embeddings.backends.${backend}) serverName endpoint apiKeyEnvironment timeout batchSize concurrency;
     serverAttrs =
       {inherit endpoint timeout;}
-      // lib.optionalAttrs (apiKeyEnvironment != null) {api_key_env = apiKeyEnvironment;};
+      // lib.optionalAttrs (apiKeyEnvironment != null) {api_key_env = apiKeyEnvironment;}
+      // lib.optionalAttrs (batchSize != null) {batch_size = batchSize;}
+      // lib.optionalAttrs (concurrency != null) {inherit concurrency;};
   in {
     vector =
       {

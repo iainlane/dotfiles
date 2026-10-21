@@ -11,6 +11,7 @@ in {
   "host-evaluation-local-embeddings-${hostConfig.name}" =
     pkgs.runCommandLocal "local-embeddings" {
       preflight = homeConfig.systemd.user.services.agentsview-embed.Service.ExecStartPre;
+      agentsviewConfig = homeConfig.sops.templates."agentsview-config.toml".content;
       embeddingModel = common.embeddings.defaultModel.name;
       embeddingDimension = toString common.embeddings.defaultModel.dimension;
       nativeBuildInputs = [pkgs.python3];
@@ -21,8 +22,20 @@ in {
       import shlex
       import subprocess
       import sys
+      import tomllib
       from http.server import BaseHTTPRequestHandler, HTTPServer
       from threading import Thread
+
+      servers = tomllib.loads(os.environ["agentsviewConfig"])["vector"]["embeddings"]["servers"]
+      expected_servers = {
+          "local": {
+              "endpoint": "http://localhost:11434/v1",
+              "timeout": "120s",
+              "batch_size": 8,
+              "concurrency": 1,
+          },
+      }
+      assert servers == expected_servers, servers
 
       requests = []
       size_vram = 0
