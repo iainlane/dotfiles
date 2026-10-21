@@ -30,6 +30,5 @@ stdenvNoCC.mkDerivation {
     description = "A modern bitmap font for Linux terminal";
     homepage = "https://github.com/bynux-gh/bynfont";
     license = lib.licenses.mit;
-    platforms = lib.platforms.linux;
   };
 }

@@ -102,6 +102,5 @@ in
       description = "Self-hosted TRMNL server with packaged rendering assets";
       homepage = "https://github.com/usetrmnl/larapaper";
       license = lib.licenses.mit;
-      platforms = lib.platforms.linux;
     };
   }
