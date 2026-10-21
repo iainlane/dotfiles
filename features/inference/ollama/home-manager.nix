@@ -37,6 +37,8 @@ in {
         enable = true;
         environmentVariables.OLLAMA_MODELS = "${config.home.homeDirectory}/.ollama/models";
       };
+
+      launchd.agents.ollama.config.ProcessType = lib.mkForce "Standard";
     }
 
     (lib.mkIf (ollamaModels != []) {
