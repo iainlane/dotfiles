@@ -143,10 +143,12 @@ in {
       # alone, so a path signed by another cupboard tenant is refused.
       trustedPublicKey = lib.head cacheSettings.binaryCaches."cupboard.supply/t/laney".publicKeys;
 
-      # The `/etc/nix/machines` line for CI. The workflow's SSH config supplies
-      # the nixbuild.net token, so no identity file is named here and the
-      # key-path column is `-`.
-      builders = "ssh://${nixbuild.hostName} ${lib.concatStringsSep "," nixbuild.systems} - ${toString nixbuild.maxJobs} ${toString nixbuild.speedFactor} ${lib.concatStringsSep "," nixbuild.supportedFeatures} -";
+      # The builders setting for CI, with one entry for each system because
+      # nixbuild.net supports different features on each. The workflow's SSH
+      # config supplies the nixbuild.net token, so the key-path column is `-`.
+      builders =
+        lib.concatMapStringsSep ";" (system: "ssh://${nixbuild.hostName} ${system} - ${toString nixbuild.maxJobs} ${toString nixbuild.speedFactor} ${lib.concatStringsSep "," nixbuild.supportedFeatures.${system}} -")
+        nixbuild.systems;
 
       builderKnownHosts = "${nixbuild.hostName} ${nixbuild.hostKey}";
 

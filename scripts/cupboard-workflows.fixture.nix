@@ -44,14 +44,27 @@
           fakePackage;
       };
     };
-    checks = lib.genAttrs systems (_: {
-      deploy-schema = fakePackage "deploy" // {ci.runOnce = true;};
-      example = fakePackage "example";
-      global = fakePackage "global" // {ci.runOnce = true;};
-      falcon-kernel-test = fakePackage "falcon";
-      host-evaluation-home-test = fakePackage "host";
-      prompt-conformance-configuration = fakePackage "configuration";
-    });
+    checks = lib.genAttrs systems (system:
+      {
+        deploy-schema = fakePackage "deploy" // {ci.runOnce = true;};
+        example = fakePackage "example";
+        global = fakePackage "global" // {ci.runOnce = true;};
+        falcon-kernel-test = fakePackage "falcon";
+        host-evaluation-home-test = fakePackage "host";
+        prompt-conformance-configuration = fakePackage "configuration";
+      }
+      // lib.optionalAttrs (lib.hasSuffix "-linux" system) {
+        kvm-build = fakePackage "kvm" // {requiredSystemFeatures = ["kvm"];};
+        vm-test =
+          fakePackage "vm"
+          // {
+            config.requiredFeatures = {
+              apple-virt = false;
+              kvm = true;
+              nixos-test = true;
+            };
+          };
+      });
   };
   subject = config:
     import ../flake/parts/cupboard.nix {

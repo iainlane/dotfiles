@@ -12,10 +12,30 @@
   signingKeyName = "nixbuild.net/CGKA3W";
   signingKey = "nL2pa46FhLsOxVxHP+TBmMnUz+cuW6pZEreV/MGVaJ4=";
 
-  systems = ["x86_64-linux" "aarch64-linux" "armv7l-linux"];
+  systems = lib.attrNames supportedFeatures;
   maxJobs = 100;
   speedFactor = 1;
-  supportedFeatures = ["benchmark" "big-parallel" "kvm" "nixos-test"];
+
+  # nixbuild.net runs KVM builds, and therefore NixOS tests, only on
+  # x86_64-linux.
+  supportedFeatures = let
+    common = ["benchmark" "big-parallel"];
+  in {
+    x86_64-linux = common ++ ["kvm" "nixos-test"];
+    aarch64-linux = common;
+    armv7l-linux = common;
+  };
+
+  # A NixOS test is a `lib.lazyDerivation`, which does not expose
+  # `requiredSystemFeatures`. Its `config.requiredFeatures` has the same
+  # features.
+  requiredFeatures = package:
+    package.requiredSystemFeatures
+    or (lib.attrNames (lib.filterAttrs (_: required: required) (package.config.requiredFeatures or {})));
+
+  canBuild = system: package:
+    supportedFeatures ? ${system}
+    && lib.all (feature: lib.elem feature supportedFeatures.${system}) (requiredFeatures package);
 
   binaryCaches = {
     "${builderAlias}" = {
@@ -35,7 +55,7 @@
       sshKeyPath
       (toString maxJobs)
       (toString speedFactor)
-      (lib.concatStringsSep "," supportedFeatures)
+      (lib.concatStringsSep "," supportedFeatures.${system})
       "-"
       "-"
     ];

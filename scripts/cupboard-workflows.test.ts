@@ -551,12 +551,16 @@ function expectedChecks(
         ["falcon-kernel-test", "falcon"],
         ["global", "global"],
         ["host-evaluation-home-test", "host"],
+        ["kvm-build", "kvm"],
         ["prompt-conformance-configuration", "configuration"],
+        ["vm-test", "vm"],
       ]
     : [
         ["example", "example"],
         ["global", "global"],
+        ["kvm-build", "kvm"],
         ["prompt-conformance-configuration", "configuration"],
+        ["vm-test", "vm"],
       ];
 
   return checks
@@ -564,6 +568,10 @@ function expectedChecks(
       ([name]) =>
         !["deploy-schema", "global"].includes(name) ||
         system === validationSystem,
+    )
+    .filter(
+      ([name]) =>
+        !["kvm-build", "vm-test"].includes(name) || system === "x86_64-linux",
     )
     .map(([name, derivation]) =>
       expectedTarget(

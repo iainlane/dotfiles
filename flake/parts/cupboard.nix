@@ -3,6 +3,10 @@
 #
 # Public targets omit deploy profiles and checks that read the private secrets
 # input. Fork pull requests and merge groups build this subset without publishing.
+#
+# Linux targets build on nixbuild.net. A check is left out on a Linux system
+# when it requires a system feature, such as `kvm`, that nixbuild.net does not
+# support on that system.
 {
   config,
   lib,
@@ -12,6 +16,7 @@
   inherit (config.flake) username;
   inherit (config.flake) deploy hosts;
   inherit (import ../../lib/ci.nix) validationSystem;
+  nixbuild = import ../../lib/nixbuild.nix {inherit lib;};
 
   baseFor = system: let
     platform = featureResolver.contextForSystem system;
@@ -79,10 +84,12 @@
     "packages"
     config.flake.packages.${validationSystem}.local-packages;
 
+  buildable = system: check: !(baseFor system).remote || nixbuild.canBuild system check;
+
   checkEntriesFor = system: systemChecks:
     lib.mapAttrsToList
     (name: outputEntry system ".#checks.${system}.${name}" "checks-${name}")
-    (lib.filterAttrs (_: check: !(check.ci.runOnce or false) || system == validationSystem) systemChecks);
+    (lib.filterAttrs (_: check: buildable system check && (!(check.ci.runOnce or false) || system == validationSystem)) systemChecks);
 
   checks = config.flake.checks;
   checkEntries = lib.concatLists (lib.mapAttrsToList checkEntriesFor checks);
@@ -99,7 +106,7 @@
       validationEntry
       ".#packages.${validationSystem}.claude-prompt-conformance.tests.${name}"
       "prompt-conformance-${name}")
-    config.flake.packages.${validationSystem}.claude-prompt-conformance.tests;
+    (lib.filterAttrs (_: buildable validationSystem) config.flake.packages.${validationSystem}.claude-prompt-conformance.tests);
 in {
   flake = {
     cupboardOutputs = profileEntries ++ deployToolEntries ++ [packageEntry] ++ checkEntries ++ promptEntries;

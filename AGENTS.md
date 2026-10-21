@@ -30,3 +30,8 @@ Checks remain available locally on every supported system. A check can set
 `passthru.ci.runOnce = true` when CI should run one instance on the validation
 system defined in `lib/ci.nix`. The deployment schema uses this policy;
 activation checks remain on each host's system.
+
+CI builds Linux checks on nixbuild.net, and `lib/nixbuild.nix` lists the system
+features that it supports on each system. Cupboard leaves out a check that
+requires a feature missing on its system, such as a NixOS test on aarch64-linux.
+Do not restrict a check's platforms to keep it off nixbuild.net.

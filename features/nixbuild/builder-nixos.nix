@@ -13,7 +13,8 @@ in {
       hostName = nixbuild.builderAlias;
       inherit system;
       sshKey = config.sops.secrets.nixbuild-private-key.path;
-      inherit (nixbuild) maxJobs speedFactor supportedFeatures;
+      inherit (nixbuild) maxJobs speedFactor;
+      supportedFeatures = nixbuild.supportedFeatures.${system};
     })
     nixbuild.systems;
 

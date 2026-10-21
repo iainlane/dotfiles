@@ -6,6 +6,10 @@
 }: let
   inherit (config.flake) hosts username;
   inherit (import ../../../lib/ci.nix) validationSystem;
+  nixbuild = import ../../../lib/nixbuild.nix {inherit lib;};
+
+  buildable = system: check:
+    featureResolver.isDarwin (featureResolver.contextForSystem system) || nixbuild.canBuild system check;
 
   entry = attr: system: rootSuffix:
     lib.nameValuePair attr {inherit system rootSuffix;};
@@ -28,13 +32,13 @@
     (system: systemChecks:
       map
       (name: entry ".#checks.${system}.${name}" system "${system}/checks-${name}")
-      (lib.attrNames (lib.filterAttrs (_: check: !(check.ci.runOnce or false) || system == validationSystem) systemChecks)))
+      (lib.attrNames (lib.filterAttrs (_: check: buildable system check && (!(check.ci.runOnce or false) || system == validationSystem)) systemChecks)))
     config.flake.checks);
 
   promptTests =
     map
     (name: validationEntry ".#packages.${validationSystem}.claude-prompt-conformance.tests.${name}" "prompt-conformance-${name}")
-    (lib.attrNames config.flake.packages.${validationSystem}.claude-prompt-conformance.tests);
+    (lib.attrNames (lib.filterAttrs (_: buildable validationSystem) config.flake.packages.${validationSystem}.claude-prompt-conformance.tests));
 
   required = lib.listToAttrs (
     profiles
