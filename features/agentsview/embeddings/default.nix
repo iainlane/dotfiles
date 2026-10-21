@@ -56,9 +56,9 @@
         "--endpoint"
         (lib.removeSuffix "/v1" common.embeddings.backends.local.endpoint)
         "--model"
-        common.embeddings.model
+        common.embeddings.defaultModel.name
         "--dimension"
-        (toString common.embeddings.dimension)
+        (toString common.embeddings.defaultModel.dimension)
       ]
       ++ lib.optional config.dotfiles.inference.ollama.requireAcceleration "--require-acceleration");
   in {

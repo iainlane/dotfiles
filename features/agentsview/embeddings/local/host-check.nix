@@ -11,8 +11,8 @@ in {
   "host-evaluation-local-embeddings-${hostConfig.name}" =
     pkgs.runCommandLocal "local-embeddings" {
       preflight = homeConfig.systemd.user.services.agentsview-embed.Service.ExecStartPre;
-      embeddingModel = common.embeddings.model;
-      embeddingDimension = toString common.embeddings.dimension;
+      embeddingModel = common.embeddings.defaultModel.name;
+      embeddingDimension = toString common.embeddings.defaultModel.dimension;
       nativeBuildInputs = [pkgs.python3];
     } ''
       python3 <<'PY'

@@ -8,6 +8,7 @@
 }: let
   cfg = config.services.ollama;
   models = config.dotfiles.inference.ollama.models;
+  modelfile = import ./modelfile.nix {inherit lib pkgs;};
 
   loader = pkgs.writeShellApplication {
     name = "ollama-model-loader";
@@ -27,7 +28,7 @@
 
       ${lib.concatMapStringsSep "\n" (model: ''
           ollama pull ${lib.escapeShellArg model.name}
-          ${lib.concatMapStringsSep "\n" (alias: "ollama cp ${lib.escapeShellArgs [model.name alias]}") model.aliases}
+          ${lib.concatMapStringsSep "\n" (alias: "ollama create ${lib.escapeShellArgs [alias "-f" "${modelfile model}"]}") model.aliases}
         '')
         models}
     '';

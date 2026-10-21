@@ -24,8 +24,13 @@ in {
     homeManager = {
       config.dotfiles.inference.ollama.models = [
         {
-          name = common.embeddings.backends.local.ollamaModel;
-          aliases = [common.embeddings.model];
+          name = common.embeddings.defaultModel.ollamaName;
+          aliases = [common.embeddings.defaultModel.name];
+          # llama.cpp must fit each input to a BERT embedding model such as
+          # bge-m3 into one batch. AgentsView sends chunks of up to 8192
+          # characters, which can exceed Ollama's default batch of 2048
+          # tokens. Ollama then truncates or rejects the chunk.
+          parameters.num_batch = common.embeddings.defaultModel.contextTokens;
         }
       ];
     };

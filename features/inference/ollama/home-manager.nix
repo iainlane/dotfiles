@@ -17,16 +17,18 @@
 
   logDir = "${config.home.homeDirectory}/Library/Logs";
 
+  modelfile = import ./modelfile.nix {inherit lib pkgs;};
+
   pullNames = map (model: model.name) ollamaModels;
 
   # Runs after every model has pulled, so the source model for each alias
-  # already exists. `ollama cp` is a cheap local rename, so these run one
-  # at a time.
+  # already exists. `ollama create` reuses the source model's layers and
+  # downloads nothing, so these run one at a time.
   aliasCommands =
     lib.concatMapStrings (
       model:
         lib.concatMapStrings
-        (alias: "'${ollama}' cp ${lib.escapeShellArg model.name} ${lib.escapeShellArg alias} && ")
+        (alias: "'${ollama}' create ${lib.escapeShellArg alias} -f ${modelfile model} && ")
         model.aliases
     )
     ollamaModels;

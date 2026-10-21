@@ -166,13 +166,21 @@
   # name and dimension alone, not from which server answers to it, so a
   # publisher's build and the dashboard's queries can each use a different
   # server without forcing a new generation.
-  embeddings = rec {
-    model = "baai/bge-m3";
-    dimension = 1024;
+  embeddings = let
+    models.bge-m3 = {
+      name = "baai/bge-m3";
+      # Ollama's library drops the publisher namespace that OpenRouter's
+      # model identifiers use.
+      ollamaName = "bge-m3";
+      dimension = 1024;
+      contextTokens = 8192;
+    };
+  in {
+    inherit models;
+    defaultModel = models.bge-m3;
 
     # OpenRouter costs $0.01 per million input tokens and needs a key. A
-    # local Ollama server is free and unauthenticated, but Ollama's library
-    # drops the publisher namespace that OpenRouter's model identifiers use.
+    # local Ollama server is free and unauthenticated.
     backends = {
       openrouter = {
         serverName = "openrouter";
@@ -184,7 +192,6 @@
         serverName = "local";
         endpoint = "http://localhost:11434/v1";
         apiKeyEnvironment = null;
-        ollamaModel = lib.last (lib.splitString "/" model);
         # The embedding model is not always resident in Ollama's GPU
         # memory. A cold-start load can take 20–35 seconds for this
         # 1.2 GB model. The default 30 s is at the edge of that range,
@@ -293,7 +300,8 @@
       {
         enabled = true;
         embeddings = {
-          inherit (embeddings) model dimension;
+          model = embeddings.defaultModel.name;
+          inherit (embeddings.defaultModel) dimension;
           servers.${serverName} = serverAttrs;
         };
       }

@@ -5,6 +5,13 @@
 }: {
   ollama-model-loader = let
     fakeOllama = pkgs.writeShellScriptBin "ollama" ''
+      if [ "$1" = create ]; then
+        [ "$3" = -f ] || exit 64
+        printf '%s %s %s\n' "$OLLAMA_HOST" "$1" "$2" >> "$OLLAMA_TEST_LOG"
+        sed 's/^/  /' "$4" >> "$OLLAMA_TEST_LOG"
+        exit
+      fi
+
       printf '%s %s\n' "$OLLAMA_HOST" "$*" >> "$OLLAMA_TEST_LOG"
 
       if [ "$1" = list ] && [ ! -e "$OLLAMA_TEST_READY" ]; then
@@ -32,10 +39,12 @@
           {
             name = "bge-m3";
             aliases = ["baai/bge-m3"];
+            parameters.num_batch = 8192;
           }
           {
             name = "another-model";
-            aliases = [];
+            aliases = ["other/another-model"];
+            parameters = {};
           }
         ];
       };
@@ -56,8 +65,12 @@
       127.0.0.1:11434 list
       127.0.0.1:11434 list
       127.0.0.1:11434 pull bge-m3
-      127.0.0.1:11434 cp bge-m3 baai/bge-m3
+      127.0.0.1:11434 create baai/bge-m3
+        FROM bge-m3
+        PARAMETER num_batch 8192
       127.0.0.1:11434 pull another-model
+      127.0.0.1:11434 create other/another-model
+        FROM another-model
       EOF
       diff -u expected "$OLLAMA_TEST_LOG"
 
