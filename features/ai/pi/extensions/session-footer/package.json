@@ -15,7 +15,7 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.3.0",
     "@earendil-works/pi-tui": "1.3.0",
-    "@juicesharp/rpiv-todo": "2.12.0",
+    "@juicesharp/rpiv-todo": "2.13.9",
     "@marckrenn/pi-sub-core": "1.5.0",
     "@types/node": "24.19.2",
     "@xterm/headless": "6.0.0",

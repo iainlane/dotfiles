@@ -16,13 +16,13 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "mcp-remote";
-    version = "0.14.3";
+    version = "0.15.2";
 
     src = fetchFromGitHub {
       owner = "punkpeye";
       repo = "mcp-remote";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-oRsutl0pvt+9IsQ86lr1UgbU7TKJHVoLDLLagutEy58=";
+      hash = "sha256-/bA+kdlnC830fFDAQBQNVm3qTmMSX1hyewaXCkT5Erk=";
     };
 
     pnpmDeps = fetchPnpmDeps {
