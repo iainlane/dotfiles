@@ -1,6 +1,6 @@
 {
-  "version": "3.4.2",
-  "hash": "sha256-dzJdZ9dETjm/7yB9I8a2kkIbJsv3aumb2rgwm6nJ3Ew=",
+  "version": "3.4.3",
+  "hash": "sha256-tEzIuZIM1YwPnGba/b5Z5d5hiRqjJY8nZ+BxjVp6ec4=",
   "legacy": [
     {
       "version": "3.3.2",
@@ -9,6 +9,10 @@
     {
       "version": "3.4.0",
       "hash": "sha256-bEaDV2Mgk4JT2JqSgsrDez9QCLxJ7hCNDnT+KIKlPjw="
+    },
+    {
+      "version": "3.4.2",
+      "hash": "sha256-dzJdZ9dETjm/7yB9I8a2kkIbJsv3aumb2rgwm6nJ3Ew="
     }
   ]
 }
