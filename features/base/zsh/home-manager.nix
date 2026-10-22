@@ -57,6 +57,7 @@ in {
     enableVteIntegration = true;
 
     envExtra = ''
+      setopt CASE_PATHS
       skip_global_compinit=1
       ZLE_RPROMPT_INDENT=0
     '';
