@@ -8,6 +8,7 @@
   pluginSpecs = import ./plugins.nix;
   zstylesPre = builtins.readFile ./zstyles-before.zsh;
   zstylesPost = builtins.readFile ./zstyles-after.zsh;
+  completionCache = "${config.xdg.cacheHome}/zsh/$ZSH_VERSION";
 
   pluginsDir = ./plugins;
   localPlugins = fileNames pluginsDir ".plugin.zsh";
@@ -43,8 +44,9 @@ in {
     };
 
     completionInit = ''
+      mkdir -p "${completionCache}"
       autoload -Uz compinit
-      compinit -d "${config.xdg.cacheHome}/zsh/.zcompdump"
+      compinit -d "${completionCache}/.zcompdump"
     '';
 
     defaultKeymap = "emacs";
@@ -157,11 +159,11 @@ in {
   };
 
   home.activation.zshCompletionDump = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    $DRY_RUN_CMD mkdir -p "${config.xdg.cacheHome}/zsh"
     $DRY_RUN_CMD ${config.programs.zsh.package}/bin/zsh -c '
+      mkdir -p "${completionCache}"
       autoload -Uz compinit
-      compinit -u -d "${config.xdg.cacheHome}/zsh/.zcompdump"
-      zcompile "${config.xdg.cacheHome}/zsh/.zcompdump"
+      compinit -u -d "${completionCache}/.zcompdump"
+      zcompile "${completionCache}/.zcompdump"
     '
   '';
 }
