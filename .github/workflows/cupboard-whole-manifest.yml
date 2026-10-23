@@ -68,6 +68,7 @@ jobs:
         with:
           cache-url: https://cupboard.supply/t/laney
           cupboard-version: v0.0.46
+          release-repository: underwhelmingperformance/cupboard
           trusted-public-key: ${{ needs.sources.outputs.trusted-key }}
           private-substituters: >-
             https://cupboard:${{ secrets.FALCON_CACHE_PASSWORD
