@@ -1,11 +1,12 @@
 {
   config,
+  inputs,
   lib,
   ...
 }: {
   perSystem = {pkgs, ...}: let
     fixture = import ../../../scripts/cupboard-workflows.fixture.nix {
-      inherit lib;
+      inherit lib inputs;
       inherit (config) systems;
     };
   in {

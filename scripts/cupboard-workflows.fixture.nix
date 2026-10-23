@@ -1,6 +1,7 @@
 {
   lib,
   systems,
+  inputs,
 }: let
   inherit (import ../lib/ci.nix) validationSystem;
   fakePackage = name: {
@@ -81,10 +82,82 @@
         fixtureConfig.flake.checks;
       };
   };
+  lazyChecksFor = system: let
+    runCommandLocal = name: _: _:
+      fakePackage name
+      // {
+        type = "derivation";
+        outputs = ["out"];
+      };
+    config.flake = {
+      username = "tester";
+      hosts.fixture = {
+        inherit system;
+        os =
+          if lib.hasSuffix "-darwin" system
+          then "darwin"
+          else "nixos";
+        hostname = "fixture";
+      };
+    };
+    hostResults = throw "The host configuration was forced.";
+    hostChecks =
+      (import ../flake/parts/checks/host-evaluation.nix {
+        inherit lib config hostResults;
+      }).perSystem {
+        inherit system;
+        pkgs = {inherit runCommandLocal;};
+      };
+    deployChecks = (import ../flake/parts/deploy.nix {
+      inherit inputs lib config hostResults;
+    }).perSystem {inherit system;};
+    managedChecks =
+      import ../features/hermes/managed-config-host-check.nix {
+        hostConfig.name = "fixture";
+        systemConfig = hostResults;
+      } {
+        inherit lib;
+        pkgs = {inherit runCommandLocal;};
+      };
+  in
+    hostChecks.checks // deployChecks.checks // managedChecks;
+  lazyVm = lib.lazyDerivation {
+    derivation = throw "The VM test derivation was forced.";
+    passthru.config.requiredFeatures = {
+      apple-virt = false;
+      kvm = true;
+      nixos-test = true;
+    };
+  };
+  lazyChecks = lib.genAttrs systems (system:
+    lazyChecksFor system
+    // lib.optionalAttrs (lib.hasSuffix "-linux" system) {vm-test = lazyVm;});
+  lazyTargets =
+    (subject {
+      flake =
+        fixtureConfig.flake
+        // {
+          checks = lazyChecks;
+          legacyPackages.${validationSystem}.slowChecks.vm-test = lazyVm;
+        };
+    }).flake.cupboardOutputs;
+  nixbuild = import ../lib/nixbuild.nix {inherit lib;};
 in {
   inherit validationSystem;
   checkSystems = lib.attrNames fixtureConfig.flake.checks;
   outputs = complete.flake.cupboardOutputs;
   publicOutputs = complete.flake.cupboardPublicOutputs or [];
   publicOutputsWithoutSecrets = publicOnly.flake.cupboardPublicOutputs or [];
+  lazyScheduling = {
+    count = builtins.length lazyTargets;
+    selected = map (target: target.attr) lazyTargets;
+    checks = lib.mapAttrs (_:
+      lib.mapAttrs (_: check: {
+        isDerivation = lib.isDerivation check;
+        runOnce = check.ci.runOnce or false;
+        requiredFeatures = nixbuild.requiredFeatures check;
+        drvPathFails = !(builtins.tryEval check.drvPath).success;
+      }))
+    lazyChecks;
+  };
 }
