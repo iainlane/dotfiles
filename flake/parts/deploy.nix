@@ -65,15 +65,21 @@
   mkChecks = system: let
     inherit (deployLibFor system) deployChecks;
     # `deploy-activate` builds each profile to look for its activation script,
-    # so it gets the hosts this system builds and no others.
+    # so it gets only the hosts built for this system.
     nativeNodes =
       lib.filterAttrs (hostname: _: hosts.${hostname}.system == system) nodes;
-    schema = (deployChecks {nodes = schemaNodes;}).deploy-schema;
   in {
-    deploy-schema = schema.overrideAttrs (previous: {
-      passthru = (previous.passthru or {}) // {ci.runOnce = true;};
-    });
-    inherit (deployChecks {nodes = nativeNodes;}) deploy-activate;
+    deploy-schema = lib.lazyDerivation {
+      derivation = (deployChecks {nodes = schemaNodes;}).deploy-schema;
+      passthru = {
+        ci.runOnce = true;
+        requiredSystemFeatures = [];
+      };
+    };
+    deploy-activate = lib.lazyDerivation {
+      derivation = (deployChecks {nodes = nativeNodes;}).deploy-activate;
+      passthru.requiredSystemFeatures = [];
+    };
   };
 in {
   flake = {

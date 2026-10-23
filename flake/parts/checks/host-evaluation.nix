@@ -31,11 +31,13 @@ in {
     hosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) config.flake.hosts;
 
     mkCheck = checkName: outputName: configurationName: drvPath:
-      lib.nameValuePair checkName (
-        builtins.deepSeq
-        (traceEvaluating outputName configurationName drvPath)
-        (pkgs.runCommandLocal checkName {} "touch $out")
-      );
+      lib.nameValuePair checkName (lib.lazyDerivation {
+        derivation =
+          builtins.deepSeq
+          (traceEvaluating outputName configurationName drvPath)
+          (pkgs.runCommandLocal checkName {} "touch $out");
+        passthru.requiredSystemFeatures = [];
+      });
 
     systemChecks =
       lib.mapAttrs' (

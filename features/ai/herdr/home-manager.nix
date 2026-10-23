@@ -9,7 +9,7 @@
 }: let
   cfg = config.dotfiles.herdr;
 
-  inherit (inputs.llm-agents.packages.${system}) herdr;
+  inherit (inputs.llm-agents.packages.${system}) herdr plannotator-tui;
 
   packages = pkgs.callPackage ./packages.nix {};
 
@@ -42,8 +42,8 @@
 in {
   options.dotfiles.herdr.plugins = lib.mkOption {
     type = with lib.types; listOf package;
-    default = [pkgs.herdr-ctx-bar pkgs.herdr-disp-model];
-    defaultText = lib.literalExpression "[pkgs.herdr-ctx-bar pkgs.herdr-disp-model]";
+    default = [pkgs.herdr-ctx-bar pkgs.herdr-disp-model pkgs.herdr-annotate pkgs.herdr-annotate-links];
+    defaultText = lib.literalExpression "[pkgs.herdr-ctx-bar pkgs.herdr-disp-model pkgs.herdr-annotate pkgs.herdr-annotate-links]";
     description = ''
       Herdr plugins to link and enable. Each package specifies the plugin's
       directory in `passthru.pluginRoot`. Activation also removes every
@@ -66,6 +66,63 @@ in {
             version_check = false;
             manifest_check = false;
           };
+
+          keys.command = [
+            {
+              key = "prefix+a";
+              type = "plugin_action";
+              command = "annotate.capture";
+              description = "Annotate selected text";
+            }
+            {
+              key = "prefix+shift+a";
+              type = "plugin_action";
+              command = "annotate.copy-context";
+              description = "Copy annotations as feedback";
+            }
+            {
+              key = "prefix+ctrl+a";
+              type = "plugin_action";
+              command = "annotate.copy-archive";
+              description = "Copy and archive annotations";
+            }
+            {
+              key = "prefix+ctrl+v";
+              type = "plugin_action";
+              command = "annotate.paste-archive";
+              description = "Paste annotations without submitting and archive them";
+            }
+            {
+              key = "prefix+ctrl+s";
+              type = "plugin_action";
+              command = "annotate.send-archive";
+              description = "Send annotations to the agent and archive them";
+            }
+            {
+              key = "prefix+m";
+              type = "plugin_action";
+              command = "annotate.manage";
+              description = "Manage annotations";
+            }
+            {
+              key = "prefix+o";
+              type = "plugin_action";
+              command = "annotate.open";
+              description = "Review documents in this folder";
+            }
+            {
+              key = "prefix+shift+o";
+              type = "plugin_action";
+              command = "annotate.last";
+              description = "Review the agent's recent replies";
+            }
+            {
+              key = "prefix+ctrl+o";
+              type = "plugin_action";
+              command = "annotate.last-newest";
+              description = "Review the agent's newest reply";
+            }
+          ];
 
           theme = {
             name = "catppuccin";
@@ -138,19 +195,23 @@ in {
         };
       };
 
-      home.activation.herdrPlugins = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        run ${lib.getExe (packages.pluginSync {inherit herdr;})} \
-          ${builtins.storeDir} \
-          ${lib.escapeShellArgs (map (plugin: plugin.pluginRoot) cfg.plugins)}
-      '';
+      home = {
+        packages = [plannotator-tui];
 
-      # Herdr ignores the whole of `config.toml` and uses its defaults when one
-      # setting does not parse. Checking the file here makes such a setting
-      # fail the build.
-      home.extraBuilderCommands = ''
-        HOME=$(mktemp -d) HERDR_CONFIG_PATH=${config.xdg.configFile."herdr/config.toml".source} \
-          ${lib.getExe herdr} config check
-      '';
+        activation.herdrPlugins = lib.hm.dag.entryAfter ["writeBoundary"] ''
+          run ${lib.getExe (packages.pluginSync {inherit herdr;})} \
+            ${builtins.storeDir} \
+            ${lib.escapeShellArgs (map (plugin: plugin.pluginRoot) cfg.plugins)}
+        '';
+
+        # Herdr ignores the whole of `config.toml` and uses its defaults when one
+        # setting does not parse. Checking the file here makes such a setting
+        # fail the build.
+        extraBuilderCommands = ''
+          HOME=$(mktemp -d) HERDR_CONFIG_PATH=${config.xdg.configFile."herdr/config.toml".source} \
+            ${lib.getExe herdr} config check
+        '';
+      };
     }
 
     # Herdr's settings show the Claude Code or Codex integration as installed

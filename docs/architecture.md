@@ -199,12 +199,27 @@ A context-dependent output uses two functions. The outer function selects or
 binds composition values; the inner function is an ordinary module:
 
 ```nix
-checks = {hostConfig, systemConfig}: {pkgs, ...}: {
-  "host-evaluation-parser-${hostConfig.name}" =
-    builtins.deepSeq systemConfig.services.example
+checks = {hostConfig, systemConfig}: {pkgs, lib, ...}: {
+  "host-evaluation-parser-${hostConfig.name}" = lib.lazyDerivation {
+    derivation = builtins.deepSeq systemConfig.services.example
       (pkgs.runCommandLocal "parser-config-test" {} "touch $out");
+    passthru.requiredSystemFeatures = [];
+  };
 };
 ```
+
+Cupboard reads scheduling metadata while filtering all checks. Keep host
+evaluation inside `derivation` so metadata inspection does not force the host
+configuration. Expose scheduling metadata through the wrapper's `passthru`.
+
+The example's builder requires no system features, so the passthru list is
+empty. The host-evaluation, Hermes managed-scope and deployment wrappers also
+assume that their underlying command builders require no system features. If a
+builder changes to require `kvm` or another feature, update the wrapper's
+passthru at the same time. `lib.lazyDerivation` does not forward
+`requiredSystemFeatures` from its underlying derivation. Without feature
+metadata, `lib/nixbuild.nix` falls back to an empty list. NixOS tests already
+expose their requirements through `config.requiredFeatures`.
 
 The composition arguments are `platform`, `hostConfig`, `systemConfig` and
 `homeConfig`. The last two are lazy evaluated `.config` values. The binder

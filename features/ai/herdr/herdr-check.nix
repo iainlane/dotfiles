@@ -12,6 +12,19 @@
 
   pluginSync = packages.pluginSync {inherit herdr;};
 in {
+  herdr-annotate =
+    pkgs.runCommandLocal "herdr-annotate-test" {
+      nativeBuildInputs = [pkgs.python3];
+    } ''
+      python ${herdrDir + "/annotate.test.py"} \
+        ${lib.getExe herdr} \
+        ${pkgs.herdr-annotate.pluginRoot} \
+        ${pkgs.herdr-annotate-links.pluginRoot} \
+        ${lib.getExe inputs.llm-agents.packages.${system}.plannotator-tui}
+
+      touch "$out"
+    '';
+
   herdr-plugin-sync =
     pkgs.runCommandLocal "herdr-plugin-sync-test" {
       nativeBuildInputs = [

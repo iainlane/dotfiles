@@ -494,7 +494,7 @@ function targetFixture(): Record<string, unknown> {
       "--impure",
       "--json",
       "--expr",
-      "let flake = builtins.getFlake (toString ./.); in import ./scripts/cupboard-workflows.fixture.nix { lib = flake.inputs.nixpkgs.lib; systems = builtins.attrNames flake.checks; }",
+      "let flake = builtins.getFlake (toString ./.); in import ./scripts/cupboard-workflows.fixture.nix { lib = flake.inputs.nixpkgs.lib; systems = builtins.attrNames flake.checks; inherit (flake) inputs; }",
     ],
     { encoding: "utf8" },
   );
@@ -605,6 +605,57 @@ function expectedSlowCheckTarget(): FixtureTarget {
 }
 
 describe("Cupboard strict build ownership", () => {
+  it("schedules checks without forcing their derivations or host configurations", () => {
+    const namesFor = (system: string): readonly string[] =>
+      [
+        "deploy-activate",
+        "deploy-schema",
+        "host-evaluation-hermes-managed-config-fixture",
+        "host-evaluation-home-fixture",
+        `host-evaluation-${system.endsWith("-darwin") ? "darwin" : "nixos"}-fixture`,
+        ...(system.endsWith("-linux") ? ["vm-test"] : []),
+      ].sort();
+    const selected = [
+      ".#deploy.nodes.mac.profiles.system.path",
+      ".#deploy.nodes.test.profiles.system.path",
+      ".#deploy.nodes.mac.profiles.tester.path",
+      ".#deploy.nodes.test.profiles.tester.path",
+      ".#packages.aarch64-darwin.deploy-rs",
+      ".#packages.x86_64-linux.deploy-rs",
+      ".#packages.x86_64-linux.local-packages",
+      ...checkSystems.flatMap((system) =>
+        namesFor(system)
+          .filter(
+            (name) => name !== "deploy-schema" || system === validationSystem,
+          )
+          .filter((name) => name !== "vm-test" || system === "x86_64-linux")
+          .map((name) => `.#checks.${system}.${name}`),
+      ),
+      `.#legacyPackages.${validationSystem}.slowChecks.vm-test`,
+    ];
+    assert.deepEqual(fixture.lazyScheduling, {
+      count: selected.length,
+      selected,
+      checks: Object.fromEntries(
+        checkSystems.map((system) => [
+          system,
+          Object.fromEntries(
+            namesFor(system).map((name) => [
+              name,
+              {
+                isDerivation: true,
+                runOnce: name === "deploy-schema",
+                requiredFeatures:
+                  name === "vm-test" ? ["kvm", "nixos-test"] : [],
+                drvPathFails: true,
+              },
+            ]),
+          ),
+        ]),
+      ),
+    });
+  });
+
   it("uses one publisher and removes duplicate build workflows", () => {
     assert.deepEqual(
       {
