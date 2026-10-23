@@ -25,6 +25,7 @@
   in
     checks.host-evaluation-hermes-managed-config-fixture.drvPath;
   python = pkgs.python3.withPackages (ps: [ps.ruamel-yaml ps.python-dotenv]);
+  prepareConfig = import ./prepare-config.nix {inherit pkgs;};
   managedConfig = (pkgs.formats.yaml {}).generate "hermes-managed-test.yaml" {
     _left_core_installed = ["homeassistant"];
     _left_core_scoped = ["homeassistant"];
@@ -35,7 +36,7 @@ in {
   hermes-managed-config =
     builtins.deepSeq (map scopeFixture [false true])
     pkgs.runCommandLocal "hermes-managed-config-test" {
-      nativeBuildInputs = [pkgs.bash pkgs.coreutils python];
+      nativeBuildInputs = [pkgs.coreutils python];
     } ''
       export HOME="$TMPDIR/home"
       export HERMES_HOME="$TMPDIR/hermes"
@@ -58,11 +59,11 @@ in {
           touch "$TMPDIR/before.yaml"
         fi
         printf 'nixos\n' > "$HERMES_HOME/.managed"
-        bash ${./prepare-config.sh} "$HERMES_HOME" "$(id -u):$(id -g)"
+        PATH="" ${lib.getExe prepareConfig} "$HERMES_HOME" "$(id -u):$(id -g)"
         test ! -e "$HERMES_HOME/.managed"
         test -w "$HERMES_HOME/config.yaml"
         cmp "$TMPDIR/before.yaml" "$HERMES_HOME/config.yaml"
-        bash ${./prepare-config.sh} "$HERMES_HOME" "$(id -u):$(id -g)"
+        PATH="" ${lib.getExe prepareConfig} "$HERMES_HOME" "$(id -u):$(id -g)"
         cmp "$TMPDIR/before.yaml" "$HERMES_HOME/config.yaml"
       done
 

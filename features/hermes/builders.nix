@@ -15,6 +15,8 @@
 
   generatedConfigFile = yaml.generate "hermes-config.yaml" cfg.settings;
 
+  prepareConfig = import ./prepare-config.nix {inherit pkgs;};
+
   # Expose only this package to Hermes' dependency walker. Reuse the original
   # output so its build and checks still run with its declared dependencies.
   venvLeafPackage = pkg: let
@@ -227,7 +229,7 @@
 
         rm -f "$state/current-package"
 
-        bash ${./prepare-config.sh} "$state/.hermes" "$owner:$owner"
+        ${lib.getExe prepareConfig} "$state/.hermes" "$owner:$owner"
 
         # Hermes copies the bundled skills out of the read-only image, so they
         # arrive read-only. Make the tree writable so the agent can write and
