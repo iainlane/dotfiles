@@ -15,6 +15,7 @@ import { describe, it } from "node:test";
 import { runInNewContext } from "node:vm";
 
 const workflows = process.env.CUPBOARD_WORKFLOWS ?? ".github/workflows";
+const bash = process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash";
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -84,21 +85,25 @@ function prepareEvaluation(
   const manifest = join(directory, "response.json");
   const calls = join(directory, "calls");
   writeFileSync(manifest, JSON.stringify(response));
-  const evaluatorFiles: readonly (readonly [string, string])[] = [
-    [
-      "scripts/check-evaluation.bash",
+  const script = join(directory, "scripts/check-evaluation.bash");
+  mkdirSync(dirname(script), { recursive: true });
+  // The Nix build sandbox has no /usr/bin/env, so give the script the bash
+  // that runs the workflow steps as its interpreter.
+  writeFileSync(
+    script,
+    readFileSync(
       process.env.CUPBOARD_EVALUATION_SCRIPT ?? "scripts/check-evaluation.bash",
-    ],
-    [
-      "lib/nix/evaluation.conf",
-      process.env.CUPBOARD_EVALUATION_CONFIG ?? "lib/nix/evaluation.conf",
-    ],
-  ];
-  for (const [relativePath, sourcePath] of evaluatorFiles) {
-    const destination = join(directory, relativePath);
-    mkdirSync(dirname(destination), { recursive: true });
-    copyFileSync(sourcePath, destination);
-  }
+      "utf8",
+    ).replace(/^#!.*\n/, `#!${bash}\n`),
+    { mode: 0o755 },
+  );
+
+  const config = join(directory, "lib/nix/evaluation.conf");
+  mkdirSync(dirname(config), { recursive: true });
+  copyFileSync(
+    process.env.CUPBOARD_EVALUATION_CONFIG ?? "lib/nix/evaluation.conf",
+    config,
+  );
   writeFileSync(
     join(directory, "nix"),
     `#!/bin/sh
@@ -216,7 +221,7 @@ describe("Cupboard workflow source preparation", () => {
 
     try {
       const result = spawnSync(
-        process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+        bash,
         ["--noprofile", "--norc", "-c", string(evaluation.run)],
         {
           cwd: directory,
@@ -272,7 +277,7 @@ describe("Cupboard workflow source preparation", () => {
 
     try {
       const result = spawnSync(
-        process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+        bash,
         ["--noprofile", "--norc", "-c", string(evaluation.run)],
         {
           encoding: "utf8",
@@ -756,7 +761,7 @@ describe("Cupboard strict build ownership", () => {
 
     try {
       const result = spawnSync(
-        process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+        bash,
         ["--noprofile", "--norc", "-c", string(step.run)],
         {
           cwd: directory,
@@ -834,7 +839,7 @@ fi
       );
       try {
         const result = spawnSync(
-          process.env.CUPBOARD_WORKFLOWS_BASH ?? "/bin/bash",
+          bash,
           ["--noprofile", "--norc", "-c", string(build.run)],
           {
             encoding: "utf8",
