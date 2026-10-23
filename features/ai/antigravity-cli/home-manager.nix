@@ -1,4 +1,5 @@
-# Configure the Antigravity CLI home-manager module with the shared MCP servers.
+# Configure the Antigravity CLI home-manager module with the shared MCP servers
+# and skills.
 #
 # The module exposes the MCP servers through its own `mcpServers` option and
 # writes them to `~/.gemini/config/mcp_config.json`, so we hand it the shared
@@ -53,10 +54,18 @@ in {
       package = wrappedAntigravity;
 
       inherit (config.dotfiles.ai) mcpServers;
-      skills = skillTree {inherit (config.dotfiles.ai) skills;};
 
       # Shared instructions as separate context files.
       context = instructions.files;
+    };
+
+    # The CLI reads its skills from `~/.gemini/config/skills`. The Home
+    # Manager module's `skills` option still writes the legacy
+    # `~/.gemini/antigravity-cli/skills`, which the CLI moves to the new path
+    # and replaces with a symlink on its first launch.
+    home.file.".gemini/config/skills" = {
+      source = skillTree {inherit (config.dotfiles.ai) skills;};
+      recursive = true;
     };
 
     home.activation.antigravityCliSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
