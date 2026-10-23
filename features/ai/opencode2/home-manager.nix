@@ -67,6 +67,9 @@
     theme = "system";
   };
 
+  # OpenCode 2 scans `~/.claude/skills` as well as `~/.agents/skills`. The
+  # Claude Code tree contains Claude Code's variant of each shared skill, so
+  # that scan is switched off.
   wrappedOpencode2 = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.opencode2;
     binName = "opencode2";
@@ -75,6 +78,9 @@
         "--set"
         "OPENCODE_CONFIG_DIR"
         "${config.xdg.configHome}/${configDir}"
+        "--set"
+        "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"
+        "1"
       ]
       ++ lib.optionals (cfg.cliConfig != {}) [
         "--set"

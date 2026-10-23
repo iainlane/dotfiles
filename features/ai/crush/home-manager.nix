@@ -25,9 +25,17 @@
     }
   );
 
+  # Crush also scans `~/.claude/skills`, which contains Claude Code's variant
+  # of each shared skill and Claude Code's own skills. `CRUSH_SKILLS_DIR`
+  # replaces the whole list of global skill directories.
   wrappedCrush = mcp.wrapWithTools {
     package = inputs.llm-agents.packages.${system}.crush;
     binName = "crush";
+    extraWrapperArgs = [
+      "--set"
+      "CRUSH_SKILLS_DIR"
+      "${config.home.homeDirectory}/.agents/skills"
+    ];
   };
 in {
   home.packages = [wrappedCrush];
