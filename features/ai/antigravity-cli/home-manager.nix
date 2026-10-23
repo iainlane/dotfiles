@@ -18,6 +18,7 @@
   instructions,
   lib,
   mcp,
+  skillTree,
   system,
   ...
 }: let
@@ -51,7 +52,8 @@ in {
       enable = true;
       package = wrappedAntigravity;
 
-      inherit (config.dotfiles.ai) mcpServers skills;
+      inherit (config.dotfiles.ai) mcpServers;
+      skills = skillTree {inherit (config.dotfiles.ai) skills;};
 
       # Shared instructions as separate context files.
       context = instructions.files;

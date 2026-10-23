@@ -65,7 +65,7 @@ in {
     };
 
     skills = lib.mkOption {
-      type = with lib.types; attrsOf (either path str);
+      type = lib.types.attrsOf (import ../skill-type.nix {inherit lib;});
       default = {};
       description = ''
         Skills for Claude Code only, in the form of `dotfiles.ai.skills`.

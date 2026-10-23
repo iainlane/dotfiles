@@ -30,7 +30,7 @@ in {
 
   dotfiles.features.ai = {
     inherit (promptOutputs) apps;
-    checks = [promptOutputs.checks ./credentials-check.nix];
+    checks = [promptOutputs.checks ./credentials-check.nix ./skill-tree-check.nix];
     # One child per harness. `claude-desktop` and `cloudflare-mcp` are not
     # here: a feature or a host that wants them lists them.
     includes = with children; [

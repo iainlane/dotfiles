@@ -18,7 +18,7 @@ in {
       mcpServers = workMcp;
 
       # Work-only skills, alongside the shared set from features/ai.
-      skills.weekly-update = ./skills/weekly-update;
+      skills.weekly-update.skill = import ./skills/weekly-update;
     };
     # The organisation already supplies the work MCP servers to Claude Code
     # and Claude Desktop, so exclude those servers from the configuration

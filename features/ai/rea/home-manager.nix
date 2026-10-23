@@ -4,5 +4,5 @@ in {
   imports = [./shared.nix];
 
   home.packages = [rea];
-  dotfiles.ai.skills.reverse-engineer-anything = "${rea}/share/skills/rea/reverse-engineer-anything";
+  dotfiles.ai.skills.reverse-engineer-anything.directory = "${rea}/share/skills/rea/reverse-engineer-anything";
 }

@@ -1,11 +1,12 @@
 # Skills for every AI harness.
 #
-# `dotfiles.ai.skills` is the shared set: the directories under ./skills/,
+# `dotfiles.ai.skills` is the shared set: the skills defined under ./skills/,
 # skills published in external repositories and consumed as flake inputs,
 # and one skill per shared output style (see ./output-styles.nix), so the
 # user can adopt a style mid-session in any harness by invoking the skill
 # named after the style's stem. A feature adds skills of its own with
-# ordinary module merging.
+# ordinary module merging. Each directory under ./skills/ has a `default.nix`
+# with the skill's definition (see ./skill-type.nix).
 #
 # The shared instruction set (./agent-instructions.nix) and the parsed output
 # styles (./output-styles.nix) are supplied to the harness modules as the
@@ -14,21 +15,11 @@
 # `claude-code/managed-settings-common.nix` imports `output-styles.nix`
 # directly.
 #
-# `skillTree` assembles a set of skills into one directory, leaving out any
-# skill named in `excludes`. The shared set is linked into `~/.agents/skills`,
-# the harness-neutral location. A harness that reads only its own directory
-# links the tree itself, through the `skillTree` module argument, and that is
-# where it drops unwanted skills.
-#
-# A value in the set is inline SKILL.md content, a directory that is a
-# skill, or a directory that contains skills. Evaluation cannot tell the
-# last two apart, because the contents of a store path are not readable
-# until it is built, so each value first becomes a directory of skills in a
-# build of its own, which looks for `SKILL.md` at the top of the directory.
-# The key names a single skill. For a directory of skills the key is
-# ignored: the Agent Skills format requires a skill's `name` to match its
-# directory name. `buildEnv` then merges those directories, and aborts the
-# build when two skills with one name differ.
+# `skillTree` (see ./skill-tree.nix) assembles a set of skills into one
+# directory, leaving out any skill named in `excludes`. The shared set is
+# linked into `~/.agents/skills`, the harness-neutral location. A harness that
+# reads only its own directory links the tree itself, through the `skillTree`
+# module argument, and that is where it drops unwanted skills.
 {
   config,
   inputs,
@@ -46,11 +37,11 @@
 
   local =
     lib.mapAttrs
-    (name: _: dir + "/${name}")
+    (name: _: {skill = import (dir + "/${name}");})
     subdirs;
 
   external = {
-    gh-stack = "${inputs.gh-stack-skill}/skills/gh-stack";
+    gh-stack.directory = "${inputs.gh-stack-skill}/skills/gh-stack";
   };
 
   instructions = import ./agent-instructions.nix {inherit lib;};
@@ -59,74 +50,35 @@
 
   # The preamble tells the model to adopt the style from this point on; the
   # style body follows verbatim.
-  styleSkill = stem: style: let
-    description = "Adopt the ${style.name} output style (${style.description}). ${
-      if stem == outputStyles.default.stem
-      then "Use when writing or auditing comments, commit messages, documentation or any prose that goes into a repository, and whenever the user asks for this style."
-      else "Use when the user asks for output in this style."
-    }";
-  in ''
-    ---
-    name: ${stem}
-    description: ${builtins.toJSON description}
-    ---
+  styleSkill = stem: style: {
+    skill = {
+      frontmatter.description = "Adopt the ${style.name} output style (${style.description}). ${
+        if stem == outputStyles.default.stem
+        then "Use when writing or auditing comments, commit messages, documentation or any prose that goes into a repository, and whenever the user asks for this style."
+        else "Use when the user asks for output in this style."
+      }";
 
-    Apply the ${style.name} output style below to all prose you write for the
-    rest of the session. This style replaces any output style that was active
-    before; all other instructions still apply.
+      body = ''
+        Apply the ${style.name} output style below to all prose you write for the
+        rest of the session. This style replaces any output style that was active
+        before; all other instructions still apply.
 
-    ${style.body}'';
+        ${style.body}'';
+    };
+  };
 
   styles = lib.mapAttrs styleSkill outputStyles.styles;
 
-  isDirectory = skill: builtins.isPath skill || lib.hasPrefix "/" skill;
-
-  asSkillDirectory = name: skill:
-    if isDirectory skill
-    then
-      pkgs.runCommandLocal "skills-${name}" {source = "${skill}";} ''
-        if [ -e "$source/SKILL.md" ]; then
-          mkdir "$out"
-          ln -s "$source" "$out"/${lib.escapeShellArg name}
-        else
-          ln -s "$source" "$out"
-        fi
-      ''
-    else pkgs.writeTextDir "${name}/SKILL.md" skill;
-
-  # The excluded names are checked against the merged tree, after the build,
-  # because a directory of skills only reveals its names once it is built. A
-  # name that matches nothing fails the build, so a stale exclusion cannot
-  # linger after a skill is renamed or removed.
-  skillTree = {
-    skills,
-    excludes ? [],
-  }:
-    pkgs.buildEnv {
-      name = "skills";
-      paths = lib.mapAttrsToList asSkillDirectory skills;
-
-      postBuild =
-        lib.concatMapStringsSep "\n" (name: ''
-          if [ ! -e "$out"/${lib.escapeShellArg name} ]; then
-            echo "skill exclusion ${name} matches no skill in the tree" >&2
-            exit 1
-          fi
-
-          rm -r "$out"/${lib.escapeShellArg name}
-        '')
-        excludes;
-    };
+  skillTree = import ./skill-tree.nix {inherit lib pkgs;};
 in {
   options.dotfiles.ai = {
     skills = lib.mkOption {
-      type = with lib.types; attrsOf (either path str);
+      type = lib.types.attrsOf (import ./skill-type.nix {inherit lib;});
       default = {};
       description = ''
-        Skills for every AI harness, keyed by skill name. A value is a skill
-        directory containing SKILL.md, the SKILL.md content itself, or a
-        directory of skill directories. For a directory of skills the key is
-        ignored and each skill keeps its own directory name.
+        Skills for every AI harness, keyed by skill name. A value is either a
+        `skill` defined in Nix or a `directory` that contains one or more
+        skills.
       '';
     };
 

@@ -208,6 +208,18 @@ skills: `skillTree` takes an `excludes` list of names, removes them after the
 merge, and fails the build for a name that matches nothing. Claude Code exposes
 this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
 
+A value in the set is either a `directory` or a `skill` (see `skill-type.nix`).
+A `directory` is a skill directory or a directory of skills from elsewhere, and
+`skillTree` links it unchanged. A `skill` is defined in Nix: its `frontmatter`
+is an attribute set and its `body` is Markdown. Each directory under `skills/`
+has a `default.nix` with such a definition and keeps the body in
+`instructions.md`. `skillTree`, in `skill-tree.nix`, renders a `skill` into
+`SKILL.md` during evaluation, so it never parses YAML. Codex ignores
+`disable-model-invocation` in the frontmatter and reads the same setting from
+`agents/openai.yaml` as `policy.allow_implicit_invocation`. When the frontmatter
+sets `disable-model-invocation`, `skillTree` also renders that file, so a skill
+declares the setting once.
+
 ## REA
 
 `rea/` is an optional child feature for [REA][rea], a reverse-engineering CLI

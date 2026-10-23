@@ -90,7 +90,7 @@
     pi = server;
     desktop = server;
     cli = ["${rea}"];
-    skill = "${rea}/share/skills/rea/reverse-engineer-anything";
+    skill.directory = "${rea}/share/skills/rea/reverse-engineer-anything";
     activation = {};
     defaultHarnesses = lib.sort builtins.lessThan ["ai.antigravity-cli" "ai.copilot-cli" "ai.crush" "ai.herdr" "ai.opencode" "ai.opencode2" "ai.pi" "ai.claude-code" "ai.codex"];
     herdr = {

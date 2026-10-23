@@ -13,10 +13,10 @@
   in {
     dotfiles = {
       ai = {
-        skills.agentsview = skillsFor "agents";
+        skills.agentsview.directory = skillsFor "agents";
         skillRuntimeDependencies.agentsview = ["agentsview"];
       };
-      claudeCode.skills.agentsview = skillsFor "claude";
+      claudeCode.skills.agentsview.directory = skillsFor "claude";
     };
   };
 }
