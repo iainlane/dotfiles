@@ -2,14 +2,31 @@
   packageRoot = "${pkgs.pi-lens}/${pkgs.pi-lens.packageRoot}";
   probe = pkgs.writeText "pi-lens-lua.mjs" ''
     import assert from "node:assert/strict";
-    import { TreeSitterClient } from "${packageRoot}/dist/clients/tree-sitter-client.js";
-    import { TreeSitterSymbolExtractor } from "${packageRoot}/dist/clients/tree-sitter-symbol-extractor.js";
+    import { readFile, readdir } from "node:fs/promises";
+    import { pathToFileURL } from "node:url";
 
     globalThis.fetch = async () => {
       throw new Error("The packaged Lua grammar must work without network access");
     };
 
-    const client = new TreeSitterClient();
+    async function loadExport(name) {
+      for (const entry of await readdir("${packageRoot}/dist")) {
+        if (!entry.startsWith("chunk-") || !entry.endsWith(".js")) continue;
+
+        const filename = "${packageRoot}/dist/" + entry;
+        const source = await readFile(filename, "utf8");
+        const exports = source.match(/export \{([^}]+)\};/)?.[1] ?? "";
+        if (!exports.split(",").some((value) => value.trim() === name)) continue;
+
+        return (await import(pathToFileURL(filename)))[name];
+      }
+
+      throw new Error("Pi Lens does not export " + name);
+    }
+
+    const getSharedTreeSitterClient = await loadExport("getSharedTreeSitterClient");
+    const TreeSitterSymbolExtractor = await loadExport("TreeSitterSymbolExtractor");
+    const client = getSharedTreeSitterClient();
     assert.equal(await client.init(), true);
     const extractor = new TreeSitterSymbolExtractor("lua", client);
     assert.equal(await extractor.init(), true);

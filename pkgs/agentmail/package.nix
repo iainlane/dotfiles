@@ -6,12 +6,12 @@
 }:
 pythonPackages.buildPythonPackage (finalAttrs: {
   pname = "agentmail";
-  version = "2.0.14";
+  version = "2.0.18";
   pyproject = true;
 
   src = fetchPypi {
     inherit (finalAttrs) pname version;
-    hash = "sha256-cd5YtZ58e8Gn31IafIXqOXevyxbwhad+6wH814ZkfSQ=";
+    hash = "sha256-EZ0/coy8/QVNdCcDVvMYSbCWiD5MeJYwrOXdXHGsr0M=";
   };
 
   # agentmail 2.0.1 accidentally places project metadata inside
