@@ -284,8 +284,8 @@ The default list has four plugins, packaged under `pkgs/`:
   Markdown documents, folders and agent replies for review. Its helper builds
   from source, and document review uses `plannotator-tui` from `llm-agents`.
 - [Annotate Links][annotate-links] opens Ctrl-clicked `file://` links ending in
-  `.md`, `.markdown` or `.mdx` in Annotate instead of Herdr's normal file
-  opener.
+  `.md`, `.markdown` or `.mdx` in Annotate. Herdr opens other links with its
+  normal file opener.
 
 The Context Bar and Model Display manifests use Python from the Nix store.
 Annotate's package includes both executable paths before activation, so linking
