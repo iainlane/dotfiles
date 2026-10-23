@@ -77,7 +77,10 @@ function harness(mode = "tui") {
     ui: {
       setFooter,
       notify: vi.fn(),
-      theme: { fg: (_role: string, value: string) => value },
+      theme: {
+        fg: (_role: string, value: string) => value,
+        bold: (value: string) => value,
+      },
     },
     getContextUsage: () => undefined,
     hasPendingMessages: () => false,

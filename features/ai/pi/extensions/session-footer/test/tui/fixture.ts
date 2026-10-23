@@ -69,6 +69,16 @@ export default function fixture(pi: ExtensionAPI): void {
     });
   });
 
+  pi.registerCommand("fixture-theme", {
+    description: "Switch the synthetic footer session's theme",
+    handler: async (args, ctx) => {
+      const result = ctx.ui.setTheme(args.trim());
+
+      if (!result.success)
+        throw new Error(result.error ?? "Theme change failed");
+    },
+  });
+
   pi.on("agent_start", () => {
     const path = process.env.PI_FOOTER_MODEL_LOG;
 

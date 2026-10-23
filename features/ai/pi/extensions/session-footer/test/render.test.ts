@@ -1,3 +1,4 @@
+import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "../src/state.ts";
@@ -85,6 +86,7 @@ describe("two-row fitting", () => {
 
       const theme = {
         fg: (_role: string, value: string) => `\u001b[35m${value}\u001b[0m`,
+        bold: (value: string) => `\u001b[1m${value}\u001b[22m`,
       };
 
       expect(renderFooter(state, 240, theme).map(visibleWidth)).toStrictEqual([
@@ -238,5 +240,251 @@ describe("two-row fitting", () => {
     expect(
       renderFooter(createSnapshot(now, "/work"), 80).join(" "),
     ).not.toMatch(/clean|Ready|LSP Active|ctx 0/);
+  });
+});
+
+function colours(
+  state: ReturnType<typeof fixture>,
+  bold = (value: string) => value,
+) {
+  const roles = new Map<string, ThemeColor>();
+  const lines = renderFooter(state, 400, {
+    fg: (role, value) => {
+      roles.set(value, role);
+
+      return value;
+    },
+    bold,
+  });
+
+  expect(lines).toStrictEqual(renderFooter(state, 400));
+
+  return roles;
+}
+
+describe("semantic theme colours", () => {
+  it("distinguishes identity, activity, measurements and secondary detail", () => {
+    const state = fixture();
+
+    state.git = parseGitStatus("# branch.head main", now);
+    state.git.staged = 1;
+    state.git.unstaged = 2;
+    state.tasks = [
+      {
+        id: 1,
+        subject: "Review",
+        status: "in_progress",
+        activeForm: undefined,
+        blockedBy: [],
+      },
+    ];
+    state.agents = {
+      active: 2,
+      failed: 0,
+      paused: 0,
+      incomplete: false,
+      stale: false,
+      runs: [],
+    };
+    state.activity.tool = "read";
+    state.statuses = new Map([["plan-mode", "plan: implementation"]]);
+    state.serviceTier = "fast";
+
+    const bold = vi.fn((value: string) => value);
+    const roles = colours(state, bold);
+
+    expect(bold.mock.calls).toStrictEqual([
+      ["gpt-6-astra"],
+      ["gpt-6-astra"],
+      ["gpt-6-astra"],
+      ["~/dev/dotfiles"],
+      ["dotfiles"],
+    ]);
+    expect(
+      Object.fromEntries(
+        [
+          "codex/",
+          "gpt-6-astra",
+          "high",
+          "~/dev/dotfiles",
+          "main",
+          "+1",
+          "±2",
+          "ctx ",
+          "24.3%",
+          "/272k",
+          "5h",
+          "15%",
+          " used",
+          " (2h)",
+          "read",
+          "tasks ",
+          "0/1",
+          " Review",
+          "agents ",
+          "2",
+          "plan: implementation",
+          "fast",
+          "$0.00",
+          "50m",
+          "  ",
+          "",
+        ].map((value) => [value, roles.get(value)]),
+      ),
+    ).toStrictEqual({
+      "codex/": "muted",
+      "gpt-6-astra": "accent",
+      high: "thinkingHigh",
+      "~/dev/dotfiles": "mdCode",
+      main: "warning",
+      "+1": "success",
+      "±2": "warning",
+      "ctx ": "muted",
+      "24.3%": "toolTitle",
+      "/272k": "dim",
+      "5h": "muted",
+      "15%": "toolTitle",
+      " used": "muted",
+      " (2h)": "dim",
+      read: "toolTitle",
+      "tasks ": "muted",
+      "0/1": "mdLink",
+      " Review": "text",
+      "agents ": "muted",
+      "2": "mdLink",
+      "plan: implementation": "accent",
+      fast: "muted",
+      "$0.00": "dim",
+      "50m": "dim",
+      "  ": "border",
+      "": "border",
+    });
+  });
+
+  it.each([
+    { changes: {}, expected: "success" },
+    { changes: { staged: 1 }, expected: "warning" },
+    { changes: { unstaged: 1 }, expected: "warning" },
+    { changes: { untracked: 1 }, expected: "warning" },
+    { changes: { conflicts: 1 }, expected: "error" },
+    { changes: { stale: true }, expected: "dim" },
+    { changes: { staged: 1, stale: true }, expected: "dim" },
+  ])(
+    "colours full and compact Git branches for $changes",
+    ({ changes, expected }) => {
+      const state = fixture();
+
+      state.git = { ...parseGitStatus("# branch.head main", now), ...changes };
+
+      const fg = vi.fn((_role: ThemeColor, value: string) => value);
+
+      renderFooter(state, 400, { fg, bold: (value) => value });
+
+      expect(
+        fg.mock.calls.filter(([, value]) => value === "main"),
+      ).toStrictEqual([
+        [expected, "main"],
+        [expected, "main"],
+      ]);
+    },
+  );
+
+  it.each([
+    ["off", "thinkingOff"],
+    ["minimal", "thinkingMinimal"],
+    ["low", "thinkingLow"],
+    ["medium", "thinkingMedium"],
+    ["high", "thinkingHigh"],
+    ["xhigh", "thinkingXhigh"],
+    ["max", "thinkingMax"],
+    ["unknown", "muted"],
+  ])("uses the theme's thinking colour for %s", (level, expected) => {
+    const state = fixture();
+
+    state.thinking = level;
+
+    expect(colours(state).get(level)).toBe(expected);
+  });
+
+  it.each([
+    [null, "?", "dim"],
+    [24.3, "24.3%", "toolTitle"],
+    [75, "75.0%", "warning"],
+    [90, "90.0%", "error"],
+  ])(
+    "colours context value %s without highlighting its capacity",
+    (percent, value, expected) => {
+      const state = fixture();
+
+      state.context.percent = percent;
+
+      const roles = colours(state);
+
+      expect({
+        value: roles.get(String(value)),
+        capacity: roles.get("/272k"),
+      }).toStrictEqual({ value: expected, capacity: "dim" });
+    },
+  );
+
+  it.each([
+    { age: 0, error: undefined, value: "toolTitle", freshness: undefined },
+    { age: 1000, error: "LIMIT", value: "warning", freshness: " cached" },
+    { age: 31_000, error: undefined, value: "warning", freshness: " stale" },
+    { age: 300_001, error: undefined, value: undefined, freshness: undefined },
+  ])(
+    "keeps freshness explicit at age $age with error $error",
+    ({ age, error, value, freshness }) => {
+      const roles = colours(fixture(age, error));
+
+      expect({
+        label: roles.get("5h"),
+        value: roles.get("15%"),
+        freshness: freshness ? roles.get(freshness) : undefined,
+        unavailable: roles.get("unavailable"),
+      }).toStrictEqual({
+        label: "muted",
+        value,
+        freshness: freshness ? "warning" : undefined,
+        unavailable: value ? undefined : "dim",
+      });
+    },
+  );
+
+  it("distinguishes errors from warnings and colours compact attention variants", () => {
+    const state = fixture();
+
+    state.activity.outcome = "failed";
+    state.statuses = new Map([["pi-lens-lsp", "language server ✗"]]);
+    state.diagnostics.receive({
+      v: 1,
+      cwd: state.cwd,
+      seq: 1,
+      files: [
+        {
+          path: "fixture.ts",
+          diagnostics: [
+            { severity: "error", message: "Synthetic error" },
+            { severity: "warning", message: "Synthetic warning" },
+          ],
+        },
+      ],
+    });
+
+    const roles = colours(state);
+
+    expect(
+      Object.fromEntries(
+        ["run failed", "1E", "1W", "LSP failed"].map((value) => [
+          value,
+          roles.get(value),
+        ]),
+      ),
+    ).toStrictEqual({
+      "run failed": "error",
+      "1E": "error",
+      "1W": "warning",
+      "LSP failed": "error",
+    });
   });
 });

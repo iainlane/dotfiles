@@ -23,6 +23,32 @@ At positive widths the footer keeps two rows; very narrow rows truncate their
 highest-priority remaining item, and an omission marker may not fit. Widening
 restores full values.
 
+## Colours
+
+The [palette] defines theme roles, bold emphasis and state-dependent colour
+rules. Colours follow the active Pi theme, including custom and Catppuccin
+themes, and update on redraw without `/reload`.
+
+| Field                                              | Theme style                             |
+| -------------------------------------------------- | --------------------------------------- |
+| Model                                              | Bold `accent`                           |
+| Directory                                          | Bold `mdCode`                           |
+| Thinking level                                     | Corresponding `thinking*` colour        |
+| Fresh quota and normal context values              | `toolTitle`                             |
+| Task and agent counts                              | `mdLink`                                |
+| Git branch: clean / dirty / conflicting / stale    | `success` / `warning` / `error` / `dim` |
+| Staged / unstaged Git counts                       | `success` / `warning`                   |
+| Plan, routine activity and PR identity             | `accent`                                |
+| Labels, provider and service tier                  | `muted`                                 |
+| Supporting detail, cost and age                    | `dim`                                   |
+| Separators                                         | `border`                                |
+| Errors / warnings, including stale or cached quota | `error` / `warning`                     |
+
+Context values use `warning` from 75% and `error` from 90%. Freshness labels and
+attention text remain explicit, so colour is not the only signal.
+
+[palette]: src/palette.ts
+
 ## Details
 
 Run `/footer` to choose a read-only detail view, or open one directly:
@@ -88,7 +114,8 @@ Tests copy pinned upstream packages into the ignored `.fixtures/` directory and
 apply this repository's quota-metadata and task-widget patches. Network fixtures
 use MSW. Real-TUI tests launch the pinned Pi CLI in a PTY with an isolated home,
 synthetic data and the built-in light and dark themes. They cover quiet and
-active sessions, repeated quota updates, resizing from 220 to 72 columns and
-back, and inspector paging and Escape. HTTP requests are blocked and logged; an
-unexpected model turn also fails the test. The Nix `pi-session-footer` check
-runs the same checks without network or real credentials.
+active sessions, live theme changes, repeated quota updates, resizing from 220
+to 72 columns and back, and inspector paging and Escape. HTTP requests are
+blocked and logged; an unexpected model turn also fails the test. The Nix
+`pi-session-footer` check runs the same checks without network or real
+credentials.

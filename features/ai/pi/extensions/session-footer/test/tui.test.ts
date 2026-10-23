@@ -118,7 +118,7 @@ it.each([
   { theme: "light", quiet: false },
   { theme: "light", quiet: true },
 ])(
-  "runs real Pi with $theme theme and quiet=$quiet through resizing and inspection",
+  "runs real Pi with $theme theme and quiet=$quiet through theme changes, resizing and inspection",
   async ({ theme, quiet }) => {
     const root = await mkdtemp(join(tmpdir(), "pi-footer-tui-"));
     const work = join(root, "work");
@@ -210,6 +210,46 @@ it.each([
       );
 
       await restored(terminal, wide);
+
+      const originalColor = terminal.color("gpt-5.4");
+
+      expect(originalColor).toBeDefined();
+      expect(originalColor).not.toBe(terminal.color("codex/"));
+      expect(terminal.color("40%")).not.toBe(terminal.color("5h "));
+      expect({
+        model: terminal.style("gpt-5.4")?.bold,
+        directory: terminal.style("~/work")?.bold,
+        provider: terminal.style("codex/")?.bold,
+        quota: terminal.style("40%")?.bold,
+        cost: terminal.style("$0.04")?.bold,
+      }).toStrictEqual({
+        model: true,
+        directory: true,
+        provider: false,
+        quota: false,
+        cost: false,
+      });
+
+      terminal.input(`/fixture-theme ${theme === "dark" ? "light" : "dark"}\r`);
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.slice(-2)).toStrictEqual(wide);
+          expect(terminal?.color("gpt-5.4")).not.toBe(originalColor);
+        },
+        { timeout: 5000 },
+      );
+
+      terminal.input(`/fixture-theme ${theme}\r`);
+
+      await vi.waitFor(
+        async () => {
+          expect((await terminal?.screen())?.slice(-2)).toStrictEqual(wide);
+          expect(terminal?.color("gpt-5.4")).toBe(originalColor);
+        },
+        { timeout: 5000 },
+      );
+
       terminal.resize(72);
 
       const narrow = await footer(terminal, 72);

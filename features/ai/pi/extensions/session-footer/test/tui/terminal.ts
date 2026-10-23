@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import xterm from "@xterm/headless";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { record } from "../../src/text.ts";
 
 interface Configuration {
@@ -114,13 +115,32 @@ export class PiTerminal {
     return `${this.stderr}\n${this.output.slice(-12000)}`;
   }
 
-  color(): number | undefined {
-    const buffer = this.terminal.buffer.active;
+  color(value?: string): number | undefined {
+    return this.style(value)?.color;
+  }
 
-    return buffer
-      .getLine(buffer.viewportY + this.terminal.rows - 2)
-      ?.getCell(0)
-      ?.getFgColor();
+  style(value?: string): { color: number; bold: boolean } | undefined {
+    const buffer = this.terminal.buffer.active;
+    const first = buffer.viewportY + this.terminal.rows - 2;
+
+    for (let row = first; row < first + 2; row++) {
+      const line = buffer.getLine(row);
+
+      if (!line) continue;
+
+      const text = line.translateToString(true);
+      const index = value === undefined ? 0 : text.indexOf(value);
+
+      if (index < 0) continue;
+
+      const cell = line.getCell(visibleWidth(text.slice(0, index)));
+
+      if (!cell) return undefined;
+
+      return { color: cell.getFgColor(), bold: Boolean(cell.isBold()) };
+    }
+
+    return undefined;
   }
 
   async close(): Promise<void> {
