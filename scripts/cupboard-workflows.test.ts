@@ -439,35 +439,35 @@ describe("Cupboard merged pull request reuse", () => {
 });
 
 describe("Cupboard workflow runner read configuration", () => {
-  it("compares explicit concurrency with the default without publishing", () => {
+  it("compares evaluation batch sizes without publishing", () => {
     const experiment = workflow("cupboard-evaluation.yml");
     const experimentJobs = record(experiment.jobs);
     const matrixJob = record(experimentJobs.evaluation);
-    const defaultJob = record(experimentJobs["default-evaluation"]);
     const publication = record(record(wrapper.jobs).publish);
     assert.deepEqual(
       {
         matrix: record(matrixJob.strategy).matrix,
         failFast: record(matrixJob.strategy)["fail-fast"],
         explicit: matrixJob.with,
-        implicit: defaultJob.with,
         evaluationOnly: record(publication.with)["evaluation-only"],
         runner: record(publication.with)["plan-runner"],
         concurrency: record(publication.with)["evaluation-concurrency"],
+        batchSize: record(publication.with)["evaluation-batch-size"],
         privateReads: record(publication.secrets).private_substituters,
       },
       {
-        matrix: { concurrency: ["1", "4", "auto"] },
+        matrix: { "batch-size": [1, 8] },
         failFast: false,
         explicit: {
           "evaluation-only": true,
-          "evaluation-concurrency": "${{ matrix.concurrency }}",
+          "evaluation-concurrency": "1",
+          "evaluation-batch-size": "${{ matrix.batch-size }}",
         },
-        implicit: { "evaluation-only": true },
         evaluationOnly: "${{ inputs.evaluation-only }}",
         runner:
           "${{ inputs.evaluation-only && 'ubuntu-24.04' || 'ubuntu-latest' }}",
         concurrency: "${{ inputs.evaluation-concurrency }}",
+        batchSize: "${{ inputs.evaluation-batch-size }}",
         privateReads:
           "${{ inputs.evaluation-only && format('https://cupboard:{0}@cupboard.supply/t/laney/cache/falcon', secrets.falcon_cache_password) || '' }}",
       },

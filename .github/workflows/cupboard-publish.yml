@@ -3,6 +3,11 @@ name: cupboard publish
 on:
   workflow_call:
     inputs:
+      evaluation-batch-size:
+        description: Maximum number of targets evaluated by each Nix process.
+        type: number
+        default: 1
+        required: false
       evaluation-concurrency:
         description:
           Maximum simultaneous Nix evaluations. auto uses the number of
@@ -97,6 +102,7 @@ jobs:
       branch: ${{ inputs.evaluation-only && github.ref_name || 'main' }}
       evaluation-concurrency: ${{ inputs.evaluation-concurrency }}
       evaluation-only: ${{ inputs.evaluation-only }}
+      evaluation-batch-size: ${{ inputs.evaluation-batch-size }}
       plan-runner:
         ${{ inputs.evaluation-only && 'ubuntu-24.04' || 'ubuntu-latest' }}
       cupboard-version: v0.0.46
