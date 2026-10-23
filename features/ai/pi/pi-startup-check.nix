@@ -99,6 +99,7 @@
         assert.ok(pi.getActiveTools().includes("codemode"));
         assert.ok(pi.getCommands().some(command => command.name === "footer"));
         assert.ok(pi.getCommands().some(command => command.name === "pr"));
+        assert.ok(pi.getCommands().some(command => command.name === "ultrafast"));
         const roles = provider => discoverAgents(process.cwd(), "user", provider, { globalNpmRoot: null }).agents
           .filter(agent => ["reviewer", "researcher"].includes(agent.name))
           .map(({ name, model, thinking, tools, subagentOnlyExtensions }) => ({ name, model, thinking, tools, subagentOnlyExtensions }))

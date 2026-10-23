@@ -194,7 +194,15 @@ export function renderFooter(
       ],
       priority: 90,
     },
-    item(paint(thinkingStyle(state.thinking), text(state.thinking)), 20),
+    item(
+      [
+        paint(thinkingStyle(state.thinking), text(state.thinking)),
+        state.serviceTier && paint(styles.serviceTier, text(state.serviceTier)),
+      ]
+        .filter(Boolean)
+        .join(" "),
+      20,
+    ),
     item(
       paint(styles.directory, text(directory(state.cwd))),
       10,
@@ -421,9 +429,6 @@ export function renderFooter(
 
   if (unknown.length)
     row2.push(item(paint(styles.label, `status +${unknown.length}`), 25));
-
-  if (state.serviceTier)
-    row2.push(item(paint(styles.label, text(state.serviceTier)), 55));
 
   for (const window of quotaWindows(state.quota, state.now)) {
     row2.push({

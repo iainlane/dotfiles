@@ -10,6 +10,7 @@ export interface FooterStyle {
 export const styles = {
   model: { color: "accent", bold: true },
   provider: { color: "muted" },
+  serviceTier: { color: "warning" },
   directory: { color: "mdCode", bold: true },
   measurement: { color: "toolTitle" },
   workflow: { color: "mdLink" },

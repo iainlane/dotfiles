@@ -68,7 +68,12 @@ in
           fetchFromGitHub {
             inherit (gitHub) owner repo;
             inherit (pin) hash;
-            tag = "${tagPrefix}${pin.version}";
+            ${
+              if pin ? rev
+              then "rev"
+              else "tag"
+            } =
+              pin.rev or "${tagPrefix}${pin.version}";
           }
         else
           fetchurl {

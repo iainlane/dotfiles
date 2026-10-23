@@ -4,7 +4,8 @@ A fixed, two-row footer for this configuration. It replaces pi-footer without
 replacing Pi's editor or adding tools to the model.
 
 The first row identifies the model, thinking level, project, Git branch and
-worktree, with context usage on the right. The second row combines conditional
+worktree, with context usage on the right. Service-tier bolts appear beside the
+thinking level, for example `high ⚡⚡`. The second row combines conditional
 attention and workflow indicators with used quota, reset countdowns, estimated
 cost and live session age. Thin Powerline separators point towards the centre:
 `` between left-hand groups and `` before each right-aligned item. Right-hand
@@ -39,7 +40,8 @@ themes, and update on redraw without `/reload`.
 | Git branch: clean / dirty / conflicting / stale    | `success` / `warning` / `error` / `dim` |
 | Staged / unstaged Git counts                       | `success` / `warning`                   |
 | Plan, routine activity and PR identity             | `accent`                                |
-| Labels, provider and service tier                  | `muted`                                 |
+| Service-tier bolts                                 | `warning` (yellow in Catppuccin)        |
+| Labels and provider                                | `muted`                                 |
 | Supporting detail, cost and age                    | `dim`                                   |
 | Separators                                         | `border`                                |
 | Errors / warnings, including stale or cached quota | `error` / `warning`                     |

@@ -57,12 +57,50 @@ describe("two-row fitting", () => {
 
       state.cwd = "/work/界界/é-feature-with-a-long-name";
       state.model = "a-very-long-model-name";
+      state.serviceTier = "⚡⚡";
       state.statuses = new Map([["other", "extra \u001b[31mstatus"]]);
 
       const lines = renderFooter(state, width);
 
       expect(lines.length).toBeLessThanOrEqual(2);
       expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+    },
+  );
+
+  it.each([
+    { serviceTier: undefined, reasoning: "high" },
+    { serviceTier: "", reasoning: "high" },
+    { serviceTier: "⚡", reasoning: "high ⚡" },
+    { serviceTier: "⚡⚡", reasoning: "high ⚡⚡" },
+  ])(
+    "groups $reasoning with yellow service-tier bolts",
+    ({ serviceTier, reasoning }) => {
+      const state = fixture();
+
+      state.serviceTier = serviceTier;
+
+      const roles = colours(state);
+
+      expect({
+        lines: renderFooter(state, 240),
+        thinkingColour: roles.get("high"),
+        serviceTierColour: serviceTier ? roles.get(serviceTier) : undefined,
+      }).toStrictEqual({
+        lines: [
+          aligned(
+            `codex/gpt-6-astra  ${reasoning}  ~/dev/dotfiles`,
+            " ctx 24.3%/272k",
+            240,
+          ),
+          aligned(
+            "",
+            " 5h 15% used (2h)  week 18% used (3d)  $0.00  50m",
+            240,
+          ),
+        ],
+        thinkingColour: "thinkingHigh",
+        serviceTierColour: serviceTier ? "warning" : undefined,
+      });
     },
   );
 
@@ -288,7 +326,7 @@ describe("semantic theme colours", () => {
     };
     state.activity.tool = "read";
     state.statuses = new Map([["plan-mode", "plan: implementation"]]);
-    state.serviceTier = "fast";
+    state.serviceTier = "⚡⚡";
 
     const bold = vi.fn((value: string) => value);
     const roles = colours(state, bold);
@@ -324,7 +362,7 @@ describe("semantic theme colours", () => {
           "agents ",
           "2",
           "plan: implementation",
-          "fast",
+          "⚡⚡",
           "$0.00",
           "50m",
           "  ",
@@ -353,7 +391,7 @@ describe("semantic theme colours", () => {
       "agents ": "muted",
       "2": "mdLink",
       "plan: implementation": "accent",
-      fast: "muted",
+      "⚡⚡": "warning",
       "$0.00": "dim",
       "50m": "dim",
       "  ": "border",
