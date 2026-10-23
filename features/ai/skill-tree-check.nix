@@ -84,6 +84,7 @@
       description: "A fixture skill."
       disable-model-invocation: true
       name: "manual"
+      user-invocable: true
       ---
 
       # manual
@@ -98,6 +99,7 @@
       description: "A fixture skill."
       disable-model-invocation: false
       name: "automatic"
+      user-invocable: true
       ---
 
       # automatic

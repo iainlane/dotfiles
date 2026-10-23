@@ -32,6 +32,16 @@ lib.types.attrTag {
                   `agents/openai.yaml`.
                 '';
               };
+
+              user-invocable = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = ''
+                  Whether the user can invoke the skill as a command. Claude
+                  Code treats a missing field as true, but Crush treats it as
+                  false, so every rendered skill contains the field.
+                '';
+              };
             };
           };
           description = ''

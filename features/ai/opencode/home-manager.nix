@@ -28,6 +28,14 @@
         // lib.optionalAttrs (server ? env) {environment = server.env;}
     );
 
+  # OpenCode ignores `disable-model-invocation`. A `deny` rule for the skill
+  # leaves it out of the skills listed to the model, and the user can still run
+  # it as a command.
+  modelHiddenSkills =
+    lib.filterAttrs
+    (_name: value: value ? skill && value.skill.frontmatter.disable-model-invocation)
+    config.dotfiles.ai.skills;
+
   # Wrap OpenCode to add shared tools to PATH. OpenCode also scans
   # `~/.claude/skills`, which contains the same skills as `~/.agents/skills`
   # with Claude Code's variant of each, so that scan is switched off.
@@ -50,11 +58,15 @@ in {
 
       enableMcpIntegration = false;
 
-      settings = {
-        # Updates come from Nix, not opencode's self-updater.
-        autoupdate = false;
-        mcp = lib.mapAttrs (_name: mkMcpServer) config.dotfiles.ai.mcpServers;
-      };
+      settings =
+        {
+          # Updates come from Nix, not opencode's self-updater.
+          autoupdate = false;
+          mcp = lib.mapAttrs (_name: mkMcpServer) config.dotfiles.ai.mcpServers;
+        }
+        // lib.optionalAttrs (modelHiddenSkills != {}) {
+          permission.skill = lib.mapAttrs (_name: _: "deny") modelHiddenSkills;
+        };
 
       tui.theme = "system";
     };
