@@ -1,0 +1,44 @@
+name: cupboard evaluation experiment
+
+on:
+  push:
+    branches: [experiment/cupboard-evaluation]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  evaluation:
+    name: Evaluation concurrency ${{ matrix.concurrency }}
+    strategy:
+      fail-fast: false
+      matrix:
+        concurrency: ["1", "4", auto]
+    permissions:
+      attestations: write # required by the nested workflow, including evaluation-only runs
+      contents: read
+      id-token: write # required by the nested workflow's permission declaration
+      pull-requests: read # resolve the merged pull request in the trusted wrapper
+    uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@experiment/cupboard-evaluation # zizmor: ignore[unpinned-uses]
+    with:
+      evaluation-only: true
+      evaluation-concurrency: ${{ matrix.concurrency }}
+    secrets:
+      falcon_cache_password: ${{ secrets.FALCON_CACHE_PASSWORD }}
+      nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+      secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}
+
+  default-evaluation:
+    name: Evaluation with default concurrency
+    permissions:
+      attestations: write # required by the nested workflow, including evaluation-only runs
+      contents: read
+      id-token: write # required by the nested workflow's permission declaration
+      pull-requests: read # resolve the merged pull request in the trusted wrapper
+    uses: iainlane/dotfiles/.github/workflows/cupboard-publish.yml@experiment/cupboard-evaluation # zizmor: ignore[unpinned-uses]
+    with:
+      evaluation-only: true
+    secrets:
+      falcon_cache_password: ${{ secrets.FALCON_CACHE_PASSWORD }}
+      nixbuild_token: ${{ secrets.NIXBUILD_NET_SECRET }}
+      secrets_deploy_key: ${{ secrets.SECRETS_DEPLOY_KEY }}

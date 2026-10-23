@@ -427,7 +427,7 @@ describe("Cupboard merged pull request reuse", () => {
       },
       {
         workflow:
-          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@v0.0.46",
+          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@experiment/evaluation-concurrency",
         callerPermission: "read",
         wrapperPermission: "read",
         preset: "pull-request-and-branch",
@@ -439,6 +439,40 @@ describe("Cupboard merged pull request reuse", () => {
 });
 
 describe("Cupboard workflow runner read configuration", () => {
+  it("compares explicit concurrency with the default without publishing", () => {
+    const experiment = workflow("cupboard-evaluation.yml");
+    const experimentJobs = record(experiment.jobs);
+    const matrixJob = record(experimentJobs.evaluation);
+    const defaultJob = record(experimentJobs["default-evaluation"]);
+    const publication = record(record(wrapper.jobs).publish);
+    assert.deepEqual(
+      {
+        matrix: record(matrixJob.strategy).matrix,
+        failFast: record(matrixJob.strategy)["fail-fast"],
+        explicit: matrixJob.with,
+        implicit: defaultJob.with,
+        evaluationOnly: record(publication.with)["evaluation-only"],
+        runner: record(publication.with)["plan-runner"],
+        concurrency: record(publication.with)["evaluation-concurrency"],
+        privateReads: record(publication.secrets).private_substituters,
+      },
+      {
+        matrix: { concurrency: ["1", "4", "auto"] },
+        failFast: false,
+        explicit: {
+          "evaluation-only": true,
+          "evaluation-concurrency": "${{ matrix.concurrency }}",
+        },
+        implicit: { "evaluation-only": true },
+        evaluationOnly: "${{ inputs.evaluation-only }}",
+        runner:
+          "${{ inputs.evaluation-only && 'ubuntu-24.04' || 'ubuntu-latest' }}",
+        concurrency: "${{ inputs.evaluation-concurrency }}",
+        privateReads:
+          "${{ inputs.evaluation-only && format('https://cupboard:{0}@cupboard.supply/t/laney/cache/falcon', secrets.falcon_cache_password) || '' }}",
+      },
+    );
+  });
   it("rejects evaluation-time builds in both CI configurations", () => {
     const setting = (installable: string): string | undefined =>
       nixConfigurationText(installable)
