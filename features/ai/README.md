@@ -212,14 +212,42 @@ Activation links and enables every listed plugin, then removes the plugins
 linked from the Nix store that the list no longer contains. Plugins linked from
 elsewhere are left alone.
 
-The default list has two plugins, which `pkgs/` packages with their manifests
-pointed at the Python in the Nix store:
+The default list has four plugins, packaged under `pkgs/`:
 
 - [Context Bar][ctx-bar] draws a bar under each agent in the sidebar. Its colour
   shows how much of the context window the session uses.
 - [Model Display][disp-model] shows each agent's model and reasoning effort. A
   patch keeps the agent's plain name in the sidebar, and the sidebar rows place
   the model and effort after it.
+- [Annotate][annotate] collects comments on terminal selections and opens
+  Markdown documents, folders and agent replies for review. Its helper builds
+  from source, and document review uses `plannotator-tui` from `llm-agents`.
+- [Annotate Links][annotate-links] opens Ctrl-clicked `file://` links ending in
+  `.md`, `.markdown` or `.mdx` in Annotate instead of Herdr's normal file
+  opener.
+
+The Context Bar and Model Display manifests use Python from the Nix store.
+Annotate's package includes both executable paths before activation, so linking
+the plugin does not download binaries. The TUI is also on PATH for standalone
+reviews with `plannotator-tui <file-or-folder>`.
+
+Annotate uses these bindings after Herdr's prefix, which defaults to Ctrl+B:
+
+| Key       | Action                                                                  |
+| --------- | ----------------------------------------------------------------------- |
+| `a`       | Comment on selected terminal text; Ctrl+S saves the comment             |
+| `Shift+A` | Copy annotations as feedback                                            |
+| `Ctrl+A`  | Copy and archive annotations                                            |
+| `Ctrl+V`  | Paste feedback into the agent's prompt without submitting, then archive |
+| `Ctrl+S`  | Submit feedback to the agent, then archive                              |
+| `m`       | Manage annotations                                                      |
+| `o`       | Review documents in the focused pane's folder                           |
+| `Shift+O` | Choose a recent agent reply to review                                   |
+| `Ctrl+O`  | Review the newest agent reply                                           |
+
+Feedback becomes a message to the agent; sending feedback does not itself edit
+the reviewed file. Annotations and feedback history persist outside the Nix
+store. Reload changed bindings with `herdr server reload-config`.
 
 Herdr runs a plugin's startup command only when the server starts. After an
 update, Context Bar's daemon keeps running from the old store path until the
@@ -227,6 +255,8 @@ server restarts.
 
 [ctx-bar]: https://github.com/pdalinis/herdr-ctx-bar
 [disp-model]: https://github.com/pdalinis/herdr-disp-model
+[annotate]: https://github.com/plannotator/herdr-annotate
+[annotate-links]: https://github.com/plannotator/herdr-annotate/tree/main/links
 
 ### Agent integrations
 
