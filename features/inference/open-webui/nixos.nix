@@ -1,16 +1,28 @@
 {
   config,
+  lib,
   pkgs-unstable,
   ...
 }: let
   localhost = "127.0.0.1";
   ollamaPort = toString config.services.ollama.port;
   tikaPort = toString config.services.tika.port;
+  openWebui = pkgs-unstable.open-webui;
+  frontendDirectory = "${openWebui.frontend}/share/open-webui";
 in {
   services = {
     open-webui = {
       enable = true;
-      package = pkgs-unstable.open-webui;
+      package = assert lib.assertMsg
+      (openWebui.makeWrapperArgs == ["--set FRONTEND_BUILD_DIR ${frontendDirectory}"])
+      "Open WebUI's wrapper arguments changed upstream. Remove or update the override in features/inference/open-webui/nixos.nix.";
+        openWebui.overrideAttrs (_: {
+          makeWrapperArgs = [
+            "--set"
+            "FRONTEND_BUILD_DIR"
+            frontendDirectory
+          ];
+        });
       host = localhost;
       port = 8080;
       # Defining this option replaces the nixpkgs module's default, which sets
