@@ -24,6 +24,9 @@
     }
     && configTargets == ["/etc/hermes/config.yaml:ro"];
 in {
-  "host-evaluation-hermes-managed-config-${hostConfig.name}" = assert lib.assertMsg (lib.all usesManagedScope names) "Hermes containers must use managed scope with a writable runtime config";
-    pkgs.runCommandLocal "hermes-managed-scope" {} "touch $out";
+  "host-evaluation-hermes-managed-config-${hostConfig.name}" = lib.lazyDerivation {
+    derivation = assert lib.assertMsg (lib.all usesManagedScope names) "Hermes containers must use managed scope with a writable runtime config";
+      pkgs.runCommandLocal "hermes-managed-scope" {} "touch $out";
+    passthru.requiredSystemFeatures = [];
+  };
 }
