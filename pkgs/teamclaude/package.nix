@@ -2,6 +2,7 @@
 {
   fetchFromGitHub,
   lib,
+  libfaketime,
   makeWrapper,
   nodejs,
   stdenvNoCC,
@@ -9,30 +10,31 @@
 }:
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "teamclaude";
-  version = "1.1.24";
+  version = "1.1.26";
 
   src = fetchFromGitHub {
     owner = "KarpelesLab";
     repo = "teamclaude";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-g8e1MNFTk/3GTvRBAo0UuqNKPrvb7NO9WBpej9gCP1M=";
+    hash = "sha256-BlYAlg5GKRDp/+6b66bPIRAGyyJaQyAC5FYKGZR2ON4=";
   };
 
   nativeBuildInputs = [makeWrapper];
 
   dontBuild = true;
 
-  # Inside the Darwin sandbox each Node process that the tests spawn takes
-  # several seconds to start. When the test files run in parallel, the CLI
-  # tests exceed their hard-coded 10-second limits.
-  doCheck = stdenvNoCC.hostPlatform.isLinux;
+  doCheck = true;
 
-  nativeCheckInputs = [nodejs];
+  nativeCheckInputs = [libfaketime nodejs];
+
+  __darwinAllowLocalNetworking = true;
 
   checkPhase = ''
     runHook preCheck
 
-    HOME="$TMPDIR" node --test --test-timeout=120000
+    HOME="$TMPDIR" TZ=UTC FAKETIME_DONT_FAKE_MONOTONIC=1 \
+      faketime -f '@2026-10-04 00:00:00' \
+      node --test --test-timeout=120000 ${lib.optionalString stdenvNoCC.hostPlatform.isDarwin "--test-concurrency=1"}
 
     runHook postCheck
   '';
