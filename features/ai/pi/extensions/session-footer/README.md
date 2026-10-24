@@ -118,6 +118,4 @@ use MSW. Real-TUI tests launch the pinned Pi CLI in a PTY with an isolated home,
 synthetic data and the built-in light and dark themes. They cover quiet and
 active sessions, live theme changes, repeated quota updates, resizing from 220
 to 72 columns and back, and inspector paging and Escape. HTTP requests are
-blocked and logged; an unexpected model turn also fails the test. The Nix
-`pi-session-footer` check runs the same checks without network or real
-credentials.
+blocked and logged; an unexpected model turn also fails the test.
