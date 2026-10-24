@@ -6,7 +6,10 @@
 }: let
   inherit (pkgs) lib;
   piArgs = {
-    inherit pkgs inputs lib system modelCatalog;
+    inherit pkgs inputs system modelCatalog;
+    lib = lib.extend (self: _: {
+      hm.dag = import (inputs.home-manager + "/modules/lib/dag.nix") {lib = self;};
+    });
     config = {
       catppuccin = {
         accent = "blue";
@@ -89,14 +92,32 @@
     allHomeFiles);
   webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
   subagentsRoot = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
+  planModeRoot = "${pkgs.pi-plan-mode}/${pkgs.pi-plan-mode.packageRoot}";
   roleProbe = pkgs.writeText "pi-role-probe.ts" ''
     import assert from "node:assert/strict";
     import { writeFileSync } from "node:fs";
     import { discoverAgents } from "${subagentsRoot}/src/agents/agents.ts";
+    import { readPlanModeSettings } from "${planModeRoot}/src/settings.ts";
 
     export default function (pi) {
-      pi.on("session_start", () => {
-        assert.ok(pi.getActiveTools().includes("codemode"));
+      pi.on("session_start", async () => {
+        const planningTools = [
+          "read", "bash", "grep", "find", "ls", "codemode", "plan_explore",
+          "ast_grep_search", "ast_grep_outline", "web_search", "fetch_content",
+          "get_search_content", "source_check",
+        ].sort();
+        assert.deepStrictEqual(pi.getActiveTools().filter(name => planningTools.includes(name)).sort(), planningTools);
+        const loaded = await readPlanModeSettings();
+        assert.equal(loaded.kind, "loaded");
+        assert.deepStrictEqual(loaded.settings, {
+          thinkingLevel: "high",
+          defaultPlanTools: [
+            "read", "bash", "grep", "find", "ls", "codemode", "project_report",
+            "symbol_search", "module_report", "read_symbol", "read_enclosing",
+            "effective_config", "lens_diagnostics", "ast_grep_search", "ast_grep_outline",
+            "web_search", "fetch_content", "get_search_content", "source_check", "plan_explore",
+          ],
+        });
         assert.ok(pi.getCommands().some(command => command.name === "footer"));
         assert.ok(pi.getCommands().some(command => command.name === "pr"));
         assert.ok(pi.getCommands().some(command => command.name === "ultrafast"));
@@ -318,6 +339,39 @@ in {
     export HOME="$TMPDIR/configured-home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     ${installHomeFiles}
+    export DRY_RUN_CMD=""
+    ${piConfig.home.activation.piPlanModeSettings.data}
+    test ! -L "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    cp "$PI_CODING_AGENT_DIR/pi-plan-mode.json" plan-defaults.json
+    printf '%s\n' '{"thinkingLevel":"high","futureSetting":true,"defaultPlanTools":[]}' >saved-plan-settings.json
+    ln -sf "$PWD/saved-plan-settings.json" "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    ${piConfig.home.activation.piPlanModeSettings.data}
+    test ! -L "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    ${pkgs.jq}/bin/jq --sort-keys '. + {thinkingLevel: "high", futureSetting: true}' plan-defaults.json >expected-plan-settings.json
+    ${pkgs.jq}/bin/jq --sort-keys . "$PI_CODING_AGENT_DIR/pi-plan-mode.json" >actual-plan-settings.json
+    diff -u expected-plan-settings.json actual-plan-settings.json
+    ${piConfig.home.activation.piPlanModeSettings.data}
+    ${pkgs.jq}/bin/jq --sort-keys . "$PI_CODING_AGENT_DIR/pi-plan-mode.json" >actual-plan-settings.json
+    diff -u expected-plan-settings.json actual-plan-settings.json
+    cp "$PI_CODING_AGENT_DIR/pi-plan-mode.json" valid-plan-settings.json
+    for invalid in '{invalid' '{} {}' '[]'; do
+      printf '%s\n' "$invalid" >"$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+      if ( ${piConfig.home.activation.piPlanModeSettings.data} ); then
+        echo 'Invalid plan settings must not be overwritten' >&2
+        exit 1
+      fi
+      printf '%s\n' "$invalid" >invalid-plan-settings.json
+      cmp invalid-plan-settings.json "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    done
+    rm "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    mkfifo "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    status=0
+    ${pkgs.coreutils}/bin/timeout 5 ${pkgs.bash}/bin/bash -c ${lib.escapeShellArg piConfig.home.activation.piPlanModeSettings.data} || status=$?
+    test "$status" -ne 0
+    test "$status" -ne 124
+    test -p "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    rm "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
+    cp valid-plan-settings.json "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
     install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
     ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
       "$PI_CODING_AGENT_DIR/auth.json" >auth.json
