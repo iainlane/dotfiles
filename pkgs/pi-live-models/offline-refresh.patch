@@ -8,10 +8,36 @@
  	signal?: AbortSignal;
  	credential?: { key?: string };
  }
+diff --git a/extensions/catalog.ts b/extensions/catalog.ts
+index adf09af..fea4682 100644
+--- a/extensions/catalog.ts
++++ b/extensions/catalog.ts
+@@ -426,14 +426,16 @@ export function mergeCatalogSources(primary: CatalogData | null, secondary: Cata
+  * Soft ensure: load both disk caches once; if either is missing or stale,
+  * kick a deduplicated background refresh for it and return the merged view
+  * of whatever is available now (possibly null/stale). Never throws, never
+- * blocks on the network. Each source backs off independently.
++ * blocks on the network. Each source backs off independently. Set allowNetwork
++ * to false to use cached metadata without starting a refresh.
+  */
+-export function ensureCatalogSoft(mgr: CatalogManager): CatalogView | null {
++export function ensureCatalogSoft(mgr: CatalogManager, options: { allowNetwork?: boolean } = {}): CatalogView | null {
+ 	if (!mgr.data) mgr.data = readCatalogCache(catalogPath());
++	if (!mgr.devData) mgr.devData = readCatalogCache(modelsDevCatalogPath());
++	if (options.allowNetwork === false) return mergeCatalogSources(mgr.data, mgr.devData);
+ 	if (!mgr.data || Date.now() - mgr.data.fetchedAt >= CATALOG_TTL_MS) {
+ 		if (shouldAttemptRefresh(mgr, Date.now())) kickRefresh(mgr, "litellm");
+ 	}
+-	if (!mgr.devData) mgr.devData = readCatalogCache(modelsDevCatalogPath());
+ 	if (!mgr.devData || Date.now() - mgr.devData.fetchedAt >= CATALOG_TTL_MS) {
+ 		if (shouldAttemptDevRefresh(mgr, Date.now())) kickRefresh(mgr, "dev");
+ 	}
+diff --git a/extensions/index.ts b/extensions/index.ts
+index 6eb7af7..203d524 100644
 --- a/extensions/index.ts
 +++ b/extensions/index.ts
-@@ -216,8 +216,22 @@
- 	return { models: [...liveModels, ...staticModels], outcomes, url, raw: items, staticCount: staticModels.length, warnings };
+@@ -253,8 +253,24 @@ async function discoverOnce(
+ 	return { models: [...liveModels, ...staticModels], outcomes, url: redactUrl(url), raw: items, staticCount: staticModels.length, warnings };
  }
  
 -function makeRefreshModels(rt: ProviderRuntime, state: ExtensionState): (context: RefreshContext) => Promise<ModelDef[]> {
@@ -20,11 +46,13 @@
 +		if (context.allowNetwork === false) {
 +			const cached = state.cache.providers[rt.id];
 +			if (cached?.raw?.length) {
++				const cachedView = rt.entry.catalog !== false ? ensureCatalogSoft(state.cat, { allowNetwork: false }) : null;
 +				const { liveModels, staticModels } = buildCatalog(cached.raw, {
 +					entry: rt.entry,
 +					filters: rt.filters,
 +					staticById: collectStaticById(rt.id),
 +					providerId: rt.id,
++					catalog: cachedView ? buildCatalogIndex(cachedView.data.models, cachedView.extraEntries) : undefined,
 +				});
 +				return liveModels.length ? [...liveModels, ...staticModels] : undefined;
 +			}
