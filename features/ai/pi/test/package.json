@@ -1,0 +1,23 @@
+{
+  "name": "@dotfiles/pi-integration-tests",
+  "version": "0.1.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "check": "npm run typecheck && npm run lint",
+    "build": "tsc"
+  },
+  "type": "module",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@types/node": "24.19.2",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2004",
+    "typescript": "7.0.2"
+  }
+}

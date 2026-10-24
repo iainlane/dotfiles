@@ -394,7 +394,7 @@ in {
       exit 1
     fi
     ${pkgs.jq}/bin/jq --exit-status --slurp '
-      [.[] | select(.command == "get_state") | .data.model | "\(.provider)/\(.id)"]
+      [.[] | select(.command == "get_state" and .id == "state") | .data.model | "\(.provider)/\(.id)"]
         == ["openai-codex/${modelCatalog.defaults.openai}"]
     ' responses.jsonl >/dev/null || { cat responses.jsonl >&2; exit 1; }
 
