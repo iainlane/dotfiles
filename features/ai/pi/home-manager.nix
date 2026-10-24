@@ -32,7 +32,10 @@
     pkgs;
 
   # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
-  sessionFooter = import ./session-footer-package.nix {inherit pkgs;};
+  sessionFooter = import ./session-footer-package.nix {
+    inherit pkgs;
+    pi = inputs.llm-agents.packages.${system}.pi;
+  };
   planExplore = import ./plan-explore-package.nix {inherit pkgs;};
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
@@ -305,7 +308,7 @@
     piExtensions;
 
   localExtensionFiles = {
-    ".pi/agent/extensions/session-footer".source = sessionFooter;
+    ".pi/agent/extensions/session-footer".source = "${sessionFooter}/${sessionFooter.packageRoot}";
     ".pi/agent/extensions/plan-explore".source = planExplore;
   };
 in {

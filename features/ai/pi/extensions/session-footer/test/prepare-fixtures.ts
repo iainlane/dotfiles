@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 for (const [name, dependency] of [
   ["pi-sub-core", "@marckrenn/pi-sub-core"],
   ["rpiv-todo", "@juicesharp/rpiv-todo"],
-]) {
+] as const) {
   const target = join(root, ".fixtures", name);
 
   rmSync(target, { recursive: true, force: true });

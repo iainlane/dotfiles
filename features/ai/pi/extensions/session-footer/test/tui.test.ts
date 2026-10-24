@@ -148,15 +148,20 @@ it.each([
 
       terminal = new PiTerminal({
         command: [
-          process.execPath,
-          "--import",
-          fileURLToPath(new URL("./tui/network.mjs", import.meta.url)),
-          fileURLToPath(
-            new URL(
-              "./bundle/cli.js",
-              import.meta.resolve("@earendil-works/pi-coding-agent"),
-            ),
-          ),
+          ...(process.env.PI_TEST_HOST !== undefined &&
+          process.env.PI_TEST_HOST !== ""
+            ? [process.env.PI_TEST_HOST]
+            : [
+                process.execPath,
+                "--import",
+                fileURLToPath(new URL("./tui/network.ts", import.meta.url)),
+                fileURLToPath(
+                  new URL(
+                    "./bundle/cli.js",
+                    import.meta.resolve("@earendil-works/pi-coding-agent"),
+                  ),
+                ),
+              ]),
           "--offline",
           "--no-extensions",
           "--no-skills",
@@ -191,6 +196,12 @@ it.each([
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
           PI_CODING_AGENT_DIR: agent,
+          ...(process.env.PI_TEST_HOST !== undefined &&
+          process.env.PI_TEST_HOST !== ""
+            ? {
+                NODE_OPTIONS: `--import=${fileURLToPath(new URL("./tui/network.ts", import.meta.url))}`,
+              }
+            : {}),
           PI_OFFLINE: "1",
           PI_SKIP_VERSION_CHECK: "1",
           PI_FOOTER_QUIET: quiet ? "1" : "0",

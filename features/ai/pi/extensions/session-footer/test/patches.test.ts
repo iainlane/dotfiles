@@ -24,9 +24,13 @@ interface Provider {
 
 const server = setupServer();
 
-beforeAll(() => {
+beforeAll(async () => {
   server.listen({ onUnhandledRequest: "error" });
-});
+  await vi.importActual("../.fixtures/pi-sub-core/src/providers/impl/codex.ts");
+  await vi.importActual(
+    "../.fixtures/pi-sub-core/src/providers/impl/anthropic.ts",
+  );
+}, 30_000);
 
 afterEach(() => {
   server.resetHandlers();
@@ -34,9 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-afterAll(() => {
-  server.close();
-});
+afterAll(() => server.close());
 
 const stringMatcher: unknown = expect.any(String);
 

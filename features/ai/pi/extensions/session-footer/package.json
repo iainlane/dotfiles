@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/prepare-fixtures.mjs && vitest run",
+    "test": "node test/prepare-fixtures.ts && vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint && npm test"
@@ -13,8 +13,9 @@
     "pi-prs": "0.6.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.3.0",
-    "@earendil-works/pi-tui": "1.3.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@juicesharp/rpiv-btw": "2.13.9",
     "@juicesharp/rpiv-todo": "2.13.9",
     "@marckrenn/pi-sub-core": "1.5.0",
     "@types/node": "24.19.2",
@@ -24,5 +25,9 @@
     "oxlint-tsgolint": "7.0.2004",
     "typescript": "7.0.2",
     "vitest": "4.1.12"
-  }
+  },
+  "files": [
+    "index.ts",
+    "src"
+  ]
 }
