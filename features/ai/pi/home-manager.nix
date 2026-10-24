@@ -13,6 +13,7 @@
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
+      "pi-diff"
       "pi-prs"
       "pi-lens"
       "pi-live-models"
