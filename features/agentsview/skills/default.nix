@@ -6,9 +6,10 @@
 # starts with a header containing a hash of its body, and `agentsview skills
 # list` compares that hash with the hash of the skill that it generates for the
 # harness in use, so each harness has to be given the copy built for it.
-{
+{inputs, ...}: {
   flake.features.agentsview.provides.skills.homeManager = {pkgs, ...}: let
-    skillsFor = harness: "${pkgs.agentsview}/share/agentsview/skills/${harness}";
+    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    skillsFor = harness: "${agentsview}/share/agentsview/skills/${harness}";
   in {
     dotfiles.ai.skills.agentsview = skillsFor "agents";
     dotfiles.claudeCode.skills.agentsview = skillsFor "claude";
