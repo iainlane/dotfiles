@@ -372,57 +372,68 @@ it.each([
   },
 );
 
-it("reads the todo visibility flag once per overlay without caching other config getters", async () => {
-  const config = await vi.importActual<{
-    loadConfig(): { widget?: { enabled?: boolean } };
-  }>("../.fixtures/rpiv-todo/config.ts");
-  const read = vi
-    .spyOn(config, "loadConfig")
-    .mockReturnValue({ widget: { enabled: true } });
-  const { TodoOverlay } = await vi.importActual<{
-    TodoOverlay: new () => { setUICtx(ctx: unknown): void; update(): void };
-  }>("../.fixtures/rpiv-todo/todo-overlay.ts");
-  const overlay = new TodoOverlay();
-  const setWidget = vi.fn<(id: string, widget: unknown) => void>();
-
-  overlay.setUICtx({ setWidget });
-  overlay.update();
-  overlay.update();
-
-  expect({
-    reads: read.mock.calls,
-    widgets: setWidget.mock.calls,
-  }).toStrictEqual({ reads: [[]], widgets: [] });
-});
-
-it("disables only the todo widget through its configuration", async () => {
-  const directory = await import("node:fs/promises").then(async (fs) => {
-    const os = await import("node:os");
-    const path = await import("node:path");
-
-    return fs.mkdtemp(path.join(os.tmpdir(), "pi-footer-todo-"));
-  });
-
-  vi.stubEnv("XDG_CONFIG_HOME", directory);
-
+it("updates widget visibility from configuration without changing tasks", async () => {
   const fs = await import("node:fs/promises");
-
-  await fs.mkdir(`${directory}/rpiv-todo`, { recursive: true });
-  await fs.writeFile(
-    `${directory}/rpiv-todo/config.json`,
-    JSON.stringify({ widget: { enabled: false } }),
-  );
-
+  const { tmpdir } = await import("node:os");
+  const paths = await import("node:path");
+  const directory = await fs.mkdtemp(paths.join(tmpdir(), "pi-footer-todo-"));
+  vi.stubEnv("XDG_CONFIG_HOME", directory);
+  const path = paths.join(directory, "rpiv-todo/config.json");
+  await fs.mkdir(paths.join(directory, "rpiv-todo"), { recursive: true });
+  await fs.writeFile(path, JSON.stringify({ widget: { enabled: true } }));
+  const store = await vi.importActual<{
+    replaceState: (
+      id: string,
+      state: {
+        tasks: { id: number; subject: string; status: string }[];
+        nextId: number;
+      },
+    ) => void;
+    getState: (id: string) => unknown;
+    setActiveRenderSession(id: string): void;
+    evictSession(id: string): void;
+    clearActiveRenderSession(): void;
+  }>("../.fixtures/rpiv-todo/state/store.ts");
+  const state = {
+    tasks: [{ id: 1, subject: "A task", status: "pending" }],
+    nextId: 2,
+  };
   const { TodoOverlay } = await vi.importActual<{
-    TodoOverlay: new () => { setUICtx(ctx: unknown): void; update(): void };
+    TodoOverlay: new () => {
+      setUICtx(ctx: unknown): void;
+      update(): void;
+      isRegistered(): boolean;
+    };
   }>("../.fixtures/rpiv-todo/todo-overlay.ts");
-  const setWidget = vi.fn<(id: string, widget: unknown) => void>();
+  const widget = vi.fn<(id: string, widget: unknown) => void>();
   const overlay = new TodoOverlay();
-
-  overlay.setUICtx({ setWidget });
-  overlay.update();
-
-  expect(setWidget.mock.calls).toStrictEqual([]);
-
-  await fs.rm(directory, { recursive: true, force: true });
+  store.replaceState("visibility", state);
+  store.setActiveRenderSession("visibility");
+  overlay.setUICtx({ setWidget: widget });
+  try {
+    const visible = [];
+    for (const enabled of [true, false, true]) {
+      // eslint-disable-next-line no-await-in-loop -- Each overlay update must read the preceding configuration write.
+      await fs.writeFile(path, JSON.stringify({ widget: { enabled } }));
+      overlay.update();
+      visible.push(overlay.isRegistered());
+    }
+    expect({
+      visible,
+      widgets: widget.mock.calls.map(([key, factory]) => [key, typeof factory]),
+      tasks: store.getState("visibility"),
+    }).toStrictEqual({
+      visible: [true, false, true],
+      widgets: [
+        ["rpiv-todos", "function"],
+        ["rpiv-todos", "undefined"],
+        ["rpiv-todos", "function"],
+      ],
+      tasks: state,
+    });
+  } finally {
+    store.evictSession("visibility");
+    store.clearActiveRenderSession();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 });

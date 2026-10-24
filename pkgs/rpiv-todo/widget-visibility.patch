@@ -19,22 +19,30 @@
  import { formatStatusLabel, t } from "./state/i18n-bridge.ts";
  import { selectHasActive, selectOverlayLayout, selectShowTaskIds, selectTodoCounts } from "./state/selectors.ts";
  import { getRenderState } from "./state/store.ts";
-@@ -29,6 +29,8 @@
- const OVERLAY_COLLAPSED = "collapsed";
- 
- export class TodoOverlay {
-+	private readonly widgetEnabled = loadConfig().widget?.enabled !== false;
-+
- 	private uiCtx: ExtensionUIContext | undefined;
- 	private widgetRegistered = false;
- 	private tui: TUI | undefined;
-@@ -49,7 +51,8 @@
- 
- 	update(): void {
--		if (!this.uiCtx) return;
-+		if (!this.uiCtx || !this.widgetEnabled) return;
-+
+@@ -52,7 +52,7 @@
  		const snapshot = this.getSnapshot();
  		const visible = this.selectOverlayTasks(snapshot);
  
- 		if (visible.length === 0) {
+-		if (visible.length === 0) {
++		if (loadConfig().widget?.enabled === false || visible.length === 0) {
+ 			if (this.widgetRegistered) {
+ 				this.uiCtx.setWidget(WIDGET_KEY, undefined);
+ 				this.widgetRegistered = false;
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -108,3 +108,15 @@
+ [`@juicesharp/rpiv-i18n`](https://www.npmjs.com/package/@juicesharp/rpiv-i18n)
+ installed, that package has its own locale configuration and its own env-var
+ chain — see its README.
++
++## Widget visibility
++
++Set `widget.enabled` to `false` to hide the persistent todo widget. The `todo`
++tool and `/todos` command remain available. The default is `true`.
++
++```json
++{ "widget": { "enabled": false } }
++```
++
++The widget reads this option on each update, so changing the configuration does
++not require `/reload`.
