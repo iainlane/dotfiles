@@ -109,7 +109,9 @@ async function restored(
 ): Promise<void> {
   await vi.waitFor(
     async () => {
-      expect((await terminal.screen()).slice(-2)).toStrictEqual(expected);
+      const screen = await terminal.screen();
+      expect(screen.join("\n")).not.toContain("Footer:");
+      expect(screen.slice(-2)).toStrictEqual(expected);
     },
     { timeout: 5000, interval: 25 },
   );

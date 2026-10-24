@@ -1,4 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  getAgentDir,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,7 +31,7 @@ afterEach(() => {
 });
 
 it("preserves quota fetch time through actual sub-core cache notifications", async () => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ toFake: ["Date"] });
 
   const now = Date.UTC(2026, 9, 20, 12);
   const fetchedAt = now - 10_000;
@@ -37,6 +40,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
   vi.setSystemTime(now);
   vi.stubEnv("PI_CODING_AGENT_DIR", directory);
+  expect(getAgentDir()).toBe(directory);
 
   await mkdir(join(directory, "cache/sub-core"), { recursive: true });
   await writeFile(
@@ -110,7 +114,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     core(api, dependencies);
 
     await runner.emit({ type: "session_start", reason: "startup" });
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.waitFor(() => expect(snapshots).toHaveLength(1));
 
     for (const elapsed of [11_000, 31_000, 300_001]) {
       vi.setSystemTime(fetchedAt + elapsed);
