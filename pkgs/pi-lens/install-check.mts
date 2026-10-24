@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 interface TreeSitterClient {
   init(): Promise<boolean>;
+  isLanguageSupported(language: string): Promise<boolean>;
   withParsedTree(
     filePath: string,
     language: string,
     content: string,
-    extract: (tree: unknown) => unknown,
+    extract: (tree: { rootNode: { hasError: boolean } }) => unknown,
   ): Promise<unknown>;
 }
 
@@ -32,7 +34,7 @@ if (!packageRoot) {
 }
 
 globalThis.fetch = async () => {
-  throw new Error("The packaged Lua grammar must work without network access");
+  throw new Error("Packaged grammars must work without network access");
 };
 
 async function loadExport<Name extends keyof LensExports>(
@@ -57,6 +59,80 @@ const getSharedTreeSitterClient = await loadExport("getSharedTreeSitterClient");
 const TreeSitterSymbolExtractor = await loadExport("TreeSitterSymbolExtractor");
 const client = getSharedTreeSitterClient();
 assert.equal(await client.init(), true);
+const manifest: {
+  grammars: Record<string, string>;
+  vendored: Record<string, { sha256: string }>;
+} = JSON.parse(
+  await readFile(`${packageRoot}/scripts/grammars.lock.json`, "utf8"),
+);
+for (const [filename, digest] of Object.entries(manifest.grammars)) {
+  const bytes = await readFile(`${packageRoot}/grammars/${filename}`);
+  assert.equal(
+    `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    digest,
+    filename,
+  );
+  const sidecar = JSON.parse(
+    await readFile(`${packageRoot}/grammars/${filename}.json`, "utf8"),
+  );
+  assert.equal(sidecar.sha256, digest, filename);
+}
+for (const [filename, metadata] of Object.entries(manifest.vendored)) {
+  const bytes = await readFile(`${packageRoot}/vendor/grammars/${filename}`);
+  assert.equal(
+    `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    metadata.sha256,
+    filename,
+  );
+}
+
+const samples: Record<string, string> = {
+  bash: "echo hello\n",
+  c: "int answer(void) { return 42; }",
+  cpp: "int answer() { return 42; }",
+  csharp: "class Example {}",
+  css: "body { display: block; }",
+  dart: "int answer() => 42;",
+  elixir: "defmodule Example do\nend",
+  go: "package example\nfunc answer() int { return 42 }",
+  html: "<p>Hello</p>",
+  java: "class Example {}",
+  javascript: "function answer() { return 42; }",
+  json: '{"answer":42}',
+  kotlin: "fun answer() = 42",
+  lua: "local answer = 42",
+  ocaml: "let answer = 42",
+  php: "<?php function answer() { return 42; }",
+  python: "def answer():\n    return 42\n",
+  ruby: "def answer\n42\nend",
+  rust: "fn answer() -> i32 { 42 }",
+  swift: "func answer() -> Int { return 42 }",
+  toml: "answer = 42",
+  tsx: "const answer = <p>Hello</p>;",
+  typescript: "const answer: number = 42;",
+  vue: "<template><p>Hello</p></template>",
+  yaml: "answer: 42\n",
+  zig: "const answer = 42;",
+  cue: "answer: 42",
+};
+for (const [language, source] of Object.entries(samples)) {
+  const blocked =
+    language === "swift" &&
+    !process.versions.bun &&
+    Number(process.versions.node.split(".")[0]) >= 24;
+  assert.equal(await client.isLanguageSupported(language), !blocked, language);
+  if (blocked) continue;
+  const parsed = await client.withParsedTree(
+    `fixture.${language}`,
+    language,
+    source,
+    (tree) => {
+      assert.equal(tree.rootNode.hasError, false, language);
+      return true;
+    },
+  );
+  assert.deepStrictEqual(parsed, { parsed: true, value: true }, language);
+}
 const extractor = new TreeSitterSymbolExtractor("lua", client);
 assert.equal(await extractor.init(), true);
 const content = "local function answer()\n  return 42\nend\n";
