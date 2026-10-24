@@ -2,80 +2,25 @@
 # function arguments, so the check in `flake/parts/checks/teamclaude.nix` can
 # replace them with stand-ins.
 {
-  buildNpmPackage,
-  importNpmLock,
+  callPackage,
   jq,
   lib,
   makeWrapper,
-  nodejs_24,
   symlinkJoin,
-  teamclaude,
   writeShellApplication,
 }: let
   # The scripts read the config file that the CLI uses: `TEAMCLAUDE_CONFIG`
   # when it is set, and `configFile` otherwise.
   setConfig = configFile: ''config=''${TEAMCLAUDE_CONFIG:-${lib.escapeShellArg configFile}}'';
 
-  provisionProgram = buildNpmPackage {
-    pname = "teamclaude-provision";
-    version = "0.1.0";
-    src = lib.fileset.toSource {
-      root = ./.;
-      fileset = lib.fileset.unions [
-        ./provision.ts
-        ./provision.test.ts
-        ./packages.test.ts
-        ./package.json
-        ./package-lock.json
-        ./tsconfig.json
-        ./vitest.config.ts
-        ./.oxlintrc.json
-      ];
-    };
-    nodejs = nodejs_24;
-    npmDeps = importNpmLock {npmRoot = ./.;};
-    inherit (importNpmLock) npmConfigHook;
-    npmFlags = ["--ignore-scripts"];
-    dontNpmBuild = true;
-    dontNpmInstall = true;
-    dontNpmPrune = true;
-    doCheck = true;
-    TEAMCLAUDE_CONFIG_MODULE = "${teamclaude}/lib/teamclaude/src/config.js";
-
-    checkPhase = ''
-      runHook preCheck
-      export HOME="$TMPDIR/home"
-      mkdir -p "$HOME"
-      npm run check
-      runHook postCheck
-    '';
-    installPhase = ''
-      runHook preInstall
-      npm prune --omit=dev --ignore-scripts --offline
-      mkdir -p "$out/lib/teamclaude-provision"
-      cp -r provision.ts package.json node_modules "$out/lib/teamclaude-provision/"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      runHook preInstallCheck
-      echo '{"settings":{},"apiKeyAccounts":{}}' > "$TMPDIR/provision.json"
-      TEAMCLAUDE_CONFIG="$TMPDIR/installed-teamclaude.json" \
-        TEAMROUTER_CONFIG="$TMPDIR/installed-teamclaude.json" \
-        node "$out/lib/teamclaude-provision/provision.ts" \
-        "$TEAMCLAUDE_CONFIG_MODULE" "$TMPDIR/provision.json"
-      runHook postInstallCheck
-    '';
-  };
+  provisionProgram = callPackage ./provisioner/package.nix {};
 in {
-  inherit provisionProgram;
-
   provision = {
     teamclaude,
     configFile,
     settings,
     apiKeyAccounts,
-    waitForSops ? false,
+    sopsProgram ? null,
   }: let
     specification = builtins.toFile "teamclaude-provision.json" (builtins.toJSON {
       inherit settings apiKeyAccounts;
@@ -83,12 +28,12 @@ in {
   in
     writeShellApplication {
       name = "teamclaude-provision";
-      runtimeInputs = [nodejs_24];
+      runtimeInputs = [provisionProgram];
       text = ''
         export TEAMCLAUDE_CONFIG=''${TEAMCLAUDE_CONFIG:-${lib.escapeShellArg configFile}}
-        exec node ${provisionProgram}/lib/teamclaude-provision/provision.ts \
+        exec teamclaude-provision \
           ${teamclaude}/lib/teamclaude/src/config.js ${specification} \
-          ${lib.optionalString waitForSops "--wait-for-sops"} "$@"
+          ${lib.optionalString (sopsProgram != null) "--sops-program ${lib.escapeShellArg sopsProgram}"} "$@"
       '';
     };
 

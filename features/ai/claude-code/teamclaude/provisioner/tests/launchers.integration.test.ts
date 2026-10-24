@@ -3,10 +3,15 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
-const claude = process.env.TEAMCLAUDE_TEST_CLAUDE;
-const server = process.env.TEAMCLAUDE_TEST_SERVER;
+declare module "vitest" {
+  interface ProvidedContext {
+    launchers: { claude: string; server: string };
+  }
+}
+
+const { claude, server } = inject("launchers");
 
 describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
   let directory: string;
@@ -18,15 +23,13 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
     configFile = join(directory, ".config/teamclaude.json");
     await mkdir(join(directory, ".config"));
     environment = {
-      ...process.env,
+      PATH: "",
       HOME: directory,
       TEAMCLAUDE_CONFIG: configFile,
       TEAMROUTER_CONFIG: configFile,
       CLAUDE_RESULT: join(directory, "claude.json"),
       TEAMCLAUDE_RESULT: join(directory, "teamclaude.json"),
     };
-    delete environment.HTTPS_PROXY;
-    delete environment.NODE_EXTRA_CA_CERTS;
   });
 
   afterEach(async () => {
@@ -34,16 +37,12 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
   });
 
   async function runClaude() {
-    if (!claude) {
-      throw new Error(
-        "TEAMCLAUDE_TEST_CLAUDE must refer to the packaged launcher",
-      );
-    }
     const result = spawnSync(claude, ["--print", "hello world"], {
       env: environment,
       encoding: "utf8",
       timeout: 10000,
     });
+
     return {
       status: result.status,
       stderr: result.stderr,
@@ -69,6 +68,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
 
   it("starts Claude directly when reading the proxy environment fails", async () => {
     await writeFile(configFile, "not json");
+
     expect(await runClaude()).toStrictEqual({
       status: 0,
       stderr:
@@ -83,14 +83,18 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
       listener.once("error", reject);
       listener.listen(0, "127.0.0.1", resolve);
     });
+
     const address = listener.address();
+
     if (!address || typeof address === "string") {
       throw new Error("Expected a loopback listener address");
     }
+
     await writeFile(
       configFile,
       JSON.stringify({ proxy: { port: address.port }, accounts: [] }),
     );
+
     try {
       expect(await runClaude()).toStrictEqual({
         status: 0,
@@ -106,6 +110,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
         listener.close((error) => (error ? reject(error) : resolve())),
       );
     }
+
     expect(await runClaude()).toStrictEqual({
       status: 0,
       stderr:
@@ -124,14 +129,10 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
   ])(
     "starts the server only after an account exists: $config",
     async ({ config, starts }) => {
-      if (!server) {
-        throw new Error(
-          "TEAMCLAUDE_TEST_SERVER must refer to the packaged server launcher",
-        );
-      }
       if (config) {
         await writeFile(configFile, JSON.stringify(config));
       }
+
       const result = spawnSync(server, [], {
         env: environment,
         encoding: "utf8",
@@ -140,6 +141,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
       const received = starts
         ? JSON.parse(await readFile(join(directory, "teamclaude.json"), "utf8"))
         : null;
+
       expect({
         status: result.status,
         stderr: result.stderr,
