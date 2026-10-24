@@ -43,8 +43,11 @@ export class ActivityTracker {
     const state = this.state;
 
     if (event === "start") {
-      state.runningSince = now;
-      state.activeSince = now;
+      state.runningSince ??= now;
+
+      if (!state.waiting) {
+        state.activeSince ??= now;
+      }
       state.lastContentAt = now;
       state.outcome = undefined;
     }
@@ -71,7 +74,7 @@ export class ActivityTracker {
       state.waiting = false;
 
       if (state.runningSince !== undefined) {
-        state.activeSince = now;
+        state.activeSince ??= now;
       }
     }
 
