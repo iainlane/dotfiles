@@ -6,5 +6,5 @@
   npmRoot = ./npm-deps;
   description = "Shared usage data core for pi extensions";
 }).overrideAttrs {
-  patches = [./reading-metadata.patch];
+  patches = [./reading-metadata.patch ./background-refresh.patch ./credential-file.patch];
 }

@@ -1,0 +1,677 @@
+--- a/index.ts
++++ b/index.ts
+@@ -9,12 +9,11 @@
+ import { getDefaultSettings, type Settings } from "./src/settings-types.js";
+ import type { ProviderUsageEntry } from "./src/usage/types.js";
+ import { createDefaultDependencies } from "./src/dependencies.js";
+-import { createUsageController, type UsageUpdate } from "./src/usage/controller.js";
++import { createUsageController, type UsageControllerState, type UsageUpdate } from "./src/usage/controller.js";
+ import { fetchUsageEntries, getCachedUsageEntries } from "./src/usage/fetch.js";
+ import { onCacheSnapshot, onCacheUpdate, watchCacheUpdates, type Cache } from "./src/cache.js";
+ import { isExpectedMissingData } from "./src/errors.js";
+ import { prioritizeWindowsForModel } from "./src/utils.js";
+-import { getStorage } from "./src/storage.js";
+ import { clearSettingsCache, loadSettings, saveSettings, SETTINGS_PATH } from "./src/settings.js";
+ import { showSettingsUI } from "./src/settings-ui.js";
+ 
+@@ -98,17 +97,63 @@
+ 	let settingsPoll: NodeJS.Timeout | undefined;
+ 	let settingsWatchStarted = false;
+ 
+-	const controller = createUsageController(deps);
+-	const controllerState = {
+-		currentProvider: undefined as ProviderName | undefined,
+-		cachedUsage: undefined as UsageSnapshot | undefined,
+-		providerCycleIndex: 0,
+-	};
++	type RefreshOptions = { force?: boolean; allowStaleCache?: boolean; skipFetch?: boolean };
++	type RefreshKind = "usage" | "status" | "cycle";
++	type RefreshOutcome =
++		| { status: "completed"; update: UsageUpdate }
++		| { status: "cancelled" }
++		| { status: "failed"; error: Error };
++	type RefreshWaiter = (outcome: RefreshOutcome) => void;
++	interface RefreshRequest {
++		ctx: ExtensionContext;
++		options: RefreshOptions;
++		cycles?: number;
++		waiters: Set<RefreshWaiter>;
++	}
++	interface RefreshScope {
++		abort: AbortController;
++		dependencies: Dependencies;
++		controller: ReturnType<typeof createUsageController>;
++		state: UsageControllerState;
++		pending: Map<RefreshKind, RefreshRequest>;
++		waiters: Set<RefreshWaiter>;
++		running?: Promise<void>;
++	}
++	let disposed = false;
++	let watchTimer: ReturnType<typeof setTimeout> | undefined;
++	const busStops: (() => void)[] = [];
++	function createScope(): RefreshScope {
++		const abort = new AbortController();
++		const signal = abort.signal;
++		const dependencies: Dependencies = {
++			...deps,
++			signal,
++			fetch(input, init) {
++				const requestSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
++				return deps.fetch(input, { ...init, signal: requestSignal ? AbortSignal.any([signal, requestSignal]) : signal });
++			},
++		};
++		const current: RefreshScope = { abort, dependencies, controller: createUsageController(dependencies), state: { providerCycleIndex: 0 }, pending: new Map(), waiters: new Set() };
++		signal.addEventListener("abort", () => {
++			for (const finish of current.waiters) finish({ status: "cancelled" });
++			current.pending.clear();
++		}, { once: true });
++		return current;
++	}
++	let scope = createScope();
++	function resetScope(): void {
++		if (disposed) return;
++		scope.abort.abort();
++		scope = createScope();
++		lastUsageRefreshAt = 0;
++		lastStatusRefreshAt = 0;
++	}
+ 
+ 	let lastAllSnapshot = "";
+ 	let lastCurrentSnapshot = "";
+ 
+ 	const emitCurrentUpdate = (provider?: ProviderName, usage?: UsageSnapshot): void => {
++		if (disposed) return;
+ 		const model = lastContext?.model;
+ 		const sorted = usage && model
+ 			? { ...usage, windows: prioritizeWindowsForModel(usage.windows, model) }
+@@ -128,23 +173,23 @@
+ 			const entry = cache[provider];
+ 			if (!entry || !entry.usage) continue;
+ 			if (now - entry.fetchedAt >= ttlMs) continue;
+-			const usage = { ...entry.usage, status: entry.status };
++			const usage = { ...entry.usage, status: entry.status, lastSuccessAt: entry.fetchedAt };
+ 			if (usage.error && isExpectedMissingData(usage.error)) continue;
+ 			entries.push({ provider, usage });
+ 		}
+-		const payload = JSON.stringify({ provider: controllerState.currentProvider, entries });
++		const payload = JSON.stringify({ provider: scope.state.currentProvider, entries });
+ 		if (payload === lastAllSnapshot) return;
+ 		lastAllSnapshot = payload;
+ 		pi.events.emit("sub-core:update-all", {
+-			state: { provider: controllerState.currentProvider, entries },
++			state: { provider: scope.state.currentProvider, entries },
+ 		});
+ 	});
+ 
+ 	const unsubscribeCache = onCacheUpdate((provider, entry) => {
+-		if (!controllerState.currentProvider || provider !== controllerState.currentProvider) return;
++		if (!scope.state.currentProvider || provider !== scope.state.currentProvider) return;
+ 		const usage = entry?.usage ? { ...entry.usage, status: entry.status, lastSuccessAt: entry.fetchedAt } : undefined;
+-		controllerState.cachedUsage = usage;
+-		emitCurrentUpdate(controllerState.currentProvider, usage);
++		scope.state.cachedUsage = usage;
++		emitCurrentUpdate(scope.state.currentProvider, usage);
+ 	});
+ 
+ 	let stopCacheWatch: (() => void) | undefined;
+@@ -160,39 +205,90 @@
+ 		emitCurrentUpdate(update.provider, update.usage);
+ 	}
+ 
+-	async function refresh(
+-		ctx: ExtensionContext,
+-		options?: { force?: boolean; allowStaleCache?: boolean; skipFetch?: boolean }
+-	) {
++	async function drain(current: RefreshScope): Promise<void> {
++		while (!current.abort.signal.aborted && current.pending.size) {
++			for (const kind of ["usage", "status", "cycle"] as const) {
++				const request = current.pending.get(kind);
++				if (!request || current.abort.signal.aborted) continue;
++				current.pending.delete(kind);
++				let result: UsageUpdate = { provider: current.state.currentProvider, usage: current.state.cachedUsage };
++				const publish = (update: UsageUpdate) => {
++					result = update;
++					if (!disposed && scope === current && !current.abort.signal.aborted) emitUpdate(update);
++				};
++				let outcome: RefreshOutcome = { status: "cancelled" };
++				try {
++					if (kind === "cycle") {
++						for (let i = 0; i < (request.cycles ?? 1) && !current.abort.signal.aborted; i++) {
++							await current.controller.cycleProvider(request.ctx, settings, current.state, publish);
++						}
++					} else {
++						const method = kind === "usage" ? current.controller.refresh : current.controller.refreshStatus;
++						await method(request.ctx, settings, current.state, publish, request.options);
++					}
++					if (!current.abort.signal.aborted) outcome = { status: "completed", update: result };
++				} catch (error) {
++					if (!current.abort.signal.aborted) {
++						outcome = { status: "failed", error: error instanceof Error ? error : new Error(String(error)) };
++						console.error("Quota refresh failed:", error);
++					}
++				} finally {
++					for (const finish of request.waiters) finish(outcome);
++					if (scope === current && !current.abort.signal.aborted && !request.options.skipFetch) {
++						if (kind === "usage") lastUsageRefreshAt = Date.now();
++						if (kind === "status") lastStatusRefreshAt = Date.now();
++					}
++				}
++			}
++		}
++	}
++
++	function startDrain(current: RefreshScope): void {
++		if (current.running || current.abort.signal.aborted) return;
++		current.running = drain(current).finally(() => {
++			current.running = undefined;
++			if (current.pending.size && !current.abort.signal.aborted) startDrain(current);
++		});
++	}
++
++	function enqueue(kind: RefreshKind, ctx: ExtensionContext, options: RefreshOptions = {}, signal?: AbortSignal): Promise<RefreshOutcome> {
++		if (disposed || signal?.aborted) return Promise.resolve({ status: "cancelled" });
+ 		lastContext = ctx;
+ 		ensureSettingsLoaded();
+-		try {
+-			await controller.refresh(ctx, settings, controllerState, emitUpdate, options);
+-		} finally {
+-			if (!options?.skipFetch) {
+-				lastUsageRefreshAt = Date.now();
+-			}
+-		}
+-	}
+-
+-	async function refreshStatus(
+-		ctx: ExtensionContext,
+-		options?: { force?: boolean; allowStaleCache?: boolean; skipFetch?: boolean }
+-	) {
+-		lastContext = ctx;
+-		ensureSettingsLoaded();
+-		try {
+-			await controller.refreshStatus(ctx, settings, controllerState, emitUpdate, options);
+-		} finally {
+-			if (!options?.skipFetch) {
+-				lastStatusRefreshAt = Date.now();
+-			}
+-		}
+-	}
+-
+-	async function cycleProvider(ctx: ExtensionContext): Promise<void> {
+-		ensureSettingsLoaded();
+-		await controller.cycleProvider(ctx, settings, controllerState, emitUpdate);
++		const current = scope;
++		const queued = current.pending.get(kind);
++		const previous = queued?.options;
++		const waiters = queued?.waiters ?? new Set<RefreshWaiter>();
++		return new Promise((resolve) => {
++			const cancelled = () => finish({ status: "cancelled" });
++			const finish: RefreshWaiter = (outcome) => {
++				signal?.removeEventListener("abort", cancelled);
++				current.waiters.delete(finish);
++				waiters.delete(finish);
++				resolve(outcome);
++			};
++			current.waiters.add(finish);
++			waiters.add(finish);
++			signal?.addEventListener("abort", cancelled, { once: true });
++			current.pending.set(kind, { ctx, waiters, cycles: kind === "cycle" ? (queued?.cycles ?? 0) + 1 : undefined, options: {
++				force: previous?.force === true || options.force === true,
++				allowStaleCache: previous?.allowStaleCache === true || options.allowStaleCache === true,
++				skipFetch: (previous?.skipFetch ?? true) && options.skipFetch === true,
++			} });
++			startDrain(current);
++		});
++	}
++
++	function refresh(ctx: ExtensionContext, options?: RefreshOptions, signal?: AbortSignal): Promise<RefreshOutcome> {
++		return enqueue("usage", ctx, options, signal);
++	}
++
++	function refreshStatus(ctx: ExtensionContext, options?: RefreshOptions): Promise<RefreshOutcome> {
++		return enqueue("status", ctx, options);
++	}
++
++	function cycleProvider(ctx: ExtensionContext): Promise<RefreshOutcome> {
++		return enqueue("cycle", ctx);
+ 	}
+ 
+ 	function setupRefreshInterval(): void {
+@@ -233,6 +329,7 @@
+ 	}
+ 
+ 	function applySettingsPatch(patch: Partial<Settings>): void {
++		if (disposed) return;
+ 		ensureSettingsLoaded();
+ 		settings = deepMerge(settings, patch);
+ 		saveSettings(settings);
+@@ -249,6 +346,7 @@
+ 	}
+ 
+ 	function applySettingsFromDisk(): void {
++		if (disposed) return;
+ 		clearSettingsCache();
+ 		settings = loadSettings();
+ 		registerToolsFromSettings(settings);
+@@ -314,14 +412,38 @@
+ 		settingsPoll.unref?.();
+ 	}
+ 
+-	async function getEntries(force?: boolean): Promise<ProviderUsageEntry[]> {
++	async function getEntries(force?: boolean, current = scope): Promise<ProviderUsageEntry[]> {
+ 		ensureSettingsLoaded();
+-		const enabledProviders = controller.getEnabledProviders(settings);
++		const enabledProviders = current.controller.getEnabledProviders(settings);
+ 		if (enabledProviders.length === 0) return [];
+ 		if (force) {
+-			return fetchUsageEntries(deps, settings, enabledProviders, { force: true });
++			try {
++				return await fetchUsageEntries(current.dependencies, settings, enabledProviders, { force: true });
++			} catch (error) {
++				if (current.abort.signal.aborted) return [];
++				throw error;
++			}
+ 		}
+ 		return getCachedUsageEntries(enabledProviders, settings);
++	}
++
++	function getEntriesForCaller(force?: boolean, current = scope, caller?: AbortSignal): Promise<ProviderUsageEntry[]> {
++		const signal = caller ? AbortSignal.any([current.abort.signal, caller]) : current.abort.signal;
++		signal.throwIfAborted();
++		return new Promise((resolve, reject) => {
++			const cancelled = () => {
++				signal.removeEventListener("abort", cancelled);
++				reject(signal.reason);
++			};
++			signal.addEventListener("abort", cancelled, { once: true });
++			void getEntries(force, current).then((entries) => {
++				signal.removeEventListener("abort", cancelled);
++				resolve(entries);
++			}, (error: unknown) => {
++				signal.removeEventListener("abort", cancelled);
++				reject(error);
++			});
++		});
+ 	}
+ 
+ 	const registerUsageTool = (name: ToolName): void => {
+@@ -334,8 +456,17 @@
+ 			}),
+ 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+ 				const { force } = params as { force?: boolean };
+-				await refresh(ctx, { force: force ?? true });
+-				const payload = { provider: lastState.provider, usage: stripUsageProvider(lastState.usage) };
++				const current = scope;
++				const outcome = await refresh(ctx, { force: force ?? true }, _signal);
++				current.abort.signal.throwIfAborted();
++				_signal?.throwIfAborted();
++				if (outcome.status === "failed") throw outcome.error;
++				if (outcome.status === "cancelled") throw new Error("Quota refresh was cancelled");
++				const usage = outcome.update.usage;
++				const sorted = usage && ctx.model
++					? { ...usage, windows: prioritizeWindowsForModel(usage.windows, ctx.model) }
++					: usage;
++				const payload = { provider: outcome.update.provider, usage: stripUsageProvider(sorted) };
+ 				return {
+ 					content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+ 					details: payload,
+@@ -354,7 +485,10 @@
+ 			}),
+ 			async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+ 				const { force } = params as { force?: boolean };
+-				const entries = await getEntries(force ?? true);
++				const current = scope;
++				const entries = await getEntriesForCaller(force ?? true, current, _signal);
++				current.abort.signal.throwIfAborted();
++				_signal?.throwIfAborted();
+ 				const payload = entries.map((entry) => ({
+ 					provider: entry.provider,
+ 					usage: stripUsageProvider(entry.usage),
+@@ -391,7 +525,8 @@
+ 		settingsLoaded = true;
+ 		registerToolsFromSettings(settings);
+ 		setupRefreshInterval();
+-		const watchTimer = setTimeout(() => {
++		watchTimer = setTimeout(() => {
++			if (disposed) return;
+ 			startCacheWatch();
+ 			startSettingsWatch();
+ 		}, 0);
+@@ -409,6 +544,7 @@
+ 			};
+ 
+ 			const newSettings = await showSettingsUI(ctx, handleSettingsChange);
++			if (disposed) return;
+ 			settings = newSettings;
+ 			applySettingsPatch(newSettings);
+ 			if (lastContext) {
+@@ -417,14 +553,27 @@
+ 		},
+ 	});
+ 
+-	pi.events.on("sub-core:request", async (payload) => {
++	busStops.push(pi.events.on("sub-core:request", async (payload) => {
++		if (disposed) return;
+ 		ensureSettingsLoaded();
+ 		const request = payload as SubCoreRequest;
+ 		if (request.type === "entries") {
+-			const entries = await getEntries(request.force);
+-			if (lastContext && settings.statusRefresh.refreshInterval > 0) {
+-				await refreshStatus(lastContext, { force: request.force });
++			const current = scope;
++			const context = lastContext;
++			const entries = await getEntries(request.force, current);
++			if (disposed) return;
++			if (scope !== current || current.abort.signal.aborted) {
++				request.reply({ entries: [] });
++				return;
++			}
++			if (context && settings.statusRefresh.refreshInterval > 0) {
++				await refreshStatus(context, { force: request.force });
+ 			}
++			if (disposed) return;
++			if (scope !== current || current.abort.signal.aborted) {
++				request.reply({ entries: [] });
++				return;
++			}
+ 			request.reply({ entries });
+ 			return;
+ 		}
+@@ -432,18 +581,20 @@
+ 			state: lastState,
+ 			settings: request.includeSettings ? settings : undefined,
+ 		});
+-	});
+-
+-	pi.events.on("sub-core:settings:patch", (payload) => {
++	}));
++
++	busStops.push(pi.events.on("sub-core:settings:patch", (payload) => {
++		if (disposed) return;
+ 		const patch = (payload as { patch?: Partial<Settings> }).patch;
+ 		if (!patch) return;
+ 		applySettingsPatch(patch);
+ 		if (lastContext) {
+ 			void refresh(lastContext);
+ 		}
+-	});
+-
+-	pi.events.on("sub-core:action", (payload) => {
++	}));
++
++	busStops.push(pi.events.on("sub-core:action", (payload) => {
++		if (disposed) return;
+ 		const action = payload as SubCoreAction;
+ 		if (!lastContext) return;
+ 		switch (action.type) {
+@@ -454,9 +605,10 @@
+ 				void cycleProvider(lastContext);
+ 				break;
+ 		}
+-	});
+-
+-	pi.on("session_start", async (_event, ctx) => {
++	}));
++
++	pi.on("session_start", (_event, ctx) => {
++		resetScope();
+ 		lastContext = ctx;
+ 		ensureSettingsLoaded();
+ 		void refresh(ctx, { allowStaleCache: true, skipFetch: true });
+@@ -464,50 +616,42 @@
+ 		pi.events.emit("sub-core:ready", { state: lastState, settings });
+ 	});
+ 
+-	pi.on("turn_start", async (_event, ctx) => {
++	pi.on("turn_start", (_event, ctx) => {
+ 		if (settings.behavior.refreshOnTurnStart) {
+-			await refresh(ctx);
++			void refresh(ctx);
+ 		}
+ 		if (settings.statusRefresh.refreshOnTurnStart) {
+-			await refreshStatus(ctx);
+-		}
+-	});
+-
+-	pi.on("tool_result", async (_event, ctx) => {
++			void refreshStatus(ctx);
++		}
++	});
++
++	pi.on("tool_result", (_event, ctx) => {
+ 		if (settings.behavior.refreshOnToolResult) {
+-			await refresh(ctx, { force: true });
++			void refresh(ctx, { force: true });
+ 		}
+ 		if (settings.statusRefresh.refreshOnToolResult) {
+-			await refreshStatus(ctx, { force: true });
+-		}
+-	});
+-
+-	pi.on("turn_end", async (_event, ctx) => {
+-		await refresh(ctx, { force: true });
+-	});
+-
+-	pi.on("session_switch", async (_event, ctx) => {
+-		controllerState.currentProvider = undefined;
+-		controllerState.cachedUsage = undefined;
+-		await refresh(ctx);
+-		await refreshStatus(ctx);
+-	});
+-
+-	pi.on("session_branch" as unknown as "session_start", async (_event: unknown, ctx: ExtensionContext) => {
+-		controllerState.currentProvider = undefined;
+-		controllerState.cachedUsage = undefined;
+-		await refresh(ctx);
+-		await refreshStatus(ctx);
+-	});
+-
+-	pi.on("model_select" as unknown as "session_start", async (_event: unknown, ctx: ExtensionContext) => {
+-		controllerState.currentProvider = undefined;
+-		controllerState.cachedUsage = undefined;
++			void refreshStatus(ctx, { force: true });
++		}
++	});
++
++	pi.on("turn_end", (_event, ctx) => {
++		void refresh(ctx, { force: true });
++	});
++
++	pi.on("model_select", (_event, ctx) => {
++		resetScope();
++		scope.state.currentProvider = undefined;
++		scope.state.cachedUsage = undefined;
+ 		void refresh(ctx, { force: true, allowStaleCache: true });
+ 		void refreshStatus(ctx, { force: true, allowStaleCache: true });
+ 	});
+ 
+ 	pi.on("session_shutdown", async () => {
++		disposed = true;
++		scope.abort.abort();
++		scope.pending.clear();
++		if (watchTimer) clearTimeout(watchTimer);
++		for (const stop of busStops.splice(0)) stop();
+ 		if (usageRefreshInterval) {
+ 			clearInterval(usageRefreshInterval);
+ 			usageRefreshInterval = undefined;
+--- a/src/cache.ts
++++ b/src/cache.ts
+@@ -371,15 +371,16 @@
+ 	provider: ProviderName,
+ 	ttlMs: number,
+ 	fetchFn: () => Promise<T>,
+-	options?: { force?: boolean }
++	options?: { force?: boolean; signal?: AbortSignal }
+ ): Promise<T> {
++	options?.signal?.throwIfAborted();
+ 	const forceRefresh = options?.force === true;
+ 
+ 	if (!forceRefresh) {
+ 		// Check cache first
+ 		const cached = await getCachedData(provider, ttlMs);
+ 		if (cached) {
+-			return { usage: cached.usage, status: cached.status } as T;
++			return { usage: cached.usage ? { ...cached.usage, lastSuccessAt: cached.fetchedAt } : undefined, status: cached.status, statusFetchedAt: cached.statusFetchedAt } as T;
+ 		}
+ 	}
+ 	
+@@ -389,15 +390,18 @@
+ 	if (!lockAcquired) {
+ 		// Another process is fetching, wait and re-check cache
+ 		const freshEntry = await waitForLockAndRecheck(provider, ttlMs);
++		options?.signal?.throwIfAborted();
+ 		if (freshEntry) {
+-			return { usage: freshEntry.usage, status: freshEntry.status } as T;
++			return { usage: freshEntry.usage ? { ...freshEntry.usage, lastSuccessAt: freshEntry.fetchedAt } : undefined, status: freshEntry.status, statusFetchedAt: freshEntry.statusFetchedAt } as T;
+ 		}
+ 		// Timeout or cache still stale, fetch anyway
+ 	}
+ 	
+ 	try {
++		options?.signal?.throwIfAborted();
+ 		// Fetch fresh data
+ 		const result = await fetchFn();
++		options?.signal?.throwIfAborted();
+ 		
+ 		// Only cache if we got valid usage data (not just no-credentials/errors)
+ 		const hasCredentialError = result.usage?.error && isExpectedMissingData(result.usage.error);
+@@ -406,7 +410,7 @@
+ 		
+ 		const cache = readCache();
+ 		
+-		if (shouldCache) {
++		if (shouldCache && result.usage) {
+ 			// Update cache with valid data
+ 			const fetchedAt = Date.now();
+ 			const previous = cache[provider];
+@@ -414,12 +418,13 @@
+ 			cache[provider] = {
+ 				fetchedAt,
+ 				statusFetchedAt,
+-				usage: result.usage,
++				usage: { ...result.usage, lastSuccessAt: fetchedAt },
+ 				status: result.status,
+ 			};
+ 			writeCache(cache);
+ 			emitCacheUpdate(provider, cache[provider]);
+ 			emitCacheSnapshot(cache);
++			return { ...result, usage: cache[provider].usage };
+ 		} else if (hasCredentialError) {
+ 			// Remove from cache if no credentials
+ 			if (cache[provider]) {
+@@ -441,14 +446,16 @@
+ export async function updateCacheStatus(
+ 	provider: ProviderName,
+ 	status: ProviderStatus,
+-	options?: { statusFetchedAt?: number }
++	options?: { statusFetchedAt?: number; signal?: AbortSignal }
+ ): Promise<void> {
++	options?.signal?.throwIfAborted();
+ 	const lockAcquired = tryAcquireFileLock(LOCK_PATH, LOCK_TIMEOUT_MS);
+ 	if (!lockAcquired) {
+ 		await waitForLockRelease(LOCK_PATH, 3000);
+ 	}
+ 	try {
+ 		const cache = readCache();
++		options?.signal?.throwIfAborted();
+ 		const entry = cache[provider];
+ 		const statusFetchedAt = options?.statusFetchedAt ?? Date.now();
+ 		cache[provider] = {
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -32,6 +32,7 @@
+  * Dependencies that can be injected for testing
+  */
+ export interface Dependencies {
++	signal?: AbortSignal;
+ 	fetch: typeof globalThis.fetch;
+ 	readFile: (path: string) => string | undefined;
+ 	fileExists: (path: string) => boolean;
+--- a/src/usage/controller.ts
++++ b/src/usage/controller.ts
+@@ -132,7 +132,7 @@
+ 				state.cachedUsage = result.usage ? { ...result.usage, status: result.status } : undefined;
+ 			}
+ 		} else {
+-			const successAt = Date.now();
++			const successAt = result.usage?.lastSuccessAt;
+ 			state.cachedUsage = result.usage
+ 				? { ...result.usage, status: result.status, lastSuccessAt: successAt }
+ 				: undefined;
+@@ -224,6 +224,7 @@
+ 			}
+ 			state.currentProvider = nextProvider;
+ 			state.cachedUsage = result.usage ? { ...result.usage, status: result.status } : undefined;
++			state.lastSuccessAt = result.usage?.lastSuccessAt;
+ 			emitUpdate(state, onUpdate);
+ 			return;
+ 		}
+--- a/src/usage/fetch.ts
++++ b/src/usage/fetch.ts
+@@ -101,9 +101,12 @@
+ 		return entry?.status;
+ 	}
+ 	const status = await fetchProviderStatusWithFallback(provider, providerInstance, deps);
+-	await updateCacheStatus(provider, status, { statusFetchedAt: Date.now() });
++	await updateCacheStatus(provider, status, { statusFetchedAt: Date.now(), signal: deps.signal });
+ 	return status;
+ }
++
++type UsageResult = { usage?: UsageSnapshot; status?: ProviderStatus };
++const usageInFlight = new WeakMap<Dependencies, Map<string, Promise<UsageResult>>>();
+ 
+ export async function fetchUsageForProvider(
+ 	deps: Dependencies,
+@@ -125,7 +128,7 @@
+ 	const cachedStatus = cachedEntry?.status;
+ 	const minIntervalMs = getMinRefreshIntervalMs(settings);
+ 	if (cachedEntry?.usage && isWithinMinInterval(cachedEntry.fetchedAt, minIntervalMs)) {
+-		const usage = { ...cachedEntry.usage, status: cachedEntry.status } as UsageSnapshot;
++		const usage = { ...cachedEntry.usage, status: cachedEntry.status, lastSuccessAt: cachedEntry.fetchedAt };
+ 		return { usage, status: cachedEntry.status };
+ 	}
+ 	const providerInstance = createProvider(provider);
+@@ -140,12 +143,20 @@
+ 			if (shouldFetchStatus) {
+ 				status = await refreshStatusForProvider(deps, settings, provider, { force: options?.forceStatus ?? options?.force });
+ 			}
+-			const usage = cachedUsage.usage ? { ...cachedUsage.usage, status } : undefined;
++			const usage = cachedUsage.usage ? { ...cachedUsage.usage, status, lastSuccessAt: cachedUsage.fetchedAt } : undefined;
+ 			return { usage, status };
+ 		}
+ 	}
+ 
+-	return fetchWithCache(
++	let pending = usageInFlight.get(deps);
++	if (!pending) {
++		pending = new Map();
++		usageInFlight.set(deps, pending);
++	}
++	const key = `${provider}:${shouldFetchStatus}:${options?.force === true}`;
++	const existing = pending.get(key);
++	if (existing) return existing;
++	const request = fetchWithCache(
+ 		provider,
+ 		ttlMs,
+ 		async () => {
+@@ -161,8 +172,10 @@
+ 
+ 			return { usage, status, statusFetchedAt };
+ 		},
+-		options,
+-	);
++		{ ...options, signal: deps.signal },
++	).finally(() => pending.delete(key));
++	pending.set(key, request);
++	return request;
+ }
+ 
+ export async function getCachedUsageEntry(
+@@ -172,7 +185,7 @@
+ ): Promise<ProviderUsageEntry | undefined> {
+ 	const ttlMs = getCacheTtlMs(settings);
+ 	const cachedEntry = await getCachedData(provider, ttlMs, cacheSnapshot);
+-	const usage = cachedEntry?.usage ? { ...cachedEntry.usage, status: cachedEntry.status } : undefined;
++	const usage = cachedEntry?.usage ? { ...cachedEntry.usage, status: cachedEntry.status, lastSuccessAt: cachedEntry.fetchedAt } : undefined;
+ 	if (!usage || (usage.error && isExpectedMissingData(usage.error))) {
+ 		return undefined;
+ 	}

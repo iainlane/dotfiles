@@ -1,4 +1,11 @@
-import { cpSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -31,8 +38,38 @@ for (const [name, dependency] of [
       : (process.env.PI_FOOTER_TODO_PATCH ??
         resolve(root, "../../../../../pkgs/rpiv-todo/widget-visibility.patch"));
 
-  execFileSync("patch", ["--batch", "-p1", "-i", patch], {
-    cwd: target,
-    stdio: "inherit",
-  });
+  const patches =
+    name === "pi-sub-core"
+      ? [
+          patch,
+          process.env.PI_FOOTER_CORE_BACKGROUND_PATCH ??
+            resolve(
+              root,
+              "../../../../../pkgs/pi-sub-core/background-refresh.patch",
+            ),
+          process.env.PI_FOOTER_CORE_CREDENTIAL_PATCH ??
+            resolve(
+              root,
+              "../../../../../pkgs/pi-sub-core/credential-file.patch",
+            ),
+        ]
+      : [patch];
+  for (const source of patches) {
+    execFileSync("patch", ["--batch", "-p1", "-i", source], {
+      cwd: target,
+      stdio: "inherit",
+    });
+  }
+  if (name === "pi-sub-core") {
+    const path = join(target, "index.ts");
+    const source = readFileSync(path, "utf8");
+    const end = source.lastIndexOf("\n}");
+    if (end < 0) {
+      throw new Error("Cannot add the quota fixture's idle probe.");
+    }
+    writeFileSync(
+      path,
+      `${source.slice(0, end)}\n\tfixtureIdle.set(pi, () => scope.running ?? Promise.resolve());${source.slice(end)}\nexport const fixtureIdle = new WeakMap<ExtensionAPI, () => Promise<void>>();\n`,
+    );
+  }
 }

@@ -56,28 +56,10 @@
     ];
   };
 
-  # Anthropic's quota endpoint requires an OAuth token with user:profile;
-  # API keys cannot query it. Claude Code stores a token with that scope.
-  piWithQuotaToken = pkgs.writeShellApplication {
+  managedPi = pkgs.writeShellApplication {
     name = "pi";
-
-    runtimeInputs = [pkgs.jq pkgs.nodejs pkgs.gh];
-
+    runtimeInputs = [pkgs.nodejs pkgs.gh];
     text = ''
-      credentials="''${CLAUDE_CONFIG_DIR:-''${HOME}/.claude}/.credentials.json"
-
-      if [[ -z "''${ANTHROPIC_OAUTH_TOKEN:-}" && -r "''${credentials}" ]]; then
-        token="$(jq --raw-output '
-          .claudeAiOauth
-          | select((.scopes // []) | index("user:profile"))
-          | .accessToken // empty
-        ' "''${credentials}" 2>/dev/null || true)"
-
-        if [[ -n "''${token}" ]]; then
-          export ANTHROPIC_OAUTH_TOKEN="''${token}"
-        fi
-      fi
-
       exec ${lib.getExe wrappedPi} "$@"
     '';
   };
@@ -316,7 +298,7 @@ in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
 
   home = {
-    packages = [piWithQuotaToken];
+    packages = [managedPi];
 
     activation.piPlanModeSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
       $DRY_RUN_CMD ${lib.getExe configurePlanMode} ${planModeDefaults} "$HOME/.pi/agent/pi-plan-mode.json"
