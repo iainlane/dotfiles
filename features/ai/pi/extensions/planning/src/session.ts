@@ -66,11 +66,7 @@ export class PlanningSession {
       return;
     }
     this.active = previous.active;
-    if (
-      !this.active ||
-      this.store.exists() ||
-      previous.sourceSessionId === this.id
-    ) {
+    if (previous.sourceSessionId === this.id) {
       return;
     }
 
@@ -80,6 +76,17 @@ export class PlanningSession {
         this.store.write(source.read().content);
       }
     }
+
+    if (!this.active) {
+      this.record({
+        version: 1,
+        active: false,
+        sourceSessionId: this.id,
+      });
+      return;
+    }
+
+    this.setActive(true);
   }
 
   enter(): void {

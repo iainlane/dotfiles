@@ -1,6 +1,7 @@
 import { nodeFiles } from "../src/node-files.ts";
 import {
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -82,3 +83,21 @@ it("keeps session paths contained even when session IDs contain path syntax", ()
   ).toBe(true);
   expect(store.path.endsWith(".md")).toBe(true);
 });
+
+it.each(["missing", "file", "symlink", "directory"])(
+  "recognises only regular plan files (%s)",
+  (kind) => {
+    const { directory, store } = fixture();
+    if (kind === "file") {
+      store.write("# Plan");
+    }
+    if (kind === "symlink") {
+      symlinkSync(join(directory, "outside.md"), store.path);
+    }
+    if (kind === "directory") {
+      mkdirSync(store.path);
+    }
+
+    expect(store.exists()).toBe(kind === "file");
+  },
+);

@@ -1,0 +1,45 @@
+{
+  "name": "@dotfiles/pi-planning",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration"
+  },
+  "type": "module",
+  "private": true,
+  "files": [
+    "index.ts",
+    "child.ts",
+    "src"
+  ],
+  "dependencies": {
+    "unbash": "6.0.1"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@types/node": "24.19.2",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2004",
+    "pi-subagents": "0.80.0",
+    "typebox": "1.4.3",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  },
+  "peerDependenciesMeta": {
+    "typebox": {
+      "optional": true
+    },
+    "pi-subagents": {
+      "optional": true
+    }
+  },
+  "peerDependencies": {
+    "pi-subagents": "0.80.0",
+    "typebox": "1.4.3"
+  }
+}

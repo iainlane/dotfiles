@@ -59,7 +59,7 @@ export class PlanStore {
   }
 
   exists(): boolean {
-    return this.files.kind(this.path) !== "missing";
+    return this.files.kind(this.path) === "file";
   }
 
   write(content: string): PlanRevision {
