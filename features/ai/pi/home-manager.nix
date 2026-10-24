@@ -13,6 +13,7 @@
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
+      "pi-diff"
       "pi-prs"
       "pi-lens"
       "pi-live-models"
@@ -32,6 +33,7 @@
 
   # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
   sessionFooter = import ./session-footer-package.nix {inherit pkgs;};
+  planExplore = import ./plan-explore-package.nix {inherit pkgs;};
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -98,7 +100,7 @@
     doubleEscapeAction = "tree";
     treeFilterMode = "default";
     autocompleteMaxVisible = 8;
-    defaultTools = ["+codemode"];
+    defaultTools = ["+codemode" "+grep" "+find" "+ls"];
     codemode.mode = "on";
 
     compaction = {
@@ -191,9 +193,58 @@
     thinkingIndicator.enabled = false;
   };
 
-  piWebSearchConfig.fetch = {
-    answerProvider = "openai";
-    answerModel = modelCatalog.openai.sol;
+  piWebSearchConfig = {
+    toolActivation = "eager";
+    fetch = {
+      answerProvider = "openai";
+      answerModel = modelCatalog.openai.sol;
+    };
+  };
+
+  piPlanModeConfig.defaultPlanTools =
+    [
+      "read"
+      "bash"
+      "grep"
+      "find"
+      "ls"
+      "codemode"
+      "project_report"
+      "symbol_search"
+      "module_report"
+      "read_symbol"
+      "read_enclosing"
+      "effective_config"
+      "lens_diagnostics"
+      "ast_grep_search"
+      "ast_grep_outline"
+      "web_search"
+      "fetch_content"
+      "get_search_content"
+      "source_check"
+      "plan_explore"
+    ]
+    ++ lib.optionals (builtins.hasAttr "context7" config.dotfiles.ai.mcpServers) [
+      "mcp__context7__resolve_library_id"
+      "mcp__context7__query_docs"
+    ]
+    ++ lib.optionals (builtins.hasAttr "nixos" config.dotfiles.ai.mcpServers) [
+      "mcp__nixos__nix"
+      "mcp__nixos__nix_versions"
+    ]
+    ++ lib.optionals (builtins.hasAttr "exa" config.dotfiles.ai.mcpServers) [
+      "mcp__exa__web_search_exa"
+      "mcp__exa__web_fetch_exa"
+    ]
+    ++ lib.optionals (builtins.hasAttr "cloudflare-docs" config.dotfiles.ai.mcpServers) [
+      "mcp__cloudflare-docs__search_cloudflare_documentation"
+    ];
+
+  planModeDefaults = pkgs.writeText "pi-plan-mode-defaults.json" (toJson piPlanModeConfig);
+  configurePlanMode = pkgs.writeShellApplication {
+    name = "configure-pi-plan-mode";
+    runtimeInputs = [pkgs.coreutils pkgs.jq];
+    text = builtins.readFile ./plan-mode-settings.bash;
   };
 
   piSubagentsConfig = {
@@ -253,12 +304,19 @@
       })
     piExtensions;
 
-  localExtensionFiles.".pi/agent/extensions/session-footer".source = sessionFooter;
+  localExtensionFiles = {
+    ".pi/agent/extensions/session-footer".source = sessionFooter;
+    ".pi/agent/extensions/plan-explore".source = planExplore;
+  };
 in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
 
   home = {
     packages = [piWithQuotaToken];
+
+    activation.piPlanModeSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      $DRY_RUN_CMD ${lib.getExe configurePlanMode} ${planModeDefaults} "$HOME/.pi/agent/pi-plan-mode.json"
+    '';
 
     file =
       {
@@ -267,6 +325,7 @@ in {
         ".pi-lens/config.json".text = toJson {
           widget.visible = false;
           ui.compactLspStatus = true;
+          tools.lazy = false;
         };
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;

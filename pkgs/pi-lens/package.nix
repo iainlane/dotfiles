@@ -2,6 +2,7 @@
 {
   callPackage,
   jq,
+  nodejs,
   pkgsCross,
 }: let
   luaGrammar = pkgsCross.wasi32.tree-sitter-grammars.tree-sitter-lua;
@@ -23,6 +24,16 @@ in
 
     description = "Real-time code feedback for pi through LSP, linters, formatters, type checking and structural analysis";
   }).overrideAttrs (previous: {
+    nativeInstallCheckInputs = [nodejs];
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+      export HOME="$TMPDIR/home"
+      mkdir -p "$HOME"
+      node --experimental-strip-types ${./install-check.mts} "$out/${previous.passthru.packageRoot}"
+      runHook postInstallCheck
+    '';
+
     # pi-lens downloads Lua on demand into its package directory, which is
     # read-only in the Nix store. Its runtime hash check must use the Nix-built
     # grammar's hash, not the hash of the npm binary.
