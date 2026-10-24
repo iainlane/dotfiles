@@ -6,7 +6,10 @@
   cfg = config.dotfiles.claudeCode.teamclaude;
 in {
   systemd.user.services.teamclaude = {
-    Unit.Description = "TeamClaude proxy for Claude Code";
+    Unit = {
+      Description = "TeamClaude proxy for Claude Code";
+      After = ["sops-nix.service"];
+    };
 
     Service = {
       ExecStart = lib.getExe cfg.server;

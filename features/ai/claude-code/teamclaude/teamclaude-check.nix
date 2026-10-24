@@ -34,22 +34,10 @@
 in {
   teamclaude = assert lib.assertMsg (lib.getVersion claude == claudeCode.version)
   "The Claude Code launcher must keep Claude Code's version, which Home Manager reads";
-    pkgs.runCommandLocal "teamclaude-test" {
-      nativeBuildInputs = [
-        pkgs.bash
-        pkgs.coreutils
-        pkgs.diffutils
-        pkgs.jq
-        pkgs.nodejs
-      ];
-
-      # The test listens on a loopback port.
+    packages.provisionProgram.overrideAttrs {
+      pname = "teamclaude-check";
+      TEAMCLAUDE_TEST_CLAUDE = lib.getExe' claude "claude";
+      TEAMCLAUDE_TEST_SERVER = lib.getExe server;
       __darwinAllowLocalNetworking = true;
-    } ''
-      bash ${teamclaudeDir + "/packages.test.bash"} \
-        ${lib.getExe' claude "claude"} \
-        ${lib.getExe server}
-
-      touch "$out"
-    '';
+    };
 }
