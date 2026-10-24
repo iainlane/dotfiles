@@ -7,5 +7,5 @@
   omitOptional = false;
   description = "Terminal output for pi with syntax-highlighted file reads, coloured bash output and directory trees";
 }).overrideAttrs {
-  patches = [./native-theme.patch];
+  patches = [./native-theme.patch ./read-ranges.patch];
 }

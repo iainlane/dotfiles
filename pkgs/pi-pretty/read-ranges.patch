@@ -1,0 +1,74 @@
+diff --git a/src/tools/read.ts b/src/tools/read.ts
+index 7ed97e4..ee339c6 100644
+--- a/src/tools/read.ts
++++ b/src/tools/read.ts
+@@ -85,13 +85,33 @@ export function registerReadTool(
+ 				return result;
+ 			}
+ 
+-			const tc = normalizeLineEndings(getText(result));
++			const raw = getText(result);
++			const candidate = raw.match(
++				/\n\n(\[(?:Showing lines |\d+ more lines in file\.).*Use offset=\d+ to continue\.\])$/,
++			)?.[1];
++			const source = candidate ? raw.slice(0, -(candidate.length + 2)) : raw;
++			const offset = typeof p.offset === "number" ? p.offset : 1;
++			const truncation = result.details?.truncation;
++			const truncated =
++				typeof truncation === "object" &&
++				truncation !== null &&
++				"truncated" in truncation &&
++				truncation.truncated === true;
++			const limited =
++				typeof p.limit === "number" &&
++				p.limit >= 0 &&
++				(source === "" ? 0 : source.split("\n").length) === Math.trunc(p.limit) &&
++				candidate?.endsWith(`Use offset=${Math.max(1, Math.trunc(offset)) + Math.trunc(p.limit)} to continue.]`);
++			const notice = truncated || limited ? candidate : undefined;
++			const normalized = normalizeLineEndings(raw);
++			const content = notice ? normalized.slice(0, -(notice.length + 2)) : normalized;
+ 			result.details = {
+ 				_type: "readFile",
+ 				filePath: String(p.path ?? ""),
+-				content: tc,
+-				offset: typeof p.offset === "number" ? p.offset : 0,
+-				lineCount: tc ? tc.split("\n").length : 0,
++				content,
++				notice,
++				offset,
++				lineCount: content ? content.split("\n").length : 0,
+ 			} as ReadDetails;
+ 			return result;
+ 		}),
+@@ -167,15 +187,16 @@ export function registerReadTool(
+ 				}
+ 				const maxShow = lines.length;
+ 				const show = lines.slice(0, maxShow);
+-				const offset = d.offset || 0;
++				const offset = Math.max(0, (d.offset ?? 1) - 1);
+ 				const nw = Math.max(3, String(offset + total).length);
+ 				const gw = nw + 3;
+ 				// Default pad 1 keeps its historical budget; extra padding is subtracted so rows do not grow.
+ 				const cw = Math.max(1, tw - gw - Math.max(0, ind.length - 1));
+ 
+-				const header = skillName
++				const heading = skillName
+ 					? renderSkillHeader(skillName, true, theme)
+ 					: `${theme.fg("toolTitle", theme.bold("→ read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`;
++				const header = d.notice ? `${heading}\n${ind}${theme.fg("dim", d.notice)}` : heading;
+ 				const highlightRequest: ReadHighlightRequest = {
+ 					content: d.content,
+ 					filePath: d.filePath,
+diff --git a/src/types.ts b/src/types.ts
+index 50b02fc..bee72a9 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -64,7 +64,7 @@ export interface ComponentLike {
+ 
+ export type ReadDetails =
+ 	| { _type: "readImage"; filePath: string }
+-	| { _type: "readFile"; filePath: string; content: string; offset: number; lineCount: number };
++	| { _type: "readFile"; filePath: string; content: string; notice?: string; offset: number; lineCount: number };
+ 
+ export interface BashDetails extends Record<string, unknown> {
+ 	_type: "bashResult";

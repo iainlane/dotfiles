@@ -1,25 +1,8 @@
---- a/src/render.ts
-+++ b/src/render.ts
-@@ -7,6 +7,7 @@
- 
- import { basename, dirname } from "node:path";
- import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-+import { highlightCode } from "@earendil-works/pi-coding-agent";
- // Top-level value import so jiti's pi-tui alias applies (it only rewrites
- // static top-level import/require, not function-body require — see tui-text.ts).
- import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
-@@ -126,6 +127,8 @@
- 	if (!code) return [""];
- 	if (!language || code.length > MAX_HL_CHARS) return code.split("\n");
- 
-+	if (!process.env.PRETTY_THEME && !loadConfig().theme) return highlightCode(code, language);
-+
- 	const k = `${getTheme()}\0${language}\0${code}`;
- 	const hit = _cache.get(k);
- 	if (hit) return _touch(k, hit);
+diff --git a/src/config.ts b/src/config.ts
+index 5e1907b..4ab7cf6 100644
 --- a/src/config.ts
 +++ b/src/config.ts
-@@ -14,14 +14,14 @@
+@@ -15,14 +15,14 @@ export const TOOL_RESULT_INDENT = " ";
  
  export let RST = "\x1b[0m";
  
@@ -42,39 +25,107 @@
  
  const BG_DEFAULT = "\x1b[49m";
  export let BG_BASE = BG_DEFAULT;
-@@ -32,6 +32,7 @@
+@@ -33,6 +33,7 @@ export let BG_ERROR = BG_DEFAULT;
  // ---------------------------------------------------------------------------
  
  type BgThemeLike = {
-+	fg?: (key: string, text: string) => string;
++	getFgAnsi?: (key: string) => string;
  	getBgAnsi?: (key: string) => string;
  	bg?: (key: string, text: string) => string;
  };
-@@ -263,6 +264,16 @@
+@@ -280,6 +281,16 @@ function applyPrettyConfigBg(agentDir?: string): boolean {
  }
  
  export function resolveBaseBackground(theme: BgThemeLike | null | undefined): void {
-+	if (theme?.fg) {
-+		FG_LNUM = theme.fg("muted", "\0").split("\0")[0];
-+		FG_DIM = theme.fg("dim", "\0").split("\0")[0];
-+		FG_RULE = theme.fg("borderMuted", "\0").split("\0")[0];
-+		FG_GREEN = theme.fg("success", "\0").split("\0")[0];
-+		FG_RED = theme.fg("error", "\0").split("\0")[0];
-+		FG_YELLOW = theme.fg("warning", "\0").split("\0")[0];
-+		FG_BLUE = theme.fg("accent", "\0").split("\0")[0];
-+		FG_MUTED = theme.fg("muted", "\0").split("\0")[0];
++	if (theme?.getFgAnsi) {
++		FG_LNUM = theme.getFgAnsi("muted");
++		FG_DIM = theme.getFgAnsi("dim");
++		FG_RULE = theme.getFgAnsi("borderMuted");
++		FG_GREEN = theme.getFgAnsi("success");
++		FG_RED = theme.getFgAnsi("error");
++		FG_YELLOW = theme.getFgAnsi("warning");
++		FG_BLUE = theme.getFgAnsi("accent");
++		FG_MUTED = theme.getFgAnsi("muted");
 +	}
  	const configDir = getConfigDir();
  	if (applyPrettyConfigBg(configDir)) return;
  	if (!theme?.getBgAnsi && !theme?.bg) return;
+diff --git a/src/render.ts b/src/render.ts
+index 3f28533..07ab29c 100644
+--- a/src/render.ts
++++ b/src/render.ts
+@@ -7,11 +7,12 @@
+ 
+ import { basename, dirname } from "node:path";
+ import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
++import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
+ // Top-level value import so jiti's pi-tui alias applies (it only rewrites
+ // static top-level import/require, not function-body require — see tui-text.ts).
+ import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
+ import { codeToANSI } from "@shikijs/cli";
+-import { type BundledLanguage, type BundledTheme, bundledThemes } from "shiki";
++import { type BundledTheme, bundledThemes } from "shiki";
+ import {
+ 	BG_BASE,
+ 	BG_ERROR,
+@@ -123,16 +124,25 @@ function _touch(k: string, v: string[]): string[] {
+ 	return v;
+ }
+ 
+-async function hlBlock(code: string, language: BundledLanguage | undefined): Promise<string[]> {
++async function hlBlock(code: string, filePath: string, theme?: Pick<ThemeLike, "appearance">): Promise<string[]> {
++	const language = detectLang(filePath);
+ 	if (!code) return [""];
+ 	if (!language || code.length > MAX_HL_CHARS) return code.split("\n");
+ 
+-	const k = `${getTheme()}\0${language}\0${code}`;
++	const hasOverride = Boolean(process.env.PRETTY_THEME || loadConfig().theme);
++	if (!hasOverride) {
++		const nativeLanguage = getLanguageFromPath(basename(filePath));
++		if (nativeLanguage) return highlightCode(code, nativeLanguage);
++	}
++	const syntaxTheme = hasOverride ? getTheme() : theme?.appearance === "light" ? "github-light" : DEFAULT_THEME;
++	const adjustContrast = hasOverride || theme?.appearance !== "light";
++	const k = `${syntaxTheme}\0${adjustContrast}\0${language}\0${code}`;
+ 	const hit = _cache.get(k);
+ 	if (hit) return _touch(k, hit);
+ 
+ 	try {
+-		const ansi = normalizeShikiContrast(await codeToANSI(code, language, getTheme()));
++		const highlighted = await codeToANSI(code, language, syntaxTheme);
++		const ansi = adjustContrast ? normalizeShikiContrast(highlighted) : highlighted;
+ 		const out = (ansi.endsWith("\n") ? ansi.slice(0, -1) : ansi).split("\n");
+ 		return _touch(k, out);
+ 	} catch {
+@@ -311,12 +321,12 @@ export async function renderFileContent(
+ 	offset = 0,
+ 	maxLines = MAX_PREVIEW_LINES,
+ 	width?: number,
++	theme?: Pick<ThemeLike, "appearance">,
+ ): Promise<string> {
+ 	const normalizedContent = normalizeLineEndings(content);
+ 	const lines = normalizedContent.split("\n");
+ 	const show = lines.slice(0, maxLines);
+-	const lg = detectLang(filePath);
+-	const hl = await hlBlock(show.join("\n"), lg);
++	const hl = await hlBlock(show.join("\n"), filePath, theme);
+ 
+ 	const tw = width ?? termWidth();
+ 
+diff --git a/src/tools/read.ts b/src/tools/read.ts
+index 7ed97e4..e63adb9 100644
 --- a/src/tools/read.ts
 +++ b/src/tools/read.ts
-@@ -186,6 +186,20 @@
+@@ -182,6 +182,24 @@ export function registerReadTool(
  					offset,
  					maxLines: maxShow,
  					width: cw,
-+					themeKey: [
++					themeKey: `${theme.appearance ?? "dark"}${[
 +						"mdCodeBlock",
++						"muted",
++						"text",
++						"toolDiffAdded",
++						"toolDiffRemoved",
 +						"syntaxComment",
 +						"syntaxKeyword",
 +						"syntaxFunction",
@@ -86,11 +137,24 @@
 +						"syntaxPunctuation",
 +					]
 +						.map((key) => theme.fg(key, key))
-+						.join(""),
++						.join("")}`,
  				};
  				const cachedHighlight = getCachedReadHighlight(ctx, highlightRequest);
  				if (cachedHighlight !== undefined) {
-@@ -242,6 +256,7 @@
+@@ -207,9 +225,9 @@ export function registerReadTool(
+ 				const rendered = out.join("\n");
+ 				text.setText(fillToolBody(rendered, BG_BASE, undefined, ind));
+ 
+-				// Async syntax highlighting via Shiki. The component is reused across
+-				// expansion changes, so stale work must not restore an older view.
+-				renderContent(d.content, d.filePath, offset, maxShow, cw)
++				// The component is reused across expansion changes. Pending
++				// highlighting must not restore an older view.
++				renderContent(d.content, d.filePath, offset, maxShow, cw, theme)
+ 					.then((hl) => {
+ 						if (!isCurrentReadRender(ctx, renderToken)) return;
+ 						setCachedReadHighlight(ctx, highlightRequest, hl);
+@@ -240,6 +258,7 @@ const READ_RENDER_TOKEN = "__piPrettyReadRenderToken";
  const READ_HIGHLIGHT_CACHE = "__piPrettyReadHighlightCache";
  
  type ReadHighlightRequest = {
@@ -98,7 +162,7 @@
  	content: string;
  	filePath: string;
  	offset: number;
-@@ -272,6 +287,7 @@
+@@ -270,6 +289,7 @@ function getCachedReadHighlight(ctx: RenderCtxLike, request: ReadHighlightReques
  		cache.filePath !== request.filePath ||
  		cache.offset !== request.offset ||
  		cache.maxLines !== request.maxLines ||
@@ -106,82 +170,19 @@
  		cache.width !== request.width
  	) {
  		return undefined;
---- a/dist/render.js
-+++ b/dist/render.js
-@@ -5,6 +5,7 @@
-  * They are async only when Shiki syntax highlighting is involved.
-  */
- import { basename, dirname } from "node:path";
-+import { highlightCode } from "@earendil-works/pi-coding-agent";
- // Top-level value import so jiti's pi-tui alias applies (it only rewrites
- // static top-level import/require, not function-body require — see tui-text.ts).
- import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
-@@ -93,6 +94,8 @@
-         return [""];
-     if (!language || code.length > MAX_HL_CHARS)
-         return code.split("\n");
-+    if (!process.env.PRETTY_THEME && !loadConfig().theme) return highlightCode(code, language);
-+
-     const k = `${getTheme()}\0${language}\0${code}`;
-     const hit = _cache.get(k);
-     if (hit)
---- a/dist/config.js
-+++ b/dist/config.js
-@@ -9,14 +9,14 @@
- /** Left indent for rendered tool result lines (was two spaces; one matches tighter TUI layout). */
- export const TOOL_RESULT_INDENT = " ";
- export let RST = "\x1b[0m";
--export const FG_LNUM = "\x1b[38;2;100;100;100m";
--export const FG_DIM = "\x1b[38;2;80;80;80m";
--export const FG_RULE = "\x1b[38;2;50;50;50m";
--export const FG_GREEN = "\x1b[38;2;100;180;120m";
--export const FG_RED = "\x1b[38;2;200;100;100m";
--export const FG_YELLOW = "\x1b[38;2;220;180;80m";
--export const FG_BLUE = "\x1b[38;2;100;140;220m";
--export const FG_MUTED = "\x1b[38;2;139;148;158m";
-+export let FG_LNUM = "\x1b[38;2;100;100;100m";
-+export let FG_DIM = "\x1b[38;2;80;80;80m";
-+export let FG_RULE = "\x1b[38;2;50;50;50m";
-+export let FG_GREEN = "\x1b[38;2;100;180;120m";
-+export let FG_RED = "\x1b[38;2;200;100;100m";
-+export let FG_YELLOW = "\x1b[38;2;220;180;80m";
-+export let FG_BLUE = "\x1b[38;2;100;140;220m";
-+export let FG_MUTED = "\x1b[38;2;139;148;158m";
- const BG_DEFAULT = "\x1b[49m";
- export let BG_BASE = BG_DEFAULT;
- export let BG_ERROR = BG_DEFAULT;
-@@ -203,6 +203,16 @@
-     return true;
+diff --git a/src/types.ts b/src/types.ts
+index 50b02fc..22112f9 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -23,9 +23,11 @@ export type { ImageContent, TextContent };
+ // ---------------------------------------------------------------------------
+ 
+ export interface ThemeLike {
++	appearance?: "light" | "dark";
+ 	fg: (key: string, text: string) => string;
+ 	bold: (text: string) => string;
+ 	getBgAnsi?: (key: string) => string;
++	getFgAnsi?: (key: string) => string;
  }
- export function resolveBaseBackground(theme) {
-+    if (theme?.fg) {
-+        FG_LNUM = theme.fg("muted", "\0").split("\0")[0];
-+        FG_DIM = theme.fg("dim", "\0").split("\0")[0];
-+        FG_RULE = theme.fg("borderMuted", "\0").split("\0")[0];
-+        FG_GREEN = theme.fg("success", "\0").split("\0")[0];
-+        FG_RED = theme.fg("error", "\0").split("\0")[0];
-+        FG_YELLOW = theme.fg("warning", "\0").split("\0")[0];
-+        FG_BLUE = theme.fg("accent", "\0").split("\0")[0];
-+        FG_MUTED = theme.fg("muted", "\0").split("\0")[0];
-+    }
-     const configDir = getConfigDir();
-     if (applyPrettyConfigBg(configDir))
-         return;
---- a/dist/tools/read.js
-+++ b/dist/tools/read.js
-@@ -140,6 +140,7 @@
-                     offset,
-                     maxLines: maxShow,
-                     width: cw,
-+                    themeKey: ["mdCodeBlock", "syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable", "syntaxString", "syntaxNumber", "syntaxType", "syntaxOperator", "syntaxPunctuation"].map(key => theme.fg(key, key)).join(""),
-                 };
-                 const cachedHighlight = getCachedReadHighlight(ctx, highlightRequest);
-                 if (cachedHighlight !== undefined) {
-@@ -200,6 +201,7 @@
-         cache.filePath !== request.filePath ||
-         cache.offset !== request.offset ||
-         cache.maxLines !== request.maxLines ||
-+        cache.themeKey !== request.themeKey ||
-         cache.width !== request.width) {
-         return undefined;
-     }
+ 
+ export interface RenderCtxLike {
