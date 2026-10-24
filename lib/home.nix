@@ -57,6 +57,7 @@ in rec {
   # the host's system.
   mkHomeSpecialArgs = {
     hostConfig,
+    hostInventory,
     mcpByChannel,
     modelCatalog,
     pkgs,
@@ -68,7 +69,7 @@ in rec {
     };
   in
     {
-      inherit inputs hostConfig modelCatalog;
+      inherit inputs hostConfig hostInventory modelCatalog;
       inherit (hostConfig) system flakePath;
       mcp = mcpByChannel.${hostConfig.channel};
       defaultModels = modelCatalog.defaults;

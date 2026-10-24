@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.plymouth.nixos = ./nixos.nix;
+  dotfiles.features.desktop.plymouth.nixos = ./nixos.nix;
 }

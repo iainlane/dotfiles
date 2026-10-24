@@ -1,14 +1,14 @@
 {config, ...}: let
-  inherit (config.flake) features halls;
+  inherit (config.dotfiles) features halls;
 in {
-  flake.hosts.melton = {
+  dotfiles.hosts.melton = {
     hostname = "melton.local";
     os = "darwin";
     arch = "aarch64";
     motd = halls.melton;
     features = [
       features.agentsview
-      features.inference.provides.acceleration.provides.metal
+      features.inference.acceleration.metal
       features.base
       features.development
       features.desktop

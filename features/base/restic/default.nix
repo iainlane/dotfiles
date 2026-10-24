@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.restic.nixos = ./nixos.nix;
+  dotfiles.features.base.restic.nixos = ./nixos.nix;
 }

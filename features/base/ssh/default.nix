@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.ssh.homeManager = ./home-manager.nix;
+  dotfiles.features.base.ssh.homeManager = ./home-manager.nix;
 }

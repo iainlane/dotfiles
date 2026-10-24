@@ -4,8 +4,13 @@
 #
 # Accounts are added with `teamclaude login`. Claude Code still needs its own
 # login, and it uses that login directly while the proxy is not running.
-{featureResolver, ...}: {
-  flake.features.ai.provides.claude-code.provides.teamclaude = {
+{
+  config,
+  featureResolver,
+  ...
+}: {
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.ai.claude-code.teamclaude];
+  dotfiles.features.ai.claude-code.teamclaude = {
     checks = [./teamclaude-check.nix];
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])

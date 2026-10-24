@@ -6,7 +6,7 @@
   lib,
   ...
 }: let
-  vulkan = features.inference.provides.acceleration.provides.vulkan;
+  vulkan = features.inference.acceleration.vulkan;
 
   integratedGpuCases = [
     {
@@ -18,7 +18,7 @@
     {
       class = "nixos";
       os = "nixos";
-      feature = vulkan.provides.integrated;
+      feature = vulkan.integrated;
       expected.OLLAMA_IGPU_ENABLE = "1";
     }
     {
@@ -30,13 +30,13 @@
     {
       class = "homeManager";
       os = "generic-linux";
-      feature = vulkan.provides.integrated;
+      feature = vulkan.integrated;
       expected.OLLAMA_IGPU_ENABLE = "1";
     }
     {
       class = "homeManager";
       os = "nixos";
-      feature = vulkan.provides.integrated;
+      feature = vulkan.integrated;
       expected = {};
     }
   ];

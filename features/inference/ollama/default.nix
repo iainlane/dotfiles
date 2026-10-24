@@ -1,5 +1,10 @@
-{featureResolver, ...}: {
-  flake.features.inference.provides.ollama = {
+{
+  config,
+  featureResolver,
+  ...
+}: {
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.inference.ollama];
+  dotfiles.features.inference.ollama = {
     checks = ./checks.nix;
     includes = [
       (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager.nix;}])

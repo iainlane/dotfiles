@@ -19,6 +19,9 @@ in
     devShells = "Development shells exported by the feature.";
     legacyPackages = "Nested outputs exported by the feature.";
   }
+  // classesFor "data" {
+    inventory = "Host inventory declarations evaluated before runtime configuration.";
+  }
   // {
     system = {
       description = "Module for the host's primary configuration class.";

@@ -7,8 +7,8 @@ until those secrets exist.
 
 ## Provisioning integrations
 
-Select the required children from `features.hermes.provides` in the host's
-`features` list. Each integration's `secretsFile` option defaults to
+Select the required children from `features.hermes` in the host's `features`
+list. Each integration's `secretsFile` option defaults to
 `dotfiles.hermes.secretsFile` and refers to an encrypted YAML file in the
 `secrets` flake input.
 
@@ -42,7 +42,7 @@ Commit the generated public certificate to this repository separately.
 Add the inbox child to the host's `features` list:
 
 ```nix
-features.hermes.provides.inbox
+features.hermes.inbox
 ```
 
 Configure its required Matrix values on the host. `boardId` and `assignee`

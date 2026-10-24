@@ -2,7 +2,7 @@
 # the systems that it builds for, and the `/etc/nix/machines` lines that register
 # it as a remote builder.
 #
-# `flake/parts/nix.nix` writes CI's substituter and builder settings from
+# `flake/nix-policy/settings.nix` writes CI's substituter and builder settings from
 # these, and `features/nixbuild/` configures the hosts from them, so both read
 # them from here.
 {lib}: rec {

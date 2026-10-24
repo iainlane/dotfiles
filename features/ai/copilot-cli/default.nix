@@ -1,3 +1,3 @@
 {
-  flake.features.ai.provides.copilot-cli.homeManager = ./home-manager.nix;
+  dotfiles.features.ai.copilot-cli.homeManager = ./home-manager.nix;
 }

@@ -1,5 +1,5 @@
 {
-  flake.features.base.provides.catppuccin = {
+  dotfiles.features.base.catppuccin = {
     homeManager = ./home-manager.nix;
     nixos = ./nixos.nix;
   };

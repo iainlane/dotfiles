@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.base.provides.cli-tools = {
+  dotfiles.features.base.cli-tools = {
     includes = [
       (featureResolver.when featureResolver.isGenericLinux [{homeManager = ./home-manager-generic-linux.nix;}])
     ];

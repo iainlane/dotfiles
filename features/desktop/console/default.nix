@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.console.nixos = ./nixos.nix;
+  dotfiles.features.desktop.console.nixos = ./nixos.nix;
 }

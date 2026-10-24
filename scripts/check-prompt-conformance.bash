@@ -14,14 +14,14 @@ relevant_paths=(
 	flake.lock
 	flake.nix
 	.github/workflows/cupboard.yml
-	flake/parts/cupboard.nix
-	flake/parts/git-hooks.nix
-	flake/parts/pkgs.nix
+	flake/cupboard/targets.nix
+	flake/git-hooks/configuration.nix
+	flake/local-packages/outputs.nix
 	lib/package-outputs.nix
 	features/ai/default.nix
 	features/ai/prompt-conformance.nix
 	features/ai/agent-instructions.nix
-	features/ai/models.nix
+	features/ai/model-catalogue.nix
 	features/ai/claude-code/managed-settings-common.nix
 	features/ai/output-styles.nix
 	features/ai/instructions/

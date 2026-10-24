@@ -99,15 +99,19 @@ in rec {
     pkgs-stable,
     system,
     hosts,
-    outputFeatures,
-    outputExcludes,
+    flakeSystem,
     hostResults,
   }: let
     sharedContext = featureResolver.contextForSystem system;
     roots = featureResolver.resolveSelection {
       context = sharedContext;
-      features = outputFeatures;
-      excludes = outputExcludes;
+      features = [
+        {
+          name = "<flake-system>";
+          inherit (flakeSystem) includes;
+        }
+      ];
+      inherit (flakeSystem) excludes;
     };
     nativeHosts = lib.filterAttrs (_: host: host.system == system) hosts;
     selections = map (host: {

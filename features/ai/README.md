@@ -338,14 +338,14 @@ A rule can be lowered for a single repository: the CLI records the override
 together with a reason and keeps it out of the commit. The package's own
 documentation has the commands. Claude Code runs the tool from hooks in its
 managed settings; this repository lints its own text and commit messages through
-`flake/parts/git-hooks.nix`.
+`flake/git-hooks/configuration.nix`.
 
 [vale]: https://vale.sh/
 
 ## Adding a new tool
 
 1. Create `<tool>/` in this directory, with a `default.nix` registering
-   `flake.features.ai.provides.<tool>` and the class modules beside it
+   `dotfiles.features.ai.<tool>` and the class modules beside it
 2. Read the servers from `config.dotfiles.ai.mcpServers`
 3. Choose the integration method:
    - If the home-manager module accepts `mcpServers`, hand it the set
@@ -353,6 +353,6 @@ managed settings; this repository lints its own text and commit messages through
    - If it needs system-managed defaults, follow the `claude-code/` or `codex/`
      pattern
 4. Import the directory from `default.nix` and list the child in
-   `flake.features.ai.includes`
+   `dotfiles.features.ai.includes`
 
 [mcp]: https://modelcontextprotocol.io/

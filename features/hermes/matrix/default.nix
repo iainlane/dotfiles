@@ -1,5 +1,5 @@
 {
-  flake.features.hermes.provides.matrix.systemManager.imports = [
+  dotfiles.features.hermes.matrix.systemManager.imports = [
     ./options.nix
     ./system-manager.nix
   ];

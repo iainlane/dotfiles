@@ -13,8 +13,9 @@
 {config, ...}: {
   imports = [./teamclaude];
 
-  flake.features.ai.provides.claude-code = {
-    checks = [(import ./claude-managed-settings-merge-check.nix {inherit (config.flake) modelCatalog;}) ./claude-managed-settings-layout-check.nix];
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.ai.claude-code];
+  dotfiles.features.ai.claude-code = {
+    checks = [(import ./claude-managed-settings-merge-check.nix {inherit (config.dotfiles) modelCatalog;}) ./claude-managed-settings-layout-check.nix];
     homeManager = ./home-manager.nix;
     # The managed-settings modules are registered for each class, not under
     # `system`. system-manager declares `system.activationScripts` with a

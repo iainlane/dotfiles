@@ -6,12 +6,13 @@
 {inputs}: {
   mkSystemSpecialArgs = {
     hostConfig,
+    hostInventory,
     username,
     mcpByChannel,
     channel,
     modelCatalog,
   }: {
-    inherit inputs hostConfig username modelCatalog;
+    inherit inputs hostConfig hostInventory username modelCatalog;
     mcp = mcpByChannel.${hostConfig.channel};
     defaultModels = modelCatalog.defaults;
     pkgs-unstable = channel.unstable;

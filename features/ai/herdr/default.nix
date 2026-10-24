@@ -11,12 +11,13 @@
   featureResolver,
   ...
 }: let
-  harnesses = config.flake.features.ai.provides;
+  harnesses = config.dotfiles.features.ai;
 
   # Whether the host has the `ai` child for `harness`, such as `claude-code`.
   hasHarness = hostConfig: harness: featureResolver.hasFeature hostConfig harnesses.${harness};
 in {
-  flake.features.ai.provides.herdr = {
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.ai.herdr];
+  dotfiles.features.ai.herdr = {
     checks = [./herdr-check.nix];
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])

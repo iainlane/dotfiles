@@ -5,16 +5,16 @@
 }: let
   common = import ../../agentsview/common.nix {
     inherit lib;
-    inherit (config.flake) features;
+    inherit (config.dotfiles) features;
   };
   server = common.serverSettings {
-    inherit (config.flake) hosts;
-    inherit (config.flake.agentsviewServer) domain;
+    inherit (config.dotfiles) hosts;
+    inherit (config.dotfiles.agentsviewServer) domain;
   };
-  pusherFor = hostConfig: (common.pushers config.flake.hosts)."${hostConfig.name}-hermes";
+  pusherFor = hostConfig: (common.pushers config.dotfiles.hosts)."${hostConfig.name}-hermes";
 in {
-  flake.features.hermes.provides.agentsview = {
-    includes = [config.flake.features.hermes config.flake.features.agentsview];
+  dotfiles.features.hermes.agentsview = {
+    includes = [config.dotfiles.features.hermes config.dotfiles.features.agentsview];
     systemManager = [
       ./options.nix
       ({hostConfig, ...}: {

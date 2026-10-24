@@ -1,7 +1,7 @@
 {config, ...}: let
-  inherit (config.flake) features halls;
+  inherit (config.dotfiles) features halls;
 in {
-  flake.hosts.sherwood = {
+  dotfiles.hosts.sherwood = {
     os = "generic-linux";
     arch = "x86_64";
     motd = halls.sherwood;

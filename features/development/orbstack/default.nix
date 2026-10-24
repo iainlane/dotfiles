@@ -1,5 +1,5 @@
 {
-  flake.features.development.provides.orbstack = {
+  dotfiles.features.development.orbstack = {
     homeManager = ./home-manager.nix;
     darwin = ./darwin.nix;
   };

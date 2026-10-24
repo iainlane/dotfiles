@@ -3,8 +3,8 @@
   featureResolver,
   ...
 }: let
-  inherit (config.flake) features;
-  children = features.desktop.provides;
+  inherit (config.dotfiles) features;
+  children = features.desktop;
 in {
   imports = [
     ./chrome
@@ -26,11 +26,11 @@ in {
     ./zed-editor
   ];
 
-  flake.features.desktop = {
+  dotfiles.features.desktop = {
     includes =
       (with children; [
         features.ai
-        features.ai.provides.claude-desktop
+        features.ai.claude-desktop
         ghostty
         kitty
         voxtype

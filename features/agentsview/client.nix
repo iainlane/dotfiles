@@ -18,12 +18,12 @@
 }: let
   common = import ./common.nix {
     inherit lib;
-    inherit (config.flake) features;
+    inherit (config.dotfiles) features;
   };
 
   server = common.serverSettings {
-    inherit (config.flake) hosts;
-    inherit (config.flake.agentsviewServer) domain;
+    inherit (config.dotfiles) hosts;
+    inherit (config.dotfiles.agentsviewServer) domain;
   };
 
   # The parts that need the server's address are guarded on this. The assertion
@@ -241,11 +241,11 @@ in {
   checks = [./agentsview-secrets-check.nix];
   includes =
     [
-      (featureResolver.when config.flake.features.ai [
-        config.flake.features.agentsview.provides.skills
+      (featureResolver.when config.dotfiles.features.ai [
+        config.dotfiles.features.agentsview.skills
       ])
-      (featureResolver.when config.flake.features.inference.provides.acceleration [
-        config.flake.features.agentsview.provides.embeddings.provides.local
+      (featureResolver.when config.dotfiles.features.inference.acceleration [
+        config.dotfiles.features.agentsview.embeddings.local
       ])
     ]
     ++ [

@@ -6,11 +6,12 @@
 }: let
   promptOutputs = import ./prompt-conformance.nix {
     inherit inputs lib;
-    inherit (config.flake) modelCatalog;
+    inherit (config.dotfiles) modelCatalog;
   };
-  children = config.flake.features.ai.provides;
+  children = config.dotfiles.features.ai;
 in {
   imports = [
+    ./model-catalogue.nix
     ./antigravity-cli
     ./claude-code
     ./claude-desktop
@@ -24,7 +25,9 @@ in {
     ./pi
   ];
 
-  flake.features.ai = {
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.ai];
+
+  dotfiles.features.ai = {
     inherit (promptOutputs) apps checks;
     # One child per harness. `claude-desktop` and `cloudflare-mcp` are not
     # here: a feature or a host that wants them lists them.

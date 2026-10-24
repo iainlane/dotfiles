@@ -1,10 +1,13 @@
 {
   config,
   featureResolver,
+  inputs,
+  lib,
+  withSystem,
   ...
 }: let
-  inherit (config.flake) features;
-  children = features.hermes.provides;
+  inherit (config.dotfiles) features;
+  children = features.hermes;
 in {
   imports = [
     ./agents
@@ -22,44 +25,53 @@ in {
     ./webhook
   ];
 
-  flake.features.hermes = {
-    checks = ./managed-config-check.nix;
-    # Each platform adds its rendered secrets to `environmentFiles`, and
-    # `builders.nix` concatenates those files into the agent's `.env` in the
-    # order that they resolve here. Two platforms that define the same variable
-    # therefore depend on this order.
-    includes = [(featureResolver.when featureResolver.isGenericLinux [{checks = ./managed-config-host-check.nix;}])] ++ [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
-
-    systemManager = {
-      config,
-      inputs,
-      lib,
-      pkgs,
-      ...
-    }: {
-      imports = [
-        ./options.nix
-        ./core.nix
-        ./models.nix
-        ./terminal.nix
-        ./browser.nix
-        ./profile-picture.nix
-        ./secret-env.nix
-        ./context-engine.nix
+  dotfiles = {
+    flakeSystem.includes = [features.hermes];
+    features.hermes = {
+      checks = [
+        ./managed-config-check.nix
+        (import ./python-check.nix {
+          inherit inputs lib withSystem;
+          inherit (config) systems;
+        })
       ];
+      # Each platform adds its rendered secrets to `environmentFiles`, and
+      # `builders.nix` concatenates those files into the agent's `.env` in the
+      # order that they resolve here. Two platforms that define the same variable
+      # therefore depend on this order.
+      includes = [(featureResolver.when featureResolver.isGenericLinux [{checks = ./managed-config-host-check.nix;}])] ++ [features.containers] ++ (with children; [dashboard signal matrix homeassistant mcp backup soul agents embeddings]);
 
-      config = {
-        # The image builder, the container template and the state volume names.
-        # Several modules here build on them. Importing once and passing the
-        # result as a module argument means the image is constructed once per
-        # evaluation.
-        _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
+      systemManager = {
+        config,
+        inputs,
+        lib,
+        pkgs,
+        ...
+      }: {
+        imports = [
+          ./options.nix
+          ./core.nix
+          ./models.nix
+          ./terminal.nix
+          ./browser.nix
+          ./profile-picture.nix
+          ./secret-env.nix
+          ./context-engine.nix
+        ];
 
-        # Reserved for the agent, the dashboard and signal-cli, which share
-        # state volumes and so map their ids from one range to see the same
-        # owner on a file. The range starts above the window NixOS allocates
-        # subordinate ids from, so NixOS will not hand out ids inside it.
-        virtualisation.containers.idRanges.hermes.start = 1900644000;
+        config = {
+          # The image builder, the container template and the state volume names.
+          # Several modules here build on them. Importing once and passing the
+          # result as a module argument means the image is constructed once per
+          # evaluation.
+          _module.args.hermesBuilders = import ./builders.nix {inherit config inputs lib pkgs;};
+
+          # Reserved for the agent, the dashboard and signal-cli, which share
+          # state volumes and so map their ids from one range to see the same
+          # owner on a file. The range starts above the window NixOS allocates
+          # subordinate ids from, so NixOS will not hand out ids inside it.
+          virtualisation.containers.idRanges.hermes.start = 1900644000;
+        };
       };
     };
   };

@@ -1,7 +1,7 @@
 # Generators for the package update scripts. Each returns a runnable
 # derivation that refreshes a package's pinned version and hashes in the
 # working tree. Packages attach one as `passthru.updateScript`, and
-# `flake/parts/updaters.nix` surfaces them all as `update-<name>` apps.
+# `flake/updaters/outputs.nix` exports them as `update-<name>` apps.
 # Packages attach the test of an updater as `passthru.tests.updater`.
 {
   bash,

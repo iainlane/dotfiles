@@ -5,6 +5,7 @@
   withSystem,
   username,
   featureResolver,
+  hostInventories,
   ...
 }: hostConfig: let
   sops = import ../../lib/sops.nix {inherit inputs lib;};
@@ -12,7 +13,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
-  inherit (config.flake) modelCatalog;
+  inherit (config.dotfiles) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -28,6 +29,7 @@
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
         inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
+        hostInventory = hostInventories.${hostConfig.name};
       };
       mkSystemConfig = homeDefinition:
         inputs.nix-darwin.lib.darwinSystem {
@@ -37,7 +39,7 @@
             [
               sops.systemSopsModule
               ./system.nix
-              config.flake.nix.substitutersModule
+              config.dotfiles.nix.substitutersModule
               inputs.determinate.darwinModules.default
               inputs.sops-nix.darwinModules.sops
             ]
@@ -52,6 +54,7 @@
             ];
           specialArgs = mkSystemSpecialArgs {
             inherit hostConfig username mcpByChannel channel modelCatalog;
+            hostInventory = hostInventories.${hostConfig.name};
           };
         };
     }

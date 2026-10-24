@@ -3,7 +3,7 @@
 # the hosts that should reach it. The MCP server set is read at both the Home
 # Manager and the OS level, so the module is registered for every target.
 {
-  flake.features.ai.provides.cloudflare-mcp = {
+  dotfiles.features.ai.cloudflare-mcp = {
     homeManager = ./shared.nix;
     system = ./shared.nix;
   };

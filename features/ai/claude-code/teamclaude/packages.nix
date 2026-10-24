@@ -1,5 +1,5 @@
 # The programs that run Claude Code through TeamClaude. Their dependencies are
-# function arguments, so the check in `flake/parts/checks/teamclaude.nix` can
+# function arguments, so the check in `features/ai/claude-code/teamclaude/checks.nix` can
 # replace them with stand-ins.
 {
   callPackage,

@@ -5,6 +5,7 @@
   withSystem,
   username,
   featureResolver,
+  hostInventories,
   ...
 }: hostConfig: let
   sops = import ../../lib/sops.nix {inherit inputs lib;};
@@ -12,7 +13,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
-  inherit (config.flake) modelCatalog;
+  inherit (config.dotfiles) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -28,6 +29,7 @@
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
         inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
+        hostInventory = hostInventories.${hostConfig.name};
       };
       # `stateVersion` is `nullOr str` on the host record because only NixOS
       # reads it, and `system.stateVersion` is `str`. Refuse a NixOS host that
@@ -47,7 +49,7 @@
                 inputs.disko.nixosModules.disko
                 inputs.sops-nix.nixosModules.sops
                 inputs.lanzaboote.nixosModules.lanzaboote
-                config.flake.nix.substitutersModule
+                config.dotfiles.nix.substitutersModule
               ]
               ++ resolveFeatures {
                 class = "nixos";
@@ -60,6 +62,7 @@
               ];
             specialArgs = mkSystemSpecialArgs {
               inherit hostConfig username mcpByChannel channel modelCatalog;
+              hostInventory = hostInventories.${hostConfig.name};
             };
           };
     }

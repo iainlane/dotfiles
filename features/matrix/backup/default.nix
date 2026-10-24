@@ -1,5 +1,5 @@
 {
-  flake.features.matrix.provides.backup.systemManager.imports = [
+  dotfiles.features.matrix.backup.systemManager.imports = [
     ./options.nix
     ./system-manager.nix
   ];

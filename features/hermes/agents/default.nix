@@ -1,3 +1,3 @@
 {
-  flake.features.hermes.provides.agents.systemManager.imports = [./system-manager.nix];
+  dotfiles.features.hermes.agents.systemManager.imports = [./system-manager.nix];
 }

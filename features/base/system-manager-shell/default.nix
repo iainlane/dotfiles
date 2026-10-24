@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.system-manager-shell.systemManager = ./system-manager.nix;
+  dotfiles.features.base.system-manager-shell.systemManager = ./system-manager.nix;
 }

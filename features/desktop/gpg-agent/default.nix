@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.desktop.provides.gpg-agent = {
+  dotfiles.features.desktop.gpg-agent = {
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
       (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])

@@ -1,8 +1,4 @@
 # The Debian, Ubuntu and GNOME project directories.
-#
-# Shared output selection exports the shells for every system. The `home`
-# feature includes this child only on generic-linux hosts, so only those hosts
-# get the project directories.
 {lib, ...}: let
   inherit (import ../../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
   projects = let
@@ -65,7 +61,7 @@
     inherit mkShell projects;
   };
 in {
-  flake.features.home.provides.debian = {
+  dotfiles.features.home.debian = {
     inherit (projectShells) devShells legacyPackages;
     homeManager = [
       projectShells.homeManagerModule

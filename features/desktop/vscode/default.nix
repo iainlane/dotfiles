@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.vscode.homeManager = ./home-manager.nix;
+  dotfiles.features.desktop.vscode.homeManager = ./home-manager.nix;
 }

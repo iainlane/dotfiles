@@ -17,16 +17,16 @@
 }: let
   common = import ./common.nix {
     inherit lib;
-    inherit (config.flake) features;
+    inherit (config.dotfiles) features;
   };
 
-  allPushers = common.pushers config.flake.hosts;
+  allPushers = common.pushers config.dotfiles.hosts;
   ready = pusher:
     !pusher.optional
     || (pusher.hasCertificate && builtins.pathExists (inputs.secrets + "/${pusher.passwordFile}"));
   pushers = lib.filterAttrs (_: ready) allPushers;
 
-  serverDomain = config.flake.agentsviewServer.domain;
+  serverDomain = config.dotfiles.agentsviewServer.domain;
 
   withoutCertificate =
     lib.attrNames (lib.filterAttrs (_: pusher: !pusher.hasCertificate) pushers);
@@ -36,7 +36,7 @@
     (pusher: builtins.readFile pusher.certificatePath)
     (lib.attrValues (lib.filterAttrs (_: pusher: pusher.hasCertificate) pushers));
 in {
-  includes = [config.flake.features.containers config.flake.features.agentsview-server.provides.backup];
+  includes = [config.dotfiles.features.containers config.dotfiles.features.agentsview-server.backup];
 
   systemManager = {
     config,

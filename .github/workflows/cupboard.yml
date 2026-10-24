@@ -138,7 +138,7 @@ jobs:
             substituters = ${{ steps.cache-config.outputs.remoteSubstituters }},https://cupboard:${{ secrets.FALCON_CACHE_PASSWORD }}@cupboard.supply/t/laney/cache/falcon
             trusted-public-keys = ${{ steps.cache-config.outputs.remoteTrustedKeys }}
 
-      # The host-evaluation checks in `flake/parts/checks/host-evaluation.nix`
+      # The host-evaluation checks in `flake/host-assembly/checks/evaluation.nix`
       # force the toplevel derivation of every host configuration. Forcing the
       # derivation path of every check, on every system, therefore evaluates
       # every host without building any of them.

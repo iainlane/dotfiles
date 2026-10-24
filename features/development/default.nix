@@ -3,10 +3,11 @@
   config,
   lib,
   mkLanguageShell,
+  withSystem,
   ...
 }: let
   inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
-  children = config.flake.features.development.provides;
+  children = config.dotfiles.features.development;
 
   projects = {
     dev = {
@@ -51,12 +52,34 @@
   };
 in {
   imports = [
+    ./languages.nix
+    ./direnv-catalogue.nix
     ./debuginfod
     ./orbstack
   ];
 
-  flake.features.development = {
+  dotfiles.flakeSystem.includes = [
+    config.dotfiles.features.development
+    config.dotfiles.features.work
+    config.dotfiles.features.home.debian
+  ];
+
+  dotfiles.features.development = {
     inherit (projectShells) devShells legacyPackages;
+    packages = {system, ...}:
+      withSystem system ({
+        config,
+        pkgs,
+        ...
+      }: {
+        direnv-shells = pkgs.linkFarm "direnv-shells" (
+          lib.mapAttrsToList (name: drv: {
+            inherit name;
+            path = drv;
+          })
+          (lib.filterAttrs (name: _: lib.hasPrefix "direnvs-" name) config.devShells)
+        );
+      });
     includes =
       [children.debuginfod]
       ++ [

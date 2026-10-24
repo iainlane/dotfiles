@@ -7,7 +7,7 @@
 }: let
   inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
 
-  children = config.flake.features.work.provides;
+  children = config.dotfiles.features.work;
 
   projects = let
     defaults = {
@@ -69,10 +69,10 @@ in {
     ./kolide
   ];
 
-  flake.features.work = {
+  dotfiles.features.work = {
     inherit (projectShells) devShells legacyPackages;
     includes =
-      [config.flake.features.ai config.flake.features.git]
+      [config.dotfiles.features.ai config.dotfiles.features.git]
       ++ [
         (featureResolver.when featureResolver.isNixos (with children; [falcon kolide]))
       ];

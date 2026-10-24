@@ -1,7 +1,7 @@
 # Bump the locally packaged tools and the selected flake inputs, gathering
 # every bump from one run into a single pull request. Each updater is
 # `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
-# surfaced by `flake/parts/updaters.nix`.
+# exported by `flake/updaters/outputs.nix`.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
 # on its own; this workflow updates the `pkgs/` packages, release-tag inputs

@@ -26,24 +26,27 @@ to each module system that builds a host (NixOS, nix-darwin, system-manager and
 Home Manager), and it can include other features. A host lists its top-level
 features, and the resolver follows their includes.
 
-For a fuller walk through `host → features → OS adapter → outputs`, see
-[docs/architecture.md](docs/architecture.md).
+For host composition, inventory and output collection, see the [architecture].
+
+[architecture]: docs/architecture.md
 
 ### Features
 
 Every feature lives in one directory under `features/` and registers itself
-under `flake.features.<name>`. The directories are discovered automatically, and
-only a `<name>/default.nix` one level down is loaded.
+under `dotfiles.features.<name>`. Discovery loads each immediate child
+directory's `default.nix`.
 
-A feature is top-level when a host composes it in its own right. Everything else
-is a child of its parent feature, registered under that feature's `provides` and
-named `<parent>.<child>`, such as `base.zsh` or `desktop.gnome`. A child applies
-only when something lists it in `includes`, so a parent lists the children that
-always apply and puts the rest under the OS scopes. Anything can list a single
-child on its own: `hosts/bonington` takes
-`features.work.provides.claude-managed-settings` without the rest of `work`.
+Features configure concerns that hosts can select. Children use direct paths
+such as `features.base.zsh`. A child applies only when a host or another feature
+includes it. Bonington lists `features.work.claude-managed-settings` explicitly
+because `work` does not include that child.
 
-The twenty-one top-level features:
+Features can export independent checks through `checks` and select themselves in
+`dotfiles.flakeSystem.includes`. Framework modules under `flake/` own
+composition, host assembly, package discovery and other flake integration. Their
+checks and outputs use native flake-parts options beside their code.
+
+Host-facing features include:
 
 - `base`: Core cross-platform CLI tooling and shell/editor configuration.
   Children: `zsh`, `neovim`, `gh`, `ssh`, `starship`, `cli-tools`, `catppuccin`,
@@ -90,13 +93,13 @@ installs.
 
 Hosts represent machines. A host record defines OS/architecture, the host's
 features, and any configuration that applies to this host alone. Each file under
-`hosts/` is a flake-parts module that sets `flake.hosts.<name>`:
+`hosts/` is a flake-parts module that sets `dotfiles.hosts.<name>`:
 
 ```nix
 {config, ...}: let
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
 in {
-  flake.hosts.example = {
+  dotfiles.hosts.example = {
     hostname = "hostname.example.com";
     os = "generic-linux";
     arch = "x86_64";
@@ -154,7 +157,7 @@ The individual steps can also be run separately.
 Update flake inputs to their latest versions. Name inputs as arguments to update
 only those, for example `./just update-flake llm-agents`.
 
-An input pinned to a release tag in its URL, such as `hermes-agent`, does not
+An input pinned to a release tag in its URL, such as `codex-plugin-cc`, does not
 move this way. `update-pkgs` moves those.
 
 #### `./just update-pkgs`
@@ -167,7 +170,8 @@ moves the release tag in `flake.nix` and relocks that input.
 
 #### `./just update-system`
 
-Update both system and home configuration.
+Update the system configuration. NixOS and macOS also update the embedded home
+configuration. On generic Linux, run `update-home` separately.
 
 #### `./just update-home`
 
@@ -282,12 +286,12 @@ Create `hosts/HOSTNAME.nix` to add a new host:
 
 ```nix
 {config, ...}: {
-  flake.hosts.HOSTNAME = {
+  dotfiles.hosts.HOSTNAME = {
     hostname = "hostname.example.com";
     os = "darwin";  # or "generic-linux" (system-manager) or "nixos"
     arch = "aarch64";  # or "x86_64"
     motd = "Welcome to HOSTNAME";
-    features = [config.flake.features.base];
+    features = [config.dotfiles.features.base];
   };
 }
 ```

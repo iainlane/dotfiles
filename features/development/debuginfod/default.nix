@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.development.provides.debuginfod = {
+  dotfiles.features.development.debuginfod = {
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
     ];

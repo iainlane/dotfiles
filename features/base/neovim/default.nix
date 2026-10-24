@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.neovim.homeManager = ./home-manager.nix;
+  dotfiles.features.base.neovim.homeManager = ./home-manager.nix;
 }

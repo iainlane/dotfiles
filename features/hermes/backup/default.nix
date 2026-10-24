@@ -1,7 +1,12 @@
-{
-  flake.features.hermes.provides.backup.checks = [./hermes-inbox-backup-check.nix];
-  flake.features.hermes.provides.backup.systemManager.imports = [
-    ./options.nix
-    ./system-manager.nix
-  ];
+{config, ...}: {
+  dotfiles = {
+    flakeSystem.includes = [config.dotfiles.features.hermes.backup];
+    features.hermes.backup = {
+      checks = [./hermes-inbox-backup-check.nix];
+      systemManager.imports = [
+        ./options.nix
+        ./system-manager.nix
+      ];
+    };
+  };
 }

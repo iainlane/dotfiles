@@ -1,6 +1,6 @@
 # The programs that connect Herdr to the agents and to its plugins. Their
 # dependencies are function arguments, so the check in
-# `flake/parts/checks/herdr.nix` can replace them.
+# `features/ai/herdr/checks.nix` can replace them.
 {
   bash,
   coreutils,

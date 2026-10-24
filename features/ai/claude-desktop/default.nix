@@ -9,9 +9,9 @@
   featureResolver,
   ...
 }: {
-  flake.features.ai.provides.claude-desktop = {
+  dotfiles.features.ai.claude-desktop = {
     includes =
-      [config.flake.features.ai]
+      [config.dotfiles.features.ai]
       ++ [
         (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
         (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])

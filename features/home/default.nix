@@ -10,20 +10,20 @@
   featureResolver,
   ...
 }: let
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
   inherit (featureResolver) when;
-  children = features.home.provides;
+  children = features.home;
 in {
   imports = [
     ./debian
   ];
 
-  flake.features.home = {
+  dotfiles.features.home = {
     includes =
       [
         (when features.ai [
-          features.ai.provides.claude-code.provides.teamclaude
-          features.ai.provides.cloudflare-mcp
+          features.ai.claude-code.teamclaude
+          features.ai.cloudflare-mcp
         ])
         features.git
       ]

@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.git = {
+  dotfiles.features.git = {
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = [./home-manager-linux.nix ./gitsign.nix];}])
       (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])

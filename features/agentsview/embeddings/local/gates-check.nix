@@ -12,35 +12,35 @@
       enabled = false;
     }
     {
-      features = [features.agentsview features.inference.provides.acceleration.provides.vulkan];
+      features = [features.agentsview features.inference.acceleration.vulkan];
       enabled = true;
     }
     {
-      features = [features.agentsview features.inference.provides.acceleration.provides.vulkan.provides.integrated];
+      features = [features.agentsview features.inference.acceleration.vulkan.integrated];
       enabled = true;
     }
     {
-      features = [features.inference.provides.acceleration.provides.vulkan];
+      features = [features.inference.acceleration.vulkan];
       enabled = false;
     }
     {
-      features = [features.agentsview features.inference.provides.acceleration.provides.vulkan];
-      excludes = [features.agentsview.provides.embeddings.provides.local];
+      features = [features.agentsview features.inference.acceleration.vulkan];
+      excludes = [features.agentsview.embeddings.local];
       enabled = false;
     }
     {
-      features = [features.agentsview features.agentsview.provides.embeddings.provides.local];
+      features = [features.agentsview features.agentsview.embeddings.local];
       enabled = true;
     }
     {
-      features = [features.agentsview features.inference.provides.acceleration.provides.metal];
+      features = [features.agentsview features.inference.acceleration.metal];
       os = "darwin";
       enabled = true;
     }
     {
-      features = [features.agentsview features.inference.provides.acceleration.provides.metal];
+      features = [features.agentsview features.inference.acceleration.metal];
       os = "darwin";
-      excludes = [features.agentsview.provides.embeddings.provides.local];
+      excludes = [features.agentsview.embeddings.local];
       enabled = false;
     }
   ];
@@ -58,7 +58,7 @@
       };
     };
   in
-    lib.elem features.agentsview.provides.embeddings.provides.local.name names == test.enabled)
+    lib.elem features.agentsview.embeddings.local.name names == test.enabled)
   gateCases;
 in {
   embedding-feature-selection = assert gatePasses; pkgs.runCommandLocal "embedding-feature-selection" {} "touch $out";

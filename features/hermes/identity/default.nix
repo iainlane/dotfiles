@@ -1,6 +1,6 @@
 {config, ...}: {
-  flake.features.hermes.provides.identity = {
-    includes = [config.flake.features.hermes];
+  dotfiles.features.hermes.identity = {
+    includes = [config.dotfiles.features.hermes];
     systemManager.imports = [./options.nix ./system-manager.nix];
   };
 }

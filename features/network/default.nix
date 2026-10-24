@@ -8,7 +8,7 @@
 # The host's own address on the LAN is derived from that configuration, so a
 # service publishing a container port to it does not repeat the address.
 {
-  flake.features.network.systemManager.imports = [
+  dotfiles.features.network.systemManager.imports = [
     ./options.nix
     ./system-manager.nix
   ];

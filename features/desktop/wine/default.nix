@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.wine.darwin = ./darwin.nix;
+  dotfiles.features.desktop.wine.darwin = ./darwin.nix;
 }

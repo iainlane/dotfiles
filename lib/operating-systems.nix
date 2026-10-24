@@ -3,8 +3,8 @@
 # configuration appears under, the directory the user's home lives in, and the
 # second half of the host's Nix system string. To add an operating system, add
 # an entry here, an adapter under `os/`, the activation call in
-# `flake/parts/deploy.nix` and the derivation-path accessor in
-# `flake/parts/checks/host-evaluation.nix`.
+# `flake/deployment/outputs.nix` and the derivation-path accessor in
+# `flake/host-assembly/checks/evaluation.nix`.
 {
   nixos = {
     systemClass = "nixos";

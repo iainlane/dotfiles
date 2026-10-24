@@ -1,5 +1,5 @@
 {
-  flake.features.desktop.provides.gnome = {
+  dotfiles.features.desktop.gnome = {
     nixos = ./nixos.nix;
     homeManager = ./home-manager.nix;
   };

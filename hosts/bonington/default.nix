@@ -1,7 +1,7 @@
 {config, ...}: let
-  inherit (config.flake) features halls;
+  inherit (config.dotfiles) features halls;
 in {
-  flake.hosts.bonington = {
+  dotfiles.hosts.bonington = {
     os = "nixos";
     arch = "x86_64";
     channel = "stable";
@@ -16,9 +16,9 @@ in {
       features.cloud
       features.containers
       features.inference
-      features.inference.provides.acceleration.provides.vulkan.provides.integrated
+      features.inference.acceleration.vulkan.integrated
       features.work
-      features.work.provides.claude-managed-settings
+      features.work.claude-managed-settings
     ];
 
     systemModule = {

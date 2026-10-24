@@ -1,3 +1,3 @@
 {
-  flake.features.ai.provides.opencode.homeManager = ./home-manager.nix;
+  dotfiles.features.ai.opencode.homeManager = ./home-manager.nix;
 }

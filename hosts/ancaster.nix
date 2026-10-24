@@ -1,5 +1,5 @@
 {config, ...}: let
-  inherit (config.flake) features halls;
+  inherit (config.dotfiles) features halls;
 
   sharedToolsets = ["kanban" "context_engine"];
 
@@ -7,16 +7,16 @@
   iotVlan = "192.168.2.0/24";
   routedPrefix = "2001:8b0:df29::/48";
 in {
-  flake.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
+  dotfiles.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
 
-  flake.hosts.ancaster = {
+  dotfiles.hosts.ancaster = {
     os = "generic-linux";
     arch = "aarch64";
     motd = halls.ancaster;
     features = [
       features.adsb
       features.agentsview
-      features.agentsview.provides.embeddings
+      features.agentsview.embeddings
       features.agentsview-server
       features.base
       features.containers
@@ -24,10 +24,10 @@ in {
       features.larapaper
       features.matrix
       features.hermes
-      features.hermes.provides.agentsview
-      features.hermes.provides.identity
-      features.hermes.provides.inbox
-      features.hermes.provides.webhook
+      features.hermes.agentsview
+      features.hermes.identity
+      features.hermes.inbox
+      features.hermes.webhook
       features.network
       features.nixbuild
       features.unifi

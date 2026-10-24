@@ -1,5 +1,5 @@
 {
-  flake.features.desktop.provides.usbguard.nixos = [
+  dotfiles.features.desktop.usbguard.nixos = [
     ./options.nix
     ./nixos.nix
   ];

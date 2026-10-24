@@ -6,8 +6,8 @@
 # GitHub's own API. Which of those accounts a site serves is decided by the
 # proxy, from the identity Dex returns.
 {config, ...}: {
-  flake.features.dex = {
-    includes = [config.flake.features.containers];
+  dotfiles.features.dex = {
+    includes = [config.dotfiles.features.containers];
 
     systemManager = {
       config,

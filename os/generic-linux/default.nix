@@ -7,6 +7,7 @@
   overlays,
   nixpkgsConfig,
   featureResolver,
+  hostInventories,
   ...
 }: hostConfig: let
   sops = import ../../lib/sops.nix {inherit inputs lib;};
@@ -14,7 +15,7 @@
   inherit (featureResolver) resolveFeatures;
   inherit (import ../../lib/channels.nix {inherit inputs;}) channelFor;
   inherit (import ../../lib/system.nix {inherit inputs;}) mkSystemSpecialArgs;
-  inherit (config.flake) modelCatalog;
+  inherit (config.dotfiles) modelCatalog;
 
   result = withSystem hostConfig.system (
     {
@@ -30,6 +31,7 @@
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
         inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
+        hostInventory = hostInventories.${hostConfig.name};
       };
       mkSystemConfig = _:
         inputs.system-manager.lib.makeSystemConfig {
@@ -40,7 +42,7 @@
               sops.linuxSystemSopsModule
               ./system.nix
               inputs.sops-nix.nixosModules.sops
-              config.flake.nix.substitutersModule
+              config.dotfiles.nix.substitutersModule
             ]
             ++ resolveFeatures {
               class = "systemManager";
@@ -52,6 +54,7 @@
           specialArgs =
             mkSystemSpecialArgs {
               inherit hostConfig username mcpByChannel channel modelCatalog;
+              hostInventory = hostInventories.${hostConfig.name};
             }
             // {inherit nixpkgsConfig;};
         };

@@ -5,17 +5,17 @@
 # the same address becomes `APP_URL`. The SQLite database and the generated
 # images live in named volumes; the backup child uploads them to Cloudflare R2.
 {config, ...}: let
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
 in {
   imports = [./backup];
 
-  flake.features.larapaper = {
+  dotfiles.features.larapaper = {
     includes = [
       features.containers
       # The port defaults to the host's LAN address, which the network feature
       # derives.
       features.network
-      features.larapaper.provides.backup
+      features.larapaper.backup
     ];
 
     systemManager = {

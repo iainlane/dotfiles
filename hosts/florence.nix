@@ -1,7 +1,7 @@
 {config, ...}: let
-  inherit (config.flake) features halls;
+  inherit (config.dotfiles) features halls;
 in {
-  flake.hosts.florence = {
+  dotfiles.hosts.florence = {
     hostname = "florence.local";
     os = "generic-linux";
     arch = "x86_64";

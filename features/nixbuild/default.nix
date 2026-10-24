@@ -4,7 +4,7 @@
 #
 # `lib/nixbuild.nix` defines the constants both features and CI read.
 {config, ...}: {
-  flake.features = {
+  dotfiles.features = {
     nixbuild = {
       homeManager = ./home-manager.nix;
       system = ./system.nix;
@@ -14,7 +14,7 @@
     };
 
     nixbuild-builder = {
-      includes = [config.flake.features.nixbuild];
+      includes = [config.dotfiles.features.nixbuild];
 
       nixos = ./builder-nixos.nix;
       darwin = ./builder-darwin.nix;

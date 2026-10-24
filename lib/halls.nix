@@ -1,5 +1,5 @@
 # The message of the day for each University of Nottingham hall of residence a
-# host can be named after. `flake.halls` in flake/parts/hosts.nix publishes this
+# host can be named after. `dotfiles.halls` in flake/host-assembly/assembly.nix publishes this
 # table and a host record reads its own entry, so the keys are the host names,
 # which are the file names under `hosts/`.
 {

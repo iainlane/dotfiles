@@ -6,8 +6,8 @@
 {config, ...}: {
   imports = [./backup];
 
-  flake.features.matrix = {
-    includes = [config.flake.features.containers config.flake.features.matrix.provides.backup];
+  dotfiles.features.matrix = {
+    includes = [config.dotfiles.features.containers config.dotfiles.features.matrix.backup];
 
     systemManager = {
       config,

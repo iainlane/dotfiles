@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.scripts.homeManager = ./home-manager.nix;
+  dotfiles.features.base.scripts.homeManager = ./home-manager.nix;
 }

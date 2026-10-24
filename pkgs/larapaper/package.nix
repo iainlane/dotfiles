@@ -1,5 +1,7 @@
 {
   lib,
+  inputs,
+  pkgs,
   php84,
   fetchFromGitHub,
   applyPatches,
@@ -98,6 +100,11 @@ in
         extraRuntimeInputs = [gh python3 nix-update];
       };
       tests = {
+        php =
+          ((import ./php-check.nix {inherit inputs lib;}) {
+            inherit pkgs;
+            system = pkgs.stdenv.hostPlatform.system;
+          }).larapaper-php;
         source = src;
         updater = updaters.mkScriptUpdaterTest {
           pname = "larapaper";

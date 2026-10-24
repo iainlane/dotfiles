@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.macos-defaults.darwin = ./darwin.nix;
+  dotfiles.features.base.macos-defaults.darwin = ./darwin.nix;
 }

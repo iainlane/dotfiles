@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.starship.homeManager = ./home-manager.nix;
+  dotfiles.features.base.starship.homeManager = ./home-manager.nix;
 }

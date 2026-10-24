@@ -1,5 +1,5 @@
 {
-  flake.features.base.provides.sudo = {
+  dotfiles.features.base.sudo = {
     nixos = ./sudo-rules.nix;
     systemManager = ./sudo-rules.nix;
   };

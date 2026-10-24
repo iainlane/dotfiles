@@ -4,17 +4,17 @@
 # the OCI archive is unpacked out of that installer at build time and loaded
 # from the store.
 {config, ...}: let
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
 in {
   imports = [./backup];
 
-  flake.features.unifi = {
+  dotfiles.features.unifi = {
     includes = [
       features.containers
       # The controller's ports are published on the host's LAN address, which
       # the network feature derives.
       features.network
-      features.unifi.provides.backup
+      features.unifi.backup
     ];
 
     systemManager = {

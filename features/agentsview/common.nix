@@ -8,10 +8,10 @@
 # they push to, and which certificate each machine presents.
 #
 # Which machines push is read from the host records. Where they push to is
-# `flake.agentsviewServer.domain`, which the host with the server feature
+# `dotfiles.agentsviewServer.domain`, which the host with the server feature
 # sets beside its host record. To add a machine, give it the feature.
 #
-# `features` is `config.flake.features`. The predicates draw the three features
+# `features` is `config.dotfiles.features`. The predicates draw the three features
 # from that set, so a rename that misses one of them is an
 # evaluation error here. With bare names, a missing feature would simply not
 # match: a wrong client name stops every machine pushing, and a wrong work
@@ -25,7 +25,7 @@
   clientFeature = features.agentsview;
   serverFeature = features."agentsview-server";
   workFeature = features.work;
-  hermesArchiveFeature = features.hermes.provides.agentsview;
+  hermesArchiveFeature = features.hermes.agentsview;
 
   # A work machine keeps its archive locally and does not push.
   pushes = host: helpers.hasFeature host clientFeature && !helpers.hasFeature host workFeature;
@@ -56,7 +56,7 @@
   role = hostname: hostname;
 
   # The database's hostname and name, or null when no machine has the server
-  # feature. `domain` is `flake.agentsviewServer.domain`; a server whose host
+  # feature. `domain` is `dotfiles.agentsviewServer.domain`; a server whose host
   # has not set it is an error here, so a client never silently concludes that
   # there is no server.
   serverSettings = {
@@ -68,7 +68,7 @@
     if found == []
     then null
     else if domain == null
-    then throw "Host '${lib.head found}' has the ${serverFeature.name} feature but does not set flake.agentsviewServer.domain"
+    then throw "Host '${lib.head found}' has the ${serverFeature.name} feature but does not set dotfiles.agentsviewServer.domain"
     else {
       inherit domain database;
     };
@@ -220,8 +220,8 @@
     secretsFile = "agentsview-postgres/embeddings.yaml";
   };
 
-  embeddingsFeature = features.agentsview.provides.embeddings;
-  localEmbeddingsFeature = features.agentsview.provides.embeddings.provides.local;
+  embeddingsFeature = features.agentsview.embeddings;
+  localEmbeddingsFeature = features.agentsview.embeddings.local;
 
   # Whether a host builds or queries the semantic-search index: the
   # `agentsview.embeddings` child feature. A host lists it explicitly;

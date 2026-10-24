@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.homebrew.darwin = ./darwin.nix;
+  dotfiles.features.base.homebrew.darwin = ./darwin.nix;
 }

@@ -3,8 +3,8 @@
   featureResolver,
   ...
 }: let
-  inherit (config.flake) features;
-  children = features.base.provides;
+  inherit (config.dotfiles) features;
+  children = features.base;
 in {
   imports = [
     ./catppuccin
@@ -25,7 +25,7 @@ in {
     ./zsh
   ];
 
-  flake.features.base = {
+  dotfiles.features.base = {
     includes =
       (with children; [
         catppuccin

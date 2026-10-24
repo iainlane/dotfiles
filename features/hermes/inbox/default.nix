@@ -1,9 +1,9 @@
 {config, ...}: {
-  flake.features.hermes.provides.inbox = {
+  dotfiles.features.hermes.inbox = {
     includes = [
-      config.flake.features.hermes
-      config.flake.features.hermes.provides.webhook
-      config.flake.features.hermes.provides.matrix
+      config.dotfiles.features.hermes
+      config.dotfiles.features.hermes.webhook
+      config.dotfiles.features.hermes.matrix
     ];
     systemManager.imports = [./options.nix ./system-manager.nix];
   };

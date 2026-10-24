@@ -1,5 +1,5 @@
 {
-  flake.features.larapaper.provides.backup.systemManager.imports = [
+  dotfiles.features.larapaper.backup.systemManager.imports = [
     ./options.nix
     ./system-manager.nix
   ];

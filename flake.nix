@@ -129,7 +129,7 @@
     # the database became corrupt.
     #
     # When all three merge, restore the release tag and add hermes-lcm to
-    # `flakeInputs` in flake/parts/updaters.nix so it follows releases again.
+    # `flakeInputs` in flake/updaters/outputs.nix so it follows releases again.
     hermes-lcm = {
       url = "github:iainlane/hermes-lcm/e5abec7d903bc56a474b00f308f288fa5adfec8a";
       flake = false;
@@ -240,7 +240,7 @@
   outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
-        ./flake/parts
+        ./flake
       ];
 
       systems = [

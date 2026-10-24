@@ -1,3 +1,3 @@
 {
-  flake.features.cloud.homeManager = ./home-manager.nix;
+  dotfiles.features.cloud.homeManager = ./home-manager.nix;
 }

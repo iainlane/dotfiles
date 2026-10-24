@@ -1,3 +1,3 @@
 {
-  flake.features.base.provides.openssh.nixos = ./nixos.nix;
+  dotfiles.features.base.openssh.nixos = ./nixos.nix;
 }

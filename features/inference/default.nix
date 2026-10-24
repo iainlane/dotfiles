@@ -1,5 +1,5 @@
 {config, ...}: let
-  children = config.flake.features.inference.provides;
+  children = config.dotfiles.features.inference;
 in {
   imports = [
     ./acceleration
@@ -7,7 +7,7 @@ in {
     ./open-webui
   ];
 
-  flake.features.inference = {
+  dotfiles.features.inference = {
     includes = with children; [ollama open-webui];
 
     homeManager = ./home-manager.nix;

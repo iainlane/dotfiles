@@ -1,3 +1,3 @@
 {
-  flake.features.ai.provides.crush.homeManager = ./home-manager.nix;
+  dotfiles.features.ai.crush.homeManager = ./home-manager.nix;
 }

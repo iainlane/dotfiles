@@ -8,17 +8,18 @@
 }: let
   common = import ../../common.nix {
     inherit lib;
-    inherit (config.flake) features;
+    inherit (config.dotfiles) features;
   };
 
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
 in {
-  flake.features.agentsview.provides.embeddings.provides.local = {
+  dotfiles.flakeSystem.includes = [features.agentsview.embeddings.local];
+  dotfiles.features.agentsview.embeddings.local = {
     checks = [./probe-check.nix (import ./gates-check.nix {inherit features featureResolver;})];
     includes = [
       (featureResolver.when featureResolver.isLinux [{checks = import ./host-check.nix {inherit features;};}])
-      features.agentsview.provides.embeddings
-      features.inference.provides.ollama
+      features.agentsview.embeddings
+      features.inference.ollama
     ];
 
     homeManager = {

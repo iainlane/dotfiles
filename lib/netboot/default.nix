@@ -39,7 +39,7 @@
         [
           "${hostNixpkgs}/nixos/modules/installer/${profile}"
           ./netboot-installer.nix
-          config.flake.nix.substitutersModule
+          config.dotfiles.nix.substitutersModule
           {
             networking.hostName = "${hostname}-installer";
             system.stateVersion = stateVersion;

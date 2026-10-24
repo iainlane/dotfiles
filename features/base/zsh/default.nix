@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.base.provides.zsh = {
+  dotfiles.features.base.zsh = {
     checks = [./zsh-check.nix];
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])

@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.tailscale.nixos = ./nixos.nix;
+  dotfiles.features.desktop.tailscale.nixos = ./nixos.nix;
 }

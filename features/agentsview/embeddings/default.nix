@@ -11,7 +11,7 @@
 }: let
   common = import ../common.nix {
     inherit lib;
-    inherit (config.flake) features;
+    inherit (config.dotfiles) features;
   };
 
   envTemplate = "agentsview-embeddings.env";
@@ -138,7 +138,7 @@
 in {
   imports = [./local];
 
-  flake.features.agentsview.provides.embeddings = {
+  dotfiles.features.agentsview.embeddings = {
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = systemdModule;}])
       (featureResolver.when featureResolver.isDarwin [{homeManager = launchdModule;}])

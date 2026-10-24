@@ -1,3 +1,3 @@
 {
-  flake.features.desktop.provides.secure-boot.nixos = ./nixos.nix;
+  dotfiles.features.desktop.secure-boot.nixos = ./nixos.nix;
 }

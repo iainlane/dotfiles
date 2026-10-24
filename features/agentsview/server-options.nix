@@ -19,7 +19,7 @@ in {
         The domain the database answers to. It must resolve to this host
         directly. A CDN in between breaks it, because the traffic is not HTTP.
 
-        The feature sets this from `flake.agentsviewServer.domain`, which the
+        The feature sets this from `dotfiles.agentsviewServer.domain`, which the
         machines that push read too. If you change it, deploy them again.
       '';
     };

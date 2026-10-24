@@ -3,34 +3,33 @@
   featureResolver,
   ...
 }: let
-  inherit (config.flake) features;
+  inherit (config.dotfiles) features;
 in {
-  flake.features.inference.provides.acceleration = {
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.inference.acceleration];
+  dotfiles.features.inference.acceleration = {
     checks = import ./checks.nix {inherit features featureResolver;};
     homeManager.imports = [../ollama/home-manager-options.nix];
 
-    provides = {
-      metal.includes = [features.inference.provides.acceleration];
+    metal.includes = [features.inference.acceleration];
 
-      vulkan = {
-        includes = [features.inference.provides.acceleration];
+    vulkan = {
+      includes = [features.inference.acceleration];
 
-        nixos.hardware.graphics.enable = true;
+      nixos.hardware.graphics.enable = true;
 
-        provides.integrated = {
-          includes = [
-            features.inference.provides.acceleration.provides.vulkan
-            (featureResolver.when featureResolver.isGenericLinux [
-              {homeManager.services.ollama.environmentVariables.OLLAMA_IGPU_ENABLE = "1";}
-            ])
-          ];
+      integrated = {
+        includes = [
+          features.inference.acceleration.vulkan
+          (featureResolver.when featureResolver.isGenericLinux [
+            {homeManager.services.ollama.environmentVariables.OLLAMA_IGPU_ENABLE = "1";}
+          ])
+        ];
 
-          nixos.services.ollama.environmentVariables.OLLAMA_IGPU_ENABLE = "1";
-        };
+        nixos.services.ollama.environmentVariables.OLLAMA_IGPU_ENABLE = "1";
+      };
 
-        homeManager = {lib, ...}: {
-          dotfiles.inference.ollama.requireAcceleration = lib.mkDefault true;
-        };
+      homeManager = {lib, ...}: {
+        dotfiles.inference.ollama.requireAcceleration = lib.mkDefault true;
       };
     };
   };

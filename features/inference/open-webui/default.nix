@@ -1,3 +1,3 @@
 {
-  flake.features.inference.provides.open-webui.nixos = ./nixos.nix;
+  dotfiles.features.inference.open-webui.nixos = ./nixos.nix;
 }

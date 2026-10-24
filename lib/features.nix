@@ -33,7 +33,7 @@ in rec {
 
   featureType = lib.mkOptionType {
     name = "feature";
-    description = "feature from flake.features";
+    description = "feature from dotfiles.features";
     descriptionClass = "noun";
     check = value: lib.isAttrs value && value ? name && value ? includes;
     merge = lib.mergeEqualOption;

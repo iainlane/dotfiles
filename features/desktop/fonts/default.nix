@@ -1,5 +1,5 @@
 {featureResolver, ...}: {
-  flake.features.desktop.provides.fonts = {
+  dotfiles.features.desktop.fonts = {
     includes = [
       (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-packages.nix;}])
       (featureResolver.when featureResolver.isGenericLinux [{homeManager = ./home-manager-packages.nix;}])

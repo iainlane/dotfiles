@@ -1,8 +1,8 @@
 # The ADS-B feeder stack: an ultrafeeder decoding from the RTL-SDR, and one
 # container per aggregator relaying from it.
 {config, ...}: {
-  flake.features.adsb = {
-    includes = [config.flake.features.containers];
+  dotfiles.features.adsb = {
+    includes = [config.dotfiles.features.containers];
 
     systemManager = {
       config,

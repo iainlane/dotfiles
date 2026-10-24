@@ -7,7 +7,7 @@
   fakePackage = name: {
     drvPath = "/nix/store/00000000000000000000000000000000-${name}.drv";
   };
-  fixtureConfig.flake = {
+  fixtureConfig.dotfiles = {
     username = "tester";
     hosts = {
       test = {
@@ -19,6 +19,8 @@
         os = "darwin";
       };
     };
+  };
+  fixtureConfig.flake = {
     deploy.nodes = {
       test.profiles = {
         system.path = fakePackage "system-test";
@@ -62,12 +64,13 @@
       });
   };
   subject = config:
-    import ../flake/parts/cupboard.nix {
+    import ../flake/cupboard/targets.nix {
       inherit lib config;
       featureResolver = import ../lib/features.nix {inherit lib;};
     };
   complete = subject fixtureConfig;
   publicOnly = subject {
+    inherit (fixtureConfig) dotfiles;
     flake =
       fixtureConfig.flake
       // {
@@ -89,7 +92,7 @@
         type = "derivation";
         outputs = ["out"];
       };
-    config.flake = {
+    config.dotfiles = {
       username = "tester";
       hosts.fixture = {
         inherit system;
@@ -102,15 +105,19 @@
     };
     hostResults = throw "The host configuration was forced.";
     hostChecks =
-      (import ../flake/parts/checks/host-evaluation.nix {
-        inherit lib config hostResults;
-      }).perSystem {
+      (import ../flake/host-assembly/checks/evaluation.nix {
+        inherit lib hostResults;
+        hostMetadata = throw "Public scheduling forced host metadata.";
+        inherit (config.dotfiles) hosts username;
+      }) {
         inherit system;
         pkgs = {inherit runCommandLocal;};
       };
-    deployChecks = (import ../flake/parts/deploy.nix {
-      inherit inputs lib config hostResults;
-    }).perSystem {inherit system;};
+    deployChecks = (import ../flake/deployment/checks.nix {
+      inherit inputs lib;
+      hosts = config.dotfiles.hosts;
+      nodes = throw "The deploy nodes were forced.";
+    }) {inherit system;};
     managedChecks =
       import ../features/hermes/managed-config-host-check.nix {
         hostConfig.name = "fixture";
@@ -120,7 +127,7 @@
         pkgs = {inherit runCommandLocal;};
       };
   in
-    hostChecks.checks // deployChecks.checks // managedChecks;
+    hostChecks // deployChecks // managedChecks;
   lazyVm = lib.lazyDerivation {
     derivation = throw "The VM test derivation was forced.";
     passthru.config.requiredFeatures = {
@@ -134,6 +141,7 @@
     // lib.optionalAttrs (lib.hasSuffix "-linux" system) {vm-test = lazyVm;});
   lazyTargets =
     (subject {
+      inherit (fixtureConfig) dotfiles;
       flake =
         fixtureConfig.flake
         // {

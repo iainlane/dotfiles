@@ -6,12 +6,12 @@
 # in `exposePodman` has labels for its domain and for whether a visitor has to
 # sign in first. No individual service is configured here.
 {config, ...}: let
-  inherit (config.flake) features;
-  children = features.caddy.provides;
+  inherit (config.dotfiles) features;
+  children = features.caddy;
 in {
   imports = [./auth ./origin-auth];
 
-  flake.features.caddy = {
+  dotfiles.features.caddy = {
     includes = [features.containers] ++ (with children; [auth origin-auth]);
 
     systemManager = {
