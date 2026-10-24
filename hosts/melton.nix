@@ -19,7 +19,17 @@ in {
     ];
 
     homeModule = {
+      config,
+      inputs,
+      ...
+    }: {
+      sops.secrets.anthropic-api-key = {
+        sopsFile = inputs.secrets + "/melton/user-anthropic.yaml";
+        key = "anthropic_api_key";
+      };
+
       dotfiles = {
+        ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
         agentsview.disabledAgents = ["warp"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;

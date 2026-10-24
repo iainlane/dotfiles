@@ -29,7 +29,8 @@ in {
   dotfiles.flakeSystem.includes = [config.dotfiles.features.ai];
 
   dotfiles.features.ai = {
-    inherit (promptOutputs) apps checks;
+    inherit (promptOutputs) apps;
+    checks = [promptOutputs.checks ./credentials-check.nix];
     # One child per harness. `claude-desktop` and `cloudflare-mcp` are not
     # here: a feature or a host that wants them lists them.
     includes = with children; [
@@ -45,6 +46,7 @@ in {
     ];
 
     homeManager = [
+      ./provider-credentials.nix
       ./unstable-hm-modules.nix
       ./mcp.nix
       ./prose-lint.nix

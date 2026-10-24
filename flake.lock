@@ -1609,11 +1609,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1791540451,
-        "narHash": "sha256-4I1hXxCaYMOY+wdoagS59SYKGY4z9ObjcFPL+yMO11U=",
+        "lastModified": 1792831621,
+        "narHash": "sha256-1srmyUsVLKpubOhTe/Qaw+SBxphdt80/0o6/xowY1so=",
         "ref": "refs/heads/main",
-        "rev": "358ba24fbf75644fab508f160336e94cc76a0d0a",
-        "revCount": 69,
+        "rev": "6d95381713ea29c234de4eddab65f14252539ce2",
+        "revCount": 70,
         "type": "git",
         "url": "ssh://git@github.com/iainlane/dotfiles-secrets"
       },

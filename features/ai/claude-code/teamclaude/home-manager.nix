@@ -8,6 +8,8 @@
 
   packages = pkgs.callPackage ./packages.nix {};
 in {
+  imports = [./anthropic-api-key.nix];
+
   options.dotfiles.claudeCode.teamclaude = {
     configFile = lib.mkOption {
       type = lib.types.str;

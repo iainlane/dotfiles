@@ -130,7 +130,18 @@ exits with an error when its config lists no accounts, so the service runs the
 server only once the config lists an account. The service manager watches the
 config file, so the first `teamclaude login` starts the server.
 
-Declare settings and API-key accounts through Home Manager:
+Declare a shared Anthropic API-key file through Home Manager:
+
+```nix
+dotfiles.ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
+```
+
+The option defaults to `null`. When the TeamClaude child is selected, it uses
+this path for an API-key account called `anthropic`. Setting the option does not
+select TeamClaude. The path is available to other harness modules, and each
+harness decides how to use it. Secret files are read at runtime.
+
+Alternatively, declare TeamClaude-specific settings and accounts directly:
 
 ```nix
 dotfiles.claudeCode.teamclaude = {
