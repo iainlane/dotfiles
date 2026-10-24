@@ -109,6 +109,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
+    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
   in {
     config = lib.mkMerge [
       (lib.mkIf (!cfg.sync.enable) {
@@ -119,7 +120,7 @@
           };
 
           Service = {
-            ExecStart = "${pkgs.agentsview}/bin/agentsview serve --no-browser --port ${toString cfg.port}";
+            ExecStart = "${agentsview}/bin/agentsview serve --no-browser --port ${toString cfg.port}";
             Environment = ["AGENTSVIEW_DATA_DIR=${cfg.dataDir}"];
             Restart = "on-failure";
             RestartSec = 10;
@@ -143,7 +144,7 @@
             # This command updates the local archive and pushes the changes.
             # It then stays active and repeats the work after each new
             # session.
-            ExecStart = "${pkgs.agentsview}/bin/agentsview pg push --watch";
+            ExecStart = "${agentsview}/bin/agentsview pg push --watch";
             Environment =
               lib.mapAttrsToList (name: value: "${name}=${value}")
               (pushEnvironment cfg);
@@ -165,6 +166,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
+    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
     agentName =
       if cfg.sync.enable
       then "agentsview-push"
@@ -186,7 +188,7 @@
           enable = true;
           config = {
             ProgramArguments = [
-              "${pkgs.agentsview}/bin/agentsview"
+              "${agentsview}/bin/agentsview"
               "serve"
               "--no-browser"
               "--port"
@@ -207,7 +209,7 @@
           enable = true;
           config = {
             ProgramArguments = [
-              "${pkgs.agentsview}/bin/agentsview"
+              "${agentsview}/bin/agentsview"
               "pg"
               "push"
               "--watch"
@@ -259,6 +261,7 @@ in {
     ...
   }: let
     inherit (hostConfig) name;
+    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
 
     cfg = config.dotfiles.agentsview;
 
@@ -287,7 +290,7 @@ in {
         dotfiles.agentsview.vector = common.hasEmbeddings hostConfig;
       }
 
-      {home.packages = [pkgs.agentsview];}
+      {home.packages = [agentsview];}
 
       {
         assertions = [
