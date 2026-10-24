@@ -1,0 +1,101 @@
+diff --git a/src/git-diff.ts b/src/git-diff.ts
+index 8555b22..fc7ef9c 100644
+--- a/src/git-diff.ts
++++ b/src/git-diff.ts
+@@ -56,14 +56,13 @@ function parseChangedLines(stdout: string): LineRange[] {
+ 
+ function diffArgs(
+   options: SimplifyOptions,
+-  ref: string,
+   path: string,
+ ): string[] {
+   const args = ["diff", "--unified=0", "--no-ext-diff"];
+-  if (options.staged && ref !== "HEAD~1") {
++  if (options.staged) {
+     args.push("--cached");
+   } else {
+-    args.push(ref);
++    args.push(options.ref);
+   }
+   args.push("--", path);
+   return args;
+@@ -74,15 +73,15 @@ async function addChangedLines(
+   cwd: string,
+   options: SimplifyOptions,
+   files: readonly ChangedFile[],
+-  ref: string,
+ ): Promise<ChangedFile[]> {
+   return Promise.all(files.map(async (file) => {
+     if (file.status === "added") return file;
+ 
+-    const result = await pi.exec("git", diffArgs(options, ref, file.path), { cwd });
+-    return result.code === 0
+-      ? { ...file, changedLines: parseChangedLines(result.stdout) }
+-      : file;
++    const result = await pi.exec("git", diffArgs(options, file.path), { cwd });
++    if (result.code !== 0) {
++      throw new Error(`Cannot inspect the selected Git changes: ${result.stderr.trim() || "git diff failed"}`);
++    }
++    return { ...file, changedLines: parseChangedLines(result.stdout) };
+   }));
+ }
+ 
+@@ -93,7 +92,7 @@ export async function getChangedFiles(
+ ): Promise<ChangedFile[]> {
+   if (options.files.length > 0) {
+     const files = options.files.map((path) => ({ path, status: "modified" as const }));
+-    return addChangedLines(pi, cwd, options, files, options.ref);
++    return addChangedLines(pi, cwd, options, files);
+   }
+ 
+   const args = ["diff", "--name-status"];
+@@ -104,17 +103,10 @@ export async function getChangedFiles(
+   }
+ 
+   const result = await pi.exec("git", args, { cwd });
+-  if (result.code === 0) {
+-    const files = parseDiffOutput(result.stdout);
+-    if (files.length > 0) return addChangedLines(pi, cwd, options, files, options.ref);
+-  }
+-
+-  // Fallback: diff against previous commit
+-  const fallback = await pi.exec("git", ["diff", "--name-status", "HEAD~1"], { cwd });
+-  if (fallback.code === 0) {
+-    const files = parseDiffOutput(fallback.stdout);
+-    return addChangedLines(pi, cwd, options, files, "HEAD~1");
++  if (result.code !== 0) {
++    throw new Error(`Cannot inspect the selected Git changes: ${result.stderr.trim() || "git diff failed"}`);
+   }
+ 
+-  return [];
++  const files = parseDiffOutput(result.stdout);
++  return addChangedLines(pi, cwd, options, files);
+ }
+diff --git a/src/simplify-command.ts b/src/simplify-command.ts
+index 4adfc36..1e5269d 100644
+--- a/src/simplify-command.ts
++++ b/src/simplify-command.ts
+@@ -4,7 +4,7 @@ import type {
+ } from "@earendil-works/pi-coding-agent";
+ import { getChangedFiles } from "./git-diff.js";
+ import { buildSimplifyPrompt } from "./prompt-builder.js";
+-import type { SimplifyOptions } from "./types.js";
++import type { ChangedFile, SimplifyOptions } from "./types.js";
+ 
+ export const COMMAND_NAME = "simplify";
+ 
+@@ -33,7 +33,13 @@ export async function handleSimplifyCommand(
+   pi: ExtensionAPI,
+ ): Promise<void> {
+   const options = parseArgs(args);
+-  const files = await getChangedFiles(pi, ctx.cwd, options);
++  let files: ChangedFile[];
++  try {
++    files = await getChangedFiles(pi, ctx.cwd, options);
++  } catch (error) {
++    ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
++    return;
++  }
+ 
+   if (files.length === 0) {
+     ctx.ui.notify(
