@@ -197,6 +197,36 @@ skills: `skillTree` takes an `excludes` list of names, removes them after the
 merge, and fails the build for a name that matches nothing. Claude Code exposes
 this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
 
+## REA
+
+`rea/` is an optional child feature for [REA][rea], a reverse-engineering CLI
+and MCP server. Add `features.ai.rea` to a host's feature list to install the
+configured CLI, register the same command with the shared harnesses and add the
+bundled workflow to the shared skill tree. Nix manages these registrations;
+activation does not run `rea setup`.
+
+The configured command includes Wireshark tools and headless Chromium. Linux
+also includes GDB, Binwalk, Unblob and mitmproxy. Linux x64 includes pwntools
+with its Python dependencies and Wakaru, built from Rust source. Absolute tool
+paths and resource-limit helpers are configured in the wrapper. Every tool comes
+from the unstable package set, including on stable hosts. REA's existing
+platform restrictions remain in effect. Other analysis engines remain separate
+prerequisites; Hopper and IDA are not included.
+
+The local REA package builds a pinned source snapshot that preserves
+client-owned MCP policies during setup. External tool banners identify the
+installed versions; numeric release gates are removed, while platform, protocol,
+format and resource checks remain enabled. Dependency installation scripts are
+disabled, and Frida is omitted. REA and Wakaru have normal update commands,
+`./just update-pkg rea` and `./just update-pkg wakaru`.
+
+Package evaluation fails when nixpkgs provides REA 6.7.1 or newer. Verify setup
+policy preservation and the local integration before removing the package. REA
+currently uses Node 26 from the stable input. Evaluation also fails when the
+regular input provides Node 24.22.1 or newer, so the fallback can be removed.
+
+[rea]: https://github.com/morluto/rea
+
 ## Herdr
 
 `herdr/` installs [Herdr][herdr], a terminal workspace manager for coding

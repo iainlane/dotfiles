@@ -23,6 +23,7 @@ in {
     ./opencode
     ./opencode2
     ./pi
+    ./rea
   ];
 
   dotfiles.flakeSystem.includes = [config.dotfiles.features.ai];
