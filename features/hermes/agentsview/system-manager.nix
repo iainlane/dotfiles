@@ -13,7 +13,14 @@
   passwordPath = inputs.secrets + "/${identity.passwordFile}";
   keyPath = inputs.secrets + "/${cfg.agentsview.secretsFile}";
   keyPresent = (import ../../../lib/sops-keys.nix {inherit lib;}).hasKey keyPath common.privateKeySecret;
-  ready = server != null && identity.hasCertificate && builtins.pathExists passwordPath && keyPresent;
+  ready =
+    (import ../../agentsview/publisher-readiness.nix {
+      inherit (identity) optional;
+      inherit keyPresent;
+      serverPresent = server != null;
+      certificatePresent = identity.hasCertificate;
+      passwordPresent = builtins.pathExists passwordPath;
+    }).activate;
   passwordSecret = "hermes_agentsview_password";
   keySecret = "hermes_agentsview_client_key";
   environmentFile = "hermes-agentsview.env";

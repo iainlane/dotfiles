@@ -8,16 +8,16 @@
 }: let
   common = import ../../common.nix {
     inherit lib;
-    inherit (config.dotfiles) features;
   };
 
   inherit (config.dotfiles) features;
 in {
   dotfiles.flakeSystem.includes = [features.agentsview.embeddings.local];
   dotfiles.features.agentsview.embeddings.local = {
+    inventory = {lib, ...}: {agentsview.embeddings = lib.mkForce "local";};
     checks = [./probe-check.nix (import ./gates-check.nix {inherit features featureResolver;})];
     includes = [
-      (featureResolver.when featureResolver.isLinux [{checks = import ./host-check.nix {inherit features;};}])
+      (featureResolver.when featureResolver.isLinux [{checks = ./host-check.nix;}])
       features.agentsview.embeddings
       features.inference.ollama
     ];

@@ -4,7 +4,7 @@
 # declares its own options under this root, beside the presence option the rest
 # of the feature reads.
 {
-  hostConfig,
+  hostInventory,
   lib,
   options,
   pkgs,
@@ -17,7 +17,8 @@ in {
   options.dotfiles.hermes = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      default = "${hostConfig.name}/host-hermes.yaml";
+      readOnly = true;
+      default = hostInventory.hermes.secretsFile;
       description = ''
         Path, relative to the `secrets` flake input, of the sops file
         containing the agent's secrets. Each platform reads its own keys from

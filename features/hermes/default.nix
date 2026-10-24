@@ -26,6 +26,18 @@ in {
   ];
 
   dotfiles = {
+    inventorySchema = {
+      hostConfig,
+      lib,
+      ...
+    }: {
+      options.hermes.secretsFile = lib.mkOption {
+        type = lib.types.nonEmptyStr;
+        default = "${hostConfig.name}/host-hermes.yaml";
+        description = "File in the secrets repository containing Hermes credentials.";
+      };
+    };
+
     flakeSystem.includes = [features.hermes];
     features.hermes = {
       checks = [

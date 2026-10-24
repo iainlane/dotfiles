@@ -1,26 +1,25 @@
 {
   config,
+  agentsviewTopology,
   lib,
   ...
 }: let
-  common = import ../../agentsview/common.nix {
-    inherit lib;
-    inherit (config.dotfiles) features;
-  };
-  server = common.serverSettings {
-    inherit (config.dotfiles) hosts;
-    inherit (config.dotfiles.agentsviewServer) domain;
-  };
-  pusherFor = hostConfig: (common.pushers config.dotfiles.hosts)."${hostConfig.name}-hermes";
+  common = import ../../agentsview/common.nix {inherit lib;};
 in {
   dotfiles.features.hermes.agentsview = {
     includes = [config.dotfiles.features.hermes config.dotfiles.features.agentsview];
+    inventory = ./inventory.nix;
     systemManager = [
       ./options.nix
-      ({hostConfig, ...}: {
+      ({
+        hostConfig,
+        inputs,
+        ...
+      }: {
         _module.args.hermesAgentsview = {
-          inherit common server;
-          pusher = pusherFor hostConfig;
+          inherit common;
+          inherit (agentsviewTopology) server;
+          pusher = common.publisher inputs agentsviewTopology.hosts.${hostConfig.name}.publishers.hermes;
         };
       })
       ./system-manager.nix

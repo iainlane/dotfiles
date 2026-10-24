@@ -11,7 +11,7 @@
   # over it.
   socketDir = "/tmp";
 
-  superuser = "postgres";
+  superuser = (import ./common.nix {inherit (pkgs) lib;}).roles.superuser;
 
   # AgentsView stores the vectors for its semantic search in pgvector, and asks
   # for the extension on every push.

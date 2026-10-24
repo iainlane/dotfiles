@@ -146,6 +146,24 @@ feature selection.
 Runtime modules receive their host's inventory through `hostInventory`.
 Components can aggregate `hostInventories` into their own typed models.
 
+### AgentsView
+
+AgentsView declares ordinary archives, additional publishers and an optional
+server. Work contributes the ordinary archive's local-only policy. Hermes
+contributes its independently selected publisher. Shared identity and credential
+paths are configured in inventory and forwarded into runtime options.
+
+The normalised topology supplies client configuration, server roles and trust,
+embedding requirements and provisioning. Local-only archives need no server;
+shared publishers require one server. Multiple servers are rejected. A server
+does not need a local user archive.
+
+Provisioning includes desired identities before credentials exist. Optional
+server enrolment requires its certificate and password; watcher activation also
+requires its private-key entry. The generated provisioning app contains a plan
+of paths and identifiers. It does not contain credentials or evaluate runtime
+configurations. Certificate writes use an explicit editable checkout path.
+
 ## Output collection
 
 `dotfiles.flakeSystem.includes` selects shared components once per supported

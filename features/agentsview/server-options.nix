@@ -1,10 +1,8 @@
-# The options of the server that stores the shared archive.
-#
-# `common` is `common.nix`, applied by `server.nix`: this file is a
-# system-manager module, and the flake configuration `common.nix` needs is
-# not among a system module's arguments.
-{common}: {
-  hostConfig,
+# The options of the shared archive database and dashboard.
+{
+  common,
+  topology,
+}: {
   lib,
   options,
   ...
@@ -14,12 +12,14 @@ in {
   options.dotfiles.agentsviewServer = {
     domain = lib.mkOption {
       type = lib.types.str;
+      readOnly = true;
+      default = topology.server.domain;
       example = "pg.example.com";
       description = ''
         The domain the database answers to. It must resolve to this host
         directly. A CDN in between breaks it, because the traffic is not HTTP.
 
-        The feature sets this from `dotfiles.agentsviewServer.domain`, which the
+        The feature sets this from the host inventory, which the
         machines that push read too. If you change it, deploy them again.
       '';
     };
@@ -58,7 +58,8 @@ in {
 
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      default = "${hostConfig.name}/host-agentsview.yaml";
+      readOnly = true;
+      default = topology.server.secretsFile;
       description = ''
         The file in the secrets repository containing the secrets of this
         machine. It needs four keys:

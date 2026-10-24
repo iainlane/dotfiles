@@ -15,43 +15,13 @@
   featureResolver,
   inputs,
   lib,
+  topology,
 }: let
-  common = import ./common.nix {
-    inherit lib;
-    inherit (config.dotfiles) features;
-  };
-
-  server = common.serverSettings {
-    inherit (config.dotfiles) hosts;
-    inherit (config.dotfiles.agentsviewServer) domain;
-  };
-
-  # The parts that need the server's address are guarded on this. The assertion
-  # below reports a machine that pushes with no server to push to.
+  common = import ./common.nix {inherit lib;};
+  inherit (topology) server;
   haveServer = server != null;
 
   configTemplate = "agentsview-config.toml";
-
-  # The database answers on 443, the port that the web sites already use, and the
-  # proxy tells the two apart by the ALPN name in the TLS handshake. That name
-  # is present only if the driver opens the connection with TLS, which is what
-  # `sslnegotiation=direct` asks for. The default negotiates TLS through a
-  # Postgres startup message first, and the proxy would hand that connection to
-  # the web server.
-  dsn = {
-    hostname,
-    password,
-    certificate,
-    key,
-  }:
-    "postgres://${common.role hostname}:${password}@${server.domain}:443/${server.database}"
-    + "?sslmode=verify-full"
-    + "&sslnegotiation=direct"
-    # The proxy has a public certificate. The trust store of the machine
-    # already knows the issuer.
-    + "&sslrootcert=system"
-    + "&sslcert=${certificate}"
-    + "&sslkey=${key}";
 
   # AgentsView reads `config.toml` from its data directory. It contains the
   # auth token on every machine and the database password on a machine that
@@ -238,7 +208,19 @@
     ];
   };
 in {
-  checks = [./agentsview-secrets-check.nix];
+  inventory = {
+    hostConfig,
+    lib,
+    ...
+  }: {
+    agentsview.archive = {
+      enable = true;
+      publish = lib.mkDefault true;
+      secretsFile = lib.mkDefault "${hostConfig.name}/user-agentsview.yaml";
+    };
+  };
+  checks = [./agentsview-secrets-check.nix ./topology-check.nix];
+  apps = import ./provisioner.nix {inherit topology;};
   includes =
     [
       (featureResolver.when config.dotfiles.features.ai [
@@ -264,6 +246,9 @@ in {
     inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
 
     cfg = config.dotfiles.agentsview;
+    inventory = topology.hosts.${name};
+    identity = common.publisher inputs topology.publishers.${name};
+    passwordSecretName = "agentsview_password";
 
     syncing = cfg.sync.enable;
 
@@ -286,8 +271,8 @@ in {
 
     config = lib.mkMerge [
       {
-        dotfiles.agentsview.sync.enable = common.pushes hostConfig;
-        dotfiles.agentsview.vector = common.hasEmbeddings hostConfig;
+        dotfiles.agentsview.sync.enable = inventory.archive.publish;
+        dotfiles.agentsview.vector = inventory.embeddings != null;
       }
 
       {home.packages = [agentsview];}
@@ -296,7 +281,7 @@ in {
         assertions = [
           {
             assertion =
-              builtins.pathExists (inputs.secrets + "/${common.userSecretsFile name}");
+              builtins.pathExists (inputs.secrets + "/${inventory.archive.secretsFile}");
             message = ''
               ${name} keeps an archive of its agent sessions. AgentsView
               generates its auth token and cursor secret at the first start,
@@ -310,7 +295,7 @@ in {
 
               It writes them to:
 
-                ${common.userSecretsFile name}
+                ${inventory.archive.secretsFile}
                   ${common.authTokenSecret}: authenticates a caller to the
                     API of the dashboard.
                   ${common.cursorSecret}: signs the cursors of the
@@ -332,8 +317,8 @@ in {
           }
           {
             assertion =
-              builtins.pathExists (inputs.secrets + "/${common.passwordFile name}")
-              && common.hasCertificate name;
+              builtins.pathExists (inputs.secrets + "/${identity.passwordFile}")
+              && identity.hasCertificate;
             message = ''
               ${name} pushes its agent sessions, so it also needs a
               database role and a certificate. This command writes each one
@@ -345,10 +330,10 @@ in {
               `hosts/${name}/agentsview.pem`. Commit that file. It
               writes the rest to the secrets repository:
 
-                ${common.passwordFile name}
+                ${identity.passwordFile}
                   ${common.passwordSecret}: the password of the database
                     role.
-                ${common.userSecretsFile name}
+                ${inventory.archive.secretsFile}
                   ${common.privateKeySecret}: the key of the certificate.
             '';
           }
@@ -358,7 +343,7 @@ in {
       {
         sops = {
           secrets = let
-            userSecrets = inputs.secrets + "/${common.userSecretsFile name}";
+            userSecrets = inputs.secrets + "/${inventory.archive.secretsFile}";
           in {
             ${common.authTokenSecret}.sopsFile = userSecrets;
             ${common.cursorSecret}.sopsFile = userSecrets;
@@ -374,7 +359,7 @@ in {
               inherit codexSessionsDirs;
               inherit (cfg) disabledAgents vector;
               vectorBackend =
-                if common.hasLocalEmbeddings hostConfig
+                if inventory.embeddings == "local"
                 then "local"
                 else "openrouter";
 
@@ -384,10 +369,11 @@ in {
               url =
                 if syncing && haveServer
                 then
-                  dsn {
-                    hostname = name;
-                    password = config.sops.placeholder.${common.passwordSecretName};
-                    certificate = common.certificatePath name;
+                  common.dsn {
+                    inherit server;
+                    inherit (identity) machine;
+                    password = config.sops.placeholder.${passwordSecretName};
+                    certificate = identity.certificatePath;
                     key = config.sops.secrets.${common.privateKeySecret}.path;
                   }
                 else null;
@@ -398,13 +384,13 @@ in {
 
       (lib.mkIf (syncing && haveServer) {
         sops.secrets = {
-          ${common.passwordSecretName} = {
-            sopsFile = inputs.secrets + "/${common.passwordFile name}";
+          ${passwordSecretName} = {
+            sopsFile = inputs.secrets + "/${identity.passwordFile}";
             key = common.passwordSecret;
           };
 
           ${common.privateKeySecret} = {
-            sopsFile = inputs.secrets + "/${common.userSecretsFile name}";
+            sopsFile = inputs.secrets + "/${inventory.archive.secretsFile}";
             mode = "0400";
           };
         };

@@ -1,13 +1,13 @@
 {
-  config,
   lib,
+  hermesAgentsview,
   ...
 }: {
   options.dotfiles.hermes.agentsview = {
     secretsFile = lib.mkOption {
       type = lib.types.str;
-      default = config.dotfiles.hermes.secretsFile;
-      defaultText = lib.literalExpression "config.dotfiles.hermes.secretsFile";
+      readOnly = true;
+      default = hermesAgentsview.pusher.secretsFile;
       description = "Path, relative to the `secrets` input, of the sops file containing the AgentsView client key.";
     };
     interval = lib.mkOption {

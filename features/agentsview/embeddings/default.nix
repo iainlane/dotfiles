@@ -4,14 +4,13 @@
 # switches it to a local Ollama server instead.
 {
   featureResolver,
-  config,
+  agentsviewTopology,
   inputs,
   lib,
   ...
 }: let
   common = import ../common.nix {
     inherit lib;
-    inherit (config.dotfiles) features;
   };
 
   envTemplate = "agentsview-embeddings.env";
@@ -23,7 +22,7 @@
     lib,
     ...
   }: let
-    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
+    usesOpenRouter = agentsviewTopology.hosts.${hostConfig.name}.embeddings != "local";
   in {
     config.sops = lib.mkIf usesOpenRouter {
       secrets.${common.embeddings.apiKeySecretName} = {
@@ -49,7 +48,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
-    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
+    usesOpenRouter = agentsviewTopology.hosts.${hostConfig.name}.embeddings != "local";
     inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
     probe = lib.escapeShellArgs ([
         "${pkgs.python3}/bin/python3"
@@ -108,7 +107,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
-    usesOpenRouter = !common.hasLocalEmbeddings hostConfig;
+    usesOpenRouter = agentsviewTopology.hosts.${hostConfig.name}.embeddings != "local";
     inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
     logDir = "${config.home.homeDirectory}/Library/Logs";
 
@@ -139,6 +138,7 @@ in {
   imports = [./local];
 
   dotfiles.features.agentsview.embeddings = {
+    inventory = {lib, ...}: {agentsview.embeddings = lib.mkDefault "openrouter";};
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = systemdModule;}])
       (featureResolver.when featureResolver.isDarwin [{homeManager = launchdModule;}])

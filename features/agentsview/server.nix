@@ -14,19 +14,17 @@
   config,
   inputs,
   lib,
+  topology,
 }: let
-  common = import ./common.nix {
-    inherit lib;
-    inherit (config.dotfiles) features;
-  };
-
-  allPushers = common.pushers config.dotfiles.hosts;
+  common = import ./common.nix {inherit lib;};
+  allPushers = lib.mapAttrs (_: common.publisher inputs) topology.publishers;
   ready = pusher:
-    !pusher.optional
-    || (pusher.hasCertificate && builtins.pathExists (inputs.secrets + "/${pusher.passwordFile}"));
+    (import ./publisher-readiness.nix {
+      inherit (pusher) optional;
+      certificatePresent = pusher.hasCertificate;
+      passwordPresent = builtins.pathExists (inputs.secrets + "/${pusher.passwordFile}");
+    }).enrol;
   pushers = lib.filterAttrs (_: ready) allPushers;
-
-  serverDomain = config.dotfiles.agentsviewServer.domain;
 
   withoutCertificate =
     lib.attrNames (lib.filterAttrs (_: pusher: !pusher.hasCertificate) pushers);
@@ -36,6 +34,7 @@
     (pusher: builtins.readFile pusher.certificatePath)
     (lib.attrValues (lib.filterAttrs (_: pusher: pusher.hasCertificate) pushers));
 in {
+  inventory.agentsview.server.enable = true;
   includes = [config.dotfiles.features.containers config.dotfiles.features.agentsview-server.backup];
 
   systemManager = {
@@ -56,7 +55,7 @@ in {
     # Whether some publisher builds a semantic-search index for this
     # database, which decides whether the dashboard also needs a matching
     # `[vector]` configuration to embed search queries against it.
-    embeddingsEnabled = common.hasEmbeddings hostConfig;
+    embeddingsEnabled = topology.embeddings;
     embeddingsEnvTemplate = "agentsview-embeddings.env";
 
     proxy = config.dotfiles.containers.edgeProxy;
@@ -213,14 +212,14 @@ in {
     # One shared role owns every object the machines create, so each machine
     # can read what the others wrote and no grant has to specify an
     # individual machine.
-    group = "agentsview_push";
+    group = common.roles.group;
 
     rolesUnit = "${database.containerName}-roles";
 
     # The dashboard connects as a member of the shared role, as the machines
     # do. The superuser is what the health check and the roles unit connect
     # as; the roles unit creates the database, the extension and the roles.
-    dashboardRole = "agentsview_dashboard";
+    dashboardRole = common.roles.dashboard;
     dashboardSecret = "agentsview_dashboard_password";
 
     # Everything that connects over the network: one role for each machine
@@ -430,11 +429,9 @@ in {
       };
     };
   in {
-    imports = [(import ./server-options.nix {inherit common;})];
+    imports = [(import ./server-options.nix {inherit common topology;})];
 
     config = lib.mkMerge [
-      (lib.mkIf (serverDomain != null) {dotfiles.agentsviewServer.domain = serverDomain;})
-
       {
         assertions = [
           {

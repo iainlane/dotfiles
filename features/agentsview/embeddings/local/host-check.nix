@@ -1,4 +1,4 @@
-{features}: {
+{
   hostConfig,
   homeConfig,
 }: {
@@ -6,7 +6,7 @@
   lib,
   ...
 }: let
-  common = import ../../common.nix {inherit lib features;};
+  common = import ../../common.nix {inherit lib;};
 in {
   "host-evaluation-local-embeddings-${hostConfig.name}" =
     pkgs.runCommandLocal "local-embeddings" {

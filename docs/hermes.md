@@ -34,8 +34,18 @@ Run `just generate-agentsview-secrets <host>` to generate missing credentials
 for both the host and its Hermes identity. The wrapper commits and pushes the
 encrypted secrets repository. To inspect the changes in a local secrets checkout
 without publishing them, run
-`scripts/generate-agentsview-secrets.bash <host> <secrets-directory>` directly.
-Commit the generated public certificate to this repository separately.
+`nix run .#generate-agentsview-secrets -- --repo-root "$PWD" <host> <secrets-directory>`
+directly. Commit the generated public certificate to this repository separately.
+
+Shared Hermes credential paths are declared in the host's inventory:
+
+```nix
+inventoryModule.hermes.secretsFile = "example/host-hermes.yaml";
+```
+
+The runtime options receive these values from inventory. AgentsView identity and
+key-file overrides also belong in `inventoryModule`, so server enrolment,
+provisioning and the watcher use the same paths.
 
 ## AgentMail inbox
 

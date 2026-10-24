@@ -7,9 +7,8 @@
   iotVlan = "192.168.2.0/24";
   routedPrefix = "2001:8b0:df29::/48";
 in {
-  dotfiles.agentsviewServer.domain = "agentsdb.orangesquash.org.uk";
-
   dotfiles.hosts.ancaster = {
+    inventoryModule.agentsview.server.domain = "agentsdb.orangesquash.org.uk";
     os = "generic-linux";
     arch = "aarch64";
     motd = halls.ancaster;
