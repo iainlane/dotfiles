@@ -13,12 +13,12 @@
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
+      "pi-ask-user"
       "pi-diff"
       "pi-prs"
       "pi-lens"
       "pi-live-models"
       "pi-notify"
-      "pi-plan-mode"
       "pi-pretty"
       "pi-prompt-template-model"
       "pi-service-tier"
@@ -36,7 +36,10 @@
     inherit pkgs;
     pi = inputs.llm-agents.packages.${system}.pi;
   };
-  planExplore = import ./plan-explore-package.nix {inherit pkgs;};
+  planning = import ./planning-package.nix {
+    inherit pkgs;
+    pi = inputs.llm-agents.packages.${system}.pi;
+  };
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -53,6 +56,9 @@
       "--set"
       "PI_TELEMETRY"
       "0"
+      "--set"
+      "PI_LENS_DISABLE_TOOL_INSTALL"
+      "1"
     ];
   };
 
@@ -107,7 +113,7 @@
 
     # Stable symlinks keep store paths out of prompts. Home Manager retains
     # their targets in the active generation.
-    packages = lib.mapAttrsToList (name: _: "packages/${name}") piExtensions;
+    packages = lib.mapAttrsToList (name: _: {source = "packages/${name}";} // lib.optionalAttrs (name == "pi-ask-user") {skills = [];}) piExtensions;
 
     extensions = [];
     themes = ["themes/*.json"];
@@ -187,30 +193,8 @@
     };
   };
 
-  piPlanModeConfig.defaultPlanTools =
-    [
-      "read"
-      "bash"
-      "grep"
-      "find"
-      "ls"
-      "codemode"
-      "project_report"
-      "symbol_search"
-      "module_report"
-      "read_symbol"
-      "read_enclosing"
-      "effective_config"
-      "lens_diagnostics"
-      "ast_grep_search"
-      "ast_grep_outline"
-      "web_search"
-      "fetch_content"
-      "get_search_content"
-      "source_check"
-      "plan_explore"
-    ]
-    ++ lib.optionals (builtins.hasAttr "context7" config.dotfiles.ai.mcpServers) [
+  planningConfig.readOnlyTools =
+    lib.optionals (builtins.hasAttr "context7" config.dotfiles.ai.mcpServers) [
       "mcp__context7__resolve_library_id"
       "mcp__context7__query_docs"
     ]
@@ -223,15 +207,8 @@
       "mcp__exa__web_fetch_exa"
     ]
     ++ lib.optionals (builtins.hasAttr "cloudflare-docs" config.dotfiles.ai.mcpServers) [
-      "mcp__cloudflare-docs__search_cloudflare_documentation"
+      "mcp__cloudflare_docs__search_cloudflare_documentation"
     ];
-
-  planModeDefaults = pkgs.writeText "pi-plan-mode-defaults.json" (toJson piPlanModeConfig);
-  configurePlanMode = pkgs.writeShellApplication {
-    name = "configure-pi-plan-mode";
-    runtimeInputs = [pkgs.coreutils pkgs.jq];
-    text = builtins.readFile ./plan-mode-settings.bash;
-  };
 
   piSubagentsConfig = {
     asyncWidget = false;
@@ -292,7 +269,7 @@
 
   localExtensionFiles = {
     ".pi/agent/extensions/session-footer".source = "${sessionFooter}/${sessionFooter.packageRoot}";
-    ".pi/agent/extensions/plan-explore".source = planExplore;
+    ".pi/agent/extensions/planning".source = "${planning}/${planning.packageRoot}";
   };
 in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
@@ -301,18 +278,17 @@ in {
   home = {
     packages = [managedPi];
 
-    activation.piPlanModeSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      $DRY_RUN_CMD ${lib.getExe configurePlanMode} ${planModeDefaults} "$HOME/.pi/agent/pi-plan-mode.json"
-    '';
-
     file =
       {
         ".pi/agent/settings.json".text = toJson piSettings;
+        ".pi/agent/planning.json".text = toJson planningConfig;
+        ".pi/agent/ask-user.json".text = toJson {displayMode = "inline";};
         ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
         ".pi-lens/config.json".text = toJson {
           widget.visible = false;
           ui.compactLspStatus = true;
           tools.lazy = false;
+          lsp.serverOverrides.typescript.command = ["${pkgs.typescript-language-server}/bin/typescript-language-server" "--stdio"];
         };
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;

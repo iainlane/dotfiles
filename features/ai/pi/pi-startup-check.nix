@@ -5,24 +5,30 @@
   ...
 }: let
   inherit (pkgs) lib;
+  testSupport = import ./test-package.nix {inherit pkgs;};
+  testRoot = "${testSupport}/${testSupport.packageRoot}/dist";
   piArgs = {
-    inherit pkgs inputs system modelCatalog;
-    lib = lib.extend (self: _: {
-      hm.dag = import (inputs.home-manager + "/modules/lib/dag.nix") {lib = self;};
-    });
+    inherit pkgs inputs lib system modelCatalog;
     config = {
       catppuccin = {
         accent = "blue";
         flavor = "mocha";
       };
       dotfiles.ai = {
-        mcpServers = {};
+        mcpServers = lib.genAttrs ["context7" "cloudflare-docs" "nixos" "exa"] (server: {
+          command = "${pkgs.nodejs}/bin/node";
+          args = ["${testRoot}/mcp-fixture.js" server];
+        });
         proseLint.enable = true;
       };
     };
     defaultModels = modelCatalog.defaults;
     instructions.concatenated = "";
-    mcp.wrapWithTools = {package, ...}: package;
+    mcp = import ../mcp-servers.nix {
+      inherit pkgs inputs lib;
+      servers = {};
+      serverPackages = {};
+    };
   };
   piConfig = import ./home-manager.nix piArgs;
   promptConfig = import ./home-manager.nix (piArgs
@@ -92,37 +98,28 @@
     allHomeFiles);
   webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
   subagentsRoot = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
-  planModeRoot = "${pkgs.pi-plan-mode}/${pkgs.pi-plan-mode.packageRoot}";
   roleProbe = pkgs.writeText "pi-role-probe.ts" ''
     import assert from "node:assert/strict";
     import { writeFileSync } from "node:fs";
     import { discoverAgents } from "${subagentsRoot}/src/agents/agents.ts";
-    import { readPlanModeSettings } from "${planModeRoot}/src/settings.ts";
+    import { resolveCurrentSubagentCapabilityCeiling } from "${subagentsRoot}/src/api/capability-ceiling.ts";
+    import { resolvePiLaunchToolPlan } from "${subagentsRoot}/src/api/child-tool-plan.ts";
 
     export default function (pi) {
-      pi.on("session_start", async () => {
+      pi.registerCommand("dotfiles-integration-check", {handler: async (_args, ctx) => {
+        const ceiling = resolveCurrentSubagentCapabilityCeiling(ctx.sessionManager.getSessionId());
+        assert.deepStrictEqual(ceiling.allowedAgents, ["planning-explore", "planning-plan"]);
+        const launch = resolvePiLaunchToolPlan({agentName: "planning-explore", cwd: ctx.cwd, tools: ["read", "write", "bash"], capabilityCeiling: ceiling});
+        assert.deepStrictEqual(launch.effectiveToolAllowlist, ["read", "bash"]);
         const planningTools = [
-          "read", "bash", "grep", "find", "ls", "codemode", "plan_explore",
+          "read", "bash", "grep", "find", "ls", "codemode", "ask_user", "planning_research", "submit_plan", "enter_plan_mode",
           "ast_grep_search", "ast_grep_outline", "web_search", "fetch_content",
           "get_search_content", "source_check",
         ].sort();
         assert.deepStrictEqual(pi.getActiveTools().filter(name => planningTools.includes(name)).sort(), planningTools);
-        const loaded = await readPlanModeSettings();
-        assert.equal(loaded.kind, "loaded");
-        assert.deepStrictEqual(loaded.settings, {
-          thinkingLevel: "high",
-          defaultPlanTools: [
-            "read", "bash", "grep", "find", "ls", "codemode", "project_report",
-            "symbol_search", "module_report", "read_symbol", "read_enclosing",
-            "effective_config", "lens_diagnostics", "ast_grep_search", "ast_grep_outline",
-            "web_search", "fetch_content", "get_search_content", "source_check", "plan_explore",
-          ],
-        });
         assert.ok(pi.getCommands().some(command => command.name === "footer"));
         assert.ok(pi.getCommands().some(command => command.name === "pr"));
         assert.ok(pi.getCommands().some(command => command.name === "ultrafast"));
-        assert.ok(pi.getAllTools().some(tool => tool.name === "edit"));
-        assert.ok(pi.getAllTools().some(tool => tool.name === "write"));
         assert.ok(!pi.getAllTools().some(tool => tool.name === "apply_patch"));
         const roles = provider => discoverAgents(process.cwd(), "user", provider, { globalNpmRoot: null }).agents
           .filter(agent => ["reviewer", "researcher"].includes(agent.name))
@@ -146,8 +143,16 @@
         ];
         assert.deepStrictEqual(roles("openai-codex"), expected);
         assert.deepStrictEqual(roles("anthropic"), expected.map(role => ({ ...role, model: undefined })));
+        const expectedMcp = ["mcp__context7__resolve_library_id", "mcp__context7__query_docs", "mcp__cloudflare_docs__search_cloudflare_documentation", "mcp__nixos__nix", "mcp__nixos__nix_versions", "mcp__exa__web_search_exa", "mcp__exa__web_fetch_exa"].sort();
+        while (expectedMcp.some(name => !pi.getAllTools().some(tool => tool.name === name))) await new Promise(resolve => setTimeout(resolve, 25));
+        assert.deepStrictEqual(pi.getAllTools().map(tool => tool.name).filter(name => expectedMcp.includes(name)).sort(), expectedMcp);
+        for (const helper of ["typescript-language-server", "ffmpeg", "yt-dlp"]) {
+          const result = await pi.exec("${pkgs.bash}/bin/bash", ["-c", 'command -v "$1"', "fixture", helper]);
+          assert.equal(result.code, 0, result.stderr);
+          assert.match(result.stdout, /^\/nix\/store\//);
+        }
         writeFileSync("role-probe-ok", "");
-      });
+      }});
     }
   '';
   liveModelsProbe = pkgs.writeText "pi-live-models-probe.ts" ''
@@ -297,7 +302,7 @@
       };
     });
 in {
-  pi-startup = pkgs.runCommandLocal "pi-startup" {} ''
+  pi-startup = pkgs.runCommandLocal "pi-startup" {nativeBuildInputs = [pkgs.gitMinimal];} ''
     export HOME="$TMPDIR/home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     export PI_OFFLINE=1
@@ -342,50 +347,16 @@ in {
     export HOME="$TMPDIR/configured-home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     ${installHomeFiles}
-    export DRY_RUN_CMD=""
-    ${piConfig.home.activation.piPlanModeSettings.data}
-    test ! -L "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    cp "$PI_CODING_AGENT_DIR/pi-plan-mode.json" plan-defaults.json
-    printf '%s\n' '{"thinkingLevel":"high","futureSetting":true,"defaultPlanTools":[]}' >saved-plan-settings.json
-    ln -sf "$PWD/saved-plan-settings.json" "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    ${piConfig.home.activation.piPlanModeSettings.data}
-    test ! -L "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    ${pkgs.jq}/bin/jq --sort-keys '. + {thinkingLevel: "high", futureSetting: true}' plan-defaults.json >expected-plan-settings.json
-    ${pkgs.jq}/bin/jq --sort-keys . "$PI_CODING_AGENT_DIR/pi-plan-mode.json" >actual-plan-settings.json
-    diff -u expected-plan-settings.json actual-plan-settings.json
-    ${piConfig.home.activation.piPlanModeSettings.data}
-    ${pkgs.jq}/bin/jq --sort-keys . "$PI_CODING_AGENT_DIR/pi-plan-mode.json" >actual-plan-settings.json
-    diff -u expected-plan-settings.json actual-plan-settings.json
-    cp "$PI_CODING_AGENT_DIR/pi-plan-mode.json" valid-plan-settings.json
-    for invalid in '{invalid' '{} {}' '[]'; do
-      printf '%s\n' "$invalid" >"$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-      if ( ${piConfig.home.activation.piPlanModeSettings.data} ); then
-        echo 'Invalid plan settings must not be overwritten' >&2
-        exit 1
-      fi
-      printf '%s\n' "$invalid" >invalid-plan-settings.json
-      cmp invalid-plan-settings.json "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    done
-    rm "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    mkfifo "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    status=0
-    ${pkgs.coreutils}/bin/timeout 5 ${pkgs.bash}/bin/bash -c ${lib.escapeShellArg piConfig.home.activation.piPlanModeSettings.data} || status=$?
-    test "$status" -ne 0
-    test "$status" -ne 124
-    test -p "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    rm "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
-    cp valid-plan-settings.json "$PI_CODING_AGENT_DIR/pi-plan-mode.json"
     install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
     ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
       "$PI_CODING_AGENT_DIR/auth.json" >auth.json
     mv auth.json "$PI_CODING_AGENT_DIR/auth.json"
-    find -L "$PI_CODING_AGENT_DIR/packages" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
+    find -L "$PI_CODING_AGENT_DIR/packages" "$PI_CODING_AGENT_DIR/extensions" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
     if [[ -s host-provided-copies.txt ]]; then
       cat host-provided-copies.txt >&2
       exit 1
     fi
-    if ! printf '%s\n' '{"type":"get_state"}' | ${lib.getExe pi} \
-      --mode rpc --no-session --no-context-files -e ${roleProbe} -e ${liveModelsProbe} >responses.jsonl 2>errors.txt; then
+    if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-integration-check --plan -e ${roleProbe} -e ${liveModelsProbe} >responses.jsonl 2>errors.txt; then
       cat errors.txt responses.jsonl >&2
       exit 1
     fi
@@ -397,6 +368,15 @@ in {
       [.[] | select(.command == "get_state" and .id == "state") | .data.model | "\(.provider)/\(.id)"]
         == ["openai-codex/${modelCatalog.defaults.openai}"]
     ' responses.jsonl >/dev/null || { cat responses.jsonl >&2; exit 1; }
+
+    export PI_NOTIFY_ROOT=${pkgs.pi-notify}/${pkgs.pi-notify.packageRoot}
+    export PI_SIMPLIFY_ROOT=${pkgs.pi-simplify}/${pkgs.pi-simplify.packageRoot}
+    export PI_PRETTY_ROOT=${pkgs.pi-pretty}/${pkgs.pi-pretty.packageRoot}
+    ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-runtime-contracts --offline --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/runtime-contracts.js >contracts.jsonl 2>contracts-errors.txt
+    test -f runtime-contracts-ok || { cat contracts-errors.txt contracts.jsonl >&2; exit 1; }
+    test ! -s contracts-errors.txt || { cat contracts-errors.txt >&2; exit 1; }
+
+    ${pkgs.nodejs}/bin/node ${testRoot}/lsp-check.js ${pkgs.pi-lens}/${pkgs.pi-lens.packageRoot} "$HOME/.pi-lens/config.json"
 
     touch "$out"
   '';
