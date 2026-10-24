@@ -423,7 +423,7 @@ export function renderFooter(
   }
 
   for (const [key, value] of state.statuses) {
-    if (key === "plan-mode") {
+    if (key === "planning") {
       row2.push(createItem(paint(styles.activity, text(value)), 80));
     } else if (key === "pi-lens-lsp" && /Failed|✗/.test(value)) {
       row2.push(
@@ -483,7 +483,7 @@ export function renderFooter(
 
   const unknown = [...state.statuses].filter(
     ([key]) =>
-      !["plan-mode", "pi-lens-lsp", "pi-footer"].includes(key) &&
+      !["planning", "pi-lens-lsp", "pi-footer"].includes(key) &&
       key !== "session-footer",
   );
 
@@ -511,6 +511,24 @@ export function renderFooter(
       "",
       true,
     ),
+  );
+  if (
+    state.auxiliaryUsage.cost ||
+    state.auxiliaryUsage.input ||
+    state.auxiliaryUsage.output ||
+    state.auxiliaryUsage.cacheRead ||
+    state.auxiliaryUsage.cacheWrite
+  ) {
+    row2.push(
+      createItem(
+        paint(styles.detail, `aux $${state.auxiliaryUsage.cost.toFixed(2)}`),
+        2,
+        "",
+        true,
+      ),
+    );
+  }
+  row2.push(
     createItem(
       paint(styles.detail, duration(state.now - state.startedAt)),
       1,

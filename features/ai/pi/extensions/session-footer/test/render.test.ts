@@ -336,7 +336,7 @@ describe("semantic theme colours", () => {
       runs: [],
     };
     state.activity.tool = "read";
-    state.statuses = new Map([["plan-mode", "plan: implementation"]]);
+    state.statuses = new Map([["planning", "plan: implementation"]]);
     state.serviceTier = "⚡⚡";
 
     const bold = vi.fn<(value: string) => string>((value: string) => value);

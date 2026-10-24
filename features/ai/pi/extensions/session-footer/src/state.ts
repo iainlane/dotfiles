@@ -48,6 +48,7 @@ export interface FooterSnapshot {
   pr: PullRequestStateEvent | undefined;
   statuses: ReadonlyMap<string, string>;
   usage: UsageTotals;
+  auxiliaryUsage: UsageTotals;
   activity: Activity;
 }
 
@@ -73,6 +74,14 @@ export function createSnapshot(now: number, cwd: string): FooterSnapshot {
     pr: undefined,
     statuses: new Map(),
     usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+      latestHit: undefined,
+    },
+    auxiliaryUsage: {
       input: 0,
       output: 0,
       cacheRead: 0,

@@ -19,6 +19,8 @@
   PI_FOOTER_CORE_PATCH = ../../../pkgs/pi-sub-core/reading-metadata.patch;
   PI_FOOTER_CORE_BACKGROUND_PATCH = ../../../pkgs/pi-sub-core/background-refresh.patch;
   PI_FOOTER_CORE_CREDENTIAL_PATCH = ../../../pkgs/pi-sub-core/credential-file.patch;
+  PI_FOOTER_BTW_ISOLATION_PATCH = ../../../pkgs/rpiv-btw/session-isolation.patch;
+  PI_FOOTER_BTW_RUNTIME_PATCH = ../../../pkgs/rpiv-btw/public-runtime.patch;
   PI_FOOTER_TODO_PATCH = ../../../pkgs/rpiv-todo/widget-visibility.patch;
 
   checkPhase = ''

@@ -44,6 +44,8 @@ function entryUsage(
 
 export class UsageLedger {
   totals = empty();
+  auxiliary = empty();
+  private readonly auxiliaryIds = new Set<string>();
   private count = 0;
   private lastId: unknown;
 
@@ -55,10 +57,48 @@ export class UsageLedger {
       (this.count > 0 && (!record(previous) || previous.id !== this.lastId))
     ) {
       this.totals = empty();
+      this.auxiliary = empty();
+      this.auxiliaryIds.clear();
       this.count = 0;
     }
 
     for (const entry of entries.slice(this.count)) {
+      if (
+        record(entry) &&
+        entry.type === "custom" &&
+        entry.customType === "rpiv-btw:usage:v1" &&
+        record(entry.data)
+      ) {
+        const data = entry.data;
+        if (
+          data.version !== 1 ||
+          typeof data.id !== "string" ||
+          this.auxiliaryIds.has(data.id) ||
+          !record(data.usage)
+        ) {
+          continue;
+        }
+        const addition = usage(data.usage);
+        if (
+          [
+            addition.input,
+            addition.output,
+            addition.cacheRead,
+            addition.cacheWrite,
+            addition.cost,
+          ].some((value) => value < 0)
+        ) {
+          continue;
+        }
+        this.auxiliaryIds.add(data.id);
+        this.auxiliary.input += addition.input;
+        this.auxiliary.output += addition.output;
+        this.auxiliary.cacheRead += addition.cacheRead;
+        this.auxiliary.cacheWrite += addition.cacheWrite;
+        this.auxiliary.cost += addition.cost;
+        continue;
+      }
+
       const addition = entryUsage(entry);
 
       if (!addition) {

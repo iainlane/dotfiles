@@ -1,0 +1,595 @@
+--- a/btw.ts
++++ b/btw.ts
+@@ -7,9 +7,16 @@
+  * via globalThis-keyed storage; process-scoped only (no disk persistence).
+  */
+ 
++import { randomUUID } from "node:crypto";
+ import { readFileSync } from "node:fs";
+ import { fileURLToPath } from "node:url";
+-import type { AssistantMessage, Message, StopReason, UserMessage } from "@earendil-works/pi-ai";
++import {
++	type AssistantMessage,
++	isContextOverflow,
++	type Message,
++	type StopReason,
++	type UserMessage,
++} from "@earendil-works/pi-ai";
+ import {
+ 	buildContextEntries,
+ 	buildSessionContext,
+@@ -23,7 +30,6 @@
+ import { type CappedHistory, capHistory, type FitBranchResult, fitBranch } from "./btw-budget.ts";
+ import { assistantMessageText, type BtwTurn, userMessageText } from "./btw-messages.ts";
+ import { showBtwOverlay } from "./btw-ui.ts";
+-import { getRuntimeCompleteSimple, loadCompleteSimple, loadIsContextOverflow } from "./pi-compat.ts";
+ 
+ // ---------------------------------------------------------------------------
+ // Constants — flat named consts, grouped by concern (advisor pattern, b9428e9)
+@@ -49,7 +55,6 @@
+ 
+ // Errors (parameterized)
+ const errMisconfigured = (label: string, err: string) => `/btw model (${label}) is misconfigured: ${err}`;
+-const errNoApiKey = (label: string) => `/btw model (${label}) has no API key available.`;
+ const errCallFailed = (err: string | undefined) => `/btw call failed: ${err ?? "unknown error"}`;
+ const errCallThrew = (msg: string) => `/btw call threw: ${msg}`;
+ 
+@@ -285,7 +290,9 @@
+ 	question: string,
+ 	ctx: ExtensionContext,
+ 	controller: AbortController,
++	recordUsage: (response: AssistantMessage) => void = () => {},
+ ): Promise<BtwExecResult> {
++	if (controller.signal.aborted) return { kind: "aborted", stopReason: "aborted" };
+ 	const model = ctx.model;
+ 	if (!model) {
+ 		return { kind: "error", error: MSG_NO_MODEL };
+@@ -293,16 +300,9 @@
+ 	const modelLabel = `${model.provider}:${model.id}`;
+ 
+ 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
++	if (controller.signal.aborted) return { kind: "aborted", stopReason: "aborted" };
+ 	if (!auth.ok) {
+ 		return { kind: "error", error: errMisconfigured(modelLabel, auth.error) };
+-	}
+-	// OAuth-backed providers resolve `{ ok: true }` with no literal apiKey — their
+-	// credentials are applied inside Pi's runtime facade. A missing key is only
+-	// fatal on legacy hosts without that facade, where the global completion
+-	// fallback needs the key passed explicitly.
+-	const runtimeCompleteSimple = getRuntimeCompleteSimple(ctx.modelRegistry);
+-	if (!auth.apiKey && !runtimeCompleteSimple) {
+-		return { kind: "error", error: errNoApiKey(modelLabel) };
+ 	}
+ 
+ 	const userMessage: UserMessage = {
+@@ -310,51 +310,33 @@
+ 		content: [{ type: "text", text: question }],
+ 		timestamp: Date.now(),
+ 	};
+-	// `let` because the overflow retry reassigns `built` with a halved budget;
+-	// buildBtwMessages returns BtwBuiltContext { messages, systemPrompt,
+-	// droppedTurns, branchWasTrimmed, stubbed, keepBudget }.
+ 	let built = buildBtwMessages(ctx, userMessage);
+ 
+ 	try {
+-		// Prefer Pi's auth-aware runtime facade (resolved once above, before the
+-		// missing-key guard). Unlike the global compatibility function, it runs
+-		// request preparation and applies credential-derived fields — OAuth
+-		// tokens, GitHub Copilot's OAuth-specific baseUrl. Do not pass the
+-		// preflight key/headers to that path: explicit overrides would bypass
+-		// that resolution.
+-		const completeSimple = runtimeCompleteSimple ?? (await loadCompleteSimple());
+-		const requestOptions = runtimeCompleteSimple
+-			? { signal: controller.signal } // own AbortController, NOT ctx.signal (Decision 8)
+-			: { apiKey: auth.apiKey, headers: auth.headers, signal: controller.signal };
+-		const overflowFn = await loadIsContextOverflow();
+ 		let retried = false;
+-		const callCompleteSimple = async (
++		const requestCompletion = async (
+ 			built: BtwBuiltContext,
+ 		): Promise<{ kind: "aborted"; stopReason: StopReason } | { kind: "completed"; response: AssistantMessage }> => {
+-			const response = await completeSimple(
+-				model,
+-				{ systemPrompt: built.systemPrompt, messages: built.messages, tools: [] },
+-				requestOptions,
+-			);
+-			if (response.stopReason === "aborted") {
+-				return { kind: "aborted", stopReason: response.stopReason };
++			const response = await ctx.modelRegistry
++				.streamSimple(
++					model,
++					{ systemPrompt: built.systemPrompt, messages: built.messages, tools: [] },
++					{ signal: controller.signal },
++				)
++				.result();
++			recordUsage(response);
++			if (controller.signal.aborted || response.stopReason === "aborted") {
++				return { kind: "aborted", stopReason: "aborted" };
+ 			}
+ 			return { kind: "completed", response };
+ 		};
+-		let outcome = await callCompleteSimple(built);
++		let outcome = await requestCompletion(built);
+ 		if (outcome.kind === "aborted") return outcome;
+ 		let response = outcome.response;
+-		// Overflow gate — exactly one retry. On the first response the host flags
+-		// as context overflow (any stopReason), rebuild the branch context with a
+-		// halved keepBudget and re-call once. A flag bounds it to one retry; the
+-		// recall's throw and the loader's rethrow both land in the surrounding
+-		// catch. /btw's fresh side call retries all three overflow stopReasons
+-		// (error/stop/length), a deliberate divergence from the host's
+-		// stopReason-based willRetry.
+-		if (overflowFn && !retried && overflowFn(response, model.contextWindow)) {
++		if (!retried && isContextOverflow(response, model.contextWindow)) {
+ 			retried = true;
+ 			built = buildBtwMessages(ctx, userMessage, Math.floor(built.keepBudget / 2));
+-			outcome = await callCompleteSimple(built);
++			outcome = await requestCompletion(built);
+ 			if (outcome.kind === "aborted") return outcome;
+ 			response = outcome.response;
+ 		}
+@@ -425,15 +407,61 @@
+ 	return /stale after session replacement/.test(String(e));
+ }
+ 
++export const BTW_USAGE_ENTRY = "rpiv-btw:usage:v1";
++
++/** Usage metadata for a completed side request, including failed or aborted responses. */
++export interface BtwUsageEntry {
++	version: 1;
++	id: string;
++	source: "btw";
++	provider: string;
++	model: string;
++	usage: AssistantMessage["usage"];
++}
++
+ export function registerBtwCommand(pi: ExtensionAPI): void {
++	const active = new Set<AbortController>();
++	let generation = 0;
++	let sessionGeneration = 0;
++	const cancel = () => {
++		generation++;
++		for (const controller of active) controller.abort();
++		active.clear();
++	};
++	const cancelSession = () => {
++		sessionGeneration++;
++		cancel();
++	};
++	pi.on("session_start", cancelSession);
++	pi.on("session_shutdown", cancelSession);
++	pi.on("model_select", cancel);
+ 	pi.registerCommand(BTW_COMMAND_NAME, {
+ 		description: "Ask a side question without polluting the main conversation",
+-		handler: (args: string, ctx: ExtensionCommandContext) => handleBtwCommand(pi, args, ctx),
++		handler: async (args: string, ctx: ExtensionCommandContext) => {
++			const controller = new AbortController();
++			const origin = generation;
++			const originSession = sessionGeneration;
++			active.add(controller);
++			try {
++				await handleBtwCommand(pi, args, ctx, controller, {
++					isCurrent: () => generation === origin,
++					isSessionCurrent: () => sessionGeneration === originSession,
++				});
++			} finally {
++				active.delete(controller);
++			}
++		},
+ 	});
+ }
+ 
+-async function handleBtwCommand(_pi: ExtensionAPI, args: string, ctx: ExtensionCommandContext): Promise<void> {
+-	if (!ctx.hasUI) {
++async function handleBtwCommand(
++	pi: ExtensionAPI,
++	args: string,
++	ctx: ExtensionCommandContext,
++	controller: AbortController,
++	scope: { isCurrent(): boolean; isSessionCurrent(): boolean },
++): Promise<void> {
++	if (ctx.mode !== "tui") {
+ 		ctx.ui.notify(MSG_REQUIRES_INTERACTIVE, "error");
+ 		return;
+ 	}
+@@ -447,7 +475,6 @@
+ 		return;
+ 	}
+ 
+-	const controller = new AbortController();
+ 	const historySnapshot = [...getSessionHistory(ctx)];
+ 
+ 	const { overlayPromise, controllerReady } = showBtwOverlay({
+@@ -459,7 +486,20 @@
+ 	});
+ 
+ 	const overlayCtl = await controllerReady;
+-	const result = await executeBtw(question, ctx, controller);
++	if (!scope.isCurrent() || controller.signal.aborted) return;
++	const result = await executeBtw(question, ctx, controller, (response) => {
++		if (!scope.isSessionCurrent()) return;
++		const entry: BtwUsageEntry = {
++			version: 1,
++			id: randomUUID(),
++			source: "btw",
++			provider: response.provider,
++			model: response.model,
++			usage: response.usage,
++		};
++		pi.appendEntry(BTW_USAGE_ENTRY, entry);
++	});
++	if (!scope.isCurrent() || controller.signal.aborted) return;
+ 
+ 	switch (result.kind) {
+ 		case "success": {
+--- a/btw-ui.ts
++++ b/btw-ui.ts
+@@ -247,22 +247,36 @@
+ 		resolveReady = resolve;
+ 	});
+ 
+-	const overlayPromise = params.ctx.ui.custom<void>(
+-		(tui, theme, _kb, done) => {
+-			const controller = new BtwOverlayController(
+-				params.question,
+-				params.history,
+-				theme,
+-				tui,
+-				done,
+-				params.controller,
+-				params.onClearHistory,
+-			);
+-			resolveReady(controller);
+-			return controller;
+-		},
+-		{ overlay: true, overlayOptions: BTW_OVERLAY_OPTIONS },
+-	);
++	let closeOverlay: (() => void) | undefined;
++	const onAbort = () => closeOverlay?.();
++	params.controller.signal.addEventListener("abort", onAbort, { once: true });
++
++	const overlayPromise = params.ctx.ui
++		.custom<void>(
++			(tui, theme, _kb, done) => {
++				let closed = false;
++				closeOverlay = () => {
++					if (closed) return;
++					closed = true;
++					params.controller.signal.removeEventListener("abort", onAbort);
++					done();
++				};
++				const controller = new BtwOverlayController(
++					params.question,
++					params.history,
++					theme,
++					tui,
++					closeOverlay,
++					params.controller,
++					params.onClearHistory,
++				);
++				resolveReady(controller);
++				if (params.controller.signal.aborted) closeOverlay();
++				return controller;
++			},
++			{ overlay: true, overlayOptions: BTW_OVERLAY_OPTIONS },
++		)
++		.finally(() => params.controller.signal.removeEventListener("abort", onAbort));
+ 
+ 	return { overlayPromise, controllerReady };
+ }
+--- a/index.ts
++++ b/index.ts
+@@ -1,10 +1,10 @@
+ /**
+  * @juicesharp/rpiv-btw — Pi extension entry point.
+  *
+- * Registers /btw command + 2 lifecycle hooks (message_end snapshot,
+- * session_compact/tree invalidation). No tool, no model picker, no disk
+- * persistence. History lives in process-scoped globalThis state — survives
+- * /new, /fork, /reload, /resume; lost on Pi process exit.
++ * Registers the side-question command, context snapshot hooks and request
++ * cancellation hooks. Conversation history remains in memory and is lost when
++ * Pi exits. Completed provider requests persist usage metadata without question,
++ * answer or context text.
+  */
+ 
+ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+--- a/pi-compat.ts
++++ /dev/null
+@@ -1,123 +0,0 @@
+-/**
+- * Host-version-tolerant loader for pi-ai's `completeSimple`.
+- *
+- * Pi >= 0.80.1 moved the global dispatch API (`completeSimple` et al.) to the
+- * "@earendil-works/pi-ai/compat" entrypoint; hosts <= 0.79.x export it from
+- * the package root and have no /compat entrypoint at all. pi-ai resolves at
+- * runtime against the HOST's copy (peerDependency "*"), so neither path can
+- * be a static import — try /compat first, fall back to the root entrypoint.
+- *
+- * The fallback is reserved for RESOLUTION failures (the /compat subpath does
+- * not exist on this host); any other /compat error — the entrypoint exists but
+- * throws at module init — rethrows so the real failure surfaces at the call
+- * site instead of being masked by a root import that may lack the export.
+- *
+- * /compat is documented as temporary (deleted with pi's ModelManager
+- * migration); when that lands, this module is the single place to migrate.
+- */
+-
+-type CompleteSimpleFn = typeof import("@earendil-works/pi-ai/compat").completeSimple;
+-type IsContextOverflowFn = typeof import("@earendil-works/pi-ai/compat").isContextOverflow;
+-
+-/**
+- * Resolve Pi's auth-aware completion facade when the host exposes one.
+- *
+- * Current Pi hosts keep the canonical `ModelRuntime` behind the extension
+- * `ModelRegistry`'s runtime-private `runtime` slot. This structural bridge is
+- * intentionally isolated here: calling that facade is what lets Pi apply
+- * credential-derived request fields — OAuth tokens for keyless providers,
+- * GitHub Copilot's OAuth-specific `baseUrl`. Older hosts, and future hosts
+- * that move the slot, simply fall through to the legacy global completion
+- * path below. Mirrors rpiv-advisor's bridge — duplicated because siblings
+- * never import each other at runtime.
+- *
+- * The returned method is bound because `ModelRuntime.completeSimple()` calls
+- * other runtime methods through `this`.
+- */
+-export function getRuntimeCompleteSimple(modelRegistry: unknown): CompleteSimpleFn | undefined {
+-	try {
+-		if (modelRegistry === null || typeof modelRegistry !== "object") return undefined;
+-		const runtime = (modelRegistry as { runtime?: unknown }).runtime;
+-		if (runtime === null || typeof runtime !== "object") return undefined;
+-		const completeSimple = (runtime as { completeSimple?: unknown }).completeSimple;
+-		return typeof completeSimple === "function" ? (completeSimple.bind(runtime) as CompleteSimpleFn) : undefined;
+-	} catch {
+-		// A malformed/private host shape should retain the version-tolerant fallback.
+-		return undefined;
+-	}
+-}
+-
+-/**
+- * Error codes meaning "the /compat entrypoint is not resolvable on this host":
+- *   - `ERR_PACKAGE_PATH_NOT_EXPORTED` — Node's ESM resolver when the installed
+- *     pi-ai (<= 0.79.x) resolves but has no "./compat" in its `exports` map —
+- *     the code an old host actually produces.
+- *   - `ERR_MODULE_NOT_FOUND` / `MODULE_NOT_FOUND` — Node's / jiti's resolver
+- *     for an unresolvable module (jiti is what Pi loads `.ts` extensions with).
+- * Mirrors rpiv-core's `isModuleNotFound` (plus the subpath-export code) —
+- * duplicated because siblings never import each other at runtime.
+- */
+-const MODULE_NOT_FOUND_CODES = new Set(["ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND"]);
+-
+-/** True for a module-resolution failure. Walks the `cause` chain — ESM loaders
+- *  and tooling (vitest's mock layer, some bundlers) nest the real code under
+- *  `.cause`. Bounded against pathological self-referential chains. */
+-function isModuleNotFound(err: unknown): boolean {
+-	for (
+-		let cur: unknown = err, depth = 0;
+-		cur != null && depth < 16;
+-		cur = (cur as { cause?: unknown }).cause, depth++
+-	) {
+-		if (typeof cur === "object" && MODULE_NOT_FOUND_CODES.has((cur as { code?: unknown }).code as string)) {
+-			return true;
+-		}
+-	}
+-	return false;
+-}
+-
+-export async function loadCompleteSimple(): Promise<CompleteSimpleFn> {
+-	let mod: { completeSimple?: CompleteSimpleFn };
+-	try {
+-		mod = (await import("@earendil-works/pi-ai/compat")) as { completeSimple?: CompleteSimpleFn };
+-	} catch (err) {
+-		if (!isModuleNotFound(err)) throw err; // a real /compat failure must surface, not mask as a fallback
+-		mod = (await import("@earendil-works/pi-ai")) as { completeSimple?: CompleteSimpleFn };
+-	}
+-	const completeSimple = mod.completeSimple;
+-	if (typeof completeSimple !== "function") {
+-		throw new Error(
+-			"pi-ai does not expose completeSimple on /compat or the package root — unsupported host pi-ai version",
+-		);
+-	}
+-	return completeSimple;
+-}
+-
+-/**
+- * Host-version-tolerant loader for pi-ai's `isContextOverflow` — the overflow
+- * detector that gates the /btw single-retry.
+- *
+- * `isContextOverflow` is re-exported from BOTH the `/compat` entrypoint and the
+- * package root (defined in pi-ai's `utils/overflow`), so the resolution path
+- * mirrors `loadCompleteSimple`: try `/compat`, fall back to the root only on a
+- * module-resolution failure, and rethrow a real `/compat` init failure so it is
+- * not masked by the fallback. Unlike `completeSimple`, the export's ABSENCE is
+- * an expected host state (older pi-ai, or a host that surfaces it from neither
+- * entrypoint), not an unsupported-host error: per the Option-3 refinement the
+- * missing-export case returns `undefined` so the caller degrades gracefully
+- * (skips the retry) instead of crashing. A non-resolution `/compat` failure
+- * still rethrows.
+- */
+-export async function loadIsContextOverflow(): Promise<IsContextOverflowFn | undefined> {
+-	let mod: { isContextOverflow?: IsContextOverflowFn };
+-	try {
+-		mod = (await import("@earendil-works/pi-ai/compat")) as { isContextOverflow?: IsContextOverflowFn };
+-	} catch (err) {
+-		if (!isModuleNotFound(err)) throw err; // a real /compat failure must surface, not mask as a fallback
+-		mod = (await import("@earendil-works/pi-ai")) as { isContextOverflow?: IsContextOverflowFn };
+-	}
+-	const isContextOverflow = mod.isContextOverflow;
+-	if (typeof isContextOverflow !== "function") {
+-		return undefined; // expected absence on a host lacking the export — degrade, don't crash
+-	}
+-	return isContextOverflow;
+-}
+--- a/README.md
++++ b/README.md
+@@ -12,8 +12,9 @@
+ Ask a side question without polluting the main conversation. `rpiv-btw` adds
+ `/btw <question>` to [Pi Agent](https://github.com/badlogic/pi-mono) — your same
+ primary model answers in a panel at the bottom of the terminal, using a read-only
+-clone of the current conversation as context. The answer never enters the
+-transcript and never touches disk.
++clone of the current conversation as context. The question and answer never enter the
++transcript. Usage metadata is recorded for each completed provider request so
++other extensions can account for side-question tokens and cost.
+ 
+ ## Install
+ 
+@@ -49,7 +50,7 @@
+ ## What you get
+ 
+ - **Nothing leaks into the main chat** — the answer is drawn in an overlay, never
+-  emitted as an agent message, never written to the transcript, never written to disk.
++  emitted as an agent message, never written to the transcript. Only usage metadata is persisted.
+ - **The side question already knows your work** — it is handed a read-only clone
+   of the main agent's current context, so you do not re-explain context.
+ - **Follow-ups have their own thread** — every `/btw` turn in a session is replayed
+@@ -75,6 +76,7 @@
+ 
+ ## Requirements
+ 
++- **Pi 1.4 or newer.**
+ - **An interactive terminal.** `/btw` refuses to run without a UI — it is not
+   available under `pi --print` or RPC.
+ - **An active primary model with resolvable credentials.** Any provider works.
+@@ -102,6 +104,22 @@
+ 
+ MIT — see [LICENSE](LICENSE).
+ 
++## Usage metadata
++
++Each completed provider request appends a `rpiv-btw:usage:v1` custom session entry.
++The entry contains `version: 1`, a unique `id`, `source: "btw"`, `provider`,
++`model`, and the provider's `usage` object. `usage` includes input, output, cache
++read, cache write and total tokens, plus the corresponding cost fields. Values
++are preserved exactly as Pi reports them, including zero values. Questions,
++answers, prompts and context are excluded.
++
++A context-overflow retry produces a separate entry for each completed request.
++Responses with an error or aborted stop reason also produce entries. A rejected
++request without a response cannot report usage. After session replacement or
++shutdown, late responses are discarded so they cannot modify another session.
++
++The main conversation's usage totals are unchanged. Extensions can read these
++custom entries and display side-request usage separately.
+ ## Cross-session question hint
+ 
+ By default, requests include a short hint with recent `/btw` questions from other
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -12,7 +12,6 @@
+ ├── btw-budget.ts        — history cap + branch fit
+ ├── btw-messages.ts      — BtwTurn + message-text extractors
+ ├── btw-ui.ts            — bottom-anchored overlay and key handling
+-├── pi-compat.ts         — host-tolerant pi-ai /compat loaders
+ └── prompts/btw-system.txt — system prompt for the side call
+ ```
+ 
+@@ -59,9 +58,10 @@
+ Using `globalThis` plus `Symbol.for()` (the same idiom OpenTelemetry uses for
+ cross-import-graph singletons) means the cell survives module re-import, so
+ `/btw` history outlives `/new`, `/fork`, `/resume`, and `/reload`. It is lost
+-when the Pi process exits — by design. Nothing is persisted to disk, and the
+-package reads `rpiv-btw/config.json` for each request through `rpiv-config`,
+-which honours `XDG_CONFIG_HOME` and the legacy configuration path.
++when the Pi process exits. History and snapshots are not persisted. Usage
++metadata is written through Pi's custom session entries. The package reads
++`rpiv-btw/config.json` for each request through `rpiv-config`, which honours
++`XDG_CONFIG_HOME` and the legacy configuration path.
+ 
+ ## Overlay
+ 
+@@ -110,29 +110,16 @@
+ 
+ Hints are joined with `" · "` and truncated to the panel width.
+ 
+-## Host-version tolerance
++## Host runtime
+ 
+-pi-ai resolves at runtime against the *host's* copy (all three pi peers are
+-declared `"*"`), and pi moved the global dispatch API to a `/compat` entrypoint
+-in 0.80.1. `pi-compat.ts` therefore resolves `completeSimple` lazily:
++BTW requires Pi 1.4 or newer and calls the public
++`ctx.modelRegistry.streamSimple(...).result()` API. Pi prepares provider requests
++and resolves credentials, including OAuth. BTW supplies only its own cancellation
++signal. The request does not override credentials or headers.
+ 
+-1. `import("@earendil-works/pi-ai/compat")` — pi >= 0.80.1.
+-2. On a **module-resolution** failure only, fall back to
+-   `import("@earendil-works/pi-ai")` — pi <= 0.79.x, which has no `/compat`
+-   subpath at all.
+-
+-The fallback is gated on the error codes `ERR_PACKAGE_PATH_NOT_EXPORTED`,
+-`ERR_MODULE_NOT_FOUND`, and `MODULE_NOT_FOUND`, walked down the `cause` chain
+-(bounded at 16 links, because ESM loaders and test mock layers nest the real
+-code). Any other `/compat` error — the entrypoint exists but throws at module
+-init — rethrows, so a real failure surfaces instead of being masked by a root
+-import that may not have the export.
+-
+-If neither entrypoint exposes the function, the call fails with
+-`pi-ai does not expose completeSimple on /compat or the package root — unsupported host pi-ai version`.
+-
+-`/compat` is documented upstream as temporary, so this module is the single place
+-to migrate when it is removed.
++Requests are cancelled when the session starts, shuts down, or changes model.
++A response from an earlier session cannot update the overlay, history or usage
++metadata in the replacement session.
+ 
+ ## Messages and errors
+ 
+@@ -140,11 +127,10 @@
+ 
+ | String | When |
+ | --- | --- |
+-| `/btw requires interactive mode` (error) | `ctx.hasUI` is false — `pi --print`, RPC |
++| `/btw requires interactive mode` (error) | `ctx.mode` is not `"tui"`, including `pi --print` and RPC |
+ | `Usage: /btw <question>` (warning) | the argument is empty or whitespace-only |
+ | `/btw requires an active model` (error) | there is no `ctx.model` |
+ | `/btw model (<provider>:<id>) is misconfigured: <err>` | credential lookup returned an error |
+-| `/btw model (<provider>:<id>) has no API key available.` | lookup succeeded but the API key is empty |
+ | `/btw call failed: <err ?? "unknown error">` | the completion returned `stopReason: "error"` |
+ | `/btw call threw: <message>` | the completion threw and the call was not aborted |
+ | `/btw returned no text content.` | the response contained no text parts |
+@@ -157,7 +143,5 @@
+ - **Shared configuration.** `rpiv-config` is the runtime dependency for the
+   optional cross-session hint setting. The three `@earendil-works` packages are
+   provided by the Pi host.
+-- **Completion compatibility.** `pi-compat.ts` includes the loader for older Pi
+-  hosts without importing the larger `rpiv-pi` runtime.
+ - **Standalone.** rpiv-btw is excluded from `rpiv-pi`'s auto-install sibling list,
+   and a test asserts that exclusion.
+--- a/docs/context-model.md
++++ b/docs/context-model.md
+@@ -99,7 +99,9 @@
+ 
+ - **No transcript entry.** The answer is rendered through `ctx.ui.custom` as an
+   overlay component. It is never emitted as an agent message.
+-- **No disk writes.** History and snapshots live on `globalThis[Symbol.for("rpiv-btw")]`.
++- **No persisted conversation content.** History and snapshots live on
++  `globalThis[Symbol.for("rpiv-btw")]`. Custom session entries contain usage
++  metadata only: request identifiers, provider, model, tokens and cost.
+   The package reads its bundled prompt at module initialisation and the optional
+   configuration for each request; neither read persists conversation content.
+ - **No tool use.** The call runs with `tools: []`, and the main agent's tool
+--- a/package.json
++++ b/package.json
+@@ -34,7 +34,6 @@
+     "btw-budget.ts",
+     "btw-messages.ts",
+     "btw-ui.ts",
+-    "pi-compat.ts",
+     "prompts/",
+     "docs/",
+     "!docs/*.png",
+@@ -50,8 +49,8 @@
+     ]
+   },
+   "peerDependencies": {
+-    "@earendil-works/pi-ai": "*",
+-    "@earendil-works/pi-coding-agent": "*",
+-    "@earendil-works/pi-tui": "*"
++    "@earendil-works/pi-ai": "^1.4.0",
++    "@earendil-works/pi-coding-agent": "^1.4.0",
++    "@earendil-works/pi-tui": "^1.4.0"
+   }
+ }

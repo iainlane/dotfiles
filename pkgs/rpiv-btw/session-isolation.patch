@@ -1,0 +1,103 @@
+--- a/btw.ts
++++ b/btw.ts
+@@ -19,6 +19,7 @@
+ 	type ExtensionContext,
+ 	type SessionEntry,
+ } from "@earendil-works/pi-coding-agent";
++import { loadJsonConfigWithLegacyFallback } from "@juicesharp/rpiv-config";
+ import { type CappedHistory, capHistory, type FitBranchResult, fitBranch } from "./btw-budget.ts";
+ import { assistantMessageText, type BtwTurn, userMessageText } from "./btw-messages.ts";
+ import { showBtwOverlay } from "./btw-ui.ts";
+@@ -276,7 +277,8 @@
+ }
+ 
+ function buildSystemPrompt(): string {
+-	return BTW_SYSTEM_PROMPT + getCrossSessionHint();
++	const config = loadJsonConfigWithLegacyFallback<{ crossSessionHint?: boolean }>("rpiv-btw");
++	return BTW_SYSTEM_PROMPT + (config.crossSessionHint === false ? "" : getCrossSessionHint());
+ }
+ 
+ export async function executeBtw(
+--- a/README.md
++++ b/README.md
+@@ -101,3 +101,16 @@
+ ## License
+ 
+ MIT — see [LICENSE](LICENSE).
++
++## Cross-session question hint
++
++By default, requests include a short hint with recent `/btw` questions from other
++sessions in the same Pi process. Set `crossSessionHint` to `false` in
++`~/.config/rpiv-btw/config.json` to restrict requests to the current session.
++The configuration also honours `XDG_CONFIG_HOME`.
++
++```json
++{ "crossSessionHint": false }
++```
++
++The setting is read for each question. Changing it does not require `/reload`.
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -60,7 +60,8 @@
+ cross-import-graph singletons) means the cell survives module re-import, so
+ `/btw` history outlives `/new`, `/fork`, `/resume`, and `/reload`. It is lost
+ when the Pi process exits — by design. Nothing is persisted to disk, and the
+-package reads no environment variables and no config files.
++package reads `rpiv-btw/config.json` for each request through `rpiv-config`,
++which honours `XDG_CONFIG_HOME` and the legacy configuration path.
+ 
+ ## Overlay
+ 
+@@ -153,10 +154,10 @@
+ 
+ ## Boundaries
+ 
+-- **No runtime dependencies.** No `dependencies`, no `devDependencies` — only the
+-  three `@earendil-works` peers.
+-- **No sibling imports at runtime.** `pi-compat.ts` deliberately duplicates
+-  rpiv-core's `isModuleNotFound` rather than importing it, because the rpiv
+-  packages never import each other at runtime.
++- **Shared configuration.** `rpiv-config` is the runtime dependency for the
++  optional cross-session hint setting. The three `@earendil-works` packages are
++  provided by the Pi host.
++- **Completion compatibility.** `pi-compat.ts` includes the loader for older Pi
++  hosts without importing the larger `rpiv-pi` runtime.
+ - **Standalone.** rpiv-btw is excluded from `rpiv-pi`'s auto-install sibling list,
+   and a test asserts that exclusion.
+--- a/docs/context-model.md
++++ b/docs/context-model.md
+@@ -12,7 +12,7 @@
+ | Part | Value |
+ | --- | --- |
+ | Model | `ctx.model`, with credentials from `ctx.modelRegistry.getApiKeyAndHeaders(model)` |
+-| System prompt | the bundled `prompts/btw-system.txt`, plus the cross-session hint appendix |
++| System prompt | the bundled `prompts/btw-system.txt`, plus the cross-session hint appendix when enabled |
+ | Messages | `[...main-agent context clone, ...this-session /btw turns, your question]` |
+ | Tools | `[]` — none, always |
+ | Abort signal | a fresh `AbortController` owned by `/btw`, never `ctx.signal` |
+@@ -76,6 +76,13 @@
+ - Clearing a session's history with `x` removes its contributions to the hint.
+ - It lives on the same process-scoped state, so it is gone when Pi exits.
+ 
++The hint is enabled by default. Set `crossSessionHint` to `false` in
++`~/.config/rpiv-btw/config.json` to omit questions from other sessions. The shared
++configuration reader honours `XDG_CONFIG_HOME` and falls back to the legacy path.
++The setting is read for each request. Disabling the hint preserves the current
++session's question/answer history and main conversation context, and does not
++delete history from the running process.
++
+ ## The system prompt
+ 
+ `prompts/btw-system.txt` tells the side call to:
+@@ -93,8 +100,8 @@
+ - **No transcript entry.** The answer is rendered through `ctx.ui.custom` as an
+   overlay component. It is never emitted as an agent message.
+ - **No disk writes.** History and snapshots live on `globalThis[Symbol.for("rpiv-btw")]`.
+-  The package's only filesystem access is one read of its own bundled prompt file
+-  at module init.
++  The package reads its bundled prompt at module initialisation and the optional
++  configuration for each request; neither read persists conversation content.
+ - **No tool use.** The call runs with `tools: []`, and the main agent's tool
+   declarations are removed from the cloned context, so a side question cannot edit
+   a file or run a command even if it wanted to.

@@ -296,6 +296,7 @@
   };
 in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
+  xdg.configFile."rpiv-btw/config.json".text = toJson {crossSessionHint = false;};
 
   home = {
     packages = [managedPi];

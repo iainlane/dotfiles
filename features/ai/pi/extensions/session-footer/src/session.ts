@@ -119,6 +119,7 @@ export class FooterSession {
       this.ledger.update(context.sessionManager.getEntries(), branch);
 
       this.state.usage = { ...this.ledger.totals };
+      this.state.auxiliaryUsage = { ...this.ledger.auxiliary };
       this.state.tasks = readTasks(branch);
     }
   }

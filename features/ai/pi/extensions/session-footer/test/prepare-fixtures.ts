@@ -15,6 +15,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 for (const [name, dependency] of [
   ["pi-sub-core", "@marckrenn/pi-sub-core"],
   ["rpiv-todo", "@juicesharp/rpiv-todo"],
+  ["rpiv-btw", "@juicesharp/rpiv-btw"],
 ] as const) {
   const target = join(root, ".fixtures", name);
 
@@ -35,8 +36,14 @@ for (const [name, dependency] of [
     name === "pi-sub-core"
       ? (process.env.PI_FOOTER_CORE_PATCH ??
         resolve(root, "../../../../../pkgs/pi-sub-core/reading-metadata.patch"))
-      : (process.env.PI_FOOTER_TODO_PATCH ??
-        resolve(root, "../../../../../pkgs/rpiv-todo/widget-visibility.patch"));
+      : name === "rpiv-btw"
+        ? (process.env.PI_FOOTER_BTW_ISOLATION_PATCH ??
+          resolve(root, "../../../../../pkgs/rpiv-btw/session-isolation.patch"))
+        : (process.env.PI_FOOTER_TODO_PATCH ??
+          resolve(
+            root,
+            "../../../../../pkgs/rpiv-todo/widget-visibility.patch",
+          ));
 
   const patches =
     name === "pi-sub-core"
@@ -53,7 +60,16 @@ for (const [name, dependency] of [
               "../../../../../pkgs/pi-sub-core/credential-file.patch",
             ),
         ]
-      : [patch];
+      : name === "rpiv-btw"
+        ? [
+            patch,
+            process.env.PI_FOOTER_BTW_RUNTIME_PATCH ??
+              resolve(
+                root,
+                "../../../../../pkgs/rpiv-btw/public-runtime.patch",
+              ),
+          ]
+        : [patch];
   for (const source of patches) {
     execFileSync("patch", ["--batch", "-p1", "-i", source], {
       cwd: target,

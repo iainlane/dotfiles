@@ -130,7 +130,7 @@ export function detailsLines(
       `Active children: ${state.agents?.active ?? "unknown"}${state.agents?.incomplete === true ? " · run details incomplete" : ""}`,
       ...(state.agents?.runs.map((run) => `[${run.state}] ${run.label}`) ?? []),
       `Pending native messages: ${state.pending ? "yes" : "no"} (queue size unavailable)`,
-      `Plan: ${text(state.statuses.get("plan-mode")) || "not active"}`,
+      `Plan: ${text(state.statuses.get("planning")) || "not active"}`,
       "Use /todos and /subagents for their native views and controls.",
     ];
   }
@@ -181,10 +181,13 @@ export function detailsLines(
 
   if (section === "usage") {
     const u = state.usage;
+    const auxiliary = state.auxiliaryUsage;
     const prompt = u.input + u.cacheRead + u.cacheWrite;
 
     return [
       `Whole-session recorded estimate: $${u.cost.toFixed(4)} (includes abandoned branches, reported tool usage, summaries and cache warming; not a verified invoice)`,
+      `Auxiliary recorded estimate (separate from session cost): $${auxiliary.cost.toFixed(4)}`,
+      `Auxiliary tokens: input ${auxiliary.input}, output ${auxiliary.output}, cache read ${auxiliary.cacheRead}, cache write ${auxiliary.cacheWrite}`,
       `Tokens: input ${u.input}, output ${u.output}, cache read ${u.cacheRead}, cache write ${u.cacheWrite}`,
       `Latest active-branch request cache hit rate: ${u.latestHit === undefined ? "unknown" : `${u.latestHit.toFixed(1)}%`}`,
       `Whole-session cache hit rate: ${prompt ? `${((u.cacheRead / prompt) * 100).toFixed(1)}%` : "unknown"}`,
