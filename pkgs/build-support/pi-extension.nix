@@ -22,6 +22,7 @@
   # Dependency overrides for registry tarballs. The updater applies these
   # before resolving the lockfile; GitHub sources use the upstream lockfile.
   npmDependencies ? {},
+  metadataFiles ? {},
   # npm distributes platform-specific native addons as optional dependencies.
   # Set this to false for extensions that require a native addon.
   omitOptional ? true,
@@ -116,7 +117,7 @@ in
         inherit packageRoot;
 
         updateScript = updaters.mkPiExtensionUpdater {
-          inherit npmName pname npmDependencies gitHub tagPrefix;
+          inherit npmName pname npmDependencies metadataFiles gitHub tagPrefix;
         };
       };
 

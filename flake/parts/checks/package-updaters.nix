@@ -10,6 +10,11 @@
 in {
   perSystem = {pkgs, ...}: {
     checks = {
+      pi-extension-updater = import ../../../pkgs/build-support/pi-extension-updater.test.nix {inherit pkgs;};
+      pi-extension-lock = assert import ../../../pkgs/build-support/project-pi-npm-package.test.nix {inherit lib;};
+        pkgs.runCommandLocal "pi-extension-lock" {} ''
+          touch $out
+        '';
       package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without passthru.updateScript (set it to null when a package has no updater): ${lib.concatStringsSep ", " missing}";
         pkgs.runCommandLocal "package-updater-coverage" {} ''
           touch $out

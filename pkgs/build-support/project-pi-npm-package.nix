@@ -1,30 +1,35 @@
-# Adapted from LilDojd/dendritic-slop's packages/project-pi-npm-package.nix.
 {lib}: {
   package,
   packageLock,
 }: let
-  # Pi provides an extension's peers at runtime, so npm should not resolve them.
-  hostPeerMeta = lib.mapAttrs (_: _: {optional = true;}) (package.peerDependencies or {});
-
-  # npm can record nested Pi peers without integrity hashes. Nix's npm
-  # fetchers reject those records, even though these optional dev peers
-  # are not installed.
-  isFetchable = _: record: !(record ? resolved && !(record ? integrity));
-
-  dropped = lib.filterAttrs (path: record: !isFetchable path record) packageLock.packages;
-
-  # importNpmLock requires a lockfile record for every manifest dependency.
-  # Remove dropped top-level dependencies from the manifest too; nested
-  # dependencies belong to other packages.
-  droppedNames =
-    map (lib.removePrefix "node_modules/")
-    (lib.filter (path: !(lib.hasInfix "/node_modules/" path)) (lib.attrNames dropped));
-
-  withoutDropped = attrs: name:
-    lib.optionalAttrs (attrs ? ${name}) {
-      ${name} = removeAttrs attrs.${name} droppedNames;
+  hostPackages = [
+    "@earendil-works/pi-agent-core"
+    "@earendil-works/pi-ai"
+    "@earendil-works/pi-coding-agent"
+    "@earendil-works/pi-tui"
+    "@mariozechner/pi-agent-core"
+    "@mariozechner/pi-ai"
+    "@mariozechner/pi-coding-agent"
+    "@mariozechner/pi-tui"
+    "@sinclair/typebox"
+    "typebox"
+  ];
+  hostPeers = lib.filterAttrs (name: _: builtins.elem name hostPackages) (package.peerDependencies or {});
+  hostPeerMeta = lib.mapAttrs (_: _: {optional = true;}) hostPeers;
+  incomplete = _: record:
+    lib.isString (record.resolved or null)
+    && lib.any (scheme: lib.hasPrefix scheme record.resolved) ["https://" "http://"]
+    && (!(record ? integrity) || record.integrity == null || record.integrity == "");
+  omittedHostRecord = path: record:
+    ((record.dev or false) || (record.peer or false))
+    && lib.any (name: path == "node_modules/${name}" || lib.hasPrefix "node_modules/${name}/node_modules/" path) hostPackages;
+  invalid = lib.filterAttrs (path: record: incomplete path record && !(omittedHostRecord path record)) packageLock.packages;
+  keep = path: record: !(incomplete path record);
+  droppedNames = map (lib.removePrefix "node_modules/") (lib.filter (path: path != "" && !(lib.hasInfix "/node_modules/" path)) (lib.attrNames (lib.filterAttrs (path: record: !(keep path record)) packageLock.packages)));
+  withoutDropped = root: field:
+    lib.optionalAttrs (root ? ${field}) {
+      ${field} = removeAttrs root.${field} droppedNames;
     };
-
   project = root:
     root
     // withoutDropped root "dependencies"
@@ -32,16 +37,12 @@
     // {
       peerDependenciesMeta = (root.peerDependenciesMeta or {}) // hostPeerMeta;
     };
-in {
-  package = project package;
-
-  packageLock =
-    packageLock
-    // {
-      packages =
-        lib.filterAttrs isFetchable packageLock.packages
-        // {
-          "" = project packageLock.packages."";
-        };
-    };
-}
+in
+  assert lib.assertMsg (invalid == {}) "Pi extension lockfile has dependencies without integrity metadata: ${lib.concatStringsSep ", " (lib.attrNames invalid)}"; {
+    package = project package;
+    packageLock =
+      packageLock
+      // {
+        packages = lib.filterAttrs keep packageLock.packages // {"" = project packageLock.packages."";};
+      };
+  }

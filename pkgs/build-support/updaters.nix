@@ -181,6 +181,7 @@
     # let npm pick a version that breaks the extension. Ignored with `gitHub`,
     # where the committed lockfile is copied as it stands.
     npmDependencies ? {},
+    metadataFiles ? {},
   }:
     writeShellApplication {
       name = "update-${pname}";
@@ -197,7 +198,9 @@
         # Keep the temporary file beside `source.json` so the rename stays
         # atomic.
         staged="$(mktemp source.json.XXXXXX)"
-        trap 'rm -rf "''${tmpdir}" "''${staged}"' EXIT
+        stagedLock="$(mktemp npm-deps/package-lock.json.XXXXXX)"
+        metadataStages=()
+        trap 'rm -rf "''${tmpdir}" "''${staged}" "''${stagedLock}" "''${metadataStages[@]}"' EXIT
 
         # Leave the caller's npm cache alone; this run only reads metadata.
         export npm_config_cache="''${tmpdir}/npm-cache"
@@ -240,7 +243,7 @@
             tar -xzf "''${tarball}" -C "''${tmpdir}" --strip-components=1 \
               --wildcards '*/package-lock.json'
 
-            cp "''${tmpdir}/package-lock.json" npm-deps/package-lock.json
+            lockfile="''${tmpdir}/package-lock.json"
 
             jq -n --sort-keys \
               --arg version "''${version}" \
@@ -267,7 +270,7 @@
             # record. Pass `--ignore-scripts`, because a plain install runs the
             # package's `prepare` script.
             (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
-            cp "''${tmpdir}/package/package-lock.json" npm-deps/package-lock.json
+            lockfile="''${tmpdir}/package/package-lock.json"
 
             # A failing `hash_file` inside the `jq` arguments would not
             # change `jq`'s exit status, so `source.json` would be written
@@ -281,7 +284,22 @@
               '{version: $version, tarballHash: $hash}' >"''${staged}"
           ''
         }
+        jq --exit-status --arg version "''${version}" --arg name ${lib.escapeShellArg npmName} '
+          .packages[""].version == $version
+          and .packages[""].name == $name
+          and (.lockfileVersion == 2 or .lockfileVersion == 3)
+        ' "''${lockfile}" >/dev/null
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (destination: sourcePath: ''
+            stagedFile="$(mktemp ${lib.escapeShellArg "${destination}.XXXXXX"})"
+            metadataStages+=("$stagedFile")
+            tar -xOzf "$tarball" --wildcards ${lib.escapeShellArg "*/${sourcePath}"} >"$stagedFile"
+            jq --exit-status 'type == "object"' "$stagedFile" >/dev/null
+          '')
+          metadataFiles)}
+        cp "''${lockfile}" "''${stagedLock}"
+        mv "''${stagedLock}" npm-deps/package-lock.json
         mv "''${staged}" source.json
+        ${lib.concatStringsSep "\n" (lib.imap0 (index: destination: ''mv "''${metadataStages[${toString index}]}" ${lib.escapeShellArg destination}'') (lib.attrNames metadataFiles))}
 
         echo "Updated ${pname} to ''${version}." >&2
       '';
