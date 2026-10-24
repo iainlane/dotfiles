@@ -31,6 +31,7 @@ ceiling] APIs. It does not inspect Plan mode's internal session entries.
 
 ## Development
 
-Use Node and npm. `npm ci` installs dependencies, and `npm run check` runs
-TypeScript, Oxlint and Vitest. The Nix `pi-plan-explore` check runs the same
-commands; `pi-startup` checks loading with the configured extension packages.
+```sh
+npm ci
+npm run check
+```
