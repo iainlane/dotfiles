@@ -4,7 +4,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint *.ts",
+    "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "type": "module",

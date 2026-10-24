@@ -60,7 +60,10 @@ in {
       default = packages.provision {
         inherit (cfg) configFile settings apiKeyAccounts;
         teamclaude = cfg.package;
-        waitForSops = pkgs.stdenv.hostPlatform.isDarwin && cfg.apiKeyAccounts != {} && (config.sops.secrets or {}) != {};
+        sopsProgram =
+          if pkgs.stdenv.hostPlatform.isDarwin && cfg.apiKeyAccounts != {} && (config.sops.secrets or {}) != {}
+          then config.launchd.agents.sops-nix.config.Program
+          else null;
       };
       description = "The command that reconciles declared settings and API-key accounts.";
     };

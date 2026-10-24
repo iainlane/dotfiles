@@ -3,6 +3,7 @@
 
   teamclaudeDir = ./.;
   packages = pkgs.callPackage (teamclaudeDir + "/packages.nix") {};
+  provisioner = pkgs.callPackage ./provisioner/package.nix {};
 
   # The test sets `TEAMCLAUDE_CONFIG`, so the scripts never read this path.
   configFile = "/nonexistent/teamclaude.json";
@@ -34,10 +35,10 @@
 in {
   teamclaude = assert lib.assertMsg (lib.getVersion claude == claudeCode.version)
   "The Claude Code launcher must keep Claude Code's version, which Home Manager reads";
-    packages.provisionProgram.overrideAttrs {
+    provisioner.overrideAttrs {
       pname = "teamclaude-check";
+      __darwinAllowLocalNetworking = true;
       TEAMCLAUDE_TEST_CLAUDE = lib.getExe' claude "claude";
       TEAMCLAUDE_TEST_SERVER = lib.getExe server;
-      __darwinAllowLocalNetworking = true;
     };
 }
