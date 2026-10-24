@@ -141,8 +141,9 @@ For normal maintenance, run:
 ```
 
 This refreshes the flake inputs, moving packages to their latest packaged
-versions, deploys the current system, and pre-builds the `direnv` shells (see
-[above](#terms)).
+versions, deploys the current system and home configuration, and refreshes the
+`direnv` caches (see [above][terms]). The home configuration builds and retains
+the project shells.
 
 To deploy to a managed remote system, run `./just update-host <hostname>`. To
 deploy only the system or home deploy-rs profile, run
@@ -151,6 +152,7 @@ deploy only the system or home deploy-rs profile, run
 The individual steps can also be run separately.
 
 [just]: https://just.systems/
+[terms]: #terms
 
 #### `./just update-flake`
 
@@ -170,8 +172,8 @@ moves the release tag in `flake.nix` and relocks that input.
 
 #### `./just update-system`
 
-Update the system configuration. NixOS and macOS also update the embedded home
-configuration. On generic Linux, run `update-home` separately.
+Rebuild and activate the system configuration. NixOS and macOS also update the
+embedded home configuration. Generic Linux uses `update-home` separately.
 
 #### `./just update-home`
 
@@ -180,11 +182,13 @@ updates system and home together._
 
 Update `home-manager` user-level configuration only.
 
-#### `./just build-direnvs`
+#### `./just refresh-direnvs`
 
-Pre-build `direnv` shells for all configured project directories. With them
-built, the first `cd` into a project directory after a flake update does not
-wait for its shell.
+Refresh nix-direnv caches for this host's configured project directories after
+switching the home configuration. Home Manager builds and retains the shells;
+cache refresh prepares their environments for the next directory entry.
+`./just update` runs this step after a successful switch and then removes any
+legacy separate shell roots. Standalone refresh preserves those roots.
 
 ### Checks
 

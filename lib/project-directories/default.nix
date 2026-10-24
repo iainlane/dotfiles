@@ -1,18 +1,12 @@
 {
   config,
   lib,
-  inputs,
-  system,
+  hostConfig,
   flakePath,
   ...
 }: let
   cfg = config.programs.projectDirectories;
   inherit (lib) mkOption types;
-
-  # `mkProjectShells` builds the `direnvs` tree with these same two helpers,
-  # so this module looks a shell up under the path that shell was registered
-  # at.
-  inherit (import ../projects.nix {inherit lib;}) directorySegments treePath;
 
   toAbsolute = dirPath:
     if lib.hasPrefix "/" dirPath
@@ -22,21 +16,13 @@ in {
   options.programs.projectDirectories = {
     enable = lib.mkEnableOption "project directory .envrc management";
 
-    attrNamespace = mkOption {
-      type = types.str;
-      default = "direnvs";
-      description = "Attribute namespace in the flake that contains direnv devShells";
-    };
-
     directories = mkOption {
       type = types.attrsOf (
-        types.submodule ({name, ...}: {
+        types.submodule {
           options = {
-            attrSegments = mkOption {
-              type = types.listOf types.str;
-              default = directorySegments name;
-              description = ''The segments naming this directory's dev shell under the namespace.'';
-              example = ["dev" "debian"];
+            shell = mkOption {
+              type = types.package;
+              description = "Development shell for this host's project directory.";
             };
 
             extraPaths = mkOption {
@@ -50,43 +36,43 @@ in {
               example = lib.literalExpression ''["$HOME/go/bin"]'';
             };
           };
-        })
+        }
       );
       default = {};
       example = lib.literalExpression ''
         {
           "dev/debian" = {
-            attrSegments = ["dev" "debian"];
+            shell = pkgs.mkShellNoCC {packages = [pkgs.git];};
           };
         }
       '';
-      description = "Project directories and the flake attributes they should load";
+      description = "Project directories and their development shells.";
     };
   };
 
   config = lib.mkIf cfg.enable {
-    assertions =
-      [
-        {
-          assertion = config.programs.direnv.enable;
-          message = "programs.projectDirectories requires programs.direnv.enable = true";
-        }
-      ]
-      ++ lib.mapAttrsToList (dirPath: dirConfig: let
-        shellPath = [cfg.attrNamespace system] ++ treePath dirConfig.attrSegments;
-        shellAttr = lib.attrByPath shellPath null inputs.self.outputs;
-      in {
-        assertion = shellAttr != null;
-        message = "programs.projectDirectories: missing devShell ${lib.concatStringsSep "." shellPath} for ${dirPath} in inputs.self outputs";
-      })
-      cfg.directories;
+    assertions = [
+      {
+        assertion = config.programs.direnv.enable;
+        message = "programs.projectDirectories requires programs.direnv.enable = true";
+      }
+    ];
+
+    home.extraDependencies = map (directory: directory.shell) (builtins.attrValues cfg.directories);
 
     home.file =
       lib.mapAttrs' (dirPath: dirConfig: let
-        shellPath = [cfg.attrNamespace system] ++ treePath dirConfig.attrSegments;
-        flakeAttr = lib.concatStringsSep "." shellPath;
-        shellAttr = lib.attrByPath shellPath null inputs.self.outputs;
-        derivationComment = "# ${builtins.unsafeDiscardStringContext shellAttr.drvPath}\n";
+        flakeAttr = lib.concatMapStringsSep "." builtins.toJSON [
+          "homeConfigurations"
+          "${config.home.username}@${hostConfig.name}"
+          "config"
+          "programs"
+          "projectDirectories"
+          "directories"
+          dirPath
+          "shell"
+        ];
+        derivationComment = "# ${builtins.unsafeDiscardStringContext dirConfig.shell.drvPath}\n";
         absoluteDir = toAbsolute dirPath;
       in {
         name = "${dirPath}/.envrc";
@@ -94,7 +80,7 @@ in {
           text =
             derivationComment
             + "source_up_if_exists\n"
-            + "use flake \"${flakePath}#${flakeAttr}\"\n"
+            + "use flake ${lib.escapeShellArg "${flakePath}#${flakeAttr}"}\n"
             + lib.concatMapStrings (p: "PATH_add ${p}\n") dirConfig.extraPaths;
           onChange = ''
             ${config.programs.direnv.package}/bin/direnv allow ${lib.escapeShellArg absoluteDir}

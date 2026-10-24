@@ -3,11 +3,12 @@
   lib,
   featureResolver,
   nixosHosts,
-  config,
+  hostToplevels,
+  substitutersModule,
   withSystem,
 }: let
-  netboot = import ../../lib/netboot {inherit inputs featureResolver;} {
-    inherit nixosHosts config withSystem;
+  netboot = import ../../lib/netboot {inherit inputs;} {
+    inherit nixosHosts hostToplevels substitutersModule withSystem;
   };
 in {
   apps = {

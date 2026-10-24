@@ -1,9 +1,7 @@
-{
-  inputs,
-  featureResolver,
-}: {
-  config,
+{inputs}: {
   nixosHosts,
+  hostToplevels,
+  substitutersModule,
   withSystem,
 }: let
   inherit (inputs.nixpkgs) lib;
@@ -39,7 +37,7 @@
         [
           "${hostNixpkgs}/nixos/modules/installer/${profile}"
           ./netboot-installer.nix
-          config.dotfiles.nix.substitutersModule
+          substitutersModule
           {
             networking.hostName = "${hostname}-installer";
             system.stateVersion = stateVersion;
@@ -93,7 +91,7 @@
       extraModules = [
         {
           isoImage.storeContents = [
-            config.flake.nixosConfigurations.${hostname}.config.system.build.toplevel
+            hostToplevels.${hostname}
           ];
           isoImage.makeBiosBootable = false;
         }
@@ -192,17 +190,8 @@ in {
   }: let
     inherit (platform) system;
     systemHosts = lib.filterAttrs (_: hostConfig: hostConfig.system == system) nixosHosts;
-
-    # The netboot image and the ISO contents are built for the target, so they
-    # are exported only under that host's own system. The ISO itself is
-    # assembled by the build system's package set from contents fetched from
-    # elsewhere, so `scripts/build-iso.bash` can produce a Linux host's ISO on
-    # a Mac. No NixOS host has a darwin system, so a darwin build system
-    # exports `-iso` for every host.
-    isoHosts =
-      if featureResolver.isDarwin {inherit platform;}
-      then nixosHosts
-      else systemHosts;
+    # Netboot and ISO contents use the target system. ISO assembly uses the
+    # build system, so every build system exports an image for each host.
   in
     lib.mapAttrs'
     (
@@ -223,7 +212,7 @@ in {
       in
         lib.nameValuePair "${hostname}-iso" (mkLocalIso buildPkgs isoConfigs.${hostname})
     )
-    isoHosts;
+    nixosHosts;
 
   appsForSystem = {pkgs}:
     lib.mapAttrs'

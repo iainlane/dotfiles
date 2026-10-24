@@ -3,7 +3,8 @@
 #!nix-shell -I nixpkgs=flake:nixpkgs
 # shellcheck shell=bash
 
-# Garbage collect old generations while retaining the current direnv roots.
+# Garbage collect old generations. Current Home Manager generations retain
+# their project shells, and nix-direnv retains its cached environments.
 #
 # Usage: gc <days>
 

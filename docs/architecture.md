@@ -200,9 +200,20 @@ configurations, deployment, formatter and installer outputs beside their owners.
 
 ### Project shells
 
-Project features export directory definitions and development shells. The shared
-scope explicitly includes those features. The development component projects the
-combined directory catalogue and shell aggregate used by `just build-direnvs`.
+Project features contribute Home Manager directory entries with a `shell`
+package. Home Manager retains shell outputs through `home.extraDependencies`.
+Shells continue to use unstable packages on stable hosts.
+
+Generated `.envrc` files include a stripped derivation fingerprint, load an
+ancestor environment, load the host-specific Home Manager shell attribute and
+then extend PATH. The host-specific installable regenerates derivation metadata
+without retaining `.drv` files in the home closure.
+
+`just refresh-direnvs` refreshes the selected host's caches outside activation.
+It detects nix-direnv fallback and reports refresh failures. After a successful
+switch and refresh, the update recipe can retire legacy separate shell roots.
+Standalone or failed refreshes preserve those roots. The configured checkout
+must exist and contain the configuration used for shell loading.
 
 ### Installers
 

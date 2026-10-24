@@ -3,7 +3,6 @@
   config,
   lib,
   mkLanguageShell,
-  withSystem,
   ...
 }: let
   inherit (import ../../lib/projects.nix {inherit lib;}) mkProjectShell mkProjectShells;
@@ -53,33 +52,14 @@
 in {
   imports = [
     ./languages.nix
-    ./direnv-catalogue.nix
     ./debuginfod
     ./orbstack
   ];
 
-  dotfiles.flakeSystem.includes = [
-    config.dotfiles.features.development
-    config.dotfiles.features.work
-    config.dotfiles.features.home.debian
-  ];
+  dotfiles.flakeSystem.includes = [config.dotfiles.features.development];
 
   dotfiles.features.development = {
-    inherit (projectShells) devShells legacyPackages;
-    packages = {system, ...}:
-      withSystem system ({
-        config,
-        pkgs,
-        ...
-      }: {
-        direnv-shells = pkgs.linkFarm "direnv-shells" (
-          lib.mapAttrsToList (name: drv: {
-            inherit name;
-            path = drv;
-          })
-          (lib.filterAttrs (name: _: lib.hasPrefix "direnvs-" name) config.devShells)
-        );
-      });
+    checks = ../../lib/project-directories/check.nix;
     includes =
       [children.debuginfod]
       ++ [

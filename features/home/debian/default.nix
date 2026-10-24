@@ -62,7 +62,6 @@
   };
 in {
   dotfiles.features.home.debian = {
-    inherit (projectShells) devShells legacyPackages;
     homeManager = [
       projectShells.homeManagerModule
       ./home-manager.nix

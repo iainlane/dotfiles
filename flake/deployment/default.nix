@@ -21,6 +21,6 @@ in {
   in {
     packages = tools.packages args;
     apps = tools.apps args;
-    checks = outputs.checks args;
+    checks = outputs.checks args // import ./test.nix args;
   };
 }

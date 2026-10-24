@@ -71,7 +71,6 @@ in {
 
   dotfiles.features.work = {
     inventory = {lib, ...}: {agentsview.archive.publish = lib.mkForce false;};
-    inherit (projectShells) devShells legacyPackages;
     includes =
       [config.dotfiles.features.ai config.dotfiles.features.git]
       ++ [

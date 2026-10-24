@@ -68,10 +68,10 @@ update-home *args:
     nh home switch . {{ args }}
 
 [linux]
-update: update-flake update-pkgs update-system update-home build-direnvs
+update: update-flake update-pkgs update-system update-home refresh-direnvs-after-switch
 
 [macos]
-update: update-flake update-pkgs update-system build-direnvs
+update: update-flake update-pkgs update-system refresh-direnvs-after-switch
 
 # Deploy to a remote host via deploy-rs (all profiles by default)
 update-host hostname *args:
@@ -89,9 +89,13 @@ update-host-home hostname *args:
 deploy-host hostname target *args:
     nix run .#deploy-rs -- --skip-checks --interactive-sudo true --hostname '{{ hostname }}.home.orangesquash.org.uk' .#{{ target }} {{ args }}
 
-# Pre-build all direnv development shells and refresh their caches
-build-direnvs:
-    ./scripts/build-direnvs.bash
+# Refresh the direnv caches for this host's project directories
+refresh-direnvs:
+    ./scripts/refresh-direnvs.bash
+
+[private]
+refresh-direnvs-after-switch:
+    ./scripts/refresh-direnvs.bash --after-switch
 
 # Search for a package in nixpkgs
 search query *args:
