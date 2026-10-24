@@ -135,6 +135,31 @@ exits with an error when its config lists no accounts, so the service runs the
 server only once the config lists an account. The service manager watches the
 config file, so the first `teamclaude login` starts the server.
 
+Declare settings and API-key accounts through Home Manager:
+
+```nix
+dotfiles.claudeCode.teamclaude = {
+  settings.switchThreshold = 0.98;
+  apiKeyAccounts.fallback = {
+    apiKeyFile = config.sops.secrets.anthropic-api-key.path;
+    priority = 100;
+  };
+};
+```
+
+The API-key file contains a single key. Activation and server startup reconcile
+the declared settings and accounts with the writable configuration. Declared
+settings override runtime values; undeclared settings and OAuth credentials
+remain unchanged. Arrays are replaced as a whole. Removing a setting from Nix
+leaves its current runtime value in place.
+
+API-key accounts default to priority `100`, after subscription accounts at
+priority `0`. Each reconciliation reads the key file again, so activating after
+a secret update replaces the saved key and requests a reload of the running
+proxy. Settings that the proxy cannot reload, such as its listen port, take
+effect when the service next starts. Removing a declared API-key account removes
+its managed runtime entry. Accounts added through TeamClaude remain unchanged.
+
 [teamclaude]: https://github.com/KarpelesLab/teamclaude
 
 ## Instructions, output styles and skills

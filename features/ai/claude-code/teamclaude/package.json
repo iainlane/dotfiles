@@ -1,0 +1,21 @@
+{
+  "name": "@dotfiles/teamclaude-provision",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint *.ts",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "oxlint": "1.89.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}
