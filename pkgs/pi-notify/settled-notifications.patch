@@ -1,0 +1,12 @@
+--- a/index.ts
++++ b/index.ts
+@@ -91,7 +91,8 @@
+ }
+ 
+ export default function (pi: ExtensionAPI) {
+-    pi.on("agent_end", async () => {
++    pi.on("agent_settled", (_event, ctx) => {
++        if (ctx.mode !== "tui") return;
+         notify("Pi", "Ready for input");
+     });
+ }
