@@ -3,6 +3,10 @@ set -euo pipefail
 
 registry="$1"
 github="$2"
+patched_registry="$3"
+patched_github="$4"
+invalid_registry="$5"
+invalid_github="$6"
 fixture="$(mktemp -d)"
 fixture="$(cd "$fixture" && pwd -P)"
 trap 'rm -rf "$fixture"' EXIT
@@ -12,6 +16,8 @@ cd "$fixture/repository/pkgs/fixture"
 export PI_UPDATER_VERSION=2.0.0
 export PI_UPDATER_LOCK="$fixture/new-lock.json"
 export PI_UPDATER_ARCHIVE="$fixture/source.tgz"
+export PI_UPDATER_NPM_CALLS="$fixture/npm-calls"
+export PI_UPDATER_CONSUMED_MANIFEST="$fixture/consumed-manifest.json"
 
 reset_outputs() {
 	printf '%s\n' '{"version":"1.0.0","tarballHash":"old"}' >source.json
@@ -25,6 +31,7 @@ reset_outputs() {
 make_archive() {
 	printf '%s\n' '{"name":"fixture","version":"2.0.0"}' >"$fixture/archive/package/package.json"
 	cp "$PI_UPDATER_LOCK" "$fixture/archive/package/package-lock.json"
+	printf '%s\n' before >"$fixture/archive/package/support.txt"
 	printf '%s\n' '{"release":"2.0.0"}' >"$fixture/archive/package/scripts/metadata.json"
 	tar -czf "$PI_UPDATER_ARCHIVE" -C "$fixture/archive" package
 }
@@ -82,4 +89,27 @@ for program in "$registry" "$github"; do
 	cmp "$fixture/valid-lock.json" npm-deps/package-lock.json
 	"$program" --force
 	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+done
+
+export PI_UPDATER_EXPECT_PATCH=1
+printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0","dependencies":{"runtime":"1.0.0"},"peerDependencies":{"host":"^1.4.0"}}}}' >"$PI_UPDATER_LOCK"
+make_archive
+for program in "$patched_registry" "$patched_github"; do
+	reset_outputs
+	rm -f "$PI_UPDATER_CONSUMED_MANIFEST" "$PI_UPDATER_NPM_CALLS"
+	"$program"
+	jq --exit-status '.peerDependencies.host == "^1.4.0" and .dependencies.runtime == "1.0.0"' "$PI_UPDATER_CONSUMED_MANIFEST"
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	test "$(wc -l <"$PI_UPDATER_NPM_CALLS")" -eq 1
+done
+
+for program in "$invalid_registry" "$invalid_github"; do
+	reset_outputs
+	rm -f "$PI_UPDATER_NPM_CALLS"
+	if "$program"; then
+		echo 'A failed source patch must fail the updater' >&2
+		exit 1
+	fi
+	unchanged
+	test ! -e "$PI_UPDATER_NPM_CALLS"
 done

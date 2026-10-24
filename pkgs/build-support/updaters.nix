@@ -15,6 +15,7 @@
   nix,
   nix-update,
   nodejs,
+  patch,
   pyright,
   python3,
   ruff,
@@ -167,9 +168,8 @@
   #
   # The registry decides which version to move to either way, because Pi's own
   # installer would resolve the same version. With `gitHub`, the source is that
-  # version's release tag, and the lockfile is copied from the same tag.
-  # Without `gitHub`, the source is the registry tarball, which has no lockfile,
-  # so npm resolves the tarball's manifest here.
+  # version's release tag. An unchanged GitHub source uses its committed lock;
+  # patched sources and registry tarballs are resolved with npm.
   mkPiExtensionUpdater = {
     npmName,
     pname,
@@ -178,15 +178,15 @@
     tagPrefix ? "v",
     # Replacement version ranges for entries in the manifest's `dependencies`,
     # applied before resolving. Use one when a dependency's declared range would
-    # let npm pick a version that breaks the extension. Ignored with `gitHub`,
-    # where the committed lockfile is copied as it stands.
+    # let npm pick a version that breaks the extension.
     npmDependencies ? {},
+    patches ? [],
     metadataFiles ? {},
   }:
     writeShellApplication {
       name = "update-${pname}";
 
-      runtimeInputs = [coreutils git gnutar jq nix nodejs wget];
+      runtimeInputs = [coreutils git gnutar patch jq nix nodejs wget];
 
       text = ''
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
@@ -195,6 +195,8 @@
         source "${./prefetch.sh}"
 
         tmpdir="$(mktemp -d)"
+        sourceDir="$tmpdir/source"
+        mkdir "$sourceDir"
         # Keep the temporary file beside `source.json` so the rename stays
         # atomic.
         staged="$(mktemp source.json.XXXXXX)"
@@ -237,13 +239,7 @@
             tarball="''${tmpdir}/${pname}.tar.gz"
             download "''${url}" "''${tarball}"
 
-            # GitHub wraps the archive in one directory named after the repo
-            # and tag. Strip that level and match by wildcard, so the tag
-            # naming scheme does not have to be spelled out here.
-            tar -xzf "''${tarball}" -C "''${tmpdir}" --strip-components=1 \
-              --wildcards '*/package-lock.json'
-
-            lockfile="''${tmpdir}/package-lock.json"
+            tar -xzf "$tarball" -C "$sourceDir" --strip-components=1
 
             jq -n --sort-keys \
               --arg version "''${version}" \
@@ -255,22 +251,7 @@
             tarball="''${tmpdir}/${pname}.tgz"
             download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
 
-            tar -xzf "''${tarball}" -C "''${tmpdir}" package/package.json
-
-            ${lib.optionalString (npmDependencies != {}) ''
-              manifest="''${tmpdir}/package/package.json"
-              jq --argjson deps '${builtins.toJSON npmDependencies}' \
-                --from-file ${./promote-npm-dependencies.jq} \
-                "''${manifest}" >"''${manifest}.new"
-              mv "''${manifest}.new" "''${manifest}"
-            ''}
-
-            # npm resolves beside the manifest, and only the lockfile is
-            # committed: the build reads what it needs from the lockfile's root
-            # record. Pass `--ignore-scripts`, because a plain install runs the
-            # package's `prepare` script.
-            (cd "''${tmpdir}/package" && npm install --package-lock-only --ignore-scripts)
-            lockfile="''${tmpdir}/package/package-lock.json"
+            tar -xzf "$tarball" -C "$sourceDir" --strip-components=1
 
             # A failing `hash_file` inside the `jq` arguments would not
             # change `jq`'s exit status, so `source.json` would be written
@@ -284,6 +265,21 @@
               '{version: $version, tarballHash: $hash}' >"''${staged}"
           ''
         }
+        ${lib.concatMapStringsSep "\n" (sourcePatch: ''
+            (cd "$sourceDir" && patch --batch --forward -p1 --input ${lib.escapeShellArg (toString sourcePatch)})
+          '')
+          patches}
+        ${lib.optionalString (npmDependencies != {}) ''
+          jq --argjson deps ${lib.escapeShellArg (builtins.toJSON npmDependencies)} \
+            --from-file ${./promote-npm-dependencies.jq} \
+            "$sourceDir/package.json" >"$sourceDir/package.json.new"
+          mv "$sourceDir/package.json.new" "$sourceDir/package.json"
+        ''}
+        ${lib.optionalString (gitHub == null || patches != [] || npmDependencies != {}) ''
+          (cd "$sourceDir" && npm install --package-lock-only --ignore-scripts)
+        ''}
+        lockfile="$sourceDir/package-lock.json"
+
         jq --exit-status --arg version "''${version}" --arg name ${lib.escapeShellArg npmName} '
           .packages[""].version == $version
           and .packages[""].name == $name

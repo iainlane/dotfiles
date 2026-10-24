@@ -1,6 +1,6 @@
-# npm tarballs omit package-lock.json, so the updater resolves their manifests.
-# GitHub sources use the release's lockfile. Both are committed in npm-deps/;
-# the build must not resolve dependencies again.
+# npm tarballs omit package-lock.json. The updater resolves their manifests
+# and patched GitHub manifests, otherwise preserving the release lockfile.
+# The resulting lockfile is committed in npm-deps/ for offline builds.
 {
   buildNpmPackage,
   fetchFromGitHub,
@@ -19,8 +19,7 @@
   gitHub ? null,
   tagPrefix ? "v",
   description,
-  # Dependency overrides for registry tarballs. The updater applies these
-  # before resolving the lockfile; GitHub sources use the upstream lockfile.
+  # Runtime dependency overrides, applied before resolving the lockfile.
   npmDependencies ? {},
   metadataFiles ? {},
   # npm distributes platform-specific native addons as optional dependencies.
@@ -49,7 +48,8 @@
     inherit packageLock;
   };
 in
-  buildNpmPackage ({
+  buildNpmPackage (finalAttrs:
+    {
       inherit pname;
       inherit (pin) version;
 
@@ -118,6 +118,7 @@ in
 
         updateScript = updaters.mkPiExtensionUpdater {
           inherit npmName pname npmDependencies metadataFiles gitHub tagPrefix;
+          patches = finalAttrs.patches or [];
         };
       };
 
