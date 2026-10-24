@@ -53,16 +53,11 @@ or a setting changes in the TUI. A `tui.json` is written instead: OpenCode 2
 reads that once, while `cli.json` is still absent, and translates it, which is
 enough to pick the theme on a new machine without taking the file over.
 
-Pi reads its configuration from `~/.pi/agent/`, and no upstream Home Manager
-module writes that directory, so `pi/` writes it with `home.file`. Pinned Pi
-extensions are packaged under `pkgs/<name>/` and installed as local-path
-packages, so Pi never downloads them itself. Each extension is bumped by
-`nix run .#update-<name>`, which the scheduled `package update` workflow runs
-alongside the other packages. Pi's built-in MCP support reads
-`~/.pi/agent/mcp.json`, which `pi/` generates from the shared MCP server set.
-The file is read-only, so changes that `/mcp` would save there have to be made
-in Nix instead. Auth stays interactive through `pi /login`, and OAuth MCP
-servers sign in with `pi mcp login <server>`.
+[Pi][pi] provides coding tools, delegated research and reviewed implementation
+plans. Its dedicated guide describes authentication, commands, diagnostics and
+managed configuration.
+
+[pi]: pi/README.md
 
 ### Managed config files
 
