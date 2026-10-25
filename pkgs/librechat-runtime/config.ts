@@ -8,6 +8,47 @@ import { randomBytes } from "node:crypto";
 import { link, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
+interface LocalMcpServer {
+  type: "streamable-http";
+  url: string;
+  requiresOAuth: false;
+  headers: { Authorization: string };
+  requestHeaders: {
+    "X-LibreChat-User-ID": string;
+    "X-LibreChat-Conversation-ID": string;
+  };
+  serverInstructions: boolean;
+}
+
+export function configureLocalMcp(servers: readonly string[]): {
+  mcpServers: Record<string, LocalMcpServer>;
+  mcpSettings: { allowedAddresses: string[] };
+} {
+  const mcpServers = Object.fromEntries(
+    servers.map((name): [string, LocalMcpServer] => [
+      name,
+      {
+        type: "streamable-http",
+        url: `http://127.0.0.1:3193/mcp/${name}`,
+        requiresOAuth: false,
+        headers: { Authorization: "Bearer ${LIBRECHAT_MCP_TOKEN}" },
+        requestHeaders: {
+          "X-LibreChat-User-ID": "{{LIBRECHAT_USER_ID}}",
+          "X-LibreChat-Conversation-ID": "{{LIBRECHAT_BODY_CONVERSATIONID}}",
+        },
+        serverInstructions: true,
+      },
+    ]),
+  );
+
+  return {
+    mcpServers,
+    mcpSettings: {
+      allowedAddresses: servers.length === 0 ? [] : ["127.0.0.1:3193"],
+    },
+  };
+}
+
 export interface ProviderOptions {
   ollamaUrl?: string | null;
   openaiKeyFile?: string | null;

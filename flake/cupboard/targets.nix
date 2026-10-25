@@ -4,7 +4,8 @@
 # Public targets omit deploy profiles and checks that read the private secrets
 # input. Fork pull requests and merge groups build this subset without publishing.
 #
-# Linux targets build on nixbuild.net. A check is left out on a Linux system
+# Linux targets build on nixbuild.net. Darwin runners also enable those
+# builders for Linux guest dependencies. A check is left out on a Linux system
 # when it requires a system feature, such as `kvm`, that nixbuild.net does not
 # support on that system.
 {
@@ -31,7 +32,7 @@
       else if featureResolver.isAarch64 platform
       then "ubuntu-24.04-arm"
       else "ubuntu-latest";
-    remote = !featureResolver.isDarwin platform;
+    remote = true;
   };
 
   systemEntry = name: host: let
@@ -85,7 +86,8 @@
     "packages"
     config.flake.packages.${validationSystem}.local-packages;
 
-  buildable = system: check: !(baseFor system).remote || nixbuild.canBuild system check;
+  buildable = system: check:
+    featureResolver.isDarwin (featureResolver.contextForSystem system) || nixbuild.canBuild system check;
 
   checkEntriesFor = system: systemChecks:
     lib.mapAttrsToList

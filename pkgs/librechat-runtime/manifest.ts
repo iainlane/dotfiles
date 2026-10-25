@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const hostManifestSchema = z.object({
   stateDirectory: z.string(),
+  sopsProgram: z.string().nullable().default(null),
   homeDirectory: z.string(),
   hookCommand: z.string(),
   skillsDirectory: z.string(),

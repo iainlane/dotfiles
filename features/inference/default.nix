@@ -9,7 +9,7 @@ in {
   ];
 
   dotfiles.features.inference = {
-    includes = with children; [ollama open-webui];
+    includes = with children; [ollama librechat];
 
     homeManager = ./home-manager.nix;
     nixos = ./nixos.nix;

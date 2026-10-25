@@ -1,3 +1,4 @@
+import { configureLocalMcp } from "./config.ts";
 import { StatusCodes } from "http-status-codes";
 import { beforeEach, expect, it } from "vitest";
 import { McpRouter, type McpRouterOptions } from "./mcp-router.ts";
@@ -218,5 +219,31 @@ it("forwards client replies to server requests within the bound conversation", a
     status: StatusCodes.OK,
     reply: JSON.stringify(reply),
     released: 2,
+  });
+});
+
+it("permits only the local gateway address for configured stdio servers", () => {
+  expect(configureLocalMcp(["git"])).toStrictEqual({
+    mcpSettings: { allowedAddresses: ["127.0.0.1:3193"] },
+    mcpServers: {
+      git: {
+        type: "streamable-http",
+        url: "http://127.0.0.1:3193/mcp/git",
+        requiresOAuth: false,
+        headers: { Authorization: "Bearer ${LIBRECHAT_MCP_TOKEN}" },
+        requestHeaders: {
+          "X-LibreChat-User-ID": "{{LIBRECHAT_USER_ID}}",
+          "X-LibreChat-Conversation-ID": "{{LIBRECHAT_BODY_CONVERSATIONID}}",
+        },
+        serverInstructions: true,
+      },
+    },
+  });
+});
+
+it("does not permit loopback addresses without local stdio servers", () => {
+  expect(configureLocalMcp([])).toStrictEqual({
+    mcpSettings: { allowedAddresses: [] },
+    mcpServers: {},
   });
 });

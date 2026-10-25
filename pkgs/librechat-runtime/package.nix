@@ -45,7 +45,7 @@
     cp ${librechat-code}/lib/librechat-code/.build/bridge-worker.mjs "$out/lib/librechat-runtime/"
 
     makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
-      --add-flags "$out/lib/librechat-runtime/cli.ts"
+      --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/cli.ts"
     runHook postInstall
   '';
 

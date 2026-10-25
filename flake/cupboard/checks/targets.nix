@@ -69,7 +69,7 @@
           else if featureResolver.isAarch64 (featureResolver.contextForSystem target.system)
           then "ubuntu-24.04-arm"
           else "ubuntu-latest";
-        remote = !featureResolver.isDarwin (featureResolver.contextForSystem target.system);
+        remote = true;
       })
       required;
   };

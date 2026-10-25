@@ -533,7 +533,7 @@ function expectedTarget(
       : system.startsWith("aarch64-")
         ? "ubuntu-24.04-arm"
         : "ubuntu-latest",
-    remote: !system.endsWith("-darwin"),
+    remote: true,
   };
 }
 

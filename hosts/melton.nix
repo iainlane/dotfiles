@@ -8,6 +8,8 @@ in {
     motd = halls.melton;
     features = [
       features.agentsview
+      features.inference.ollama
+      features.inference.librechat
       features.inference.acceleration.metal
       features.base
       features.development
