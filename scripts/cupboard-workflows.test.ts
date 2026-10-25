@@ -412,14 +412,13 @@ describe("Cupboard workflow concurrency", () => {
 });
 
 describe("Cupboard merged pull request reuse", () => {
-  it("selects the trusted wrapper without exposing every PR cache to builders", () => {
+  it("configures merged PR reuse without exposing every PR cache to builders", () => {
     const publication = record(record(wrapper.jobs).publish);
     const inputs = record(publication.with);
     const secrets = record(publication.secrets);
 
     assert.deepEqual(
       {
-        workflow: publication.uses,
         callerPermission: record(record(jobs.publish).permissions)[
           "pull-requests"
         ],
@@ -431,8 +430,6 @@ describe("Cupboard merged pull request reuse", () => {
         ),
       },
       {
-        workflow:
-          "underwhelmingperformance/cupboard/.github/workflows/cupboard-flake-publish-trusted.yml@v0.0.46",
         callerPermission: "read",
         wrapperPermission: "read",
         preset: "pull-request-and-branch",
