@@ -34,10 +34,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1aymcakhzl83k77g2f2krz07bg1cbafbcd2ghvwr4lky3rz86mkb";
+      sha256 = "1qfi2ns3zwkgq616fc127xiqhan7g7m7gqpwriwcr34nds1vxwdj";
       type = "gem";
     };
-    version = "1.3.6";
+    version = "1.3.8";
   };
   liquid = {
     dependencies = ["bigdecimal" "strscan"];
