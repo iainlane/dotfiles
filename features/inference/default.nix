@@ -4,6 +4,7 @@ in {
   imports = [
     ./acceleration
     ./ollama
+    ./librechat
     ./open-webui
   ];
 
