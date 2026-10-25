@@ -3,10 +3,9 @@
 # The agents write session files. AgentsView reads these files and keeps an
 # archive of them. It also shows a dashboard of the archive on 127.0.0.1.
 #
-# Some machines instead push their archive to the shared database, and the
-# server's dashboard shows their sessions with the sessions of the other
-# machines. Such a machine runs only the push watcher, which ingests the
-# session files and pushes them in one process; it has no local dashboard.
+# Some machines also push their archive to the shared database. The server's
+# dashboard then shows sessions from all publishing machines. The push
+# watcher starts the local daemon, which also handles local CLI requests.
 #
 # On a host with `ai`, the agents also get the AgentsView skill from the
 # `skills` child.
@@ -53,13 +52,10 @@
   # command works against the units declared here.
   pushLog = cfg: "${cfg.dataDir}/pg-watch.log";
 
-  # The push watcher's environment. With daemon auto-start disabled the
-  # watcher ingests the session files and writes the archive itself; without
-  # `AGENTSVIEW_NO_DAEMON` it would spawn a dashboard daemon and push through
-  # that.
+  # Local CLI reads need the daemon. Disabling its auto-start makes the
+  # watcher exclusively lock the archive and prevents those reads.
   pushEnvironment = cfg: {
     AGENTSVIEW_DATA_DIR = cfg.dataDir;
-    AGENTSVIEW_NO_DAEMON = "1";
   };
 
   # Home Manager restarts a systemd service only when its unit file changes,
@@ -219,7 +215,7 @@ in {
       secretsFile = lib.mkDefault "${hostConfig.name}/user-agentsview.yaml";
     };
   };
-  checks = [./agentsview-secrets-check.nix ./topology-check.nix];
+  checks = [./agentsview-secrets-check.nix ./topology-check.nix ./client-host-check.nix ./client-host-check-test.nix];
   apps = import ./provisioner.nix {inherit topology;};
   includes =
     [
