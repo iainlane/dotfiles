@@ -34,7 +34,11 @@ export interface Guest {
 }
 
 export interface GuestBackend {
-  start(session: Session, restore: boolean): Promise<Guest>;
+  start(
+    session: Session,
+    restore: boolean,
+    signal?: AbortSignal,
+  ): Promise<Guest>;
 
   checkpoint(session: Session, guest: Guest): Promise<void>;
 
@@ -137,7 +141,12 @@ export class SessionManager {
     return entry;
   }
 
-  private async ready(entry: SessionEntry): Promise<Guest> {
+  private async ready(
+    entry: SessionEntry,
+    signal?: AbortSignal,
+  ): Promise<Guest> {
+    signal?.throwIfAborted();
+
     if (entry.session.quarantine !== null) {
       throw new WorkspaceQuarantinedError();
     }
@@ -146,12 +155,21 @@ export class SessionManager {
       return entry.guest;
     }
 
-    entry.guest = await this.options.backend.start(
+    const guest = await this.options.backend.start(
       entry.session,
       entry.session.checkpoint,
+      signal,
     );
 
-    return entry.guest;
+    if (signal?.aborted === true) {
+      await this.options.backend.stop(entry.session, guest);
+
+      signal.throwIfAborted();
+    }
+
+    entry.guest = guest;
+
+    return guest;
   }
 
   async activate(userId: string, conversationId: string): Promise<Session> {
@@ -215,7 +233,12 @@ export class SessionManager {
     return await this.leaseRuntime(runtimeId, false);
   }
 
-  async acquireCodeRuntime(runtimeId: string): Promise<SessionLease> {
+  async acquireCodeRuntime(
+    runtimeId: string,
+    signal?: AbortSignal,
+  ): Promise<SessionLease> {
+    signal?.throwIfAborted();
+
     if (this.closing) {
       throw new SessionClosingError();
     }
@@ -223,7 +246,11 @@ export class SessionManager {
     runtimeIdSchema.parse(runtimeId);
 
     await this.locked(runtimeId, async () => {
+      signal?.throwIfAborted();
+
       let entry = await this.load(runtimeId);
+
+      signal?.throwIfAborted();
 
       if (entry === undefined) {
         entry = {
@@ -254,16 +281,19 @@ export class SessionManager {
       await this.save(entry.session);
     });
 
-    return await this.leaseRuntime(runtimeId, true);
+    return await this.leaseRuntime(runtimeId, true, signal);
   }
 
   private async leaseRuntime(
     runtimeId: string,
     allowUnbound: boolean,
+    signal?: AbortSignal,
   ): Promise<SessionLease> {
     runtimeIdSchema.parse(runtimeId);
 
     return await this.locked(runtimeId, async () => {
+      signal?.throwIfAborted();
+
       if (this.closing) {
         throw new SessionClosingError();
       }
@@ -278,13 +308,21 @@ export class SessionManager {
         throw new RuntimeNotRegisteredError();
       }
 
-      const guest = await this.ready(entry);
+      const guest = await this.ready(entry, signal);
+
+      signal?.throwIfAborted();
 
       entry.session.lastUsed = this.now();
 
       await this.save(entry.session);
 
       entry.leases += 1;
+
+      if (signal?.aborted === true) {
+        entry.leases -= 1;
+
+        signal.throwIfAborted();
+      }
 
       let released = false;
 

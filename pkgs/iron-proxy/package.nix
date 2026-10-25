@@ -19,7 +19,10 @@ buildGoLatestModule (finalAttrs: {
   ldflags = ["-s" "-w"];
   checkFlags = ["-short"];
   __darwinAllowLocalNetworking = true;
-  passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "iron-proxy";};
+  passthru = {
+    updateScript = updaters.mkNixUpdateUpdater {attr = "iron-proxy";};
+    transformProto = "${finalAttrs.src}/proto/transform/v1/transform.proto";
+  };
   meta = {
     description = "Intercepting HTTP proxy with destination policy and credential injection";
     homepage = "https://github.com/paradigmxyz/iron-proxy";

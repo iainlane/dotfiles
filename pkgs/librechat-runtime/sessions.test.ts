@@ -70,13 +70,13 @@ beforeEach(() => {
   failCheckpoint = false;
 });
 
-function manager(): SessionManager {
+function manager(guestBackend: GuestBackend = backend): SessionManager {
   return new SessionManager({
     store,
     userId,
     idleMs: 100,
     retentionMs: 1000,
-    backend,
+    backend: guestBackend,
     now: () => clock,
   });
 }
@@ -359,3 +359,169 @@ class CheckpointInterruptedError extends Error {
     this.name = "CheckpointInterruptedError";
   }
 }
+
+it("skips a cancelled CodeAPI acquisition queued behind another VM startup", async () => {
+  const started = Promise.withResolvers<void>();
+
+  const proceed = Promise.withResolvers<void>();
+
+  const sessions = manager({
+    ...backend,
+    start: async (session, restore) => {
+      started.resolve();
+
+      await proceed.promise;
+
+      return await backend.start(session, restore);
+    },
+  });
+
+  const active = sessions.activate(userId, conversationId);
+
+  await started.promise;
+
+  const controller = new AbortController();
+
+  const reason = new DOMException("Assignment cancelled", "AbortError");
+
+  const pending = sessions.acquireCodeRuntime(
+    runtimeIdentity(userId, conversationId),
+    controller.signal,
+  );
+
+  controller.abort(reason);
+
+  proceed.resolve();
+
+  await expect(pending).rejects.toBe(reason);
+
+  await active;
+
+  clock = 101;
+
+  await sessions.sweep();
+
+  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+});
+
+it("passes CodeAPI cancellation through to VM startup", async () => {
+  const controller = new AbortController();
+
+  const reason = new DOMException("Assignment cancelled", "AbortError");
+
+  let receivedSignal: AbortSignal | undefined;
+
+  const sessions = manager({
+    ...backend,
+    start: async (session, restore, signal) => {
+      receivedSignal = signal;
+
+      controller.abort(reason);
+
+      signal?.throwIfAborted();
+
+      return await backend.start(session, restore);
+    },
+  });
+
+  await expect(
+    sessions.acquireCodeRuntime(
+      runtimeIdentity(userId, conversationId),
+      controller.signal,
+    ),
+  ).rejects.toBe(reason);
+
+  expect({ receivedSignal, events }).toStrictEqual({
+    receivedSignal: controller.signal,
+    events: [],
+  });
+});
+
+it.each(["startup", "lease-save"])(
+  "cleans up cancellation at the %s boundary",
+  async (stage) => {
+    const controller = new AbortController();
+
+    const reason = new DOMException("Assignment cancelled", "AbortError");
+
+    const save = store.save.bind(store);
+
+    let saves = 0;
+
+    store.save = async (session) => {
+      await save(session);
+
+      saves += 1;
+
+      if (stage === "lease-save" && saves === 2) {
+        controller.abort(reason);
+      }
+    };
+
+    const sessions = manager({
+      ...backend,
+      start: async (session, restore) => {
+        const guest = await backend.start(session, restore);
+
+        if (stage === "startup") {
+          controller.abort(reason);
+        }
+
+        return guest;
+      },
+    });
+
+    await expect(
+      sessions.acquireCodeRuntime(
+        runtimeIdentity(userId, conversationId),
+        controller.signal,
+      ),
+    ).rejects.toBe(reason);
+
+    clock = 101;
+
+    await sessions.sweep();
+
+    expect(events).toStrictEqual(
+      stage === "startup" ? ["start", "stop"] : ["start", "checkpoint", "stop"],
+    );
+  },
+);
+
+it("preserves another caller's lease when CodeAPI acquisition is cancelled", async () => {
+  const sessions = manager();
+
+  const active = await sessions.activate(userId, conversationId);
+
+  const lease = await sessions.acquire(active.runtimeId);
+
+  const controller = new AbortController();
+
+  const reason = new DOMException("Assignment cancelled", "AbortError");
+
+  const save = store.save.bind(store);
+
+  store.save = async (session) => {
+    await save(session);
+
+    controller.abort(reason);
+  };
+
+  await expect(
+    sessions.acquireCodeRuntime(active.runtimeId, controller.signal),
+  ).rejects.toBe(reason);
+
+  clock = 101;
+
+  await sessions.sweep();
+
+  expect(events).toStrictEqual(["start"]);
+
+  await lease.release();
+
+  clock = 202;
+
+  await sessions.sweep();
+
+  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+});
