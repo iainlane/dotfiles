@@ -8,7 +8,11 @@
 in {
   imports = [./backup];
 
+  dotfiles.flakeSystem.includes = [features.unifi];
+
   dotfiles.features.unifi = {
+    checks = [./checks.nix];
+
     includes = [
       features.containers
       # The controller's ports are published on the host's LAN address, which

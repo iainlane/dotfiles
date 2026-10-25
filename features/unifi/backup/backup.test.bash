@@ -164,10 +164,8 @@ echo '{"meta":{"rc":"ok"},"data":[{"url":"/dl/backup/10.6.101.unf"}]}' >"${test_
 echo '{"meta":{"rc":"ok"},"data":[]}' >"${test_dir}/no-url.json"
 echo '{"meta":{"rc":"error","msg":"api.err.Invalid"}}' >"${test_dir}/error.json"
 
-# The whole exchange: the command names the site and the days of statistics,
-# the download fetches the URL returned by the controller, under the Network
-# application's prefix, and the key travels in the config on stdin, never on
-# the command line. The stub records the snapshot path before cleanup.
+# The key travels in the config on stdin, never on the command line.
+# The stub records the snapshot path before cleanup.
 assert_backup ok zero "downloaded 10.6.101.unf: 18 bytes"
 
 work_dir="$(dirname "$(cat "${test_dir}/r2-source.log")")"

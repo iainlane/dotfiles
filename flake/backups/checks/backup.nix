@@ -73,7 +73,6 @@
           slices.system-backup = {
             description = "Background backups";
             sliceConfig = {
-              CPUAccounting = true;
               IOAccounting = true;
               CPUWeight = 20;
               IOWeight = 10;
@@ -82,7 +81,6 @@
           services = lib.genAttrs ["one-backup" "two-backup"] (_: {
             serviceConfig = {
               Slice = "system-backup.slice";
-              CPUAccounting = true;
               IOAccounting = true;
               Nice = 10;
             };

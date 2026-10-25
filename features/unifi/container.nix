@@ -10,6 +10,7 @@
 }: let
   runtimeDirectory = "unifi";
   runtimeEnvFile = "/run/${runtimeDirectory}/runtime.env";
+  healthCheck = "curl --fail --silent --show-error --insecure --max-time 5 https://127.0.0.1/api/ping";
 
   # The controller's own ports, published on one address only. This host also
   # has a routed public address, and publishing on every address there serves
@@ -48,14 +49,20 @@ in {
     addCapabilities = ["NET_RAW" "NET_ADMIN"];
     podmanArgs = ["--systemd=always"];
 
-    # The backup uses the controller's TLS port, so readiness checks that
-    # listener. Podman restarts the container after three consecutive failed
-    # checks, one minute apart.
-    healthCmd = "curl --fail --insecure https://127.0.0.1/api/ping";
+    healthCmd = healthCheck;
     healthInterval = "60s";
     healthTimeout = "5s";
     healthRetries = 3;
     healthOnFailure = "restart";
+
+    # Network exposes HTTP endpoints before initialisation finishes. Its
+    # internal systemd unit waits for the application's READY=1 notification.
+    healthStartupCmd = "systemctl is-active --quiet unifi.service && ${healthCheck}";
+    healthStartupInterval = "5s";
+    healthStartupTimeout = "5s";
+    healthStartupRetries = 0;
+    healthStartupSuccess = 1;
+
     notify = "healthy";
 
     environments = {
@@ -85,5 +92,6 @@ in {
   serviceConfig = {
     RuntimeDirectory = runtimeDirectory;
     ExecStartPre = ["${uuidBuilder}"];
+    TimeoutStartSec = "15min";
   };
 }
