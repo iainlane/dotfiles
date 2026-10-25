@@ -1,11 +1,12 @@
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
 
 from prose_lint.config import Config
 from prose_lint.levels import Level
+from prose_lint.overrides import Override
 from prose_lint.report import Finding
 from prose_lint.rules import RuleCatalogue
 from prose_lint.runtime import Runtime
@@ -207,6 +208,92 @@ def section(text: str, header: str) -> list[str]:
             sections[-1].append(line)
 
     return sections[-1] if sections else []
+
+
+@pytest.mark.parametrize("level", [Level.warning, Level.suggestion, Level.off])
+def test_scoped_lowering_uses_source_paths_for_direct_and_extracted_files(
+    tmp_path: Path, level: Level
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    paths = (docs / "page.md", docs / "module.nix", tmp_path / "README.md")
+    for path in paths:
+        path.write_text("# Some prose.\n")
+
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)))
+    levels = runtime.levels()
+    runtime.record_override(
+        Override("EmDash", level, "docs/style.md", files=("docs/**",))
+    )
+
+    report = runtime.lint_paths(paths)
+
+    expected = (em_dash(paths[2], 1),)
+    if level is not Level.off:
+        expected = (
+            replace(em_dash(paths[0], 1), severity=level),
+            em_dash(paths[2], 1),
+            replace(em_dash(paths[1], 1), severity=level),
+        )
+
+    assert report.findings == expected
+    assert runtime.levels() == levels
+
+
+def test_scopes_are_relative_to_the_root_from_a_subdirectory(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)))
+    runtime.cwd = docs
+    runtime.record_override(
+        Override("EmDash", Level.off, "docs/style.md", files=("/docs/**",))
+    )
+
+    assert runtime.lint_paths((Path("page.md"), Path("../README.md"))).findings == (
+        em_dash(Path("../README.md"), 1),
+    )
+
+
+def test_scoped_lowering_does_not_suppress_lint_failures(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.md"
+    runtime = build_runtime(tmp_path, BrokenFileVale(broken))
+    runtime.record_override(
+        Override("EmDash", Level.off, "docs/style.md", files=("*",))
+    )
+
+    assert runtime.lint_paths((broken,)).findings == (failure_finding(broken),)
+
+
+def test_commit_messages_do_not_use_file_scopes(tmp_path: Path) -> None:
+    runtime = build_runtime(tmp_path, LineVale(lines=(1,)))
+    runtime.record_override(
+        Override("EmDash", Level.off, "docs/style.md", files=("*",))
+    )
+
+    assert runtime.lint_commit_message("A sentence.\n", "README.md").findings == (
+        em_dash(Path(""), 1),
+    )
+
+
+def test_disabled_findings_are_removed_before_relative_clause_deduplication(
+    tmp_path: Path,
+) -> None:
+    long = relative_clause(tmp_path / "page.md", "the key this repository sets")
+    short = replace(
+        long, rule="Prose.ZeroRelativeBare", match="key this repository sets"
+    )
+
+    @dataclass
+    class OverlappingVale:
+        def lint(self, invocation: ValeInvocation) -> tuple[Finding, ...]:
+            return (long, short)
+
+    runtime = build_runtime(tmp_path, OverlappingVale())
+    runtime.record_override(
+        Override("ZeroRelative", Level.off, "docs/style.md", files=("*.md",))
+    )
+
+    assert runtime.lint_paths((tmp_path / "page.md",)).findings == (short,)
 
 
 def test_a_commit_message_is_linted_as_markdown_from_standard_input(

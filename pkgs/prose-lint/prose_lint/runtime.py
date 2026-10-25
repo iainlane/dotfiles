@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -102,7 +103,11 @@ class Runtime:
             self.catalogue,
             owned=self.owned,
             variant=self.variant,
-            overrides={override.rule: override.level for override in self.overrides()},
+            overrides={
+                override.rule: override.level
+                for override in self.overrides()
+                if override.files is None
+            },
         )
 
     def configuration(self) -> Path:
@@ -156,7 +161,43 @@ class Runtime:
 
         findings.extend(unreadable)
 
-        return Report(_refined(tuple(findings), _texts(findings, comments)))
+        lowered = self._lower_scoped(tuple(findings))
+
+        return Report(_refined(lowered, _texts(lowered, comments)))
+
+    def _lower_scoped(self, findings: tuple[Finding, ...]) -> tuple[Finding, ...]:
+        overrides = {
+            f"Prose.{override.rule}": override
+            for override in self.overrides()
+            if override.files is not None
+        }
+
+        if not overrides:
+            return findings
+
+        root = Path(os.path.abspath(self.root))
+        lowered: list[Finding] = []
+
+        for finding in findings:
+            override = overrides.get(finding.rule)
+            if override is None:
+                lowered.append(finding)
+                continue
+
+            path = Path(os.path.abspath(self.cwd / finding.path))
+            relative = (
+                path.relative_to(root).as_posix() if path.is_relative_to(root) else None
+            )
+
+            if not override.applies_to(relative):
+                lowered.append(finding)
+                continue
+
+            level = finding.severity.at_most(override.level)
+            if level is not Level.off:
+                lowered.append(replace(finding, severity=level))
+
+        return tuple(lowered)
 
     @property
     def _baselines_directory(self) -> Path:

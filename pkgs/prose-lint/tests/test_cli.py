@@ -8,8 +8,85 @@ from pathlib import Path
 import pytest
 
 from prose_lint.cli import main
+from prose_lint.levels import Level
+from prose_lint.overrides import Override, read_overrides
 from prose_lint.report import ADVICE
+from prose_lint.rules import RuleCatalogue
 from tests.conftest import git
+
+SOURCE = Path(__file__).resolve().parent.parent
+
+
+def test_allow_records_and_reports_an_ordered_file_scope(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(repository)
+    arguments = [
+        "allow",
+        "EmDash",
+        "--level",
+        "NO",
+        "--file",
+        "docs/**",
+        "--file",
+        "!docs/generated/**",
+        "--because",
+        "notes.md permits em dashes",
+    ]
+
+    assert main(arguments) == 0
+    allowed = capsys.readouterr()
+    assert main(["overrides"]) == 0
+    listed = capsys.readouterr()
+    rendered = (
+        "prose-lint runs EmDash at NO for ['docs/**', '!docs/generated/**']: "
+        "notes.md permits em dashes\n"
+    )
+
+    assert (allowed.out, allowed.err, listed.out, listed.err) == (
+        rendered,
+        "",
+        rendered,
+        "",
+    )
+    assert read_overrides(
+        repository / ".git/info/prose-lint.toml",
+        RuleCatalogue.load(SOURCE / "tiers.toml"),
+    ) == (
+        Override(
+            "EmDash",
+            Level.off,
+            "notes.md permits em dashes",
+            files=("docs/**", "!docs/generated/**"),
+        ),
+    )
+
+    assert main(["disallow", "EmDash"]) == 0
+    assert main(["overrides"]) == 0
+    assert capsys.readouterr().out == (
+        "EmDash runs at its configured level again.\nNo rule is lowered here.\n"
+    )
+
+
+@pytest.mark.parametrize("files", ["[]", '["invalid\\\\"]'])
+def test_invalid_stored_scopes_produce_a_cli_error(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    files: str,
+) -> None:
+    monkeypatch.chdir(repository)
+    path = repository / ".git/info/prose-lint.toml"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(
+        f'[overrides.EmDash]\nlevel = "NO"\nbecause = "notes.md"\nfiles = {files}\n'
+    )
+
+    assert main(["overrides"]) == 2
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err.startswith("prose-lint: ")) == ("", True)
 
 
 def test_a_broken_vale_is_reported_against_the_file_not_as_a_traceback(

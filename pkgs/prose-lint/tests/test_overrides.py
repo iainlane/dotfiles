@@ -144,3 +144,71 @@ def test_a_hand_written_override_of_a_locked_rule_is_ignored(tmp_path: Path) -> 
     assert read_overrides(path, CATALOGUE) == (
         Override(rule="Latin", level=Level.off, because="docs/style.md"),
     )
+
+
+@pytest.mark.parametrize("files", [None, ("docs/**/*.md", "!docs/generated/**")])
+def test_file_scopes_round_trip_without_changing_legacy_entries(
+    tmp_path: Path, files: tuple[str, ...] | None
+) -> None:
+    path = tmp_path / "prose-lint.toml"
+    override = Override("Latin", Level.off, "docs/style.md", files=files)
+
+    write_overrides(path, (override,))
+
+    assert read_overrides(path, CATALOGUE) == (override,)
+    assert ("files =" in path.read_text()) == (files is not None)
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (None, (True, True, True, True)),
+        (("docs/**/*.md", "!docs/generated/**"), (False, True, True, False)),
+        (("*.md",), (True, True, True, True)),
+        (("/README.md",), (True, False, False, False)),
+        (("docs/", "!docs/nested/page.md"), (False, True, False, True)),
+        (("future/**/*.md",), (False, False, False, False)),
+    ],
+)
+def test_scopes_use_ordered_pathspec_matching(
+    files: tuple[str, ...] | None, expected: tuple[bool, ...]
+) -> None:
+    override = Override("Latin", Level.off, "docs/style.md", files=files)
+
+    assert (
+        tuple(
+            override.applies_to(path)
+            for path in (
+                "README.md",
+                "docs/page.md",
+                "docs/nested/page.md",
+                "docs/generated/page.md",
+            )
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "files",
+    ["[]", '"docs/**"', "[1]", '["docs/**", false]', '["invalid\\\\"]'],
+)
+def test_invalid_file_scopes_are_refused_when_read(tmp_path: Path, files: str) -> None:
+    path = tmp_path / "prose-lint.toml"
+    path.write_text(
+        f'[overrides.Latin]\nlevel = "NO"\nbecause = "docs/style.md"\nfiles = {files}\n'
+    )
+
+    with pytest.raises(OverrideRefused, match="files|pattern"):
+        read_overrides(path, CATALOGUE)
+
+
+def test_scoped_rendering_includes_the_patterns_in_order() -> None:
+    override = Override(
+        "Latin", Level.off, "docs/style.md", files=("docs/**", "!docs/generated/**")
+    )
+
+    assert override.render() == (
+        "prose-lint runs Latin at NO for ['docs/**', '!docs/generated/**']: "
+        "docs/style.md"
+    )

@@ -124,11 +124,47 @@ prose-lint overrides
 `allow` drops the rule to warning, or to `NO` with `--level NO`. It never raises
 a rule above the level `tiers.toml` gives it.
 
-An override is refused in two cases. A rule marked `locked` in `tiers.toml`
-cannot be lowered at all: `ArrowChain`, `AbstractAbsence` and `ReviewRationale`
-describe faults with no legitimate use, so the fix is to change the prose. The
-reason must also mention a path that exists in the repository, so every override
-points at the file that records the convention.
+Use `--file` to limit an override to files that match [PathSpec's
+gitignore-style patterns][pathspec]. Repeat the option for multiple patterns,
+and quote each pattern so the shell does not expand it:
+
+```console
+prose-lint allow EmDash --level NO \
+  --file 'docs/**/*.md' --file 'README.md' --file '!docs/generated/**' \
+  --because "docs/style.md permits em dashes in documentation"
+```
+
+Positive patterns select files for lowering; a later `!` pattern removes files
+from that selection. Patterns match paths relative to the repository root,
+including when the command runs from a subdirectory. A leading `/` anchors a
+pattern at that root, `*.md` matches at any depth, and `docs/**/*.md` matches
+Markdown files directly under `docs` and in its subdirectories. Patterns may
+also match future files. The repository's `.gitignore` files do not affect this
+selection.
+
+Matching uses `pathspec.GitIgnoreSpec` on each source path. In particular,
+`docs/` followed by `!docs/keep.md` excludes `docs/keep.md` from lowering. Git's
+directory traversal would keep that file ignored because its parent directory is
+ignored; prose-lint evaluates the file directly.
+
+Without `--file`, an override applies throughout the repository as before. File
+scopes also apply to extracted code comments, but do not apply to commit
+messages. Outside a git repository, patterns are relative to the working
+directory. An explicit empty `files` list in TOML is refused.
+
+Each rule has one override, with one level and reason. Running `allow` again
+replaces that override and its file scope; `disallow` removes the entire
+override. `overrides` and the agent hooks include the patterns when reporting a
+scoped override.
+
+[pathspec]:
+  https://python-path-specification.readthedocs.io/en/stable/readme.html
+
+A rule marked `locked` in `tiers.toml` cannot be lowered at all: `ArrowChain`,
+`AbstractAbsence` and `ReviewRationale` describe faults with no legitimate use,
+so the fix is to change the prose. The reason must also mention a path that
+exists in the repository, so every override points at the file that records the
+convention.
 
 Overrides live in `<git-common-dir>/info/prose-lint.toml`, which git does not
 track, so they stay on the machine that made them. Outside a git repository they

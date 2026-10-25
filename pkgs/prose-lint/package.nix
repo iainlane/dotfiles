@@ -52,7 +52,11 @@
     pyproject = true;
 
     build-system = [python3Packages.setuptools];
-    dependencies = [python3Packages.pygments python3Packages.tomli-w];
+    dependencies = [
+      python3Packages.pathspec
+      python3Packages.pygments
+      python3Packages.tomli-w
+    ];
 
     nativeCheckInputs = [
       basedpyright
@@ -295,6 +299,32 @@
 
       if PROSE_LINT_SHARE=/nonexistent prose-lint check clean.lua; then
         echo "PROSE_LINT_SHARE from the environment was ignored" >&2
+        exit 1
+      fi
+
+      mkdir -p scoped/docs/generated
+      cd scoped
+      printf '%s\n' 'Documentation permits em dashes.' >style.md
+      printf '%s\n' 'An option — with prose.' >docs/page.md
+      printf '%s\n' '# An option — with prose.' >docs/module.nix
+      cp docs/page.md docs/generated/page.md
+      cp docs/page.md README.md
+
+      prose-lint allow EmDash --level NO \
+        --file 'docs/**' --file '!docs/generated/**' --because style.md
+
+      prose-lint check docs/page.md docs/module.nix
+
+      if prose-lint check docs/generated/page.md README.md >remaining.txt; then
+        echo "files outside the override's scope passed" >&2
+        exit 1
+      fi
+
+      grep --fixed-strings --quiet 'docs/generated/page.md:1:' remaining.txt
+      grep --fixed-strings --quiet 'README.md:1:' remaining.txt
+
+      if prose-lint commit-msg docs/page.md >commit.txt; then
+        echo "a commit message used a file-scoped override" >&2
         exit 1
       fi
 

@@ -32,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         return arguments.run(arguments)
-    except (ValeFailed, ValeMissing) as failure:
+    except (ValeFailed, ValeMissing, OverrideRefused) as failure:
         print(f"prose-lint: {failure}", file=sys.stderr)
         return 2
 
@@ -61,6 +61,12 @@ def _parser() -> argparse.ArgumentParser:
     allow = commands.add_parser("allow", help="lower a rule in this repository")
     allow.add_argument("rule")
     allow.add_argument("--because", required=True)
+    allow.add_argument(
+        "--file",
+        action="append",
+        dest="files",
+        help="limit lowering to a gitignore-style pattern; repeat in matching order",
+    )
     allow.add_argument(
         "--level", choices=["warning", "suggestion", "NO"], default="warning"
     )
@@ -161,6 +167,7 @@ def _allow(arguments: argparse.Namespace) -> int:
             because=arguments.because,
             level=Level.parse(arguments.level),
             root=runtime.root,
+            files=arguments.files,
         )
     except OverrideRefused as refusal:
         print(refusal, file=sys.stderr)
