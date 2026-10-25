@@ -1,11 +1,11 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { FooterSession, type FooterContext } from "../src/session.ts";
 import { parseGitStatus } from "../src/git.ts";
 import { quotaWindows, readQuota } from "../src/quota.ts";
 import { readAgents } from "../src/workflow.ts";
 import { record } from "../src/text.ts";
 
-afterEach(() => vi.useRealTimers());
+import { dependencies } from "./dependencies.ts";
 
 function harness() {
   const handlers = new Map<string, Set<(value: unknown) => void>>();
@@ -47,42 +47,34 @@ function harness() {
     },
   };
 
-  return { bus, context, handlers };
+  return { bus, context, handlers, runtime: dependencies() };
 }
 
 it("disposes timers, replies and late Git requests without changing a replaced session", async () => {
-  vi.useFakeTimers();
-
-  const { bus, context, handlers } = harness();
+  const { bus, context, handlers, runtime } = harness();
   const change = vi.fn<() => void>();
   const pending = Promise.withResolvers<undefined>();
-  const session = new FooterSession(
-    context,
-    bus,
-    change,
-    () => pending.promise,
-  );
+  const session = new FooterSession(context, bus, change, {
+    ...runtime,
+    readGit: () => pending.promise,
+  });
 
   session.dispose();
   pending.resolve(undefined);
-  await vi.runAllTimersAsync();
+  await runtime.clock.advance(0);
 
   expect(handlers.size).toBe(0);
-  expect(vi.getTimerCount()).toBe(0);
+  expect(runtime.clock.pending).toBe(0);
   expect(change).not.toHaveBeenCalled();
 });
 
 it("preserves an initial PR reading for the current branch", async () => {
-  vi.useFakeTimers();
-
-  const { bus, context } = harness();
+  const { bus, context, runtime } = harness();
   const git = Promise.withResolvers<ReturnType<typeof parseGitStatus>>();
-  const session = new FooterSession(
-    context,
-    bus,
-    () => {},
-    () => git.promise,
-  );
+  const session = new FooterSession(context, bus, () => {}, {
+    ...runtime,
+    readGit: () => git.promise,
+  });
   const pr = {
     protocol: 1 as const,
     source: "pi-prs" as const,
@@ -115,26 +107,23 @@ it.each([
 ])(
   "invalidates idle quota $label without incoming events or Git data",
   async ({ elapsed, reset, freshness }) => {
-    vi.useFakeTimers();
-
     const now = Date.UTC(2026, 9, 20, 12);
 
-    vi.setSystemTime(now);
-
-    const { bus, context } = harness();
+    const { bus, context, runtime } = harness();
+    runtime.clock.set(now);
     const frames: { at: number; freshness: string[] }[] = [];
     const session = new FooterSession(
       context,
       bus,
       () => {
         frames.push({
-          at: Date.now(),
+          at: runtime.clock.now(),
           freshness: quotaWindows(session.state.quota, session.state.now).map(
             (window) => window.freshness,
           ),
         });
       },
-      async () => {},
+      runtime,
     );
 
     session.state.quota = readQuota({
@@ -153,7 +142,7 @@ it.each([
       },
     });
 
-    await vi.advanceTimersByTimeAsync(elapsed);
+    await runtime.clock.advance(elapsed);
 
     expect(frames.at(-1)).toStrictEqual({
       at: now + elapsed,
@@ -165,24 +154,21 @@ it.each([
 );
 
 it("invalidates session age relative to the header timestamp", async () => {
-  vi.useFakeTimers();
-
   const now = Date.UTC(2026, 9, 20, 12, 0, 30);
 
-  vi.setSystemTime(now);
-
-  const { bus, context } = harness();
+  const { bus, context, runtime } = harness();
+  runtime.clock.set(now);
   const change = vi.fn<() => void>();
 
   context.sessionManager.getHeader = () => ({
     timestamp: new Date(now).toISOString(),
   });
 
-  const session = new FooterSession(context, bus, change, async () => {});
+  const session = new FooterSession(context, bus, change, runtime);
 
-  await vi.advanceTimersByTimeAsync(2500);
+  await runtime.clock.advance(2500);
   change.mockClear();
-  await vi.advanceTimersByTimeAsync(57_500);
+  await runtime.clock.advance(57_500);
 
   expect(change.mock.calls).toStrictEqual([[]]);
 
@@ -190,14 +176,11 @@ it("invalidates session age relative to the header timestamp", async () => {
 });
 
 it("does not invalidate for routine content but clears a displayed inactivity warning", async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
-
-  const { bus, context } = harness();
+  const { bus, context, runtime } = harness();
   const change = vi.fn<() => void>();
-  const session = new FooterSession(context, bus, change, async () => {});
+  const session = new FooterSession(context, bus, change, runtime);
 
-  await vi.advanceTimersByTimeAsync(2500);
+  await runtime.clock.advance(2500);
 
   session.activity("start");
   change.mockClear();
@@ -206,7 +189,7 @@ it("does not invalidate for routine content but clears a displayed inactivity wa
 
   expect(change.mock.calls).toStrictEqual([]);
 
-  await vi.advanceTimersByTimeAsync(31_000);
+  await runtime.clock.advance(31_000);
   change.mockClear();
   session.activity("content");
 
@@ -216,16 +199,17 @@ it("does not invalidate for routine content but clears a displayed inactivity wa
 });
 
 it("preserves bounded Git errors through failure and recovery without calling non-repositories errors", async () => {
-  vi.useFakeTimers();
-
-  const { bus, context } = harness();
+  const { bus, context, runtime } = harness();
   const fresh = parseGitStatus("# branch.head main", 100);
   const getGit = vi
     .fn<() => Promise<typeof fresh | undefined>>()
     .mockRejectedValueOnce(new Error("Permission denied\nfor fixture"));
-  const session = new FooterSession(context, bus, () => {}, getGit);
+  const session = new FooterSession(context, bus, () => {}, {
+    ...runtime,
+    readGit: getGit,
+  });
 
-  await vi.advanceTimersByTimeAsync(0);
+  await runtime.clock.advance(0);
 
   expect({
     git: session.state.git,
@@ -272,17 +256,10 @@ it("preserves bounded Git errors through failure and recovery without calling no
 });
 
 it("keeps stale subagent data with a reason and clears the failure on recovery", async () => {
-  vi.useFakeTimers();
+  const { bus, context, runtime } = harness();
+  const session = new FooterSession(context, bus, () => {}, runtime);
 
-  const { bus, context } = harness();
-  const session = new FooterSession(
-    context,
-    bus,
-    () => {},
-    async () => {},
-  );
-
-  await vi.advanceTimersByTimeAsync(2500);
+  await runtime.clock.advance(2500);
 
   expect(session.state.rpcErrors).toStrictEqual({
     status: { kind: "timeout", message: "RPC status timed out" },
@@ -350,24 +327,16 @@ it("keeps stale subagent data with a reason and clears the failure on recovery",
   session.dispose();
 });
 
-it("does not count time spent waiting for user input as active work", () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
-
-  const { bus, context } = harness();
-  const session = new FooterSession(
-    context,
-    bus,
-    () => {},
-    async () => {},
-  );
+it("does not count time spent waiting for user input as active work", async () => {
+  const { bus, context, runtime } = harness();
+  const session = new FooterSession(context, bus, () => {}, runtime);
 
   session.activity("start");
-  vi.advanceTimersByTime(5000);
+  await runtime.clock.advance(5000);
   session.activity("wait");
-  vi.advanceTimersByTime(30_000);
+  await runtime.clock.advance(30_000);
   session.activity("resume");
-  vi.advanceTimersByTime(5000);
+  await runtime.clock.advance(5000);
   session.activity("settled");
 
   expect(session.state.activity.activeMs).toBe(10_000);

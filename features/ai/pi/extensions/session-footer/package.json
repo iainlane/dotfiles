@@ -7,7 +7,9 @@
     "test": "node test/prepare-fixtures.ts && vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "node test/prepare-fixtures.ts && vitest run --project integration"
   },
   "dependencies": {
     "pi-prs": "0.6.0"

@@ -1,15 +1,14 @@
 import { isReply } from "./requests.ts";
-import type {
-  ExtensionContext,
-  ExtensionRunner,
-} from "@earendil-works/pi-coding-agent";
-import { afterEach, expect, it, vi } from "vitest";
-import { ProcessTerminal, TuiMainScreen } from "@earendil-works/pi-tui";
-import extension from "../src/extension.ts";
-import { runtimeFixture } from "./runtime.ts";
+import { expect, it, vi } from "vitest";
+import {
+  createFooter,
+  type FooterUIContext,
+  type FooterView,
+} from "../src/controller.ts";
+import { dependencies } from "./dependencies.ts";
 import { record } from "../src/text.ts";
 
-async function harness(mode: ExtensionContext["mode"] = "tui") {
+function harness(mode = "tui") {
   const channels = new Map<string, Set<(value: unknown) => void>>();
   const emitted: string[] = [];
   const events = {
@@ -39,7 +38,7 @@ async function harness(mode: ExtensionContext["mode"] = "tui") {
           state: {
             provider: "codex",
             usage: {
-              lastSuccessAt: Date.now(),
+              lastSuccessAt: runtime.clock.now(),
               windows: [{ label: "Week", usedPercent: 2 }],
             },
           },
@@ -68,37 +67,62 @@ async function harness(mode: ExtensionContext["mode"] = "tui") {
       }
     },
   };
-  const { api, context, runner } = await runtimeFixture(events);
-  context.mode = mode;
-  const setFooter = vi.spyOn(context.ui, "setFooter");
-  vi.spyOn(context.ui.theme, "fg").mockImplementation((_role, value) => value);
-  vi.spyOn(context.ui.theme, "bold").mockImplementation((value) => value);
-  vi.spyOn(context.ui, "notify");
-
-  const emit = async (
-    event: Parameters<ExtensionRunner["emit"]>[0],
-    current: ExtensionContext = context,
-  ) => {
-    vi.spyOn(runner, "createContext").mockReturnValue(current);
-    await runner.emit(event);
+  const runtime = dependencies();
+  const setFooter = vi.fn<FooterUIContext["ui"]["setFooter"]>();
+  const context: FooterUIContext = {
+    mode,
+    cwd: "/footer-fixture",
+    model: { id: "fixture", provider: "openai-codex", contextWindow: 200_000 },
+    thinkingLevel: "high",
+    getContextUsage: () => {},
+    hasPendingMessages: () => false,
+    sessionManager: {
+      getHeader: () => ({ timestamp: "2026-10-20T12:00:00Z" }),
+      getEntries: () => [],
+      getBranch: () => [],
+      getLeafId: () => null,
+    },
+    ui: {
+      theme: { fg: (_role, value) => value, bold: (value) => value },
+      select: async () => {},
+      notify: vi.fn<FooterUIContext["ui"]["notify"]>(),
+      custom: async () => {},
+      setFooter,
+    },
   };
-
-  extension(api);
-
-  return { context, emit, channels, emitted, setFooter, events };
+  const footer = createFooter({
+    events,
+    runtime,
+    subscribePr: (callback) => events.on("pr:state", callback),
+  });
+  const emit = (
+    event: { type: "session_start" | "session_shutdown"; reason: string },
+    current = context,
+  ) => {
+    if (event.type === "session_start") {
+      footer.start(current);
+      return;
+    }
+    footer.shutdown();
+  };
+  return {
+    context,
+    emit,
+    channels,
+    emitted,
+    setFooter,
+    events,
+    footer,
+    runtime,
+  };
 }
-
-afterEach(() => vi.useRealTimers());
 
 it.each(["sub-core:ready", "sub-core:update-current"])(
   "keeps fresh quota updates between clock ticks available on %s",
   async (channel) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
+    const h = harness();
 
-    const h = await harness();
-
-    await h.emit({ type: "session_start", reason: "startup" }, h.context);
+    h.emit({ type: "session_start", reason: "startup" }, h.context);
 
     const factory = h.setFooter.mock.lastCall?.[0];
 
@@ -106,26 +130,22 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
       throw new Error("Expected the session footer factory");
     }
 
-    const tui = new TuiMainScreen(new ProcessTerminal());
-
-    vi.spyOn(tui, "requestRender").mockImplementation(() => {});
+    const tui = { requestRender: vi.fn<() => void>() };
 
     const view = factory(tui, h.context.ui.theme, {
-      getGitBranch: () => null,
       getExtensionStatuses: () => new Map(),
-      getAvailableProviderCount: () => 1,
       onBranchChange: () => () => {},
     });
     const readings: string[] = [];
 
     for (const delay of [250, 1000, 5000]) {
       // eslint-disable-next-line no-await-in-loop -- Each update must observe the clock advanced by the previous iteration.
-      await vi.advanceTimersByTimeAsync(delay);
+      await h.runtime.clock.advance(delay);
       h.events.emit(channel, {
         state: {
           provider: "codex",
           usage: {
-            lastSuccessAt: Date.now(),
+            lastSuccessAt: h.runtime.clock.now(),
             windows: [{ label: "Week", usedPercent: 42 }],
           },
         },
@@ -137,28 +157,76 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
       Array.from({ length: 3 }, () => " week 42% used  $0.00  0m"),
     );
 
-    await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
+    h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
   },
 );
 
+it("renders a failed message_end before settlement and cancellation", async () => {
+  const h = harness();
+
+  h.emit({ type: "session_start", reason: "startup" }, h.context);
+
+  const factory = h.setFooter.mock.lastCall?.[0];
+
+  if (!factory) {
+    throw new Error("Expected the session footer factory");
+  }
+
+  let view: FooterView | undefined;
+  const frames: string[][] = [];
+  const tui = {
+    requestRender() {
+      if (view) {
+        frames.push(view.render(200));
+      }
+    },
+  };
+
+  view = factory(tui, h.context.ui.theme, {
+    getExtensionStatuses: () => new Map(),
+    onBranchChange: () => () => {},
+  });
+  frames.length = 0;
+
+  h.footer.endMessage(h.context, true);
+  const failed = frames.at(-1)?.join("\n") ?? "";
+
+  h.footer.settleAgent(h.context, false);
+  const settled = frames.at(-1)?.join("\n") ?? "";
+
+  h.footer.endMessage(h.context, true);
+  h.footer.settleAgent(h.context, true);
+  const cancelled = frames.at(-1)?.join("\n") ?? "";
+
+  expect({
+    failed: failed.includes("run failed"),
+    settled: settled.includes("run failed"),
+    cancelled: cancelled.includes("run cancelled"),
+  }).toStrictEqual({
+    failed: true,
+    settled: true,
+    cancelled: true,
+  });
+
+  h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
+});
+
 it("reconnects sources after session replacement and never enables PR automation", async () => {
-  vi.useFakeTimers();
+  const h = harness();
 
-  const h = await harness();
-
-  await h.emit({ type: "session_start", reason: "startup" }, h.context);
+  h.emit({ type: "session_start", reason: "startup" }, h.context);
   await Promise.resolve();
 
   const connected = h.channels.size;
 
   expect(h.setFooter).toHaveBeenCalledTimes(1);
 
-  await h.emit({ type: "session_shutdown", reason: "new" }, h.context);
+  h.emit({ type: "session_shutdown", reason: "new" }, h.context);
 
   expect(h.channels.size).toBe(0);
-  expect(vi.getTimerCount()).toBe(0);
+  expect(h.runtime.clock.pending).toBe(0);
 
-  await h.emit({ type: "session_start", reason: "new" }, h.context);
+  h.emit({ type: "session_start", reason: "new" }, h.context);
   await Promise.resolve();
 
   expect(h.channels.size).toBe(connected);
@@ -169,25 +237,19 @@ it("reconnects sources after session replacement and never enables PR automation
     ),
   ).toStrictEqual([]);
 
-  await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
+  h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
 });
 
 it("replaces directory and diagnostic scope with the runtime context", async () => {
-  vi.useFakeTimers();
-
-  const h = await harness();
-  const tui = new TuiMainScreen(new ProcessTerminal());
-
-  vi.spyOn(tui, "requestRender").mockImplementation(() => {});
+  const h = harness();
+  const tui = { requestRender: vi.fn<() => void>() };
 
   const footerData = {
-    getGitBranch: () => null,
     getExtensionStatuses: () => new Map<string, string>(),
-    getAvailableProviderCount: () => 1,
     onBranchChange: () => () => {},
   };
 
-  await h.emit({ type: "session_start", reason: "startup" }, h.context);
+  h.emit({ type: "session_start", reason: "startup" }, h.context);
 
   const firstFactory = h.setFooter.mock.lastCall?.[0];
 
@@ -213,7 +275,7 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
 
   const replacement = { ...h.context, cwd: "/replacement-footer-fixture" };
 
-  await h.emit({ type: "session_start", reason: "resume" }, replacement);
+  h.emit({ type: "session_start", reason: "resume" }, replacement);
   first.dispose?.();
 
   const secondFactory = h.setFooter.mock.lastCall?.[0];
@@ -241,22 +303,20 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
     expect.not.stringContaining("1E"),
   ]);
 
-  await h.emit({ type: "session_shutdown", reason: "quit" }, replacement);
+  h.emit({ type: "session_shutdown", reason: "quit" }, replacement);
 });
 
 it.each(["rpc", "json", "print"] as const)(
   "does not mount terminal components or start timers in %s mode",
   async (mode) => {
-    vi.useFakeTimers();
+    const h = harness(mode);
 
-    const h = await harness(mode);
-
-    await h.emit({ type: "session_start", reason: "startup" }, h.context);
+    h.emit({ type: "session_start", reason: "startup" }, h.context);
 
     expect(h.setFooter).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(h.runtime.clock.pending).toBe(0);
 
-    await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
+    h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
 
     expect(h.channels.size).toBe(0);
   },

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import type { FooterRuntime } from "./runtime.ts";
 import { record, text } from "./text.ts";
 
 export interface FooterBus {
@@ -51,7 +51,10 @@ export class RpcClient {
   private cancel: (() => void) | undefined;
   private disposed = false;
 
-  constructor(private readonly bus: FooterBus) {}
+  constructor(
+    private readonly bus: FooterBus,
+    private readonly runtime: Pick<FooterRuntime, "clock" | "requestId">,
+  ) {}
 
   request(method: "status" | "cost"): Promise<RpcResult> {
     if (this.disposed) {
@@ -64,11 +67,11 @@ export class RpcClient {
         : this.pending.promise.then(() => this.request(method));
     }
 
-    const requestId = randomUUID();
+    const requestId = this.runtime.requestId();
     const promise = new Promise<RpcResult>((resolve) => {
       let settled = false;
       let unsubscribe: (() => void) | undefined;
-      let timer: ReturnType<typeof setTimeout> | undefined;
+      let stopTimer: (() => void) | undefined;
 
       const finish = (value: RpcResult) => {
         if (settled) {
@@ -77,9 +80,7 @@ export class RpcClient {
 
         settled = true;
 
-        if (timer) {
-          clearTimeout(timer);
-        }
+        stopTimer?.();
 
         unsubscribe?.();
         this.cancel = undefined;
@@ -101,9 +102,9 @@ export class RpcClient {
             }
           },
         );
-        timer = setTimeout(() => {
+        stopTimer = this.runtime.clock.after(2000, () => {
           finish(failure("timeout", `RPC ${method} timed out`));
-        }, 2000);
+        });
 
         this.bus.emit("subagents:rpc:v1:request", {
           version: 1,

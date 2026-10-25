@@ -1,31 +1,9 @@
 import { expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { parseGitStatus, readGit } from "../src/git.ts";
-
-it("counts porcelain-v2 paths without parsing path contents", () => {
-  expect(
-    parseGitStatus(
-      "# branch.head main\n# branch.ab +6 -2\n1 M. N... x x x x x staged\n1 .M N... x x x x x changed\nu UU N... x x x x x conflict\n? new file\n",
-      100,
-    ),
-  ).toStrictEqual({
-    branch: "main",
-    staged: 1,
-    unstaged: 1,
-    untracked: 1,
-    conflicts: 1,
-    ahead: 6,
-    behind: 2,
-    root: "",
-    worktree: undefined,
-    operation: undefined,
-    updatedAt: 100,
-    stale: false,
-  });
-});
+import { readGit } from "../src/git.ts";
 
 it.each<{ files: Record<string, string>; operation: string }>([
   {
@@ -50,7 +28,7 @@ it.each<{ files: Record<string, string>; operation: string }>([
     const cwd = await mkdtemp(join(tmpdir(), "pi-footer-git-"));
 
     try {
-      execFileSync("git", ["init", "--quiet", cwd]);
+      execFileSync("git", ["init", "--quiet", "--initial-branch=fixture", cwd]);
       await Promise.all(
         Object.entries(files).map(async ([file, value]) => {
           const path = join(cwd, ".git", file);
@@ -60,7 +38,20 @@ it.each<{ files: Record<string, string>; operation: string }>([
       );
       const git = await readGit(cwd, 100);
 
-      expect(git?.operation).toBe(operation);
+      expect(git).toStrictEqual({
+        branch: "fixture",
+        staged: 0,
+        unstaged: 0,
+        untracked: 0,
+        conflicts: 0,
+        ahead: 0,
+        behind: 0,
+        root: await realpath(cwd),
+        worktree: undefined,
+        operation,
+        updatedAt: 100,
+        stale: false,
+      });
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

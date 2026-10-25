@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readGit, type GitState } from "./git.ts";
+import type { FooterRuntime } from "./runtime.ts";
 import { RpcClient, type FooterBus } from "./rpc.ts";
 import { createSnapshot } from "./state.ts";
 import { UsageLedger } from "./usage.ts";
@@ -22,17 +22,11 @@ export interface FooterContext {
   };
 }
 
-type GitReader = (cwd: string, now: number) => Promise<GitState | undefined>;
-
-export function reportRefreshError(error: unknown): void {
-  console.error("session-footer: background refresh failed", error);
-}
-
 export class FooterSession {
   readonly state;
   private readonly rpc: RpcClient;
   private readonly ledger = new UsageLedger();
-  private readonly interval: ReturnType<typeof setInterval>;
+  private readonly stopClock: () => void;
   private disposed = false;
   private gitPending = false;
   private gitAt = -Infinity;
@@ -44,9 +38,9 @@ export class FooterSession {
     private context: FooterContext,
     bus: FooterBus,
     private readonly changed: () => void,
-    private readonly getGit: GitReader = readGit,
+    private readonly runtime: FooterRuntime,
   ) {
-    const now = Date.now();
+    const now = this.runtime.clock.now();
 
     this.state = createSnapshot(now, context.cwd);
     this.tracker = new ActivityTracker(this.state.activity);
@@ -59,22 +53,22 @@ export class FooterSession {
       this.state.startedAt = start;
     }
 
-    this.rpc = new RpcClient(bus);
+    this.rpc = new RpcClient(bus, runtime);
 
     this.sync(context, true);
 
-    this.interval = setInterval(() => {
+    this.stopClock = runtime.clock.every(1000, () => {
       this.tick();
-    }, 1000);
+    });
 
-    this.refreshGit().catch(reportRefreshError);
-    this.refreshAgents().catch(reportRefreshError);
+    this.refreshGit().catch(this.runtime.reportError);
+    this.refreshAgents().catch(this.runtime.reportError);
   }
 
   dispose(): void {
     this.disposed = true;
 
-    clearInterval(this.interval);
+    this.stopClock();
     this.rpc.dispose();
   }
 
@@ -88,7 +82,7 @@ export class FooterSession {
     }
 
     this.context = context;
-    this.state.now = Date.now();
+    this.state.now = this.runtime.clock.now();
 
     const provider = context.model?.provider ?? "";
 
@@ -161,7 +155,7 @@ export class FooterSession {
     const now = this.state.now;
 
     if (now - this.gitAt >= 5000) {
-      this.refreshGit().catch(reportRefreshError);
+      this.refreshGit().catch(this.runtime.reportError);
     }
 
     if (
@@ -169,7 +163,7 @@ export class FooterSession {
       this.state.agents?.active !== 0 &&
       now - this.agentsAt >= 2000
     ) {
-      this.refreshAgents().catch(reportRefreshError);
+      this.refreshAgents().catch(this.runtime.reportError);
     }
 
     if (
@@ -187,13 +181,13 @@ export class FooterSession {
     }
 
     this.gitPending = true;
-    this.gitAt = Date.now();
+    this.gitAt = this.runtime.clock.now();
 
     const previous = this.state.git;
     const previousError = this.state.gitError;
 
     try {
-      const git = await this.getGit(this.context.cwd, this.gitAt);
+      const git = await this.runtime.readGit(this.context.cwd, this.gitAt);
 
       if (this.disposed) {
         return;
@@ -241,7 +235,7 @@ export class FooterSession {
       return;
     }
 
-    this.agentsAt = Date.now();
+    this.agentsAt = this.runtime.clock.now();
 
     const result = await this.rpc.request("status");
 
@@ -291,7 +285,7 @@ export class FooterSession {
   }
 
   activity(event: ActivityEvent, outcome?: string): void {
-    this.state.now = Date.now();
+    this.state.now = this.runtime.clock.now();
 
     const warning = inactivity(this.state.activity, this.state.now);
 
@@ -303,7 +297,7 @@ export class FooterSession {
   }
 
   tool(id: string, name?: string): void {
-    this.tracker.tool(id, name, Date.now());
+    this.tracker.tool(id, name, this.runtime.clock.now());
     this.changed();
   }
 }

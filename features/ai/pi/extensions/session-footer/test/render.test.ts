@@ -2,11 +2,15 @@ import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "../src/state.ts";
-import { renderFooter } from "../src/render.ts";
+import { renderFooter as render } from "../src/render.ts";
+
+function renderFooter(
+  ...[state, width, theme, home = "/Users/test"]: Parameters<typeof render>
+) {
+  return render(state, width, theme, home);
+}
 import { readQuota } from "../src/quota.ts";
 import { parseGitStatus } from "../src/git.ts";
-
-vi.mock("node:os", () => ({ homedir: () => "/Users/test" }));
 
 function aligned(left: string, right: string, width: number): string {
   return (
@@ -178,7 +182,7 @@ describe("two-row fitting", () => {
 
     state.cwd = cwd;
 
-    expect(renderFooter(state, 240)[0]).toBe(
+    expect(renderFooter(state, 240, undefined, "/Users/test")[0]).toBe(
       aligned(
         `codex/gpt-6-astra  high  ${expected}`,
         " ctx 24.3%/272k",

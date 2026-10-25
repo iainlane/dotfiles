@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { record } from "../src/text.ts";
 import { UsageLedger } from "../src/usage.ts";
 import { RpcClient } from "../src/rpc.ts";
@@ -6,7 +6,7 @@ import { readPr, readServiceTier } from "../src/integrations.ts";
 import { detailsLines } from "../src/inspector.ts";
 import { createSnapshot } from "../src/state.ts";
 
-afterEach(() => vi.useRealTimers());
+import { dependencies } from "./dependencies.ts";
 
 it("counts whole-session records once and takes cache hit rate from the active branch", () => {
   const ledger = new UsageLedger();
@@ -81,8 +81,6 @@ it("counts whole-session records once and takes cache hit rate from the active b
 });
 
 it("correlates RPC replies and cleans up timeout and disposal", async () => {
-  vi.useFakeTimers();
-
   const handlers = new Map<string, (value: unknown) => void>();
   let request: Record<string, unknown> = {};
   const bus = {
@@ -99,7 +97,8 @@ it("correlates RPC replies and cleans up timeout and disposal", async () => {
       }
     },
   };
-  const client = new RpcClient(bus);
+  const runtime = dependencies();
+  const client = new RpcClient(bus, runtime);
   const result = client.request("status");
   if (typeof request.requestId !== "string") {
     throw new TypeError("Expected an RPC request ID");
@@ -119,7 +118,7 @@ it("correlates RPC replies and cleans up timeout and disposal", async () => {
 
   const missing = client.request("status");
 
-  await vi.advanceTimersByTimeAsync(2000);
+  await runtime.clock.advance(2000);
 
   expect(await missing).toStrictEqual({
     ok: false,
@@ -135,7 +134,7 @@ it("correlates RPC replies and cleans up timeout and disposal", async () => {
     error: { kind: "disposed", message: "RPC client disposed" },
   });
   expect(handlers.size).toBe(0);
-  expect(vi.getTimerCount()).toBe(0);
+  expect(runtime.clock.pending).toBe(0);
 });
 
 it("only accepts passive PR state and safe service-tier snapshots", () => {

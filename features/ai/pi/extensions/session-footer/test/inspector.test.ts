@@ -1,5 +1,9 @@
 import { expect, it, vi } from "vitest";
-import { Inspector, type InspectorContext } from "../src/inspector.ts";
+import {
+  Inspector,
+  detailsLines,
+  type InspectorContext,
+} from "../src/inspector.ts";
 import { createSnapshot } from "../src/state.ts";
 
 interface View {
@@ -118,4 +122,16 @@ it("scrolls details and closes with Escape", async () => {
     },
   });
   expect(scrolled).not.toStrictEqual(first);
+});
+
+it("reports the active planning status in workflow details", () => {
+  const state = createSnapshot(1000, "/work");
+  const planned = {
+    ...state,
+    statuses: new Map([["planning", "Plan · 1 researching"]]),
+  };
+
+  expect(detailsLines(planned, "workflow")).toContain(
+    "Plan: Plan · 1 researching",
+  );
 });

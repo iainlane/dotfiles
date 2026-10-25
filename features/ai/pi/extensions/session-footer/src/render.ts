@@ -1,6 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { homedir } from "node:os";
 import { basename, sep } from "node:path";
 import type { FooterSnapshot } from "./state.ts";
 import { quotaWindows, type QuotaView } from "./quota.ts";
@@ -18,9 +17,10 @@ import {
 
 type Paint = (style: FooterStyle, value: string) => string;
 
-const home = homedir();
-
-function directory(cwd: string): string {
+function directory(cwd: string, home: string | undefined): string {
+  if (home === undefined) {
+    return cwd;
+  }
   if (cwd === home) {
     return "~";
   }
@@ -178,6 +178,7 @@ export function renderFooter(
   state: FooterSnapshot,
   width: number,
   theme?: Pick<Theme, "fg" | "bold">,
+  home?: string,
 ): string[] {
   width = Math.max(0, Math.floor(width));
 
@@ -232,7 +233,7 @@ export function renderFooter(
       20,
     ),
     createItem(
-      paint(styles.directory, text(directory(state.cwd))),
+      paint(styles.directory, text(directory(state.cwd, home))),
       10,
       paint(styles.directory, text(basename(state.cwd))),
     ),

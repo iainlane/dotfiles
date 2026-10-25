@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { record } from "../src/text.ts";
 import { RpcClient } from "../src/rpc.ts";
 
@@ -15,10 +15,11 @@ function harness() {
     emit: vi.fn<(event: string, value: unknown) => void>(),
   };
 
-  return { bus, handlers, client: new RpcClient(bus) };
+  const runtime = dependencies();
+  return { bus, handlers, runtime, client: new RpcClient(bus, runtime) };
 }
 
-afterEach(() => vi.useRealTimers());
+import { dependencies } from "./dependencies.ts";
 
 it.each([
   {
@@ -33,9 +34,7 @@ it.each([
 ])(
   "reports a $expected.kind reply and removes the subscription",
   async ({ expected, ...payload }) => {
-    vi.useFakeTimers();
-
-    const { bus, handlers, client } = harness();
+    const { bus, handlers, client, runtime } = harness();
     const result = client.request("status");
     const request = bus.emit.mock.lastCall?.[1];
 
@@ -52,7 +51,7 @@ it.each([
     expect({
       result: await result,
       subscriptions: handlers.size,
-      timers: vi.getTimerCount(),
+      timers: runtime.clock.pending,
     }).toStrictEqual({
       result: { ok: false, error: expected },
       subscriptions: 0,
@@ -64,9 +63,7 @@ it.each([
 );
 
 it("reports transport failure without leaving a timer or subscription", async () => {
-  vi.useFakeTimers();
-
-  const { bus, handlers, client } = harness();
+  const { bus, handlers, client, runtime } = harness();
 
   bus.emit.mockImplementation(() => {
     throw new Error("Bus unavailable\nretry later");
@@ -77,7 +74,7 @@ it("reports transport failure without leaving a timer or subscription", async ()
   expect({
     result,
     subscriptions: handlers.size,
-    timers: vi.getTimerCount(),
+    timers: runtime.clock.pending,
   }).toStrictEqual({
     result: {
       ok: false,
