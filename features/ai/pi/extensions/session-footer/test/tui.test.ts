@@ -211,6 +211,15 @@ it.each([
         },
       });
 
+      await vi.waitFor(
+        async () => {
+          expect(
+            Number(await readFile(updateLog, "utf8")),
+          ).toBeGreaterThanOrEqual(1);
+        },
+        { timeout: 10_000 },
+      );
+
       const wide = await footer(terminal, 220);
 
       expect(terminal.color()).toBeDefined();
