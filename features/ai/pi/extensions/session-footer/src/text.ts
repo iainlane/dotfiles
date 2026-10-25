@@ -1,16 +1,19 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import {
   stripTerminalSequences,
   truncateToWidth,
 } from "@earendil-works/pi-tui";
 
+const recordSchema = Type.Record(Type.String(), Type.Unknown());
+const nonnegativeNumberSchema = Type.Number({ minimum: 0 });
+
 export function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return Check(recordSchema, value);
 }
 
 export function finite(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : undefined;
+  return Check(nonnegativeNumberSchema, value) ? value : undefined;
 }
 
 export function text(value: unknown, width = 160): string {

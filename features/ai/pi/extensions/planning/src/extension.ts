@@ -1,3 +1,4 @@
+import { parsePlanningSettings } from "./settings.ts";
 import { nodeFiles } from "./node-files.ts";
 import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -19,27 +20,13 @@ import { stateEntry } from "./session.ts";
 import { createPlanning } from "./controller.ts";
 import { PlanStore } from "./store.ts";
 
-interface PlanningSettings {
-  readOnlyTools: string[];
-}
-function settings(): PlanningSettings {
+function settings() {
   const path = join(getAgentDir(), "planning.json");
   if (!existsSync(path)) {
     return { readOnlyTools: [] };
   }
   const value: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("readOnlyTools" in value) ||
-    !Array.isArray(value.readOnlyTools) ||
-    !value.readOnlyTools.every((tool) => typeof tool === "string")
-  ) {
-    throw new Error(
-      "planning.json must contain a readOnlyTools array of tool identifiers.",
-    );
-  }
-  return { readOnlyTools: value.readOnlyTools };
+  return parsePlanningSettings(value);
 }
 
 function configureChildren(

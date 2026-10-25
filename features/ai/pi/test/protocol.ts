@@ -1,7 +1,11 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import assert from "node:assert/strict";
 
+const recordSchema = Type.Record(Type.String(), Type.Unknown());
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return Check(recordSchema, value);
 }
 
 function isCallable(value: unknown): value is (...args: unknown[]) => unknown {

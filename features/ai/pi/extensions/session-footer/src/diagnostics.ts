@@ -1,4 +1,6 @@
-import { finite, record, text } from "./text.ts";
+import { Type } from "typebox";
+import { Check } from "typebox/value";
+import { text } from "./text.ts";
 
 export interface FileDiagnostics {
   errors: number;
@@ -8,6 +10,28 @@ export interface FileDiagnostics {
   messages: string[];
 }
 
+const snapshotSchema = Type.Object({
+  v: Type.Literal(1),
+  cwd: Type.String(),
+  seq: Type.Number({ minimum: 0 }),
+  files: Type.Array(Type.Unknown()),
+});
+const fileSchema = Type.Object({
+  path: Type.String(),
+  diagnostics: Type.Array(Type.Unknown()),
+  truncated: Type.Optional(Type.Boolean()),
+});
+const diagnosticSchema = Type.Object({
+  severity: Type.String(),
+  message: Type.Optional(Type.Unknown()),
+});
+const touchedSchema = Type.Object({
+  v: Type.Literal(1),
+  cwd: Type.String(),
+  paths: Type.Array(Type.Unknown()),
+});
+const pathSchema = Type.String();
+
 export class Diagnostics {
   readonly files = new Map<string, FileDiagnostics>();
   private sequence = -1;
@@ -16,32 +40,22 @@ export class Diagnostics {
 
   receive(raw: unknown): void {
     if (
-      !record(raw) ||
-      raw.v !== 1 ||
+      !Check(snapshotSchema, raw) ||
       raw.cwd !== this.cwd ||
-      !Array.isArray(raw.files)
+      raw.seq <= this.sequence
     ) {
       return;
     }
-
-    const seq = finite(raw.seq);
-
-    if (seq === undefined || seq <= this.sequence) {
-      return;
-    }
-
+    const seq = raw.seq;
     this.sequence = seq;
 
     for (const file of raw.files) {
-      if (
-        !record(file) ||
-        typeof file.path !== "string" ||
-        !Array.isArray(file.diagnostics)
-      ) {
+      if (!Check(fileSchema, file)) {
         continue;
       }
-
-      const items = file.diagnostics.filter(record);
+      const items = file.diagnostics.filter((item) =>
+        Check(diagnosticSchema, item),
+      );
 
       this.files.set(file.path, {
         errors: items.filter((item) => item.severity === "error").length,
@@ -54,17 +68,12 @@ export class Diagnostics {
   }
 
   touch(raw: unknown): void {
-    if (
-      !record(raw) ||
-      raw.v !== 1 ||
-      raw.cwd !== this.cwd ||
-      !Array.isArray(raw.paths)
-    ) {
+    if (!Check(touchedSchema, raw) || raw.cwd !== this.cwd) {
       return;
     }
 
     for (const value of raw.paths) {
-      if (typeof value !== "string") {
+      if (!Check(pathSchema, value)) {
         continue;
       }
 

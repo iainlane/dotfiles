@@ -1,3 +1,5 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import type { FooterRuntime } from "./runtime.ts";
 import { record, text } from "./text.ts";
 
@@ -19,16 +21,27 @@ function failure(kind: RpcFailure["kind"], message: string): RpcResult {
   return { ok: false, error: { kind, message } };
 }
 
+const replySchema = Type.Union([
+  Type.Object({
+    version: Type.Literal(1),
+    requestId: Type.String(),
+    success: Type.Literal(true),
+    data: Type.Optional(Type.Unknown()),
+  }),
+  Type.Object({
+    version: Type.Literal(1),
+    requestId: Type.String(),
+    success: Type.Literal(false),
+    error: Type.Optional(Type.Unknown()),
+  }),
+]);
+
 function decodeReply(raw: unknown, requestId: string): RpcResult | undefined {
   if (record(raw) && raw.requestId !== requestId) {
     return undefined;
   }
 
-  if (
-    !record(raw) ||
-    raw.version !== 1 ||
-    (raw.success !== true && raw.success !== false)
-  ) {
+  if (!Check(replySchema, raw)) {
     return failure("malformed", "Invalid RPC reply");
   }
 

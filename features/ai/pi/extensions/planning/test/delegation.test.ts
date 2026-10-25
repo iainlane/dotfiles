@@ -66,8 +66,8 @@ it("projects correlated research data without trusting unconsumed protocol field
   f.listeners.get(SUBAGENT_DELEGATION_RESPONSE_EVENT)?.({
     ...f.identity,
     status: "completed",
-    runId: 17,
-    error: {},
+    runId: "run",
+    error: "",
     result: { kind: "text", text: "Findings" },
     usage: { tokens: 12 },
   });
@@ -79,12 +79,12 @@ it("projects correlated research data without trusting unconsumed protocol field
   }).toStrictEqual({
     result: {
       status: "completed",
-      runId: undefined,
-      error: undefined,
+      runId: "run",
+      error: "",
       result: { kind: "text", text: "Findings" },
       usage: { tokens: 12 },
     },
-    updates: [[{ recentOutput: undefined, currentTool: "read" }]],
+    updates: [],
     timers: 0,
     listeners: 0,
   });
@@ -106,6 +106,23 @@ it("cancels timed out research and removes its timer and listeners", async () =>
       SUBAGENT_DELEGATION_REQUEST_EVENT,
       SUBAGENT_DELEGATION_CANCEL_EVENT,
     ],
+    timers: 0,
+    listeners: 0,
+  });
+});
+
+it.each([
+  { status: "completed", runId: 17 },
+  { status: "completed", result: { kind: "text", text: 42 } },
+  { status: "unknown-status" },
+])("rejects a malformed correlated response: %j", async (payload) => {
+  const f = fixture();
+  f.listeners.get(SUBAGENT_DELEGATION_RESPONSE_EVENT)?.({
+    ...f.identity,
+    ...payload,
+  });
+  await expect(f.pending).rejects.toThrow("Invalid planning research response");
+  expect({ timers: f.timers.size, listeners: f.listeners.size }).toStrictEqual({
     timers: 0,
     listeners: 0,
   });

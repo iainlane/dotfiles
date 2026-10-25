@@ -1,3 +1,5 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { exportedFunction, isRecord, parseRecord } from "./protocol.js";
 import { ChildProcess } from "node:child_process";
 import assert from "node:assert/strict";
@@ -8,21 +10,31 @@ import { Socket } from "node:net";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-interface Registry {
-  registeredServers: { id: string; spawn: (...args: unknown[]) => unknown }[];
-}
-function isRegistry(value: unknown): value is Registry {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.registeredServers) &&
-    value.registeredServers.every(
-      (entry: unknown) =>
-        isRecord(entry) &&
-        typeof entry.id === "string" &&
-        typeof entry.spawn === "function",
-    )
-  );
-}
+const registrySchema = Type.Object({
+  registeredServers: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      spawn: Type.Function(
+        [Type.String(), Type.Object({ allowInstall: Type.Literal(false) })],
+        Type.Unknown(),
+      ),
+    }),
+  ),
+});
+const configSchema = Type.Object({
+  lsp: Type.Record(Type.String(), Type.Unknown()),
+});
+const messageSchema = Type.Object({
+  jsonrpc: Type.Literal("2.0"),
+  id: Type.Optional(Type.Union([Type.Number(), Type.String(), Type.Null()])),
+  method: Type.Optional(Type.String()),
+  result: Type.Optional(Type.Unknown()),
+  params: Type.Optional(Type.Unknown()),
+});
+const diagnosticsSchema = Type.Object({
+  diagnostics: Type.Array(Type.Unknown()),
+});
+const selectedDiagnosticSchema = Type.Object({ code: Type.Literal(2322) });
 const [packageRoot, configFile] = process.argv.slice(2);
 assert.ok(
   packageRoot !== undefined &&
@@ -32,7 +44,8 @@ assert.ok(
   "Pass the installed Lens directory and generated configuration",
 );
 const config = parseRecord(await readFile(configFile, "utf8"));
-let registry: Registry | undefined;
+assert.ok(Check(configSchema, config), "Expected a Lens LSP configuration");
+let registry: import("typebox").Static<typeof registrySchema> | undefined;
 const candidates = await Promise.all(
   (await readdir(join(packageRoot, "dist")))
     .filter((entry) => entry.startsWith("chunk-") && entry.endsWith(".js"))
@@ -49,7 +62,7 @@ const path = candidates.find((candidate) => candidate !== undefined);
 if (path !== undefined) {
   const module: unknown = await import(pathToFileURL(path).href);
   const value = exportedFunction(module, "registerLSPConfig")(config.lsp);
-  assert.ok(isRegistry(value), "Expected the Lens LSP registry");
+  assert.ok(Check(registrySchema, value), "Expected the Lens LSP registry");
   registry = value;
 }
 assert.ok(registry, "Lens must expose its LSP registry");
@@ -138,8 +151,16 @@ stdout.on("data", (chunk: Buffer) => {
     const message = parseRecord(
       buffer.subarray(end + 4, end + 4 + size).toString(),
     );
+    assert.ok(
+      Check(messageSchema, message),
+      "Expected an LSP JSON-RPC message",
+    );
     buffer = buffer.subarray(end + 4 + size);
-    if (typeof message.method === "string" && typeof message.id === "number") {
+    if (
+      message.method !== undefined &&
+      message.id !== undefined &&
+      message.id !== null
+    ) {
       send({
         jsonrpc: "2.0",
         id: message.id,
@@ -149,12 +170,11 @@ stdout.on("data", (chunk: Buffer) => {
       pending.get(message.id)?.(message.result);
       pending.delete(message.id);
     } else if (message.method === "textDocument/publishDiagnostics") {
-      const selected =
-        isRecord(message.params) && Array.isArray(message.params.diagnostics)
-          ? message.params.diagnostics.filter(
-              (entry: unknown) => isRecord(entry) && entry.code === 2322,
-            )
-          : [];
+      const selected = Check(diagnosticsSchema, message.params)
+        ? message.params.diagnostics.filter((entry: unknown) =>
+            Check(selectedDiagnosticSchema, entry),
+          )
+        : [];
       if (selected.length > 0) {
         diagnostic.resolve(selected);
       }

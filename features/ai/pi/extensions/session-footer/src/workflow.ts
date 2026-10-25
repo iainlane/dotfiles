@@ -1,3 +1,5 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { finite, record, text } from "./text.ts";
 
 export interface Task {
@@ -16,25 +18,51 @@ export interface TaskSummary {
   current: string | undefined;
 }
 
+const nonnegativeNumber = Type.Number({ minimum: 0 });
+const taskSchema = Type.Object({
+  id: nonnegativeNumber,
+  subject: Type.String(),
+  status: Type.Union([
+    Type.Literal("pending"),
+    Type.Literal("in_progress"),
+    Type.Literal("completed"),
+    Type.Literal("deleted"),
+  ]),
+  activeForm: Type.Optional(Type.Unknown()),
+  blockedBy: Type.Optional(Type.Unknown()),
+});
+const taskEntrySchema = Type.Object({
+  type: Type.Literal("message"),
+  message: Type.Object({
+    role: Type.Literal("toolResult"),
+    toolName: Type.Literal("todo"),
+    details: Type.Object({
+      tasks: Type.Array(Type.Unknown()),
+      nextId: nonnegativeNumber,
+    }),
+  }),
+});
+const fleetSchema = Type.Object({
+  fleet: Type.Object({
+    version: Type.Literal(1),
+    totalActive: nonnegativeNumber,
+    omitted: Type.Optional(Type.Unknown()),
+  }),
+  asyncSnapshot: Type.Optional(Type.Unknown()),
+});
+const snapshotSchema = Type.Object({
+  kind: Type.Literal("pi-subagents.async-status-snapshot"),
+  version: Type.Literal(1),
+  omitted: Type.Optional(Type.Unknown()),
+  runs: Type.Optional(Type.Array(Type.Unknown())),
+});
+const runSchema = Type.Object({ label: Type.String(), state: Type.String() });
+
 function readTask(raw: unknown): Task | undefined {
-  if (
-    !record(raw) ||
-    finite(raw.id) === undefined ||
-    typeof raw.subject !== "string"
-  ) {
+  if (!Check(taskSchema, raw)) {
     return undefined;
   }
-
   const status = raw.status;
-
-  if (
-    status !== "pending" &&
-    status !== "in_progress" &&
-    status !== "completed" &&
-    status !== "deleted"
-  ) {
-    return undefined;
-  }
 
   const blockedBy: number[] = [];
 
@@ -49,7 +77,7 @@ function readTask(raw: unknown): Task | undefined {
   }
 
   return {
-    id: Number(raw.id),
+    id: raw.id,
     subject: text(raw.subject),
     status,
     activeForm: text(raw.activeForm) || undefined,
@@ -61,25 +89,10 @@ export function readTasks(entries: readonly unknown[]): Task[] {
   let tasks: Task[] = [];
 
   for (const entry of entries) {
-    if (!record(entry) || entry.type !== "message" || !record(entry.message)) {
+    if (!Check(taskEntrySchema, entry)) {
       continue;
     }
-
-    const message = entry.message;
-
-    if (
-      message.role !== "toolResult" ||
-      message.toolName !== "todo" ||
-      !record(message.details)
-    ) {
-      continue;
-    }
-
-    const details = message.details;
-
-    if (!Array.isArray(details.tasks) || finite(details.nextId) === undefined) {
-      continue;
-    }
+    const details = entry.message.details;
 
     const parsed = details.tasks.map(readTask);
 
@@ -128,26 +141,20 @@ export interface AgentSummary {
 }
 
 export function readAgents(raw: unknown): AgentSummary | undefined {
-  if (!record(raw) || !record(raw.fleet) || raw.fleet.version !== 1) {
+  if (!Check(fleetSchema, raw)) {
     return undefined;
   }
-
-  const active = finite(raw.fleet.totalActive);
-
-  if (active === undefined) {
-    return undefined;
-  }
-
-  const snapshot = record(raw.asyncSnapshot) ? raw.asyncSnapshot : undefined;
-  const valid =
-    snapshot?.kind === "pi-subagents.async-status-snapshot" &&
-    snapshot.version === 1;
-  const omitted = valid && record(snapshot.omitted) ? snapshot.omitted : {};
+  const active = raw.fleet.totalActive;
+  const snapshot = Check(snapshotSchema, raw.asyncSnapshot)
+    ? raw.asyncSnapshot
+    : undefined;
+  const valid = snapshot !== undefined;
+  const omitted = record(snapshot?.omitted) ? snapshot.omitted : {};
   const runs: AgentSummary["runs"] = [];
 
-  if (valid && Array.isArray(snapshot.runs)) {
+  if (snapshot?.runs !== undefined) {
     for (const run of snapshot.runs) {
-      if (record(run)) {
+      if (Check(runSchema, run)) {
         runs.push({ label: text(run.label), state: text(run.state) });
       }
     }

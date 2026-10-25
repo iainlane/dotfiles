@@ -1,45 +1,24 @@
+import { Type, type Static } from "typebox";
+import { Check } from "typebox/value";
 import type { PlanStore } from "./store.ts";
 
 export const stateEntry = "dotfiles:planning:v1";
 
-export interface SavedState {
-  version: 1;
-  active: boolean;
-  sourceSessionId: string;
-}
-
-function savedState(value: unknown): value is SavedState {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "version" in value &&
-    value.version === 1 &&
-    "active" in value &&
-    typeof value.active === "boolean" &&
-    "sourceSessionId" in value &&
-    typeof value.sourceSessionId === "string"
-  );
-}
+const savedStateSchema = Type.Object({
+  version: Type.Literal(1),
+  active: Type.Boolean(),
+  sourceSessionId: Type.String(),
+});
+const savedEntrySchema = Type.Object({
+  type: Type.Literal("custom"),
+  customType: Type.Literal(stateEntry),
+  data: savedStateSchema,
+});
+export type SavedState = Static<typeof savedStateSchema>;
 
 export interface SessionSnapshot {
   id: string;
   branch: readonly unknown[];
-}
-
-function savedEntry(value: unknown): SavedState | undefined {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("type" in value) ||
-    value.type !== "custom" ||
-    !("customType" in value) ||
-    value.customType !== stateEntry ||
-    !("data" in value) ||
-    !savedState(value.data)
-  ) {
-    return undefined;
-  }
-  return value.data;
 }
 
 export class PlanningSession {
@@ -59,12 +38,13 @@ export class PlanningSession {
   ) {
     this.id = snapshot.id;
     this.store = open(this.id);
-    const previous = snapshot.branch
-      .map(savedEntry)
-      .findLast((state) => state !== undefined);
-    if (!previous) {
+    const entry = snapshot.branch.findLast((candidate) =>
+      Check(savedEntrySchema, candidate),
+    );
+    if (!Check(savedEntrySchema, entry)) {
       return;
     }
+    const previous = entry.data;
     this.active = previous.active;
     if (previous.sourceSessionId === this.id) {
       return;

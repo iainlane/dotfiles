@@ -74,3 +74,29 @@ it("replays auxiliary records once without changing native totals", () => {
     latestHit: undefined,
   });
 });
+
+it.each([NaN, Infinity, -1, "17"])(
+  "ignores malformed usage measurements (%s) without losing later records",
+  (input) => {
+    const ledger = new UsageLedger();
+    ledger.update(
+      [
+        { id: "invalid", type: "usage", usage: { input, cost: { total: 1 } } },
+        {
+          id: "valid",
+          type: "usage",
+          usage: { input: 2, cost: { total: 0.5 } },
+        },
+      ],
+      [],
+    );
+    expect(ledger.totals).toStrictEqual({
+      input: 2,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.5,
+      latestHit: undefined,
+    });
+  },
+);

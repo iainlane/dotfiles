@@ -1,3 +1,5 @@
+import { Type, type Static } from "typebox";
+import { Check } from "typebox/value";
 import { duration, finite, record, text } from "./text.ts";
 
 export type Freshness = "fresh" | "cached" | "stale" | "unavailable";
@@ -26,11 +28,36 @@ export interface QuotaView {
   freshness: Freshness;
 }
 
-function readWindow(raw: unknown): QuotaWindow | undefined {
-  if (!record(raw)) {
-    return undefined;
-  }
+const stateSchema = Type.Object({
+  state: Type.Record(Type.String(), Type.Unknown()),
+});
+const emptyStateSchema = Type.Object({
+  state: Type.Object({
+    provider: Type.Optional(Type.String()),
+    usage: Type.Optional(Type.Undefined()),
+  }),
+});
+const usageSchema = Type.Object({
+  state: Type.Object({
+    provider: Type.String(),
+    usage: Type.Object({
+      error: Type.Optional(Type.Unknown()),
+      windows: Type.Optional(Type.Unknown()),
+      lastSuccessAt: Type.Optional(Type.Unknown()),
+      accountId: Type.Optional(Type.Unknown()),
+      credentialSource: Type.Optional(Type.Unknown()),
+    }),
+  }),
+});
+const windowSchema = Type.Object({
+  label: Type.String(),
+  usedPercent: Type.Optional(Type.Unknown()),
+  resetAt: Type.Optional(Type.Unknown()),
+  windowSeconds: Type.Optional(Type.Unknown()),
+});
+const windowsSchema = Type.Array(windowSchema);
 
+function readWindow(raw: Static<typeof windowSchema>): QuotaWindow | undefined {
   const label = text(raw.label, 48);
 
   if (!label) {
@@ -101,24 +128,20 @@ export function readQuota(
   raw: unknown,
   previous?: QuotaState,
 ): QuotaState | undefined {
-  if (!record(raw) || !record(raw.state)) {
+  if (!Check(stateSchema, raw)) {
     return invalidUpdate(previous);
   }
 
   const state = raw.state;
 
-  if (
-    state.usage === undefined &&
-    (state.provider === undefined || typeof state.provider === "string")
-  ) {
+  if (Check(emptyStateSchema, raw)) {
     return undefined;
   }
-
-  if (!record(state.usage) || typeof state.provider !== "string") {
+  if (!Check(usageSchema, raw)) {
     return invalidUpdate(previous, state.provider);
   }
 
-  const usage = state.usage;
+  const usage = raw.state.usage;
   const error = record(usage.error)
     ? text(usage.error.code) || "UNKNOWN"
     : undefined;
@@ -126,23 +149,27 @@ export function readQuota(
   if (
     error !== undefined &&
     error !== "" &&
-    previous?.provider === state.provider
+    previous !== undefined &&
+    previous.provider === raw.state.provider
   ) {
     return { ...previous, error };
   }
 
-  if (!Array.isArray(usage.windows) && (error === undefined || error === "")) {
-    return invalidUpdate(previous, state.provider);
+  if (
+    !Check(windowsSchema, usage.windows) &&
+    (error === undefined || error === "")
+  ) {
+    return invalidUpdate(previous, raw.state.provider);
   }
 
   const windows: QuotaWindow[] = [];
 
-  if (Array.isArray(usage.windows)) {
+  if (Check(windowsSchema, usage.windows)) {
     for (const entry of usage.windows) {
       const window = readWindow(entry);
 
       if (!window) {
-        return invalidUpdate(previous, state.provider);
+        return invalidUpdate(previous, raw.state.provider);
       }
 
       windows.push(window);
@@ -150,7 +177,7 @@ export function readQuota(
   }
 
   return {
-    provider: state.provider,
+    provider: raw.state.provider,
     windows,
     lastSuccessAt: finite(usage.lastSuccessAt),
     error,

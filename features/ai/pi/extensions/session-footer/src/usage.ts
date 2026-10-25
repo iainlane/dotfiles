@@ -1,5 +1,7 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import type { UsageTotals } from "./state.ts";
-import { finite, record } from "./text.ts";
+import { record } from "./text.ts";
 
 function empty(): UsageTotals {
   return {
@@ -12,30 +14,65 @@ function empty(): UsageTotals {
   };
 }
 
+const measurement = Type.Optional(Type.Number({ minimum: 0 }));
+const usageSchema = Type.Object({
+  input: measurement,
+  output: measurement,
+  cacheRead: measurement,
+  cacheWrite: measurement,
+  cost: Type.Optional(Type.Object({ total: measurement })),
+});
+const messageEntrySchema = Type.Object({
+  type: Type.Literal("message"),
+  message: Type.Object({ usage: Type.Optional(Type.Unknown()) }),
+});
+const aggregateEntrySchema = Type.Object({
+  type: Type.Union([
+    Type.Literal("usage"),
+    Type.Literal("compaction"),
+    Type.Literal("branch_summary"),
+  ]),
+  usage: Type.Optional(Type.Unknown()),
+});
+const auxiliaryEntrySchema = Type.Object({
+  type: Type.Literal("custom"),
+  customType: Type.Literal("rpiv-btw:usage:v1"),
+  data: Type.Object({
+    version: Type.Literal(1),
+    id: Type.String(),
+    usage: usageSchema,
+  }),
+});
+const assistantEntrySchema = Type.Object({
+  type: Type.Literal("message"),
+  message: Type.Object({
+    role: Type.Literal("assistant"),
+    usage: Type.Optional(Type.Unknown()),
+  }),
+});
+
 function usage(raw: unknown): Omit<UsageTotals, "latestHit"> {
-  const value = record(raw) ? raw : {};
+  if (!Check(usageSchema, raw)) {
+    return empty();
+  }
+  const value = raw;
 
   return {
-    input: finite(value.input) ?? 0,
-    output: finite(value.output) ?? 0,
-    cacheRead: finite(value.cacheRead) ?? 0,
-    cacheWrite: finite(value.cacheWrite) ?? 0,
-    cost: record(value.cost) ? (finite(value.cost.total) ?? 0) : 0,
+    input: value.input ?? 0,
+    output: value.output ?? 0,
+    cacheRead: value.cacheRead ?? 0,
+    cacheWrite: value.cacheWrite ?? 0,
+    cost: value.cost?.total ?? 0,
   };
 }
 
 function entryUsage(
   entry: unknown,
 ): Omit<UsageTotals, "latestHit"> | undefined {
-  if (!record(entry)) {
-    return undefined;
-  }
-
-  if (entry.type === "message" && record(entry.message)) {
+  if (Check(messageEntrySchema, entry)) {
     return usage(entry.message.usage);
   }
-
-  if (["usage", "compaction", "branch_summary"].includes(String(entry.type))) {
+  if (Check(aggregateEntrySchema, entry)) {
     return usage(entry.usage);
   }
 
@@ -63,33 +100,12 @@ export class UsageLedger {
     }
 
     for (const entry of entries.slice(this.count)) {
-      if (
-        record(entry) &&
-        entry.type === "custom" &&
-        entry.customType === "rpiv-btw:usage:v1" &&
-        record(entry.data)
-      ) {
+      if (Check(auxiliaryEntrySchema, entry)) {
         const data = entry.data;
-        if (
-          data.version !== 1 ||
-          typeof data.id !== "string" ||
-          this.auxiliaryIds.has(data.id) ||
-          !record(data.usage)
-        ) {
+        if (this.auxiliaryIds.has(data.id)) {
           continue;
         }
         const addition = usage(data.usage);
-        if (
-          [
-            addition.input,
-            addition.output,
-            addition.cacheRead,
-            addition.cacheWrite,
-            addition.cost,
-          ].some((value) => value < 0)
-        ) {
-          continue;
-        }
         this.auxiliaryIds.add(data.id);
         this.auxiliary.input += addition.input;
         this.auxiliary.output += addition.output;
@@ -120,12 +136,7 @@ export class UsageLedger {
     this.totals.latestHit = undefined;
 
     for (const entry of branch) {
-      if (
-        !record(entry) ||
-        entry.type !== "message" ||
-        !record(entry.message) ||
-        entry.message.role !== "assistant"
-      ) {
+      if (!Check(assistantEntrySchema, entry)) {
         continue;
       }
 

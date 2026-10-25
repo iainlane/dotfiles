@@ -1,8 +1,17 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { parseRecord } from "./protocol.js";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createInterface } from "node:readline";
+
+const responseSchema = Type.Object({
+  type: Type.String(),
+  id: Type.Optional(Type.String()),
+  success: Type.Optional(Type.Boolean()),
+  error: Type.Optional(Type.String()),
+});
 
 const [pi, command, ...args] = process.argv.slice(2);
 assert.ok(
@@ -25,6 +34,7 @@ let timer = deadline("startup", 120_000);
 lines.on("line", (line) => {
   process.stdout.write(line + "\n");
   const record = parseRecord(line);
+  assert.ok(Check(responseSchema, record), "Expected a Pi RPC response record");
   if (record.type === "extension_error") {
     completed.reject(
       new Error(

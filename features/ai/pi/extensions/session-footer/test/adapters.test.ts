@@ -249,3 +249,23 @@ it("labels missing measurements and accounting scope in the inspector", () => {
     "Whole-session recorded estimate",
   );
 });
+
+it.each(["threads", "checks"])("rejects fractional PR %s counts", (field) => {
+  expect(
+    readPr({
+      protocol: 1,
+      source: "pi-prs",
+      repository: "a/b",
+      branch: "main",
+      health: "ok",
+      updatedAt: 10,
+      pullRequest: {
+        target: { number: 1 },
+        lifecycle: "open",
+        mergeState: "unknown",
+        unresolvedThreadCount: field === "threads" ? 0.5 : 0,
+        ci: { state: "okay", failedCount: field === "checks" ? 0.5 : 0 },
+      },
+    }),
+  ).toBeUndefined();
+});

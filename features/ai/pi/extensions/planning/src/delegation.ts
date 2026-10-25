@@ -1,14 +1,50 @@
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import {
   SUBAGENT_DELEGATION_CANCEL_EVENT,
   SUBAGENT_DELEGATION_REQUEST_EVENT,
   SUBAGENT_DELEGATION_RESPONSE_EVENT,
   SUBAGENT_DELEGATION_UPDATE_EVENT,
   type SubagentDelegationRequest,
+  type SubagentDelegationStatus,
 } from "pi-subagents/delegation";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const identitySchema = Type.Object({
+  requestId: Type.String(),
+  nodeId: Type.String(),
+  ownerRunId: Type.String(),
+});
+const statuses = [
+  "completed",
+  "failed",
+  "timed_out",
+  "cancelled",
+  "interrupted",
+  "tool_budget_exhausted",
+  "structured_output_failed",
+  "acceptance_failed",
+  "invalid_request",
+  "unavailable_context",
+  "duplicate_node",
+] as const satisfies readonly SubagentDelegationStatus[];
+const responseSchema = Type.Object({
+  ...identitySchema.properties,
+  status: Type.Union(statuses.map((status) => Type.Literal(status))),
+  error: Type.Optional(Type.String()),
+  runId: Type.Optional(Type.String()),
+  usage: Type.Optional(Type.Unknown()),
+  result: Type.Optional(
+    Type.Union([
+      Type.Object({ kind: Type.Literal("text"), text: Type.String() }),
+      Type.Object({ kind: Type.Literal("structured"), value: Type.Unknown() }),
+    ]),
+  ),
+});
+const updateSchema = Type.Object({
+  ...identitySchema.properties,
+  currentTool: Type.Optional(Type.String()),
+  recentOutput: Type.Optional(Type.String()),
+});
 
 export interface ResearchUpdate {
   recentOutput?: string;
@@ -47,8 +83,8 @@ export function research(
     ownerRunId: request.ownerRunId,
   };
 
-  const matches = (value: unknown): value is Record<string, unknown> =>
-    isRecord(value) &&
+  const matches = (value: unknown): boolean =>
+    Check(identitySchema, value) &&
     value.requestId === identity.requestId &&
     value.nodeId === identity.nodeId &&
     value.ownerRunId === identity.ownerRunId;
@@ -89,36 +125,29 @@ export function research(
       transport.events.on(
         SUBAGENT_DELEGATION_RESPONSE_EVENT,
         (value: unknown) => {
-          if (!matches(value) || typeof value.status !== "string") {
+          if (!matches(value)) {
+            return;
+          }
+          if (!Check(responseSchema, value)) {
+            finish(undefined, new Error("Invalid planning research response."));
             return;
           }
           finish({
             status: value.status,
-            error: typeof value.error === "string" ? value.error : undefined,
-            runId: typeof value.runId === "string" ? value.runId : undefined,
+            error: value.error,
+            runId: value.runId,
             usage: value.usage,
-            result:
-              isRecord(value.result) &&
-              value.result.kind === "text" &&
-              typeof value.result.text === "string"
-                ? { kind: "text", text: value.result.text }
-                : undefined,
+            result: value.result?.kind === "text" ? value.result : undefined,
           });
         },
       ),
       transport.events.on(
         SUBAGENT_DELEGATION_UPDATE_EVENT,
         (value: unknown) => {
-          if (matches(value)) {
+          if (matches(value) && Check(updateSchema, value)) {
             update({
-              currentTool:
-                typeof value.currentTool === "string"
-                  ? value.currentTool
-                  : undefined,
-              recentOutput:
-                typeof value.recentOutput === "string"
-                  ? value.recentOutput
-                  : undefined,
+              currentTool: value.currentTool,
+              recentOutput: value.recentOutput,
             });
           }
         },
