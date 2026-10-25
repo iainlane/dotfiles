@@ -1,0 +1,48 @@
+--- a/src/lifecycle.ts
++++ b/src/lifecycle.ts
+@@ -330,7 +330,7 @@
+ export async function startServer(app: Express, callback?: () => Promise<void>): Promise<void> {
+   try {
+     await gracefulStartup();
+-    app.listen(env.PORT, () => {
++    app.listen(env.PORT, '127.0.0.1', () => {
+       logger.info(`[${INSTANCE_ID}] Server is running on port ${env.PORT}`);
+       logger.info(`[${INSTANCE_ID}] PYTHON_CONCURRENCY: ${env.PYTHON_CONCURRENCY} | OTHER_CONCURRENCY: ${env.OTHER_CONCURRENCY} | JOB_WINDOW: ${env.JOB_WINDOW}`);
+     });
+@@ -350,7 +350,7 @@
+ export async function startApiServer(app: Express, callback?: () => Promise<void>): Promise<void> {
+   try {
+     await startupApiOnly();
+-    app.listen(env.PORT, () => {
++    app.listen(env.PORT, '127.0.0.1', () => {
+       logger.info(`[${INSTANCE_ID}] API Server is running on port ${env.PORT}`);
+       logger.info(`[${INSTANCE_ID}] Mode: API-only (no workers)`);
+     });
+--- a/src/egress-gateway.ts
++++ b/src/egress-gateway.ts
+@@ -907,7 +907,7 @@
+ }
+ 
+ if (process.env.CODEAPI_EGRESS_GATEWAY_AUTOSTART !== 'false') {
+-  server = app.listen(env.EGRESS_GATEWAY_PORT, () => {
++  server = app.listen(env.EGRESS_GATEWAY_PORT, '127.0.0.1', () => {
+     logger.info(`Egress gateway listening on port ${env.EGRESS_GATEWAY_PORT}`);
+   });
+ 
+--- a/src/worker-server.ts
++++ b/src/worker-server.ts
+@@ -165,7 +165,7 @@
+ // Start worker server
+ startWorkerServer(async () => {
+   // Start health check server
+-  healthServer.listen(HEALTH_PORT, () => {
++  healthServer.listen(HEALTH_PORT, '127.0.0.1', () => {
+     logger.info(`Worker health check server running on port ${HEALTH_PORT}`);
+   });
+ });
+--- a/src/tool-call-server.ts
++++ b/src/tool-call-server.ts
+@@ -620,2 +620,3 @@
+ const server = Bun.serve({
++  hostname: '127.0.0.1',
+   port: PORT,

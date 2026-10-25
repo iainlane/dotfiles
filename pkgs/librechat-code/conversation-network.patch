@@ -1,0 +1,16 @@
+--- a/api/src/nsjail.ts
++++ b/api/src/nsjail.ts
+@@ -182,12 +182,7 @@
+    * the syscall outright. Neither call is used by Python/Node/Bun
+    * runtimes the sandbox supports. */
+   '    pidfd_open(pid) { pid == 1 },',
+-  '    pidfd_send_signal,',
+-  /* Deny every socket() family. VSOCK keeps its stronger KILL action above.
+-   * Deny socketpairs as well; packaged runtime IPC uses anonymous pipes.
+-   * Keep sendmsg/sendmmsg denied for inherited descriptors too. */
+-  '    socket(domain) { domain != AF_VSOCK },',
+-  '    socketpair',
++  '    pidfd_send_signal',
+   '  }',
+   '}',
+   'USE sandbox DEFAULT ALLOW',

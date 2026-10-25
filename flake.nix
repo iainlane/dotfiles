@@ -9,6 +9,19 @@
       inputs.naersk.inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    bun2nix = {
+      url = "github:nix-community/bun2nix/0f2a1f0b6f42cebe3b149bf62d38754c5e0e9729";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-parts.follows = "flake-parts";
+        treefmt-nix.follows = "treefmt-nix";
+      };
+    };
+
+    uv2nix.follows = "hermes-agent/uv2nix";
+    pyproject-nix.follows = "hermes-agent/pyproject-nix";
+    pyproject-build-systems.follows = "hermes-agent/pyproject-build-systems";
+
     catppuccin = {
       url = "github:catppuccin/nix";
       inputs.nixpkgs.follows = "nixpkgs";
