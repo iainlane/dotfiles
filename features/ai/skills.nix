@@ -34,6 +34,7 @@
   inputs,
   lib,
   pkgs,
+  pkgs-unstable,
   ...
 }: let
   dir = ./skills;
@@ -117,19 +118,44 @@
         excludes;
     };
 in {
-  options.dotfiles.ai.skills = lib.mkOption {
-    type = with lib.types; attrsOf (either path str);
-    default = {};
-    description = ''
-      Skills for every AI harness, keyed by skill name. A value is a skill
-      directory containing SKILL.md, the SKILL.md content itself, or a
-      directory of skill directories. For a directory of skills the key is
-      ignored and each skill keeps its own directory name.
-    '';
+  options.dotfiles.ai = {
+    skills = lib.mkOption {
+      type = with lib.types; attrsOf (either path str);
+      default = {};
+      description = ''
+        Skills for every AI harness, keyed by skill name. A value is a skill
+        directory containing SKILL.md, the SKILL.md content itself, or a
+        directory of skill directories. For a directory of skills the key is
+        ignored and each skill keeps its own directory name.
+      '';
+    };
+
+    skillRuntimeDependencies = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+      default = {};
+      description = "Nix package attributes required by each entry in dotfiles.ai.skills. Consumers may replace a package with a compatible broker for their execution environment.";
+    };
   };
 
   config = {
-    dotfiles.ai.skills = local // external // styles;
+    dotfiles.ai = {
+      skills = local // external // styles;
+
+      skillRuntimeDependencies = {
+        gh-stack = ["git" "gh" "gh-stack"];
+        stacked-prs = ["git" "gh"];
+      };
+    };
+
+    home.packages = let
+      runtimePackages =
+        pkgs-unstable
+        // {inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;}
+        // lib.optionalAttrs config.programs.git.enable {git = config.programs.git.package;}
+        // lib.optionalAttrs config.programs.gh.enable {gh = config.programs.gh.package;};
+      dependencies = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name config.dotfiles.ai.skills) config.dotfiles.ai.skillRuntimeDependencies)));
+    in
+      map (name: lib.attrByPath (lib.splitString "." name) (throw "Unknown skill runtime package: ${name}") runtimePackages) dependencies;
 
     home.file.".agents/skills" = {
       source = skillTree {skills = config.dotfiles.ai.skills;};

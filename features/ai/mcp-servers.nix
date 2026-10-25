@@ -29,6 +29,14 @@ let
       file = "user-exa.yaml";
       key = "exa_api_key";
       server = apiKeyFile: exaServer {inherit apiKeyFile;};
+      nativeServer = apiKeyFile: {
+        inherit (remoteServers.exa) url;
+        sourceCommand = (exaServer {inherit apiKeyFile;}).command;
+        headerFiles.${remoteServers.exa.token.header} = {
+          file = apiKeyFile;
+          prefix = "";
+        };
+      };
     };
   };
 
@@ -43,6 +51,8 @@ let
       hostSecretServerDefinitions;
   in {
     servers = lib.mapAttrs (_name: definition: definition.server (secretPath definition.key)) availableServers;
+
+    nativeServers = lib.mapAttrs (_name: definition: definition.nativeServer (secretPath definition.key)) availableServers;
 
     sopsSecrets =
       lib.optionalAttrs declareSopsSecrets
@@ -95,6 +105,12 @@ let
   ];
 in {
   inherit mcpServersOption excludeServers mcpRemote hostSecretServers serverPackages servers;
+
+  nativeServers.context7 = {
+    inherit (remoteServers.context7) url;
+    sourceCommand = servers.context7.command;
+    headerFiles = {};
+  };
 
   # Wrap an AI tool so the shared tools are on its PATH. The result contains
   # everything from the package, keeps its `pname`, `version`, `meta` and

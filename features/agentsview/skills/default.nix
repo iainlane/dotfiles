@@ -11,7 +11,12 @@
     inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
     skillsFor = harness: "${agentsview}/share/agentsview/skills/${harness}";
   in {
-    dotfiles.ai.skills.agentsview = skillsFor "agents";
-    dotfiles.claudeCode.skills.agentsview = skillsFor "claude";
+    dotfiles = {
+      ai = {
+        skills.agentsview = skillsFor "agents";
+        skillRuntimeDependencies.agentsview = ["agentsview"];
+      };
+      claudeCode.skills.agentsview = skillsFor "claude";
+    };
   };
 }
