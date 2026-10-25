@@ -1,11 +1,9 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { runtimeFixture } from "./runtime.ts";
 import { readQuota } from "../src/quota.ts";
 import { renderFooter } from "../src/render.ts";
 import { createSnapshot } from "../src/state.ts";
@@ -15,13 +13,11 @@ interface Status {
   description: string;
 }
 
-type Handler = (event: unknown, context: ExtensionContext) => unknown;
-
 const dependencies = {
   fetch: vi.fn<typeof fetch>(),
   homedir: () => "/fixture",
   env: {},
-  readFile: () => undefined,
+  readFile: () => {},
   fileExists: () => false,
   execFileSync: () => "",
 };
@@ -72,45 +68,40 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     }),
   );
 
-  const hooks = new Map<string, Handler>();
   const listeners = new Map<string, Set<(value: unknown) => void>>();
   const snapshots: ReturnType<typeof readQuota>[] = [];
   const rendered: string[] = [];
-  const api = {
-    on: (event: string, handler: Handler) => hooks.set(event, handler),
-    registerCommand: vi.fn(),
-    registerTool: vi.fn(),
-    events: {
-      on(event: string, listener: (value: unknown) => void) {
-        const handlers = listeners.get(event) ?? new Set();
+  const events = {
+    on(event: string, listener: (value: unknown) => void) {
+      const handlers = listeners.get(event) ?? new Set();
 
-        handlers.add(listener);
-        listeners.set(event, handlers);
+      handlers.add(listener);
+      listeners.set(event, handlers);
 
-        return () => {
-          handlers.delete(listener);
-        };
-      },
-      emit(event: string, value: unknown) {
-        if (event === "sub-core:update-current") {
-          const state = createSnapshot(Date.now(), "/fixture");
-
-          state.quota = readQuota(value);
-          snapshots.push(state.quota);
-          rendered.push(renderFooter(state, 120)[1]?.trim() ?? "");
-        }
-
-        for (const listener of listeners.get(event) ?? []) listener(value);
-      },
+      return () => {
+        handlers.delete(listener);
+      };
     },
-  } as unknown as ExtensionAPI;
-  const context = {
-    model: { provider: "openai-codex", id: "fixture" },
-  } as unknown as ExtensionContext;
+    emit(event: string, value: unknown) {
+      if (event === "sub-core:update-current") {
+        const state = createSnapshot(Date.now(), "/fixture");
+
+        state.quota = readQuota(value);
+        snapshots.push(state.quota);
+        rendered.push(renderFooter(state, 120)[1]?.trim() ?? "");
+      }
+
+      for (const listener of listeners.get(event) ?? []) {
+        listener(value);
+      }
+    },
+  };
+  const { api, context, runner } = await runtimeFixture(events);
+  vi.spyOn(runner, "createContext").mockReturnValue(context);
 
   try {
     const { default: core } = await vi.importActual<{
-      default(api: ExtensionAPI, deps: typeof dependencies): void;
+      default: (api: ExtensionAPI, deps: typeof dependencies) => void;
     }>("../.fixtures/pi-sub-core/index.ts");
     const cache = await vi.importActual<{
       updateCacheStatus(provider: "codex", status: Status): Promise<void>;
@@ -118,11 +109,12 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
     core(api, dependencies);
 
-    await hooks.get("session_start")?.({ reason: "startup" }, context);
+    await runner.emit({ type: "session_start", reason: "startup" });
     await vi.advanceTimersByTimeAsync(0);
 
     for (const elapsed of [11_000, 31_000, 300_001]) {
       vi.setSystemTime(fetchedAt + elapsed);
+      // eslint-disable-next-line no-await-in-loop -- Each notification must finish at its own simulated time.
       await cache.updateCacheStatus("codex", {
         indicator: "none",
         description: `Status update ${elapsed}`,
@@ -139,7 +131,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     };
 
     expect({ snapshots, rendered }).toStrictEqual({
-      snapshots: Array(4).fill(expected),
+      snapshots: Array.from({ length: 4 }, () => structuredClone(expected)),
       rendered: [
         " week 42% used (2d)  $0.00  0m",
         " week 42% used (1d23h)  $0.00  0m",
@@ -150,7 +142,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
     expect(dependencies.fetch).not.toHaveBeenCalled();
   } finally {
-    await hooks.get("session_shutdown")?.({ reason: "quit" }, context);
+    await runner.emit({ type: "session_shutdown", reason: "quit" });
     await rm(directory, { recursive: true, force: true });
   }
 });

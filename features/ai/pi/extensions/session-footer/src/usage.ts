@@ -27,13 +27,17 @@ function usage(raw: unknown): Omit<UsageTotals, "latestHit"> {
 function entryUsage(
   entry: unknown,
 ): Omit<UsageTotals, "latestHit"> | undefined {
-  if (!record(entry)) return undefined;
+  if (!record(entry)) {
+    return undefined;
+  }
 
-  if (entry.type === "message" && record(entry.message))
+  if (entry.type === "message" && record(entry.message)) {
     return usage(entry.message.usage);
+  }
 
-  if (["usage", "compaction", "branch_summary"].includes(String(entry.type)))
+  if (["usage", "compaction", "branch_summary"].includes(String(entry.type))) {
     return usage(entry.usage);
+  }
 
   return undefined;
 }
@@ -57,7 +61,9 @@ export class UsageLedger {
     for (const entry of entries.slice(this.count)) {
       const addition = entryUsage(entry);
 
-      if (!addition) continue;
+      if (!addition) {
+        continue;
+      }
 
       this.totals.input += addition.input;
       this.totals.output += addition.output;
@@ -79,8 +85,9 @@ export class UsageLedger {
         entry.type !== "message" ||
         !record(entry.message) ||
         entry.message.role !== "assistant"
-      )
+      ) {
         continue;
+      }
 
       const current = usage(entry.message.usage);
       const prompt = current.input + current.cacheRead + current.cacheWrite;

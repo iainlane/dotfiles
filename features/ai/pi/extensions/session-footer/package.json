@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node test/prepare-fixtures.mjs && vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint index.ts src test vitest.config.ts",
+    "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "@xterm/headless": "6.0.0",
     "msw": "2.15.0",
     "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2004",
     "typescript": "7.0.2",
     "vitest": "4.1.12"
   }

@@ -23,10 +23,7 @@ in {
     };
     statix.enable = true;
     stylua.enable = true;
-    prettier = {
-      enable = true;
-      settings.proseWrap = "always";
-    };
+    oxfmt.enable = true;
     zizmor.enable = true;
   };
 
@@ -36,6 +33,11 @@ in {
     excludes = ["**/lazy-lock.json"];
 
     formatter = {
+      oxfmt = {
+        includes = ["*.mts" "*.cts"];
+        excludes = ["**/package-lock.json"];
+      };
+
       zizmor.options = ["--persona" "pedantic"];
 
       markdownlint = {

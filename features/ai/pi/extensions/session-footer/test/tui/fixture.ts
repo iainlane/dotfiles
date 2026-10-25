@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { writeFileSync } from "node:fs";
+import { isReply } from "../requests.ts";
 import { record } from "../../src/text.ts";
 
 export default function fixture(pi: ExtensionAPI): void {
@@ -34,11 +35,14 @@ export default function fixture(pi: ExtensionAPI): void {
   });
 
   pi.events.on("sub-core:request", (request) => {
-    if (record(request) && typeof request.reply === "function")
+    if (record(request) && isReply(request.reply)) {
       request.reply(quota());
+    }
   });
   pi.events.on("subagents:rpc:v1:request", (request) => {
-    if (!record(request)) return;
+    if (!record(request) || typeof request.requestId !== "string") {
+      return;
+    }
 
     pi.events.emit(`subagents:rpc:v1:reply:${request.requestId}`, {
       version: 1,
@@ -74,23 +78,30 @@ export default function fixture(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const result = ctx.ui.setTheme(args.trim());
 
-      if (!result.success)
+      if (!result.success) {
         throw new Error(result.error ?? "Theme change failed");
+      }
     },
   });
 
   pi.on("agent_start", () => {
     const path = process.env.PI_FOOTER_MODEL_LOG;
 
-    if (path) writeFileSync(path, "Unexpected model turn");
+    if (path !== undefined && path !== "") {
+      writeFileSync(path, "Unexpected model turn");
+    }
   });
   pi.on("session_start", (_event, ctx) => {
     const publish = () => {
       pi.events.emit("sub-core:update-current", quota());
       updates++;
 
-      if (process.env.PI_FOOTER_UPDATE_LOG)
+      if (
+        process.env.PI_FOOTER_UPDATE_LOG !== undefined &&
+        process.env.PI_FOOTER_UPDATE_LOG !== ""
+      ) {
         writeFileSync(process.env.PI_FOOTER_UPDATE_LOG, String(updates));
+      }
     };
 
     publish();
@@ -112,7 +123,9 @@ export default function fixture(pi: ExtensionAPI): void {
       ],
     });
 
-    if (quiet) return;
+    if (quiet) {
+      return;
+    }
 
     pi.events.emit("pi-prs:state", {
       protocol: 1,
@@ -142,5 +155,7 @@ export default function fixture(pi: ExtensionAPI): void {
     ctx.ui.setStatus("plan-mode", "plan: implementation");
     pi.events.emit("subagents:rpc:v1:ready", {});
   });
-  pi.on("session_shutdown", () => clearInterval(interval));
+  pi.on("session_shutdown", () => {
+    clearInterval(interval);
+  });
 }

@@ -46,7 +46,7 @@ function fixture(current: Configuration | null = initial) {
   const state = { config: structuredClone(current), writes: 0 };
 
   const dependencies: Dependencies = {
-    readKey: vi.fn(async () => "first-key\n"),
+    readKey: vi.fn<Dependencies["readKey"]>(async () => "first-key\n"),
     defaultConfig: () => ({ ...structuredClone(initial), accounts: [] }),
     update: async (change) => {
       const updated = change(state.config);
@@ -58,7 +58,7 @@ function fixture(current: Configuration | null = initial) {
 
       return updated;
     },
-    reload: vi.fn(async () => {}),
+    reload: vi.fn<Dependencies["reload"]>(async () => {}),
   };
 
   return { state, dependencies };
@@ -223,7 +223,7 @@ describe("TeamClaude provisioning", () => {
 describe("sops-nix decryption", () => {
   it("ignores historical success from a previous secret generation", async () => {
     const status = vi
-      .fn()
+      .fn<() => Promise<string>>()
       .mockResolvedValueOnce(
         "\tprogram = /nix/store/previous-sops-nix-user\n\tstate = not running\n\truns = 3\n\tlast exit code = 0\n",
       )
@@ -233,7 +233,7 @@ describe("sops-nix decryption", () => {
       .mockResolvedValue(
         `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`,
       );
-    const pause = vi.fn(async () => {});
+    const pause = vi.fn<() => Promise<void>>(async () => {});
 
     await waitForSops(sopsProgram, { status, pause });
 
@@ -243,7 +243,7 @@ describe("sops-nix decryption", () => {
   });
 
   it("recognises the expected script through Home Manager's store-mount wrapper", async () => {
-    const pause = vi.fn(async () => {});
+    const pause = vi.fn<() => Promise<void>>(async () => {});
 
     await waitForSops(sopsProgram, {
       status: async () =>
@@ -256,7 +256,7 @@ describe("sops-nix decryption", () => {
 
   it("waits for a new job to run and finish before accepting the secret files", async () => {
     const status = vi
-      .fn()
+      .fn<() => Promise<string>>()
       .mockResolvedValueOnce("")
       .mockResolvedValueOnce(
         `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 0\n\tlast exit code = 0\n`,
@@ -265,7 +265,7 @@ describe("sops-nix decryption", () => {
       .mockResolvedValue(
         `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`,
       );
-    const pause = vi.fn(async () => {});
+    const pause = vi.fn<() => Promise<void>>(async () => {});
 
     await waitForSops(sopsProgram, { status, pause });
 
@@ -285,7 +285,9 @@ describe("sops-nix decryption", () => {
   });
 
   it("bounds the wait when the job never completes", async () => {
-    const status = vi.fn(async () => "\tstate = running\n\truns = 1\n");
+    const status = vi.fn<() => Promise<string>>(
+      async () => "\tstate = running\n\truns = 1\n",
+    );
 
     await expect(
       waitForSops(sopsProgram, { status, pause: async () => {} }),
@@ -310,20 +312,22 @@ function runtimeFixture() {
   let time = 0;
 
   const dependencies: RuntimeDependencies = {
-    readText: vi.fn(async (path) => {
+    readText: vi.fn<RuntimeDependencies["readText"]>(async (path) => {
       const content = files.get(path);
       if (content === undefined) {
         throw Object.assign(new Error("File unavailable"), { code: "ENOENT" });
       }
       return content;
     }),
-    prepareDirectory: vi.fn(async () => {}),
+    prepareDirectory: vi.fn<() => Promise<void>>(async () => {}),
     library: {
       createDefaultConfig: () => ({ accounts: [] }),
-      withConfigLock: vi.fn(async (_path, update) => update()),
-      writeJsonAtomic: vi.fn(async (path, config) => {
-        files.set(path, JSON.stringify(config));
-      }),
+      withConfigLock: async (_path, update) => update(),
+      writeJsonAtomic: vi.fn<RuntimeDependencies["library"]["writeJsonAtomic"]>(
+        async (path, config) => {
+          files.set(path, JSON.stringify(config));
+        },
+      ),
     },
     ensureAccountIds: (accounts) => {
       for (const account of accounts) {
@@ -332,11 +336,11 @@ function runtimeFixture() {
     },
     clock: {
       now: () => time,
-      pause: vi.fn(async () => {
+      pause: vi.fn<() => Promise<void>>(async () => {
         time += 100;
       }),
     },
-    reload: vi.fn(async () => {}),
+    reload: vi.fn<Dependencies["reload"]>(async () => {}),
   };
 
   return { files, dependencies };
@@ -468,7 +472,7 @@ describe("provisioning adapters", () => {
   it("retries an unavailable secret through the supplied clock", async () => {
     const { files, dependencies } = runtimeFixture();
     files.delete("/secrets/api-key");
-    dependencies.clock.pause = vi.fn(async () => {
+    dependencies.clock.pause = vi.fn<() => Promise<void>>(async () => {
       files.set("/secrets/api-key", "decrypted-key");
     });
 
@@ -514,7 +518,10 @@ describe("provisioning adapters", () => {
 
 describe("proxy reload", () => {
   it("sends the configured endpoint and API key to the supplied transport", async () => {
-    const request = vi.fn(async () => ({ ok: true, status: 200 }));
+    const request = vi.fn<Parameters<typeof reload>[1]>(async () => ({
+      ok: true,
+      status: 200,
+    }));
     await reload(initial, request);
 
     expect(request).toHaveBeenCalledExactlyOnceWith(
@@ -524,7 +531,10 @@ describe("proxy reload", () => {
   });
 
   it("skips the request when the proxy has no port", async () => {
-    const request = vi.fn(async () => ({ ok: true, status: 200 }));
+    const request = vi.fn<Parameters<typeof reload>[1]>(async () => ({
+      ok: true,
+      status: 200,
+    }));
     await reload({ accounts: [] }, request);
 
     expect(request).not.toHaveBeenCalled();

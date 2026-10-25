@@ -6,18 +6,25 @@ export function inactivity(state: Activity, now: number): string | undefined {
     state.runningSince === undefined ||
     state.waiting ||
     state.compacting ||
-    state.tool ||
+    (state.tool !== undefined && state.tool !== "") ||
     state.outcome === "failed" ||
     state.outcome === "cancelled" ||
     now - state.lastContentAt < 30_000
-  )
+  ) {
     return undefined;
+  }
 
   return duration(now - state.lastContentAt);
 }
 
 export type ActivityEvent =
-  "start" | "settled" | "wait" | "resume" | "compact" | "compacted" | "content";
+  | "start"
+  | "settled"
+  | "wait"
+  | "resume"
+  | "compact"
+  | "compacted"
+  | "content";
 
 export class ActivityTracker {
   private readonly tools = new Map<string, string>();
@@ -25,8 +32,9 @@ export class ActivityTracker {
   constructor(private readonly state: Activity) {}
 
   private pause(now: number): void {
-    if (this.state.activeSince !== undefined)
+    if (this.state.activeSince !== undefined) {
       this.state.activeMs += now - this.state.activeSince;
+    }
 
     this.state.activeSince = undefined;
   }
@@ -62,29 +70,40 @@ export class ActivityTracker {
     if (event === "resume") {
       state.waiting = false;
 
-      if (state.runningSince !== undefined) state.activeSince = now;
+      if (state.runningSince !== undefined) {
+        state.activeSince = now;
+      }
     }
 
     if (event === "compact") {
       state.compacting = true;
       state.compactingSince = now;
 
-      if (state.activeSince === undefined) state.activeSince = now;
+      if (state.activeSince === undefined) {
+        state.activeSince = now;
+      }
     }
 
     if (event === "compacted") {
       state.compacting = false;
       state.compactingSince = undefined;
 
-      if (state.runningSince === undefined) this.pause(now);
+      if (state.runningSince === undefined) {
+        this.pause(now);
+      }
     }
 
-    if (event === "content") state.lastContentAt = now;
+    if (event === "content") {
+      state.lastContentAt = now;
+    }
   }
 
   tool(id: string, name: string | undefined, now: number): void {
-    if (name) this.tools.set(id, name);
-    else this.tools.delete(id);
+    if (name !== undefined && name !== "") {
+      this.tools.set(id, name);
+    } else {
+      this.tools.delete(id);
+    }
 
     this.state.tool = [...this.tools.values()].join(", ") || undefined;
     this.state.lastContentAt = now;

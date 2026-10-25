@@ -21,9 +21,13 @@ type Paint = (style: FooterStyle, value: string) => string;
 const home = homedir();
 
 function directory(cwd: string): string {
-  if (cwd === home) return "~";
+  if (cwd === home) {
+    return "~";
+  }
 
-  if (cwd.startsWith(home + sep)) return "~" + cwd.slice(home.length);
+  if (cwd.startsWith(home + sep)) {
+    return "~" + cwd.slice(home.length);
+  }
 
   return cwd;
 }
@@ -31,15 +35,18 @@ function directory(cwd: string): string {
 function quotaLabel(window: QuotaView, resets: boolean, paint: Paint): string {
   const label = paint(styles.label, window.label.toLowerCase());
 
-  if (window.used === undefined)
+  if (window.used === undefined) {
     return `${label} ${paint(styles.detail, "unavailable")}`;
+  }
 
   const used = paint(
     quotaStyle(window.freshness),
     `${Math.round(window.used)}%`,
   );
   const reset =
-    resets && window.reset ? paint(styles.detail, ` (${window.reset})`) : "";
+    resets && window.reset !== undefined && window.reset !== ""
+      ? paint(styles.detail, ` (${window.reset})`)
+      : "";
   const freshness =
     window.freshness === "fresh"
       ? ""
@@ -55,6 +62,19 @@ interface Item {
   right?: boolean;
 }
 
+function createItem(
+  value: string,
+  priority: number,
+  compact = "",
+  right = false,
+): Item {
+  return {
+    variants: compact && compact !== value ? [value, compact, ""] : [value, ""],
+    priority,
+    right,
+  };
+}
+
 function fit(items: Item[], width: number, paint: Paint): string {
   const leftSeparator = paint(styles.separator, "  ");
   const rightArrow = paint(styles.separator, "");
@@ -66,14 +86,18 @@ function fit(items: Item[], width: number, paint: Paint): string {
 
   const join = (marker = "") => {
     const left = items
-      .map((item, i) => (item.right ? "" : value(item, i)))
+      .map((item, i) => (item.right === true ? "" : value(item, i)))
       .filter(Boolean);
 
-    if (marker) left.push(paint(styles.detail, marker));
+    if (marker) {
+      left.push(paint(styles.detail, marker));
+    }
 
     const right = items
       .flatMap((item, i) => {
-        if (!item.right) return [];
+        if (item.right !== true) {
+          return [];
+        }
 
         const rendered = value(item, i);
 
@@ -82,7 +106,9 @@ function fit(items: Item[], width: number, paint: Paint): string {
       .join(" ");
     const l = left.join(leftSeparator);
 
-    if (!right) return l;
+    if (!right) {
+      return l;
+    }
 
     const gap = Math.max(
       l ? 2 : 0,
@@ -103,23 +129,26 @@ function fit(items: Item[], width: number, paint: Paint): string {
           item,
           index,
           next,
-          priority: next
-            ? (item.detailPriority ?? item.priority)
-            : item.priority,
+          priority:
+            next !== undefined && next !== ""
+              ? (item.detailPriority ?? item.priority)
+              : item.priority,
         };
       })
-      .filter(({ next }) => next !== undefined && (next || remaining > 1))
-      .sort((a, b) => a.priority - b.priority || b.index - a.index)[0];
+      .filter(
+        ({ next }) => next !== undefined && (next !== "" || remaining > 1),
+      )
+      .toSorted((a, b) => a.priority - b.priority || b.index - a.index)[0];
 
     if (!candidate) {
       const important = items
         .map((item, index) => ({ item, rendered: value(item, index) }))
         .filter(({ rendered }) => rendered)
-        .sort((a, b) => b.item.priority - a.item.priority)[0];
+        .toSorted((a, b) => b.item.priority - a.item.priority)[0];
       const rendered = important?.rendered ?? "";
 
       return truncateToWidth(
-        important?.item.right ? `${rightArrow} ${rendered}` : rendered,
+        important?.item.right === true ? `${rightArrow} ${rendered}` : rendered,
         width,
         "…",
       );
@@ -127,14 +156,18 @@ function fit(items: Item[], width: number, paint: Paint): string {
 
     levels[candidate.index] = (levels[candidate.index] ?? 0) + 1;
 
-    if (!value(candidate.item, candidate.index)) omitted++;
+    if (!value(candidate.item, candidate.index)) {
+      omitted++;
+    }
   }
 
   if (omitted) {
     for (const marker of [`+${omitted}`, "…"]) {
       const rendered = join(marker);
 
-      if (visibleWidth(rendered) <= width) return rendered;
+      if (visibleWidth(rendered) <= width) {
+        return rendered;
+      }
     }
   }
 
@@ -148,26 +181,19 @@ export function renderFooter(
 ): string[] {
   width = Math.max(0, Math.floor(width));
 
-  if (!width) return [];
+  if (!width) {
+    return [];
+  }
 
   const paint: Paint = (style, value) => {
-    if (!theme) return value;
+    if (!theme) {
+      return value;
+    }
 
     const coloured = theme.fg(style.color, value);
 
-    return style.bold ? theme.bold(coloured) : coloured;
+    return style.bold === true ? theme.bold(coloured) : coloured;
   };
-
-  const item = (
-    value: string,
-    priority: number,
-    compact = "",
-    right = false,
-  ): Item => ({
-    variants: compact && compact !== value ? [value, compact, ""] : [value, ""],
-    priority,
-    right,
-  });
 
   const model = text(state.model);
   const provider =
@@ -194,16 +220,18 @@ export function renderFooter(
       ],
       priority: 90,
     },
-    item(
+    createItem(
       [
         paint(thinkingStyle(state.thinking), text(state.thinking)),
-        state.serviceTier && paint(styles.serviceTier, text(state.serviceTier)),
+        state.serviceTier !== undefined &&
+          state.serviceTier !== "" &&
+          paint(styles.serviceTier, text(state.serviceTier)),
       ]
         .filter(Boolean)
         .join(" "),
       20,
     ),
-    item(
+    createItem(
       paint(styles.directory, text(directory(state.cwd))),
       10,
       paint(styles.directory, text(basename(state.cwd))),
@@ -225,11 +253,13 @@ export function renderFooter(
       .join(" ");
 
     row1.push(
-      item(
+      createItem(
         [
           paint(styles.label, ""),
           paint(branchStyle, git.branch),
-          git.worktree && paint(styles.detail, `[${git.worktree}]`),
+          git.worktree !== undefined &&
+            git.worktree !== "" &&
+            paint(styles.detail, `[${git.worktree}]`),
           counts,
           git.stale && paint(styles.warning, "stale"),
         ]
@@ -241,11 +271,15 @@ export function renderFooter(
       ),
     );
 
-    if (git.operation)
-      row1.push(item(paint(styles.warning, git.operation), 110));
+    if (git.operation !== undefined && git.operation !== "") {
+      row1.push(createItem(paint(styles.warning, git.operation), 110));
+    }
 
-    if (git.conflicts)
-      row1.push(item(paint(styles.error, `conflicts ${git.conflicts}`), 120));
+    if (git.conflicts) {
+      row1.push(
+        createItem(paint(styles.error, `conflicts ${git.conflicts}`), 120),
+      );
+    }
   }
 
   row1.push({
@@ -258,21 +292,24 @@ export function renderFooter(
   const activity = state.activity;
   const inactive = inactivity(activity, state.now);
 
-  if (activity.waiting)
+  if (activity.waiting) {
     row2.push(
-      item(
+      createItem(
         paint(styles.warning, "awaiting input"),
         120,
         paint(styles.warning, "input!"),
       ),
     );
-  else if (activity.compacting)
-    row2.push(item(paint(styles.activity, "compacting"), 115));
-  else if (activity.tool)
-    row2.push(item(paint(styles.tool, text(activity.tool)), 60));
-  else if (activity.outcome === "failed" || activity.outcome === "cancelled")
+  } else if (activity.compacting) {
+    row2.push(createItem(paint(styles.activity, "compacting"), 115));
+  } else if (activity.tool !== undefined && activity.tool !== "") {
+    row2.push(createItem(paint(styles.tool, text(activity.tool)), 60));
+  } else if (
+    activity.outcome === "failed" ||
+    activity.outcome === "cancelled"
+  ) {
     row2.push(
-      item(
+      createItem(
         paint(
           activity.outcome === "failed" ? styles.error : styles.warning,
           `run ${activity.outcome}`,
@@ -280,20 +317,21 @@ export function renderFooter(
         110,
       ),
     );
-  else if (inactive)
+  } else if (inactive !== undefined && inactive !== "") {
     row2.push(
-      item(
+      createItem(
         paint(styles.warning, `no content ${inactive}`),
         110,
         paint(styles.warning, "waiting"),
       ),
     );
+  }
 
   const diagnostics = state.diagnostics.summary();
 
-  if (diagnostics.errors || diagnostics.warnings)
+  if (diagnostics.errors || diagnostics.warnings) {
     row2.push(
-      item(
+      createItem(
         paint(
           diagnostics.errors ? styles.error : styles.detail,
           `${diagnostics.errors}E`,
@@ -310,6 +348,7 @@ export function renderFooter(
         120,
       ),
     );
+  }
 
   const tasks = taskSummary(state.tasks);
 
@@ -319,22 +358,27 @@ export function renderFooter(
       paint(styles.workflow, `${tasks.completed}/${tasks.total}`);
 
     row2.push(
-      item(
+      createItem(
         progress +
-          (tasks.current ? paint(styles.text, ` ${tasks.current}`) : ""),
+          (tasks.current !== undefined && tasks.current !== ""
+            ? paint(styles.text, ` ${tasks.current}`)
+            : ""),
         50,
         progress,
       ),
     );
   }
 
-  if (tasks.blocked)
-    row2.push(item(paint(styles.warning, `blocked ${tasks.blocked}`), 100));
+  if (tasks.blocked) {
+    row2.push(
+      createItem(paint(styles.warning, `blocked ${tasks.blocked}`), 100),
+    );
+  }
 
   if (state.agents) {
-    if (state.agents.active)
+    if (state.agents.active) {
       row2.push(
-        item(
+        createItem(
           paint(styles.label, "agents ") +
             paint(styles.workflow, `${state.agents.active}`) +
             paint(
@@ -344,10 +388,11 @@ export function renderFooter(
           70,
         ),
       );
+    }
 
-    if (state.agents.failed)
+    if (state.agents.failed) {
       row2.push(
-        item(
+        createItem(
           paint(
             styles.error,
             `runs failed ${state.agents.failed}${state.agents.incomplete ? "+" : ""}`,
@@ -355,33 +400,40 @@ export function renderFooter(
           120,
         ),
       );
+    }
 
-    if (state.agents.paused)
+    if (state.agents.paused) {
       row2.push(
-        item(paint(styles.warning, `runs paused ${state.agents.paused}`), 110),
+        createItem(
+          paint(styles.warning, `runs paused ${state.agents.paused}`),
+          110,
+        ),
       );
+    }
   }
 
-  if (state.pending)
+  if (state.pending) {
     row2.push(
-      item(
+      createItem(
         paint(styles.activity, "messages pending"),
         65,
         paint(styles.activity, "pending"),
       ),
     );
+  }
 
   for (const [key, value] of state.statuses) {
-    if (key === "plan-mode")
-      row2.push(item(paint(styles.activity, text(value)), 80));
-    else if (key === "pi-lens-lsp" && /Failed|✗/.test(value))
+    if (key === "plan-mode") {
+      row2.push(createItem(paint(styles.activity, text(value)), 80));
+    } else if (key === "pi-lens-lsp" && /Failed|✗/.test(value)) {
       row2.push(
-        item(
+        createItem(
           paint(styles.error, text(value)),
           120,
           paint(styles.error, "LSP failed"),
         ),
       );
+    }
   }
 
   const pr = state.pr?.pullRequest;
@@ -389,18 +441,24 @@ export function renderFooter(
   if (pr) {
     let prStyle: FooterStyle = styles.pullRequest;
 
-    if (pr.mergeState === "blocked" || pr.mergeState === "conflicting")
+    if (pr.mergeState === "blocked" || pr.mergeState === "conflicting") {
       prStyle = styles.error;
+    }
 
-    if (state.pr?.health !== "ok") prStyle = styles.detail;
+    if (state.pr?.health !== "ok") {
+      prStyle = styles.detail;
+    }
 
     row2.push(
-      item(link(paint(prStyle, `PR#${pr.target.number}`), pr.target.url), 35),
+      createItem(
+        link(paint(prStyle, `PR#${pr.target.number}`), pr.target.url),
+        35,
+      ),
     );
 
-    if (pr.ci?.failedCount)
+    if (pr.ci?.failedCount !== undefined && pr.ci?.failedCount !== 0) {
       row2.push(
-        item(
+        createItem(
           link(
             paint(styles.error, `CI ${pr.ci.failedCount} failed`),
             pr.ci.url,
@@ -408,10 +466,11 @@ export function renderFooter(
           120,
         ),
       );
+    }
 
-    if (pr.unresolvedThreadCount)
+    if (pr.unresolvedThreadCount) {
       row2.push(
-        item(
+        createItem(
           link(
             paint(styles.warning, `reviews ${pr.unresolvedThreadCount}`),
             pr.target.url,
@@ -419,6 +478,7 @@ export function renderFooter(
           105,
         ),
       );
+    }
   }
 
   const unknown = [...state.statuses].filter(
@@ -427,8 +487,9 @@ export function renderFooter(
       key !== "session-footer",
   );
 
-  if (unknown.length)
-    row2.push(item(paint(styles.label, `status +${unknown.length}`), 25));
+  if (unknown.length > 0) {
+    row2.push(createItem(paint(styles.label, `status +${unknown.length}`), 25));
+  }
 
   for (const window of quotaWindows(state.quota, state.now)) {
     row2.push({
@@ -444,10 +505,13 @@ export function renderFooter(
   }
 
   row2.push(
-    item(paint(styles.detail, `$${state.usage.cost.toFixed(2)}`), 2, "", true),
-  );
-  row2.push(
-    item(
+    createItem(
+      paint(styles.detail, `$${state.usage.cost.toFixed(2)}`),
+      2,
+      "",
+      true,
+    ),
+    createItem(
       paint(styles.detail, duration(state.now - state.startedAt)),
       1,
       "",
@@ -457,7 +521,7 @@ export function renderFooter(
 
   return [
     fit(
-      row1.filter((entry) => entry.variants[0]),
+      row1.filter((entry) => (entry.variants[0] ?? "") !== ""),
       width,
       paint,
     ),

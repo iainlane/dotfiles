@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { record } from "../src/text.ts";
 import { UsageLedger } from "../src/usage.ts";
 import { RpcClient } from "../src/rpc.ts";
 import { readPr, readServiceTier } from "../src/integrations.ts";
@@ -93,11 +94,17 @@ it("correlates RPC replies and cleans up timeout and disposal", async () => {
       };
     },
     emit: (_key: string, value: unknown) => {
-      if (value && typeof value === "object") request = { ...value };
+      if (record(value)) {
+        request = { ...value };
+      }
     },
   };
   const client = new RpcClient(bus);
   const result = client.request("status");
+  if (typeof request.requestId !== "string") {
+    throw new TypeError("Expected an RPC request ID");
+  }
+
   const reply = handlers.get(`subagents:rpc:v1:reply:${request.requestId}`);
 
   reply?.({ version: 1, requestId: "other", success: true, data: "wrong" });

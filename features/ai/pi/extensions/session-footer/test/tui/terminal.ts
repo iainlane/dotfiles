@@ -37,18 +37,23 @@ export class PiTerminal {
       this.failure = error.message;
     });
     this.process.on("close", () => {
-      if (this.code === undefined && !this.closing)
+      if (this.code === undefined && !this.closing) {
         this.failure = `PTY bridge exited before Pi: ${this.stderr}`;
+      }
 
       this.closed.resolve();
     });
     this.process.stdin.on("error", (error) => {
-      if (!this.closing) this.failure = error.message;
+      if (!this.closing) {
+        this.failure = error.message;
+      }
     });
     this.process.stderr.on("data", (data: Buffer) => {
       this.stderr += data.toString();
     });
-    this.terminal.onData((data) => this.input(data));
+    this.terminal.onData((data) => {
+      this.input(data);
+    });
 
     const lines = createInterface({ input: this.process.stdout });
 
@@ -61,17 +66,22 @@ export class PiTerminal {
         return;
       }
 
-      if (message.type === "exit" && typeof message.code === "number")
+      if (message.type === "exit" && typeof message.code === "number") {
         this.code = message.code;
+      }
 
-      if (message.type !== "data" || typeof message.data !== "string") return;
+      if (message.type !== "data" || typeof message.data !== "string") {
+        return;
+      }
 
       const data = Buffer.from(message.data, "base64");
 
       this.output += data.toString();
       this.writes = this.writes.then(
         () =>
-          new Promise<void>((resolve) => this.terminal.write(data, resolve)),
+          new Promise<void>((resolve) => {
+            this.terminal.write(data, resolve);
+          }),
       );
     });
 
@@ -79,8 +89,9 @@ export class PiTerminal {
   }
 
   private send(message: object): void {
-    if (!this.process.stdin.destroyed)
+    if (!this.process.stdin.destroyed) {
       this.process.stdin.write(JSON.stringify(message) + "\n");
+    }
   }
 
   input(value: string): void {
@@ -95,12 +106,15 @@ export class PiTerminal {
   async screen(): Promise<string[]> {
     await this.writes;
 
-    if (this.failure) throw new Error(this.failure);
+    if (this.failure !== undefined && this.failure !== "") {
+      throw new Error(this.failure);
+    }
 
-    if (this.code !== undefined && !this.closing)
+    if (this.code !== undefined && !this.closing) {
       throw new Error(
         `Pi exited with ${this.code}: ${this.stderr}\n${this.output.slice(-12000)}`,
       );
+    }
 
     const buffer = this.terminal.buffer.active;
 
@@ -126,16 +140,22 @@ export class PiTerminal {
     for (let row = first; row < first + 2; row++) {
       const line = buffer.getLine(row);
 
-      if (!line) continue;
+      if (!line) {
+        continue;
+      }
 
       const text = line.translateToString(true);
       const index = value === undefined ? 0 : text.indexOf(value);
 
-      if (index < 0) continue;
+      if (index < 0) {
+        continue;
+      }
 
       const cell = line.getCell(visibleWidth(text.slice(0, index)));
 
-      if (!cell) return undefined;
+      if (!cell) {
+        return undefined;
+      }
 
       return { color: cell.getFgColor(), bold: Boolean(cell.isBold()) };
     }
@@ -146,7 +166,9 @@ export class PiTerminal {
   async close(): Promise<void> {
     this.closing = true;
 
-    if (this.code === undefined) this.send({ type: "stop" });
+    if (this.code === undefined) {
+      this.send({ type: "stop" });
+    }
 
     const deadline = setTimeout(() => this.process.kill("SIGKILL"), 5000);
 

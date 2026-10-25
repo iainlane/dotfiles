@@ -1,19 +1,15 @@
+import { isReply } from "./requests.ts";
 import type {
-  ExtensionAPI,
   ExtensionContext,
+  ExtensionRunner,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, expect, it, vi } from "vitest";
 import { ProcessTerminal, TuiMainScreen } from "@earendil-works/pi-tui";
 import extension from "../src/extension.ts";
+import { runtimeFixture } from "./runtime.ts";
 import { record } from "../src/text.ts";
 
-type Handler = (
-  event: unknown,
-  context: ExtensionContext,
-) => void | Promise<unknown>;
-
-function harness(mode = "tui") {
-  const handlers = new Map<string, Handler>();
+async function harness(mode: ExtensionContext["mode"] = "tui") {
   const channels = new Map<string, Set<(value: unknown) => void>>();
   const emitted: string[] = [];
   const events = {
@@ -26,19 +22,19 @@ function harness(mode = "tui") {
       return () => {
         listeners.delete(callback);
 
-        if (!listeners.size) channels.delete(channel);
+        if (listeners.size === 0) {
+          channels.delete(channel);
+        }
       };
     },
     emit(channel: string, raw: unknown) {
       emitted.push(channel);
 
-      for (const callback of channels.get(channel) ?? []) callback(raw);
+      for (const callback of channels.get(channel) ?? []) {
+        callback(raw);
+      }
 
-      if (
-        channel === "sub-core:request" &&
-        record(raw) &&
-        typeof raw.reply === "function"
-      ) {
+      if (channel === "sub-core:request" && record(raw) && isReply(raw.reply)) {
         raw.reply({
           state: {
             provider: "codex",
@@ -50,7 +46,11 @@ function harness(mode = "tui") {
         });
       }
 
-      if (channel === "subagents:rpc:v1:request" && record(raw)) {
+      if (
+        channel === "subagents:rpc:v1:request" &&
+        record(raw) &&
+        typeof raw.requestId === "string"
+      ) {
         events.emit(`subagents:rpc:v1:reply:${raw.requestId}`, {
           version: 1,
           requestId: raw.requestId,
@@ -68,44 +68,24 @@ function harness(mode = "tui") {
       }
     },
   };
-  const setFooter = vi.fn<ExtensionContext["ui"]["setFooter"]>();
-  const context = {
-    mode,
-    cwd: "/nonexistent-footer-fixture",
-    thinkingLevel: "high",
-    model: { provider: "openai-codex", id: "fixture", contextWindow: 200_000 },
-    ui: {
-      setFooter,
-      notify: vi.fn(),
-      theme: {
-        fg: (_role: string, value: string) => value,
-        bold: (value: string) => value,
-      },
-    },
-    getContextUsage: () => undefined,
-    hasPendingMessages: () => false,
-    sessionManager: {
-      getHeader: () => null,
-      getBranch: () => [],
-      getEntries: () => [],
-      getLeafId: () => null,
-    },
-  } as unknown as ExtensionContext;
-  const api = {
-    events,
-    on(name: string, callback: Handler) {
-      handlers.set(name, callback);
+  const { api, context, runner } = await runtimeFixture(events);
+  context.mode = mode;
+  const setFooter = vi.spyOn(context.ui, "setFooter");
+  vi.spyOn(context.ui.theme, "fg").mockImplementation((_role, value) => value);
+  vi.spyOn(context.ui.theme, "bold").mockImplementation((value) => value);
+  vi.spyOn(context.ui, "notify");
 
-      return () => {
-        handlers.delete(name);
-      };
-    },
-    registerCommand: vi.fn(),
-  } as unknown as ExtensionAPI;
+  const emit = async (
+    event: Parameters<ExtensionRunner["emit"]>[0],
+    current: ExtensionContext = context,
+  ) => {
+    vi.spyOn(runner, "createContext").mockReturnValue(current);
+    await runner.emit(event);
+  };
 
   extension(api);
 
-  return { context, handlers, channels, emitted, setFooter, events };
+  return { context, emit, channels, emitted, setFooter, events };
 }
 
 afterEach(() => vi.useRealTimers());
@@ -116,13 +96,15 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
 
-    const h = harness();
+    const h = await harness();
 
-    await h.handlers.get("session_start")?.({ reason: "startup" }, h.context);
+    await h.emit({ type: "session_start", reason: "startup" }, h.context);
 
     const factory = h.setFooter.mock.lastCall?.[0];
 
-    if (!factory) throw new Error("Expected the session footer factory");
+    if (!factory) {
+      throw new Error("Expected the session footer factory");
+    }
 
     const tui = new TuiMainScreen(new ProcessTerminal());
 
@@ -137,6 +119,7 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
     const readings: string[] = [];
 
     for (const delay of [250, 1000, 5000]) {
+      // eslint-disable-next-line no-await-in-loop -- Each update must observe the clock advanced by the previous iteration.
       await vi.advanceTimersByTimeAsync(delay);
       h.events.emit(channel, {
         state: {
@@ -151,31 +134,31 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
     }
 
     expect(readings).toStrictEqual(
-      Array(3).fill(" week 42% used  $0.00  0m"),
+      Array.from({ length: 3 }, () => " week 42% used  $0.00  0m"),
     );
 
-    await h.handlers.get("session_shutdown")?.({ reason: "quit" }, h.context);
+    await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
   },
 );
 
 it("reconnects sources after session replacement and never enables PR automation", async () => {
   vi.useFakeTimers();
 
-  const h = harness();
+  const h = await harness();
 
-  await h.handlers.get("session_start")?.({ reason: "startup" }, h.context);
+  await h.emit({ type: "session_start", reason: "startup" }, h.context);
   await Promise.resolve();
 
   const connected = h.channels.size;
 
   expect(h.setFooter).toHaveBeenCalledTimes(1);
 
-  await h.handlers.get("session_shutdown")?.({ reason: "new" }, h.context);
+  await h.emit({ type: "session_shutdown", reason: "new" }, h.context);
 
   expect(h.channels.size).toBe(0);
   expect(vi.getTimerCount()).toBe(0);
 
-  await h.handlers.get("session_start")?.({ reason: "new" }, h.context);
+  await h.emit({ type: "session_start", reason: "new" }, h.context);
   await Promise.resolve();
 
   expect(h.channels.size).toBe(connected);
@@ -186,13 +169,13 @@ it("reconnects sources after session replacement and never enables PR automation
     ),
   ).toStrictEqual([]);
 
-  await h.handlers.get("session_shutdown")?.({ reason: "quit" }, h.context);
+  await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
 });
 
 it("replaces directory and diagnostic scope with the runtime context", async () => {
   vi.useFakeTimers();
 
-  const h = harness();
+  const h = await harness();
   const tui = new TuiMainScreen(new ProcessTerminal());
 
   vi.spyOn(tui, "requestRender").mockImplementation(() => {});
@@ -204,11 +187,13 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
     onBranchChange: () => () => {},
   };
 
-  await h.handlers.get("session_start")?.({ reason: "startup" }, h.context);
+  await h.emit({ type: "session_start", reason: "startup" }, h.context);
 
   const firstFactory = h.setFooter.mock.lastCall?.[0];
 
-  if (!firstFactory) throw new Error("Expected the first footer factory");
+  if (!firstFactory) {
+    throw new Error("Expected the first footer factory");
+  }
 
   const first = firstFactory(tui, h.context.ui.theme, footerData);
 
@@ -228,13 +213,14 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
 
   const replacement = { ...h.context, cwd: "/replacement-footer-fixture" };
 
-  await h.handlers.get("session_start")?.({ reason: "resume" }, replacement);
+  await h.emit({ type: "session_start", reason: "resume" }, replacement);
   first.dispose?.();
 
   const secondFactory = h.setFooter.mock.lastCall?.[0];
 
-  if (!secondFactory)
+  if (!secondFactory) {
     throw new Error("Expected the replacement footer factory");
+  }
 
   const second = secondFactory(tui, replacement.ui.theme, footerData);
 
@@ -255,22 +241,22 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
     expect.not.stringContaining("1E"),
   ]);
 
-  await h.handlers.get("session_shutdown")?.({ reason: "quit" }, replacement);
+  await h.emit({ type: "session_shutdown", reason: "quit" }, replacement);
 });
 
-it.each(["rpc", "json", "print"])(
+it.each(["rpc", "json", "print"] as const)(
   "does not mount terminal components or start timers in %s mode",
   async (mode) => {
     vi.useFakeTimers();
 
-    const h = harness(mode);
+    const h = await harness(mode);
 
-    await h.handlers.get("session_start")?.({ reason: "startup" }, h.context);
+    await h.emit({ type: "session_start", reason: "startup" }, h.context);
 
     expect(h.setFooter).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
 
-    await h.handlers.get("session_shutdown")?.({ reason: "quit" }, h.context);
+    await h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
 
     expect(h.channels.size).toBe(0);
   },

@@ -1,22 +1,8 @@
 {pkgs, ...}: {
-  pi-session-footer = pkgs.buildNpmPackage {
+  pi-session-footer = (pkgs.callPackage ../../../lib/build-typescript-package.nix {}) {
     pname = "pi-session-footer-check";
     version = "0.1.0";
-    src = pkgs.lib.fileset.toSource {
-      root = ./extensions/session-footer;
-      fileset = pkgs.lib.fileset.unions [
-        ./extensions/session-footer/index.ts
-        ./extensions/session-footer/src
-        ./extensions/session-footer/test
-        ./extensions/session-footer/package.json
-        ./extensions/session-footer/package-lock.json
-        ./extensions/session-footer/tsconfig.json
-        ./extensions/session-footer/vitest.config.ts
-        ./extensions/session-footer/.npmrc
-      ];
-    };
-    npmDeps = pkgs.importNpmLock {npmRoot = ./extensions/session-footer;};
-    inherit (pkgs.importNpmLock) npmConfigHook;
+    directory = ./extensions/session-footer;
     npmFlags = ["--ignore-scripts"];
     nativeBuildInputs = [pkgs.gnupatch pkgs.gitMinimal pkgs.python3];
     dontNpmBuild = true;

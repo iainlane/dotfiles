@@ -45,35 +45,38 @@ export type Specification = z.infer<typeof specificationSchema>;
 type Account = z.infer<typeof accountSchema>;
 
 export interface Dependencies {
-  readKey(path: string): Promise<string>;
-  defaultConfig(): Configuration;
-  update(
+  readKey: (path: string) => Promise<string>;
+  defaultConfig: () => Configuration;
+  update: (
     change: (config: Configuration | null) => Configuration | undefined,
-  ): Promise<Configuration | undefined>;
-  reload(config: Configuration): Promise<void>;
+  ) => Promise<Configuration | undefined>;
+  reload: (config: Configuration) => Promise<void>;
 }
 
 interface ConfigLibrary {
-  createDefaultConfig(): unknown;
-  withConfigLock<T>(path: string, update: () => Promise<T>): Promise<T>;
-  writeJsonAtomic(path: string, value: Configuration): Promise<void>;
+  createDefaultConfig: () => unknown;
+  withConfigLock: <T>(path: string, update: () => Promise<T>) => Promise<T>;
+  writeJsonAtomic: (path: string, value: Configuration) => Promise<void>;
 }
 
 interface AccountLibrary {
-  ensureAccountIds(accounts: Account[]): void;
+  ensureAccountIds: (accounts: Account[]) => void;
 }
 
 export interface RuntimeDependencies {
-  readText(path: string): Promise<string>;
-  prepareDirectory(path: string): Promise<void>;
+  readText: (path: string) => Promise<string>;
+  prepareDirectory: (path: string) => Promise<void>;
   library: ConfigLibrary;
   ensureAccountIds: AccountLibrary["ensureAccountIds"];
   clock: {
-    now(): number;
-    pause(): Promise<void>;
+    now: () => number;
+    pause: () => Promise<void>;
   };
   reload: Dependencies["reload"];
 }
+
+const callable = <T extends (...args: never[]) => unknown>() =>
+  z.custom<T>((value) => typeof value === "function");
 
 function hasCode(error: unknown, code: string): boolean {
   return z.object({ code: z.literal(code) }).safeParse(error).success;
@@ -136,7 +139,7 @@ function reconcileAccounts(
 ): void {
   config.accounts = config.accounts.filter(
     (account) =>
-      !account.dotfilesManaged ||
+      account.dotfilesManaged !== true ||
       (account.name !== undefined && keys.has(account.name)),
   );
 
@@ -172,30 +175,37 @@ export async function provision(
     throw new Error("Declare accounts through apiKeyAccounts, not settings");
   }
 
-  const keys = new Map<string, { apiKey: string; priority: number }>();
+  const entries = await Promise.all(
+    Object.entries(spec.apiKeyAccounts).map(async ([name, account]) => {
+      const apiKey = (await dependencies.readKey(account.apiKeyFile)).trim();
 
-  for (const [name, account] of Object.entries(spec.apiKeyAccounts)) {
-    const apiKey = (await dependencies.readKey(account.apiKeyFile)).trim();
+      if (!apiKey || /\s/.test(apiKey)) {
+        throw new Error(`Expected a single API key in ${account.apiKeyFile}`);
+      }
 
-    if (!apiKey || /\s/.test(apiKey)) {
-      throw new Error(`Expected a single API key in ${account.apiKeyFile}`);
-    }
+      return [name, { apiKey, priority: account.priority }] as const;
+    }),
+  );
+  const keys = new Map(entries);
 
-    keys.set(name, { apiKey, priority: account.priority });
-  }
+  const updated = await dependencies.update(
+    (current): Configuration | undefined => {
+      if (
+        !current &&
+        keys.size === 0 &&
+        Object.keys(spec.settings).length === 0
+      ) {
+        return undefined;
+      }
 
-  const updated = await dependencies.update((current) => {
-    if (!current && !keys.size && !Object.keys(spec.settings).length) {
-      return;
-    }
+      const config = structuredClone(current ?? dependencies.defaultConfig());
 
-    const config = structuredClone(current ?? dependencies.defaultConfig());
+      mergeSettings(config, spec.settings);
+      reconcileAccounts(config, keys);
 
-    mergeSettings(config, spec.settings);
-    reconcileAccounts(config, keys);
-
-    return parse(configurationSchema, config, "TeamClaude configuration");
-  });
+      return parse(configurationSchema, config, "TeamClaude configuration");
+    },
+  );
 
   if (updated) {
     await dependencies.reload(updated);
@@ -225,6 +235,7 @@ async function readConfig(
   );
 }
 
+/* eslint-disable no-await-in-loop -- Retries must wait for each read or launchd status check before deciding whether to continue. */
 async function readKey(
   path: string,
   dependencies: Pick<RuntimeDependencies, "readText" | "clock">,
@@ -248,8 +259,8 @@ async function readKey(
 export async function waitForSops(
   expectedProgram: string,
   dependencies: {
-    status(): Promise<string>;
-    pause(): Promise<void>;
+    status: () => Promise<string>;
+    pause: () => Promise<void>;
   },
 ): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -277,6 +288,8 @@ export async function waitForSops(
   throw new Error("Timed out waiting for sops-nix to decrypt secrets");
 }
 
+/* eslint-enable no-await-in-loop */
+
 export async function reload(
   config: Configuration,
   request: (
@@ -284,7 +297,7 @@ export async function reload(
     apiKey: string,
   ) => Promise<{ ok: boolean; status: number }>,
 ): Promise<void> {
-  if (!config.proxy?.port) {
+  if (config.proxy?.port === undefined || config.proxy.port === 0) {
     return;
   }
 
@@ -332,22 +345,25 @@ export async function run(
       update: async (change) => {
         await dependencies.prepareDirectory(dirname(configFile));
 
-        return library.withConfigLock(configFile, async () => {
-          const current = await readConfig(configFile, dependencies.readText);
-          const updated = change(current);
+        return library.withConfigLock(
+          configFile,
+          async (): Promise<Configuration | undefined> => {
+            const current = await readConfig(configFile, dependencies.readText);
+            const updated = change(current);
 
-          if (!updated) {
-            return;
-          }
+            if (!updated) {
+              return undefined;
+            }
 
-          dependencies.ensureAccountIds(updated.accounts);
+            dependencies.ensureAccountIds(updated.accounts);
 
-          if (JSON.stringify(current) !== JSON.stringify(updated)) {
-            await library.writeJsonAtomic(configFile, updated);
-          }
+            if (JSON.stringify(current) !== JSON.stringify(updated)) {
+              await library.writeJsonAtomic(configFile, updated);
+            }
 
-          return updated;
-        });
+            return updated;
+          },
+        );
       },
       reload: dependencies.reload,
     },
@@ -362,13 +378,18 @@ if (import.meta.main) {
     });
     const [configModule, specFile] = positionals;
 
-    if (!configModule || !specFile) {
+    if (
+      configModule === undefined ||
+      configModule === "" ||
+      specFile === undefined ||
+      specFile === ""
+    ) {
       throw new Error(
         "Usage: provision.ts <TeamClaude config module> <specification>",
       );
     }
 
-    if (values["sops-program"]) {
+    if (values["sops-program"] !== undefined && values["sops-program"] !== "") {
       const launchctl = promisify(execFile);
       const sopsJob = `gui/${userInfo().uid}/org.nix-community.home.sops-nix`;
 
@@ -389,11 +410,24 @@ if (import.meta.main) {
       });
     }
 
-    const library: ConfigLibrary & { getConfigPath(): string } = await import(
-      pathToFileURL(configModule).href
+    const library = parse(
+      z.object({
+        createDefaultConfig: callable<ConfigLibrary["createDefaultConfig"]>(),
+        withConfigLock: callable<ConfigLibrary["withConfigLock"]>(),
+        writeJsonAtomic: callable<ConfigLibrary["writeJsonAtomic"]>(),
+        getConfigPath: callable<() => string>(),
+      }),
+      await import(pathToFileURL(configModule).href),
+      "TeamClaude configuration library",
     );
-    const accounts: AccountLibrary = await import(
-      new URL("./account-id.js", pathToFileURL(configModule)).href
+    const accounts = parse(
+      z.object({
+        ensureAccountIds: callable<AccountLibrary["ensureAccountIds"]>(),
+      }),
+      await import(
+        new URL("./account-id.js", pathToFileURL(configModule)).href
+      ),
+      "TeamClaude account library",
     );
     const configFile = library.getConfigPath();
 

@@ -12,23 +12,29 @@ export interface RpcFailure {
 }
 
 export type RpcResult =
-  { ok: true; data: unknown } | { ok: false; error: RpcFailure };
+  | { ok: true; data: unknown }
+  | { ok: false; error: RpcFailure };
 
 function failure(kind: RpcFailure["kind"], message: string): RpcResult {
   return { ok: false, error: { kind, message } };
 }
 
 function decodeReply(raw: unknown, requestId: string): RpcResult | undefined {
-  if (record(raw) && raw.requestId !== requestId) return undefined;
+  if (record(raw) && raw.requestId !== requestId) {
+    return undefined;
+  }
 
   if (
     !record(raw) ||
     raw.version !== 1 ||
     (raw.success !== true && raw.success !== false)
-  )
+  ) {
     return failure("malformed", "Invalid RPC reply");
+  }
 
-  if (raw.success) return { ok: true, data: raw.data };
+  if (raw.success) {
+    return { ok: true, data: raw.data };
+  }
 
   const error = record(raw.error) ? raw.error : {};
   const message = [text(error.code), text(error.message)]
@@ -40,40 +46,49 @@ function decodeReply(raw: unknown, requestId: string): RpcResult | undefined {
 
 export class RpcClient {
   private pending:
-    { method: "status" | "cost"; promise: Promise<RpcResult> } | undefined;
+    | { method: "status" | "cost"; promise: Promise<RpcResult> }
+    | undefined;
   private cancel: (() => void) | undefined;
   private disposed = false;
 
   constructor(private readonly bus: FooterBus) {}
 
   request(method: "status" | "cost"): Promise<RpcResult> {
-    if (this.disposed)
+    if (this.disposed) {
       return Promise.resolve(failure("disposed", "RPC client disposed"));
+    }
 
-    if (this.pending)
+    if (this.pending) {
       return this.pending.method === method
         ? this.pending.promise
         : this.pending.promise.then(() => this.request(method));
+    }
 
     const requestId = randomUUID();
     const promise = new Promise<RpcResult>((resolve) => {
       let settled = false;
-      let unsubscribe = () => {};
+      let unsubscribe: (() => void) | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
       const finish = (value: RpcResult) => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
 
         settled = true;
 
-        if (timer) clearTimeout(timer);
+        if (timer) {
+          clearTimeout(timer);
+        }
 
-        unsubscribe();
+        unsubscribe?.();
         this.cancel = undefined;
         resolve(value);
       };
 
-      this.cancel = () => finish(failure("disposed", "RPC client disposed"));
+      this.cancel = () => {
+        finish(failure("disposed", "RPC client disposed"));
+      };
 
       try {
         unsubscribe = this.bus.on(
@@ -81,13 +96,14 @@ export class RpcClient {
           (raw) => {
             const reply = decodeReply(raw, requestId);
 
-            if (reply) finish(reply);
+            if (reply) {
+              finish(reply);
+            }
           },
         );
-        timer = setTimeout(
-          () => finish(failure("timeout", `RPC ${method} timed out`)),
-          2000,
-        );
+        timer = setTimeout(() => {
+          finish(failure("timeout", `RPC ${method} timed out`));
+        }, 2000);
 
         this.bus.emit("subagents:rpc:v1:request", {
           version: 1,
@@ -106,13 +122,15 @@ export class RpcClient {
       }
     });
 
-    this.pending = { method, promise };
-
-    void promise.finally(() => {
-      if (this.pending?.promise === promise) this.pending = undefined;
+    const tracked = promise.finally(() => {
+      if (this.pending?.promise === tracked) {
+        this.pending = undefined;
+      }
     });
 
-    return promise;
+    this.pending = { method, promise: tracked };
+
+    return tracked;
   }
 
   dispose(): void {

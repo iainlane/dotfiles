@@ -43,12 +43,14 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
       timeout: 10000,
     });
 
+    const received: unknown = JSON.parse(
+      await readFile(join(directory, "claude.json"), "utf8"),
+    );
+
     return {
       status: result.status,
       stderr: result.stderr,
-      claude: JSON.parse(
-        await readFile(join(directory, "claude.json"), "utf8"),
-      ),
+      claude: received,
     };
   }
 
@@ -86,7 +88,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
 
     const address = listener.address();
 
-    if (!address || typeof address === "string") {
+    if (address === null || typeof address === "string") {
       throw new Error("Expected a loopback listener address");
     }
 
@@ -106,9 +108,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
         },
       });
     } finally {
-      await new Promise<void>((resolve, reject) =>
-        listener.close((error) => (error ? reject(error) : resolve())),
-      );
+      await listener[Symbol.asyncDispose]();
     }
 
     expect(await runClaude()).toStrictEqual({
@@ -138,7 +138,7 @@ describe.skipIf(!claude || !server)("TeamClaude launchers", () => {
         encoding: "utf8",
         timeout: 10000,
       });
-      const received = starts
+      const received: unknown = starts
         ? JSON.parse(await readFile(join(directory, "teamclaude.json"), "utf8"))
         : null;
 

@@ -1,6 +1,8 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   Key,
+  type Component,
+  type TUI,
   matchesKey,
   truncateToWidth,
   wrapTextWithAnsi,
@@ -9,6 +11,23 @@ import type { FooterSnapshot } from "./state.ts";
 import { duration, text } from "./text.ts";
 import { quotaWindows, type QuotaView } from "./quota.ts";
 import { taskSummary } from "./workflow.ts";
+
+export interface InspectorContext {
+  mode: string;
+  ui: Pick<ExtensionUIContext, "select" | "notify"> & {
+    custom: (
+      factory: (
+        tui: Pick<TUI, "requestRender"> & {
+          terminal: Pick<TUI["terminal"], "rows">;
+        },
+        theme: Pick<ExtensionUIContext["theme"], "fg">,
+        keys: unknown,
+        done: () => void,
+      ) => Component & { dispose(): void; handleInput(data: string): void },
+      options?: Parameters<ExtensionUIContext["custom"]>[1],
+    ) => Promise<void>;
+  };
+}
 
 export const SECTIONS = [
   "overview",
@@ -26,10 +45,13 @@ function quotaLine(window: QuotaView): string {
     window.used === undefined ? "unknown" : `${window.used.toFixed(1)}% used`;
   const parts = [`${window.label}: ${used}`, window.freshness];
 
-  if (window.reset) parts.push(`resets in ${window.reset}`);
+  if (window.reset !== undefined && window.reset !== "") {
+    parts.push(`resets in ${window.reset}`);
+  }
 
-  if (window.pace === undefined)
+  if (window.pace === undefined) {
     return [...parts, "pace unavailable"].join(" · ");
+  }
 
   const direction = window.pace >= 0 ? "ahead of" : "behind";
 
@@ -42,14 +64,18 @@ function quotaLine(window: QuotaView): string {
 function prLines(state: FooterSnapshot["pr"]): string[] {
   const pr = state?.pullRequest;
 
-  if (!pr) return [];
+  if (!pr) {
+    return [];
+  }
 
   return [
     `PR #${pr.target.number}: ${text(pr.target.url, 500)}`,
     `Merge: ${pr.mergeState} · ${pr.lifecycle}${pr.isDraft ? " · draft" : ""}`,
     `Review threads: ${pr.unresolvedThreadCount} unresolved`,
     `CI: ${pr.ci?.state ?? "unknown"} · ${pr.ci?.failedCount ?? "?"} failures`,
-    ...(pr.ci?.url ? [text(pr.ci.url, 500)] : []),
+    ...(pr.ci?.url !== undefined && pr.ci?.url !== ""
+      ? [text(pr.ci.url, 500)]
+      : []),
     `Watching: ${pr.watching ? "enabled by user" : "off"}`,
   ];
 }
@@ -64,37 +90,44 @@ export function detailsLines(
   state: FooterSnapshot,
   section: Section,
 ): string[] {
-  if (section === "quota")
+  if (section === "quota") {
     return [
       "Quota percentages are used, not remaining.",
       `Provider: ${state.quota?.provider ?? "unavailable"}`,
       `Account identity: ${state.quota?.account ?? "unavailable"} (account of the reading; runtime identity is not verified)`,
       `Credential source: ${state.quota?.source ?? "unavailable"}`,
-      `Last successful fetch: ${state.quota?.lastSuccessAt ? new Date(state.quota.lastSuccessAt).toISOString() : "unavailable"}`,
+      `Last successful fetch: ${state.quota?.lastSuccessAt !== undefined && state.quota?.lastSuccessAt !== 0 ? new Date(state.quota.lastSuccessAt).toISOString() : "unavailable"}`,
       `Last error: ${state.quota?.error ?? "none reported"}`,
-      ...quotaWindows(state.quota, state.now).map(quotaLine),
+      ...quotaWindows(state.quota, state.now).map((window) =>
+        quotaLine(window),
+      ),
       "Pace compares quota consumed with the elapsed fraction of a reported-duration window. It is a heuristic, not a forecast.",
       "Cached readings become stale after 30 seconds; percentages expire after five minutes or the quota reset.",
     ];
+  }
 
   if (section === "workflow") {
     const summary = taskSummary(state.tasks);
     let reporting = "unavailable";
 
-    if (state.agents) reporting = state.agents.stale ? "stale" : "available";
+    if (state.agents) {
+      reporting = state.agents.stale ? "stale" : "available";
+    }
 
     return [
       `Tasks: ${summary.completed}/${summary.total} completed · ${summary.running} running · ${summary.blocked} dependency-blocked`,
       ...state.tasks.flatMap((task) => {
-        if (task.status === "deleted") return [];
+        if (task.status === "deleted") {
+          return [];
+        }
 
         return [
-          `#${task.id} [${task.status}] ${task.activeForm ?? task.subject}${task.blockedBy.length ? ` (dependencies: ${task.blockedBy.join(", ")})` : ""}`,
+          `#${task.id} [${task.status}] ${task.activeForm ?? task.subject}${task.blockedBy.length > 0 ? ` (dependencies: ${task.blockedBy.join(", ")})` : ""}`,
         ];
       }),
       `Subagent reporting: ${reporting}`,
       `Subagent last error: ${rpcError(state, "status")}`,
-      `Active children: ${state.agents?.active ?? "unknown"}${state.agents?.incomplete ? " · run details incomplete" : ""}`,
+      `Active children: ${state.agents?.active ?? "unknown"}${state.agents?.incomplete === true ? " · run details incomplete" : ""}`,
       ...(state.agents?.runs.map((run) => `[${run.state}] ${run.label}`) ?? []),
       `Pending native messages: ${state.pending ? "yes" : "no"} (queue size unavailable)`,
       `Plan: ${text(state.statuses.get("plan-mode")) || "not active"}`,
@@ -108,10 +141,11 @@ export function detailsLines(
     return [
       `Coverage: ${summary.observed ? "received events only; not a workspace-wide verdict" : "unknown"}`,
       `Received findings: ${summary.errors} errors, ${summary.warnings} warnings, ${summary.pending} files pending${summary.truncated ? " · counts are lower bounds" : ""}`,
-      ...[...state.diagnostics.files].flatMap(([path, file]) => [
-        `${text(path, 400)}${file.pending ? " (provisional)" : ""}`,
-        ...file.messages,
-      ]),
+      ...[...state.diagnostics.files].flatMap(([path, file]) =>
+        [`${text(path, 400)}${file.pending ? " (provisional)" : ""}`].concat(
+          file.messages,
+        ),
+      ),
       ...[...state.statuses].flatMap(([key, value]) =>
         /lsp|mcp/i.test(key) ? [`${text(key)}: ${text(value, 400)}`] : [],
       ),
@@ -125,7 +159,9 @@ export function detailsLines(
     const pr = state.pr;
     let gitFreshness = "unavailable";
 
-    if (git) gitFreshness = git.stale ? "stale" : "fresh";
+    if (git) {
+      gitFreshness = git.stale ? "stale" : "fresh";
+    }
 
     return [
       `Repository: ${git?.root ?? "unavailable"}`,
@@ -193,7 +229,7 @@ export class Inspector {
     close?.();
   }
 
-  async open(ctx: ExtensionCommandContext, section?: Section): Promise<void> {
+  async open(ctx: InspectorContext, section?: Section): Promise<void> {
     if (ctx.mode !== "tui") {
       ctx.ui.notify("The footer inspector is available in TUI mode.", "info");
 
@@ -207,13 +243,17 @@ export class Inspector {
       section ?? (await ctx.ui.select("Footer details", [...SECTIONS]));
     const choice = SECTIONS.find((candidate) => candidate === selected);
 
-    if (!choice || generation !== this.generation || !this.snapshot()) return;
+    if (!choice || generation !== this.generation || !this.snapshot()) {
+      return;
+    }
 
-    await ctx.ui.custom<void>(
+    await ctx.ui.custom(
       (tui, theme, _keys, done) => {
         let offset = 0;
 
-        const close = () => done();
+        const close = () => {
+          done();
+        };
 
         this.close = close;
 
@@ -221,7 +261,9 @@ export class Inspector {
           render: (width: number) => {
             const state = this.snapshot();
 
-            if (!state) return [];
+            if (!state) {
+              return [];
+            }
 
             const lines = detailsLines(state, choice).flatMap((line) =>
               wrapTextWithAnsi(text(line, 4096), Math.max(1, width)),
@@ -252,18 +294,28 @@ export class Inspector {
               return;
             }
 
-            if (matchesKey(data, Key.up)) offset = Math.max(0, offset - 1);
+            if (matchesKey(data, Key.up)) {
+              offset = Math.max(0, offset - 1);
+            }
 
-            if (matchesKey(data, Key.down)) offset++;
+            if (matchesKey(data, Key.down)) {
+              offset++;
+            }
 
-            if (matchesKey(data, Key.pageUp)) offset = Math.max(0, offset - 10);
+            if (matchesKey(data, Key.pageUp)) {
+              offset = Math.max(0, offset - 10);
+            }
 
-            if (matchesKey(data, Key.pageDown)) offset += 10;
+            if (matchesKey(data, Key.pageDown)) {
+              offset += 10;
+            }
 
             tui.requestRender();
           },
           dispose: () => {
-            if (this.close === close) this.close = undefined;
+            if (this.close === close) {
+              this.close = undefined;
+            }
           },
         };
       },

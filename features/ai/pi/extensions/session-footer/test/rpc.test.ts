@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { record } from "../src/text.ts";
 import { RpcClient } from "../src/rpc.ts";
 
 function harness() {
@@ -38,8 +39,9 @@ it.each([
     const result = client.request("status");
     const request = bus.emit.mock.lastCall?.[1];
 
-    if (!request || typeof request !== "object" || !("requestId" in request))
+    if (!record(request) || typeof request.requestId !== "string") {
       throw new Error("Expected an RPC request");
+    }
 
     handlers.get(`subagents:rpc:v1:reply:${request.requestId}`)?.({
       version: 1,

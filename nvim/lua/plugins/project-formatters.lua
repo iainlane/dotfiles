@@ -5,6 +5,7 @@
 ---    Tailwind CSS class sorting.
 --- 2. In a Deno project (`deno.json`), run `deno fmt`, so that saving a file
 ---    agrees with `deno fmt --check`.
+--- 3. In an Oxfmt project, run `oxfmt` for its native languages.
 ---
 --- Prettier is only skipped for the filetypes the project formatter handles;
 --- other filetypes keep using it.
@@ -46,17 +47,56 @@ local project_formatters = {
       return cond == nil or cond(self, ctx)
     end,
   },
+
+  {
+    formatter = "oxfmt",
+    config_files = { ".oxfmtrc.json", ".oxfmtrc.jsonc", "oxfmt.config.ts", "oxfmt.config.mts" },
+    register = true,
+    filetype_condition = function(_, ctx)
+      -- The standalone Nix binary cannot use Oxfmt's bundled Prettier for
+      -- framework formats such as Svelte, Vue and MDX.
+      return vim.tbl_contains({
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact",
+        "json",
+        "jsonc",
+        "json5",
+        "css",
+        "scss",
+        "less",
+        "graphql",
+        "yaml",
+        "markdown",
+        "toml",
+      }, vim.bo[ctx.buf].filetype)
+    end,
+  },
 }
 
---- Returns a condition that passes when the buffer is inside a project
---- containing one of `config_files`.
----
----@param config_files string[]
----@return condition
-local function in_project(config_files)
-  return function(self, ctx)
-    return require("conform.util").root_file(config_files)(self, ctx) ~= nil
+---@param self conform.JobFormatterConfig
+---@param ctx conform.Context
+---@return ProjectFormatter?
+local function project_for_buffer(self, ctx)
+  local util = require("conform.util")
+  local configured = require("conform").list_formatters_for_buffer(ctx.buf)
+  local selected, selected_root
+
+  for _, project in ipairs(project_formatters) do
+    if
+      vim.tbl_contains(configured, project.formatter)
+      and (project.filetype_condition == nil or project.filetype_condition(self, ctx))
+    then
+      local root = util.root_file(project.config_files)(self, ctx)
+
+      if root ~= nil and (selected_root == nil or #root > #selected_root) then
+        selected, selected_root = project, root
+      end
+    end
   end
+
+  return selected
 end
 
 --- Extends prettier's condition so prettier does not run where a project
@@ -124,16 +164,9 @@ return {
       opts.formatters_by_ft = opts.formatters_by_ft or {}
 
       for _, project in ipairs(project_formatters) do
-        local in_this_project = in_project(project.config_files)
-        local filetype_condition = project.filetype_condition
-
         ---@type condition
         local condition = function(self, ctx)
-          if filetype_condition and not filetype_condition(self, ctx) then
-            return false
-          end
-
-          return in_this_project(self, ctx)
+          return project_for_buffer(self, ctx) == project
         end
 
         -- Run the project formatter only inside its project, from the project

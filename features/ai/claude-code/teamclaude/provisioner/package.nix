@@ -1,20 +1,17 @@
 {
-  buildNpmPackage,
+  callPackage,
   coreutils,
-  importNpmLock,
   jq,
   lib,
   makeWrapper,
   nodejs_24,
   teamclaude,
 }:
-buildNpmPackage {
+(callPackage ../../../../../lib/build-typescript-package.nix {}) {
   pname = "teamclaude-provision";
   version = "0.1.0";
-  src = ./.;
+  directory = ./.;
   nodejs = nodejs_24;
-  npmDeps = importNpmLock {npmRoot = ./.;};
-  inherit (importNpmLock) npmConfigHook;
   npmFlags = ["--ignore-scripts"];
   nativeBuildInputs = [makeWrapper];
   nativeInstallCheckInputs = [jq coreutils];

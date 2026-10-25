@@ -11,6 +11,7 @@
     hadolint
     markdown-toc
     markdownlint-cli2
+    oxfmt
     prettier
     regal
     shellcheck

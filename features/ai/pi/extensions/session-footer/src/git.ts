@@ -37,9 +37,13 @@ export function parseGitStatus(output: string, now: number): GitState {
   let oid = "";
 
   for (const line of output.split("\n")) {
-    if (line.startsWith("# branch.oid ")) oid = line.slice(13, 21);
+    if (line.startsWith("# branch.oid ")) {
+      oid = line.slice(13, 21);
+    }
 
-    if (line.startsWith("# branch.head ")) state.branch = text(line.slice(14));
+    if (line.startsWith("# branch.head ")) {
+      state.branch = text(line.slice(14));
+    }
 
     const divergence = /^# branch.ab \+(\d+) -(\d+)$/.exec(line);
 
@@ -48,18 +52,28 @@ export function parseGitStatus(output: string, now: number): GitState {
       state.behind = Number(divergence[2]);
     }
 
-    if (line.startsWith("? ")) state.untracked++;
+    if (line.startsWith("? ")) {
+      state.untracked++;
+    }
 
-    if (line.startsWith("u ")) state.conflicts++;
+    if (line.startsWith("u ")) {
+      state.conflicts++;
+    }
 
     if (/^[12] /.test(line)) {
-      if (line[2] !== ".") state.staged++;
+      if (line[2] !== ".") {
+        state.staged++;
+      }
 
-      if (line[3] !== ".") state.unstaged++;
+      if (line[3] !== ".") {
+        state.unstaged++;
+      }
     }
   }
 
-  if (state.branch === "(detached)") state.branch = `@${oid}`;
+  if (state.branch === "(detached)") {
+    state.branch = `@${oid}`;
+  }
 
   return state;
 }
@@ -82,42 +96,58 @@ async function optional(path: string): Promise<string | undefined> {
     return (await readFile(path, "utf8")).trim();
   } catch (error) {
     if (
-      error &&
+      error !== null &&
       typeof error === "object" &&
       "code" in error &&
       error.code === "ENOENT"
-    )
+    ) {
       return undefined;
+    }
 
     throw error;
   }
 }
 
 async function operation(dir: string): Promise<string | undefined> {
-  for (const folder of ["rebase-merge", "rebase-apply"]) {
-    const current = await optional(
-      join(dir, folder, folder === "rebase-merge" ? "msgnum" : "next"),
-    );
+  const rebases = await Promise.all(
+    ["rebase-merge", "rebase-apply"].map(
+      async (folder): Promise<string | undefined> => {
+        const current = await optional(
+          join(dir, folder, folder === "rebase-merge" ? "msgnum" : "next"),
+        );
 
-    if (current !== undefined) {
-      const total = await optional(
-        join(dir, folder, folder === "rebase-merge" ? "end" : "last"),
-      );
+        if (current === undefined) {
+          return undefined;
+        }
 
-      return `REBASE ${text(current, 8)}/${text(total, 8) || "?"}`;
-    }
+        const total = await optional(
+          join(dir, folder, folder === "rebase-merge" ? "end" : "last"),
+        );
+
+        return `REBASE ${text(current, 8)}/${text(total, 8) || "?"}`;
+      },
+    ),
+  );
+  const rebase = rebases.find((value) => value !== undefined);
+
+  if (rebase !== undefined) {
+    return rebase;
   }
 
-  for (const [file, label] of [
-    ["MERGE_HEAD", "MERGING"],
-    ["CHERRY_PICK_HEAD", "CHERRY-PICKING"],
-    ["REVERT_HEAD", "REVERTING"],
-    ["BISECT_LOG", "BISECTING"],
-  ] as const) {
-    if ((await optional(join(dir, file))) !== undefined) return label;
-  }
+  const operations = await Promise.all(
+    (
+      [
+        ["MERGE_HEAD", "MERGING"],
+        ["CHERRY_PICK_HEAD", "CHERRY-PICKING"],
+        ["REVERT_HEAD", "REVERTING"],
+        ["BISECT_LOG", "BISECTING"],
+      ] as const
+    ).map(async ([file, label]) =>
+      (await optional(join(dir, file))) === undefined ? undefined : label,
+    ),
+  );
 
-  return undefined;
+  return operations.find((value) => value !== undefined);
 }
 
 export async function readGit(
@@ -138,16 +168,25 @@ export async function readGit(
     if (
       error instanceof Error &&
       error.message.includes("not a git repository")
-    )
+    ) {
       return undefined;
+    }
 
     throw error;
   }
 
   const [dir, common, root] = paths.trim().split("\n");
 
-  if (!dir || !common || !root)
+  if (
+    dir === undefined ||
+    dir === "" ||
+    common === undefined ||
+    common === "" ||
+    root === undefined ||
+    root === ""
+  ) {
     throw new Error("Git returned incomplete repository paths");
+  }
 
   const state = parseGitStatus(
     await git(cwd, [
@@ -159,8 +198,8 @@ export async function readGit(
     now,
   );
 
-  state.root = text(dir !== common ? dirname(common) : root);
-  state.worktree = dir !== common ? text(basename(root)) : undefined;
+  state.root = text(dir === common ? root : dirname(common));
+  state.worktree = dir === common ? undefined : text(basename(root));
   state.operation = await operation(dir);
 
   return state;

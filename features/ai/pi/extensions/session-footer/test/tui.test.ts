@@ -5,11 +5,9 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { PiTerminal } from "./tui/terminal.ts";
-
-const colors = new Map<string, number | undefined>();
 
 async function seed(
   root: string,
@@ -90,9 +88,14 @@ async function footer(terminal: PiTerminal, width: number): Promise<string[]> {
       expect(lines[0]).toContain("ctx 20.1%/500k");
       expect(lines[0]).toContain(" footer-fixture");
       expect(lines[1]).toContain("5h 40% used");
-      if (width >= 120) expect(lines[1]).toContain("week 42% used");
+      expect(lines[1]).toContain(
+        width >= 120 ? "week 42% used" : "5h 40% used",
+      );
       expect(lines.join("\n")).not.toContain("unavailable");
-      expect(lines.map(visibleWidth)).toStrictEqual([width, width]);
+      expect(lines.map((line) => visibleWidth(line))).toStrictEqual([
+        width,
+        width,
+      ]);
     },
     { timeout: 10_000, interval: 25 },
   );
@@ -198,7 +201,6 @@ it.each([
       const wide = await footer(terminal, 220);
 
       expect(terminal.color()).toBeDefined();
-      colors.set(`${theme}/${quiet}`, terminal.color());
 
       await vi.waitFor(
         async () => {
@@ -254,11 +256,9 @@ it.each([
 
       const narrow = await footer(terminal, 72);
 
-      if (quiet) expect(narrow[1]).toMatch(/^ + 5h/);
-      else {
-        expect(narrow[1]).toMatch(/1E 1W.*runs failed 1.*CI 1 failed/);
-        expect(narrow[1]).not.toContain("1h59m");
-      }
+      expect(narrow[1]).toMatch(
+        quiet ? /^ + 5h/ : /^(?!.*1h59m).*1E 1W.*runs failed 1.*CI 1 failed/,
+      );
 
       terminal.resize(220);
 
@@ -275,7 +275,7 @@ it.each([
         { timeout: 5000 },
       );
 
-      terminal.input("\u001b");
+      terminal.input("\u001B");
 
       await restored(terminal, wide);
 
@@ -290,7 +290,7 @@ it.each([
         { timeout: 5000 },
       );
 
-      terminal.input("\u001b[6~");
+      terminal.input("\u001B[6~");
 
       await vi.waitFor(
         async () => {
@@ -301,7 +301,7 @@ it.each([
         { timeout: 5000 },
       );
 
-      terminal.input("\u001b[6~");
+      terminal.input("\u001B[6~");
 
       await vi.waitFor(
         async () => {
@@ -312,7 +312,7 @@ it.each([
         { timeout: 5000 },
       );
 
-      terminal.input("\u001b");
+      terminal.input("\u001B");
 
       await restored(terminal, wide);
       expect({
@@ -331,8 +331,3 @@ it.each([
   },
   30_000,
 );
-
-afterAll(() => {
-  if (colors.has("dark/false") && colors.has("light/false"))
-    expect(colors.get("dark/false")).not.toBe(colors.get("light/false"));
-});

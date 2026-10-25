@@ -29,7 +29,8 @@ function fixture(age = 0, error?: string) {
       provider: "codex",
       usage: {
         lastSuccessAt: now - age,
-        error: error ? { code: error } : undefined,
+        error:
+          error !== undefined && error !== "" ? { code: error } : undefined,
         windows: [
           {
             label: "5h",
@@ -58,7 +59,7 @@ describe("two-row fitting", () => {
       state.cwd = "/work/界界/é-feature-with-a-long-name";
       state.model = "a-very-long-model-name";
       state.serviceTier = "⚡⚡";
-      state.statuses = new Map([["other", "extra \u001b[31mstatus"]]);
+      state.statuses = new Map([["other", "extra \u001B[31mstatus"]]);
 
       const lines = renderFooter(state, width);
 
@@ -84,7 +85,10 @@ describe("two-row fitting", () => {
       expect({
         lines: renderFooter(state, 240),
         thinkingColour: roles.get("high"),
-        serviceTierColour: serviceTier ? roles.get(serviceTier) : undefined,
+        serviceTierColour:
+          serviceTier !== undefined && serviceTier !== ""
+            ? roles.get(serviceTier)
+            : undefined,
       }).toStrictEqual({
         lines: [
           aligned(
@@ -99,7 +103,10 @@ describe("two-row fitting", () => {
           ),
         ],
         thinkingColour: "thinkingHigh",
-        serviceTierColour: serviceTier ? "warning" : undefined,
+        serviceTierColour:
+          serviceTier !== undefined && serviceTier !== ""
+            ? "warning"
+            : undefined,
       });
     },
   );
@@ -120,16 +127,18 @@ describe("two-row fitting", () => {
     (notice) => {
       const state = fixture();
 
-      if (notice) state.statuses = new Map([["pi-lens-lsp", "LSP Failed"]]);
+      if (notice) {
+        state.statuses = new Map([["pi-lens-lsp", "LSP Failed"]]);
+      }
 
       const theme = {
-        fg: (_role: string, value: string) => `\u001b[35m${value}\u001b[0m`,
-        bold: (value: string) => `\u001b[1m${value}\u001b[22m`,
+        fg: (_role: string, value: string) => `\u001B[35m${value}\u001B[0m`,
+        bold: (value: string) => `\u001B[1m${value}\u001B[22m`,
       };
 
-      expect(renderFooter(state, 240, theme).map(visibleWidth)).toStrictEqual([
-        240, 240,
-      ]);
+      expect(
+        renderFooter(state, 240, theme).map((line) => visibleWidth(line)),
+      ).toStrictEqual([240, 240]);
     },
   );
 
@@ -213,8 +222,11 @@ describe("two-row fitting", () => {
     (attention) => {
       const state = fixture();
 
-      if (attention === "run failed") state.activity.outcome = "failed";
-      else state.statuses = new Map([["pi-lens-lsp", attention]]);
+      if (attention === "run failed") {
+        state.activity.outcome = "failed";
+      } else {
+        state.statuses = new Map([["pi-lens-lsp", attention]]);
+      }
 
       expect(renderFooter(state, 35)[1]).toBe(
         aligned(`${attention}  +3`, " 5h 15% used", 35),
@@ -256,10 +268,9 @@ describe("two-row fitting", () => {
 
     state.quota = undefined;
 
-    expect(renderFooter(state, width).map(visibleWidth)).toStrictEqual([
-      width,
-      width,
-    ]);
+    expect(
+      renderFooter(state, width).map((line) => visibleWidth(line)),
+    ).toStrictEqual([width, width]);
   });
 
   it("fits identity independently of quota", () => {
@@ -328,7 +339,7 @@ describe("semantic theme colours", () => {
     state.statuses = new Map([["plan-mode", "plan: implementation"]]);
     state.serviceTier = "⚡⚡";
 
-    const bold = vi.fn((value: string) => value);
+    const bold = vi.fn<(value: string) => string>((value: string) => value);
     const roles = colours(state, bold);
 
     expect(bold.mock.calls).toStrictEqual([
@@ -414,7 +425,9 @@ describe("semantic theme colours", () => {
 
       state.git = { ...parseGitStatus("# branch.head main", now), ...changes };
 
-      const fg = vi.fn((_role: ThemeColor, value: string) => value);
+      const fg = vi.fn<(role: ThemeColor, value: string) => string>(
+        (_role: ThemeColor, value: string) => value,
+      );
 
       renderFooter(state, 400, { fg, bold: (value) => value });
 
@@ -459,7 +472,7 @@ describe("semantic theme colours", () => {
       const roles = colours(state);
 
       expect({
-        value: roles.get(String(value)),
+        value: roles.get(value),
         capacity: roles.get("/272k"),
       }).toStrictEqual({ value: expected, capacity: "dim" });
     },
@@ -478,13 +491,17 @@ describe("semantic theme colours", () => {
       expect({
         label: roles.get("5h"),
         value: roles.get("15%"),
-        freshness: freshness ? roles.get(freshness) : undefined,
+        freshness:
+          freshness !== undefined && freshness !== ""
+            ? roles.get(freshness)
+            : undefined,
         unavailable: roles.get("unavailable"),
       }).toStrictEqual({
         label: "muted",
         value,
-        freshness: freshness ? "warning" : undefined,
-        unavailable: value ? undefined : "dim",
+        freshness:
+          freshness !== undefined && freshness !== "" ? "warning" : undefined,
+        unavailable: value !== undefined && value !== "" ? undefined : "dim",
       });
     },
   );

@@ -6,7 +6,9 @@ import type {
 import { finite, record, text } from "./text.ts";
 
 function pullRequest(raw: unknown): PullRequestSnapshot | undefined {
-  if (!record(raw) || !record(raw.target)) return undefined;
+  if (!record(raw) || !record(raw.target)) {
+    return undefined;
+  }
 
   const target = raw.target;
   const number = finite(target.number);
@@ -15,7 +17,8 @@ function pullRequest(raw: unknown): PullRequestSnapshot | undefined {
   const mergeState = raw.mergeState;
 
   if (
-    !number ||
+    number === undefined ||
+    number === 0 ||
     !Number.isSafeInteger(number) ||
     unresolvedThreadCount === undefined ||
     (lifecycle !== "open" &&
@@ -25,8 +28,9 @@ function pullRequest(raw: unknown): PullRequestSnapshot | undefined {
       mergeState !== "blocked" &&
       mergeState !== "conflicting" &&
       mergeState !== "unknown")
-  )
+  ) {
     return undefined;
+  }
 
   let ci: PullRequestCiStatus | undefined;
 
@@ -37,8 +41,9 @@ function pullRequest(raw: unknown): PullRequestSnapshot | undefined {
         raw.ci.state !== "failed" &&
         raw.ci.state !== "okay") ||
       finite(raw.ci.failedCount) === undefined
-    )
+    ) {
       return undefined;
+    }
 
     ci = {
       state: raw.ci.state,
@@ -77,13 +82,16 @@ export function readPr(raw: unknown): PullRequestStateEvent | undefined {
       raw.health !== "unauthenticated" &&
       raw.health !== "error") ||
     finite(raw.updatedAt) === undefined
-  )
+  ) {
     return undefined;
+  }
 
   const pr =
     raw.pullRequest === undefined ? undefined : pullRequest(raw.pullRequest);
 
-  if (raw.pullRequest !== undefined && !pr) return undefined;
+  if (raw.pullRequest !== undefined && !pr) {
+    return undefined;
+  }
 
   return {
     protocol: 1,
@@ -97,18 +105,22 @@ export function readPr(raw: unknown): PullRequestStateEvent | undefined {
 }
 
 export function readServiceTier(raw: unknown): string | undefined {
-  if (!record(raw) || raw.protocol !== 1) return undefined;
+  if (!record(raw) || raw.protocol !== 1) {
+    return undefined;
+  }
 
-  if (raw.type === "remove" && raw.id === "pi-service-tier.service-tier")
+  if (raw.type === "remove" && raw.id === "pi-service-tier.service-tier") {
     return "";
+  }
 
   if (
     raw.type !== "upsert" ||
     !record(raw.widget) ||
     raw.widget.id !== "pi-service-tier.service-tier" ||
     !record(raw.widget.content)
-  )
+  ) {
     return undefined;
+  }
 
   return typeof raw.widget.content.text === "string"
     ? text(raw.widget.content.text)

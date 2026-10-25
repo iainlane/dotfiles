@@ -1,6 +1,5 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { expect, it, vi } from "vitest";
-import { Inspector } from "../src/inspector.ts";
+import { Inspector, type InspectorContext } from "../src/inspector.ts";
 import { createSnapshot } from "../src/state.ts";
 
 interface View {
@@ -20,18 +19,21 @@ type Factory = (
 function harness() {
   const views: {
     component: View;
-    close: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn<() => void>>;
     options: unknown;
     settle(): void;
   }[] = [];
-  const select = vi.fn();
-  const context = {
+  const select = vi.fn<InspectorContext["ui"]["select"]>();
+  const context: InspectorContext = {
     mode: "tui",
     ui: {
       select,
+      notify: () => {},
       custom: (factory: Factory, options: unknown) =>
         new Promise<void>((resolve) => {
-          const close = vi.fn(() => resolve());
+          const close = vi.fn<() => void>(() => {
+            resolve();
+          });
           const component = factory(
             { terminal: { rows: 8 }, requestRender: () => {} },
             { fg: (_role, value) => value },
@@ -42,7 +44,7 @@ function harness() {
           views.push({ component, close, options, settle: resolve });
         }),
     },
-  } as unknown as ExtensionCommandContext;
+  };
   const inspector = new Inspector(() => createSnapshot(1000, "/work"));
 
   return { inspector, context, views, select };
@@ -58,7 +60,9 @@ it("keeps the current close handle after an older view is disposed", async () =>
 
   const closes = views.map((view) => view.close.mock.calls.length);
 
-  for (const view of views) view.settle();
+  for (const view of views) {
+    view.settle();
+  }
 
   await Promise.all([first, second]);
 
@@ -85,15 +89,17 @@ it("scrolls details and closes with Escape", async () => {
   const opened = inspector.open(context, "quota");
   const view = views[0];
 
-  if (!view) throw new Error("Expected an inspector view");
+  if (!view) {
+    throw new Error("Expected an inspector view");
+  }
 
   const first = view.component.render(80);
 
-  view.component.handleInput("\u001b[6~");
+  view.component.handleInput("\u001B[6~");
 
   const scrolled = view.component.render(80);
 
-  view.component.handleInput("\u001b");
+  view.component.handleInput("\u001B");
   await opened;
   view.component.dispose();
 

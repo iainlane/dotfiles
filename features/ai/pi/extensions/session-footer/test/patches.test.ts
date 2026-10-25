@@ -24,7 +24,9 @@ interface Provider {
 
 const server = setupServer();
 
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: "error" });
+});
 
 afterEach(() => {
   server.resetHandlers();
@@ -32,13 +34,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+});
+
+const stringMatcher: unknown = expect.any(String);
 
 const dependencies = {
   fetch: globalThis.fetch,
   homedir: () => "/fixture",
   env: {},
-  readFile: () => undefined,
+  readFile: (): undefined => undefined,
   fileExists: () => false,
   execFileSync: () => "",
 };
@@ -84,14 +90,14 @@ it("publishes Codex duration only when reported and identifies the credential so
         usedPercent: 15,
         windowSeconds: 18_000,
         resetAt: new Date(1_800_000_000_000).toISOString(),
-        resetDescription: expect.any(String),
+        resetDescription: stringMatcher,
       },
       {
         label: "Day",
         usedPercent: 18,
         windowSeconds: undefined,
         resetAt: new Date(1_800_100_000_000).toISOString(),
-        resetDescription: expect.any(String),
+        resetDescription: stringMatcher,
       },
     ],
   });
@@ -153,7 +159,7 @@ it("reads the todo visibility flag once per overlay without caching other config
     TodoOverlay: new () => { setUICtx(ctx: unknown): void; update(): void };
   }>("../.fixtures/rpiv-todo/todo-overlay.ts");
   const overlay = new TodoOverlay();
-  const setWidget = vi.fn();
+  const setWidget = vi.fn<(id: string, widget: unknown) => void>();
 
   overlay.setUICtx({ setWidget });
   overlay.update();
@@ -186,7 +192,7 @@ it("disables only the todo widget through its configuration", async () => {
   const { TodoOverlay } = await vi.importActual<{
     TodoOverlay: new () => { setUICtx(ctx: unknown): void; update(): void };
   }>("../.fixtures/rpiv-todo/todo-overlay.ts");
-  const setWidget = vi.fn();
+  const setWidget = vi.fn<(id: string, widget: unknown) => void>();
   const overlay = new TodoOverlay();
 
   overlay.setUICtx({ setWidget });

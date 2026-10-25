@@ -24,6 +24,10 @@ export interface FooterContext {
 
 type GitReader = (cwd: string, now: number) => Promise<GitState | undefined>;
 
+export function reportRefreshError(error: unknown): void {
+  console.error("session-footer: background refresh failed", error);
+}
+
 export class FooterSession {
   readonly state;
   private readonly rpc: RpcClient;
@@ -51,16 +55,20 @@ export class FooterSession {
       context.sessionManager.getHeader()?.timestamp ?? "",
     );
 
-    if (Number.isFinite(start)) this.state.startedAt = start;
+    if (Number.isFinite(start)) {
+      this.state.startedAt = start;
+    }
 
     this.rpc = new RpcClient(bus);
 
     this.sync(context, true);
 
-    this.interval = setInterval(() => this.tick(), 1000);
+    this.interval = setInterval(() => {
+      this.tick();
+    }, 1000);
 
-    void this.refreshGit();
-    void this.refreshAgents();
+    this.refreshGit().catch(reportRefreshError);
+    this.refreshAgents().catch(reportRefreshError);
   }
 
   dispose(): void {
@@ -75,14 +83,18 @@ export class FooterSession {
   }
 
   sync(context: FooterContext, force = false): void {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     this.context = context;
     this.state.now = Date.now();
 
     const provider = context.model?.provider ?? "";
 
-    if (provider !== this.state.provider) this.state.quota = undefined;
+    if (provider !== this.state.provider) {
+      this.state.quota = undefined;
+    }
 
     this.state.model = context.model?.id ?? "no model";
     this.state.provider = provider;
@@ -136,7 +148,9 @@ export class FooterSession {
   }
 
   private tick(): void {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     const previous = this.leaf;
     const clock = this.clockKey();
@@ -145,21 +159,31 @@ export class FooterSession {
 
     const now = this.state.now;
 
-    if (now - this.gitAt >= 5000) void this.refreshGit();
+    if (now - this.gitAt >= 5000) {
+      this.refreshGit().catch(reportRefreshError);
+    }
 
-    if (this.state.agents?.active && now - this.agentsAt >= 2000)
-      void this.refreshAgents();
+    if (
+      this.state.agents?.active !== undefined &&
+      this.state.agents?.active !== 0 &&
+      now - this.agentsAt >= 2000
+    ) {
+      this.refreshAgents().catch(reportRefreshError);
+    }
 
     if (
       clock !== this.clockKey() ||
       previous !== this.leaf ||
       this.state.activity.runningSince !== undefined
-    )
+    ) {
       this.changed();
+    }
   }
 
   async refreshGit(): Promise<void> {
-    if (this.disposed || this.gitPending) return;
+    if (this.disposed || this.gitPending) {
+      return;
+    }
 
     this.gitPending = true;
     this.gitAt = Date.now();
@@ -170,43 +194,59 @@ export class FooterSession {
     try {
       const git = await this.getGit(this.context.cwd, this.gitAt);
 
-      if (this.disposed) return;
+      if (this.disposed) {
+        return;
+      }
 
       this.state.git = git;
       this.state.gitError = undefined;
 
-      if (this.state.pr && this.state.pr.branch !== git?.branch)
+      if (this.state.pr && this.state.pr.branch !== git?.branch) {
         this.state.pr = undefined;
+      }
 
-      if (previousError || JSON.stringify(previous) !== JSON.stringify(git))
+      if (
+        (previousError !== undefined && previousError !== "") ||
+        JSON.stringify(previous) !== JSON.stringify(git)
+      ) {
         this.changed();
+      }
     } catch (error) {
-      if (this.disposed) return;
+      if (this.disposed) {
+        return;
+      }
 
       this.state.gitError =
         text(error instanceof Error ? error.message : error) ||
         "Git probe failed";
 
-      if (previous) this.state.git = { ...previous, stale: true };
+      if (previous) {
+        this.state.git = { ...previous, stale: true };
+      }
 
       if (
         previousError !== this.state.gitError ||
         (previous && !previous.stale)
-      )
+      ) {
         this.changed();
+      }
     } finally {
       this.gitPending = false;
     }
   }
 
   async refreshAgents(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     this.agentsAt = Date.now();
 
     const result = await this.rpc.request("status");
 
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     const next = result.ok ? readAgents(result.data) : undefined;
 
@@ -218,19 +258,24 @@ export class FooterSession {
         ? { kind: "malformed", message: "Invalid subagent status data" }
         : result.error;
 
-      if (this.state.agents)
+      if (this.state.agents) {
         this.state.agents = { ...this.state.agents, stale: true };
+      }
     }
 
     this.changed();
   }
 
   async refreshCost(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     const result = await this.rpc.request("cost");
 
-    if (this.disposed) return;
+    if (this.disposed) {
+      return;
+    }
 
     if (result.ok && result.data !== undefined) {
       this.state.delegationCost = result.data;
@@ -251,7 +296,9 @@ export class FooterSession {
 
     this.tracker.update(event, this.state.now, outcome);
 
-    if (event !== "content" || warning !== undefined) this.changed();
+    if (event !== "content" || warning !== undefined) {
+      this.changed();
+    }
   }
 
   tool(id: string, name?: string): void {

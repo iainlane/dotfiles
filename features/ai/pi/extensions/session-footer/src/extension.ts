@@ -7,7 +7,7 @@ import { Inspector, SECTIONS } from "./inspector.ts";
 import { readPr, readServiceTier } from "./integrations.ts";
 import { readQuota, type QuotaState } from "./quota.ts";
 import { renderFooter } from "./render.ts";
-import { FooterSession } from "./session.ts";
+import { FooterSession, reportRefreshError } from "./session.ts";
 import type { FooterSnapshot } from "./state.ts";
 
 function matchesProvider(
@@ -21,21 +21,25 @@ function matchesProvider(
   );
 }
 
+const noop = () => {};
+
 export default function sessionFooter(pi: ExtensionAPI): void {
   let session: FooterSession | undefined;
 
-  let invalidate = () => {};
+  let invalidate = noop;
 
   let quota: QuotaState | undefined;
   let tier: string | undefined;
   let pr: FooterSnapshot["pr"];
   const inspector = new Inspector(() =>
-    session?.alive ? session.state : undefined,
+    session?.alive === true ? session.state : undefined,
   );
   const stops: (() => void)[] = [];
 
   const requestRender = () => {
-    if (!session?.alive) return;
+    if (session?.alive !== true) {
+      return;
+    }
 
     session.state.now = Date.now();
 
@@ -43,12 +47,15 @@ export default function sessionFooter(pi: ExtensionAPI): void {
   };
 
   const update = (ctx: ExtensionContext, force = false) => {
-    if (!session?.alive) return;
+    if (session?.alive !== true) {
+      return;
+    }
 
     session.sync(ctx, force);
 
-    if (matchesProvider(session.state.provider, quota))
+    if (matchesProvider(session.state.provider, quota)) {
       session.state.quota = quota;
+    }
 
     session.state.serviceTier = tier;
 
@@ -60,65 +67,72 @@ export default function sessionFooter(pi: ExtensionAPI): void {
     session?.dispose();
 
     session = undefined;
-    invalidate = () => {};
+    invalidate = noop;
+  };
+
+  const updateQuota = (raw: unknown) => {
+    quota = readQuota(raw, quota);
+
+    if (session?.alive !== true) {
+      return;
+    }
+
+    session.state.quota = matchesProvider(session.state.provider, quota)
+      ? quota
+      : undefined;
+
+    requestRender();
+  };
+
+  const refreshAgents = () => {
+    session?.refreshAgents().catch(reportRefreshError);
   };
 
   const connect = () => {
-    if (stops.length) return;
+    if (stops.length > 0) {
+      return;
+    }
 
     for (const channel of ["sub-core:ready", "sub-core:update-current"]) {
-      stops.push(
-        pi.events.on(channel, (raw) => {
-          quota = readQuota(raw, quota);
-
-          if (!session?.alive) return;
-
-          session.state.quota = matchesProvider(session.state.provider, quota)
-            ? quota
-            : undefined;
-
-          requestRender();
-        }),
-      );
+      stops.push(pi.events.on(channel, updateQuota));
     }
 
     stops.push(
       pi.events.on("pi-fancy-footer:widget", (raw) => {
         const next = readServiceTier(raw);
 
-        if (next === undefined) return;
+        if (next === undefined) {
+          return;
+        }
 
         tier = next || undefined;
 
-        if (session?.alive) session.state.serviceTier = tier;
+        if (session?.alive === true) {
+          session.state.serviceTier = tier;
+        }
 
         requestRender();
       }),
-    );
-    stops.push(
       createPiPrClient(pi).onState((raw) => {
         const next = readPr(raw);
 
         pr = next ?? (pr && { ...pr, health: "error" });
 
         if (
-          !session?.alive ||
+          session?.alive !== true ||
           (session.state.git && pr?.branch !== session.state.git.branch)
-        )
+        ) {
           return;
+        }
 
         session.state.pr = pr;
 
         requestRender();
       }),
-    );
-    stops.push(
       pi.events.on("pilens:diagnostics", (raw) => {
         session?.state.diagnostics.receive(raw);
         requestRender();
       }),
-    );
-    stops.push(
       pi.events.on("pilens:files:touched", (raw) => {
         session?.state.diagnostics.touch(raw);
         requestRender();
@@ -131,11 +145,7 @@ export default function sessionFooter(pi: ExtensionAPI): void {
       "subagent:async-complete",
       "subagent:child-status",
     ]) {
-      stops.push(
-        pi.events.on(channel, () => {
-          void session?.refreshAgents();
-        }),
-      );
+      stops.push(pi.events.on(channel, refreshAgents));
     }
   };
 
@@ -153,14 +163,14 @@ export default function sessionFooter(pi: ExtensionAPI): void {
         return;
       }
 
-      if (!session?.alive) {
+      if (session?.alive !== true) {
         ctx.ui.notify("The footer inspector is available in TUI mode.", "info");
 
         return;
       }
 
       update(ctx, true);
-      void session.refreshCost();
+      session.refreshCost().catch(reportRefreshError);
       await inspector.open(ctx, section);
     },
   });
@@ -169,24 +179,29 @@ export default function sessionFooter(pi: ExtensionAPI): void {
     stop();
     connect();
 
-    if (ctx.mode !== "tui") return;
+    if (ctx.mode !== "tui") {
+      return;
+    }
 
     session = new FooterSession(ctx, pi.events, requestRender);
     session.state.serviceTier = tier;
     session.state.pr = pr;
 
-    if (matchesProvider(session.state.provider, quota))
+    if (matchesProvider(session.state.provider, quota)) {
       session.state.quota = quota;
+    }
 
     const owner = session;
 
     ctx.ui.setFooter((tui, _theme, footerData) => {
       invalidate = () => {
-        if (owner.alive) tui.requestRender();
+        if (owner.alive) {
+          tui.requestRender();
+        }
       };
 
       const unsubscribe = footerData.onBranchChange(() => {
-        void owner.refreshGit();
+        owner.refreshGit().catch(reportRefreshError);
       });
 
       return {
@@ -206,7 +221,9 @@ export default function sessionFooter(pi: ExtensionAPI): void {
     pi.events.emit("sub-core:request", {
       type: "current",
       reply: (raw: unknown) => {
-        if (!owner.alive) return;
+        if (!owner.alive) {
+          return;
+        }
 
         quota = readQuota(raw, quota);
         owner.state.quota = matchesProvider(owner.state.provider, quota)
@@ -225,7 +242,9 @@ export default function sessionFooter(pi: ExtensionAPI): void {
     tier = undefined;
     pr = undefined;
 
-    for (const unsubscribe of stops.splice(0)) unsubscribe();
+    for (const unsubscribe of stops.splice(0)) {
+      unsubscribe();
+    }
   });
 
   pi.on("session_tree", (_event, ctx) => {
@@ -239,8 +258,9 @@ export default function sessionFooter(pi: ExtensionAPI): void {
       session &&
       event.message.role === "assistant" &&
       event.message.stopReason === "error"
-    )
+    ) {
       session.state.activity.outcome = "failed";
+    }
   });
 
   pi.on("model_select", (_event, ctx) => {
@@ -259,8 +279,8 @@ export default function sessionFooter(pi: ExtensionAPI): void {
   pi.on("agent_settled", (event, ctx) => {
     update(ctx, true);
     session?.activity("settled", event.aborted ? "cancelled" : undefined);
-    void session?.refreshGit();
-    void session?.refreshCost();
+    session?.refreshGit().catch(reportRefreshError);
+    session?.refreshCost().catch(reportRefreshError);
   });
 
   pi.on("message_update", () => {
@@ -294,6 +314,6 @@ export default function sessionFooter(pi: ExtensionAPI): void {
 
   pi.on("tool_execution_end", (event) => {
     session?.tool(event.toolCallId);
-    void session?.refreshGit();
+    session?.refreshGit().catch(reportRefreshError);
   });
 }

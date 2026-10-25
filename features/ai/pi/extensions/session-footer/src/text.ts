@@ -14,12 +14,14 @@ export function finite(value: unknown): number | undefined {
 }
 
 export function text(value: unknown, width = 160): string {
-  if (typeof value !== "string") return "";
+  if (typeof value !== "string") {
+    return "";
+  }
 
   return truncateToWidth(
     stripTerminalSequences(value.slice(0, 4096))
-      .replace(/[\p{Cc}\p{Cf}]/gu, " ")
-      .replace(/\s+/g, " ")
+      .replaceAll(/[\p{Cc}\p{Cf}]/gu, " ")
+      .replaceAll(/\s+/g, " ")
       .trim(),
     width,
     "…",
@@ -29,26 +31,35 @@ export function text(value: unknown, width = 160): string {
 export function duration(ms: number): string {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
 
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
 
   const hours = Math.floor(minutes / 60);
 
-  if (hours < 24)
+  if (hours < 24) {
     return `${hours}h${minutes % 60 || ""}${minutes % 60 ? "m" : ""}`;
+  }
 
   return `${Math.floor(hours / 24)}d${hours % 24 || ""}${hours % 24 ? "h" : ""}`;
 }
 
 export function tokens(value: number): string {
-  if (value >= 1_000_000) return `${+(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000_000) {
+    return `${+(value / 1_000_000).toFixed(1)}M`;
+  }
 
-  if (value >= 1000) return `${+(value / 1000).toFixed(1)}k`;
+  if (value >= 1000) {
+    return `${+(value / 1000).toFixed(1)}k`;
+  }
 
   return String(Math.round(value));
 }
 
 export function link(label: string, url: unknown): string {
-  if (typeof url !== "string" || /[\p{Cc}\p{Cf}]/u.test(url)) return label;
+  if (typeof url !== "string" || /[\p{Cc}\p{Cf}]/u.test(url)) {
+    return label;
+  }
 
   try {
     const parsed = new URL(url);
@@ -57,10 +68,11 @@ export function link(label: string, url: unknown): string {
       !["http:", "https:"].includes(parsed.protocol) ||
       parsed.username ||
       parsed.password
-    )
+    ) {
       return label;
+    }
 
-    return `\u001b]8;;${parsed.href}\u001b\\${label}\u001b]8;;\u001b\\`;
+    return `\u001B]8;;${parsed.href}\u001B\\${label}\u001B]8;;\u001B\\`;
   } catch {
     return label;
   }

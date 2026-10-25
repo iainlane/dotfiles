@@ -2,9 +2,9 @@
 // smallest input that rule must not report. They are not documents, so the
 // markdownlint rules about document structure and line length do not apply.
 {
-	"default": true,
-	"config": {
-		"MD013": false,
-		"MD041": false
-	}
+  "default": true,
+  "config": {
+    "MD013": false,
+    "MD041": false,
+  },
 }

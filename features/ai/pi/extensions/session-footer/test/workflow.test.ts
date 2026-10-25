@@ -99,7 +99,7 @@ it("uses exact fleet totals and counts top-level run failures without double cou
 it("replaces diagnostics per file, honours sequence and marks touched data provisional", () => {
   const diagnostics = new Diagnostics("/work");
 
-  const publish = (seq: number, items: unknown[], truncated = false) =>
+  const publish = (seq: number, items: unknown[], truncated = false) => {
     diagnostics.receive({
       v: 1,
       cwd: "/work",
@@ -107,6 +107,7 @@ it("replaces diagnostics per file, honours sequence and marks touched data provi
       ts: 1,
       files: [{ path: "/work/a.ts", diagnostics: items, truncated }],
     });
+  };
 
   expect(diagnostics.summary()).toStrictEqual({
     errors: 0,

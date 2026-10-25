@@ -9,9 +9,13 @@ afterEach(() => vi.useRealTimers());
 
 function harness() {
   const handlers = new Map<string, Set<(value: unknown) => void>>();
-  const emit = vi.fn((key: string, value: unknown) => {
-    for (const handler of handlers.get(key) ?? []) handler(value);
-  });
+  const emit = vi.fn<(key: string, value: unknown) => void>(
+    (key: string, value: unknown) => {
+      for (const handler of handlers.get(key) ?? []) {
+        handler(value);
+      }
+    },
+  );
   const bus = {
     on: (key: string, handler: (value: unknown) => void) => {
       const set = handlers.get(key) ?? new Set();
@@ -22,7 +26,9 @@ function harness() {
       return () => {
         set.delete(handler);
 
-        if (!set.size) handlers.delete(key);
+        if (set.size === 0) {
+          handlers.delete(key);
+        }
       };
     },
     emit,
@@ -31,7 +37,7 @@ function harness() {
     cwd: "/work",
     model: { id: "fixture", provider: "openai-codex", contextWindow: 200_000 },
     thinkingLevel: "high",
-    getContextUsage: () => undefined,
+    getContextUsage: () => {},
     hasPendingMessages: () => false,
     sessionManager: {
       getHeader: () => ({ timestamp: "2026-10-20T12:00:00Z" }),
@@ -48,7 +54,7 @@ it("disposes timers, replies and late Git requests without changing a replaced s
   vi.useFakeTimers();
 
   const { bus, context, handlers } = harness();
-  const change = vi.fn();
+  const change = vi.fn<() => void>();
   const pending = Promise.withResolvers<undefined>();
   const session = new FooterSession(
     context,
@@ -128,7 +134,7 @@ it.each([
           ),
         });
       },
-      async () => undefined,
+      async () => {},
     );
 
     session.state.quota = readQuota({
@@ -166,18 +172,13 @@ it("invalidates session age relative to the header timestamp", async () => {
   vi.setSystemTime(now);
 
   const { bus, context } = harness();
-  const change = vi.fn();
+  const change = vi.fn<() => void>();
 
   context.sessionManager.getHeader = () => ({
     timestamp: new Date(now).toISOString(),
   });
 
-  const session = new FooterSession(
-    context,
-    bus,
-    change,
-    async () => undefined,
-  );
+  const session = new FooterSession(context, bus, change, async () => {});
 
   await vi.advanceTimersByTimeAsync(2500);
   change.mockClear();
@@ -193,13 +194,8 @@ it("does not invalidate for routine content but clears a displayed inactivity wa
   vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
 
   const { bus, context } = harness();
-  const change = vi.fn();
-  const session = new FooterSession(
-    context,
-    bus,
-    change,
-    async () => undefined,
-  );
+  const change = vi.fn<() => void>();
+  const session = new FooterSession(context, bus, change, async () => {});
 
   await vi.advanceTimersByTimeAsync(2500);
 
@@ -283,7 +279,7 @@ it("keeps stale subagent data with a reason and clears the failure on recovery",
     context,
     bus,
     () => {},
-    async () => undefined,
+    async () => {},
   );
 
   await vi.advanceTimersByTimeAsync(2500);
@@ -304,7 +300,9 @@ it("keeps stale subagent data with a reason and clears the failure on recovery",
   };
   let data: unknown = payload;
   const stop = bus.on("subagents:rpc:v1:request", (raw) => {
-    if (!record(raw)) return;
+    if (!record(raw) || typeof raw.requestId !== "string") {
+      return;
+    }
 
     bus.emit(`subagents:rpc:v1:reply:${raw.requestId}`, {
       version: 1,
@@ -361,7 +359,7 @@ it("does not count time spent waiting for user input as active work", () => {
     context,
     bus,
     () => {},
-    async () => undefined,
+    async () => {},
   );
 
   session.activity("start");

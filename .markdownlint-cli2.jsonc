@@ -1,12 +1,12 @@
 {
-	"gitignore": true,
-	"config": {
-		"MD013": {
-			"code_blocks": false,
-			"tables": false
-		},
-		"MD024": {
-			"siblings_only": true
-		}
-	}
+  "gitignore": true,
+  "config": {
+    "MD013": {
+      "code_blocks": false,
+      "tables": false,
+    },
+    "MD024": {
+      "siblings_only": true,
+    },
+  },
 }

@@ -20,12 +20,15 @@ export class Diagnostics {
       raw.v !== 1 ||
       raw.cwd !== this.cwd ||
       !Array.isArray(raw.files)
-    )
+    ) {
       return;
+    }
 
     const seq = finite(raw.seq);
 
-    if (seq === undefined || seq <= this.sequence) return;
+    if (seq === undefined || seq <= this.sequence) {
+      return;
+    }
 
     this.sequence = seq;
 
@@ -34,8 +37,9 @@ export class Diagnostics {
         !record(file) ||
         typeof file.path !== "string" ||
         !Array.isArray(file.diagnostics)
-      )
+      ) {
         continue;
+      }
 
       const items = file.diagnostics.filter(record);
 
@@ -55,11 +59,14 @@ export class Diagnostics {
       raw.v !== 1 ||
       raw.cwd !== this.cwd ||
       !Array.isArray(raw.paths)
-    )
+    ) {
       return;
+    }
 
     for (const value of raw.paths) {
-      if (typeof value !== "string") continue;
+      if (typeof value !== "string") {
+        continue;
+      }
 
       const path = value;
       const previous = this.files.get(path);

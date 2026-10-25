@@ -41,29 +41,45 @@ export function thinkingStyle(level: string): FooterStyle {
 }
 
 export function contextStyle(percent: number | null): FooterStyle {
-  if (percent === null) return styles.detail;
+  if (percent === null) {
+    return styles.detail;
+  }
 
-  if (percent >= 90) return styles.error;
+  if (percent >= 90) {
+    return styles.error;
+  }
 
-  if (percent >= 75) return styles.warning;
+  if (percent >= 75) {
+    return styles.warning;
+  }
 
   return styles.measurement;
 }
 
 export function quotaStyle(freshness: QuotaView["freshness"]): FooterStyle {
-  if (freshness === "unavailable") return styles.detail;
+  if (freshness === "unavailable") {
+    return styles.detail;
+  }
 
-  if (freshness !== "fresh") return styles.warning;
+  if (freshness !== "fresh") {
+    return styles.warning;
+  }
 
   return styles.measurement;
 }
 
 export function gitStyle(git: GitState): FooterStyle {
-  if (git.stale) return styles.detail;
+  if (git.stale) {
+    return styles.detail;
+  }
 
-  if (git.conflicts) return styles.error;
+  if (git.conflicts) {
+    return styles.error;
+  }
 
-  if (git.staged || git.unstaged || git.untracked) return styles.warning;
+  if (git.staged || git.unstaged || git.untracked) {
+    return styles.warning;
+  }
 
   return styles.success;
 }

@@ -21,8 +21,9 @@ function readTask(raw: unknown): Task | undefined {
     !record(raw) ||
     finite(raw.id) === undefined ||
     typeof raw.subject !== "string"
-  )
+  ) {
     return undefined;
+  }
 
   const status = raw.status;
 
@@ -31,8 +32,9 @@ function readTask(raw: unknown): Task | undefined {
     status !== "in_progress" &&
     status !== "completed" &&
     status !== "deleted"
-  )
+  ) {
     return undefined;
+  }
 
   const blockedBy: number[] = [];
 
@@ -40,7 +42,9 @@ function readTask(raw: unknown): Task | undefined {
     for (const id of raw.blockedBy) {
       const parsed = finite(id);
 
-      if (parsed !== undefined) blockedBy.push(parsed);
+      if (parsed !== undefined) {
+        blockedBy.push(parsed);
+      }
     }
   }
 
@@ -57,8 +61,9 @@ export function readTasks(entries: readonly unknown[]): Task[] {
   let tasks: Task[] = [];
 
   for (const entry of entries) {
-    if (!record(entry) || entry.type !== "message" || !record(entry.message))
+    if (!record(entry) || entry.type !== "message" || !record(entry.message)) {
       continue;
+    }
 
     const message = entry.message;
 
@@ -66,17 +71,21 @@ export function readTasks(entries: readonly unknown[]): Task[] {
       message.role !== "toolResult" ||
       message.toolName !== "todo" ||
       !record(message.details)
-    )
+    ) {
       continue;
+    }
 
     const details = message.details;
 
-    if (!Array.isArray(details.tasks) || finite(details.nextId) === undefined)
+    if (!Array.isArray(details.tasks) || finite(details.nextId) === undefined) {
       continue;
+    }
 
     const parsed = details.tasks.map(readTask);
 
-    if (parsed.some((task) => task === undefined)) continue;
+    if (parsed.some((task) => task === undefined)) {
+      continue;
+    }
 
     tasks = parsed.filter((task): task is Task => task !== undefined);
   }
@@ -119,12 +128,15 @@ export interface AgentSummary {
 }
 
 export function readAgents(raw: unknown): AgentSummary | undefined {
-  if (!record(raw) || !record(raw.fleet) || raw.fleet.version !== 1)
+  if (!record(raw) || !record(raw.fleet) || raw.fleet.version !== 1) {
     return undefined;
+  }
 
   const active = finite(raw.fleet.totalActive);
 
-  if (active === undefined) return undefined;
+  if (active === undefined) {
+    return undefined;
+  }
 
   const snapshot = record(raw.asyncSnapshot) ? raw.asyncSnapshot : undefined;
   const valid =
@@ -135,8 +147,9 @@ export function readAgents(raw: unknown): AgentSummary | undefined {
 
   if (valid && Array.isArray(snapshot.runs)) {
     for (const run of snapshot.runs) {
-      if (record(run))
+      if (record(run)) {
         runs.push({ label: text(run.label), state: text(run.state) });
+      }
     }
   }
 
