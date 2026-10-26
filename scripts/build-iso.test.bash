@@ -12,8 +12,10 @@ cp "${common_script}" "${fixture}/scripts/lib/just-common.bash"
 export ISO_COMMAND_LOG="${fixture}/commands"
 export PATH="${fixture}/bin:${PATH}"
 
-cat >"${fixture}/bin/nix" <<'NIX'
-#!/usr/bin/env bash
+# The Nix build sandbox has no /usr/bin/env, so give the stub the running
+# bash as its interpreter.
+printf '#!%s\n' "${BASH}" >"${fixture}/bin/nix"
+cat >>"${fixture}/bin/nix" <<'NIX'
 set -euo pipefail
 printf '%s\0' "$@" >>"${ISO_COMMAND_LOG}"
 printf '\n' >>"${ISO_COMMAND_LOG}"

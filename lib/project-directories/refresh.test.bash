@@ -17,13 +17,19 @@ export PATH="${fixture}/bin:${PATH}"
 export USER=wrong-user
 export NIX_DIRENV_DID_FALLBACK=1
 
-cat >"${fixture}/bin/hostname" <<'HOSTNAME'
-#!/usr/bin/env bash
+# The Nix build sandbox has no /usr/bin/env, so give the stubs the running
+# bash as their interpreter.
+stub() {
+	printf '#!%s\n' "${BASH}" >"${fixture}/bin/${1}"
+	cat >>"${fixture}/bin/${1}"
+	chmod +x "${fixture}/bin/${1}"
+}
+
+stub hostname <<'HOSTNAME'
 printf 'fixture-host\n'
 HOSTNAME
 
-cat >"${fixture}/bin/nix" <<'NIX'
-#!/usr/bin/env bash
+stub nix <<'NIX'
 set -euo pipefail
 [[ "$1" == eval ]] || exit 99
 if [[ "$*" == *".#username"* ]]; then
@@ -38,8 +44,7 @@ fi
 cat "${PROJECT_DIRECTORIES_FILE}"
 NIX
 
-cat >"${fixture}/bin/direnv" <<'DIRENV'
-#!/usr/bin/env bash
+stub direnv <<'DIRENV'
 set -euo pipefail
 [[ "$1" == exec ]] || exit 99
 printf '%s\n' "$2" >>"${REFRESH_LOG}"
@@ -50,7 +55,6 @@ failure) exit 7 ;;
 esac
 exec "$@"
 DIRENV
-chmod +x "${fixture}/bin/hostname" "${fixture}/bin/nix" "${fixture}/bin/direnv"
 
 for scenario in fallback failure missing-envrc eval-failure refresh after-switch empty; do
 	export REFRESH_MODE="${scenario}"
