@@ -9,10 +9,16 @@ before="${1:?usage: flake-lock-summary <before> <after>}"
 after="${2:?usage: flake-lock-summary <before> <after>}"
 
 jq -rn --slurpfile before "${before}" --slurpfile after "${after}" '
+  def resolve($lock; $id):
+    if ($id | type) == "array"
+    then reduce $id[] as $input ("root"; resolve($lock; $lock.nodes[.].inputs[$input]))
+    else $id
+    end;
+
   def version($lock; $name):
     $lock.nodes.root.inputs[$name] as $id
     | if $id == null then null
-      else $lock.nodes[$id] as $node
+      else $lock.nodes[resolve($lock; $id)] as $node
         | { ref: ($node.original.ref // $node.locked.ref),
             rev: ($node.locked.rev // $node.locked.narHash) }
       end;

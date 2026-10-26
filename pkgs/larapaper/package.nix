@@ -1,6 +1,5 @@
 {
   lib,
-  inputs,
   pkgs,
   php84,
   fetchFromGitHub,
@@ -101,7 +100,7 @@ in
       };
       tests = {
         php =
-          ((import ./php-check.nix {inherit inputs lib;}) {
+          ((import ./php-check.nix {inherit lib;}) {
             inherit pkgs;
             system = pkgs.stdenv.hostPlatform.system;
           }).larapaper-php;

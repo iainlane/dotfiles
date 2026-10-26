@@ -178,6 +178,115 @@ function admittedJobs(event: Event): Record<string, boolean> {
   };
 }
 
+describe("Scheduled flake updates", () => {
+  it("opens a PR with the prebuilt summary when the relocked flake cannot evaluate", () => {
+    const directory = mkdtempSync(join(tmpdir(), "flake-update-workflow-"));
+    const runnerTemp = join(directory, "temp");
+    mkdirSync(runnerTemp);
+    writeFileSync(join(directory, "flake.lock"), "before\n");
+    writeFileSync(
+      join(directory, "summary"),
+      `#!${bash}
+set -euo pipefail
+printf 'before=%s; after=%s\\n' "$(cat "$1")" "$(cat "$2")"
+`,
+      { mode: 0o755 },
+    );
+    const commands: Readonly<Record<string, string>> = {
+      nix: `
+printf '%s\\n' "$*" >> nix-calls
+if [ -f relocked ]; then
+  echo 'The relocked flake cannot evaluate.' >&2
+  exit 1
+fi
+case "$1 $2" in
+  'build .#flake-lock-summary')
+    mkdir -p "$RUNNER_TEMP/flake-lock-summary/bin"
+    cp summary "$RUNNER_TEMP/flake-lock-summary/bin/flake-lock-summary"
+    ;;
+  'flake update')
+    printf 'after\\n' > flake.lock
+    touch relocked
+    ;;
+  *) exit 1 ;;
+esac
+`,
+      git: `
+case "$*" in
+  'diff --quiet') exit 1 ;;
+  'show HEAD:flake.lock') printf 'before\\n' ;;
+esac
+`,
+      gh: `
+if [ "$1 $2" = 'pr create' ]; then
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = '--body' ]; then
+      printf '%s' "$2" > pr-body
+      break
+    fi
+    shift
+  done
+fi
+`,
+    };
+
+    for (const [command, script] of Object.entries(commands)) {
+      writeFileSync(join(directory, command), `#!${bash}\n${script}`, {
+        mode: 0o755,
+      });
+    }
+
+    try {
+      const update = record(record(workflow("flake-update.yml").jobs).update);
+      assert.ok(Array.isArray(update.steps));
+      const updateSteps = update.steps.map(record);
+      const setup = updateSteps.findIndex(
+        (step) => step.name === "Set up secrets access",
+      );
+      assert.notEqual(setup, -1);
+      const script = updateSteps
+        .slice(setup + 1)
+        .map((step) => string(step.run))
+        .join("\n");
+      const result = spawnSync(bash, ["--noprofile", "--norc", "-c", script], {
+        cwd: directory,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+          RUNNER_TEMP: runnerTemp,
+          GITHUB_RUN_ID: "123",
+        },
+      });
+      const body = join(directory, "pr-body");
+      assert.deepEqual(
+        {
+          status: result.status,
+          stderr: result.stderr,
+          nixCalls: readFileSync(join(directory, "nix-calls"), "utf8"),
+          body: existsSync(body) ? readFileSync(body, "utf8") : null,
+        },
+        {
+          status: 0,
+          stderr: "",
+          nixCalls: `build .#flake-lock-summary --out-link ${runnerTemp}/flake-lock-summary\nflake update\n`,
+          body: [
+            "Automated relock of the flake inputs from the scheduled `flake-update` workflow (`nix flake update`).",
+            "",
+            "Updated inputs:",
+            "",
+            "before=before; after=after",
+            "",
+            "After merging, the `cupboard` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.",
+          ].join("\n"),
+        },
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("Cupboard workflow event admission", () => {
   for (const action of ["opened", "synchronize", "reopened", "closed"]) {
     for (const fork of [false, true]) {

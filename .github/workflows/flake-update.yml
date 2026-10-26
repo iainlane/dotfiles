@@ -61,6 +61,11 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
+      - name: Build the flake lock summariser
+        run: |
+          set -euo pipefail
+          nix build .#flake-lock-summary --out-link "${RUNNER_TEMP}/flake-lock-summary"
+
       - name: Relock flake inputs
         run: |
           set -euo pipefail
@@ -82,7 +87,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          summary="$(nix run .#flake-lock-summary -- <(git show HEAD:flake.lock) flake.lock)"
+          summary="$("${RUNNER_TEMP}/flake-lock-summary/bin/flake-lock-summary" <(git show HEAD:flake.lock) flake.lock)"
 
           # A fresh branch per run, so a rerun opens its own PR even when an
           # earlier one is still open or already merged.
