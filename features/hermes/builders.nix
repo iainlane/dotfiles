@@ -132,7 +132,6 @@
       hermesNss
     ]
     ++ agentToolDrvs
-    ++ lib.optional cfg.mcp.present pkgs.mcp-nixos
     ++ lib.optional (cfg.extraPlugins != {}) extraPluginPaths
   );
 

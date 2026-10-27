@@ -23,6 +23,7 @@
     "catppuccin-palette"
     "codex-plugin-cc"
     "gh-stack-skill"
+    "mcp-nixos"
   ];
 
   branchInputs = ["hermes-agent"];

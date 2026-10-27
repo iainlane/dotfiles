@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import anyio
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from ..errors import ConformanceError
 from ..protocols.mcp import EvaluatorDescriptor, ImproverDescriptor, McpDescriptor
@@ -15,7 +15,7 @@ from .evaluator import EvaluatorEvidence, create_evaluator_server
 from .improver import ImproverEvidence, create_improver_server
 
 
-def create_server(configuration: McpDescriptor) -> FastMCP[None]:
+def create_server(configuration: McpDescriptor) -> MCPServer[None]:
     """Create the smallest read-only tool set required for one model role."""
 
     match configuration:

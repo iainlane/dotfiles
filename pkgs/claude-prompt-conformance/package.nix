@@ -13,6 +13,7 @@
   codex,
   lib,
   pkgs,
+  pythonPackages,
 }: let
   # The distribution and its tests, and nothing else, so that editing the
   # documentation or regenerating the demo recording leaves the pytest suite and
@@ -281,32 +282,32 @@
   # genuine hang.
   sandboxedTestTimeout = "--timeout=120";
 
-  pythonApplication = pkgs.python3Packages.buildPythonApplication {
+  pythonApplication = pythonPackages.buildPythonApplication {
     pname = "prompt-conformance";
     inherit ((lib.importTOML ./pyproject.toml).project) version;
     src = source;
     pyproject = true;
-    build-system = [pkgs.python3Packages.setuptools];
+    build-system = [pythonPackages.setuptools];
     dependencies =
       [
-        pkgs.python3Packages.httpx
-        pkgs.python3Packages.msgspec
-        pkgs.python3Packages.mcp
-        pkgs.python3Packages.psygnal
-        pkgs.python3Packages.pydantic
-        pkgs.python3Packages.rich
-        pkgs.python3Packages.tomli-w
-        pkgs.python3Packages.unidiff
-        pkgs.python3Packages.watchfiles
+        pythonPackages.httpx
+        pythonPackages.msgspec
+        pythonPackages.mcp
+        pythonPackages.psygnal
+        pythonPackages.pydantic
+        pythonPackages.rich
+        pythonPackages.tomli-w
+        pythonPackages.unidiff
+        pythonPackages.watchfiles
       ]
       ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-        pkgs.python3Packages.pyobjc-framework-Security
+        pythonPackages.pyobjc-framework-Security
       ];
     nativeCheckInputs = [
       pkgs.basedpyright
       pkgs.gitMinimal
-      pkgs.python3Packages.pytestCheckHook
-      pkgs.python3Packages.pytest-timeout
+      pythonPackages.pytestCheckHook
+      pythonPackages.pytest-timeout
       pkgs.ruff
     ];
     preCheck = ''
@@ -340,8 +341,8 @@
     pkgs.runCommandLocal "prompt-conformance-codex-protocol-check" {
       nativeBuildInputs = [
         codex
-        pkgs.python3Packages.pytest
-        pkgs.python3Packages.pytest-timeout
+        pythonPackages.pytest
+        pythonPackages.pytest-timeout
         pythonApplication
       ];
     } ''
@@ -360,8 +361,8 @@
       nativeBuildInputs = [
         codex
         pkgs.gitMinimal
-        pkgs.python3Packages.pytest
-        pkgs.python3Packages.pytest-timeout
+        pythonPackages.pytest
+        pythonPackages.pytest-timeout
         pythonApplication
       ];
       # The scripted model endpoint is a real listener the Codex child process
@@ -382,8 +383,8 @@
     pkgs.runCommandLocal "prompt-conformance-claude-endpoint-check" {
       nativeBuildInputs = [
         claudeCode
-        pkgs.python3Packages.pytest
-        pkgs.python3Packages.pytest-timeout
+        pythonPackages.pytest
+        pythonPackages.pytest-timeout
         pythonApplication
       ];
       # The scripted Messages endpoint is a real listener the Claude child

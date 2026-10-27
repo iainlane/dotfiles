@@ -5,7 +5,7 @@ from functools import cached_property
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from ..errors import ConformanceError
@@ -114,10 +114,10 @@ class ImproverEvidence:
         )
 
 
-def create_improver_server(evidence: ImproverEvidence) -> FastMCP[None]:
+def create_improver_server(evidence: ImproverEvidence) -> MCPServer[None]:
     """Register the improver's schema-backed evidence tools."""
 
-    server: FastMCP[None] = FastMCP(
+    server: MCPServer[None] = MCPServer(
         "prompt-conformance-improver",
         instructions=(
             "Use these read-only tools to inspect working outcomes and the prompt "

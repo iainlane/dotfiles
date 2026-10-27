@@ -18,6 +18,7 @@ relevant_paths=(
 	flake/git-hooks/configuration.nix
 	flake/local-packages/outputs.nix
 	lib/package-outputs.nix
+	lib/mcp-python.nix
 	features/ai/default.nix
 	features/ai/prompt-conformance.nix
 	features/ai/agent-instructions.nix

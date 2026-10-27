@@ -5,7 +5,8 @@ from typing import overload
 
 import msgspec
 import pytest
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp_types import CallToolResult
 
 from claude_prompt_conformance.mcp import (
     create_server,
@@ -208,15 +209,17 @@ def test_evaluator_tools_have_complete_schemas_and_structured_results(
     server = create_server(load_configuration(path))
 
     tools = asyncio.run(server.list_tools())
-    _, brief = asyncio.run(server.call_tool("get_evaluation_brief", {}))
+    result = asyncio.run(server.call_tool("get_evaluation_brief", {}))
+    assert isinstance(result, CallToolResult)
+    brief = result.structured_content
 
     assert (
         load_configuration(path),
         tuple(
             (
                 tool.name,
-                tuple(tool.inputSchema.get("required", ())),
-                tool.outputSchema is not None,
+                tuple(tool.input_schema.get("required", ())),
+                tool.output_schema is not None,
             )
             for tool in tools
         ),

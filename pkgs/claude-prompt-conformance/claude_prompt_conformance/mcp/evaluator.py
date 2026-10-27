@@ -6,7 +6,7 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 import msgspec
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field, JsonValue
 
 from ..errors import ConformanceError
@@ -325,10 +325,10 @@ class EvaluatorEvidence:
         return tuple(calls)
 
 
-def create_evaluator_server(evidence: EvaluatorEvidence) -> FastMCP[None]:
+def create_evaluator_server(evidence: EvaluatorEvidence) -> MCPServer[None]:
     """Register the evaluator's schema-backed evidence tools."""
 
-    server: FastMCP[None] = FastMCP(
+    server: MCPServer[None] = MCPServer(
         "prompt-conformance-evaluator",
         instructions=(
             "Use these read-only tools to inspect the complete task context, "

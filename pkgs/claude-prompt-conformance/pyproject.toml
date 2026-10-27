@@ -8,7 +8,7 @@ version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
   "httpx",
-  "mcp",
+  "mcp>=2,<3",
   "msgspec",
   "psygnal",
   "pydantic",
@@ -45,6 +45,7 @@ known-first-party = ["claude_prompt_conformance"]
 known-third-party = [
   "httpx",
   "mcp",
+  "mcp_types",
   "msgspec",
   "psygnal",
   "pydantic",

@@ -1,5 +1,4 @@
-# The MCP servers every harness should talk to, and the mcp-servers-nix module
-# evaluation that turns them into server definitions.
+# Shared MCP servers and the mcp-servers-nix evaluation that defines them.
 #
 # `features/ai/default.nix` calls this once per system, against unstable, and
 # gives the result to `mcp-servers.nix` for both channels. The definitions are
@@ -15,7 +14,10 @@
 
     fetch.enable = false;
 
-    git.enable = true;
+    git = {
+      enable = true;
+      package = pkgs.mcp-server-git;
+    };
 
     github = {
       enable = false;
@@ -27,6 +29,7 @@
 
     nixos = {
       enable = true;
+      package = import ../../lib/mcp-nixos.nix {inherit inputs pkgs;};
       # mcp-nixos checks for updates on startup, which is slow and noisy; turn
       # it off so the server comes up quickly.
       env.FASTMCP_CHECK_FOR_UPDATES = "off";
