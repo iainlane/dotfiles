@@ -1,9 +1,10 @@
 # LibreChat
 
-Bonington and Melton run the nixpkgs LibreChat package with native MongoDB,
-PostgreSQL with pgvector, Meilisearch, Redis, RustFS and CodeAPI services.
-LibreChat listens on `http://127.0.0.1:3080`. The service uses the user's
-private state directory, which defaults to `$XDG_DATA_HOME/librechat`.
+Bonington and Melton run a pinned LibreChat fork through the nixpkgs package
+with native MongoDB, PostgreSQL with pgvector, Meilisearch, Redis, RustFS and
+CodeAPI services. LibreChat listens on `http://127.0.0.1:3080`. The service uses
+the user's private state directory, which defaults to
+`$XDG_DATA_HOME/librechat`.
 
 The service starts the databases first and waits for a personal account. After
 activation, create a password file with mode `0600`, then run:
@@ -17,6 +18,10 @@ and a personal agent for each configured provider. Repeating the command repairs
 agent permissions and creates agents for newly enabled providers. Existing
 passwords and agent settings are preserved. Restart the service after changing
 provider options, and rerun bootstrap when enabling a new provider.
+
+Bootstrap also repairs the legacy `Ollama` provider value to LibreChat's
+canonical `ollama` identifier. The repair preserves the existing agent ID and
+its other settings.
 
 ## Providers
 
@@ -58,6 +63,13 @@ needs an explicit Linux replacement in `guestMcpServers`.
 wrappers. Its `sourceCommand` must match the selected shared definition.
 `headerFiles` resolves credentials on the host. A change to the final registry
 therefore cannot silently select an unrelated HTTP equivalent.
+
+LibreChat uses a release-based fork with `mcpSettings.authorizationMode` set to
+`nonblocking`. A server that requires authentication remains unavailable until
+the user connects it, without delaying ordinary inference. Discovery uses the
+server's tools after connection. Known tools use tool search and request sign-in
+when called if their credentials have expired. The shared MCP registry does not
+need duplicate tool catalogues or individual tool selections.
 
 `dotfiles.ai.skillRuntimeDependencies` specifies Nix package attributes for each
 shared skill entry. The host installs these tools, and LibreChat resolves the
@@ -133,5 +145,42 @@ shutdown is delayed. A successful stop exits zero and does not restart the
 agent. `launchctl kickstart "gui/$(id -u)/org.nix-community.home.librechat"`
 starts the service again.
 
+The `librechat-startup` flake check runs the generated service command inside
+the Nix sandbox with the service manager's initial working directory. It uses
+the real host services with temporary state, Unix sockets and TCP ports. The
+check creates an administrator and a personal agent with a whole-server MCP
+selection, and verifies that repeated bootstrap does not create another agent
+version. A loopback model, OAuth provider and MCP exercise an ordinary chat
+before authentication, explicit connection and automatic tool discovery. The
+check verifies web health and login, restarts the service and verifies login
+again. External provider and MCP calls, skills, RAG, workspace hooks and
+conversation VMs are outside this check. The existing LibreChat service can
+continue running. On Linux, the check uses a NixOS VM to provide sysfs for
+MongoDB's allocator. Service manager registration needs a separate host test.
+
+On Melton, run:
+
+```sh
+direnv exec . nix build .#checks.aarch64-darwin.librechat-startup
+```
+
 This feature defines deployment configuration. Building or evaluating the flake
 does not activate services or download Ollama models onto a running host.
+
+## Fork updates
+
+The [LibreChat fork] uses branch `fix/mcp-nonblocking-auth`, based on
+`v0.8.9-rc1`. Application changes belong in the fork checkout at
+`~/dev/random/typescript/LibreChat`. The overlay in `overlays/librechat.nix`
+fetches an immutable commit from the published fork; deployment does not depend
+on that local checkout or the current branch tip.
+
+Validate and review changes in the fork before publishing its branch. Update
+`revision` and the source hash in the overlay to the published commit, then run
+the LibreChat package and startup checks on Darwin and Linux. Keep the npm
+dependency hash when the dependency output is unchanged. A dependency update
+requires a new hash and package validation. The overlay disables the generic
+package updater because a release update must preserve or supersede the fork's
+authentication changes.
+
+[LibreChat fork]: https://github.com/iainlane/LibreChat

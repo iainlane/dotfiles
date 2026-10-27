@@ -11,7 +11,7 @@
   pkgs-unstable,
   skillTree,
   ...
-}: let
+} @ moduleArgs: let
   cfg = config.dotfiles.inference.librechat;
 
   native = pkgs-unstable;
@@ -88,11 +88,12 @@
     cp -RL ${skillTree {skills = config.dotfiles.ai.skills;}}/. "$out/"
   '';
 
-  guest = import ./guest-image.nix {
-    inherit inputs archiveCli skillPackages skills;
-    pkgs = guestPkgs;
-    servers = guestServers;
-  };
+  guest =
+    moduleArgs.librechatGuest or (import ./guest-image.nix {
+      inherit inputs archiveCli skillPackages skills;
+      pkgs = guestPkgs;
+      servers = guestServers;
+    });
 
   postgres = native.postgresql_18.withPackages (extensions: [extensions.pgvector]);
 

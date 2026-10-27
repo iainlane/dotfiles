@@ -1,6 +1,7 @@
 {
   callPackage,
   lib,
+  librechat,
   librechat-code,
   makeWrapper,
   nodejs_24,
@@ -19,6 +20,7 @@
   dontNpmPrune = true;
   doCheck = true;
   __darwinAllowLocalNetworking = true;
+  LIBRECHAT_TEST_ROOT = "${librechat}/lib/node_modules/LibreChat";
   passthru.updateScript = null;
 
   checkPhase = ''
@@ -33,19 +35,11 @@
 
     mkdir -p "$out/lib/librechat-runtime" "$out/bin"
 
-    for source in *.ts *.mts; do
-      case "$source" in
-        *.test.ts) continue ;;
-      esac
-
-      cp "$source" "$out/lib/librechat-runtime/"
-    done
-
-    cp -R node_modules package.json "$out/lib/librechat-runtime/"
-    cp ${librechat-code}/lib/librechat-code/.build/bridge-worker.mjs "$out/lib/librechat-runtime/"
+    cp -R src node_modules package.json "$out/lib/librechat-runtime/"
+    cp ${librechat-code}/lib/librechat-code/.build/bridge-worker.mjs "$out/lib/librechat-runtime/src/"
 
     makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
-      --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/cli.ts"
+      --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/src/cli.ts"
     runHook postInstall
   '';
 

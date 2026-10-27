@@ -1,0 +1,8 @@
+{
+  "extends": ["../../.oxlintrc.json"],
+  "rules": {
+    "import/no-commonjs": "error",
+    "unicorn/prefer-module": "error",
+    "promise/prefer-await-to-then": ["error", { "strict": true }]
+  }
+}
