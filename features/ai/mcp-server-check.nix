@@ -11,13 +11,16 @@ in {
   mcp-server-protocol =
     pkgs.runCommandLocal "mcp-server-protocol" {
       nativeBuildInputs = [python pkgs.basedpyright pkgs.ruff];
+      __darwinAllowLocalNetworking = true;
+      SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
     } ''
       export HOME="$TMPDIR"
       ruff check ${./mcp-server.test.py}
       ruff format --check ${./mcp-server.test.py}
       basedpyright ${./mcp-server.test.py}
       python ${./mcp-server.test.py} \
-        ${lib.getExe server} ${lib.getExe registry.serverPackages.git}
+        ${lib.getExe server} ${lib.getExe registry.serverPackages.git} \
+        ${lib.getExe pkgs.mcp-proxy}
       touch "$out"
     '';
 }
