@@ -807,9 +807,11 @@ export class NativeHostStack {
       version: "1.3.18",
       cache: true,
       registration: { socialLogins: [] },
+      interface: { modelSelect: true },
       modelSpecs: {
         enforce: false,
-        prioritize: true,
+        prioritize: false,
+        addedEndpoints: agents.map((agent) => agent.provider),
         list: agents.map((agent, index) => ({
           name: `dotfiles-${agent.provider}`,
           label: agent.name,
@@ -940,6 +942,7 @@ export class NativeHostStack {
         CODEAPI_JWT_SINGLE_TENANT_ID: CODE_TENANT_ID,
         LIBRECHAT_CODE_BASEURL: `http://127.0.0.1:${ports.codeApi}/v1`,
         LIBRECHAT_CODE_BASEURL_STATEFUL: `http://127.0.0.1:${ports.codeApi}/v1`,
+        LIBRECHAT_CODE_DEFAULT_PROFILE: "stateful",
         ...(ragEnabled ? { RAG_API_URL: "http://127.0.0.1:3180" } : {}),
       },
     });

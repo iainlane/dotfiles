@@ -381,6 +381,7 @@ def run(configuration: StartupConfiguration) -> None:
             f"#!{sys.executable}\n"
             "import os\n"
             "import sys\n"
+            "assert os.environ['LIBRECHAT_CODE_DEFAULT_PROFILE'] == 'stateful'\n"
             f"os.environ.update({fixture_environment!r})\n"
             f"os.execv({original_launcher!r}, [{original_launcher!r}, *sys.argv[1:]])\n"
         )
@@ -475,12 +476,24 @@ def run(configuration: StartupConfiguration) -> None:
                             (manifest.state_directory / "librechat.json").read_text()
                         )
                         assert {
+                            "modelSelect": runtime_config["interface"]["modelSelect"],
+                            "prioritize": runtime_config["modelSpecs"]["prioritize"],
+                            "addedEndpoints": runtime_config["modelSpecs"][
+                                "addedEndpoints"
+                            ],
+                            "allowedEnvironments": runtime_config["endpoints"][
+                                "agents"
+                            ]["statefulCodeSessions"]["allowedEnvironments"],
                             "deferred_tools": "deferred_tools"
                             in runtime_config["endpoints"]["agents"]["capabilities"],
                             "authorizationMode": runtime_config["mcpSettings"][
                                 "authorizationMode"
                             ],
                         } == {
+                            "modelSelect": True,
+                            "prioritize": False,
+                            "addedEndpoints": ["anthropic"],
+                            "allowedEnvironments": ["conversation"],
                             "deferred_tools": True,
                             "authorizationMode": "nonblocking",
                         }

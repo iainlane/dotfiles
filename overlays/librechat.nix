@@ -1,6 +1,6 @@
 _: final: prev: let
   baseVersion = "0.8.9-rc1";
-  revision = "e3dc6054dccf551c34009a9fdae61758406730a5";
+  revision = "084ae41b83e127900c49ec8ddac1f4924d47bc93";
 in {
   librechat = prev.librechat.overrideAttrs (finalAttrs: previousAttrs: {
     version = "${baseVersion}-unstable-2026-10-27";
@@ -8,7 +8,7 @@ in {
       owner = "iainlane";
       repo = "LibreChat";
       rev = revision;
-      hash = "sha256-qlxV0fsQue+h9IeTVmXgtov1GxDDy6y1xipA04w83vA=";
+      hash = "sha256-MMk8Q65zI/iXHNaWw841xqWXe49bZkI5DthITQHx4Po=";
     };
     npmDepsHash = "sha256-0f0VaGBGxz/tI+8B4wSCGVyzlMH1yDDv9K0fWvDpjZ4=";
     npmDeps = previousAttrs.npmDeps.overrideAttrs {

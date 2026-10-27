@@ -1,8 +1,12 @@
 import { createRequire } from "node:module";
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { configuredPersonalAgents } from "../src/bootstrap.ts";
+import {
+  configuredPersonalAgents,
+  personalAgentData,
+} from "../src/bootstrap.ts";
 import { configureProviders, type ProviderOptions } from "../src/config.ts";
+import { CODE_ENVIRONMENT_ID } from "../src/identity.ts";
 
 type NativeFunction = (...args: unknown[]) => unknown;
 
@@ -28,11 +32,146 @@ process.env.LOG_TO_FILE = "false";
 
 const require = createRequire(`${root}/package.json`);
 const api = z
-  .object({ createLoadConfigModels: callable, validateAgentModel: callable })
+  .object({
+    createLoadConfigModels: callable,
+    validateAgentModel: callable,
+    loadEphemeralAgent: callable,
+    resolveAgentCodeExecution: callable,
+  })
   .parse(require("@librechat/api"));
 const dataProvider = z
   .object({ configSchema: z.object({ parse: callable }) })
   .parse(require("librechat-data-provider"));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+const codeRoute = z.object({
+  statefulSessions: z.boolean(),
+  statefulCodeEnvironment: z.string(),
+  context: z.looseObject({
+    baseUrl: z.string(),
+    executionProfile: z.string(),
+    statefulSessions: z.boolean(),
+    environmentId: z.string().optional(),
+    environmentType: z.string().optional(),
+    codeSessionKey: z.string(),
+    runtimeSessionHint: z.string().optional(),
+  }),
+});
+
+it.each([
+  { provider: "anthropic", model: models.anthropic },
+  { provider: "openAI", model: models.openai },
+  { provider: "OpenRouter", model: models.openrouter },
+  { provider: "ollama", model: models.ollama },
+])(
+  "shares the Personal agent VM across ordinary $provider model switches within each conversation",
+  async ({ provider, model }) => {
+    vi.stubEnv("LIBRECHAT_CODE_DEFAULT_PROFILE", "stateful");
+
+    const providers = {
+      anthropicKeyFile: "/fixture/key",
+      openaiKeyFile: "/fixture/key",
+      openrouterKeyFile: "/fixture/key",
+      ollamaUrl: "http://127.0.0.1:11434",
+    };
+    const configured = await configureProviders(
+      providers,
+      async () => "fixture-key",
+    );
+    const definition = configuredPersonalAgents(providers, models).find(
+      (agent) => agent.provider === provider,
+    );
+
+    if (definition === undefined) {
+      throw new Error(`No Personal agent is configured for ${provider}`);
+    }
+
+    const owner = { userId: "fixture-user", email: "fixture@example.com" };
+    const saved = personalAgentData(definition, owner, {
+      instructions: "Personal instructions",
+      servers: ["workspace"],
+      fileSearch: true,
+    });
+    const environments = [
+      {
+        id: CODE_ENVIRONMENT_ID,
+        name: "Conversation VM",
+        type: "managed",
+        baseURL: "http://127.0.0.1:3195/v1",
+        default: true,
+      },
+    ];
+    const params = {
+      codeExecutionAvailable: true,
+      statefulSessionsAvailable: true,
+      allowedStatefulCodeEnvironments: ["conversation"],
+      environments,
+      userId: owner.userId,
+    };
+    const conversations = [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ];
+    const sessionKeys = await Promise.all(
+      conversations.map(async (conversationId) => {
+        const personal = codeRoute.parse(
+          api.resolveAgentCodeExecution({
+            ...params,
+            conversationId,
+            agent: saved,
+          }),
+        );
+        const ordinary = await Promise.all(
+          [model, `${model}-alternative`].map(async (selected) => {
+            const agent = await api.loadEphemeralAgent(
+              {
+                req: {
+                  user: { id: owner.userId },
+                  body: { ephemeralAgent: { execute_code: true } },
+                  config: { endpoints: configured.endpoints },
+                },
+                endpoint: provider,
+                model_parameters: { model: selected },
+              },
+              {
+                getAgent: async () => null,
+                getMCPServerTools: async () => null,
+              },
+            );
+
+            return codeRoute.parse(
+              api.resolveAgentCodeExecution({
+                ...params,
+                conversationId,
+                agent,
+              }),
+            );
+          }),
+        );
+
+        expect({
+          profile: personal.context.executionProfile,
+          scope: personal.statefulCodeEnvironment,
+          stateful: personal.statefulSessions,
+          environment: personal.context.environmentId,
+          ordinary,
+        }).toStrictEqual({
+          profile: "stateful",
+          scope: "conversation",
+          stateful: true,
+          environment: CODE_ENVIRONMENT_ID,
+          ordinary: [personal, personal],
+        });
+        return personal.context.codeSessionKey;
+      }),
+    );
+
+    expect(new Set(sessionKeys).size).toBe(conversations.length);
+  },
+);
 
 it.each([
   { settings: {}, mode: "eager" },
