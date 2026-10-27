@@ -1,5 +1,5 @@
-# Build and publish deploy profiles, packages and checks in strict cohorts.
-# Targets for the same system share a build invocation and a Nix store.
+# Deployment profiles, deployment tools and activation checks share a cohort
+# for each system. Other packages and checks use a separate cohort.
 #
 # Public targets omit deploy profiles and checks that read the private secrets
 # input. Fork pull requests and merge groups build this subset without publishing.
@@ -35,10 +35,14 @@
     remote = true;
   };
 
+  deploymentFor = system:
+    baseFor system
+    // {cohort = "${system}-deploy";};
+
   systemEntry = name: host: let
     profile = deploy.nodes.${name}.profiles.system.path;
   in
-    baseFor host.system
+    deploymentFor host.system
     // {
       attr = ".#deploy.nodes.${name}.profiles.system.path";
       rootDrvPath = profile.drvPath;
@@ -48,7 +52,7 @@
   homeEntry = name: host: let
     profile = deploy.nodes.${name}.profiles.${username}.path;
   in
-    baseFor host.system
+    deploymentFor host.system
     // {
       attr = ".#deploy.nodes.${name}.profiles.${username}.path";
       rootDrvPath = profile.drvPath;
@@ -62,7 +66,7 @@
   deployToolEntries =
     map
     (system:
-      baseFor system
+      deploymentFor system
       // {
         attr = ".#packages.${system}.deploy-rs";
         rootDrvPath = config.flake.packages.${system}.deploy-rs.drvPath;
@@ -91,7 +95,11 @@
 
   checkEntriesFor = system: systemChecks:
     lib.mapAttrsToList
-    (name: outputEntry system ".#checks.${system}.${name}" "checks-${name}")
+    (name: check:
+      outputEntry system ".#checks.${system}.${name}" "checks-${name}" check
+      // lib.optionalAttrs (name == "deploy-activate") {
+        inherit (deploymentFor system) cohort;
+      })
     (lib.filterAttrs (_: check: buildable system check && (!(check.ci.runOnce or false) || system == validationSystem)) systemChecks);
 
   checks = config.flake.checks;

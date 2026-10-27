@@ -44,6 +44,10 @@
     (name: validationEntry ".#legacyPackages.${validationSystem}.slowChecks.${name}" "slow-checks-${name}")
     (lib.attrNames (lib.filterAttrs (_: buildable validationSystem) slowChecks));
 
+  deploymentTargets =
+    lib.listToAttrs (profiles ++ deployTools)
+    // lib.genAttrs (map (system: ".#checks.${system}.deploy-activate") systems) (_: true);
+
   required = lib.listToAttrs (
     profiles
     ++ deployTools
@@ -59,10 +63,13 @@
     };
     coverage = lib.attrNames required;
     policy =
-      lib.mapAttrs (_: target: {
+      lib.mapAttrs (attr: target: {
         inherit (target) system rootSuffix;
         bestEffort = false;
-        cohort = target.system;
+        cohort =
+          if deploymentTargets ? ${attr}
+          then "${target.system}-deploy"
+          else target.system;
         os =
           if featureResolver.isDarwin (featureResolver.contextForSystem target.system)
           then "macos-latest"

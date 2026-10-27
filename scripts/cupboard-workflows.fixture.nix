@@ -43,6 +43,7 @@
     });
     checks = lib.genAttrs systems (system:
       {
+        deploy-activate = fakePackage "activate";
         deploy-schema = fakePackage "deploy" // {ci.runOnce = true;};
         example = fakePackage "example";
         global = fakePackage "global" // {ci.runOnce = true;};
@@ -78,6 +79,7 @@
         checks = lib.mapAttrs (_: checks:
           checks
           // {
+            deploy-activate = throw "A private activation check was evaluated.";
             deploy-schema = throw "A private deploy check was evaluated.";
             falcon-kernel-test = throw "A private Falcon check was evaluated.";
             host-evaluation-home-test = throw "A private host check was evaluated.";

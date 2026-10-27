@@ -629,6 +629,7 @@ function expectedTarget(
   suffix: string,
   derivation: string,
   system = "x86_64-linux",
+  cohort = system,
 ): FixtureTarget {
   return {
     attr,
@@ -636,7 +637,7 @@ function expectedTarget(
     rootDrvPath: `/nix/store/00000000000000000000000000000000-${derivation}.drv`,
     system,
     bestEffort: false,
-    cohort: system,
+    cohort,
     os: system.endsWith("-darwin")
       ? "macos-latest"
       : system.startsWith("aarch64-")
@@ -657,6 +658,7 @@ function expectedChecks(
 ): readonly FixtureTarget[] {
   const checks: readonly (readonly [string, string])[] = includePrivate
     ? [
+        ["deploy-activate", "activate"],
         ["deploy-schema", "deploy"],
         ["example", "example"],
         ["falcon-kernel-test", "falcon"],
@@ -690,6 +692,7 @@ function expectedChecks(
         `checks-${name}`,
         derivation,
         system,
+        name === "deploy-activate" ? `${system}-deploy` : system,
       ),
     );
 }
@@ -797,7 +800,7 @@ describe("Cupboard strict build ownership", () => {
     );
   });
 
-  it("groups hosts, packages and all checks into strict system cohorts", () => {
+  it("separates deployment closures from packages and other checks", () => {
     const publicTargets = expectedPublicTargets();
     assert.deepEqual(
       { outputs: fixture.outputs, publicOutputs: fixture.publicOutputs },
@@ -809,33 +812,42 @@ describe("Cupboard strict build ownership", () => {
             "darwin-mac",
             "system-mac",
             "aarch64-darwin",
+            "aarch64-darwin-deploy",
           ),
           expectedTarget(
             ".#deploy.nodes.test.profiles.system.path",
             "nixos-test",
             "system-test",
+            "x86_64-linux",
+            "x86_64-linux-deploy",
           ),
           expectedTarget(
             ".#deploy.nodes.mac.profiles.tester.path",
             "home-mac",
             "home-mac",
             "aarch64-darwin",
+            "aarch64-darwin-deploy",
           ),
           expectedTarget(
             ".#deploy.nodes.test.profiles.tester.path",
             "home-test",
             "home-test",
+            "x86_64-linux",
+            "x86_64-linux-deploy",
           ),
           expectedTarget(
             ".#packages.aarch64-darwin.deploy-rs",
             "deploy-rs",
             "deploy-rs-darwin",
             "aarch64-darwin",
+            "aarch64-darwin-deploy",
           ),
           expectedTarget(
             ".#packages.x86_64-linux.deploy-rs",
             "deploy-rs",
             "deploy-rs-linux",
+            "x86_64-linux",
+            "x86_64-linux-deploy",
           ),
           publicTargets[0],
           ...checkSystems.flatMap((system) => expectedChecks(system, true)),
