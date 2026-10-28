@@ -5,17 +5,10 @@
     # bacon-ls for Rust development in neovim
     bacon-ls = {
       url = "github:crisidev/bacon-ls";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.naersk.inputs.nixpkgs.follows = "nixpkgs";
     };
 
     bun2nix = {
       url = "github:nix-community/bun2nix/0f2a1f0b6f42cebe3b149bf62d38754c5e0e9729";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-parts.follows = "flake-parts";
-        treefmt-nix.follows = "treefmt-nix";
-      };
     };
 
     uv2nix.follows = "hermes-agent/uv2nix";
@@ -24,11 +17,9 @@
 
     catppuccin = {
       url = "github:catppuccin/nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
     catppuccin-stable = {
       url = "github:catppuccin/nix/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
     # The bat theme repository, read by `programs.bat.themes` in
@@ -69,24 +60,20 @@
 
     deploy-rs = {
       url = "github:serokell/deploy-rs";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/3";
 
     disko = {
       url = "github:nix-community/disko";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     fenix = {
       url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
     # Agent skill shipped in the `gh-stack` repository's `skills/gh-stack/`.
@@ -101,22 +88,18 @@
 
     git-hooks-nix = {
       url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     home-manager = {
       url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     home-manager-stable = {
       url = "github:nix-community/home-manager/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs-stable";
     };
 
     hermes-agent = {
       url = "github:iainlane/hermes-agent/codex/final-private-upstream-integration";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     hermes-homeassistant = {
@@ -155,7 +138,6 @@
 
     kolide-launcher = {
       url = "github:kolide/nix-agent";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # `measured-boot` is our branch of lanzaboote. It adds support for
@@ -173,18 +155,14 @@
 
     llm-agents = {
       url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     mcp-servers-nix = {
       url = "github:natsukium/mcp-servers-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     mcp-nixos = {
       url = "github:utensils/mcp-nixos/v3.1.0";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-parts.follows = "flake-parts";
     };
 
     nix-darwin = {
@@ -200,18 +178,14 @@
     # Pre-built nix-index database for faster `nix-locate` queries
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     nix-system-graphics = {
       url = "github:soupglasses/nix-system-graphics";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     nixos-anywhere = {
       url = "github:nix-community/nixos-anywhere";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nixos-stable.follows = "nixpkgs-stable";
     };
 
     nixos-hardware.url = "github:NixOS/nixos-hardware";
@@ -233,7 +207,6 @@
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Our branch of starship, with starship/starship#6834 applied. The patch
@@ -252,7 +225,6 @@
 
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
