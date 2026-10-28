@@ -14,7 +14,7 @@ import { exitAfterFlushing } from "./cli-output.ts";
 export class RuntimeCommandError extends Error {
   constructor() {
     super(
-      "Use librechat-runtime serve <manifest>, bootstrap <manifest> --email <email> --password-file <file>, reset <manifest> --conversation <UUID>, guest <specification>, archive session <query>, or hook <configuration>",
+      "Use librechat-runtime serve <manifest>, bootstrap <manifest> --email <email> --name <name> --password-file <file>, reset <manifest> --conversation <UUID>, guest <specification>, archive session <query>, or hook <configuration>",
     );
 
     this.name = "RuntimeCommandError";
@@ -127,7 +127,7 @@ async function main(args: string[]): Promise<void> {
         .object({
           email: z.email(),
           "password-file": z.string(),
-          name: z.string().optional(),
+          name: z.string(),
         })
         .parse(options.values);
 

@@ -808,17 +808,6 @@ export class NativeHostStack {
       cache: true,
       registration: { socialLogins: [] },
       interface: { modelSelect: true },
-      modelSpecs: {
-        enforce: false,
-        prioritize: false,
-        addedEndpoints: agents.map((agent) => agent.provider),
-        list: agents.map((agent, index) => ({
-          name: `dotfiles-${agent.provider}`,
-          label: agent.name,
-          default: index === 0,
-          preset: { endpoint: "agents", agent_id: agent.id },
-        })),
-      },
       endpoints: {
         custom: providers.endpoints.custom.map((endpoint) => ({
           ...endpoint,

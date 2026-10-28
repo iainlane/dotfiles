@@ -10,12 +10,14 @@ The service starts the databases first and waits for a personal account. After
 activation, create a password file with mode `0600`, then run:
 
 ```sh
-librechatctl bootstrap --email you@example.com --password-file /private/password
+librechatctl bootstrap --email you@example.com --name "Your Name" --password-file /private/password
 ```
 
 Remove the password file afterwards. Bootstrap creates the first administrator
 and a personal agent for each configured provider. Repeating the command repairs
-agent permissions and creates agents for newly enabled providers. Existing
+agent permissions and creates agents for newly enabled providers. The required
+`--name` sets the account's display name on creation and updates it on
+subsequent runs. Names are trimmed and must contain 3 to 80 characters. Existing
 passwords and agent settings are preserved. Restart the service after changing
 provider options, and rerun bootstrap when enabling a new provider.
 
@@ -24,6 +26,14 @@ canonical `ollama` identifier. The repair preserves the existing agent ID and
 its other settings.
 
 ## Providers
+
+Select providers and models directly from the model selector. The saved Personal
+agents remain under **My Agents**. Use an agent's Pin control to add the agent
+to your favourites.
+
+Personal agents use the shared coding instructions and preconfigured tools and
+skills. Ordinary chats do not inherit those instructions or tool and skill
+selections. This integration does not supply a general chat persona.
 
 Set these Home Manager options under `dotfiles.inference.librechat`:
 

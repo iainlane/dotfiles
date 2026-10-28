@@ -28,8 +28,14 @@ in {
         key = "anthropic_api_key";
       };
 
+      sops.secrets.openrouter-api-key = {
+        sopsFile = inputs.secrets + "/melton/user-librechat.yaml";
+        key = "openrouter_api_key";
+      };
+
       dotfiles = {
         ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
+        ai.openrouterApiKeyFile = config.sops.secrets.openrouter-api-key.path;
         agentsview.disabledAgents = ["warp"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;

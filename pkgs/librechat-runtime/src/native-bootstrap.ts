@@ -118,8 +118,12 @@ async function readPreviousAccount(file: string): Promise<unknown> {
 
 export async function bootstrapAccount(
   manifest: HostManifest,
-  input: { email: string; passwordFile: string; name?: string },
+  input: { email: string; passwordFile: string; name: string },
 ): Promise<void> {
+  const { name: displayName } = z
+    .object({ name: z.string().trim().min(3).max(80) })
+    .parse(input);
+
   const email = z.email().parse(input.email.toLowerCase());
 
   const accountFile = join(manifest.stateDirectory, "account.json");
@@ -244,7 +248,7 @@ export async function bootstrapAccount(
 
       const registration = {
         email,
-        name: input.name ?? "Personal account",
+        name: displayName,
         password,
         confirm_password: password,
       };
@@ -316,6 +320,19 @@ export async function bootstrapAccount(
         "run",
         { tenantId: owner.tenantId, userId: owner.userId },
         async () => {
+          z.object({ name: z.literal(displayName) }).parse(
+            await Promise.resolve(
+              invoke(
+                methods,
+                "updateUser",
+                owner.userId,
+                { name: displayName },
+                {},
+                { preserveExpiresAt: true },
+              ),
+            ),
+          );
+
           await provisionAgents(
             owner,
             configuredPersonalAgents(manifest.providers, manifest.models),

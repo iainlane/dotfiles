@@ -42,6 +42,8 @@ PORTS = (
 )
 EMAIL = "startup@example.com"
 PASSWORD = "LibreChat-startup-fixture-2026!"
+INITIAL_NAME = "Startup Fixture"
+NAME = "Renamed Fixture"
 ANSI_COLOUR = re.compile(r"\x1b\[[0-9;]*m")
 ERROR_LOG = re.compile(r"\berror:")
 PROVISIONING_STARTED = "LibreChat bootstrap provisioning started."
@@ -118,6 +120,7 @@ class BootstrapAccount(BaseModel):
 class Account(BaseModel):
     email: str
     role: str
+    name: str
 
 
 class LoginResponse(BaseModel):
@@ -238,6 +241,7 @@ async def bootstrap_account(
     password: Path,
     environment: dict[str, str],
     output: BinaryIO,
+    name: str,
 ) -> None:
     command = [
         str(configuration.runtime),
@@ -245,6 +249,8 @@ async def bootstrap_account(
         str(manifest),
         "--email",
         EMAIL,
+        "--name",
+        name,
         "--password-file",
         str(password),
     ]
@@ -302,10 +308,45 @@ async def bootstrap_account(
             await asyncio.wait_for(process.wait(), timeout=10)
 
 
-def verify_agent_selection(
-    state_directory: Path, bootstrap: Callable[[], None]
+def verify_bootstrap_name_validation(
+    configuration: StartupConfiguration,
+    manifest: Path,
+    environment: dict[str, str],
 ) -> None:
-    bootstrap()
+    invalid_state = manifest.parent / "invalid-bootstrap-state"
+    invalid_manifest = manifest.parent / "invalid-bootstrap.json"
+    data = HostManifest.model_validate_json(manifest.read_text()).model_copy(
+        update={"state_directory": invalid_state}
+    )
+    invalid_manifest.write_text(data.model_dump_json(by_alias=True))
+
+    for name in (None, "", "   ", "ab", "a" * 81):
+        command = [
+            str(configuration.runtime),
+            "bootstrap",
+            str(invalid_manifest),
+            "--email",
+            EMAIL,
+            "--password-file",
+            str(invalid_state / "password"),
+        ]
+        if name is not None:
+            command.extend(["--name", name])
+
+        result = subprocess.run(
+            command, env=environment, capture_output=True, timeout=10, check=False
+        )
+        assert {
+            "failed": result.returncode != 0,
+            "name_error": b'"name"' in result.stderr,
+            "state_created": invalid_state.exists(),
+        } == {"failed": True, "name_error": True, "state_created": False}
+
+
+def verify_agent_selection(
+    state_directory: Path, bootstrap: Callable[[str], None]
+) -> None:
+    bootstrap(INITIAL_NAME)
     connection = DatabaseConnection.model_validate_json(
         (state_directory / "connection.json").read_text()
     )
@@ -316,13 +357,23 @@ def verify_agent_selection(
         connection.mongo_uri, serverSelectionTimeoutMS=5000, timeoutMS=5000
     ) as client:
         agents = client["LibreChat"]["agents"]
+        users = client["LibreChat"]["users"]
+        user_query = {"_id": ObjectId(account.user_id)}
+        user_projection = {"_id": False, "name": True, "password": True}
+        original_user = users.find_one(user_query, user_projection)
+        assert original_user is not None
+        assert original_user["name"] == INITIAL_NAME
         query = {"author": ObjectId(account.user_id)}
         expected = {"tools": ["execute_code", "sys__all__sys_mcp_oauth-fixture"]}
         projection = {"_id": False, "tools": True}
         assert agents.find_one(query, projection) == expected
         original = agents.find_one(query, {**projection, "versions": True})
-        bootstrap()
+        bootstrap(f"  {NAME}  ")
         assert agents.find_one(query, {**projection, "versions": True}) == original
+        assert users.find_one(user_query, user_projection) == {
+            **original_user,
+            "name": NAME,
+        }
         LOG.info("agent_selection_succeeded")
 
 
@@ -447,7 +498,11 @@ def run(configuration: StartupConfiguration) -> None:
                                 "native databases are ready for account bootstrap",
                             )
 
-                            def bootstrap_fixture() -> None:
+                            verify_bootstrap_name_validation(
+                                configuration, fixture_manifest, environment
+                            )
+
+                            def bootstrap_fixture(name: str) -> None:
                                 asyncio.run(
                                     bootstrap_account(
                                         configuration,
@@ -455,6 +510,7 @@ def run(configuration: StartupConfiguration) -> None:
                                         password,
                                         environment,
                                         output,
+                                        name,
                                     )
                                 )
 
@@ -477,10 +533,7 @@ def run(configuration: StartupConfiguration) -> None:
                         )
                         assert {
                             "modelSelect": runtime_config["interface"]["modelSelect"],
-                            "prioritize": runtime_config["modelSpecs"]["prioritize"],
-                            "addedEndpoints": runtime_config["modelSpecs"][
-                                "addedEndpoints"
-                            ],
+                            "modelSpecs": runtime_config.get("modelSpecs"),
                             "allowedEnvironments": runtime_config["endpoints"][
                                 "agents"
                             ]["statefulCodeSessions"]["allowedEnvironments"],
@@ -491,8 +544,7 @@ def run(configuration: StartupConfiguration) -> None:
                             ],
                         } == {
                             "modelSelect": True,
-                            "prioritize": False,
-                            "addedEndpoints": ["anthropic"],
+                            "modelSpecs": None,
                             "allowedEnvironments": ["conversation"],
                             "deferred_tools": True,
                             "authorizationMode": "nonblocking",
@@ -525,7 +577,7 @@ def run(configuration: StartupConfiguration) -> None:
                             "token": bool(login.token),
                         } == {
                             "status": 200,
-                            "user": {"email": EMAIL, "role": "ADMIN"},
+                            "user": {"email": EMAIL, "role": "ADMIN", "name": NAME},
                             "token": True,
                         }
                         LOG.info(
