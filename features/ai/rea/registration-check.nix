@@ -9,7 +9,7 @@
   ...
 }: let
   rea = import ./runtime.nix {inherit pkgs;};
-  server = (import ./shared.nix {pkgs-unstable = pkgs;}).dotfiles.ai.mcpServers.rea;
+  server = (import ./shared.nix {pkgs-unstable = pkgs;}).dotfiles.ai.bundles.rea.mcpServers.rea;
   home = import ./home-manager.nix {pkgs-unstable = pkgs;};
   config = {
     catppuccin.accent = "mauve";
@@ -59,7 +59,7 @@
         }).text)).mcpServers.rea;
     pi = (builtins.fromJSON (builtins.unsafeDiscardStringContext (apply ../pi/home-manager.nix).home.file.".pi/agent/mcp.json".text)).mcpServers.rea;
     cli = map toString home.home.packages;
-    skill = home.dotfiles.ai.skills.reverse-engineer-anything;
+    skill = home.dotfiles.ai.bundles.rea.skills.reverse-engineer-anything;
     activation = home.home.activation or {};
     defaultHarnesses = lib.sort builtins.lessThan (lib.filter (name: lib.elem name ["ai.antigravity-cli" "ai.copilot-cli" "ai.crush" "ai.herdr" "ai.opencode" "ai.opencode2" "ai.pi" "ai.claude-code" "ai.codex"]) (featureResolver.featureNames {
       features = [features.ai];

@@ -58,13 +58,35 @@
 
   home = makeHome {};
 
+  unusedGuest = {
+    image = "/unused/image";
+    kernel = "/unused/kernel";
+    initrd = "/unused/initrd";
+    init = "/unused/init";
+  };
+
+  bundleHome = excludeBundles: (makeHome {
+    specialArgs.librechatGuest = unusedGuest;
+    modules = [
+      {
+        dotfiles.ai.bundles.fixture = {
+          mcpServers.fixture-server.command = "/fixture/bin/server";
+          skills.fixture-skill.skill = {
+            frontmatter.description = "Fixture skill.";
+            body = "Fixture skill.\n";
+          };
+        };
+        dotfiles.inference.librechat.excludeBundles = excludeBundles;
+      }
+    ];
+  });
+
+  excludedBundle = (bundleHome ["fixture"]).config;
+
+  excludedManifest = excludedBundle.dotfiles.inference.librechat.manifest.value;
+
   startupHome = makeHome {
-    specialArgs.librechatGuest = {
-      image = "/unused/image";
-      kernel = "/unused/kernel";
-      initrd = "/unused/initrd";
-      init = "/unused/init";
-    };
+    specialArgs.librechatGuest = unusedGuest;
     modules = [
       {
         dotfiles.ai = {
@@ -180,4 +202,30 @@ in {
   librechat-home-manager = assert lib.assertMsg (actual == expected)
   "LibreChat must evaluate without selecting the AgentsView or Ollama service features.";
     pkgs.runCommandLocal "librechat-home-manager" {} "touch $out";
+
+  librechat-bundle-exclusion = let
+    actual = {
+      shared = {
+        server = excludedBundle.dotfiles.ai.mcpServers ? fixture-server;
+        skill = excludedBundle.dotfiles.ai.skills ? fixture-skill;
+      };
+      librechat.server = lib.elem "fixture-server" excludedManifest.localMcpServers;
+      unknownBundleRejected = !(builtins.tryEval (bundleHome ["missing"]).config.home.username).success;
+    };
+
+    expected = {
+      shared = {
+        server = true;
+        skill = true;
+      };
+      librechat.server = false;
+      unknownBundleRejected = true;
+    };
+  in
+    assert lib.assertMsg (actual == expected) "LibreChat must leave out every MCP server and skill of an excluded bundle, and the shared registries must keep them.";
+      pkgs.runCommandLocal "librechat-bundle-exclusion" {} ''
+        test -e ${excludedManifest.skillsDirectory}/plain-technical-prose
+        test ! -e ${excludedManifest.skillsDirectory}/fixture-skill
+        touch "$out"
+      '';
 }

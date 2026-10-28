@@ -31,7 +31,15 @@
     pkgs = guestPkgs;
   };
 
-  sharedServers = config.dotfiles.ai.mcpServers;
+  bundles = config.dotfiles.ai.bundles;
+
+  unknownBundles = lib.subtractLists (lib.attrNames bundles) cfg.excludeBundles;
+
+  excludedBundles = lib.attrValues (lib.filterAttrs (name: _: lib.elem name cfg.excludeBundles) bundles);
+
+  sharedServers = removeAttrs config.dotfiles.ai.mcpServers (lib.concatMap (bundle: lib.attrNames bundle.mcpServers) excludedBundles);
+
+  sharedSkills = removeAttrs config.dotfiles.ai.skills (lib.concatMap (bundle: lib.attrNames bundle.skills) excludedBundles);
 
   nativeDefinition = name: server: let
     definition = config.dotfiles.ai.mcpNativeServers.${name} or null;
@@ -77,7 +85,7 @@
     exec ${lib.getExe guestPkgs.librechat-runtime} archive "$@"
   '';
 
-  dependencyNames = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name config.dotfiles.ai.skills) config.dotfiles.ai.skillRuntimeDependencies)));
+  dependencyNames = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name sharedSkills) config.dotfiles.ai.skillRuntimeDependencies)));
 
   runtimePackages = guestPkgs // {agentsview = archiveCli;};
 
@@ -85,7 +93,7 @@
 
   skills = native.runCommand "librechat-skills" {} ''
     mkdir "$out"
-    cp -RL ${skillTree {skills = config.dotfiles.ai.skills;}}/. "$out/"
+    cp -RL ${skillTree {skills = sharedSkills;}}/. "$out/"
   '';
 
   guest =
@@ -233,6 +241,12 @@ in {
       description = "Explicit Linux definitions for local shared MCP servers that cannot be re-evaluated from the standard registry.";
     };
 
+    excludeBundles = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = "Names of entries in dotfiles.ai.bundles to leave out of LibreChat. Their MCP servers, skills and skill runtime dependencies are not added to the conversation guests. The other harnesses keep them.";
+    };
+
     manifest = lib.mkOption {
       type = lib.types.path;
       readOnly = true;
@@ -243,6 +257,13 @@ in {
 
   config = lib.mkMerge [
     {
+      assertions = [
+        {
+          assertion = unknownBundles == [];
+          message = "dotfiles.inference.librechat.excludeBundles lists bundles that are not in dotfiles.ai.bundles: ${lib.concatStringsSep ", " unknownBundles}";
+        }
+      ];
+
       home.packages = [control];
       dotfiles.inference.ollama.models = lib.mkIf (cfg.ollamaUrl == "http://127.0.0.1:11434") [cfg.models.ollama "qwen3-embedding:0.6b"];
     }

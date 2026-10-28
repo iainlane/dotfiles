@@ -23,6 +23,22 @@ in {
   options.dotfiles.ai = {
     mcpServers = mcp.mcpServersOption;
 
+    bundles = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options.mcpServers = lib.mkOption {
+          inherit (mcp.mcpServersOption) type;
+          default = {};
+          description = "MCP servers in the bundle. They are merged into dotfiles.ai.mcpServers.";
+        };
+      });
+      default = {};
+      description = ''
+        Named groups of shared MCP servers and skills. A feature that adds
+        several of them declares them in one bundle, so a harness that
+        excludes the bundle leaves out everything that the feature adds.
+      '';
+    };
+
     mcpNativeServers = lib.mkOption {
       default = {};
       type = lib.types.attrsOf (lib.types.submodule {
@@ -49,7 +65,7 @@ in {
 
   config = lib.mkMerge [
     {
-      dotfiles.ai.mcpServers = servers;
+      dotfiles.ai.mcpServers = lib.mkMerge ([servers] ++ lib.mapAttrsToList (_: bundle: bundle.mcpServers) config.dotfiles.ai.bundles);
       dotfiles.ai.mcpNativeServers = mcp.nativeServers // secretServers.nativeServers;
     }
 

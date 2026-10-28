@@ -111,6 +111,19 @@ does not include this child, and `home` includes it on hosts that have `ai`.
 Both the Home Manager and the system level read the server set, so the same
 module is registered for each.
 
+## Bundles
+
+A feature that adds MCP servers and skills can declare them together in
+`dotfiles.ai.bundles.<name>`. `mcp-server-set.nix` declares a bundle's
+`mcpServers` and merges them into `dotfiles.ai.mcpServers`. `skills.nix` does
+the same for a bundle's `skills` and `dotfiles.ai.skills`. Every harness
+therefore receives the contents of a bundle in the same way as any other server
+or skill.
+
+A harness that cannot use a bundle can leave out all of its contents by
+excluding the bundle, without listing the servers and skills itself. LibreChat
+provides this through `dotfiles.inference.librechat.excludeBundles`.
+
 ## Pooling Claude accounts
 
 `claude-code/teamclaude/` runs Claude Code through [TeamClaude][teamclaude], a
@@ -226,7 +239,8 @@ declares the setting once.
 and MCP server. Add `features.ai.rea` to a host's feature list to install the
 configured CLI, register the same command with the shared harnesses and add the
 bundled workflow to the shared skill tree. Nix manages these registrations;
-activation does not run `rea setup`.
+activation does not run `rea setup`. The server and the skill are in the `rea`
+bundle, so a harness can exclude both by that name.
 
 The configured command includes Wireshark tools and headless Chromium. Linux
 also includes GDB, Binwalk, Unblob and mitmproxy. Linux x64 includes pwntools

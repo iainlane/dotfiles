@@ -82,6 +82,16 @@ in {
       '';
     };
 
+    bundles = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options.skills = lib.mkOption {
+          type = lib.types.attrsOf (import ./skill-type.nix {inherit lib;});
+          default = {};
+          description = "Skills in the bundle. They are merged into dotfiles.ai.skills.";
+        };
+      });
+    };
+
     skillRuntimeDependencies = lib.mkOption {
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);
       default = {};
@@ -91,7 +101,7 @@ in {
 
   config = {
     dotfiles.ai = {
-      skills = local // external // styles;
+      skills = lib.mkMerge ([(local // external // styles)] ++ lib.mapAttrsToList (_: bundle: bundle.skills) config.dotfiles.ai.bundles);
 
       skillRuntimeDependencies = {
         gh-stack = ["git" "gh" "gh-stack"];

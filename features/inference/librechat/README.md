@@ -93,6 +93,10 @@ Local stdio MCPs run in the conversation's Linux VM. Standard local definitions
 are re-evaluated for Linux. A custom definition with host paths or credentials
 needs an explicit Linux replacement in `guestMcpServers`.
 
+To leave a shared bundle out of the guests instead, list its name in
+`excludeBundles`. LibreChat then omits the bundle's MCP servers and skills, and
+the runtime dependencies of those skills.
+
 `dotfiles.ai.mcpNativeServers` describes native HTTP equivalents of shared stdio
 wrappers. Its `sourceCommand` must match the selected shared definition.
 `headerFiles` resolves credentials on the host. A change to the final registry
