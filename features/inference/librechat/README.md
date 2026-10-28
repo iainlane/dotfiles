@@ -51,6 +51,13 @@ default applies to conversations that inherit the default; custom instructions
 and explicit opt-out remain independent. Saved agents keep their own
 instructions.
 
+Default prompts can use `{{current_model}}`, `{{current_user}}`,
+`{{current_date}}`, `{{current_datetime}}` and `{{iso_datetime}}`. LibreChat
+resolves these variables for each response. `{{current_model}}` contains the
+configured model ID for that response, including when comparing models or
+changing models in a conversation. Variables that require user input, such as
+`{{topic}}`, cannot be used in default instructions.
+
 The prompt is supplied as system instructions, separately from the user's
 message. Using a library prompt in the composer retains LibreChat's normal
 message-template behaviour. Edit [chat-prompt.md][general assistant prompt] to

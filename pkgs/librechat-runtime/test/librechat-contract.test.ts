@@ -41,10 +41,14 @@ const api = z
     validateAgentModel: callable,
     loadEphemeralAgent: callable,
     resolveAgentCodeExecution: callable,
+    createChatPromptService: callable,
   })
   .parse(require("@librechat/api"));
 const dataProvider = z
-  .object({ configSchema: z.object({ parse: callable }) })
+  .object({
+    configSchema: z.object({ parse: callable }),
+    replaceSpecialVars: callable,
+  })
   .parse(require("librechat-data-provider"));
 
 afterEach(() => {
@@ -61,6 +65,43 @@ it("preserves the managed chat prompt and default in LibreChat configuration", (
   expect(z.object({ prompts: z.unknown() }).parse(parsed)).toStrictEqual({
     prompts,
   });
+});
+
+it("resolves built-in context from a configured default prompt", async () => {
+  const prompt = "Model: {{current_model}}. Date: {{current_date}}.";
+  const groupId = "123456789012345678901234";
+  const service = z.object({ resolveInstructions: callable }).parse(
+    api.createChatPromptService({
+      ensureCatalog: async () => new Map([["general-assistant", groupId]]),
+      canUsePrompts: async () => true,
+      getEffectivePermissions: async () => 1,
+      promptService: {
+        getPromptGroup: async () => ({
+          ok: true,
+          value: { _id: groupId, source: "config", name: "General assistant" },
+        }),
+        resolvePrompt: async () => ({
+          ok: true,
+          value: { source: "config", groupId, type: "text", prompt },
+        }),
+      },
+    }),
+  );
+  const instructions = z.string().parse(
+    await service.resolveInstructions({
+      user: { id: "fixture-user" },
+      config: { prompts: configureChatPrompts(prompt) },
+    }),
+  );
+
+  expect(
+    dataProvider.replaceSpecialVars({
+      text: instructions,
+      model: "fixture-model",
+      now: "2026-10-28T12:00:00Z",
+      timezone: "UTC",
+    }),
+  ).toBe("Model: fixture-model. Date: 2026-10-28 (Wednesday).");
 });
 
 const codeRoute = z.object({
