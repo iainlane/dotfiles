@@ -2,7 +2,9 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hostManifestSchema } from "../src/manifest.ts";
 import {
+  configureChatPrompts,
   configureProviders,
   persistentSecret,
   writePrivateJson,
@@ -80,6 +82,24 @@ describe("provider configuration", () => {
       ).rejects.toThrow("Anthropic");
     },
   );
+});
+
+it("publishes the ordinary-chat instructions as a managed library default", () => {
+  expect(
+    configureChatPrompts(
+      hostManifestSchema.shape.chatPrompt.parse("General chat instructions\n"),
+    ),
+  ).toStrictEqual({
+    library: [
+      {
+        id: "general-assistant",
+        name: "General assistant",
+        description: "A general assistant for everyday conversations.",
+        prompt: "General chat instructions\n",
+      },
+    ],
+    defaultChatPrompt: "general-assistant",
+  });
 });
 
 it("keeps generated credentials stable and private across starts", async () => {

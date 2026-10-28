@@ -5,7 +5,11 @@ import {
   configuredPersonalAgents,
   personalAgentData,
 } from "../src/bootstrap.ts";
-import { configureProviders, type ProviderOptions } from "../src/config.ts";
+import {
+  configureChatPrompts,
+  configureProviders,
+  type ProviderOptions,
+} from "../src/config.ts";
 import { CODE_ENVIRONMENT_ID } from "../src/identity.ts";
 
 type NativeFunction = (...args: unknown[]) => unknown;
@@ -45,6 +49,18 @@ const dataProvider = z
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+it("preserves the managed chat prompt and default in LibreChat configuration", () => {
+  const prompts = configureChatPrompts("Ordinary chat instructions");
+  const parsed: unknown = dataProvider.configSchema.parse({
+    version: "1.3.18",
+    prompts,
+  });
+
+  expect(z.object({ prompts: z.unknown() }).parse(parsed)).toStrictEqual({
+    prompts,
+  });
 });
 
 const codeRoute = z.object({

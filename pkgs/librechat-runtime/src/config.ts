@@ -8,6 +8,32 @@ import { randomBytes } from "node:crypto";
 import { link, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
+interface ChatPromptConfiguration {
+  library: {
+    id: string;
+    name: string;
+    description: string;
+    prompt: string;
+  }[];
+  defaultChatPrompt: string;
+}
+
+export function configureChatPrompts(prompt: string): ChatPromptConfiguration {
+  const id = "general-assistant";
+
+  return {
+    library: [
+      {
+        id,
+        name: "General assistant",
+        description: "A general assistant for everyday conversations.",
+        prompt,
+      },
+    ],
+    defaultChatPrompt: id,
+  };
+}
+
 interface LocalMcpServer {
   type: "streamable-http";
   url: string;

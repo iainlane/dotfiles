@@ -116,6 +116,7 @@
     hookCommand = toString hook;
     skillsDirectory = toString skills;
     instructions = instructions.concatenated;
+    chatPrompt = builtins.readFile ./chat-prompt.md;
     models = {
       inherit (cfg.models) ollama openrouter anthropic openai;
     };

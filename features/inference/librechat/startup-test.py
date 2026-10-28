@@ -15,11 +15,11 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Literal
 
 import structlog
 from bson import ObjectId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from pymongo import MongoClient
 from structlog.typing import Processor
 
@@ -100,6 +100,7 @@ class HostManifest(BaseModel):
     ports: dict[str, int] = Field(default_factory=dict)
     models: dict[str, str]
     mcp_servers: dict[str, dict[str, object]] = Field(alias="mcpServers")
+    chat_prompt: str = Field(alias="chatPrompt", min_length=1)
 
 
 class ProtocolFixture(BaseModel):
@@ -126,6 +127,38 @@ class Account(BaseModel):
 class LoginResponse(BaseModel):
     user: Account
     token: str
+
+
+class ChatPromptSelection(BaseModel):
+    mode: Literal["inherit"]
+
+
+class EffectiveChatPrompt(BaseModel):
+    group_id: str = Field(alias="groupId", pattern=r"^[a-f0-9]{24}$")
+    prompt_id: str = Field(alias="promptId", pattern=r"^[a-f0-9]{24}$")
+    name: str
+    source: Literal["config"]
+
+
+class ChatPromptPreferences(BaseModel):
+    selection: ChatPromptSelection
+    effective_prompt: EffectiveChatPrompt = Field(alias="effectivePrompt")
+
+
+class ManagedPromptRevision(BaseModel):
+    id: str = Field(alias="_id", pattern=r"^[a-f0-9]{24}$")
+    group_id: str = Field(alias="groupId", pattern=r"^[a-f0-9]{24}$")
+    prompt: str
+    type: Literal["text"]
+
+
+class ManagedPromptGroup(BaseModel):
+    id: str = Field(alias="_id", pattern=r"^[a-f0-9]{24}$")
+    name: str
+    oneliner: str
+    source: Literal["config"]
+    production_id: str = Field(alias="productionId", pattern=r"^[a-f0-9]{24}$")
+    production_prompt: ManagedPromptRevision = Field(alias="productionPrompt")
 
 
 class Arguments(argparse.Namespace):
@@ -160,12 +193,20 @@ def configure_logging() -> None:
 
 
 def response(
-    url: str, body: dict[str, str] | None = None, timeout: float = 10
+    url: str,
+    body: dict[str, str] | None = None,
+    timeout: float = 10,
+    *,
+    token: str | None = None,
 ) -> tuple[int, bytes]:
+    headers = {"Content-Type": "application/json"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
+
     request = urllib.request.Request(
         url,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
 
     try:
@@ -180,6 +221,42 @@ def response(
             raise TypeError("HTTP response did not include a numeric status")
 
         return status, result.read()
+
+
+def verify_chat_prompt(base_url: str, token: str, prompt: str) -> None:
+    status, body = response(base_url + "/api/prompts/default", token=token)
+    assert status == 200, f"Chat prompt preferences returned HTTP {status}"
+    preferences = ChatPromptPreferences.model_validate_json(body)
+    effective = preferences.effective_prompt
+    assert preferences.model_dump(by_alias=True) == {
+        "selection": {"mode": "inherit"},
+        "effectivePrompt": {
+            "groupId": effective.group_id,
+            "promptId": effective.prompt_id,
+            "name": "General assistant",
+            "source": "config",
+        },
+    }
+
+    status, body = response(base_url + "/api/prompts/all", token=token)
+    assert status == 200, f"Prompt Library returned HTTP {status}"
+    groups = TypeAdapter(list[ManagedPromptGroup]).validate_json(body)
+    assert [group.model_dump(by_alias=True) for group in groups] == [
+        {
+            "_id": effective.group_id,
+            "name": "General assistant",
+            "oneliner": "A general assistant for everyday conversations.",
+            "source": "config",
+            "productionId": effective.prompt_id,
+            "productionPrompt": {
+                "_id": effective.prompt_id,
+                "groupId": effective.group_id,
+                "prompt": prompt,
+                "type": "text",
+            },
+        }
+    ]
+    LOG.info("chat_prompt_default_succeeded")
 
 
 def available(url: str) -> bool:
@@ -534,6 +611,7 @@ def run(configuration: StartupConfiguration) -> None:
                         assert {
                             "modelSelect": runtime_config["interface"]["modelSelect"],
                             "modelSpecs": runtime_config.get("modelSpecs"),
+                            "prompts": runtime_config["prompts"],
                             "allowedEnvironments": runtime_config["endpoints"][
                                 "agents"
                             ]["statefulCodeSessions"]["allowedEnvironments"],
@@ -545,6 +623,17 @@ def run(configuration: StartupConfiguration) -> None:
                         } == {
                             "modelSelect": True,
                             "modelSpecs": None,
+                            "prompts": {
+                                "library": [
+                                    {
+                                        "id": "general-assistant",
+                                        "name": "General assistant",
+                                        "description": "A general assistant for everyday conversations.",
+                                        "prompt": manifest.chat_prompt,
+                                    }
+                                ],
+                                "defaultChatPrompt": "general-assistant",
+                            },
                             "allowedEnvironments": ["conversation"],
                             "deferred_tools": True,
                             "authorizationMode": "nonblocking",
@@ -584,6 +673,7 @@ def run(configuration: StartupConfiguration) -> None:
                             "login_succeeded",
                             phase="bootstrap" if first_start else "restart",
                         )
+                        verify_chat_prompt(base_url, login.token, manifest.chat_prompt)
                         if first_start:
                             subprocess.run(
                                 [

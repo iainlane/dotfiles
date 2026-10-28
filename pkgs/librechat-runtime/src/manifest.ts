@@ -29,6 +29,7 @@ export const hostManifestSchema = z.object({
   hookCommand: z.string(),
   skillsDirectory: z.string(),
   instructions: z.string(),
+  chatPrompt: z.string().refine((value) => value.trim().length > 0),
   models: z.object({
     anthropic: z.string(),
     openai: z.string(),

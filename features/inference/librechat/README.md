@@ -32,8 +32,32 @@ agents remain under **My Agents**. Use an agent's Pin control to add the agent
 to your favourites.
 
 Personal agents use the shared coding instructions and preconfigured tools and
-skills. Ordinary chats do not inherit those instructions or tool and skill
-selections. This integration does not supply a general chat persona.
+skills. Ordinary chats use the [general assistant prompt], independently of the
+agent instructions and tool and skill selections.
+
+[general assistant prompt]: chat-prompt.md
+
+## Chat instructions
+
+The Prompt Library includes **General assistant** as a managed, read-only prompt
+from the deployment configuration. Ordinary chats inherit this prompt by
+default. Open **Prompts** in the sidebar and select **Preview** from the
+prompt's menu. Use **Duplicate to edit** to make an editable copy, then use
+**Set as default for ordinary chats** to change your account's default.
+
+Open **Parameters** in the sidebar to inherit the default, enter custom
+instructions or select **No instructions** for the conversation. Changing the
+default applies to conversations that inherit the default; custom instructions
+and explicit opt-out remain independent. Saved agents keep their own
+instructions.
+
+The prompt is supplied as system instructions, separately from the user's
+message. Using a library prompt in the composer retains LibreChat's normal
+message-template behaviour. Edit [chat-prompt.md][general assistant prompt] to
+change the deployment prompt. Prompt text is outside the runtime package, so a
+text-only edit does not rebuild the conversation VM.
+
+## Provider configuration
 
 Set these Home Manager options under `dotfiles.inference.librechat`:
 

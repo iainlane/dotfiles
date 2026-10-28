@@ -20,6 +20,7 @@ import {
   verifyExecutionManifestWithPublicKey,
 } from "./bridge-worker.mjs";
 import {
+  configureChatPrompts,
   configureLocalMcp,
   configureProviders,
   hasEmbeddingProvider,
@@ -808,6 +809,7 @@ export class NativeHostStack {
       cache: true,
       registration: { socialLogins: [] },
       interface: { modelSelect: true },
+      prompts: configureChatPrompts(manifest.chatPrompt),
       endpoints: {
         custom: providers.endpoints.custom.map((endpoint) => ({
           ...endpoint,
