@@ -44,6 +44,10 @@ EMAIL = "startup@example.com"
 PASSWORD = "LibreChat-startup-fixture-2026!"
 INITIAL_NAME = "Startup Fixture"
 NAME = "Renamed Fixture"
+DEFAULT_INTERFACE = {
+    "modelSelect": True,
+    "defaultEnabledTools": ["execute_code", "skills"],
+}
 ANSI_COLOUR = re.compile(r"\x1b\[[0-9;]*m")
 ERROR_LOG = re.compile(r"\berror:")
 PROVISIONING_STARTED = "LibreChat bootstrap provisioning started."
@@ -161,6 +165,15 @@ class ManagedPromptGroup(BaseModel):
     production_prompt: ManagedPromptRevision = Field(alias="productionPrompt")
 
 
+class ServedInterface(BaseModel):
+    model_select: bool = Field(alias="modelSelect")
+    default_enabled_tools: list[str] = Field(alias="defaultEnabledTools")
+
+
+class StartupConfig(BaseModel):
+    interface: ServedInterface
+
+
 class Arguments(argparse.Namespace):
     configuration: Path
 
@@ -257,6 +270,14 @@ def verify_chat_prompt(base_url: str, token: str, prompt: str) -> None:
         }
     ]
     LOG.info("chat_prompt_default_succeeded")
+
+
+def verify_interface(base_url: str, token: str) -> None:
+    status, body = response(base_url + "/api/config", token=token)
+    assert status == 200, f"Startup config returned HTTP {status}"
+    served = StartupConfig.model_validate_json(body).interface
+    assert served.model_dump(by_alias=True) == DEFAULT_INTERFACE
+    LOG.info("interface_defaults_succeeded")
 
 
 def available(url: str) -> bool:
@@ -609,7 +630,7 @@ def run(configuration: StartupConfiguration) -> None:
                             (manifest.state_directory / "librechat.json").read_text()
                         )
                         assert {
-                            "modelSelect": runtime_config["interface"]["modelSelect"],
+                            "interface": runtime_config["interface"],
                             "modelSpecs": runtime_config.get("modelSpecs"),
                             "prompts": runtime_config["prompts"],
                             "allowedEnvironments": runtime_config["endpoints"][
@@ -621,7 +642,7 @@ def run(configuration: StartupConfiguration) -> None:
                                 "authorizationMode"
                             ],
                         } == {
-                            "modelSelect": True,
+                            "interface": DEFAULT_INTERFACE,
                             "modelSpecs": None,
                             "prompts": {
                                 "library": [
@@ -674,6 +695,7 @@ def run(configuration: StartupConfiguration) -> None:
                             phase="bootstrap" if first_start else "restart",
                         )
                         verify_chat_prompt(base_url, login.token, manifest.chat_prompt)
+                        verify_interface(base_url, login.token)
                         if first_start:
                             subprocess.run(
                                 [

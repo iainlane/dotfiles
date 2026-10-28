@@ -35,6 +35,10 @@ Personal agents use the shared coding instructions and preconfigured tools and
 skills. Ordinary chats use the [general assistant prompt], independently of the
 agent instructions and tool and skill selections.
 
+New ordinary chats switch on the tools listed by `configureInterface` in
+`pkgs/librechat-runtime/src/config.ts`. A tool switched off in the composer of a
+new chat stays off in that browser's later new chats.
+
 [general assistant prompt]: chat-prompt.md
 
 ## Chat instructions

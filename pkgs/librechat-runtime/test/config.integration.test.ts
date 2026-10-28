@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { hostManifestSchema } from "../src/manifest.ts";
 import {
   configureChatPrompts,
+  configureInterface,
   configureProviders,
   persistentSecret,
   writePrivateJson,
@@ -101,6 +102,19 @@ it("publishes the ordinary-chat instructions as a managed library default", () =
     defaultChatPrompt: "general-assistant",
   });
 });
+
+it.each([
+  { retrieval: false, tools: ["execute_code", "skills"] },
+  { retrieval: true, tools: ["execute_code", "skills", "file_search"] },
+])(
+  "enables code and skills in new ordinary chats (retrieval $retrieval)",
+  ({ retrieval, tools }) => {
+    expect(configureInterface(retrieval)).toStrictEqual({
+      modelSelect: true,
+      defaultEnabledTools: tools,
+    });
+  },
+);
 
 it("keeps generated credentials stable and private across starts", async () => {
   const file = join(directory, "secret");

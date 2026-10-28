@@ -21,6 +21,7 @@ import {
 } from "./bridge-worker.mjs";
 import {
   configureChatPrompts,
+  configureInterface,
   configureLocalMcp,
   configureProviders,
   hasEmbeddingProvider,
@@ -808,7 +809,7 @@ export class NativeHostStack {
       version: "1.3.18",
       cache: true,
       registration: { socialLogins: [] },
-      interface: { modelSelect: true },
+      interface: configureInterface(ragEnabled),
       prompts: configureChatPrompts(manifest.chatPrompt),
       endpoints: {
         custom: providers.endpoints.custom.map((endpoint) => ({

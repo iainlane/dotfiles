@@ -34,6 +34,22 @@ export function configureChatPrompts(prompt: string): ChatPromptConfiguration {
   };
 }
 
+interface InterfaceConfiguration {
+  modelSelect: true;
+  defaultEnabledTools: string[];
+}
+
+export function configureInterface(retrieval: boolean): InterfaceConfiguration {
+  return {
+    modelSelect: true,
+    defaultEnabledTools: [
+      "execute_code",
+      "skills",
+      ...(retrieval ? ["file_search"] : []),
+    ],
+  };
+}
+
 interface LocalMcpServer {
   type: "streamable-http";
   url: string;

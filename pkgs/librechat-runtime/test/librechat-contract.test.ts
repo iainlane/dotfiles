@@ -7,6 +7,7 @@ import {
 } from "../src/bootstrap.ts";
 import {
   configureChatPrompts,
+  configureInterface,
   configureProviders,
   type ProviderOptions,
 } from "../src/config.ts";
@@ -102,6 +103,25 @@ it("resolves built-in context from a configured default prompt", async () => {
       timezone: "UTC",
     }),
   ).toBe("Model: fixture-model. Date: 2026-10-28 (Wednesday).");
+});
+
+it("preserves the ordinary-chat tool defaults in LibreChat configuration", () => {
+  const configured = configureInterface(true);
+  const parsed: unknown = dataProvider.configSchema.parse({
+    version: "1.3.18",
+    interface: configured,
+  });
+
+  expect(
+    z
+      .object({
+        interface: z.object({
+          modelSelect: z.unknown(),
+          defaultEnabledTools: z.unknown(),
+        }),
+      })
+      .parse(parsed),
+  ).toStrictEqual({ interface: configured });
 });
 
 const codeRoute = z.object({
