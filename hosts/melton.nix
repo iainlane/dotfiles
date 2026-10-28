@@ -8,6 +8,7 @@ in {
     motd = halls.melton;
     features = [
       features.agentsview
+      features.ai.rea
       features.inference.ollama
       features.inference.librechat
       features.inference.acceleration.metal
@@ -37,6 +38,7 @@ in {
         ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
         ai.openrouterApiKeyFile = config.sops.secrets.openrouter-api-key.path;
         agentsview.disabledAgents = ["warp"];
+        inference.librechat.excludeBundles = ["rea"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;
       };
