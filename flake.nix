@@ -95,7 +95,7 @@
     # on every platform. Pinned to a release tag; bumped by
     # `nix run .#update-gh-stack-skill`.
     gh-stack-skill = {
-      url = "github:github/gh-stack/v0.2.1";
+      url = "github:github/gh-stack/v0.3.0";
       flake = false;
     };
 

@@ -649,16 +649,16 @@
     "gh-stack-skill": {
       "flake": false,
       "locked": {
-        "lastModified": 1791555537,
-        "narHash": "sha256-Mq4jAqeSHDuCiDYSa40okrq06UhC3dZGjgCXJKMbgzU=",
+        "lastModified": 1793057232,
+        "narHash": "sha256-dENuxVuz68Y7P8WW5C7pzVbfJRxGMGIKQ2AnWrTacOs=",
         "owner": "github",
         "repo": "gh-stack",
-        "rev": "29a36d314be664583705f18e41cebdf2b61ad514",
+        "rev": "2a49e6751238633db504655d8a8eba3e433e827d",
         "type": "github"
       },
       "original": {
         "owner": "github",
-        "ref": "v0.2.1",
+        "ref": "v0.3.0",
         "repo": "gh-stack",
         "type": "github"
       }
