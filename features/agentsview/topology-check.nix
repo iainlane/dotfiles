@@ -1,9 +1,12 @@
 {
+  inputs,
   lib,
   pkgs,
   ...
 }: let
   aggregate = import ./topology.nix {inherit lib;};
+  common = import ./common.nix {inherit lib;};
+  storeName = path: lib.concatStringsSep "-" (lib.drop 1 (lib.splitString "-" (baseNameOf path)));
   inventory = name: modules:
     (lib.evalModules {
       specialArgs.hostConfig = {inherit name;};
@@ -70,6 +73,33 @@
   throws = value: !(builtins.tryEval (builtins.deepSeq value true)).success;
   readiness = import ./publisher-readiness.nix;
   assertions = [
+    {
+      name = "a publisher's certificate path refers only to the certificate";
+      pass = let
+        publisher = common.publisher inputs {
+          machine = "melton";
+          certificate = "hosts/melton/agentsview.pem";
+        };
+      in
+        {
+          names = map storeName (lib.attrNames (builtins.getContext "${publisher.certificatePath}"));
+          contents = builtins.readFile publisher.certificatePath;
+        }
+        == {
+          names = ["agentsview.pem"];
+          contents = builtins.readFile ../../hosts/melton/agentsview.pem;
+        };
+    }
+    {
+      name = "a certificate file name with a space gives a valid store path";
+      pass = let
+        publisher = common.publisher {self = ./fixtures;} {
+          machine = "fixture";
+          certificate = "client certificate.pem";
+        };
+      in
+        builtins.readFile publisher.certificatePath == "fixture certificate\n";
+    }
     {
       name = "Hermes identity overrides and shared secret paths use normal module priorities";
       pass = let

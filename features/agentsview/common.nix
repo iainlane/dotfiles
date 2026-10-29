@@ -23,12 +23,15 @@
   cursorSecret = "agentsview_cursor_secret";
   authTokenSecret = "agentsview_auth_token";
   publisher = inputs: identity: let
-    certificatePath = inputs.self + "/${identity.certificate}";
+    sourcePath = inputs.self + "/${identity.certificate}";
   in
     identity
     // {
-      inherit certificatePath;
-      hasCertificate = builtins.pathExists certificatePath;
+      certificatePath = builtins.path {
+        path = sourcePath;
+        name = lib.strings.sanitizeDerivationName (baseNameOf identity.certificate);
+      };
+      hasCertificate = builtins.pathExists sourcePath;
       passwordSecretName = "agentsview_password_${identity.machine}";
     };
   dsn = {
