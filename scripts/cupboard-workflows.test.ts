@@ -737,7 +737,6 @@ describe("Cupboard strict build ownership", () => {
     const selected = [
       ".#deploy.nodes.mac.profiles.system.path",
       ".#deploy.nodes.test.profiles.system.path",
-      ".#deploy.nodes.mac.profiles.tester.path",
       ".#deploy.nodes.test.profiles.tester.path",
       ".#packages.aarch64-darwin.deploy-rs",
       ".#packages.x86_64-linux.deploy-rs",
@@ -825,13 +824,6 @@ describe("Cupboard strict build ownership", () => {
             "system-test",
             "x86_64-linux",
             "x86_64-linux-deploy",
-          ),
-          expectedTarget(
-            ".#deploy.nodes.mac.profiles.tester.path",
-            "home-mac",
-            "home-mac",
-            "aarch64-darwin",
-            "aarch64-darwin-deploy",
           ),
           expectedTarget(
             ".#deploy.nodes.test.profiles.tester.path",

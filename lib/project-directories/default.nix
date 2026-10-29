@@ -63,7 +63,7 @@ in {
     home.file =
       lib.mapAttrs' (dirPath: dirConfig: let
         flakeAttr = lib.concatMapStringsSep "." builtins.toJSON [
-          "homeConfigurations"
+          "homeResults"
           "${config.home.username}@${hostConfig.name}"
           "config"
           "programs"

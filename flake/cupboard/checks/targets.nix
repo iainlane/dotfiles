@@ -1,5 +1,6 @@
 {
   hosts,
+  nodes,
   username,
   systems,
   checks,
@@ -18,11 +19,13 @@
   entry = attr: system: rootSuffix:
     lib.nameValuePair attr {inherit system rootSuffix;};
 
-  profiles = lib.concatLists (lib.mapAttrsToList (hostname: host: [
+  profiles = lib.concatLists (lib.mapAttrsToList (hostname: host:
+    [
       (entry ".#deploy.nodes.${hostname}.profiles.system.path" host.system "${host.system}/${host.os}-${hostname}")
-      (entry ".#deploy.nodes.${hostname}.profiles.${username}.path" host.system "${host.system}/home-${hostname}")
-    ])
-    hosts);
+    ]
+    ++ lib.optional (nodes.${hostname}.profiles ? ${username})
+    (entry ".#deploy.nodes.${hostname}.profiles.${username}.path" host.system "${host.system}/home-${hostname}"))
+  hosts);
 
   deployTools =
     map

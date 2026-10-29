@@ -61,11 +61,18 @@ update-system *args:
         sudo --preserve-env=NIX_CONFIG /nix/var/nix/profiles/default/bin/nix run .#system-manager -- switch --flake . {{ args }}
     fi
 
-# Rebuild and switch to the new home-manager configuration. Linux only: on
-# macOS, darwin-rebuild updates the home configuration as well.
+# Rebuild and switch to the new home-manager configuration. On macOS and NixOS
+# the system configuration includes the home configuration, so update-system
+# switches both.
 [linux]
 update-home *args:
-    nh home switch . {{ args }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -f /etc/NIXOS ]]; then
+        echo "update-system switches the home configuration on NixOS."
+    else
+        nh home switch . {{ args }}
+    fi
 
 [linux]
 update: update-flake update-pkgs update-system update-home refresh-direnvs-after-switch
@@ -81,7 +88,9 @@ update-host hostname *args:
 update-host-system hostname *args:
     just deploy-host {{ hostname }} {{ hostname }}.system {{ args }}
 
-# Deploy the home profile to a remote host via deploy-rs
+# Deploy the home profile to a remote host via deploy-rs. Only generic Linux
+# hosts have one; the system profile of other hosts includes the home
+# configuration.
 update-host-home hostname *args:
     just deploy-host {{ hostname }} {{ hostname }}.{{ username }} {{ args }}
 

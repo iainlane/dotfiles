@@ -26,10 +26,7 @@
         system.path = fakePackage "system-test";
         tester.path = fakePackage "home-test";
       };
-      mac.profiles = {
-        system.path = fakePackage "system-mac";
-        tester.path = fakePackage "home-mac";
-      };
+      mac.profiles.system.path = fakePackage "system-mac";
     };
     packages = {
       aarch64-darwin.deploy-rs = fakePackage "deploy-rs-darwin";

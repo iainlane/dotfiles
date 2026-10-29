@@ -37,7 +37,7 @@ if [[ "$*" == *".#username"* ]]; then
 	exit 0
 fi
 [[ "${REFRESH_MODE}" != eval-failure ]] || exit 7
-[[ "$*" == *'.#homeConfigurations."fixture-user@fixture-host"'* ]] || {
+[[ "$*" == *'.#homeResults."fixture-user@fixture-host"'* ]] || {
 	echo "refresh used the wrong Home Manager identity: $*" >&2
 	exit 8
 }

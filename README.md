@@ -148,6 +148,8 @@ the project shells.
 To deploy to a managed remote system, run `./just update-host <hostname>`. To
 deploy only the system or home deploy-rs profile, run
 `./just update-host-system <hostname>` or `./just update-host-home <hostname>`.
+Only generic Linux hosts have a separate home profile. The system profile of a
+NixOS or macOS host includes its home configuration.
 
 The individual steps can also be run separately.
 
@@ -177,10 +179,11 @@ embedded home configuration. Generic Linux uses `update-home` separately.
 
 #### `./just update-home`
 
-_Linux only. macOS is built with `nix-darwin`, whose `darwin-rebuild` always
-updates system and home together._
+_Generic Linux only. On NixOS and macOS the system configuration includes the
+home configuration, so `update-system` updates both, and on NixOS this target
+only prints a note._
 
-Update `home-manager` user-level configuration only.
+Update the standalone `home-manager` configuration only.
 
 #### `./just refresh-direnvs`
 

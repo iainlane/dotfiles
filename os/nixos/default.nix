@@ -74,5 +74,8 @@ in {
     user = "root";
     path = deployLib.activate.nixos configuration;
   };
+  home = {configuration, ...}: {
+    config = configuration.config.home-manager.users.${username};
+  };
   inherit (result) homeSpecialArgs mkSystemConfig;
 }

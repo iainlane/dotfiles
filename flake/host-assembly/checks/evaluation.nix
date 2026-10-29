@@ -60,9 +60,9 @@ in
             hostname: _:
               mkCheck
               "host-evaluation-home-${hostname}"
-              "homeConfigurations"
+              "homeResults"
               "${username}@${hostname}"
-              hostResults.${hostname}.homeConfiguration.activationPackage.drvPath
+              hostResults.${hostname}.home.config.home.activationPackage.drvPath
           )
           nativeHosts;
       in {

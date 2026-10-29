@@ -32,7 +32,7 @@ derivation paths so the home closure does not retain build-time derivations.
 
 Each `.envrc` loads the nearest ancestor's environment before loading its own
 shell. The flake installable selects the shell from this host's
-`homeConfigurations.<user>@<host>.config.programs.projectDirectories.directories`
+`homeResults.<user>@<host>.config.programs.projectDirectories.directories`
 configuration. Additional `PATH` entries follow the shell environment.
 
 The file includes the shell's derivation path in a comment. A shell change

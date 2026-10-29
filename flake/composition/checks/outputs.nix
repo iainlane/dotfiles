@@ -107,7 +107,7 @@ in
           flakeSystem.excludes = [];
           hostResults = lib.genAttrs ["first" "second"] (_: {
             configuration.config.answer = 42;
-            homeConfiguration.config.answer = 43;
+            home.config.answer = 43;
           });
         };
         withoutHosts = outputs.forSystem {

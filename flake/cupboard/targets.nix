@@ -61,7 +61,7 @@
 
   profileEntries =
     lib.mapAttrsToList systemEntry hosts
-    ++ lib.mapAttrsToList homeEntry hosts;
+    ++ lib.mapAttrsToList homeEntry (lib.filterAttrs (name: _: deploy.nodes.${name}.profiles ? ${username}) hosts);
 
   deployToolEntries =
     map

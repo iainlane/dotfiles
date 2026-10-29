@@ -12,14 +12,17 @@
     {
       inherit (host) hostname;
       sshUser = username;
-      profilesOrder = ["system" username];
-      profiles = {
-        system = result.systemProfile deployLib result.configuration;
-        ${username} = {
-          user = username;
-          path = deployLib.activate.home-manager result.homeConfiguration;
+      profilesOrder = ["system"] ++ lib.optional (result.home ? standalone) username;
+      profiles =
+        {
+          system = result.systemProfile deployLib result.configuration;
+        }
+        // lib.optionalAttrs (result.home ? standalone) {
+          ${username} = {
+            user = username;
+            path = deployLib.activate.home-manager result.home.standalone;
+          };
         };
-      };
     }
     // result.deployment)
   hosts;

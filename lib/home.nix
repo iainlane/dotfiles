@@ -1,6 +1,6 @@
-# Home Manager assembly: gather the Home Manager modules and special args for a
-# host in one place so the standalone `homeConfigurations` output and the
-# embedded configurations stay in sync.
+# Home Manager assembly: the modules, special arguments and builders that the OS
+# adapters use for a host's Home Manager configuration, whether embedded or
+# standalone.
 {
   inputs,
   lib,
@@ -48,10 +48,10 @@ in rec {
       }
     ];
 
-  # The special arguments every Home Manager module receives, whether it is
-  # evaluated in the standalone configuration or in the one embedded in a
-  # system configuration. Each OS adapter builds this set for its host, so a
-  # module written for one OS finds the same arguments on the others.
+  # The special arguments every Home Manager module receives, whether its host's
+  # configuration is standalone or embedded in a system configuration. Each OS
+  # adapter builds this set for its host, so a module written for one OS finds
+  # the same arguments on the others.
   #
   # `pkgs` and `pkgs-stable` are the package sets flake-parts instantiated for
   # the host's system.
@@ -134,8 +134,8 @@ in rec {
         ];
     };
 
-  # Assemble the modules and special arguments used by both forms of a host's
-  # Home Manager configuration.
+  # Assemble the modules and special arguments for a host's Home Manager
+  # configuration.
   mkHomeDefinition = {
     hostConfig,
     username,

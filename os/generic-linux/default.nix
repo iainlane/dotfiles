@@ -34,6 +34,16 @@
         inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable flakeContexts;
         hostInventory = hostInventories.${hostConfig.name};
       };
+      home = {homeDefinition, ...}: let
+        standalone = home.mkHomeConfiguration {
+          homeManager = channel.home-manager;
+          pkgs = channel.primary;
+          inherit (homeDefinition) modules extraSpecialArgs;
+        };
+      in {
+        inherit (standalone) config;
+        inherit standalone;
+      };
       mkSystemConfig = _:
         inputs.system-manager.lib.makeSystemConfig {
           inherit overlays;
@@ -72,5 +82,5 @@ in rec {
     user = "root";
     path = deployLib.activate.custom (toplevel configuration) "$PROFILE/bin/activate";
   };
-  inherit (result) homeSpecialArgs mkSystemConfig;
+  inherit (result) home homeSpecialArgs mkSystemConfig;
 }

@@ -24,6 +24,7 @@
       inherit (config.dotfiles) hosts username;
       inherit (config) systems;
       inherit (config.flake) checks;
+      inherit (config.flake.deploy) nodes;
       slowChecks = config.flake.legacyPackages.${(import ../../lib/ci.nix).validationSystem}.slowChecks;
       targets = config.flake.cupboardOutputs;
     })

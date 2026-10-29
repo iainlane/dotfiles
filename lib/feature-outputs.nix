@@ -153,7 +153,7 @@ in rec {
         selection.context
         // {
           systemConfig = hostResults.${host.name}.configuration.config;
-          homeConfig = hostResults.${host.name}.homeConfiguration.config;
+          homeConfig = hostResults.${host.name}.home.config;
         };
       channel = channels.channelFor {
         inherit (host) channel;

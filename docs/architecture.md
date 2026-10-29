@@ -131,6 +131,12 @@ build Home Manager modules and special arguments for both standalone and
 embedded configurations. Stable hosts retain stable primary package sets and
 receive the explicit unstable package set for integrations that require it.
 
+Each host has one Home Manager configuration, and its adapter decides the form.
+The NixOS and nix-darwin adapters embed it in the system configuration. The
+system-manager adapter builds a standalone configuration, which appears in
+`homeConfigurations` and gets its own deployment profile. `homeResults` exposes
+the `config` of every host's Home Manager configuration, whichever form it has.
+
 ## Shared evaluation contexts
 
 Expensive system-wide values belong in `perSystem._module.args`. Flake-parts

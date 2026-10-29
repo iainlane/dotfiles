@@ -13,14 +13,19 @@
       system = "aarch64-darwin";
     };
   };
-  hostResults =
-    lib.mapAttrs (_: _host: {
+  homesWith = standalone: {
+    linux = {inherit standalone;};
+    darwin = {};
+  };
+  hostResultsWith = homes:
+    lib.mapAttrs (name: _host: {
       configuration = {};
       systemProfile = _: _: {path = pkgs.hello;};
-      homeConfiguration.activationPackage = pkgs.hello;
+      home = homes.${name};
       deployment.sshOpts = ["-p" "2222"];
     })
     hosts;
+  hostResults = hostResultsWith (homesWith {activationPackage = pkgs.hello;});
   fakeCheck = nodes: {
     type = "derivation";
     outputs = ["out"];
@@ -43,16 +48,27 @@
     inherit lib hosts hostResults deployLibFor;
     username = "fixture";
   };
+  lazySubject = import ./outputs.nix {
+    inherit lib hosts deployLibFor;
+    hostResults = hostResultsWith (homesWith (throw "Listing the deploy profiles forced a standalone home."));
+    username = "fixture";
+  };
   checks = system: subject.checks {inherit system;};
   schema = builtins.fromJSON (checks "aarch64-darwin").deploy-schema.name;
   native = system: builtins.fromJSON (checks system).deploy-activate.name;
   paths = {
-    fixture = toString pkgs.hello;
-    system = toString pkgs.hello;
+    linux = {
+      fixture = toString pkgs.hello;
+      system = toString pkgs.hello;
+    };
+    darwin.system = toString pkgs.hello;
   };
   contexts = {
-    fixture = builtins.getContext "${pkgs.hello}";
-    system = builtins.getContext "${pkgs.hello}";
+    linux = {
+      fixture = builtins.getContext "${pkgs.hello}";
+      system = builtins.getContext "${pkgs.hello}";
+    };
+    darwin.system = builtins.getContext "${pkgs.hello}";
   };
   checkPolicy = system: {
     schema = {
@@ -76,6 +92,7 @@
   };
   actual = {
     nodes = subject.deploy.nodes;
+    profileNames = lib.mapAttrs (_: node: lib.attrNames node.profiles) lazySubject.deploy.nodes;
     inherit schema;
     nativeLinux = native "x86_64-linux";
     nativeDarwin = native "aarch64-darwin";
@@ -83,9 +100,13 @@
     tools = lib.genAttrs ["aarch64-darwin" "x86_64-linux"] toolsFor;
   };
   expected = {
-    nodes =
-      lib.mapAttrs (_: host: {
-        inherit (host) hostname;
+    profileNames = {
+      linux = ["fixture" "system"];
+      darwin = ["system"];
+    };
+    nodes = {
+      linux = {
+        inherit (hosts.linux) hostname;
         sshUser = "fixture";
         sshOpts = ["-p" "2222"];
         profilesOrder = ["system" "fixture"];
@@ -96,28 +117,29 @@
             path = pkgs.hello;
           };
         };
-      })
-      hosts;
+      };
+      darwin = {
+        inherit (hosts.darwin) hostname;
+        sshUser = "fixture";
+        sshOpts = ["-p" "2222"];
+        profilesOrder = ["system"];
+        profiles.system.path = pkgs.hello;
+      };
+    };
     schema = {
       names = ["darwin" "linux"];
-      paths = {
-        darwin = paths;
-        linux = paths;
-      };
-      contexts = lib.genAttrs ["darwin" "linux"] (_: {
-        fixture = {};
-        system = {};
-      });
+      inherit paths;
+      contexts = lib.mapAttrs (_: lib.mapAttrs (_: _: {})) paths;
     };
     nativeLinux = {
       names = ["linux"];
-      paths.linux = paths;
-      contexts.linux = contexts;
+      paths = {inherit (paths) linux;};
+      contexts = {inherit (contexts) linux;};
     };
     nativeDarwin = {
       names = ["darwin"];
-      paths.darwin = paths;
-      contexts.darwin = contexts;
+      paths = {inherit (paths) darwin;};
+      contexts = {inherit (contexts) darwin;};
     };
     policy = lib.genAttrs ["aarch64-darwin" "x86_64-linux"] (_: {
       schema = {

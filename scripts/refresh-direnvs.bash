@@ -31,8 +31,8 @@ fi
 
 project_dirs="$(
 	nix eval --option allow-import-from-derivation false --raw --apply '
-    homeConfiguration: let
-      inherit (homeConfiguration) config;
+    home: let
+      inherit (home) config;
       directories =
         if config.programs.projectDirectories.enable or false
         then config.programs.projectDirectories.directories
@@ -44,7 +44,7 @@ project_dirs="$(
         else config.home.homeDirectory + "/" + path;
     in
       builtins.concatStringsSep "\n" (map absolutePath (builtins.attrNames directories))
-  ' ".#homeConfigurations.\"${configured_user}@${hostname}\""
+  ' ".#homeResults.\"${configured_user}@${hostname}\""
 )"
 
 failed=0

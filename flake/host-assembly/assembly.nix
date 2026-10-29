@@ -10,7 +10,6 @@
   ...
 }: let
   home = import ../../lib/home.nix {inherit inputs lib featureResolver;};
-  channels = import ../../lib/channels.nix {inherit inputs;};
   operatingSystems = import ../../lib/operating-systems.nix;
   inherit (config.dotfiles) username;
   outerConfig = config;
@@ -68,34 +67,15 @@
     )
     hostAdapters;
 
-  # The standalone output must build from the same channel as the host's
-  # system configuration, so that applying it directly produces the packages
-  # the system build would.
-  mkStandaloneHome = hostname: hostConfig:
-    withSystem hostConfig.system (
-      {
-        pkgs,
-        pkgs-stable,
-        ...
-      }: let
-        channel = channels.channelFor {
-          inherit (hostConfig) channel;
-          inherit pkgs pkgs-stable;
-        };
-      in
-        home.mkHomeConfiguration {
-          homeManager = channel.home-manager;
-          pkgs = channel.primary;
-          inherit (homeDefinitions.${hostname}) modules extraSpecialArgs;
-        }
-    );
-
   hostResults =
     lib.mapAttrs (hostname: hostConfig: {
       inherit hostConfig;
       inherit (operatingSystems.${hostConfig.os}) outputName systemClass;
       configuration = systemConfigurations.${hostname};
-      homeConfiguration = mkStandaloneHome hostname hostConfig;
+      home = hostAdapters.${hostname}.home {
+        homeDefinition = homeDefinitions.${hostname};
+        configuration = systemConfigurations.${hostname};
+      };
       inherit (hostAdapters.${hostname}) homeSpecialArgs systemProfile;
       deployment = hostAdapters.${hostname}.deployment or {};
       toplevel = hostAdapters.${hostname}.toplevel systemConfigurations.${hostname};
@@ -281,12 +261,15 @@ in {
     // {
       inherit username;
       hosts = lib.mapAttrs (_: host: {inherit (host) system featureNames;}) hosts;
-      # Standalone home-manager configurations for all hosts
       homeConfigurations =
         lib.mapAttrs' (
-          hostname: _hostConfig:
-            lib.nameValuePair "${username}@${hostname}" hostResults.${hostname}.homeConfiguration
+          hostname: result: lib.nameValuePair "${username}@${hostname}" result.home.standalone
         )
-        hosts;
+        (lib.filterAttrs (_: result: result.home ? standalone) hostResults);
+      homeResults =
+        lib.mapAttrs' (
+          hostname: result: lib.nameValuePair "${username}@${hostname}" {inherit (result.home) config;}
+        )
+        hostResults;
     };
 }
