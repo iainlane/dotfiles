@@ -24,20 +24,28 @@ in {
       inputs,
       ...
     }: {
-      sops.secrets.anthropic-api-key = {
-        sopsFile = inputs.secrets + "/melton/user-anthropic.yaml";
-        key = "anthropic_api_key";
-      };
+      sops.secrets = {
+        teamclaude-anthropic-api-key = {
+          sopsFile = inputs.secrets + "/melton/user-teamclaude.yaml";
+          key = "anthropic_api_key";
+        };
 
-      sops.secrets.openrouter-api-key = {
-        sopsFile = inputs.secrets + "/melton/user-librechat.yaml";
-        key = "openrouter_api_key";
+        librechat-anthropic-api-key = {
+          sopsFile = inputs.secrets + "/melton/user-librechat.yaml";
+          key = "anthropic_api_key";
+        };
+
+        openrouter-api-key = {
+          sopsFile = inputs.secrets + "/melton/user-librechat.yaml";
+          key = "openrouter_api_key";
+        };
       };
 
       dotfiles = {
-        ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
         ai.openrouterApiKeyFile = config.sops.secrets.openrouter-api-key.path;
         agentsview.disabledAgents = ["warp"];
+        claudeCode.teamclaude.apiKeyAccounts.anthropic.apiKeyFile = config.sops.secrets.teamclaude-anthropic-api-key.path;
+        inference.librechat.anthropicKeyFile = config.sops.secrets.librechat-anthropic-api-key.path;
         inference.librechat.excludeBundles = ["rea"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
         nixbuild.admin = true;
