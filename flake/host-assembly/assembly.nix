@@ -83,7 +83,8 @@
           inherit pkgs pkgs-stable;
         };
       in
-        channel.home-manager.lib.homeManagerConfiguration {
+        home.mkHomeConfiguration {
+          homeManager = channel.home-manager;
           pkgs = channel.primary;
           inherit (homeDefinitions.${hostname}) modules extraSpecialArgs;
         }

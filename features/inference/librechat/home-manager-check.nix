@@ -12,6 +12,7 @@
   ...
 }: let
   mkAssertionCheck = import ../../../lib/assertion-check.nix {inherit lib pkgs;};
+  inherit (import ../../../lib/home.nix {inherit inputs lib featureResolver;}) mkHomeConfiguration;
   mcp = flakeContext.mcpByChannel.unstable;
 
   hostConfig = {
@@ -28,7 +29,8 @@
   };
 
   makeHome = extra:
-    inputs.home-manager.lib.homeManagerConfiguration {
+    mkHomeConfiguration {
+      homeManager = inputs.home-manager;
       inherit pkgs;
       extraSpecialArgs =
         {

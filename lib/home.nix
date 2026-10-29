@@ -95,6 +95,45 @@ in rec {
     };
   };
 
+  mkHomeConfiguration = {
+    homeManager,
+    pkgs,
+    modules,
+    extraSpecialArgs ? {},
+  }:
+    homeManager.lib.homeManagerConfiguration {
+      inherit pkgs extraSpecialArgs;
+      modules =
+        modules
+        ++ [
+          ({
+            config,
+            options,
+            ...
+          }: {
+            # Home Manager's nixpkgs module imports nixpkgs again and sets the
+            # result as `pkgs` at normal priority, which replaces the `pkgs`
+            # passed here.
+            _module.args.pkgs = lib.mkForce pkgs;
+
+            # Home Manager defines `nixpkgs.config` once with `mkDefault` and
+            # `nixpkgs.overlays` once, both from `pkgs`. Any other definition
+            # comes from a module and would be ignored.
+            assertions = [
+              {
+                assertion =
+                  lib.length options.nixpkgs.config.definitions
+                  == 1
+                  && options.nixpkgs.config.highestPrio == (lib.mkDefault null).priority
+                  && lib.length options.nixpkgs.overlays.definitions == 1
+                  && config.nixpkgs.system == pkgs.stdenv.hostPlatform.system;
+                message = "Standalone Home Manager configurations use the host's package set, so nixpkgs.config, nixpkgs.overlays and a different nixpkgs.system have no effect. Change flake/local-packages/context.nix instead.";
+              }
+            ];
+          })
+        ];
+    };
+
   # Assemble the modules and special arguments used by both forms of a host's
   # Home Manager configuration.
   mkHomeDefinition = {

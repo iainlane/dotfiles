@@ -22,28 +22,33 @@
         };
       };
   };
-  home = inputs.home-manager.lib.homeManagerConfiguration {
-    pkgs = pkgs // {mkShellNoCC = _: throw "project shells used the home package channel";};
-    extraSpecialArgs = {
-      pkgs-unstable = pkgs;
-      hostConfig = {
-        name = "fixture-host";
-        system = pkgs.stdenv.hostPlatform.system;
-      };
-      flakePath = "/repo with spaces";
-    };
-    modules = [
-      projectShells.homeManagerModule
-      {
-        home = {
-          username = "fixture";
-          homeDirectory = "/home/fixture";
-          stateVersion = "25.11";
+  home =
+    (import ../home.nix {
+      inherit inputs lib;
+      featureResolver = {};
+    }).mkHomeConfiguration {
+      homeManager = inputs.home-manager;
+      pkgs = pkgs // {mkShellNoCC = _: throw "project shells used the home package channel";};
+      extraSpecialArgs = {
+        pkgs-unstable = pkgs;
+        hostConfig = {
+          name = "fixture-host";
+          system = pkgs.stdenv.hostPlatform.system;
         };
-        programs.direnv.enable = true;
-      }
-    ];
-  };
+        flakePath = "/repo with spaces";
+      };
+      modules = [
+        projectShells.homeManagerModule
+        {
+          home = {
+            username = "fixture";
+            homeDirectory = "/home/fixture";
+            stateVersion = "25.11";
+          };
+          programs.direnv.enable = true;
+        }
+      ];
+    };
   inherit (home) config;
   shell = config.programs.projectDirectories.directories.${directory}.shell;
   expectedInstallable = ''/repo with spaces#"homeConfigurations"."fixture@fixture-host"."config"."programs"."projectDirectories"."directories"."dev/project's space.with-dots"."shell"'';

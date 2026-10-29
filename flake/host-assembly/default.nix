@@ -1,5 +1,6 @@
 {
   config,
+  inputs,
   lib,
   hostResults,
   ...
@@ -16,6 +17,7 @@
         inherit (config.dotfiles) hosts username;
         hostMetadata = config.flake.hosts;
       }
-      {inherit pkgs system;};
+      {inherit pkgs system;}
+      // import ./checks/home-configuration.nix {inherit inputs lib;} {inherit pkgs;};
   };
 }
