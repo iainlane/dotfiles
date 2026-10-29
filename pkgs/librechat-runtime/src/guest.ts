@@ -21,6 +21,7 @@ export const guestSpecificationSchema = z.object({
   caBundle: z.string(),
   systemdRun: z.string(),
   systemctl: z.string(),
+  date: z.string(),
   workspace: z.object({
     uid: z.int().positive(),
     gid: z.int().positive(),
@@ -39,6 +40,15 @@ const bindingSchema = z.object({
 });
 
 type GuestBinding = z.infer<typeof bindingSchema>;
+
+class GuestResumeTimeError extends Error {
+  readonly status = StatusCodes.BAD_REQUEST;
+
+  constructor() {
+    super("The guest resume time must be a Unix timestamp in milliseconds");
+    this.name = "GuestResumeTimeError";
+  }
+}
 
 interface PendingGuestBinding extends PromiseWithResolvers<void> {
   binding: GuestBinding;
@@ -135,7 +145,7 @@ export class GuestMcpStartupError extends Error {
 export interface GuestOperations {
   bind(binding: GuestBinding): Promise<void>;
 
-  resume(): Promise<void>;
+  resume(time?: number): Promise<void>;
 
   quiesce(): Promise<void>;
 
@@ -201,7 +211,10 @@ export class GuestGateway {
     const path = new URL(request.url).pathname;
 
     if (path === "/health" && request.method === "GET") {
-      return Response.json({ runtimeId: this.binding?.runtimeId ?? null });
+      return Response.json({
+        runtimeId: this.binding?.runtimeId ?? null,
+        resumeClock: true,
+      });
     }
 
     if (path === "/control/bind" && request.method === "POST") {
@@ -229,7 +242,18 @@ export class GuestGateway {
     }
 
     if (request.method === "POST" && path === "/control/resume") {
-      await this.operations.resume();
+      const header = request.headers.get("x-librechat-resume-time");
+      const time = z
+        .string()
+        .regex(/^\d+$/u)
+        .transform(Number)
+        .pipe(z.number().int().nonnegative().max(8640000000000000))
+        .optional()
+        .safeParse(header ?? undefined);
+      if (!time.success) {
+        return mcpErrorResponse(new GuestResumeTimeError());
+      }
+      await this.operations.resume(time.data);
 
       return Response.json({ status: "ready" });
     }
@@ -427,9 +451,16 @@ export class NodeGuestOperations implements GuestOperations {
     this.binding = binding;
   }
 
-  async resume(): Promise<void> {
+  async resume(time?: number): Promise<void> {
     if (this.binding === undefined) {
       throw new GuestUnboundError();
+    }
+
+    if (time !== undefined) {
+      await this.processes.run({
+        executable: this.specification.date,
+        args: ["--set", `@${time / 1000}`],
+      });
     }
 
     if (this.mcp.isReady()) {
@@ -440,7 +471,7 @@ export class NodeGuestOperations implements GuestOperations {
       this.specification.workspace,
       {
         inspect: async () => {
-          const state = await stat("/tmp/sandbox/session");
+          const state = await stat("/work");
 
           return {
             uid: state.uid,
@@ -450,7 +481,7 @@ export class NodeGuestOperations implements GuestOperations {
         },
         databaseExists: async () => {
           try {
-            await stat("/tmp/sandbox/session/.pki/nssdb/cert9.db");
+            await stat("/work/.pki/nssdb/cert9.db");
 
             return true;
           } catch (error) {
@@ -469,9 +500,18 @@ export class NodeGuestOperations implements GuestOperations {
       },
     ).prepare();
 
+    const configuration = z
+      .object({ mcpServers: z.record(z.string(), z.unknown()) })
+      .parse(
+        JSON.parse(await readFile(this.specification.mcpConfiguration, "utf8")),
+      );
+    if (Object.keys(configuration.mcpServers).length === 0) {
+      return;
+    }
+
     const environment = {
       ...this.specification.mcpEnvironment,
-      HOME: "/tmp/sandbox/session",
+      HOME: "/work",
       AGENTSVIEW_BROKER_TOKEN: this.binding.archiveToken,
     };
 
@@ -486,7 +526,7 @@ export class NodeGuestOperations implements GuestOperations {
           "--property=KillMode=control-group",
           `--uid=${workspace.uid}`,
           `--gid=${workspace.gid}`,
-          "--working-directory=/tmp/sandbox/session",
+          "--working-directory=/work",
           ...Object.entries(environment).map(
             ([key, value]) => `--setenv=${key}=${value}`,
           ),

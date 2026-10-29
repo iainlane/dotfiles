@@ -4,7 +4,46 @@ import {
   ReadinessWaiter,
   SecretReadinessTimeoutError,
   SecretDecryptionError,
+  fileServerReady,
 } from "../src/startup.ts";
+
+it("rejects an unrelated service's successful health response", async () => {
+  const ready = await fileServerReady("http://file-server", {
+    token: "fixture",
+    fetch: async () => Response.json({ status: true }),
+  });
+  expect(ready).toBe(false);
+});
+
+it.each([200, 401])(
+  "checks protected file listing with HTTP %s",
+  async (httpStatus) => {
+    const headers: (string | null)[] = [];
+    const ready = await fileServerReady("http://file-server", {
+      token: "fixture",
+      fetch: async (_url, options) => {
+        const token = new Headers(options?.headers).get(
+          "X-CodeAPI-Internal-Token",
+        );
+        headers.push(token);
+        return Response.json([], { status: token === null ? 401 : httpStatus });
+      },
+    });
+    expect({ ready, headers }).toStrictEqual(
+      httpStatus === 200
+        ? { ready: true, headers: ["fixture", null] }
+        : { ready: false, headers: ["fixture"] },
+    );
+  },
+);
+
+it("rejects a service that returns an empty list without authentication", async () => {
+  const ready = await fileServerReady("http://file-server", {
+    token: "fixture",
+    fetch: async () => Response.json([]),
+  });
+  expect(ready).toBe(false);
+});
 
 const program = "/nix/store/current-sops";
 

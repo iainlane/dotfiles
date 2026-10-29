@@ -43,7 +43,7 @@ it.each([false, true])(
       commands: [
         {
           executable: "/tools/mkdir",
-          args: ["-p", "-m", "700", "--", "/tmp/sandbox/session/.pki/nssdb"],
+          args: ["-p", "-m", "700", "--", "/work/.pki/nssdb"],
           uid: 200000,
           gid: 200000,
         },
@@ -52,12 +52,7 @@ it.each([false, true])(
           : [
               {
                 executable: "/tools/certutil",
-                args: [
-                  "-N",
-                  "--empty-password",
-                  "-d",
-                  "sql:/tmp/sandbox/session/.pki/nssdb",
-                ],
+                args: ["-N", "--empty-password", "-d", "sql:/work/.pki/nssdb"],
                 uid: 200000,
                 gid: 200000,
               },
@@ -73,7 +68,7 @@ it.each([false, true])(
             "-i",
             "/run/librechat-guest/iron-ca.crt",
             "-d",
-            "sql:/tmp/sandbox/session/.pki/nssdb",
+            "sql:/work/.pki/nssdb",
           ],
           uid: 200000,
           gid: 200000,
@@ -115,7 +110,7 @@ it("stops trust setup when the workspace user cannot create the directory", asyn
   expect(commands).toStrictEqual([
     {
       executable: "/tools/mkdir",
-      args: ["-p", "-m", "700", "--", "/tmp/sandbox/session/.pki/nssdb"],
+      args: ["-p", "-m", "700", "--", "/work/.pki/nssdb"],
       uid: 200000,
       gid: 200000,
     },

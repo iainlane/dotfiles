@@ -162,7 +162,7 @@ it.each([
     }).toStrictEqual({
       statuses: [StatusCodes.OK, StatusCodes.CONFLICT],
       bindings: [binding],
-      state: { runtimeId: binding.runtimeId },
+      state: { runtimeId: binding.runtimeId, resumeClock: true },
     });
   },
 );
@@ -196,7 +196,7 @@ it("shares initialisation between identical concurrent bindings", async () => {
     events,
   }).toStrictEqual({
     statuses: [StatusCodes.OK, StatusCodes.OK],
-    initialState: { runtimeId: null },
+    initialState: { runtimeId: null, resumeClock: true },
     events: ["bind"],
   });
 });
@@ -299,6 +299,7 @@ it("forwards application headers and body without connection-specific headers", 
       caBundle: "/unused",
       systemdRun: "/unused",
       systemctl: "/unused",
+      date: "/unused",
       workspace: {
         uid: 200000,
         gid: 200000,
@@ -371,3 +372,38 @@ it("forwards application headers and body without connection-specific headers", 
     ],
   });
 });
+
+it("passes the host clock to the resume operation", async () => {
+  await bind();
+  let resumed: number | undefined;
+  operations.resume = async (time) => {
+    resumed = time;
+  };
+  const response = await gateway.route(
+    new Request("http://guest/control/resume", {
+      method: "POST",
+      headers: { "x-librechat-resume-time": "1793309000000" },
+    }),
+  );
+  expect({ status: response.status, resumed }).toStrictEqual({
+    status: 200,
+    resumed: 1793309000000,
+  });
+});
+
+it.each(["invalid", "-1", "Infinity", ""])(
+  "rejects an invalid resume time %j",
+  async (time) => {
+    await bind();
+    const response = await gateway.route(
+      new Request("http://guest/control/resume", {
+        method: "POST",
+        headers: { "x-librechat-resume-time": time },
+      }),
+    );
+    expect({ status: response.status, events }).toStrictEqual({
+      status: 400,
+      events: ["bind"],
+    });
+  },
+);

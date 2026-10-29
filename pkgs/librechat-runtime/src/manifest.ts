@@ -13,7 +13,7 @@ const hostPortsSchema = z.object({
   controller: port.default(3193),
   archive: port.default(3194),
   codeApi: port.default(3112),
-  fileServer: port.default(3000),
+  fileServer: z.number().int().min(0).max(65535).default(0),
   toolServer: port.default(3033),
   egressGateway: port.default(3190),
   workerHealth: port.default(3113),
@@ -73,6 +73,7 @@ export const hostManifestSchema = z.object({
     gh: z.string(),
     agentsview: z.string(),
     qemu: z.string(),
+    nixStore: z.string(),
     socat: z.string(),
   }),
   guest: z.object({

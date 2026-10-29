@@ -13,7 +13,13 @@ export interface VmBootSpecification {
   archiveBrokerPort: number;
   memoryMiB: number;
   cpus: number;
+  snapshot?: "librechat";
 }
+
+export type VmRuntime = Pick<
+  VmBootSpecification,
+  "architecture" | "accelerator" | "forwarder" | "memoryMiB" | "cpus"
+> & { executable: string };
 
 export class VmForwarderPathError extends Error {
   constructor() {
@@ -117,5 +123,8 @@ export function qemuArguments(specification: VmBootSpecification): string[] {
     "virtio-net-pci,netdev=network",
     "-qmp",
     `unix:${optionPath(specification.monitorSocket)},server=on,wait=off`,
+    ...(specification.snapshot === undefined
+      ? []
+      : ["-loadvm", specification.snapshot, "-S"]),
   ];
 }

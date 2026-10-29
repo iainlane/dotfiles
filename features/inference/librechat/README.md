@@ -133,15 +133,29 @@ Python, Node and Bun for shell and file operations.
 
 ## Conversation workspaces
 
-Code Interpreter and local MCPs share `/mnt/data` in one Linux VM per
-conversation. The host uses KVM on Linux and HVF on Darwin. Guests receive no
-host filesystem mounts. Public HTTP(S) uses Iron through explicit QEMU network
-forwards. Direct guest network access is blocked. Iron rejects private and host
-addresses, and injects the host's `gh` credential only into approved GitHub
-HTTPS requests containing the guest placeholder. GitHub authentication therefore
-uses the host's existing `gh auth` account. The credential transform uses a
-private Unix socket. The guest firewall blocks workspace processes from directly
-reaching the control, runner and MCP proxy ports.
+Each conversation has one Linux VM. Code Interpreter and local MCPs share its
+filesystem. `/work` is an executable development directory and the workspace
+user's home. Put projects, virtual environments, npm dependencies and build
+outputs there. `/mnt/data` receives inputs and contains downloadable artefacts.
+It remains `noexec`; copy deliverables there when they are ready. Temporary
+files use a writable directory on the VM disk.
+
+Nix clients connect to the VM's own daemon. The sandbox sees `/nix/store`
+read-only, and the daemon installs and builds packages outside the sandbox. The
+guest registry pins `nixpkgs` to the dotfiles input. For example:
+
+```sh
+nix shell nixpkgs#uv nixpkgs#gcc
+```
+
+The host uses KVM on Linux and HVF on Darwin. Guests receive no host filesystem
+mounts. Public HTTP(S) uses Iron through explicit QEMU network forwards. Direct
+guest network access is blocked. Iron rejects private and host addresses, and
+injects the host's `gh` credential only into approved GitHub HTTPS requests
+containing the guest placeholder. GitHub authentication therefore uses the
+host's existing `gh auth` account. The credential transform uses a private Unix
+socket. The guest firewall blocks workspace processes from directly reaching the
+control, runner and MCP proxy ports.
 
 The NixOS feature adds the user to `kvm`. Start a new login session after the
 first activation so the user service receives the updated group membership.
@@ -153,18 +167,27 @@ Local MCP discovery uses a separate catalogue VM; the conversation VM starts on
 the first code, workspace file or local MCP operation. CodeAPI prewarming is
 disabled.
 
-The controller checkpoints workspace files before stopping an idle VM after 15
-minutes. MCP processes stop before checkpointing and restart after restoration.
-Processes and browser tabs do not persist. Conversation activity extends the
-30-day file retention period; only VM operations extend the idle deadline.
-Expiry deletes unpushed work. Health probes do not extend retention.
+The controller snapshots RAM and disk before stopping an idle VM after 15
+minutes. A compressed archive preserves `/work`, `/mnt/data`, Nix state and
+running VM processes. Each code call still starts a fresh interpreter process;
+processes terminated by the runner are not restored. External network
+connections can expire during suspension and may need reconnecting. Conversation
+activity extends the 30-day file retention period; only VM operations extend the
+idle deadline. Expiry deletes unpushed work. Health probes do not extend
+retention.
 
 A failed checkpoint keeps the VM running and retries during shutdown. Service
-shutdown on Linux waits until the checkpoint succeeds. Darwin allows up to 60
+shutdown on Linux waits until the checkpoint succeeds. Darwin allows up to 300
 seconds for shutdown. After an ungraceful controller exit, the next workspace
 operation stops the old VM through its private QMP socket before restarting it.
-Recovery guarantees the last committed checkpoint; a crash may lose later
-changes.
+Recovery guarantees the last committed snapshot; a crash may lose later changes.
+Snapshot archives have an 8 GiB compressed size limit. New VMs use a writable
+disk overlay over the immutable guest image. The controller retains that image,
+QEMU and the network forwarder through Nix GC roots. Each VM keeps its original
+runtime version so snapshots can resume after a host upgrade. Existing
+conversations also keep their original guest image. Start a new conversation to
+use an updated image; reset deletes the old workspace. Workspace-only
+checkpoints from older versions can still be restored.
 
 To discard a workspace explicitly, finish active calls and run:
 
@@ -185,9 +208,10 @@ writes `~/Library/Logs/librechat.log`. Darwin startup waits up to 30 seconds for
 the configured SOPS launchd job to finish successfully before reading
 credentials. Back up the complete private state directory while the service is
 stopped. Preserve `secrets` with the databases, because the application uses
-those secrets for authentication and encryption.
+those secrets for authentication and encryption. A portable backup also needs
+the Nix closures referenced by each session's `runtime-roots` directory.
 
-On Darwin, launchd can force the service to stop after its 60-second shutdown
+On Darwin, launchd can force the service to stop after its 300-second shutdown
 limit. To drain active calls or retry a failed checkpoint without that limit,
 send the controller a signal before switching Home Manager or logging out:
 
@@ -201,6 +225,12 @@ shutdown is delayed. A successful stop exits zero and does not restart the
 agent. `launchctl kickstart "gui/$(id -u)/org.nix-community.home.librechat"`
 starts the service again.
 
+The private CodeAPI file server uses an OS-assigned free loopback port. The
+controller authenticates its listener before starting the CodeAPI services that
+use it. A failed attempt is stopped and retried, up to three attempts. An
+explicit nonzero `ports.fileServer` in the runtime manifest disables allocation
+and uses one attempt.
+
 The `librechat-startup` flake check runs the generated service command inside
 the Nix sandbox with the service manager's initial working directory. It uses
 the real host services with temporary state, Unix sockets and TCP ports. The
@@ -208,11 +238,19 @@ check creates an administrator and a personal agent with a whole-server MCP
 selection, and verifies that repeated bootstrap does not create another agent
 version. A loopback model, OAuth provider and MCP exercise an ordinary chat
 before authentication, explicit connection and automatic tool discovery. The
-check verifies web health and login, restarts the service and verifies login
-again. External provider and MCP calls, skills, RAG, workspace hooks and
-conversation VMs are outside this check. The existing LibreChat service can
-continue running. On Linux, the check uses a NixOS VM to provide sysfs for
-MongoDB's allocator. Service manager registration needs a separate host test.
+check verifies web health, login and artefact transfer through the egress
+gateway, restarts the service and repeats those checks. External provider and
+MCP calls, skills, RAG, workspace hooks and conversation VMs are outside this
+check. The existing LibreChat service can continue running. On Linux, the check
+uses a NixOS VM to provide sysfs for MongoDB's allocator. Service manager
+registration needs a separate host test.
+
+The separate `librechat-workspace` check boots the real guest with KVM on Linux
+or HVF on Darwin inside the Nix sandbox. It verifies executable files in
+`/work`, `noexec` in `/mnt/data`, an offline Nix build and profile installation,
+input and output transfer, and full VM checkpoint and resume. The restored VM
+must keep its boot ID, workspace files and installed Nix profile, with its clock
+synchronised to the host.
 
 On Melton, run:
 

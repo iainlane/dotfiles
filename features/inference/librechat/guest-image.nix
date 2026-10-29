@@ -13,12 +13,16 @@
   workspaceGid = 200000;
   tools = pkgs.buildEnv {
     name = "librechat-guest-tools";
-    paths = (with pkgs; [bash coreutils curl findutils git gh gnugrep gnused jq nodejs_24 ripgrep cacert]) ++ [runtimes.bun runtimes.python314 archiveCli] ++ skillPackages;
+    paths = (with pkgs; [bash coreutils curl findutils git gh gnugrep gnused jq nix nodejs_24 ripgrep cacert]) ++ [runtimes.bun runtimes.python314 archiveCli] ++ skillPackages;
     pathsToLink = ["/bin"];
   };
   proxyEnvironment = {
-    HOME = "/mnt/data";
-    PATH = "/usr/bin:/bin";
+    HOME = "/work";
+    PATH = "/work/.local/state/nix/profiles/profile/bin:/work/.local/bin:/usr/bin:/bin";
+    XDG_STATE_HOME = "/work/.local/state";
+    NIX_REMOTE = "daemon";
+    NIX_PATH = "nixpkgs=${inputs.nixpkgs}";
+    NIX_SSL_CERT_FILE = "/run/librechat-guest/ca-bundle.crt";
     HTTP_PROXY = "http://10.0.2.100:3128";
     HTTPS_PROXY = "http://10.0.2.100:3128";
     http_proxy = "http://10.0.2.100:3128";
@@ -43,6 +47,7 @@
       cp ${pkgs.writeText "runtime.env" (lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key}=${value}") proxyEnvironment))} "$directory/.env"
       cat > "$directory/run" <<'SCRIPT'
       #!${lib.getExe pkgs.bash}
+      export HOME=/work
       exec ${package}/bin/${executable} "$@"
       SCRIPT
       chmod +x "$directory/run"
@@ -73,13 +78,19 @@
     clone_newcgroup: true
     mount_proc: false
     mount { src: "/usr" dst: "/usr" is_bind: true rw: false }
+    mount { src: "/work" dst: "/work" is_bind: true rw: true nosuid: true nodev: true }
+    mount { src: "${pkgs.writeText "librechat-passwd" "workspace:x:65534:65534::/work:/bin/bash\n"}" dst: "/etc/passwd" is_bind: true rw: false }
+    mount { src: "${pkgs.writeText "librechat-group" "workspace:x:65534:\n"}" dst: "/etc/group" is_bind: true rw: false }
+    mount { src: "/etc/nix/nix.conf" dst: "/etc/nix/nix.conf" is_bind: true rw: false }
+    mount { src: "/etc/nix/registry.json" dst: "/etc/nix/registry.json" is_bind: true rw: false }
     mount { src: "/etc/gitconfig" dst: "/etc/gitconfig" is_bind: true rw: false }
     mount { src: "/nix/store" dst: "/nix/store" is_bind: true rw: false }
+    mount { src: "/nix/var/nix/daemon-socket" dst: "/nix/var/nix/daemon-socket" is_bind: true rw: false }
     mount { src: "/run/librechat-guest" dst: "/run/librechat-guest" is_bind: true rw: false }
     mount { src: "/dev/null" dst: "/dev/null" is_bind: true rw: false }
     mount { src: "/dev/urandom" dst: "/dev/urandom" is_bind: true rw: false }
     mount { src: "/dev/zero" dst: "/dev/zero" is_bind: true rw: false }
-    mount { dst: "/tmp" fstype: "tmpfs" rw: true options: "size=128m" }
+    mount { src: "/var/lib/librechat-tmp" dst: "/tmp" is_bind: true rw: true nosuid: true nodev: true }
     mount { dst: "/proc" fstype: "proc" rw: false }
   '';
   specification = pkgs.writeText "librechat-guest.json" (builtins.toJSON {
@@ -89,6 +100,7 @@
     mcpConfiguration = pkgs.writeText "librechat-mcp.json" (builtins.toJSON {mcpServers = servers;});
     caBundle = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
     systemctl = lib.getExe' pkgs.systemd "systemctl";
+    date = lib.getExe' pkgs.coreutils "date";
     systemdRun = lib.getExe' pkgs.systemd "systemd-run";
     workspace = {
       uid = workspaceUid;
@@ -110,6 +122,8 @@
       SANDBOX_JOB_UID_BASE = toString workspaceUid;
       SANDBOX_JOB_GID_BASE = toString workspaceGid;
       SANDBOX_LOG_LEVEL = "INFO";
+      SANDBOX_OUTPUT_MAX_SIZE = "65536";
+      SANDBOX_RUN_TIMEOUT = "300000";
     };
   });
   system = inputs.nixpkgs.lib.nixosSystem {
@@ -188,13 +202,23 @@
         };
         services.openssh.enable = false;
 
+        nix = {
+          registry.nixpkgs.flake = inputs.nixpkgs;
+          nixPath = ["nixpkgs=${inputs.nixpkgs}"];
+          settings = {
+            experimental-features = ["nix-command" "flakes"];
+            max-jobs = 1;
+            use-xdg-base-directories = true;
+          };
+        };
+
         users = {
           groups.workspace.gid = workspaceGid;
           users.workspace = {
             uid = workspaceUid;
             group = "workspace";
             isSystemUser = true;
-            home = "/mnt/data";
+            home = "/work";
           };
         };
 
@@ -203,14 +227,26 @@
             helper = !${pkgs.gh}/bin/gh auth git-credential
         '';
         systemd = {
-          tmpfiles.rules = ["L+ /mnt/data - - - - /tmp/sandbox/session"];
+          tmpfiles.rules = [
+            "L+ /mnt/data - - - - /tmp/sandbox/session"
+            "d /work 0700 ${toString workspaceUid} ${toString workspaceGid} -"
+            "d /var/lib/librechat-tmp 0700 ${toString workspaceUid} ${toString workspaceGid} -"
+            "x /tmp/sandbox - - - -"
+          ];
+
+          sockets.nix-daemon.requires = ["register-nix-paths.service"];
 
           services = {
+            nix-daemon.environment = lib.filterAttrs (key: _: builtins.elem key ["HTTP_PROXY" "HTTPS_PROXY" "http_proxy" "https_proxy" "NO_PROXY" "no_proxy" "NIX_SSL_CERT_FILE"]) proxyEnvironment;
+
             register-nix-paths = {
               wantedBy = ["multi-user.target"];
               before = ["nix-daemon.socket" "librechat-guest.service"];
               after = ["local-fs.target"];
-              unitConfig.ConditionPathExists = "/nix-path-registration";
+              unitConfig = {
+                ConditionPathExists = "/nix-path-registration";
+                DefaultDependencies = false;
+              };
               serviceConfig.Type = "oneshot";
               script = ''
                 ${config.nix.package}/bin/nix-store --load-db < /nix-path-registration
@@ -223,8 +259,8 @@
 
             librechat-guest = {
               wantedBy = ["multi-user.target"];
-              after = ["network.target" "nftables.service"];
-              requires = ["nftables.service"];
+              after = ["network.target" "nftables.service" "nix-daemon.socket"];
+              requires = ["nftables.service" "nix-daemon.socket"];
               unitConfig.FailureAction = "poweroff-force";
               serviceConfig = {
                 ExecStart = "${lib.getExe pkgs.librechat-runtime} guest ${specification}";

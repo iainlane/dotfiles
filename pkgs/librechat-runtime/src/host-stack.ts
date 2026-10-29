@@ -6,11 +6,12 @@ import {
 } from "node:crypto";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Server } from "node:http";
 import { MongoClient } from "mongodb";
 import { z } from "zod";
+import { startFileServer } from "./file-server.ts";
 import { configuredPersonalAgents } from "./bootstrap.ts";
 import { ArchiveBroker } from "./archive.ts";
 import { ConversationRuntimeSupervisor } from "./bridge.ts";
@@ -229,6 +230,10 @@ export class NativeHostStack {
       this.signal.throwIfAborted();
     }
 
+    this.track(child);
+  }
+
+  private track(child: ManagedProcess): void {
     this.children.push(child);
 
     this.monitors.push(this.monitor(child.exited));
@@ -529,17 +534,20 @@ export class NativeHostStack {
       args: ["--config", join(state, "iron.json")],
     });
 
-    const backend = new QemuBackend({
+    const runtime = {
       executable: programs.qemu,
+      architecture: manifest.guest.architecture,
+      accelerator: manifest.guest.accelerator,
+      forwarder: programs.socat,
+      memoryMiB: 4096,
+      cpus: 2,
+    };
+
+    const backend = new QemuBackend({
       boot: {
-        architecture: manifest.guest.architecture,
-        accelerator: manifest.guest.accelerator,
-        forwarder: programs.socat,
         ironPort: ports.iron,
         fileRelayPort: ports.egressGateway,
         archiveBrokerPort: ports.archive,
-        memoryMiB: 4096,
-        cpus: 2,
       },
       files: new FileVmStorage({
         directory: join(state, "sessions"),
@@ -549,7 +557,48 @@ export class NativeHostStack {
         kernel: manifest.guest.kernel,
         initrd: manifest.guest.initrd,
         init: manifest.guest.init,
-        checkpointMaxBytes: 512 * 1024 * 1024,
+        checkpointMaxBytes: 8 * 1024 * 1024 * 1024,
+        runtime,
+        retainRuntime: async (directory, specification) => {
+          const roots = join(directory, "runtime-roots");
+          await mkdir(roots, { recursive: true, mode: 0o700 });
+          await Promise.all(
+            (
+              [
+                ["qemu", specification.executable],
+                ["socat", specification.forwarder],
+                ["image", manifest.guest.image],
+              ] as const
+            ).map(async ([kind, executable]) => {
+              const storePath = executable.split("/").slice(0, 4).join("/");
+              await this.processes.run({
+                executable: programs.nixStore,
+                args: [
+                  "--add-root",
+                  join(roots, kind),
+                  "--indirect",
+                  "--realise",
+                  storePath,
+                ],
+              });
+            }),
+          );
+        },
+        createDisk: async (image, destination) => {
+          await this.processes.run({
+            executable: join(dirname(programs.qemu), "qemu-img"),
+            args: [
+              "create",
+              "-f",
+              "qcow2",
+              "-F",
+              "qcow2",
+              "-b",
+              image,
+              destination,
+            ],
+          });
+        },
         stopExistingVm,
       }),
       processes: this.processes,
@@ -641,7 +690,7 @@ export class NativeHostStack {
       server.on("error", (error) => this.failure.reject(error));
     }
 
-    const codeEnvironment = {
+    const commonCodeEnvironment = {
       SERVICE_PORT: String(ports.codeApi),
       REDIS_HOST: "127.0.0.1",
       REDIS_PORT: String(ports.redis),
@@ -653,11 +702,9 @@ export class NativeHostStack {
       MINIO_SECRET_KEY: secrets.objects,
       MINIO_BUCKET: "codeapi",
       FILE_SERVER_HOST: "127.0.0.1",
-      FILE_SERVER_PORT: String(ports.fileServer),
       TOOL_CALL_SERVER_PORT: String(ports.toolServer),
       EGRESS_GATEWAY_PORT: String(ports.egressGateway),
       WORKER_HEALTH_PORT: String(ports.workerHealth),
-      FILE_SERVER_URL: `http://127.0.0.1:${ports.fileServer}`,
       TOOL_CALL_SERVER_URL: `http://127.0.0.1:${ports.toolServer}`,
       EGRESS_GATEWAY_URL: `http://127.0.0.1:${ports.egressGateway}`,
       CODEAPI_AUTH_PROVIDER: "librechat-jwt",
@@ -686,9 +733,28 @@ export class NativeHostStack {
       PTC_MODE: "replay",
     };
 
+    const fileServer = await startFileServer(
+      {
+        command: {
+          executable: programs.fileServer,
+          args: [],
+          environment: commonCodeEnvironment,
+          directory: join(state, "app"),
+        },
+        port: ports.fileServer,
+        token: secrets.internal,
+      },
+      { processes: this.processes, signal: this.signal },
+    );
+    this.track(fileServer.process);
+    const codeEnvironment = {
+      ...commonCodeEnvironment,
+      FILE_SERVER_PORT: String(fileServer.port),
+      FILE_SERVER_URL: `http://127.0.0.1:${fileServer.port}`,
+    };
+
     await Promise.all(
       [
-        programs.fileServer,
         programs.toolServer,
         programs.egressGateway,
         programs.codeApi,

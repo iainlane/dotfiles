@@ -1,5 +1,5 @@
-import { WorkspaceRecoveryError } from "../src/errors.ts";
 import { StatusCodes } from "http-status-codes";
+import { WorkspaceRecoveryError } from "../src/errors.ts";
 import { beforeEach, expect, it } from "vitest";
 import {
   QemuBackend,
@@ -33,6 +33,7 @@ let processes: ProcessRunner;
 let fetch: SocketFetch;
 
 let failedPath: string;
+let snapshotCapable: boolean;
 
 let exit: PromiseWithResolvers<void>;
 
@@ -88,6 +89,7 @@ beforeEach(() => {
   deadlines = new FixtureDeadlines();
 
   failedPath = "";
+  snapshotCapable = true;
 
   delay = async () => {
     events.push("delay");
@@ -127,6 +129,14 @@ beforeEach(() => {
       events.push("prepare");
 
       return {
+        runtime: {
+          executable: "/qemu",
+          architecture: "aarch64",
+          accelerator: "hvf",
+          forwarder: "/bin/socat",
+          memoryMiB: 4096,
+          cpus: 2,
+        },
         disk: "/disk",
         kernel: "/kernel",
         initrd: "/initrd",
@@ -135,13 +145,19 @@ beforeEach(() => {
         monitorSocket: "/monitor",
       };
     },
+    saveSnapshot: async () => {
+      events.push("save-snapshot");
+      if (failedPath === "snapshot") {
+        throw new Error("snapshot failed");
+      }
+    },
+    saveCheckpoint: async () => {
+      events.push("save-workspace");
+    },
     readCheckpoint: async () => {
       events.push("read-checkpoint");
 
       return checkpointBody();
-    },
-    saveCheckpoint: async (_session, body) => {
-      events.push(`save:${await new Response(body).text()}`);
     },
     remove: async () => {
       events.push("remove");
@@ -157,26 +173,29 @@ beforeEach(() => {
       return new Response(null, { status: StatusCodes.INTERNAL_SERVER_ERROR });
     }
 
-    return new Response(path.endsWith("checkpoint") ? checkpointBody() : null);
+    return path === "/health"
+      ? Response.json({ resumeClock: snapshotCapable })
+      : new Response(path.endsWith("checkpoint") ? checkpointBody() : null);
   };
 });
 
 function backend(): QemuBackend {
   return new QemuBackend({
-    executable: "/qemu",
+    saveVmSnapshot: async (_socket, persist) => {
+      events.push("snapshot");
+      await persist();
+    },
+    resumeVm: async () => {
+      events.push("resume-vm");
+    },
     boot: {
-      architecture: "aarch64",
-      accelerator: "hvf",
-      forwarder: "/bin/socat",
       ironPort: 3128,
       fileRelayPort: 3190,
       archiveBrokerPort: 3194,
-      memoryMiB: 4096,
-      cpus: 2,
     },
     files,
     processes,
-    fetch,
+    fetch: async (socket, request) => fetch(socket, request),
     delay,
     timeout: (milliseconds) => deadlines.signal(milliseconds),
     newBootId: () => "boot",
@@ -191,7 +210,6 @@ function backend(): QemuBackend {
 it.each([
   { path: "/control/bind", elapsed: 90_000 },
   { path: "/control/resume", elapsed: 420_000 },
-  { path: "/control/quiesce", elapsed: 125_000 },
 ])("allows the guest operation budget for $path", async ({ path, elapsed }) => {
   const originalFetch = fetch;
 
@@ -217,9 +235,8 @@ it.each([
     "/health",
     "/control/bind",
     "/control/resume",
-    "/control/quiesce",
-    "/runner/api/v2/session/checkpoint",
-    "save:checkpoint",
+    "snapshot",
+    "save-snapshot",
   ]);
 });
 
@@ -279,7 +296,7 @@ it("stops a VM after a failed restore before MCP can read files", async () => {
   ]);
 });
 
-it("quiesces MCP before committing a checkpoint", async () => {
+it("snapshots the VM without stopping its MCP processes", async () => {
   const vm = backend();
 
   const guest = await vm.start(session, false);
@@ -288,14 +305,39 @@ it("quiesces MCP before committing a checkpoint", async () => {
 
   await vm.checkpoint(session, guest);
 
+  expect(events).toStrictEqual(["snapshot", "save-snapshot"]);
+});
+
+it("propagates snapshot failure without stopping the VM", async () => {
+  const vm = backend();
+  const guest = await vm.start(session, false);
+  events = [];
+  failedPath = "snapshot";
+  await expect(vm.checkpoint(session, guest)).rejects.toThrow(
+    "snapshot failed",
+  );
+  expect(events).toStrictEqual(["snapshot", "save-snapshot"]);
+});
+
+it("resumes a complete VM snapshot without restoring workspace files", async () => {
+  const prepare = files.prepare.bind(files);
+  files.prepare = async (candidate, restore) => ({
+    ...(await prepare(candidate, restore)),
+    snapshot: "librechat",
+  });
+  await backend().start(session, true);
   expect(events).toStrictEqual([
-    "/control/quiesce",
-    "/runner/api/v2/session/checkpoint",
-    "save:checkpoint",
+    "prepare",
+    "qemu",
+    "resume-vm",
+    "/health",
+    "/control/bind",
+    "/control/resume",
   ]);
 });
 
 it("resumes MCP and keeps the VM running after a failed checkpoint", async () => {
+  snapshotCapable = false;
   const vm = backend();
 
   const guest = await vm.start(session, false);
@@ -318,6 +360,7 @@ it("resumes MCP and keeps the VM running after a failed checkpoint", async () =>
 it.each(["response", "transport", "body"])(
   "reports a recovery failure when resume fails through %s",
   async (failure) => {
+    snapshotCapable = false;
     const vm = backend();
 
     const guest = await vm.start(session, false);
@@ -352,11 +395,9 @@ it.each(["response", "transport", "body"])(
       return originalFetch(socket, request);
     };
 
-    const failed = backend();
-
     failedPath = "/runner/api/v2/session/checkpoint";
 
-    await expect(failed.checkpoint(session, guest)).rejects.toThrow(
+    await expect(vm.checkpoint(session, guest)).rejects.toThrow(
       WorkspaceRecoveryError,
     );
 
@@ -371,6 +412,7 @@ it.each(["response", "transport", "body"])(
 it.each(["response", "transport", "body"])(
   "resumes MCP after quiesce fails through %s",
   async (failure) => {
+    snapshotCapable = false;
     const vm = backend();
 
     const guest = await vm.start(session, false);
@@ -405,9 +447,7 @@ it.each(["response", "transport", "body"])(
       return originalFetch(socket, request);
     };
 
-    await expect(backend().checkpoint(session, guest)).rejects.toThrow(
-      VmQuiesceError,
-    );
+    await expect(vm.checkpoint(session, guest)).rejects.toThrow(VmQuiesceError);
 
     expect(events).toStrictEqual(["/control/quiesce", "/control/resume"]);
   },
@@ -601,4 +641,21 @@ it("reports a rejected VM failure callback without an unhandled rejection", asyn
     reported: recoveryError,
     events: ["failed", "recovery-error"],
   });
+});
+
+it("keeps older guests on workspace checkpoints", async () => {
+  const originalFetch = fetch;
+  fetch = async (socket, request) =>
+    new URL(request.url).pathname === "/health"
+      ? Response.json({ runtimeId: session.runtimeId })
+      : originalFetch(socket, request);
+  const vm = backend();
+  const guest = await vm.start(session, false);
+  events = [];
+  await vm.checkpoint(session, guest);
+  expect(events).toStrictEqual([
+    "/control/quiesce",
+    "/runner/api/v2/session/checkpoint",
+    "save-workspace",
+  ]);
 });

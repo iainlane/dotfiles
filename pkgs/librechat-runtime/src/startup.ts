@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+
 export interface SecretStartupDependencies {
   status(): Promise<string>;
 
@@ -104,6 +107,35 @@ export class ReadinessWaiter {
 interface HttpProbeOptions {
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
+}
+
+export async function fileServerReady(
+  baseURL: string,
+  options: HttpProbeOptions & { token: string },
+): Promise<boolean> {
+  try {
+    const session = randomUUID().replaceAll("-", "").slice(0, 21);
+    const url = `${baseURL}/sessions/${session}/objects?detail=normalized`;
+    const request = options.fetch ?? globalThis.fetch;
+    const response = await request(url, {
+      headers: { "X-CodeAPI-Internal-Token": options.token },
+      signal: AbortSignal.timeout(options.timeoutMs ?? 1000),
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return false;
+    }
+    if (!z.array(z.never()).safeParse(await response.json()).success) {
+      return false;
+    }
+    const anonymous = await request(url, {
+      signal: AbortSignal.timeout(options.timeoutMs ?? 1000),
+    });
+    await anonymous.body?.cancel();
+    return anonymous.status === 401;
+  } catch {
+    return false;
+  }
 }
 
 export async function httpReady(

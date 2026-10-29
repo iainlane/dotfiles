@@ -8,6 +8,7 @@
   dotfiles.features.inference.librechat = {
     checks = [
       ({pkgs, ...}: {inherit (pkgs) librechat-runtime;})
+      (import ./workspace-check.nix)
       (import ./home-manager-check.nix {
         inherit featureResolver;
         inherit (config.dotfiles) features modelCatalog;

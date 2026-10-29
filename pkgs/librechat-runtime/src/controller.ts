@@ -13,10 +13,10 @@ export function workspaceReminder(session: Session): string {
           "Workspace access is unavailable after a recovery failure. Ask the user to inspect the last checkpoint before resetting the workspace.",
         ]),
     `Conversation workspace generation: ${session.generation}. ${session.resetReason}`,
-    "Code Interpreter uses /mnt/data. Local MCP servers use the same Linux VM and filesystem. Host files and credentials are not mounted in the VM.",
-    "The VM starts only when a tool or workspace file operation needs it. Selected tools determine which operations are available in this chat. The VM stops after 15 minutes without active calls. Files resume from a committed checkpoint; processes and browser tabs restart. A crash may lose changes since the last completed checkpoint.",
+    "Code Interpreter receives input files and delivers output files through /mnt/data, which does not permit direct execution of binaries or native extensions. Use the executable /work directory for projects and installed dependencies when it is available. Local MCP servers use the same Linux VM and filesystem. Host files and credentials are not mounted in the VM.",
+    "The VM starts only when a tool or workspace file operation needs it. Selected tools determine which operations are available in this chat. The VM stops after 15 minutes without active calls. The VM restores its workspace from a committed checkpoint. Current guest images also restore running processes. Each Code Interpreter call still starts a new process. Existing external network connections may need reconnecting. A crash may lose changes since the last completed checkpoint.",
     "Workspace retention extends on conversation activity. After 30 days without activity the workspace is deleted, including unpushed Git changes.",
-    "Shared skills and their scripts are available in /usr/share/agent-skills. When a skill refers to shell or file tools from another client, use Code Interpreter with Bash or Python in /mnt/data.",
+    "Shared skills and their scripts are available in /usr/share/agent-skills. When a skill refers to shell or file tools from another client, use Code Interpreter with Bash or Python. When Nix is available, its tools use the guest daemon; nixpkgs is pinned in the guest registry. Copy deliverables from /work to /mnt/data to make them downloadable.",
     "Public HTTP(S) uses the egress proxy. GitHub credentials are injected by the host proxy. AgentsView access is read-only; remote MCP services use their own host connections.",
   ].join("\n");
 }

@@ -13,6 +13,8 @@ import {
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { Readable, Transform, type TransformCallback } from "node:stream";
+import { createGunzip, createGzip } from "node:zlib";
+import type { VmRuntime } from "./qemu.ts";
 import { pipeline } from "node:stream/promises";
 import { z } from "zod";
 import { writePrivateJson } from "./config.ts";
@@ -28,6 +30,11 @@ interface VmFileOptions {
   initrd: string;
   init: string;
   checkpointMaxBytes: number;
+  runtime: VmRuntime;
+
+  retainRuntime(directory: string, runtime: VmRuntime): Promise<void>;
+
+  createDisk(image: string, destination: string): Promise<void>;
 
   stopExistingVm(socket: string): Promise<void>;
 }
@@ -52,13 +59,32 @@ export class VmSocketDirectoryError extends Error {
 
 export class CheckpointLimitError extends Error {
   constructor() {
-    super("Workspace checkpoint exceeds the configured byte limit");
+    super("VM checkpoint exceeds the configured byte limit");
 
     this.name = "CheckpointLimitError";
   }
 }
 
-const bootSchema = z.object({ init: z.string().startsWith("/nix/store/") });
+const runtimeSchema = z.object({
+  executable: z.string().startsWith("/nix/store/"),
+  forwarder: z.string().startsWith("/nix/store/"),
+  architecture: z.enum(["aarch64", "x86_64"]),
+  accelerator: z.enum(["hvf", "kvm"]),
+  memoryMiB: z.number().int().positive(),
+  cpus: z.number().int().positive(),
+});
+
+const bootSchema = z.object({
+  init: z.string().startsWith("/nix/store/"),
+  runtime: runtimeSchema.optional(),
+});
+
+export class VmSnapshotIntegrityError extends Error {
+  constructor() {
+    super("The VM snapshot archive failed its integrity check");
+    this.name = "VmSnapshotIntegrityError";
+  }
+}
 
 const checkpointSchema = z.object({
   digest: z.string().regex(/^[a-f0-9]{64}$/u),
@@ -156,7 +182,10 @@ export class FileVmStorage implements VmFiles {
     );
   }
 
-  async prepare(session: Session): ReturnType<VmFiles["prepare"]> {
+  async prepare(
+    session: Session,
+    restore = false,
+  ): ReturnType<VmFiles["prepare"]> {
     const directory = this.directory(session);
 
     await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -182,7 +211,6 @@ export class FileVmStorage implements VmFiles {
 
       await Promise.all(
         [
-          [this.options.image, "root.qcow2"],
           [this.options.kernel, "kernel"],
           [this.options.initrd, "initrd"],
         ].map(async ([source, name]) => {
@@ -194,9 +222,30 @@ export class FileVmStorage implements VmFiles {
         }),
       );
 
+      await this.options.createDisk(
+        this.options.image,
+        join(directory, "root.qcow2"),
+      );
+
+      await chmod(join(directory, "root.qcow2"), 0o600);
+
       boot = { init: this.options.init };
 
       await writePrivateJson(join(directory, "boot.json"), boot);
+    }
+
+    if (boot.runtime === undefined) {
+      await this.options.retainRuntime(directory, this.options.runtime);
+
+      boot.runtime = this.options.runtime;
+
+      await writePrivateJson(join(directory, "boot.json"), boot);
+    }
+
+    let snapshot: "librechat" | undefined;
+
+    if (restore && (await this.restoreSnapshot(session))) {
+      snapshot = "librechat";
     }
 
     const socketId = session.runtimeId.slice(3, 23);
@@ -206,6 +255,8 @@ export class FileVmStorage implements VmFiles {
       kernel: join(directory, "kernel"),
       initrd: join(directory, "initrd"),
       init: boot.init,
+      runtime: boot.runtime,
+      ...(snapshot === undefined ? {} : { snapshot }),
       controlSocket: join(this.options.socketDirectory, `${socketId}.http`),
       monitorSocket: join(this.options.socketDirectory, `${socketId}.qmp`),
     };
@@ -215,15 +266,37 @@ export class FileVmStorage implements VmFiles {
     session: Session,
     body: ReadableStream<Uint8Array>,
   ): Promise<void> {
+    await this.saveArchive(
+      session,
+      Readable.fromWeb(body),
+      "checkpoint",
+      "tar.gz",
+    );
+  }
+
+  async saveSnapshot(session: Session, disk: string): Promise<void> {
+    const compressed = createGzip({ level: 1 });
+    await Promise.all([
+      pipeline(createReadStream(disk), compressed),
+      this.saveArchive(session, compressed, "snapshot", "qcow2.gz"),
+    ]);
+  }
+
+  private async saveArchive(
+    session: Session,
+    body: Readable,
+    kind: "snapshot" | "checkpoint",
+    extension: "qcow2.gz" | "tar.gz",
+  ): Promise<void> {
     const directory = this.directory(session);
 
-    const temporary = join(directory, `checkpoint-${randomUUID()}.tmp`);
+    const temporary = join(directory, `${kind}-${randomUUID()}.tmp`);
 
     const digest = new CheckpointDigest(this.options.checkpointMaxBytes);
 
     try {
       await pipeline(
-        Readable.fromWeb(body),
+        body,
         digest,
         createWriteStream(temporary, { flags: "wx", mode: 0o600 }),
       );
@@ -238,9 +311,9 @@ export class FileVmStorage implements VmFiles {
 
       const hash = digest.hash.digest("hex");
 
-      await rename(temporary, join(directory, `checkpoint-${hash}.tar.gz`));
+      await rename(temporary, join(directory, `${kind}-${hash}.${extension}`));
 
-      await writePrivateJson(join(directory, "checkpoint.json"), {
+      await writePrivateJson(join(directory, `${kind}.json`), {
         digest: hash,
         bytes: digest.bytes,
       });
@@ -251,11 +324,59 @@ export class FileVmStorage implements VmFiles {
         archives
           .filter(
             (name) =>
-              /^checkpoint-[a-f0-9]{64}\.tar\.gz$/u.test(name) &&
-              name !== `checkpoint-${hash}.tar.gz`,
+              new RegExp(
+                `^${kind}-[a-f0-9]{64}\\.${extension.replaceAll(".", "\\.")}$`,
+                "u",
+              ).test(name) && name !== `${kind}-${hash}.${extension}`,
           )
           .map(async (name) => rm(join(directory, name))),
       );
+    } finally {
+      await rm(temporary, { force: true });
+    }
+  }
+
+  private async restoreSnapshot(session: Session): Promise<boolean> {
+    const directory = this.directory(session);
+    let raw: string;
+
+    try {
+      raw = await readFile(join(directory, "snapshot.json"), "utf8");
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return false;
+      }
+      throw error;
+    }
+
+    const snapshot = checkpointSchema.parse(JSON.parse(raw));
+    const digest = new CheckpointDigest(this.options.checkpointMaxBytes);
+    const temporary = join(directory, `restore-${randomUUID()}.tmp`);
+
+    try {
+      await pipeline(
+        createReadStream(
+          join(directory, `snapshot-${snapshot.digest}.qcow2.gz`),
+        ),
+        digest,
+        createGunzip(),
+        createWriteStream(temporary, { flags: "wx", mode: 0o600 }),
+      );
+
+      if (
+        digest.bytes !== snapshot.bytes ||
+        digest.hash.digest("hex") !== snapshot.digest
+      ) {
+        throw new VmSnapshotIntegrityError();
+      }
+
+      await rename(temporary, join(directory, "root.qcow2"));
+
+      return true;
     } finally {
       await rm(temporary, { force: true });
     }

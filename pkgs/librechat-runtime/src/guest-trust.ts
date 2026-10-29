@@ -54,7 +54,7 @@ export class GuestWorkspaceTrust {
 
     const identity = { uid: this.options.uid, gid: this.options.gid };
 
-    const trustDirectory = "/tmp/sandbox/session/.pki";
+    const trustDirectory = "/work/.pki";
 
     await this.dependencies.run({
       executable: this.options.mkdir,

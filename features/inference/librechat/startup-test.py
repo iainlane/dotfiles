@@ -297,6 +297,59 @@ def listening(port: int) -> bool:
         return False
 
 
+class PreparedOutput(BaseModel):
+    output_session_id: str
+
+
+class PreparedTransfer(BaseModel):
+    payload: PreparedOutput
+    token: str = Field(alias="egressGrantToken")
+
+
+def verify_asset_transfer(manifest: HostManifest) -> None:
+    gateway = f"http://127.0.0.1:{manifest.ports['egressGateway']}"
+    file_server = f"http://127.0.0.1:{manifest.ports['fileServer']}"
+    internal = (manifest.state_directory / "secrets" / "internal").read_text().strip()
+    now = int(time.time())
+    session = "b" * 21
+    payload = {"language": "python", "version": "3.14.4", "session_id": session, "files": []}
+    claims = {
+        "v": 1, "exec_id": f"asset_{time.time_ns()}",
+        "tenant_id": "fixture", "user_id": "fixture",
+        "session_key": "tenant:fixture:user:fixture", "input_files": [],
+        "read_sessions": [], "output_session_id": session,
+        "max_upload_bytes": 1024, "max_output_files": 2, "max_requests": 10,
+        "iat": now - 1, "exp": now + 300,
+        "principal_source": "librechat", "auth_context_hash": "fixture",
+    }
+    request = urllib.request.Request(
+        gateway + "/internal/egress-grants",
+        data=json.dumps({"payload": payload, "claims": claims}).encode(),
+        headers={"Content-Type": "application/json", "X-CodeAPI-Internal-Token": internal},
+    )
+    with urllib.request.urlopen(request, timeout=10) as result:
+        transfer = PreparedTransfer.model_validate_json(result.read())
+    contents = b"LibreChat artefact round trip\n"
+    request = urllib.request.Request(
+        f"{gateway}/sessions/{transfer.payload.output_session_id}/objects/aaaaaaaaaaaaaaaaaaaaa",
+        method="PUT", data=contents,
+        headers={"Content-Type": "text/plain", "X-Original-Filename": "result.txt", "X-CodeAPI-Egress-Grant": transfer.token},
+    )
+    try:
+        result = urllib.request.urlopen(request, timeout=10)
+    except urllib.error.HTTPError as failure:
+        raise AssertionError(f"Artefact upload returned HTTP {failure.code}: {failure.read().decode()}") from failure
+    with result:
+        assert result.status == 200
+    request = urllib.request.Request(
+        f"{file_server}/sessions/{session}/objects/aaaaaaaaaaaaaaaaaaaaa",
+        headers={"X-CodeAPI-Internal-Token": internal},
+    )
+    with urllib.request.urlopen(request, timeout=10) as result:
+        assert {"status": result.status, "contents": result.read()} == {"status": 200, "contents": contents}
+    LOG.info("asset_transfer_succeeded")
+
+
 def contains(path: Path, message: str) -> bool:
     with path.open(errors="replace") as lines:
         return any(message in line for line in lines)
@@ -699,6 +752,7 @@ def run(configuration: StartupConfiguration) -> None:
                         )
                         verify_chat_prompt(base_url, login.token, manifest.chat_prompt)
                         verify_interface(base_url, login.token)
+                        verify_asset_transfer(manifest)
                         if first_start:
                             subprocess.run(
                                 [

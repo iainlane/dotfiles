@@ -153,6 +153,7 @@
       agentsview = toString agentsview;
       qemu = lib.getExe' native.qemu "qemu-system-${hostConfig.arch}";
       socat = lib.getExe native.socat;
+      nixStore = lib.getExe' native.nix "nix-store";
     };
     guest = {
       inherit (guest) image kernel initrd init;
@@ -283,7 +284,7 @@ in {
           ProgramArguments = ["${service}"];
           RunAtLoad = true;
           KeepAlive.SuccessfulExit = false;
-          ExitTimeOut = 60;
+          ExitTimeOut = 300;
           StandardOutPath = "${config.home.homeDirectory}/Library/Logs/librechat.log";
           StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/librechat.log";
         };

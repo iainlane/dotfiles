@@ -2,16 +2,33 @@ import { once } from "node:events";
 import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import { z } from "zod";
+import { WorkspaceRecoveryError } from "./errors.ts";
+
+interface MonitorCommand {
+  execute: string;
+  id: string;
+  arguments?: Record<string, unknown>;
+}
 
 export interface MonitorConnection {
   messages: AsyncIterable<unknown>;
 
-  send(command: { execute: string; id: string }): void;
+  send(command: MonitorCommand): void;
 
   close(): void;
 }
 
-type MonitorConnector = (socket: string) => Promise<MonitorConnection | null>;
+type MonitorConnector = (
+  socket: string,
+  signal?: AbortSignal,
+) => Promise<MonitorConnection | null>;
+
+export class VmMonitorUnavailableError extends Error {
+  constructor() {
+    super("The private VM monitor is not listening");
+    this.name = "VmMonitorUnavailableError";
+  }
+}
 
 export class VmMonitorGreetingError extends Error {
   constructor() {
@@ -22,19 +39,26 @@ export class VmMonitorGreetingError extends Error {
 }
 
 export class VmMonitorCommandError extends Error {
-  constructor() {
+  constructor(cause?: unknown) {
     super(
-      "The private VM monitor refused recovery; keep the VM files for inspection",
+      "The private VM monitor rejected a command; keep the VM files for inspection",
+      { cause },
     );
 
     this.name = "VmMonitorCommandError";
   }
 }
 
-async function connectMonitor(path: string): Promise<MonitorConnection | null> {
+async function connectMonitor(
+  path: string,
+  signal?: AbortSignal,
+): Promise<MonitorConnection | null> {
   const socket = createConnection({
     path,
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(120_000),
+      ...(signal === undefined ? [] : [signal]),
+    ]),
   });
 
   const lines = createInterface({ input: socket });
@@ -103,6 +127,138 @@ const responseSchema = z.object({
   return: z.unknown().optional(),
   error: z.unknown().optional(),
 });
+
+class MonitorSession {
+  private readonly iterator: AsyncIterator<unknown>;
+  private readonly connection: MonitorConnection;
+
+  constructor(connection: MonitorConnection) {
+    this.connection = connection;
+    this.iterator = connection.messages[Symbol.asyncIterator]();
+  }
+
+  async initialise(): Promise<void> {
+    const greeting = await this.iterator.next();
+
+    if (
+      greeting.done === true ||
+      !z.object({ QMP: z.object({}) }).safeParse(greeting.value).success
+    ) {
+      throw new VmMonitorGreetingError();
+    }
+
+    await this.command("qmp_capabilities");
+  }
+
+  async command(
+    execute: string,
+    args?: Record<string, unknown>,
+  ): Promise<unknown> {
+    this.connection.send({
+      execute,
+      id: execute,
+      ...(args === undefined ? {} : { arguments: args }),
+    });
+
+    return await this.response(execute);
+  }
+
+  private async response(id: string): Promise<unknown> {
+    const next = await this.iterator.next();
+
+    if (next.done === true) {
+      throw new VmMonitorCommandError();
+    }
+
+    const response = responseSchema.parse(next.value);
+
+    if (response.id !== id) {
+      return await this.response(id);
+    }
+
+    if (response.error !== undefined) {
+      throw new VmMonitorCommandError(response.error);
+    }
+
+    return response.return;
+  }
+}
+
+async function withMonitor<T>(
+  socket: string,
+  operation: (session: MonitorSession) => Promise<T>,
+  connect: MonitorConnector,
+  signal?: AbortSignal,
+): Promise<T> {
+  const connection = await connect(socket, signal);
+
+  if (connection === null) {
+    throw new VmMonitorUnavailableError();
+  }
+
+  try {
+    const session = new MonitorSession(connection);
+
+    await session.initialise();
+
+    return await operation(session);
+  } finally {
+    connection.close();
+  }
+}
+
+export async function resumeVm(
+  socket: string,
+  connect: MonitorConnector = connectMonitor,
+  signal?: AbortSignal,
+): Promise<void> {
+  await withMonitor(
+    socket,
+    async (session) => {
+      await session.command("cont");
+    },
+    connect,
+    signal,
+  );
+}
+
+export async function saveVmSnapshot(
+  socket: string,
+  persist: () => Promise<void>,
+  connect: MonitorConnector = connectMonitor,
+): Promise<void> {
+  let outcome: { ok: true } | { ok: false; error: unknown };
+
+  try {
+    await withMonitor(
+      socket,
+      async (session) => {
+        await session.command("stop");
+        const result = await session.command("human-monitor-command", {
+          "command-line": "savevm librechat",
+        });
+        if (result !== "") {
+          throw new VmMonitorCommandError(result);
+        }
+      },
+      connect,
+    );
+    await persist();
+    outcome = { ok: true };
+  } catch (error) {
+    outcome = { ok: false, error };
+  }
+
+  try {
+    await resumeVm(socket, connect);
+  } catch (cause) {
+    throw new WorkspaceRecoveryError({ cause });
+  }
+
+  if (!outcome.ok) {
+    throw outcome.error;
+  }
+}
 
 export async function stopExistingVm(
   socket: string,

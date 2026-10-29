@@ -1,7 +1,17 @@
+import { z } from "zod";
 import { WorkspaceRecoveryError } from "./errors.ts";
+import {
+  resumeVm,
+  saveVmSnapshot,
+  VmMonitorUnavailableError,
+} from "./vm-monitor.ts";
 import { callbackify } from "node:util";
 import type { SocketFetch } from "./http-socket.ts";
-import { qemuArguments, type VmBootSpecification } from "./qemu.ts";
+import {
+  qemuArguments,
+  type VmBootSpecification,
+  type VmRuntime,
+} from "./qemu.ts";
 import type { ManagedProcess, ProcessRunner } from "./processes.ts";
 import type { Guest, GuestBackend, Session } from "./sessions.ts";
 
@@ -14,28 +24,30 @@ const controlTimeouts = {
 export interface VmFiles {
   prepare(
     session: Session,
+    restore?: boolean,
   ): Promise<
     Pick<
       VmBootSpecification,
       "disk" | "kernel" | "initrd" | "init" | "controlSocket" | "monitorSocket"
-    >
+    > & { runtime: VmRuntime; snapshot?: "librechat" }
   >;
+
+  readCheckpoint(session: Session): Promise<ReadableStream<Uint8Array>>;
 
   saveCheckpoint(
     session: Session,
     body: ReadableStream<Uint8Array>,
   ): Promise<void>;
 
-  readCheckpoint(session: Session): Promise<ReadableStream<Uint8Array>>;
+  saveSnapshot(session: Session, disk: string): Promise<void>;
 
   remove(session: Session): Promise<void>;
 }
 
 interface VmBackendOptions {
-  executable: string;
-  boot: Omit<
+  boot: Pick<
     VmBootSpecification,
-    "disk" | "kernel" | "initrd" | "init" | "controlSocket" | "monitorSocket"
+    "ironPort" | "fileRelayPort" | "archiveBrokerPort"
   >;
   files: VmFiles;
   processes: ProcessRunner;
@@ -53,6 +65,9 @@ interface VmBackendOptions {
   onFailure(session: Session, error: unknown): Promise<void>;
 
   onError(error: unknown): void;
+
+  resumeVm?: typeof resumeVm;
+  saveVmSnapshot?: typeof saveVmSnapshot;
 }
 
 export class VmBootError extends Error {
@@ -118,6 +133,11 @@ export class VmProcessMissingError extends Error {
 export class QemuBackend implements GuestBackend {
   private readonly options: VmBackendOptions;
   private readonly processes = new Map<string, ManagedProcess>();
+  private readonly snapshotCapable = new Set<string>();
+  private readonly boots = new Map<
+    string,
+    Awaited<ReturnType<VmFiles["prepare"]>>
+  >();
 
   constructor(options: VmBackendOptions) {
     this.options = options;
@@ -128,7 +148,7 @@ export class QemuBackend implements GuestBackend {
     process: ManagedProcess,
     signal: AbortSignal,
     remaining = 120,
-  ): Promise<void> {
+  ): Promise<boolean> {
     signal.throwIfAborted();
 
     if (!process.running() || remaining === 0) {
@@ -151,18 +171,42 @@ export class QemuBackend implements GuestBackend {
     }
 
     if (response !== null) {
-      await response.body?.cancel();
-
       signal.throwIfAborted();
 
       if (response.ok) {
-        return;
+        return z
+          .object({ resumeClock: z.boolean().default(false) })
+          .parse(await response.json()).resumeClock;
       }
+      await response.body?.cancel();
     }
 
     await this.options.delay(1000, signal);
 
-    await this.ready(socket, process, signal, remaining - 1);
+    return await this.ready(socket, process, signal, remaining - 1);
+  }
+
+  private async resume(
+    socket: string,
+    process: ManagedProcess,
+    signal: AbortSignal,
+    remaining = 120,
+  ): Promise<void> {
+    signal.throwIfAborted();
+    if (!process.running() || remaining === 0) {
+      throw new VmBootError();
+    }
+    try {
+      await (this.options.resumeVm ?? resumeVm)(socket, undefined, signal);
+      return;
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!(error instanceof VmMonitorUnavailableError)) {
+        throw error;
+      }
+    }
+    await this.options.delay(1000, signal);
+    await this.resume(socket, process, signal, remaining - 1);
   }
 
   private async control(
@@ -177,7 +221,12 @@ export class QemuBackend implements GuestBackend {
       guest.socket,
       new Request(`http://guest/control/${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(path === "resume"
+            ? { "x-librechat-resume-time": String(Date.now()) }
+            : {}),
+        },
         body: JSON.stringify(payload),
         signal:
           signal === undefined ? deadline : AbortSignal.any([signal, deadline]),
@@ -194,13 +243,13 @@ export class QemuBackend implements GuestBackend {
 
     startupSignal.throwIfAborted();
 
-    const paths = await this.options.files.prepare(session);
+    const paths = await this.options.files.prepare(session, restore);
 
     startupSignal.throwIfAborted();
 
     const process = await this.options.processes.start({
-      executable: this.options.executable,
-      args: qemuArguments({ ...this.options.boot, ...paths }),
+      executable: paths.runtime.executable,
+      args: qemuArguments({ ...this.options.boot, ...paths.runtime, ...paths }),
     });
 
     const guest: Guest = {
@@ -209,11 +258,26 @@ export class QemuBackend implements GuestBackend {
     };
 
     this.processes.set(guest.bootId, process);
+    this.boots.set(guest.bootId, paths);
 
     try {
       startupSignal.throwIfAborted();
 
-      await this.ready(guest.socket, process, startupSignal);
+      if (paths.snapshot !== undefined) {
+        await this.resume(paths.monitorSocket, process, startupSignal);
+      }
+
+      const resumeClock = await this.ready(
+        guest.socket,
+        process,
+        startupSignal,
+      );
+      if (resumeClock) {
+        this.snapshotCapable.add(guest.bootId);
+      }
+      if (paths.snapshot !== undefined && !resumeClock) {
+        throw new VmRestoreError();
+      }
 
       const binding = await this.control(
         guest,
@@ -235,7 +299,7 @@ export class QemuBackend implements GuestBackend {
         throw new VmBindingError();
       }
 
-      if (restore) {
+      if (restore && paths.snapshot === undefined) {
         const body = await this.options.files.readCheckpoint(session);
 
         const init: RequestInit & { duplex: "half" } = {
@@ -284,6 +348,8 @@ export class QemuBackend implements GuestBackend {
       await process.stop();
 
       this.processes.delete(guest.bootId);
+      this.boots.delete(guest.bootId);
+      this.snapshotCapable.delete(guest.bootId);
 
       startupSignal.throwIfAborted();
 
@@ -303,6 +369,29 @@ export class QemuBackend implements GuestBackend {
   }
 
   async checkpoint(session: Session, guest: Guest): Promise<void> {
+    const paths = this.boots.get(guest.bootId);
+
+    if (paths === undefined) {
+      throw new VmProcessMissingError();
+    }
+
+    if (!this.snapshotCapable.has(guest.bootId)) {
+      await this.checkpointWorkspace(session, guest);
+      return;
+    }
+
+    await (this.options.saveVmSnapshot ?? saveVmSnapshot)(
+      paths.monitorSocket,
+      async () => {
+        await this.options.files.saveSnapshot(session, paths.disk);
+      },
+    );
+  }
+
+  private async checkpointWorkspace(
+    session: Session,
+    guest: Guest,
+  ): Promise<void> {
     try {
       const quiesced = await this.control(guest, "quiesce");
 
@@ -356,6 +445,8 @@ export class QemuBackend implements GuestBackend {
     await process.stop();
 
     this.processes.delete(guest.bootId);
+    this.boots.delete(guest.bootId);
+    this.snapshotCapable.delete(guest.bootId);
   }
 
   async remove(session: Session): Promise<void> {
