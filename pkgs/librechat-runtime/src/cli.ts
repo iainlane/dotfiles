@@ -281,7 +281,7 @@ async function main(args: string[]): Promise<void> {
       "Generated service",
     );
 
-    const response = await fetch(`${configuration.baseURL}/activate`, {
+    const response = await fetch(`${configuration.baseURL}/activity`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,

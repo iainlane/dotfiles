@@ -29,8 +29,8 @@ function fixture(): { router: ControllerRouter; events: string[] } {
     userId,
     token,
     sessions: {
-      activate: async (owner, conversation) => {
-        events.push(`activate:${owner}:${conversation}`);
+      register: async (owner, conversation) => {
+        events.push(`register:${owner}:${conversation}`);
 
         return session;
       },
@@ -70,12 +70,12 @@ it.each([
     status: StatusCodes.BAD_REQUEST,
   },
 ])(
-  "rejects invalid activation before acquiring a workspace: %j",
+  "rejects invalid registration before acquiring a workspace: %j",
   async ({ authorization, conversationId: selectedConversation, status }) => {
     const { router, events } = fixture();
 
     const response = await router.route(
-      new Request("http://controller/activate", {
+      new Request("http://controller/activity", {
         method: "POST",
         headers: { authorization, "content-type": "application/json" },
         body: JSON.stringify({ conversationId: selectedConversation }),

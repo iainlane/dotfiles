@@ -1,4 +1,6 @@
+import { runtimeIdentity } from "../src/identity.ts";
 import { configureLocalMcp } from "../src/config.ts";
+import { z } from "zod";
 import { StatusCodes } from "http-status-codes";
 import { beforeEach, expect, it } from "vitest";
 import { McpRouter, type McpRouterOptions } from "../src/mcp-router.ts";
@@ -47,6 +49,13 @@ async function lease(): Promise<SessionLease> {
   };
 }
 
+async function catalogueLease(): Promise<SessionLease> {
+  return {
+    ...(await lease()),
+    guest: { socket: "catalogue", bootId: "catalogue-boot" },
+  };
+}
+
 async function forward(
   _guest: Guest,
   server: string,
@@ -59,7 +68,7 @@ async function forward(
   });
 
   return Response.json(
-    { jsonrpc: "2.0", id: 1, result: {} },
+    { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-03-26" } },
     { headers: { "mcp-session-id": "backend-session" } },
   );
 }
@@ -76,10 +85,12 @@ beforeEach(() => {
     userId: user,
     servers: new Set(["git"]),
     sessions: {
-      activate: async () => (await lease()).session,
+      register: async () => (await lease()).session,
       acquire: lease,
+      acquireRunning: lease,
     },
     catalogue: lease,
+    catalogueRunning: lease,
     forward,
   };
 });
@@ -143,7 +154,11 @@ it("initialises tools before the conversation hook has registered a workspace", 
       })),
     }).toStrictEqual({
       status: StatusCodes.OK,
-      body: { jsonrpc: "2.0", id: 1, result: {} },
+      body: {
+        jsonrpc: "2.0",
+        id: 1,
+        result: { protocolVersion: "2025-03-26" },
+      },
       workspaces: [{ userId: user, conversationId: conversation }],
     });
   } finally {
@@ -245,29 +260,33 @@ it("strips host credentials and routing headers before forwarding", async () => 
 it("rejects stale sessions after a VM restart without replaying a call", async () => {
   const router = new McpRouter(options);
 
-  await (await router.route(mcpRequest("initialize"))).text();
+  const initial = await router.route(mcpRequest("initialize"));
+  await initial.text();
+  const headers = {
+    "mcp-session-id": initial.headers.get("mcp-session-id") ?? "",
+  };
+  await (await router.route(mcpRequest("tools/call", false, headers))).text();
 
   boot = "second-boot";
 
-  const response = await router.route(
-    mcpRequest("tools/call", false, { "mcp-session-id": "backend-session" }),
-  );
+  const response = await router.route(mcpRequest("tools/call", false, headers));
 
   expect({
     status: response.status,
     forwards: forwarded.length,
     released,
-  }).toStrictEqual({ status: StatusCodes.NOT_FOUND, forwards: 1, released: 2 });
+  }).toStrictEqual({ status: StatusCodes.NOT_FOUND, forwards: 4, released: 3 });
 });
 
 it("rejects session reuse by another conversation", async () => {
   const router = new McpRouter(options);
 
-  await (await router.route(mcpRequest("initialize"))).text();
+  const initial = await router.route(mcpRequest("initialize"));
+  await initial.text();
 
   const response = await router.route(
     mcpRequest("tools/call", false, {
-      "mcp-session-id": "backend-session",
+      "mcp-session-id": initial.headers.get("mcp-session-id") ?? "",
       "x-librechat-conversation-id": "dbd5bc71-a5a0-4363-8672-e84c9ccad80f",
     }),
   );
@@ -294,10 +313,11 @@ it("rejects catalogue event streams before acquiring a VM", async () => {
 it("forwards client replies to server requests within the bound conversation", async () => {
   const router = new McpRouter(options);
 
-  await (await router.route(mcpRequest("initialize"))).text();
+  const initial = await router.route(mcpRequest("initialize"));
+  await initial.text();
 
   const original = mcpRequest("initialize", false, {
-    "mcp-session-id": "backend-session",
+    "mcp-session-id": initial.headers.get("mcp-session-id") ?? "",
   });
 
   const reply = { jsonrpc: "2.0", id: "roots", result: { roots: [] } };
@@ -348,3 +368,251 @@ it("does not permit loopback addresses without local stdio servers", () => {
     mcpServers: {},
   });
 });
+
+it.each(["tools/list", "ping"])(
+  "keeps discovery lazy before execution and after idle %s",
+  async (method) => {
+    const records = new Map<string, Session>();
+    let clock = 0;
+    const starts: string[] = [];
+    const destinations: {
+      socket: string;
+      method: string;
+      session: string | null;
+    }[] = [];
+    const sessions = new SessionManager({
+      userId: user,
+      idleMs: 100,
+      retentionMs: 1000,
+      now: () => clock,
+      store: {
+        load: async (id) => records.get(id),
+        save: async (session) => {
+          records.set(session.runtimeId, structuredClone(session));
+        },
+        list: async () => [...records.keys()],
+      },
+      backend: {
+        start: async (session) => {
+          starts.push(session.runtimeId);
+          return { socket: "conversation", bootId: "conversation-boot" };
+        },
+        checkpoint: async () => {},
+        stop: async () => {},
+        remove: async () => {},
+      },
+    });
+    const router = new McpRouter({
+      ...options,
+      sessions,
+      catalogue: catalogueLease,
+      catalogueRunning: catalogueLease,
+      forward: async (guest, _server, request) => {
+        const rpc = z
+          .object({ method: z.string() })
+          .parse(await request.json());
+        destinations.push({
+          socket: guest.socket,
+          method: rpc.method,
+          session: request.headers.get("mcp-session-id"),
+        });
+        return Response.json(
+          { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-03-26" } },
+          {
+            headers:
+              rpc.method === "initialize"
+                ? { "mcp-session-id": `${guest.socket}-session` }
+                : {},
+          },
+        );
+      },
+    });
+
+    try {
+      const initialized = await router.route(mcpRequest("initialize"));
+      await initialized.text();
+      const session = initialized.headers.get("mcp-session-id");
+      expect(session).not.toBeNull();
+      const headers = { "mcp-session-id": session ?? "" };
+      await (
+        await router.route(
+          mcpRequest("notifications/initialized", false, headers),
+        )
+      ).text();
+      await (
+        await router.route(mcpRequest("tools/list", false, headers))
+      ).text();
+      expect({ starts, destinations }).toStrictEqual({
+        starts: [],
+        destinations: [
+          { socket: "catalogue", method: "initialize", session: null },
+          {
+            socket: "catalogue",
+            method: "notifications/initialized",
+            session: "catalogue-session",
+          },
+          {
+            socket: "catalogue",
+            method: "tools/list",
+            session: "catalogue-session",
+          },
+        ],
+      });
+      await (
+        await router.route(mcpRequest("tools/call", false, headers))
+      ).text();
+      expect({ starts, destinations: destinations.slice(3) }).toStrictEqual({
+        starts: [runtimeIdentity(user, conversation)],
+        destinations: [
+          { socket: "conversation", method: "initialize", session: null },
+          {
+            socket: "conversation",
+            method: "notifications/initialized",
+            session: "conversation-session",
+          },
+          {
+            socket: "conversation",
+            method: "tools/call",
+            session: "conversation-session",
+          },
+        ],
+      });
+      clock = 101;
+      await sessions.sweep();
+      const idle = await router.route(mcpRequest(method, false, headers));
+      await idle.text();
+
+      expect({
+        status: idle.status,
+        starts,
+        destinations: destinations.slice(6),
+      }).toStrictEqual({
+        status: StatusCodes.NOT_FOUND,
+        starts: [runtimeIdentity(user, conversation)],
+        destinations: [],
+      });
+    } finally {
+      await sessions.shutdown();
+    }
+  },
+);
+
+it.each(["http-error", "rpc-error", "invalid-json"])(
+  "does not execute a tool when lazy initialization returns %s",
+  async (failure) => {
+    const router = new McpRouter(options);
+    const initial = await router.route(mcpRequest("initialize"));
+    await initial.text();
+    const headers = {
+      "mcp-session-id": initial.headers.get("mcp-session-id") ?? "",
+    };
+    const methods: string[] = [];
+    options.forward = async (_guest, _server, request) => {
+      const rpc = z.object({ method: z.string() }).parse(await request.json());
+      methods.push(rpc.method);
+
+      if (failure === "http-error") {
+        return new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE });
+      }
+
+      if (failure === "invalid-json") {
+        return new Response("invalid", {
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return Response.json({
+        jsonrpc: "2.0",
+        id: 1,
+        error: { code: -32603, message: "Initialization failed" },
+      });
+    };
+    const response = await router.route(
+      mcpRequest("tools/call", false, headers),
+    );
+    await response.text();
+    const retry = await router.route(mcpRequest("tools/list", false, headers));
+    await retry.text();
+
+    expect({
+      status: response.status,
+      retry: retry.status,
+      methods,
+      released,
+    }).toStrictEqual({
+      status: StatusCodes.NOT_FOUND,
+      retry: StatusCodes.NOT_FOUND,
+      methods: ["initialize"],
+      released: 2,
+    });
+  },
+);
+
+it("cancels catalogue discovery without acquiring a conversation lease", async () => {
+  const reason = new DOMException("Discovery cancelled", "AbortError");
+  const controller = new AbortController();
+  let signal: AbortSignal | undefined;
+  let acquired = false;
+  options.catalogue = async (requestedSignal) => {
+    signal = requestedSignal;
+    controller.abort(reason);
+    requestedSignal?.throwIfAborted();
+
+    return await lease();
+  };
+  options.sessions.acquire = async () => {
+    acquired = true;
+
+    return await lease();
+  };
+  const request = new Request(mcpRequest("initialize"), {
+    signal: controller.signal,
+  });
+
+  await expect(new McpRouter(options).route(request)).rejects.toBe(reason);
+  expect({ signal, acquired, forwarded, released }).toStrictEqual({
+    signal: request.signal,
+    acquired: false,
+    forwarded: [],
+    released: 0,
+  });
+});
+
+it.each(["cancel", "read-error"])(
+  "releases discovery leases when the response body ends through %s",
+  async (ending) => {
+    const router = new McpRouter(options);
+    const initial = await router.route(mcpRequest("initialize"));
+    await initial.text();
+    const headers = {
+      "mcp-session-id": initial.headers.get("mcp-session-id") ?? "",
+    };
+    const failure = new Error("The guest response stream failed");
+    options.forward = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            if (ending === "read-error") {
+              controller.error(failure);
+            }
+          },
+        }),
+      );
+    const response = await router.route(
+      mcpRequest("tools/list", false, headers),
+    );
+
+    const result = await Promise.allSettled([
+      ending === "cancel" ? response.body?.cancel() : response.text(),
+    ]);
+
+    expect({ released, result }).toStrictEqual({
+      released: 2,
+      result: [
+        ending === "cancel"
+          ? { status: "fulfilled", value: undefined }
+          : { status: "rejected", reason: failure },
+      ],
+    });
+  },
+);

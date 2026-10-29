@@ -89,13 +89,13 @@ class LeaseSaveError extends Error {
   }
 }
 
-it("rejects queued conversation activation after shutdown starts", async () => {
+it("rejects queued conversation registration after shutdown starts", async () => {
   const sessions = manager();
 
-  const activation = sessions.activate(userId, conversationId);
+  const registration = sessions.register(userId, conversationId);
   const shutdown = sessions.shutdown();
 
-  await expect(activation).rejects.toThrow(SessionClosingError);
+  await expect(registration).rejects.toThrow(SessionClosingError);
 
   await shutdown;
 
@@ -108,7 +108,7 @@ it("rejects queued conversation activation after shutdown starts", async () => {
 it("drains a guest after saving a new lease fails", async () => {
   const sessions = manager();
 
-  const active = await sessions.activate(userId, conversationId);
+  const active = await sessions.register(userId, conversationId);
 
   const save = store.save.bind(store);
 
@@ -135,7 +135,7 @@ it("rejects other principals and unregistered runtime identities", async () => {
   const sessions = manager();
 
   await expect(
-    sessions.activate("another-user", conversationId),
+    sessions.register("another-user", conversationId),
   ).rejects.toThrow(ConversationPrincipalError);
 
   await expect(
@@ -148,7 +148,7 @@ it("rejects other principals and unregistered runtime identities", async () => {
 it("uses one VM for concurrent CodeAPI and MCP leases", async () => {
   const sessions = manager();
 
-  const session = await sessions.activate(userId, conversationId);
+  const session = await sessions.register(userId, conversationId);
 
   const [code, mcp] = await Promise.all([
     sessions.acquire(session.runtimeId),
@@ -171,13 +171,18 @@ it("uses one VM for concurrent CodeAPI and MCP leases", async () => {
 it("checkpoints before idle stop and restores before reuse", async () => {
   const sessions = manager();
 
-  const original = await sessions.activate(userId, conversationId);
+  const original = await sessions.register(userId, conversationId);
+
+  const lease = await sessions.acquire(original.runtimeId);
+  await lease.release();
 
   clock = 101;
 
   await sessions.sweep();
 
-  const resumed = await sessions.activate(userId, conversationId);
+  const resumed = await sessions.register(userId, conversationId);
+  const resumedLease = await sessions.acquire(resumed.runtimeId);
+  await resumedLease.release();
 
   expect({
     runtime: resumed.runtimeId,
@@ -195,7 +200,10 @@ it("checkpoints before idle stop and restores before reuse", async () => {
 it("keeps a VM running when checkpointing fails", async () => {
   const sessions = manager();
 
-  const original = await sessions.activate(userId, conversationId);
+  const original = await sessions.register(userId, conversationId);
+
+  const lease = await sessions.acquire(original.runtimeId);
+  await lease.release();
 
   failCheckpoint = true;
 
@@ -213,11 +221,13 @@ it("keeps a VM running when checkpointing fails", async () => {
 it("extends retention on conversation activity and deletes expired work", async () => {
   const sessions = manager();
 
-  await sessions.activate(userId, conversationId);
+  const session = await sessions.register(userId, conversationId);
+  const lease = await sessions.acquire(session.runtimeId);
+  await lease.release();
 
   clock = 900;
 
-  await sessions.activate(userId, conversationId);
+  await sessions.register(userId, conversationId);
 
   clock = 1500;
 
@@ -227,7 +237,7 @@ it("extends retention on conversation activity and deletes expired work", async 
 
   await sessions.sweep();
 
-  const recreated = await sessions.activate(userId, conversationId);
+  const recreated = await sessions.register(userId, conversationId);
 
   expect({
     generation: recreated.generation,
@@ -237,14 +247,16 @@ it("extends retention on conversation activity and deletes expired work", async 
     generation: 2,
     reset:
       "The previous workspace expired and was deleted, including unpushed work.",
-    events: ["start", "checkpoint", "stop", "remove", "start"],
+    events: ["start", "checkpoint", "stop", "remove"],
   });
 });
 
 it("recovers durable registration and reports a controller restart", async () => {
   const first = manager();
 
-  const original = await first.activate(userId, conversationId);
+  const original = await first.register(userId, conversationId);
+  const lease = await first.acquire(original.runtimeId);
+  await lease.release();
 
   clock = 101;
 
@@ -252,7 +264,9 @@ it("recovers durable registration and reports a controller restart", async () =>
 
   const second = manager();
 
-  const resumed = await second.activate(userId, conversationId);
+  const resumed = await second.register(userId, conversationId);
+  const resumedLease = await second.acquire(resumed.runtimeId);
+  await resumedLease.release();
 
   const state = records.get(original.runtimeId);
 
@@ -272,7 +286,7 @@ it("recovers durable registration and reports a controller restart", async () =>
 it("does not derive host paths from conversation IDs", async () => {
   const sessions = manager();
 
-  await expect(sessions.activate(userId, "../../outside")).rejects.toThrow(
+  await expect(sessions.register(userId, "../../outside")).rejects.toThrow(
     ConversationIdError,
   );
 
@@ -288,7 +302,7 @@ it("matches the pinned upstream runtime identity vector", () => {
 it("drains active calls before shutdown and refuses new calls", async () => {
   const sessions = manager();
 
-  const session = await sessions.activate(userId, conversationId);
+  const session = await sessions.register(userId, conversationId);
 
   const lease = await sessions.acquire(session.runtimeId);
 
@@ -308,11 +322,14 @@ it("drains active calls before shutdown and refuses new calls", async () => {
 it("resets an idle workspace and reports discarded work", async () => {
   const sessions = manager();
 
-  const original = await sessions.activate(userId, conversationId);
+  const original = await sessions.register(userId, conversationId);
+
+  const lease = await sessions.acquire(original.runtimeId);
+  await lease.release();
 
   await sessions.reset(original.runtimeId);
 
-  const session = await sessions.activate(userId, conversationId);
+  const session = await sessions.register(userId, conversationId);
 
   expect({
     generation: session.generation,
@@ -320,7 +337,7 @@ it("resets an idle workspace and reports discarded work", async () => {
     reason: session.resetReason,
   }).toStrictEqual({
     generation: 2,
-    events: ["start", "stop", "remove", "start"],
+    events: ["start", "stop", "remove"],
     reason:
       "The workspace was explicitly reset and unpushed work was discarded.",
   });
@@ -335,7 +352,7 @@ it("binds a later conversation hook to the VM already acquired by authenticated 
 
   await prewarm.release();
 
-  const registered = await sessions.activate(userId, conversationId);
+  const registered = await sessions.register(userId, conversationId);
 
   const mcp = await sessions.acquire(id);
 
@@ -376,7 +393,8 @@ it("skips a cancelled CodeAPI acquisition queued behind another VM startup", asy
     },
   });
 
-  const active = sessions.activate(userId, conversationId);
+  const registration = await sessions.register(userId, conversationId);
+  const active = sessions.acquire(registration.runtimeId);
 
   await started.promise;
 
@@ -395,7 +413,8 @@ it("skips a cancelled CodeAPI acquisition queued behind another VM startup", asy
 
   await expect(pending).rejects.toBe(reason);
 
-  await active;
+  const lease = await active;
+  await lease.release();
 
   clock = 101;
 
@@ -491,7 +510,7 @@ it.each(["startup", "lease-save"])(
 it("preserves another caller's lease when CodeAPI acquisition is cancelled", async () => {
   const sessions = manager();
 
-  const active = await sessions.activate(userId, conversationId);
+  const active = await sessions.register(userId, conversationId);
 
   const lease = await sessions.acquire(active.runtimeId);
 
@@ -526,7 +545,7 @@ it("preserves another caller's lease when CodeAPI acquisition is cancelled", asy
   expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
 });
 
-it("does not persist activation cancelled during session lookup", async () => {
+it("does not persist registration cancelled during session lookup", async () => {
   const controller = new AbortController();
   const reason = new DOMException("MCP request cancelled", "AbortError");
   store.load = async () => {
@@ -534,7 +553,7 @@ it("does not persist activation cancelled during session lookup", async () => {
   };
 
   await expect(
-    manager().activate(userId, conversationId, controller.signal),
+    manager().register(userId, conversationId, controller.signal),
   ).rejects.toBe(reason);
 
   expect({ events, records: [...records] }).toStrictEqual({
@@ -543,7 +562,7 @@ it("does not persist activation cancelled during session lookup", async () => {
   });
 });
 
-it.each(["activate", "acquire"] as const)(
+it.each(["register", "acquire"] as const)(
   "skips cancelled %s while preserving another caller's startup",
   async (operation) => {
     const started = Promise.withResolvers<void>();
@@ -556,13 +575,14 @@ it.each(["activate", "acquire"] as const)(
         return await backend.start(session, restore);
       },
     });
-    const active = sessions.activate(userId, conversationId);
+    const registration = await sessions.register(userId, conversationId);
+    const active = sessions.acquire(registration.runtimeId);
     await started.promise;
     const controller = new AbortController();
     const reason = new DOMException("MCP request cancelled", "AbortError");
     const pending =
-      operation === "activate"
-        ? sessions.activate(userId, conversationId, controller.signal)
+      operation === "register"
+        ? sessions.register(userId, conversationId, controller.signal)
         : sessions.acquire(
             runtimeIdentity(userId, conversationId),
             controller.signal,
@@ -571,7 +591,9 @@ it.each(["activate", "acquire"] as const)(
     proceed.resolve();
 
     await expect(pending).rejects.toBe(reason);
-    const session = await active;
+    const previousLease = await active;
+    await previousLease.release();
+    const session = previousLease.session;
     const lease = await sessions.acquire(session.runtimeId);
 
     expect({ events, guest: lease.guest }).toStrictEqual({
@@ -587,39 +609,80 @@ it.each(["activate", "acquire"] as const)(
   },
 );
 
-it.each(["activate", "acquire"] as const)(
-  "passes %s cancellation to VM startup",
-  async (operation) => {
-    const id = runtimeIdentity(userId, conversationId);
-    if (operation === "acquire") {
-      const seed = manager();
-      await seed.activate(userId, conversationId);
-      await seed.shutdown();
-      events = [];
-    }
+it("passes acquisition cancellation to VM startup", async () => {
+  const id = runtimeIdentity(userId, conversationId);
+  const seed = manager();
+  await seed.register(userId, conversationId);
+  await seed.shutdown();
 
-    const controller = new AbortController();
-    const reason = new DOMException("MCP request cancelled", "AbortError");
-    let receivedSignal: AbortSignal | undefined;
-    const sessions = manager({
-      ...backend,
-      start: async (session, restore, signal) => {
-        receivedSignal = signal;
-        controller.abort(reason);
-        signal?.throwIfAborted();
-        return await backend.start(session, restore);
-      },
-    });
-    const pending =
-      operation === "activate"
-        ? sessions.activate(userId, conversationId, controller.signal)
-        : sessions.acquire(id, controller.signal);
+  const controller = new AbortController();
+  const reason = new DOMException("MCP request cancelled", "AbortError");
+  let receivedSignal: AbortSignal | undefined;
+  const sessions = manager({
+    ...backend,
+    start: async (session, restore, signal) => {
+      receivedSignal = signal;
+      controller.abort(reason);
+      signal?.throwIfAborted();
+      return await backend.start(session, restore);
+    },
+  });
 
-    await expect(pending).rejects.toBe(reason);
-    expect({ receivedSignal, events }).toStrictEqual({
-      receivedSignal: controller.signal,
-      events: [],
-    });
-    await sessions.shutdown();
-  },
-);
+  await expect(sessions.acquire(id, controller.signal)).rejects.toBe(reason);
+  expect({ receivedSignal, events }).toStrictEqual({
+    receivedSignal: controller.signal,
+    events: [],
+  });
+  await sessions.shutdown();
+});
+
+it("registers and renews conversation activity without booting a VM", async () => {
+  const sessions = manager();
+  const original = await sessions.register(userId, conversationId);
+  clock = 900;
+  const renewed = await sessions.register(userId, conversationId);
+  await sessions.shutdown();
+
+  expect({ original, renewed, events }).toStrictEqual({
+    original: {
+      runtimeId: runtimeIdentity(userId, conversationId),
+      conversationId,
+      userId,
+      generation: 1,
+      lastUsed: 0,
+      checkpoint: false,
+      expired: false,
+      resetReason: "A new conversation workspace was created.",
+      quarantine: null,
+    },
+    renewed: {
+      runtimeId: runtimeIdentity(userId, conversationId),
+      conversationId,
+      userId,
+      generation: 1,
+      lastUsed: 900,
+      checkpoint: false,
+      expired: false,
+      resetReason: "A new conversation workspace was created.",
+      quarantine: null,
+    },
+    events: [],
+  });
+});
+
+it("renews retention without postponing VM suspension on text-only activity", async () => {
+  const sessions = manager();
+  const session = await sessions.register(userId, conversationId);
+  const lease = await sessions.acquire(session.runtimeId);
+  await lease.release();
+
+  clock = 90;
+  await sessions.register(userId, conversationId);
+  clock = 101;
+  await sessions.sweep();
+
+  expect({ session: records.get(session.runtimeId), events }).toStrictEqual({
+    session: { ...session, checkpoint: true, lastUsed: 90 },
+    events: ["start", "checkpoint", "stop"],
+  });
+});

@@ -1,3 +1,8 @@
+import {
+  McpConnections,
+  discoveryMethods,
+  type McpConnectionOptions,
+} from "./mcp-connections.ts";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
@@ -8,31 +13,13 @@ import {
   McpJsonError,
   McpRequestError,
   McpCatalogueExecutionError,
-  McpSessionError,
   mcpErrorResponse,
 } from "./errors.ts";
 import { runtimeIdentity } from "./identity.ts";
-import type { Guest, Session, SessionLease } from "./sessions.ts";
-
-interface LeaseProvider {
-  activate(
-    userId: string,
-    conversationId: string,
-    signal?: AbortSignal,
-  ): Promise<Session>;
-
-  acquire(runtimeId: string, signal?: AbortSignal): Promise<SessionLease>;
-}
-
-export interface McpRouterOptions {
+export interface McpRouterOptions extends McpConnectionOptions {
   token: string;
   userId: string;
   servers: ReadonlySet<string>;
-  sessions: LeaseProvider;
-
-  catalogue(): Promise<SessionLease>;
-
-  forward(guest: Guest, server: string, request: Request): Promise<Response>;
 }
 
 const rpcSchema = z.union([
@@ -46,24 +33,6 @@ const rpcSchema = z.union([
       (value) => !("method" in value) && "result" in value !== "error" in value,
     ),
 ]);
-
-const discoveryMethods = new Set([
-  "initialize",
-  "notifications/initialized",
-  "ping",
-  "tools/list",
-  "resources/list",
-  "resources/templates/list",
-  "prompts/list",
-]);
-
-const routingHeaders = [
-  "accept",
-  "content-type",
-  "mcp-protocol-version",
-  "mcp-session-id",
-  "last-event-id",
-];
 
 const responseHeaders = [
   "content-type",
@@ -148,10 +117,11 @@ function leasedBody(
 
 export class McpRouter {
   private readonly options: McpRouterOptions;
-  private readonly bindings = new Map<string, string>();
+  private readonly connections: McpConnections;
 
   constructor(options: McpRouterOptions) {
     this.options = options;
+    this.connections = new McpConnections(options);
   }
 
   async route(request: Request): Promise<Response> {
@@ -188,6 +158,7 @@ export class McpRouter {
     request.signal.throwIfAborted();
 
     let body: string | undefined;
+    let method: string | undefined;
 
     if (request.method === "POST") {
       body = await request.text();
@@ -206,6 +177,11 @@ export class McpRouter {
         return mcpErrorResponse(new McpRequestError());
       }
 
+      method =
+        "method" in rpc.data && typeof rpc.data.method === "string"
+          ? rpc.data.method
+          : undefined;
+
       if (
         catalogue &&
         (!("method" in rpc.data) ||
@@ -221,72 +197,40 @@ export class McpRouter {
       : runtimeIdentity(this.options.userId, conversation ?? "");
 
     if (user !== null && conversation !== null) {
-      await this.options.sessions.activate(user, conversation, request.signal);
+      await this.options.sessions.register(user, conversation, request.signal);
     }
 
-    const lease = catalogue
-      ? await this.options.catalogue()
-      : await this.options.sessions.acquire(runtimeId, request.signal);
-    const sessionId = request.headers.get("mcp-session-id");
-
-    const bindingPrefix = `${runtimeId}:${server}:`;
-
-    const binding = `${bindingPrefix}${sessionId ?? ""}`;
-
-    if (
-      sessionId !== null &&
-      this.bindings.get(binding) !== lease.guest.bootId
-    ) {
-      await lease.release();
-
-      return mcpErrorResponse(new McpSessionError());
-    }
-
-    const upstream = new Request(`http://guest/mcp/${server}`, {
-      method: request.method,
-      headers: selectedHeaders(request.headers, routingHeaders),
+    const result = await this.connections.route(
+      request,
+      runtimeId,
+      server,
+      method,
       body,
-      signal: request.signal,
-    });
+    );
 
     try {
-      const response = await this.options.forward(
-        lease.guest,
-        server,
-        upstream,
-      );
+      const headers = selectedHeaders(result.response.headers, responseHeaders);
+      headers.delete("mcp-session-id");
 
-      const createdSession = response.headers.get("mcp-session-id");
-
-      if (createdSession !== null && response.ok) {
-        this.bindings.set(
-          `${bindingPrefix}${createdSession}`,
-          lease.guest.bootId,
-        );
+      if (result.sessionId !== undefined) {
+        headers.set("mcp-session-id", result.sessionId);
       }
 
-      if (request.method === "DELETE" && response.ok) {
-        this.bindings.delete(binding);
-      }
+      if (result.response.body === null) {
+        await result.release();
 
-      if (response.body === null) {
-        await lease.release();
-
-        return new Response(null, {
-          status: response.status,
-          headers: selectedHeaders(response.headers, responseHeaders),
-        });
+        return new Response(null, { status: result.response.status, headers });
       }
 
       return new Response(
-        leasedBody(response.body, () => lease.release()),
+        leasedBody(result.response.body, () => result.release()),
         {
-          status: response.status,
-          headers: selectedHeaders(response.headers, responseHeaders),
+          status: result.response.status,
+          headers,
         },
       );
     } catch (error) {
-      await lease.release();
+      await result.release();
 
       throw error;
     }

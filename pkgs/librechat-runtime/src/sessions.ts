@@ -51,6 +51,7 @@ interface SessionEntry {
   session: Session;
   guest?: Guest;
   leases: number;
+  guestLastUsed: number;
 }
 
 export interface SessionStore {
@@ -143,7 +144,7 @@ export class SessionManager {
       throw new SessionOwnerError();
     }
 
-    const entry: SessionEntry = { session, leases: 0 };
+    const entry: SessionEntry = { session, leases: 0, guestLastUsed: 0 };
 
     this.entries.set(id, entry);
 
@@ -177,11 +178,12 @@ export class SessionManager {
     }
 
     entry.guest = guest;
+    entry.guestLastUsed = this.now();
 
     return guest;
   }
 
-  async activate(
+  async register(
     userId: string,
     conversationId: string,
     signal?: AbortSignal,
@@ -216,6 +218,7 @@ export class SessionManager {
       if (entry === undefined) {
         entry = {
           leases: 0,
+          guestLastUsed: 0,
           session: {
             runtimeId: id,
             conversationId,
@@ -244,7 +247,7 @@ export class SessionManager {
 
       await this.save(entry.session);
 
-      await this.ready(entry, signal);
+      signal?.throwIfAborted();
 
       return { ...entry.session };
     });
@@ -279,6 +282,7 @@ export class SessionManager {
       if (entry === undefined) {
         entry = {
           leases: 0,
+          guestLastUsed: 0,
           session: {
             runtimeId,
             conversationId: null,
@@ -336,43 +340,77 @@ export class SessionManager {
         throw new RuntimeNotRegisteredError();
       }
 
-      const guest = await this.ready(entry, signal);
+      return await this.leaseEntry(entry, signal);
+    });
+  }
 
+  async acquireRunning(
+    runtimeId: string,
+    signal?: AbortSignal,
+  ): Promise<SessionLease | null> {
+    signal?.throwIfAborted();
+    runtimeIdSchema.parse(runtimeId);
+
+    return await this.locked(runtimeId, async () => {
       signal?.throwIfAborted();
 
-      entry.session.lastUsed = this.now();
-
-      await this.save(entry.session);
-
-      entry.leases += 1;
-
-      if (signal?.aborted === true) {
-        entry.leases -= 1;
-
-        signal.throwIfAborted();
+      if (this.closing) {
+        throw new SessionClosingError();
       }
 
-      let released = false;
+      const entry = await this.load(runtimeId);
+      signal?.throwIfAborted();
 
-      return {
-        session: { ...entry.session },
-        guest,
-        release: async () => {
-          await this.locked(runtimeId, async () => {
-            if (released) {
-              return;
-            }
+      if (entry?.guest === undefined) {
+        return null;
+      }
 
-            released = true;
-            entry.leases -= 1;
-
-            entry.session.lastUsed = this.now();
-
-            await this.save(entry.session);
-          });
-        },
-      };
+      return await this.leaseEntry(entry, signal);
     });
+  }
+
+  private async leaseEntry(
+    entry: SessionEntry,
+    signal?: AbortSignal,
+  ): Promise<SessionLease> {
+    const guest = await this.ready(entry, signal);
+
+    signal?.throwIfAborted();
+
+    entry.session.lastUsed = this.now();
+    entry.guestLastUsed = this.now();
+
+    await this.save(entry.session);
+
+    entry.leases += 1;
+
+    if (signal?.aborted === true) {
+      entry.leases -= 1;
+
+      signal.throwIfAborted();
+    }
+
+    let released = false;
+
+    return {
+      session: { ...entry.session },
+      guest,
+      release: async () => {
+        await this.locked(entry.session.runtimeId, async () => {
+          if (released) {
+            return;
+          }
+
+          released = true;
+          entry.leases -= 1;
+
+          entry.session.lastUsed = this.now();
+          entry.guestLastUsed = this.now();
+
+          await this.save(entry.session);
+        });
+      },
+    };
   }
 
   private async expire(entry: SessionEntry): Promise<void> {
@@ -421,7 +459,7 @@ export class SessionManager {
 
             if (
               entry.guest === undefined ||
-              this.now() - entry.session.lastUsed < this.options.idleMs
+              this.now() - entry.guestLastUsed < this.options.idleMs
             ) {
               return;
             }

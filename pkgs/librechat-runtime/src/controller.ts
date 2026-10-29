@@ -7,9 +7,14 @@ import type { Session, SessionManager } from "./sessions.ts";
 
 export function workspaceReminder(session: Session): string {
   return [
+    ...(session.quarantine === null
+      ? []
+      : [
+          "Workspace access is unavailable after a recovery failure. Ask the user to inspect the last checkpoint before resetting the workspace.",
+        ]),
     `Conversation workspace generation: ${session.generation}. ${session.resetReason}`,
     "Code Interpreter uses /mnt/data. Local MCP servers use the same Linux VM and filesystem. Host files and credentials are not mounted in the VM.",
-    "The VM stops after 15 minutes without active calls. Files resume from a committed checkpoint; processes and browser tabs restart. A crash may lose changes since the last completed checkpoint.",
+    "The VM starts only when a tool or workspace file operation needs it. Selected tools determine which operations are available in this chat. The VM stops after 15 minutes without active calls. Files resume from a committed checkpoint; processes and browser tabs restart. A crash may lose changes since the last completed checkpoint.",
     "Workspace retention extends on conversation activity. After 30 days without activity the workspace is deleted, including unpushed Git changes.",
     "Shared skills and their scripts are available in /usr/share/agent-skills. When a skill refers to shell or file tools from another client, use Code Interpreter with Bash or Python in /mnt/data.",
     "Public HTTP(S) uses the egress proxy. GitHub credentials are injected by the host proxy. AgentsView access is read-only; remote MCP services use their own host connections.",
@@ -19,7 +24,7 @@ export function workspaceReminder(session: Session): string {
 interface ControllerOptions {
   userId: string;
   token: string;
-  sessions: Pick<SessionManager, "activate" | "reset">;
+  sessions: Pick<SessionManager, "register" | "reset">;
   mcp: Pick<McpRouter, "route">;
 }
 
@@ -45,7 +50,7 @@ export class ControllerRouter {
       return new Response(null, { status: StatusCodes.UNAUTHORIZED });
     }
 
-    if (request.method !== "POST" || !["/activate", "/reset"].includes(path)) {
+    if (request.method !== "POST" || !["/activity", "/reset"].includes(path)) {
       return new Response(null, { status: StatusCodes.NOT_FOUND });
     }
 
@@ -78,9 +83,10 @@ export class ControllerRouter {
       return Response.json({ status: "reset" });
     }
 
-    const session = await this.options.sessions.activate(
+    const session = await this.options.sessions.register(
       this.options.userId,
       body.data.conversationId,
+      request.signal,
     );
 
     return Response.json({ additionalContext: workspaceReminder(session) });
