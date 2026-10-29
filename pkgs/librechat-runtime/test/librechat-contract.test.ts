@@ -106,7 +106,7 @@ it("resolves built-in context from a configured default prompt", async () => {
 });
 
 it("preserves the ordinary-chat tool defaults in LibreChat configuration", () => {
-  const configured = configureInterface(true);
+  const configured = configureInterface(true, ["git", "cloudflare"]);
   const parsed: unknown = dataProvider.configSchema.parse({
     version: "1.3.18",
     interface: configured,
@@ -118,6 +118,7 @@ it("preserves the ordinary-chat tool defaults in LibreChat configuration", () =>
         interface: z.object({
           modelSelect: z.unknown(),
           defaultEnabledTools: z.unknown(),
+          defaultMCPServers: z.unknown(),
         }),
       })
       .parse(parsed),

@@ -47,6 +47,7 @@ NAME = "Renamed Fixture"
 DEFAULT_INTERFACE = {
     "modelSelect": True,
     "defaultEnabledTools": ["execute_code", "skills"],
+    "defaultMCPServers": ["oauth-fixture"],
 }
 ANSI_COLOUR = re.compile(r"\x1b\[[0-9;]*m")
 ERROR_LOG = re.compile(r"\berror:")
@@ -168,6 +169,7 @@ class ManagedPromptGroup(BaseModel):
 class ServedInterface(BaseModel):
     model_select: bool = Field(alias="modelSelect")
     default_enabled_tools: list[str] = Field(alias="defaultEnabledTools")
+    default_mcp_servers: list[str] = Field(alias="defaultMCPServers")
 
 
 class StartupConfig(BaseModel):
@@ -531,6 +533,7 @@ def run(configuration: StartupConfiguration) -> None:
             "import os\n"
             "import sys\n"
             "assert os.environ['LIBRECHAT_CODE_DEFAULT_PROFILE'] == 'stateful'\n"
+            "assert os.environ['CODE_SANDBOX_PREWARM'] == 'false'\n"
             f"os.environ.update({fixture_environment!r})\n"
             f"os.execv({original_launcher!r}, [{original_launcher!r}, *sys.argv[1:]])\n"
         )

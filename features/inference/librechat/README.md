@@ -37,7 +37,11 @@ agent instructions and tool and skill selections.
 
 New ordinary chats switch on the tools listed by `configureInterface` in
 `pkgs/librechat-runtime/src/config.ts`. A tool switched off in the composer of a
-new chat stays off in that browser's later new chats.
+new chat stays off in that browser's later new chats. New ordinary chats also
+select the configured MCP servers that the chat picker permits. Stored server
+selections, including an empty selection, take precedence. MCP tools use
+deferred discovery, and a server awaiting authentication does not block the
+reply.
 
 [general assistant prompt]: chat-prompt.md
 
@@ -142,15 +146,18 @@ reaching the control, runner and MCP proxy ports.
 The NixOS feature adds the user to `kvm`. Start a new login session after the
 first activation so the user service receives the updated group membership.
 
-RunStart and PostToolBatch hooks automatically add workspace reminders to the
-model context. No status tool call is required. LibreChat inserts hook context
-through its native hook mechanism.
+The RunStart hook adds workspace reminders to the model context. No status tool
+call is required. LibreChat inserts hook context through its native hook
+mechanism. The hook registers conversation activity without booting its VM.
+Local MCP discovery uses a separate catalogue VM; the conversation VM starts on
+the first code, workspace file or local MCP operation. CodeAPI prewarming is
+disabled.
 
 The controller checkpoints workspace files before stopping an idle VM after 15
 minutes. MCP processes stop before checkpointing and restart after restoration.
-Processes and browser tabs do not persist. Activity, including CodeAPI
-prewarming, extends the 30-day file retention period. Expiry deletes unpushed
-work. Health probes do not extend retention.
+Processes and browser tabs do not persist. Conversation activity extends the
+30-day file retention period; only VM operations extend the idle deadline.
+Expiry deletes unpushed work. Health probes do not extend retention.
 
 A failed checkpoint keeps the VM running and retries during shutdown. Service
 shutdown on Linux waits until the checkpoint succeeds. Darwin allows up to 60

@@ -37,11 +37,16 @@ export function configureChatPrompts(prompt: string): ChatPromptConfiguration {
 interface InterfaceConfiguration {
   modelSelect: true;
   defaultEnabledTools: string[];
+  defaultMCPServers: string[];
 }
 
-export function configureInterface(retrieval: boolean): InterfaceConfiguration {
+export function configureInterface(
+  retrieval: boolean,
+  mcpServers: readonly string[],
+): InterfaceConfiguration {
   return {
     modelSelect: true,
+    defaultMCPServers: [...mcpServers],
     defaultEnabledTools: [
       "execute_code",
       "skills",

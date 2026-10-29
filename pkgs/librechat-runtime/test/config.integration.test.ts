@@ -104,14 +104,19 @@ it("publishes the ordinary-chat instructions as a managed library default", () =
 });
 
 it.each([
-  { retrieval: false, tools: ["execute_code", "skills"] },
-  { retrieval: true, tools: ["execute_code", "skills", "file_search"] },
+  { retrieval: false, tools: ["execute_code", "skills"], servers: [] },
+  {
+    retrieval: true,
+    tools: ["execute_code", "skills", "file_search"],
+    servers: ["git", "cloudflare"],
+  },
 ])(
   "enables code and skills in new ordinary chats (retrieval $retrieval)",
-  ({ retrieval, tools }) => {
-    expect(configureInterface(retrieval)).toStrictEqual({
+  ({ retrieval, tools, servers }) => {
+    expect(configureInterface(retrieval, servers)).toStrictEqual({
       modelSelect: true,
       defaultEnabledTools: tools,
+      defaultMCPServers: servers,
     });
   },
 );

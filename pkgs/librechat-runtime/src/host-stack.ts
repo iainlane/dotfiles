@@ -590,7 +590,9 @@ export class NativeHostStack {
       token: secrets.controller,
       servers: new Set(manifest.localMcpServers),
       sessions,
-      catalogue: () => sessions.acquireCodeRuntime(catalogueId),
+      catalogue: (signal) => sessions.acquireCodeRuntime(catalogueId, signal),
+      catalogueRunning: (signal) =>
+        sessions.acquireRunning(catalogueId, signal),
       forward: async (guest, server, request) => {
         const init: RequestInit & { duplex: "half" } = {
           method: request.method,
@@ -805,11 +807,13 @@ export class NativeHostStack {
       manifest.models,
     );
 
+    const mcpServers = { ...remoteMcp, ...localMcp.mcpServers };
+
     await writePrivateJson(join(state, "librechat.json"), {
       version: "1.3.18",
       cache: true,
       registration: { socialLogins: [] },
-      interface: configureInterface(ragEnabled),
+      interface: configureInterface(ragEnabled, Object.keys(mcpServers)),
       prompts: configureChatPrompts(manifest.chatPrompt),
       endpoints: {
         custom: providers.endpoints.custom.map((endpoint) => ({
@@ -847,7 +851,7 @@ export class NativeHostStack {
           },
         },
       },
-      mcpServers: { ...remoteMcp, ...localMcp.mcpServers },
+      mcpServers,
       mcpSettings: {
         ...localMcp.mcpSettings,
         authorizationMode: "nonblocking",
@@ -865,22 +869,19 @@ export class NativeHostStack {
     await writePrivateJson(
       join(pluginDirectory, "ai.librechat", "hooks", "hooks.json"),
       {
-        hooks: Object.fromEntries(
-          ["RunStart", "PostToolBatch"].map((event) => [
-            event,
-            [
-              {
-                hooks: [
-                  {
-                    type: "command",
-                    command: manifest.hookCommand,
-                    timeout: 180,
-                  },
-                ],
-              },
-            ],
-          ]),
-        ),
+        hooks: {
+          RunStart: [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command: manifest.hookCommand,
+                  timeout: 180,
+                },
+              ],
+            },
+          ],
+        },
       },
     );
 
@@ -935,6 +936,7 @@ export class NativeHostStack {
         LIBRECHAT_CODE_BASEURL: `http://127.0.0.1:${ports.codeApi}/v1`,
         LIBRECHAT_CODE_BASEURL_STATEFUL: `http://127.0.0.1:${ports.codeApi}/v1`,
         LIBRECHAT_CODE_DEFAULT_PROFILE: "stateful",
+        CODE_SANDBOX_PREWARM: "false",
         ...(ragEnabled ? { RAG_API_URL: "http://127.0.0.1:3180" } : {}),
       },
     });
