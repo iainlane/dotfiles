@@ -5,7 +5,6 @@
   config,
   username,
   hostConfig,
-  nixpkgsConfig,
   ...
 }: {
   imports = [
@@ -138,7 +137,6 @@
 
     # `system-manager` requires `nixpkgs.hostPlatform` to be set.
     nixpkgs.hostPlatform = lib.mkDefault "${hostConfig.arch}-linux";
-    nixpkgs.config = lib.mkDefault nixpkgsConfig;
 
     system-graphics =
       {

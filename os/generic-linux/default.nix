@@ -5,8 +5,6 @@
   withSystem,
   flakeContexts,
   username,
-  overlays,
-  nixpkgsConfig,
   featureResolver,
   hostInventories,
   ...
@@ -46,9 +44,9 @@
       };
       mkSystemConfig = _:
         inputs.system-manager.lib.makeSystemConfig {
-          inherit overlays;
           modules =
             [
+              ./nixpkgs.nix
               sops.systemSopsModule
               sops.linuxSystemSopsModule
               ./system.nix
@@ -60,14 +58,15 @@
               inherit hostConfig;
             }
             ++ [hostConfig.systemModule];
-          # system-manager evaluates nixpkgs itself, and `nixpkgsConfig` is what
-          # a module needs to instantiate a package set that matches the host's.
+          # Special arguments take precedence over the `pkgs` that system-manager
+          # imports into `_module.args`, so its own package set is never
+          # evaluated.
           specialArgs =
             mkSystemSpecialArgs {
               inherit hostConfig username mcpByChannel channel modelCatalog flakeContexts;
               hostInventory = hostInventories.${hostConfig.name};
             }
-            // {inherit nixpkgsConfig;};
+            // {pkgs = channel.unstable;};
         };
     }
   );

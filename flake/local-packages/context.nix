@@ -14,10 +14,6 @@
   };
 in {
   config = {
-    _module.args = {
-      inherit overlays nixpkgsConfig;
-    };
-
     perSystem = {system, ...}: let
       mkPkgs = nixpkgs:
         import nixpkgs {

@@ -4,8 +4,6 @@
   config,
   withSystem,
   flakeContexts,
-  overlays,
-  nixpkgsConfig,
   featureResolver,
   ...
 }: let
@@ -27,8 +25,6 @@
       withSystem
       flakeContexts
       username
-      overlays
-      nixpkgsConfig
       featureResolver
       ;
     config = outerConfig;
