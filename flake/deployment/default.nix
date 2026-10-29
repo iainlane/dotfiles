@@ -24,7 +24,7 @@ in {
   }: let
     args = {inherit pkgs system lib;};
   in {
-    _module.args.deployRs = import ../../lib/deploy-rs {inherit inputs system;};
+    dotfiles.shared.deployRs = import ../../lib/deploy-rs {inherit inputs system;};
     packages = tools.packages args;
     apps = tools.apps args;
     checks = outputs.checks args // import ./test.nix args;

@@ -18,11 +18,12 @@
 
   result = withSystem hostConfig.system (
     {
-      mcpByChannel,
+      flakeContext,
       pkgs,
       pkgs-stable,
       ...
     }: let
+      inherit (flakeContext) mcpByChannel;
       channel = channelFor {
         inherit (hostConfig) channel;
         inherit pkgs pkgs-stable;

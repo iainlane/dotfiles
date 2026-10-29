@@ -24,6 +24,7 @@ in {
       pkgs-stable = mkPkgs inputs.nixpkgs-stable;
     in {
       _module.args = {inherit pkgs pkgs-stable;};
+      dotfiles.shared = {inherit pkgs pkgs-stable;};
     };
   };
 }

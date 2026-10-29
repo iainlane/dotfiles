@@ -16,7 +16,7 @@
     imports = [./arguments.nix];
     inherit systems;
     perSystem = {system, ...}: {
-      _module.args = {
+      dotfiles.shared = {
         resource = {
           inherit system;
           value = 42;
@@ -47,6 +47,7 @@
             channel.unstable = {};
           });
       in {
+        names = lib.attrNames flakeContext;
         native = flakeContext.resource;
         home = homeArgs.flakeContext.resource;
         os = osArgs.flakeContext.resource;
@@ -64,12 +65,14 @@
   };
   expected = {
     x86_64-linux = {
+      names = ["resource" "unused"];
       native = linux;
       home = linux;
       os = linux;
       cross = darwin;
     };
     aarch64-darwin = {
+      names = ["resource" "unused"];
       native = darwin;
       home = darwin;
       os = darwin;
