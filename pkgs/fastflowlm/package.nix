@@ -30,7 +30,7 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "fastflowlm";
-    version = "1.0.9";
+    version = "1.0.11";
 
     __structuredAttrs = true;
     strictDeps = true;
@@ -39,7 +39,7 @@ in
       owner = "ROCm";
       repo = "FastFlowLM";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-ZxfIMPDQ4FCEsRqek+jULzYnCIw2hLY7b7+i6EhkSao=";
+      hash = "sha256-pqMMPeH51hsdZnwfXnTTircsH7lgzo8ngISIRL0TK4M=";
     };
 
     sourceRoot = "${finalAttrs.src.name}/src";
