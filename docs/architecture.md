@@ -7,9 +7,9 @@ builds, commands and the metadata required by external consumers.
 ## Component ownership
 
 Host-selectable concerns live under `features/`. Framework modules live under
-`flake/`. Each immediate child directory has a `default.nix` entry point.
-Discovery imports those entry points; owners explicitly import their helpers and
-child entry points.
+`flake/`. Each immediate child directory has a `default.nix` entry point. The
+flake automatically imports these entry points. Each component explicitly
+imports its helpers and child entry points.
 
 A host feature owns its configuration, outputs and tests. Framework modules own
 composition, host assembly, Nix policy, package discovery, updates, CI,
