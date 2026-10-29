@@ -722,11 +722,16 @@ describe("Cupboard strict build ownership", () => {
   it("schedules checks without forcing their derivations or host configurations", () => {
     const namesFor = (system: string): readonly string[] =>
       [
+        "assertion-fail",
+        "assertion-pass",
+        "assertion-unavailable",
         "deploy-activate",
         "deploy-schema",
         "host-evaluation-hermes-managed-config-fixture",
         "host-evaluation-home-fixture",
         `host-evaluation-${system.endsWith("-darwin") ? "darwin" : "nixos"}-fixture`,
+        "librechat-bundle-exclusion",
+        "librechat-home-manager",
         ...(system.endsWith("-linux") ? ["vm-test"] : []),
       ].sort();
     const selected = [
@@ -761,7 +766,7 @@ describe("Cupboard strict build ownership", () => {
                 runOnce: name === "deploy-schema",
                 requiredFeatures:
                   name === "vm-test" ? ["kvm", "nixos-test"] : [],
-                drvPathFails: true,
+                drvPathFails: name !== "assertion-pass",
               },
             ]),
           ),

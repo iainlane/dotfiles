@@ -94,6 +94,38 @@
         type = "derivation";
         outputs = ["out"];
       };
+    mkAssertionCheck = import ../lib/assertion-check.nix {
+      inherit lib;
+      pkgs = {inherit runCommandLocal;};
+    };
+    assertionChecks = {
+      assertion-pass = mkAssertionCheck {
+        name = "assertion-pass";
+        assertions = [
+          {
+            assertion = true;
+            message = throw "A passing assertion forced its message.";
+          }
+        ];
+      };
+      assertion-fail = mkAssertionCheck {
+        name = "assertion-fail";
+        assertions = [
+          {
+            assertion = true;
+            message = "The first assertion passes.";
+          }
+          {
+            assertion = false;
+            message = "The second assertion fails.";
+          }
+        ];
+      };
+      assertion-unavailable = mkAssertionCheck {
+        name = "assertion-unavailable";
+        assertions = throw "Scheduling forced the assertion inputs.";
+      };
+    };
     config.dotfiles = {
       username = "tester";
       hosts.fixture = {
@@ -128,8 +160,29 @@
         inherit lib;
         pkgs = {inherit runCommandLocal;};
       };
+    librechatChecks =
+      (import ../features/inference/librechat/home-manager-check.nix {
+        features.inference.librechat = {};
+        featureResolver = {};
+        modelCatalog = {};
+      }) {
+        inherit lib system;
+        inputs =
+          inputs
+          // {
+            home-manager.lib.homeManagerConfiguration = _: throw "Scheduling forced the LibreChat Home Manager fixture.";
+          };
+        pkgs = {
+          inherit runCommandLocal;
+          stdenv.hostPlatform.isDarwin = lib.hasSuffix "-darwin" system;
+        };
+      };
   in
-    hostChecks // deployChecks // managedChecks;
+    assertionChecks
+    // hostChecks
+    // deployChecks
+    // managedChecks
+    // lib.getAttrs ["librechat-home-manager" "librechat-bundle-exclusion"] librechatChecks;
   lazyVm = lib.lazyDerivation {
     derivation = throw "The VM test derivation was forced.";
     passthru.config.requiredFeatures = {

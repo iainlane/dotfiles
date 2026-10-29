@@ -9,6 +9,7 @@
   system,
   ...
 }: let
+  mkAssertionCheck = import ../../../lib/assertion-check.nix {inherit lib pkgs;};
   registry = import ../../ai/mcp-server-definitions.nix {inherit inputs pkgs;};
 
   hostConfig = {
@@ -199,9 +200,15 @@ in {
         '';
       };
 
-  librechat-home-manager = assert lib.assertMsg (actual == expected)
-  "LibreChat must evaluate without selecting the AgentsView or Ollama service features.";
-    pkgs.runCommandLocal "librechat-home-manager" {} "touch $out";
+  librechat-home-manager = mkAssertionCheck {
+    name = "librechat-home-manager";
+    assertions = [
+      {
+        assertion = actual == expected;
+        message = "LibreChat must evaluate without selecting the AgentsView or Ollama service features.";
+      }
+    ];
+  };
 
   librechat-bundle-exclusion = let
     actual = {
@@ -222,10 +229,18 @@ in {
       unknownBundleRejected = true;
     };
   in
-    assert lib.assertMsg (actual == expected) "LibreChat must leave out every MCP server and skill of an excluded bundle, and the shared registries must keep them.";
-      pkgs.runCommandLocal "librechat-bundle-exclusion" {} ''
+    mkAssertionCheck {
+      name = "librechat-bundle-exclusion";
+      assertions = [
+        {
+          assertion = actual == expected;
+          message = "LibreChat must leave out every MCP server and skill of an excluded bundle, and the shared registries must keep them.";
+        }
+      ];
+      script = ''
         test -e ${excludedManifest.skillsDirectory}/plain-technical-prose
         test ! -e ${excludedManifest.skillsDirectory}/fixture-skill
         touch "$out"
       '';
+    };
 }

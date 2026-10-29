@@ -193,6 +193,15 @@ evaluated against unstable packages and deduplicated by feature identity. Owners
 capture other dependencies explicitly in check factories; a check's `config` and
 `options` refer to the check-class module system.
 
+Use the [assertion-check constructor] for evaluation-time assertions. It accepts
+an `assertions` list with `assertion` and `message` attributes, and an optional
+build `script`. Scheduling metadata stays available without evaluating the
+assertions; requesting `drvPath` evaluates them. The constructor uses a trivial
+builder with no required system features. VM tests keep their own feature
+metadata.
+
+[assertion-check constructor]: ../lib/assertion-check.nix
+
 Packages, apps, checks and development shells use flake-parts' native output
 types. Legacy packages recursively merge attribute sets, concatenate lists and
 reject conflicting scalar values. Specialised adapters project host
