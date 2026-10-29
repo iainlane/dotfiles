@@ -41,7 +41,21 @@
     };
   };
 
-  mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgs {
+  # `evalModule` applies two overlays with `pkgs.extend`, which instantiates
+  # nixpkgs again for each one. Both overlays only add attributes, so apply them
+  # to the shared set as an attribute set update. This stays correct while no
+  # package in the overlays takes another as a `callPackage` argument, because
+  # `pkgs.callPackage` resolves arguments from the shared set.
+  pkgsWithOverlayUpdate =
+    pkgs
+    // {
+      extend = overlay: let
+        final = pkgs // overlay final pkgs;
+      in
+        final;
+    };
+
+  mcpServersNix = inputs.mcp-servers-nix.lib.evalModule pkgsWithOverlayUpdate {
     inherit programs;
   };
 in {
