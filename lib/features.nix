@@ -10,11 +10,14 @@
       then lib.optionals (applies context value.predicate) (selectEntries applies context identity value.includes)
       else [{inherit identity value;}])
     entries);
+  # `lib.systems.elaborate` is not memoised, and callers ask for the same few
+  # platforms repeatedly.
+  platforms = lib.genAttrs lib.systems.flakeExposed lib.systems.elaborate;
 in rec {
   classes = import ./feature-classes.nix {inherit lib;};
   outputClasses = lib.attrNames (lib.filterAttrs (_: class: class.kind == "output") classes);
 
-  contextForSystem = system: {platform = lib.systems.elaborate system;};
+  contextForSystem = system: {platform = platforms.${system} or (lib.systems.elaborate system);};
   contextForHost = hostConfig:
     contextForSystem hostConfig.system
     // {
