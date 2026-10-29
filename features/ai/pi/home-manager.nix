@@ -180,6 +180,7 @@
   };
 
   piPrettyConfig = {
+    toolStyle = "claudecode";
     disableTools = ["find" "grep"];
     workingIndicator.enabled = false;
     thinkingIndicator.enabled = false;
