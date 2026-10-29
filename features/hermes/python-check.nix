@@ -8,16 +8,15 @@
 # sets of all the flake's systems.
 {
   systems,
-  inputs,
   lib,
   withSystem,
   ...
 }: let
   mismatchesFor = system:
     withSystem system ({pkgs, ...}: let
-      scope = import ../../lib/hermes-python.nix {inherit inputs pkgs;};
+      scope = pkgs.hermesPythonPackages;
       buildScope = scope.python.pythonOnBuildForHost.pkgs;
-      overrides = import ../../lib/hermes-python-overrides.nix {
+      overrides = import ../../overlays/hermes-python/overrides.nix {
         inherit (pkgs) fetchpatch lib stdenv;
       };
       names = lib.attrNames (overrides {} scope);

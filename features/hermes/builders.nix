@@ -9,7 +9,7 @@
 }: let
   cfg = config.dotfiles.hermes;
   quadlet = import ../../lib/quadlet.nix {inherit lib;};
-  hermesPythonPackages = import ../../lib/hermes-python.nix {inherit inputs pkgs;};
+  inherit (pkgs) hermesPythonPackages;
 
   yaml = pkgs.formats.yaml {};
 
