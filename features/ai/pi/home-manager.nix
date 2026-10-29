@@ -194,22 +194,21 @@
     };
   };
 
-  planningConfig.readOnlyTools =
-    lib.optionals (builtins.hasAttr "context7" config.dotfiles.ai.mcpServers) [
-      "mcp__context7__resolve_library_id"
-      "mcp__context7__query_docs"
-    ]
-    ++ lib.optionals (builtins.hasAttr "nixos" config.dotfiles.ai.mcpServers) [
-      "mcp__nixos__nix"
-      "mcp__nixos__nix_versions"
-    ]
-    ++ lib.optionals (builtins.hasAttr "exa" config.dotfiles.ai.mcpServers) [
-      "mcp__exa__web_search_exa"
-      "mcp__exa__web_fetch_exa"
-    ]
-    ++ lib.optionals (builtins.hasAttr "cloudflare-docs" config.dotfiles.ai.mcpServers) [
-      "mcp__cloudflare_docs__search_cloudflare_documentation"
-    ];
+  planningMcpTools = lib.filterAttrs (server: _: builtins.hasAttr server config.dotfiles.ai.mcpServers) {
+    context7 = ["resolve-library-id" "query-docs"];
+    nixos = ["nix" "nix_versions"];
+    exa = ["web_search_exa" "web_fetch_exa"];
+    cloudflare-docs = ["search_cloudflare_documentation"];
+  };
+  planningConfig = {
+    readOnlyTools = lib.concatLists (lib.mapAttrsToList
+      (server: tools: map (tool: "mcp__${lib.replaceStrings ["-"] ["_"] server}__${lib.replaceStrings ["-"] ["_"] tool}") tools)
+      planningMcpTools);
+    mcpDirectTools = lib.concatLists (lib.mapAttrsToList
+      (server: tools: map (tool: "${server}/${tool}") tools)
+      planningMcpTools);
+    researchExtensions = map (name: "~/.pi/agent/packages/${name}") ["pi-lens" "pi-web-access" "rpiv-todo"];
+  };
 
   piSubagentsConfig = {
     asyncWidget = false;
@@ -220,7 +219,7 @@
       concurrency = 2;
     };
     defaultSessionDir = "~/.pi/agent/sessions/subagent";
-    maxSubagentDepth = 1;
+    maxSubagentDepth = 2;
     intercomBridge.mode = "off";
   };
 

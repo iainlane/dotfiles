@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ import {
 import {
   createAgentSession,
   createCodemodeExtension,
+  createMcpExtension,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
@@ -22,6 +24,35 @@ import { resolveCurrentSubagentCapabilityCeiling } from "pi-subagents/capability
 import { resolvePiLaunchToolPlan } from "pi-subagents/child-tool-plan";
 import { expect, it, vi } from "vitest";
 import planning from "../src/extension.ts";
+import researchFixture from "./fixtures/research.ts";
+
+const nativeResearchTools = [
+  "bash",
+  "codemode",
+  "find",
+  "grep",
+  "ls",
+  "read",
+  "subagent",
+];
+const fixtureTools = [
+  "ast_grep_replace",
+  "inspect_fixture",
+  "lsp_navigation",
+  "pi_lens_activate_tools",
+  "web_enable",
+  "web_search",
+];
+const extendedResearchTools = [
+  ...nativeResearchTools,
+  ...fixtureTools,
+  "mcp__fixture__inspect_tool",
+].toSorted();
+const initialResearchTools = extendedResearchTools.filter(
+  (name) =>
+    !["web_search", "lsp_navigation", "ast_grep_replace"].includes(name),
+);
+const researchScript = `text(await tools.web_enable({})); text(await tools.pi_lens_activate_tools({tools:['lsp_navigation']})); text(await tools.web_search({})); text(await tools.inspect_fixture({})); text(await tools.mcp__fixture__inspect_tool({})); text(await tools.lsp_navigation({operation:'definition'})); text(await tools.ast_grep_replace({apply:false})); try { await tools.lsp_navigation({operation:'rename',apply:true}); } catch(error) { text(String(error)); }`;
 
 it.each([
   {
@@ -200,6 +231,7 @@ it.each([
       childSessionCount: 0,
       childTools: [],
       blocked: [],
+      depthErrors: [],
     },
   },
   {
@@ -208,11 +240,20 @@ it.each([
       childCancelled: false,
       sessions: ["parent", "parent", "child", "child", "parent"],
       childSessionCount: 1,
-      childTools: [
-        ["bash", "find", "grep", "ls", "read"],
-        ["bash", "find", "grep", "ls", "read"],
-      ],
+      childTools: [nativeResearchTools, nativeResearchTools],
       blocked: [false, true],
+      depthErrors: [],
+    },
+  },
+  {
+    mode: "settings-error",
+    expected: {
+      childCancelled: false,
+      sessions: ["parent", "parent", "child", "child", "parent"],
+      childSessionCount: 1,
+      childTools: [nativeResearchTools, nativeResearchTools],
+      blocked: [false, true],
+      depthErrors: [],
     },
   },
   {
@@ -221,8 +262,41 @@ it.each([
       childCancelled: true,
       sessions: ["parent", "parent", "child"],
       childSessionCount: 1,
-      childTools: [["bash", "find", "grep", "ls", "read"]],
+      childTools: [nativeResearchTools],
       blocked: [false],
+      depthErrors: [],
+    },
+  },
+  {
+    mode: "nested",
+    expected: {
+      childCancelled: false,
+      sessions: [
+        "parent",
+        "parent",
+        "child",
+        "child",
+        "child",
+        "child",
+        "child",
+        "child",
+        "parent",
+      ],
+      childSessionCount: 2,
+      childTools: [
+        initialResearchTools,
+        extendedResearchTools,
+        initialResearchTools,
+        extendedResearchTools,
+        extendedResearchTools,
+        extendedResearchTools,
+      ],
+      blocked: [false, true, false, true, true, true],
+      depthErrors: [
+        expect.stringContaining(
+          "Nested subagent call blocked (depth=2, max=2)",
+        ),
+      ],
     },
   },
 ])(
@@ -244,6 +318,8 @@ it.each([
     };
     let calls = 0;
     let childCancelled = false;
+    const delegationErrors: string[] = [];
+    const depthErrors: string[] = [];
     const childStarted = Promise.withResolvers<void>();
     const requests: {
       sessionId: string | undefined;
@@ -257,6 +333,24 @@ it.each([
         baseUrl: model.baseUrl,
         models: [model],
         streamSimple: (_model, context, options) => {
+          for (const message of context.messages) {
+            if (
+              message.role === "toolResult" &&
+              ["research-fixture", "nested-research"].includes(
+                message.toolCallId,
+              ) &&
+              message.isError
+            ) {
+              delegationErrors.push(JSON.stringify(message.content));
+            }
+            if (
+              message.role === "toolResult" &&
+              message.toolCallId === "depth-limit" &&
+              message.isError
+            ) {
+              depthErrors.push(JSON.stringify(message.content));
+            }
+          }
           requests.push({
             sessionId: options?.sessionId,
             tools: getCurrentTools(context.messages)
@@ -264,57 +358,117 @@ it.each([
               .toSorted(),
             guardBlocked: context.messages.some(
               (message) =>
-                message.role === "toolResult" &&
-                message.toolCallId === "child-mutation" &&
-                message.isError &&
-                JSON.stringify(message.content).includes(
-                  "Return the required investigation to the parent.",
-                ),
+                (message.role === "toolResult" &&
+                  message.toolCallId === "child-mutation" &&
+                  message.isError &&
+                  JSON.stringify(message.content).includes(
+                    mode === "settings-error"
+                      ? "Planning settings are unavailable:"
+                      : "Return the required investigation to the parent.",
+                  )) ||
+                (message.role === "toolResult" &&
+                  message.toolCallId === "research-script" &&
+                  JSON.stringify(message.content).includes(
+                    "Only previews are available",
+                  )),
             ),
           });
+          const step = calls++;
+          if (mode === "settings-error" && step === 2) {
+            writeFileSync(join(cwd, "agent", "planning.json"), "{invalid");
+          }
+          const nestedCalls: Record<number, AssistantMessage["content"]> = {
+            2: [
+              {
+                type: "toolCall",
+                id: "research-script",
+                name: "codemode",
+                arguments: { code: researchScript },
+              },
+            ],
+            3: [
+              {
+                type: "toolCall",
+                id: "nested-research",
+                name: "subagent",
+                arguments: {
+                  agent: "planning-plan",
+                  task: "Inspect the nested research fixture.",
+                  async: false,
+                },
+              },
+            ],
+            4: [
+              {
+                type: "toolCall",
+                id: "research-script",
+                name: "codemode",
+                arguments: { code: researchScript },
+              },
+            ],
+            5: [
+              {
+                type: "toolCall",
+                id: "depth-limit",
+                name: "subagent",
+                arguments: {
+                  agent: "planning-explore",
+                  task: "This exceeds the configured depth.",
+                  async: false,
+                },
+              },
+            ],
+          };
           const content: AssistantMessage["content"] =
-            calls++ === 0 && mode === "codemode"
-              ? [
-                  {
-                    type: "toolCall",
-                    id: "native-fixture",
-                    name: "codemode",
-                    arguments: {
-                      code: `const plan = await tools.enter_plan_mode({}); try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:plan.path,content:'# Native plan\\n'}));`,
-                    },
-                  },
-                ]
-              : mode !== "codemode" && calls === 1
+            mode === "nested" && step >= 2
+              ? (nestedCalls[step] ?? [
+                  { type: "text", text: "Offline fixture report" },
+                ])
+              : step === 0 && mode === "codemode"
                 ? [
                     {
                       type: "toolCall",
-                      id: "enter-fixture",
-                      name: "enter_plan_mode",
-                      arguments: {},
+                      id: "native-fixture",
+                      name: "codemode",
+                      arguments: {
+                        code: `const plan = await tools.enter_plan_mode({}); try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:plan.path,content:'# Native plan\\n'}));`,
+                      },
                     },
                   ]
-                : mode !== "codemode" && calls === 2
+                : mode !== "codemode" && calls === 1
                   ? [
                       {
                         type: "toolCall",
-                        id: "research-fixture",
-                        name: "planning_research",
-                        arguments: {
-                          role: "explore",
-                          brief: "Return the offline fixture report.",
-                        },
+                        id: "enter-fixture",
+                        name: "enter_plan_mode",
+                        arguments: {},
                       },
                     ]
-                  : mode === "research" && calls === 3
+                  : mode !== "codemode" && calls === 2
                     ? [
                         {
                           type: "toolCall",
-                          id: "child-mutation",
-                          name: "bash",
-                          arguments: { command: "printf changed > project.ts" },
+                          id: "research-fixture",
+                          name: "planning_research",
+                          arguments: {
+                            role: "explore",
+                            brief: "Return the offline fixture report.",
+                          },
                         },
                       ]
-                    : [{ type: "text", text: "Offline fixture report" }];
+                    : ["research", "settings-error"].includes(mode) &&
+                        calls === 3
+                      ? [
+                          {
+                            type: "toolCall",
+                            id: "child-mutation",
+                            name: "bash",
+                            arguments: {
+                              command: "printf changed > project.ts",
+                            },
+                          },
+                        ]
+                      : [{ type: "text", text: "Offline fixture report" }];
           const waitForCancel = mode === "research-cancel" && calls === 3;
           const reason = content[0]?.type === "toolCall" ? "toolUse" : "stop";
           const message: AssistantMessage = {
@@ -379,6 +533,36 @@ it.each([
       | undefined;
     try {
       await writeFile(join(cwd, "project.ts"), "original");
+      await mkdir(join(cwd, "agent"), { recursive: true });
+      if (mode === "nested") {
+        await writeFile(
+          join(cwd, "agent", "planning.json"),
+          JSON.stringify({
+            readOnlyTools: ["inspect_fixture", "mcp__fixture__inspect_tool"],
+            mcpDirectTools: ["fixture/inspect-tool"],
+            researchExtensions: [
+              fileURLToPath(new URL("./fixtures/research.ts", import.meta.url)),
+            ],
+          }),
+        );
+        await writeFile(
+          join(cwd, "agent", "settings.json"),
+          JSON.stringify({ subagents: { maxSubagentDepth: 2 } }),
+        );
+        await writeFile(
+          join(cwd, "agent", "mcp.json"),
+          JSON.stringify({
+            mcpServers: {
+              fixture: {
+                command: process.execPath,
+                args: [
+                  fileURLToPath(new URL("./fixtures/mcp.ts", import.meta.url)),
+                ],
+              },
+            },
+          }),
+        );
+      }
       const settings = SettingsManager.inMemory({
         compaction: { enabled: false },
         retry: { enabled: false },
@@ -393,8 +577,20 @@ it.each([
         noThemes: true,
         noPromptTemplates: true,
         noContextFiles: true,
+        additionalExtensionPaths: mode === "nested" ? ["builtin:mcp"] : [],
         extensionFactories: [
           provider,
+          ...(mode === "nested"
+            ? [
+                researchFixture,
+                {
+                  name: "mcp",
+                  builtin: true as const,
+                  replaceable: true as const,
+                  factory: createMcpExtension(),
+                },
+              ]
+            : []),
           createCodemodeExtension({ mode: "on" }),
           subagents,
           planning,
@@ -420,10 +616,14 @@ it.each([
           "write",
           "edit",
           "bash",
+          "grep",
+          "find",
+          "ls",
           "codemode",
           "enter_plan_mode",
           "planning_research",
           "submit_plan",
+          ...(mode === "nested" ? fixtureTools : []),
         ],
       }));
       await session.bindExtensions({});
@@ -434,6 +634,7 @@ it.each([
       }
       await running;
       const parentId = manager.getSessionId();
+      expect(delegationErrors).toStrictEqual([]);
       const childRequests = requests.filter(
         (request) => request.sessionId !== parentId,
       );
@@ -441,6 +642,7 @@ it.each([
         project: await readFile(join(cwd, "project.ts"), "utf8"),
         streaming: session.isStreaming,
         childCancelled,
+        depthErrors,
         sessions: requests.map((request) =>
           request.sessionId === parentId
             ? "parent"
@@ -494,7 +696,7 @@ it.each([
         tools: launch.effectiveToolAllowlist,
         required: launch.requiredExtensions.map(({ id }) => id),
       }).toStrictEqual({
-        tools: ["read", "bash"],
+        tools: ["read", "bash", "subagent"],
         required: ["planning-policy"],
       });
     } finally {

@@ -6,6 +6,7 @@ import {
   type ResearchParameters,
 } from "../src/controller.ts";
 import { childPolicy } from "../src/child.ts";
+import { planningPrompt } from "../src/prompt.ts";
 import { reviewPlan } from "../src/review.ts";
 import { stateEntry } from "../src/session.ts";
 import { PlanStore } from "../src/store.ts";
@@ -133,6 +134,57 @@ it("enters without a model call, preserves drafts, and releases child capabiliti
   await f.command("");
   expect(f.files.read(f.path())).toBe("# Existing draft\n");
   expect(f.sendUserMessage).not.toHaveBeenCalled();
+});
+
+it("refreshes planning guidance across turns, compaction and re-entry", async () => {
+  const f = fixture();
+  await f.command("");
+  const event = { outcome: "completed" as const };
+  const turns = Array.from({ length: 5 }, () =>
+    f.controller.turnEnd(event, f.ctx),
+  );
+  const reminder = `Plan mode remains active. Research tools and read-only delegation are available. Only the active plan may be edited: ${f.path()}\nUse ask_user to clarify requirements and submit_plan to request implementation approval.`;
+  expect({
+    turns,
+    compact: f.controller.compact(f.ctx),
+    prompt: f.controller.prompt({ systemPrompt: "Base instructions" }, f.ctx),
+  }).toStrictEqual({
+    turns: [
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        entries: [
+          {
+            type: "custom_message",
+            customType: "dotfiles:planning-reminder:v1",
+            content: reminder,
+            display: false,
+          },
+        ],
+      },
+    ],
+    compact: reminder,
+    prompt: {
+      systemPrompt: `Base instructions\n\n${planningPrompt(f.path())}`,
+    },
+  });
+  await f.command("");
+  expect({
+    turns: Array.from({ length: 5 }, () => f.controller.turnEnd(event, f.ctx)),
+    compact: f.controller.compact(f.ctx),
+  }).toStrictEqual({
+    turns: [undefined, undefined, undefined, undefined, undefined],
+    compact: undefined,
+  });
+  await f.command("");
+  f.controller.restore(f.ctx);
+  expect(
+    f.controller.prompt({ systemPrompt: "Base instructions" }, f.ctx),
+  ).toStrictEqual({
+    systemPrompt: `Base instructions\n\n${planningPrompt(f.path())}`,
+  });
 });
 
 it("restricts parent and nested mutations while preserving plan edits and inspections", async () => {
@@ -441,13 +493,88 @@ it("correlates research identity, ignores late reports and cancels transport on 
   expect(f.sendUserMessage).not.toHaveBeenCalled();
 });
 
-it.each(["ask_user", "subagent", "write"])(
+it.each([
+  ["web_enable", {}],
+  ["pi_lens_activate_tools", { tools: ["ast_grep_search", "lsp_navigation"] }],
+  ["lsp_navigation", { operation: "definition" }],
+  ["lsp_navigation", { operation: "rename", apply: false }],
+  ["lsp_navigation", { operation: "executeCommand", apply: false }],
+  ["ast_grep_replace", { apply: false }],
+  ["todo", { action: "list" }],
+] satisfies [string, Record<string, unknown>][])(
+  "permits research through %s in the parent and child",
+  async (toolName, input) => {
+    const f = fixture();
+    await f.command("");
+    expect({
+      parent: await f.call(toolName, input),
+      child: childPolicy({ toolName, input }),
+    }).toStrictEqual({ parent: undefined, child: undefined });
+  },
+);
+
+it.each([
+  ["lsp_navigation", { operation: "rename", apply: true }],
+  ["lsp_navigation", { operation: "rename_file", apply: true }],
+  ["lsp_navigation", { operation: "executeCommand", apply: true }],
+  ["lsp_navigation", { operation: "unknown" }],
+  ["ast_grep_replace", { apply: true }],
+] satisfies [string, Record<string, unknown>][])(
+  "blocks mutations and unknown operations through %s",
+  async (toolName, input) => {
+    const f = fixture();
+    await f.command("");
+    f.readOnlyTools.mockReturnValue([toolName]);
+    expect({
+      parent: (await f.call(toolName, input))?.block,
+      child: childPolicy({ toolName, input })?.block,
+    }).toStrictEqual({ parent: true, child: true });
+  },
+);
+
+it("permits bounded native research delegation without output files", () => {
+  const input = { agent: "planning-explore", task: "Inspect the API." };
+  expect({
+    decision: childPolicy({ toolName: "subagent", input }),
+    input,
+  }).toStrictEqual({
+    decision: undefined,
+    input: {
+      agent: "planning-explore",
+      task: "Inspect the API.",
+      async: false,
+      output: false,
+      options: { context: "fresh", artifacts: false, mission: false },
+    },
+  });
+});
+
+it.each([
+  { agent: "worker", task: "Change the project." },
+  { agent: "planning-explore", task: "Inspect.", output: "project.ts" },
+  { agent: "planning-explore", task: "Inspect.", worktree: true },
+  { agent: "planning-explore", task: "Inspect.", async: true },
+  {
+    agent: "planning-explore",
+    task: "Inspect.",
+    options: { gate: "touch project.ts" },
+  },
+  { agent: "planning-explore", task: "Inspect.", options: { sessionDir: "." } },
+  { workflow: "run-ci", args: { command: "touch project.ts" } },
+  { action: "create", config: { name: "worker" } },
+])("rejects unsafe research delegation: %j", (input) => {
+  expect(childPolicy({ toolName: "subagent", input })).toMatchObject({
+    block: true,
+  });
+});
+
+it.each(["ask_user", "submit_plan", "enter_plan_mode", "write", "edit"])(
   "blocks %s in a research child",
   (toolName) => {
     expect(childPolicy({ toolName, input: {} })).toStrictEqual({
       block: true,
       reason:
-        "Planning research permits file inspection and guarded shell only.",
+        "Research agents cannot edit files, ask the user or approve implementation.",
     });
   },
 );

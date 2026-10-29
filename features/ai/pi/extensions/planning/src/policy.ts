@@ -1,17 +1,20 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import type { PlanStore } from "./store.ts";
 import { classifyShell, inspectionCommand } from "./shell.ts";
 
-export const parentReaders = [
+export const researchReaders = [
   "read",
   "grep",
   "find",
   "ls",
   "codemode",
-  "ask_user",
-  "planning_research",
-  "submit_plan",
-  "enter_plan_mode",
+  "todo",
+  "web_enable",
+  "pi_lens_activate_tools",
+  "lsp_navigation",
+  "ast_grep_replace",
   "project_report",
   "symbol_search",
   "module_report",
@@ -27,12 +30,74 @@ export const parentReaders = [
   "source_check",
 ];
 
+export const researchTools = [...researchReaders, "bash", "subagent"];
+
+const navigationOperations = Type.Union(
+  [
+    "definition",
+    "typeDefinition",
+    "declaration",
+    "references",
+    "hover",
+    "signatureHelp",
+    "documentSymbol",
+    "findSymbol",
+    "workspaceSymbol",
+    "codeAction",
+    "rename",
+    "rename_file",
+    "implementation",
+    "prepareCallHierarchy",
+    "incomingCalls",
+    "outgoingCalls",
+    "executeCommand",
+    "workspaceDiagnostics",
+    "capabilities",
+  ].map((operation) => Type.Literal(operation)),
+);
+
+export interface PlanningToolCall {
+  toolName: string;
+  input: Record<string, unknown>;
+}
+
 function block(reason: string) {
   return { block: true as const, reason };
 }
 
+export function researchPolicy(
+  event: PlanningToolCall,
+  readOnlyTools: readonly string[],
+): { block: true; reason: string } | undefined {
+  if (
+    event.toolName === "lsp_navigation" &&
+    !Check(navigationOperations, event.input.operation)
+  ) {
+    return block(
+      "Use a recognised read-only LSP operation or an edit preview.",
+    );
+  }
+  if (
+    (event.toolName === "lsp_navigation" ||
+      event.toolName === "ast_grep_replace") &&
+    event.input.apply !== undefined &&
+    event.input.apply !== false
+  ) {
+    return block("Only previews are available before plan approval.");
+  }
+  if (
+    researchReaders.includes(event.toolName) ||
+    readOnlyTools.includes(event.toolName)
+  ) {
+    return undefined;
+  }
+  return block(
+    `${event.toolName} is unavailable during planning. Use read-only investigation tools and keep implementation for after plan approval.`,
+  );
+}
+
 export async function planningPolicy(
-  event: { toolName: string; input: Record<string, unknown> },
+  event: PlanningToolCall,
   ctx: Pick<ExtensionContext, "cwd" | "hasUI"> & {
     ui: Pick<ExtensionContext["ui"], "confirm">;
   },
@@ -80,12 +145,14 @@ export async function planningPolicy(
     return undefined;
   }
   if (
-    parentReaders.includes(event.toolName) ||
-    readOnlyTools.includes(event.toolName)
+    [
+      "ask_user",
+      "planning_research",
+      "submit_plan",
+      "enter_plan_mode",
+    ].includes(event.toolName)
   ) {
     return undefined;
   }
-  return block(
-    `${event.toolName} is unavailable during planning. Use read-only investigation tools and keep implementation for after plan approval.`,
-  );
+  return researchPolicy(event, readOnlyTools);
 }

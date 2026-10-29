@@ -35,20 +35,41 @@ restrictions; it does not record plan approval.
 
 ## Investigation and questions
 
-The parent normally asks one Explore agent to investigate relevant code and one
-Plan agent to assess the approach. Up to three distinct investigations can run
-concurrently. Small tasks can skip delegation. Children begin with fresh
-contexts, so the parent supplies requirements, constraints and prior findings.
+Inspect known targets directly. Use Explore to locate code, tests and evidence
+for a broad investigation. Use Plan to assess non-trivial implementation
+approaches, trade-offs, reuse and verification. Both roles are available through
+`planning_research`; the parent supplies a focused brief with requirements,
+constraints and prior findings for each fresh context. Up to three distinct
+investigations can run concurrently.
+
+Research children can delegate focused subtasks to either planning role through
+`subagent` with `async:false`. Descendants inherit the research restrictions,
+required policy extension and runtime depth and fan-out limits. The deployment
+permits two levels of research agents. Reports return through tool results;
+research agents cannot edit project files or the parent's plan.
 
 The general `ask_user` tool remains available to the parent, including outside
-Plan mode. Research agents return unresolved questions to the parent. They
-cannot ask the user, delegate further or approve implementation.
+Plan mode. Children return unresolved questions to the parent. The parent writes
+the final plan and requests approval through `submit_plan`. Pure research can
+finish with findings without submitting an implementation plan.
+
+Planning guidance is refreshed when a new run starts. Concise reminders are
+added after five completed turns and after compaction.
 
 ## Tool restrictions
 
-The parent can read and search, use Lens, consult the web and call configured
-read-only MCP tools. Ordinary `write` and `edit` calls may change only the
-active plan. Nested codemode calls receive the same checks.
+The parent and research descendants can read and search, use Lens, consult the
+web and call configured read-only MCP tools. Web and Lens activation tools are
+permitted. LSP navigation and AST rewrites are available as read-only operations
+or edit previews; applying changes remains blocked. The parent can use ordinary
+`write` and `edit` calls for the active plan only. Nested codemode calls receive
+the same checks.
+
+`planning.json` specifies trusted `readOnlyTools`, raw `mcpDirectTools`
+selectors and the `researchExtensions` to load in children. MCP annotations
+alone do not grant planning access. Tool identifiers use Pi's normalised form;
+MCP selectors use the server's original tool identifiers, such as
+`context7/resolve-library-id`.
 
 Recognised shell inspections run with potentially executable Git helpers
 disabled. Known mutations are blocked. An unclassified parent command requires
@@ -59,3 +80,12 @@ These are tool and command policies, not an operating-system sandbox. The
 policies trust the configured shell, executable resolution, inherited
 environment and extension implementations. Changing shell prefixes or replacing
 tools changes that boundary.
+
+## Validation
+
+The Nix package checks types and lint rules against the declared development
+dependencies, then runs tests with the deployed `pi-subagents` package. That
+package includes the child-runtime registration patch required for nested
+planning roles. For local npm checks, set `PI_TEST_SUBAGENTS` to that package's
+root. Native tests exercise web and Lens activation, selected MCP tools,
+inherited restrictions and the delegation depth limit.

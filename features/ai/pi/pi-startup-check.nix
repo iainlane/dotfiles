@@ -111,9 +111,14 @@
         assert.deepStrictEqual(ceiling.allowedAgents, ["planning-explore", "planning-plan"]);
         const launch = resolvePiLaunchToolPlan({agentName: "planning-explore", cwd: ctx.cwd, tools: ["read", "write", "bash"], capabilityCeiling: ceiling});
         assert.deepStrictEqual(launch.effectiveToolAllowlist, ["read", "bash"]);
+        assert.deepStrictEqual(${builtins.toJSON (builtins.fromJSON piConfig.home.file.".pi/agent/planning.json".text).mcpDirectTools}.sort(), [
+          "context7/resolve-library-id", "context7/query-docs",
+          "cloudflare-docs/search_cloudflare_documentation", "nixos/nix", "nixos/nix_versions",
+          "exa/web_search_exa", "exa/web_fetch_exa",
+        ].sort());
         const planningTools = [
           "read", "bash", "grep", "find", "ls", "codemode", "ask_user", "planning_research", "submit_plan", "enter_plan_mode",
-          "ast_grep_search", "ast_grep_outline", "web_search", "fetch_content",
+          "ast_grep_search", "ast_grep_outline", "ast_grep_replace", "lsp_navigation", "todo", "web_search", "fetch_content",
           "get_search_content", "source_check",
         ].sort();
         assert.deepStrictEqual(pi.getActiveTools().filter(name => planningTools.includes(name)).sort(), planningTools);

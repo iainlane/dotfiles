@@ -1,6 +1,5 @@
-import { parsePlanningSettings } from "./settings.ts";
+import { readPlanningSettings } from "./settings.ts";
 import { nodeFiles } from "./node-files.ts";
-import { readFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,27 +12,20 @@ import { Text, Markdown } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { registerSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { registerRequiredChildExtensions } from "pi-subagents/required-child-extensions";
-import { researchTools } from "./child.ts";
+import { researchTools } from "./policy.ts";
 import { reviewPlan } from "./review.ts";
+import { reminderType } from "./prompt.ts";
 import { registerPlanningRoles } from "./roles.ts";
 import { stateEntry } from "./session.ts";
 import { createPlanning } from "./controller.ts";
 import { PlanStore } from "./store.ts";
-
-function settings() {
-  const path = join(getAgentDir(), "planning.json");
-  if (!existsSync(path)) {
-    return { readOnlyTools: [] };
-  }
-  const value: unknown = JSON.parse(readFileSync(path, "utf8"));
-  return parsePlanningSettings(value);
-}
 
 function configureChildren(
   pi: ExtensionAPI,
   sessionId: string,
 ): (() => void)[] {
   const stops: (() => void)[] = [];
+  const settings = readPlanningSettings();
   try {
     const required = registerRequiredChildExtensions({
       sessionId,
@@ -50,12 +42,12 @@ function configureChildren(
       sessionId,
       source: "planning",
       ceiling: {
-        allowedTools: researchTools,
+        allowedTools: [...researchTools, ...settings.readOnlyTools],
         allowedAgents: ["planning-explore", "planning-plan"],
       },
     });
     stops.push(() => ceiling.dispose());
-    for (const registration of registerPlanningRoles(pi)) {
+    for (const registration of registerPlanningRoles(pi, settings)) {
       stops.push(() => registration.dispose());
     }
     return stops;
@@ -73,7 +65,7 @@ export default function planning(pi: ExtensionAPI): void {
       new PlanStore(join(getAgentDir(), "plans"), id, nodeFiles),
     recordSavedState: (state) => pi.appendEntry(stateEntry, state),
     configure: (id) => configureChildren(pi, id),
-    readOnlyTools: () => settings().readOnlyTools,
+    readOnlyTools: () => readPlanningSettings().readOnlyTools,
     startInPlan: () => pi.getFlag("plan") === true,
     sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
     requestId: randomUUID,
@@ -139,8 +131,9 @@ export default function planning(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "planning_research",
     label: "Planning research",
+    reachesTools: () => "all",
     description:
-      "Run a fresh read-only Explore or Plan agent. Supply a self-contained brief with requirements, constraints, critical paths and prior findings.",
+      "Run fresh read-only research. Use explore to locate code and evidence, or plan to assess implementation approaches, trade-offs and verification. Supply a focused brief with requirements, constraints, critical paths and prior findings.",
     parameters: Type.Object({
       role: Type.Union([Type.Literal("explore"), Type.Literal("plan")]),
       brief: Type.String({ minLength: 1 }),
@@ -185,9 +178,18 @@ export default function planning(pi: ExtensionAPI): void {
 
   pi.on("tool_call", (event, ctx) => controller.toolCall(event, ctx));
   pi.on("before_agent_start", (event, ctx) => controller.prompt(event, ctx));
+  pi.on("turn_end", (event, ctx) => controller.turnEnd(event, ctx));
   pi.on("agent_settled", (event) => controller.settled(event));
   pi.on("session_start", (event, ctx) => controller.start(event, ctx));
   pi.on("session_tree", (_event, ctx) => controller.restore(ctx));
-  pi.on("session_compact", (_event, ctx) => controller.compact(ctx));
+  pi.on("session_compact", (_event, ctx) => {
+    const content = controller.compact(ctx);
+    if (content !== undefined) {
+      pi.sendMessage(
+        { customType: reminderType, content, display: false },
+        { triggerTurn: false },
+      );
+    }
+  });
   pi.on("session_shutdown", () => controller.shutdown());
 }

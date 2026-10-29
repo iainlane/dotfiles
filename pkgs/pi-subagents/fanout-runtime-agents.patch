@@ -1,0 +1,45 @@
+--- a/src/extension/fanout-child.ts
++++ b/src/extension/fanout-child.ts
+@@ -2,7 +2,9 @@
+ import * as os from "node:os";
+ import * as path from "node:path";
+ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
+-import { discoverAgents } from "../agents/agents.ts";
++import { discoverAgentSnapshot } from "../agents/agents.ts";
++import { mergeRuntimeAgents } from "../agents/runtime-agent-registry.ts";
++import { registerRuntimeAgentEventListener } from "../agents/runtime-agent-events.ts";
+ import { getArtifactsDir } from "../shared/artifacts.ts";
+ import { createSubagentExecutor } from "../runs/foreground/subagent-executor.ts";
+ import { resolveWaitToolConfig } from "../runs/background/wait-config.ts";
+@@ -160,6 +162,7 @@
+ 	globalStore[registeredKey] = registeredApis;
+ 	if (registeredApis.has(pi)) return;
+ 	registeredApis.add(pi);
++	const unregisterRuntimeAgents = registerRuntimeAgentEventListener(pi);
+ 
+ 	const config = loadConfig();
+ 	const waitToolConfig = resolveWaitToolConfig(config.waitTool);
+@@ -207,7 +210,14 @@
+ 		tempArtifactsDir: getArtifactsDir(null),
+ 		getSubagentSessionRoot,
+ 		expandTilde,
+-		discoverAgents,
++		discoverAgents: (cwd, scope, preferredModelProvider, options = {}) => {
++			const snapshot = discoverAgentSnapshot(cwd, scope, preferredModelProvider, { ...options, includeChains: false });
++			const all = snapshot.all;
++			const discovered = snapshot.effective;
++			const merged = mergeRuntimeAgents(pi, discovered, [...all.builtin, ...all.package, ...all.user, ...all.project], { cwd, scope: discovered.scope, preferredModelProvider, projectTrusted: options.projectTrusted });
++			if (discovered.maxThinking === undefined) return merged;
++			return { ...merged, agents: merged.agents.map(agent => agent.maxThinking === discovered.maxThinking ? agent : { ...agent, maxThinking: discovered.maxThinking }) };
++		},
+ 		allowMutatingManagementActions: false,
+ 		childRuntime: childConfig,
+ 		activateSupervisorTransport: supervisorChannel.activateTransport,
+@@ -257,6 +267,7 @@
+ 		supervisorChannel.activateTransport();
+ 	});
+ 	pi.on("session_shutdown", () => {
++		unregisterRuntimeAgents();
+ 		unsubscribeAsyncStarted?.();
+ 		unsubscribeBridgeStarted?.();
+ 		bridgeSweeper.dispose();

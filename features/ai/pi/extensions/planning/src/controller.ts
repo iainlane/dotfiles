@@ -1,7 +1,10 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  BoundaryResult,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { research, type ResearchTransport } from "./delegation.ts";
 import { planningPolicy } from "./policy.ts";
-import { planningPrompt } from "./prompt.ts";
+import { planningPrompt, planningReminder, reminderType } from "./prompt.ts";
 import type { ReviewContext, ReviewDecision } from "./review.ts";
 import { PlanningSession, type SavedState } from "./session.ts";
 import type { PlanRevision, PlanStore } from "./store.ts";
@@ -70,6 +73,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     | undefined;
   let review: AbortController | undefined;
   let researching = 0;
+  let turnsSinceReminder = 0;
 
   function status(ctx: PlanningContext): void {
     ctx.ui.setStatus(
@@ -102,6 +106,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     const state = current(ctx);
     configure(state);
     state.enter();
+    turnsSinceReminder = 0;
     status(ctx);
     return state;
   }
@@ -119,6 +124,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     ticket = undefined;
     session?.dispose();
     researching = 0;
+    turnsSinceReminder = 0;
     session = replacement;
     if (session.active) {
       try {
@@ -421,12 +427,37 @@ export function createPlanning(dependencies: PlanningDependencies) {
   ): { systemPrompt: string } | undefined => {
     const state = current(ctx);
     if (state.active) {
+      turnsSinceReminder = 0;
       return {
         systemPrompt: `${event.systemPrompt}\n\n${planningPrompt(state.store.path)}`,
       };
     }
 
     return undefined;
+  };
+  const turnEnd = (
+    event: { outcome: "completed" | "aborted" | "error" },
+    ctx: PlanningContext,
+  ): BoundaryResult | undefined => {
+    const state = current(ctx);
+    if (!state.active || event.outcome !== "completed") {
+      return undefined;
+    }
+    turnsSinceReminder++;
+    if (turnsSinceReminder < 5) {
+      return undefined;
+    }
+    turnsSinceReminder = 0;
+    return {
+      entries: [
+        {
+          type: "custom_message",
+          customType: reminderType,
+          content: planningReminder(state.store.path),
+          display: false,
+        },
+      ],
+    };
   };
   const settled = (event: { aborted: boolean }): void => {
     if (event.aborted) {
@@ -453,11 +484,14 @@ export function createPlanning(dependencies: PlanningDependencies) {
     }
   };
 
-  const compact = (ctx: PlanningContext): void => {
-    if (session) {
-      session.setActive(session.active);
-      status(ctx);
+  const compact = (ctx: PlanningContext): string | undefined => {
+    if (!session) {
+      return undefined;
     }
+    session.setActive(session.active);
+    turnsSinceReminder = 0;
+    status(ctx);
+    return session.active ? planningReminder(session.store.path) : undefined;
   };
   const shutdown = (): void => {
     review?.abort();
@@ -473,6 +507,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     submit,
     toolCall,
     prompt,
+    turnEnd,
     settled,
     start,
     restore,

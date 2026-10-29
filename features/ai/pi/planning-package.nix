@@ -19,6 +19,7 @@ in
       ln -s ${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot} "$out/${packageRoot}/node_modules/pi-subagents"
     '';
     PI_TEST_HOST = pkgs.lib.optionalString (pi != null) "${pi}/bin/pi";
+    PI_TEST_SUBAGENTS = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
     checkPhase = ''
       runHook preCheck
       export HOME="$TMPDIR/home"
