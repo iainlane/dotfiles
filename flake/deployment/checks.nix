@@ -1,9 +1,8 @@
 {
-  inputs,
   lib,
   hosts,
   nodes,
-  deployLibFor ? system: (import ../../lib/deploy-rs {inherit inputs system;}).lib,
+  deployLibFor,
 }: let
   # Schema validation must not realise every deployment profile.
   schemaNodes =

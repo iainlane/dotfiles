@@ -11,8 +11,10 @@
     mcpByChannel,
     channel,
     modelCatalog,
+    flakeContexts,
   }: {
-    inherit inputs hostConfig hostInventory username modelCatalog;
+    inherit inputs hostConfig hostInventory username modelCatalog flakeContexts;
+    flakeContext = flakeContexts.${hostConfig.system};
     mcp = mcpByChannel.${hostConfig.channel};
     defaultModels = modelCatalog.defaults;
     pkgs-unstable = channel.unstable;

@@ -62,6 +62,7 @@ in rec {
     modelCatalog,
     pkgs,
     pkgs-stable,
+    flakeContexts,
   }: let
     channel = channelFor {
       inherit (hostConfig) channel;
@@ -69,7 +70,8 @@ in rec {
     };
   in
     {
-      inherit inputs hostConfig hostInventory modelCatalog;
+      inherit inputs hostConfig hostInventory modelCatalog flakeContexts;
+      flakeContext = flakeContexts.${hostConfig.system};
       inherit (hostConfig) system flakePath;
       mcp = mcpByChannel.${hostConfig.channel};
       defaultModels = modelCatalog.defaults;

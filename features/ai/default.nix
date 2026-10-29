@@ -68,15 +68,18 @@ in {
     # shared language servers and mcp-remote are built from, so a stable host
     # runs stable tools against the server set above. The harness packages
     # come from the llm-agents input and are the same on either channel.
-    _module.args.mcpByChannel = lib.mapAttrs (_: channelPkgs:
-      import ./mcp-servers.nix {
-        inherit inputs;
-        inherit (mcpRegistry) servers serverPackages;
-        inherit (channelPkgs) lib;
-        pkgs = channelPkgs;
-      }) {
-      stable = pkgs-stable;
-      unstable = pkgs;
+    _module.args = {
+      inherit mcpRegistry;
+      mcpByChannel = lib.mapAttrs (_: channelPkgs:
+        import ./mcp-servers.nix {
+          inherit inputs;
+          inherit (mcpRegistry) servers serverPackages;
+          inherit (channelPkgs) lib;
+          pkgs = channelPkgs;
+        }) {
+        stable = pkgs-stable;
+        unstable = pkgs;
+      };
     };
   };
 }

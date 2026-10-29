@@ -1,10 +1,9 @@
 {
-  inputs,
   lib,
   hosts,
   username,
   hostResults,
-  deployLibFor ? system: (import ../../lib/deploy-rs {inherit inputs system;}).lib,
+  deployLibFor,
 }: let
   nodes = lib.mapAttrs (hostname: host: let
     deployLib = deployLibFor host.system;
@@ -26,5 +25,5 @@
   hosts;
 in {
   deploy = {inherit nodes;};
-  checks = import ./checks.nix {inherit inputs lib hosts nodes deployLibFor;};
+  checks = import ./checks.nix {inherit lib hosts nodes deployLibFor;};
 }

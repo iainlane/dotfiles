@@ -100,6 +100,7 @@ in rec {
     system,
     hosts,
     flakeSystem,
+    flakeContexts,
     hostResults,
   }: let
     sharedContext = featureResolver.contextForSystem system;
@@ -142,7 +143,10 @@ in rec {
     sharedModules = class:
       map (identity:
         bind sharedContext (lib.findFirst (entry: entry.identity == identity) null sharedEntries.${class})) (sharedFor class);
-    sharedArgs = {inherit pkgs pkgs-stable system inputs;};
+    sharedArgs = {
+      inherit pkgs pkgs-stable system inputs flakeContexts;
+      flakeContext = flakeContexts.${system};
+    };
     forHost = class: selection: let
       inherit (selection) host ordered;
       context =

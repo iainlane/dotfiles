@@ -1,7 +1,7 @@
 {
   inputs,
   lib,
-  deployPackageFor ? system: (import ../../lib/deploy-rs {inherit inputs system;}).deploy-rs,
+  deployPackageFor,
 }: {
   apps = {system, ...}:
     {

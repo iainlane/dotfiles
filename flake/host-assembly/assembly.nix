@@ -3,6 +3,7 @@
   lib,
   config,
   withSystem,
+  flakeContexts,
   overlays,
   nixpkgsConfig,
   featureResolver,
@@ -25,6 +26,7 @@
       inputs
       lib
       withSystem
+      flakeContexts
       username
       overlays
       nixpkgsConfig

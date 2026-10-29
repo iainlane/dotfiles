@@ -10,6 +10,7 @@
   pkgs,
   pkgs-unstable,
   skillTree,
+  flakeContexts,
   ...
 } @ moduleArgs: let
   cfg = config.dotfiles.inference.librechat;
@@ -18,18 +19,9 @@
 
   guestSystem = "${hostConfig.arch}-linux";
 
-  discovery = import ../../../lib/discovery.nix {inherit lib;};
+  guestPkgs = flakeContexts.${guestSystem}.pkgs;
 
-  guestPkgs = import inputs.nixpkgs {
-    system = guestSystem;
-    config.allowUnfree = true;
-    overlays = discovery.importNixFiles ../../../overlays {inherit inputs;};
-  };
-
-  guestRegistry = import ../../ai/mcp-server-definitions.nix {
-    inherit inputs;
-    pkgs = guestPkgs;
-  };
+  guestRegistry = flakeContexts.${guestSystem}.mcpByChannel.unstable;
 
   bundles = config.dotfiles.ai.bundles;
 

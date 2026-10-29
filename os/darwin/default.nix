@@ -3,6 +3,7 @@
   lib,
   config,
   withSystem,
+  flakeContexts,
   username,
   featureResolver,
   hostInventories,
@@ -28,7 +29,7 @@
       };
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
-        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
+        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable flakeContexts;
         hostInventory = hostInventories.${hostConfig.name};
       };
       mkSystemConfig = homeDefinition:
@@ -53,7 +54,7 @@
               (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
             ];
           specialArgs = mkSystemSpecialArgs {
-            inherit hostConfig username mcpByChannel channel modelCatalog;
+            inherit hostConfig username mcpByChannel channel modelCatalog flakeContexts;
             hostInventory = hostInventories.${hostConfig.name};
           };
         };

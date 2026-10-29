@@ -3,6 +3,7 @@
   lib,
   config,
   withSystem,
+  flakeContexts,
   username,
   overlays,
   nixpkgsConfig,
@@ -30,7 +31,7 @@
       };
     in {
       homeSpecialArgs = home.mkHomeSpecialArgs {
-        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable;
+        inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable flakeContexts;
         hostInventory = hostInventories.${hostConfig.name};
       };
       mkSystemConfig = _:
@@ -53,7 +54,7 @@
           # a module needs to instantiate a package set that matches the host's.
           specialArgs =
             mkSystemSpecialArgs {
-              inherit hostConfig username mcpByChannel channel modelCatalog;
+              inherit hostConfig username mcpByChannel channel modelCatalog flakeContexts;
               hostInventory = hostInventories.${hostConfig.name};
             }
             // {inherit nixpkgsConfig;};

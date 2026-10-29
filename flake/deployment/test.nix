@@ -40,7 +40,6 @@
     };
   };
   subject = import ./outputs.nix {
-    inputs = {};
     inherit lib hosts hostResults deployLibFor;
     username = "fixture";
   };

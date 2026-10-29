@@ -11,11 +11,12 @@ in {
   perSystem = {
     pkgs,
     pkgs-stable,
+    flakeContexts,
     system,
     ...
   }:
     outputs.forSystem {
-      inherit pkgs pkgs-stable system hostResults;
+      inherit pkgs pkgs-stable system hostResults flakeContexts;
       inherit (config.dotfiles) hosts flakeSystem;
     };
 }

@@ -56,7 +56,16 @@ in
           devShells = {example = package;};
           apps = {example.program = "/bin/example";};
           legacyPackages = [
-            ({pkgs, ...}: {shared = [pkgs.channelTag];})
+            ({
+              pkgs,
+              flakeContext,
+              flakeContexts,
+              system,
+              ...
+            }: {
+              shared = [pkgs.channelTag];
+              resources = [flakeContext.resource flakeContexts.${system}.resource];
+            })
             ({platform}: {system, ...}: {
               platformSystem = platform.system;
               evaluationSystem = system;
@@ -87,6 +96,7 @@ in
         };
         combined = outputs.forSystem {
           inherit system;
+          flakeContexts.${system}.resource = "fixture";
           pkgs = pkgs // {channelTag = "unstable";};
           pkgs-stable = pkgs // {channelTag = "stable";};
           hosts = {
@@ -102,6 +112,7 @@ in
         };
         withoutHosts = outputs.forSystem {
           inherit system pkgs;
+          flakeContexts.${system}.resource = "fixture";
           pkgs-stable = pkgs;
           hosts = {};
           flakeSystem.includes = [extra];
@@ -115,6 +126,7 @@ in
         };
         colliding = outputs.forSystem {
           inherit system pkgs;
+          flakeContexts.${system}.resource = "fixture";
           pkgs-stable = pkgs;
           hosts = lib.genAttrs ["first" "second"] (name: (fixtureHost name "unstable") // {features = [collisionFeature];});
           flakeSystem.includes = [];
@@ -123,6 +135,7 @@ in
         };
         excluded = outputs.forSystem {
           inherit system pkgs;
+          flakeContexts.${system}.resource = "fixture";
           pkgs-stable = pkgs;
           hosts = {};
           flakeSystem.includes = [
@@ -184,7 +197,7 @@ in
                 checks = ["example"];
                 devShells = ["example"];
                 apps = ["example"];
-                legacyPackages = ["evaluationSystem" "hosts" "platformSystem" "selectedOnHost" "shared" "standalone"];
+                legacyPackages = ["evaluationSystem" "hosts" "platformSystem" "resources" "selectedOnHost" "shared" "standalone"];
               };
           }
           {
@@ -193,6 +206,7 @@ in
               combined.legacyPackages
               == {
                 shared = ["unstable"];
+                resources = ["fixture" "fixture"];
                 platformSystem = system;
                 evaluationSystem = system;
                 selectedOnHost = true;

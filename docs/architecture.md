@@ -131,6 +131,55 @@ build Home Manager modules and special arguments for both standalone and
 embedded configurations. Stable hosts retain stable primary package sets and
 receive the explicit unstable package set for integrations that require it.
 
+## Shared evaluation contexts
+
+Expensive system-wide values belong in `perSystem._module.args`. Flake-parts
+shares each system's evaluation, and the framework exposes its arguments as
+`flakeContext` for the current system and `flakeContexts.${system}` for another
+system. These arguments are available in native `perSystem` modules, every OS
+adapter, standalone and embedded Home Manager configurations, and all feature
+output classes. Feature selection and inventory remain independent of package
+contexts.
+
+A provider constructs a value once:
+
+```nix
+perSystem = {pkgs, ...}: {
+  _module.args.registry = import ./registry.nix {inherit pkgs;};
+};
+```
+
+A consumer requests `flakeContext` or `flakeContexts` in its module arguments,
+then selects the shared value:
+
+```nix
+registry = flakeContext.registry;
+guestPkgs = flakeContexts.aarch64-linux.pkgs;
+```
+
+The shared contexts contain the canonical unstable `pkgs`, stable `pkgs-stable`,
+channel-specific `mcpByChannel`, `mcpRegistry` and `deployRs`. A runtime
+module's ordinary `pkgs` still follows its host's channel. Package sets with
+different pins, overlays or Nixpkgs configuration are distinct resources.
+Providers must preserve those distinctions, with explicit variant keys when
+necessary.
+
+Selecting a resource leaves unrelated resources unevaluated. Register evaluated
+values, not factories that every consumer calls again: Nix shares a value's
+evaluation but does not memoise arbitrary function applications. Host-specific
+configurations and fixtures with different inputs still require separate module
+evaluations.
+
+This follows Den's use of [shared resolution values] and [context injection].
+Den leaves [package-set reuse] to the configuration. Our adapters already pass
+shared packages explicitly and enable Home Manager's `useGlobalPkgs`.
+
+[shared resolution values]:
+  https://github.com/denful/den/blob/0f7675b0b789eabe1a62f8a31b5323a7ad3ca5c4/nix/lib/entities/_types.nix#L143-L168
+[context injection]:
+  https://github.com/denful/den/blob/0f7675b0b789eabe1a62f8a31b5323a7ad3ca5c4/modules/aspects/batteries/flake-parts/inputs.nix
+[package-set reuse]: https://den.denful.dev/guides/nixpkgs/
+
 ## Inventory
 
 `dotfiles.inventorySchema` declares typed data available to every host's

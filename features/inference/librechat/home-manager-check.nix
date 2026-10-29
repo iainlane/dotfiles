@@ -7,10 +7,12 @@
   lib,
   pkgs,
   system,
+  flakeContext,
+  flakeContexts,
   ...
 }: let
   mkAssertionCheck = import ../../../lib/assertion-check.nix {inherit lib pkgs;};
-  registry = import ../../ai/mcp-server-definitions.nix {inherit inputs pkgs;};
+  mcp = flakeContext.mcpByChannel.unstable;
 
   hostConfig = {
     name = "librechat-fixture";
@@ -30,13 +32,9 @@
       inherit pkgs;
       extraSpecialArgs =
         {
-          inherit inputs hostConfig modelCatalog;
+          inherit inputs hostConfig modelCatalog flakeContext flakeContexts mcp;
           defaultModels = modelCatalog.defaults;
           pkgs-unstable = pkgs;
-          mcp = import ../../ai/mcp-servers.nix {
-            inherit inputs lib pkgs;
-            inherit (registry) servers serverPackages;
-          };
         }
         // (extra.specialArgs or {});
       modules =

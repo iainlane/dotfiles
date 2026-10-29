@@ -148,7 +148,10 @@
         pkgs = {inherit runCommandLocal;};
       };
     deployChecks = (import ../flake/deployment/checks.nix {
-      inherit inputs lib;
+      inherit lib;
+      deployLibFor = _: {
+        deployChecks = {nodes}: builtins.deepSeq nodes {};
+      };
       hosts = config.dotfiles.hosts;
       nodes = throw "The deploy nodes were forced.";
     }) {inherit system;};
@@ -167,6 +170,8 @@
         modelCatalog = {};
       }) {
         inherit lib system;
+        flakeContext.mcpByChannel.unstable = {};
+        flakeContexts = lib.genAttrs systems (_: {mcpByChannel.unstable = {};});
         inputs =
           inputs
           // {

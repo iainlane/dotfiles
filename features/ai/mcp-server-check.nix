@@ -1,10 +1,10 @@
 {
-  inputs,
+  flakeContext,
   lib,
   pkgs,
   ...
 }: let
-  registry = import ./mcp-server-definitions.nix {inherit inputs pkgs;};
+  registry = flakeContext.mcpRegistry;
   server = registry.serverPackages.nixos;
   python = server.pythonPackages.python.withPackages (_: [server.pythonPackages.mcp]);
 in {
