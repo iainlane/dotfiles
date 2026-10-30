@@ -23,7 +23,7 @@ fi
 
 hostname="$(hostname -s)"
 configured_user="$(
-	nix eval --option allow-import-from-derivation false --raw .#username
+	nix eval --option allow-import-from-derivation false --raw .#.username
 )" || die "Could not read the configured Home Manager user."
 if ! direnv_bin="$(command -v direnv)"; then
 	die "direnv is not available"
@@ -44,7 +44,7 @@ project_dirs="$(
         else config.home.homeDirectory + "/" + path;
     in
       builtins.concatStringsSep "\n" (map absolutePath (builtins.attrNames directories))
-  ' ".#homeResults.\"${configured_user}@${hostname}\""
+  ' ".#.homeResults.\"${configured_user}@${hostname}\""
 )"
 
 failed=0

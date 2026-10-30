@@ -364,7 +364,7 @@ describe("Cupboard workflow source preparation", () => {
             args: [
               "eval",
               "--json",
-              ".#nix.publishInputs",
+              ".#.nix.publishInputs",
               "--option",
               "allow-import-from-derivation",
               "false",
@@ -908,7 +908,7 @@ describe("Cupboard strict build ownership", () => {
             args: [
               "eval",
               "--json",
-              ".#cupboardPublicOutputs",
+              ".#.cupboardPublicOutputs",
               "--option",
               "allow-import-from-derivation",
               "false",
@@ -981,7 +981,7 @@ fi
             status: 0,
             stderr: "",
             calls: [
-              ["eval", "--json", ".#cupboardPublicOutputs"],
+              ["eval", "--json", ".#.cupboardPublicOutputs"],
               [
                 "build",
                 "--keep-going",

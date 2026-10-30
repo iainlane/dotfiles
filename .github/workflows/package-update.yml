@@ -49,7 +49,7 @@ jobs:
           mkdir -p "${HOME}/.config/nix"
           {
             printf '\n'
-            nix eval --raw .#nix.substituterConfig
+            nix eval --raw .#.nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
       # The `secrets` input lives in the private dotfiles-secrets repo, reachable
@@ -78,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          names="$(nix eval --raw .#updaterNames --apply 'names: builtins.concatStringsSep "\n" names')"
+          names="$(nix eval --raw .#.updaterNames --apply 'names: builtins.concatStringsSep "\n" names')"
 
           : > "${RUNNER_TEMP}/changed.txt"
           : > "${RUNNER_TEMP}/failed.txt"
@@ -100,7 +100,7 @@ jobs:
               continue
             fi
 
-            version="$(nix eval --raw ".#updaterVersions.${name}")"
+            version="$(nix eval --raw ".#.updaterVersions.${name}")"
 
             printf '%s %s\n' "${name}" "${version}" >> "${RUNNER_TEMP}/changed.txt"
             git add -A

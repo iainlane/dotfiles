@@ -7,7 +7,7 @@ evaluation_config="$(<"${script_dir}/../lib/nix/evaluation.conf")"
 export NIX_CONFIG="${NIX_CONFIG:-}"$'\n'"${evaluation_config}"
 
 if [[ "$#" -eq 0 ]]; then
-	set -- --raw .#cupboardOutputs --apply \
+	set -- --raw .#.cupboardOutputs --apply \
 		'targets: builtins.deepSeq (map (target: target.rootDrvPath) targets) "Evaluation passed.\n"'
 fi
 

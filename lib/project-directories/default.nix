@@ -62,16 +62,18 @@ in {
 
     home.file =
       lib.mapAttrs' (dirPath: dirConfig: let
-        flakeAttr = lib.concatMapStringsSep "." builtins.toJSON [
-          "homeResults"
-          "${config.home.username}@${hostConfig.name}"
-          "config"
-          "programs"
-          "projectDirectories"
-          "directories"
-          dirPath
-          "shell"
-        ];
+        flakeAttr =
+          "."
+          + lib.concatMapStringsSep "." builtins.toJSON [
+            "homeResults"
+            "${config.home.username}@${hostConfig.name}"
+            "config"
+            "programs"
+            "projectDirectories"
+            "directories"
+            dirPath
+            "shell"
+          ];
         derivationComment = "# ${builtins.unsafeDiscardStringContext dirConfig.shell.drvPath}\n";
         absoluteDir = toAbsolute dirPath;
       in {

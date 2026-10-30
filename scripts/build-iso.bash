@@ -18,9 +18,9 @@ host="${1}"
 ensure_repo_root
 
 build_system="$(nix eval --impure --expr 'builtins.currentSystem' --raw)"
-host_system="$(nix eval ".#hosts.${host}.system" --raw)"
+host_system="$(nix eval ".#.hosts.${host}.system" --raw)"
 remote_store="ssh-ng://nixbuild-store"
-contents_drv=".#packages.${host_system}.${host}-iso-contents"
+contents_drv=".#.packages.${host_system}.${host}-iso-contents"
 
 log_step "Building ISO contents for ${host} (${host_system}) via ${remote_store}"
 build_json="$(nix build --eval-store auto --store "${remote_store}" --json --no-link "${contents_drv}")"
@@ -31,7 +31,7 @@ nix copy --from "${remote_store}?trusted=1" "${out_path}"
 
 log_step "Assembling ISO locally on ${build_system}"
 out_link="result-${host}-iso"
-nix build ".#packages.${build_system}.${host}-iso" --out-link "${out_link}"
+nix build ".#.packages.${build_system}.${host}-iso" --out-link "${out_link}"
 
 # Without nullglob, a non-matching glob would be passed through literally.
 shopt -s nullglob

@@ -64,7 +64,7 @@ jobs:
             exit 0
           fi
 
-          ./scripts/check-evaluation.bash --json .#nix.publishInputs \
+          ./scripts/check-evaluation.bash --json .#.nix.publishInputs \
             | jq -r 'to_entries[] | "\(.key)=\(.value)"' \
             | tee -a "${GITHUB_OUTPUT}"
 

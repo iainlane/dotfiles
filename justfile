@@ -21,7 +21,7 @@ secrets_repo := "git+ssh://git@github.com/iainlane/dotfiles-secrets"
 # Primary user account, taken from `flake.username` so the home deploy profile
 # and the installer agree with the configuration
 
-username := `nix eval --raw .#username`
+username := `nix eval --raw .#.username`
 
 # Path to the system profile
 

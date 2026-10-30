@@ -32,12 +32,12 @@ HOSTNAME
 stub nix <<'NIX'
 set -euo pipefail
 [[ "$1" == eval ]] || exit 99
-if [[ "$*" == *".#username"* ]]; then
+if [[ "$*" == *".#.username"* ]]; then
 	printf 'fixture-user'
 	exit 0
 fi
 [[ "${REFRESH_MODE}" != eval-failure ]] || exit 7
-[[ "$*" == *'.#homeResults."fixture-user@fixture-host"'* ]] || {
+[[ "$*" == *'.#.homeResults."fixture-user@fixture-host"'* ]] || {
 	echo "refresh used the wrong Home Manager identity: $*" >&2
 	exit 8
 }

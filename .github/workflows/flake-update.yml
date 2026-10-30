@@ -43,7 +43,7 @@ jobs:
           mkdir -p "${HOME}/.config/nix"
           {
             printf '\n'
-            nix eval --raw .#nix.substituterConfig
+            nix eval --raw .#.nix.substituterConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
       # The `secrets` input lives in the private dotfiles-secrets repo, reachable

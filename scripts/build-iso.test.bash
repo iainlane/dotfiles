@@ -61,9 +61,9 @@ for build_system in aarch64-darwin aarch64-linux x86_64-linux; do
 		{
 			printf '%s\0' eval --impure --expr builtins.currentSystem --raw
 			printf '\n'
-			printf '%s\0' eval '.#hosts.target.system' --raw
+			printf '%s\0' eval '.#.hosts.target.system' --raw
 			printf '\n'
-			printf '%s\0' build --eval-store auto --store ssh-ng://nixbuild-store --json --no-link '.#packages.x86_64-linux.target-iso-contents'
+			printf '%s\0' build --eval-store auto --store ssh-ng://nixbuild-store --json --no-link '.#.packages.x86_64-linux.target-iso-contents'
 			printf '\n'
 			if [[ "${scenario}" != contents-failure ]]; then
 				printf '%s\0' run nixpkgs#jq -- -r '.[0].outputs.out'
@@ -73,7 +73,7 @@ for build_system in aarch64-darwin aarch64-linux x86_64-linux; do
 			fi
 			case "${scenario}" in
 			success | assembly-failure | missing-image)
-				printf '%s\0' build ".#packages.${build_system}.target-iso" --out-link result-target-iso
+				printf '%s\0' build ".#.packages.${build_system}.target-iso" --out-link result-target-iso
 				printf '\n'
 				;;
 			esac

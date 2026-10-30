@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          matrix=$(./scripts/check-evaluation.bash --json .#cupboardPublicOutputs |
+          matrix=$(./scripts/check-evaluation.bash --json .#.cupboardPublicOutputs |
             jq --compact-output '{include: (map({system, os}) | unique_by(.system))}')
           printf 'matrix=%s\n' "${matrix}" >> "${GITHUB_OUTPUT}"
 
@@ -78,11 +78,11 @@ jobs:
           mkdir -p "${HOME}/.config/nix"
           {
             printf '\n'
-            ./scripts/check-evaluation.bash --raw .#nix.ciConfig
+            ./scripts/check-evaluation.bash --raw .#.nix.ciConfig
           } >> "${HOME}/.config/nix/nix.conf"
 
-          echo "remoteSubstituters=$(nix eval --raw .#nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
-          echo "remoteTrustedKeys=$(nix eval --raw .#nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
+          echo "remoteSubstituters=$(nix eval --raw .#.nix.publishInputs.remoteSubstituters)" >> "${GITHUB_OUTPUT}"
+          echo "remoteTrustedKeys=$(nix eval --raw .#.nix.publishInputs.remoteTrustedKeys)" >> "${GITHUB_OUTPUT}"
           if [ -n "${NIXBUILD_TOKEN}" ]; then
             echo "have_builder=true" >> "${GITHUB_OUTPUT}"
           fi
@@ -153,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ./scripts/nix-retry.bash eval --raw .#checks --apply \
+          ./scripts/nix-retry.bash eval --raw .#.checks --apply \
             'checks:
               builtins.deepSeq
                 (builtins.mapAttrs
@@ -167,7 +167,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          nix eval --json .#cupboardPublicOutputs |
+          nix eval --json .#.cupboardPublicOutputs |
             jq --raw-output --arg system "${TARGET_SYSTEM}" \
               '.[] | select(.system == $system) | .attr' > "${RUNNER_TEMP}/targets.txt"
           targets=()

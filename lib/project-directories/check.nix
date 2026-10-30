@@ -51,7 +51,7 @@
     };
   inherit (home) config;
   shell = config.programs.projectDirectories.directories.${directory}.shell;
-  expectedInstallable = ''/repo with spaces#"homeResults"."fixture@fixture-host"."config"."programs"."projectDirectories"."directories"."dev/project's space.with-dots"."shell"'';
+  expectedInstallable = ''/repo with spaces#."homeResults"."fixture@fixture-host"."config"."programs"."projectDirectories"."directories"."dev/project's space.with-dots"."shell"'';
   actual = {
     directories = lib.attrNames config.programs.projectDirectories.directories;
     dependencies = map toString config.home.extraDependencies;
