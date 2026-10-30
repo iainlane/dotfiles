@@ -47,7 +47,8 @@ in {
         agentsview.disabledAgents = ["warp"];
         claudeCode.teamclaude = {
           apiKeyAccounts.anthropic.apiKeyFile = config.sops.secrets.teamclaude-anthropic-api-key.path;
-          frontend.account = "anthropic";
+          accountSettings."iain@orangesquash.org.uk".allowExtraUsage = true;
+          settings.quotaProbeSeconds = 300;
         };
         inference.librechat.anthropicKeyFile = config.sops.secrets.librechat-anthropic-api-key.path;
         inference.librechat.excludeBundles = ["rea"];

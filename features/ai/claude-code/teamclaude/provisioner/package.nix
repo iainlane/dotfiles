@@ -31,7 +31,7 @@
     runHook preInstall
     npm prune --omit=dev --ignore-scripts --offline
     mkdir -p "$out/lib/teamclaude-provision"
-    cp -r provision.ts package.json node_modules "$out/lib/teamclaude-provision/"
+    cp -r provision.ts errors.ts package.json node_modules "$out/lib/teamclaude-provision/"
     makeWrapper ${lib.getExe nodejs_24} "$out/bin/teamclaude-provision" \
       --add-flags "$out/lib/teamclaude-provision/provision.ts"
     runHook postInstall

@@ -6,6 +6,24 @@ import { execFile } from "node:child_process";
 import { userInfo } from "node:os";
 import { parseArgs, promisify } from "node:util";
 import { z } from "zod";
+import {
+  AccountsSettingError,
+  AmbiguousAccountPolicyError,
+  ApiKeyAccountConflictError,
+  ConfigurationWriteError,
+  FileReadError,
+  InvalidApiKeyError,
+  InvalidArgumentsError,
+  InvalidDataError,
+  InvalidJsonError,
+  ProvisionError,
+  ReloadHttpError,
+  ReloadTransportError,
+  SopsDecryptionError,
+  SopsTimeoutError,
+  UnsupportedFieldError,
+  type ValidationSource,
+} from "./errors.ts";
 
 const objectSchema = z.record(z.string(), z.unknown());
 
@@ -26,11 +44,7 @@ const configurationSchema = z.looseObject({
 });
 
 const specificationSchema = z.object({
-  settings: z
-    .record(z.string(), z.json())
-    .refine((settings) => !("accounts" in settings), {
-      message: "Declare accounts through apiKeyAccounts, not settings",
-    }),
+  settings: z.record(z.string(), z.json()),
   apiKeyAccounts: z.record(
     z.string(),
     z.object({
@@ -38,6 +52,14 @@ const specificationSchema = z.object({
       priority: z.int(),
     }),
   ),
+  accountSettings: z
+    .record(
+      z.string(),
+      z.strictObject({
+        allowExtraUsage: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
@@ -85,12 +107,16 @@ function hasCode(error: unknown, code: string): boolean {
 function parse<T>(
   schema: z.ZodType<T>,
   value: unknown,
-  description: string,
+  target: { source: ValidationSource; path?: string },
 ): T {
   const result = schema.safeParse(value);
 
   if (!result.success) {
-    throw new Error(`Invalid ${description}`);
+    throw new InvalidDataError(
+      target.source,
+      target.path ?? null,
+      result.error.issues.map((issue) => issue.path),
+    );
   }
 
   return result.data;
@@ -100,12 +126,18 @@ async function readJson(
   file: string,
   readText: RuntimeDependencies["readText"],
 ): Promise<unknown> {
-  const text = await readText(file);
+  let text;
+
+  try {
+    text = await readText(file);
+  } catch (cause) {
+    throw new FileReadError(file, { cause });
+  }
 
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Invalid JSON in ${file}`);
+    throw new InvalidJsonError(file);
   }
 }
 
@@ -115,7 +147,7 @@ function mergeSettings(
 ): void {
   for (const [key, value] of Object.entries(settings)) {
     if (["__proto__", "constructor", "prototype"].includes(key)) {
-      throw new Error(`Unsupported configuration field: ${key}`);
+      throw new UnsupportedFieldError(key);
     }
 
     const object = objectSchema.safeParse(value);
@@ -150,9 +182,7 @@ function reconcileAccounts(
       matches.length > 1 ||
       matches.some((account) => account.type !== "apikey")
     ) {
-      throw new Error(
-        `API-key account ${name} conflicts with existing accounts`,
-      );
+      throw new ApiKeyAccountConflictError(name);
     }
 
     let account = matches[0];
@@ -167,12 +197,33 @@ function reconcileAccounts(
   }
 }
 
+function applyAccountSettings(
+  config: Configuration,
+  settings: Specification["accountSettings"],
+): void {
+  for (const [name, policy] of Object.entries(settings ?? {})) {
+    const matches = config.accounts.filter((account) => account.name === name);
+
+    if (matches.length > 1) {
+      throw new AmbiguousAccountPolicyError(name);
+    }
+
+    const account = matches[0];
+
+    if (!account) {
+      continue;
+    }
+
+    Object.assign(account, policy);
+  }
+}
+
 export async function provision(
   spec: Specification,
   dependencies: Dependencies,
 ): Promise<void> {
   if ("accounts" in spec.settings) {
-    throw new Error("Declare accounts through apiKeyAccounts, not settings");
+    throw new AccountsSettingError();
   }
 
   const entries = await Promise.all(
@@ -180,7 +231,7 @@ export async function provision(
       const apiKey = (await dependencies.readKey(account.apiKeyFile)).trim();
 
       if (!apiKey || /\s/.test(apiKey)) {
-        throw new Error(`Expected a single API key in ${account.apiKeyFile}`);
+        throw new InvalidApiKeyError(account.apiKeyFile);
       }
 
       return [name, { apiKey, priority: account.priority }] as const;
@@ -202,8 +253,9 @@ export async function provision(
 
       mergeSettings(config, spec.settings);
       reconcileAccounts(config, keys);
+      applyAccountSettings(config, spec.accountSettings);
 
-      return parse(configurationSchema, config, "TeamClaude configuration");
+      return parse(configurationSchema, config, { source: "configuration" });
     },
   );
 
@@ -221,18 +273,14 @@ async function readConfig(
   try {
     config = await readJson(path, readText);
   } catch (error) {
-    if (hasCode(error, "ENOENT")) {
+    if (error instanceof FileReadError && hasCode(error.cause, "ENOENT")) {
       return null;
     }
 
     throw error;
   }
 
-  return parse(
-    configurationSchema,
-    config,
-    `TeamClaude configuration in ${path}`,
-  );
+  return parse(configurationSchema, config, { source: "configuration", path });
 }
 
 /* eslint-disable no-await-in-loop -- Retries must wait for each read or launchd status check before deciding whether to continue. */
@@ -248,7 +296,7 @@ async function readKey(
       return await readText(path);
     } catch (error) {
       if (!hasCode(error, "ENOENT") || clock.now() >= deadline) {
-        throw error;
+        throw new FileReadError(path, { cause: error });
       }
 
       await clock.pause();
@@ -279,13 +327,13 @@ export async function waitForSops(
         return;
       }
 
-      throw new Error("sops-nix failed to decrypt secrets");
+      throw new SopsDecryptionError(expectedProgram);
     }
 
     await dependencies.pause();
   }
 
-  throw new Error("Timed out waiting for sops-nix to decrypt secrets");
+  throw new SopsTimeoutError(expectedProgram);
 }
 
 /* eslint-enable no-await-in-loop */
@@ -308,16 +356,18 @@ export async function reload(
     );
 
     if (!response.ok) {
-      throw new Error(
-        `TeamClaude configuration reload returned ${response.status}`,
-      );
+      throw new ReloadHttpError(response.status);
     }
   } catch (error) {
     if (error instanceof Error && hasCode(error.cause, "ECONNREFUSED")) {
       return;
     }
 
-    throw error;
+    if (error instanceof ProvisionError) {
+      throw error;
+    }
+
+    throw new ReloadTransportError({ cause: error });
   }
 }
 
@@ -332,38 +382,47 @@ export async function run(
     parse(
       specificationSchema,
       await readJson(specFile, dependencies.readText),
-      `provisioning specification in ${specFile}`,
+      { source: "specification", path: specFile },
     ),
     {
       readKey: (path) => readKey(path, dependencies),
       defaultConfig: () =>
-        parse(
-          configurationSchema,
-          library.createDefaultConfig(),
-          "default TeamClaude configuration",
-        ),
+        parse(configurationSchema, library.createDefaultConfig(), {
+          source: "default-configuration",
+        }),
       update: async (change) => {
-        await dependencies.prepareDirectory(dirname(configFile));
+        try {
+          await dependencies.prepareDirectory(dirname(configFile));
 
-        return library.withConfigLock(
-          configFile,
-          async (): Promise<Configuration | undefined> => {
-            const current = await readConfig(configFile, dependencies.readText);
-            const updated = change(current);
+          return await library.withConfigLock(
+            configFile,
+            async (): Promise<Configuration | undefined> => {
+              const current = await readConfig(
+                configFile,
+                dependencies.readText,
+              );
+              const updated = change(current);
 
-            if (!updated) {
-              return undefined;
-            }
+              if (!updated) {
+                return undefined;
+              }
 
-            dependencies.ensureAccountIds(updated.accounts);
+              dependencies.ensureAccountIds(updated.accounts);
 
-            if (JSON.stringify(current) !== JSON.stringify(updated)) {
-              await library.writeJsonAtomic(configFile, updated);
-            }
+              if (JSON.stringify(current) !== JSON.stringify(updated)) {
+                await library.writeJsonAtomic(configFile, updated);
+              }
 
-            return updated;
-          },
-        );
+              return updated;
+            },
+          );
+        } catch (cause) {
+          if (cause instanceof ProvisionError) {
+            throw cause;
+          }
+
+          throw new ConfigurationWriteError(configFile, { cause });
+        }
       },
       reload: dependencies.reload,
     },
@@ -384,9 +443,7 @@ if (import.meta.main) {
       specFile === undefined ||
       specFile === ""
     ) {
-      throw new Error(
-        "Usage: provision.ts <TeamClaude config module> <specification>",
-      );
+      throw new InvalidArgumentsError();
     }
 
     if (values["sops-program"] !== undefined && values["sops-program"] !== "") {
@@ -418,7 +475,7 @@ if (import.meta.main) {
         getConfigPath: callable<() => string>(),
       }),
       await import(pathToFileURL(configModule).href),
-      "TeamClaude configuration library",
+      { source: "config-library" },
     );
     const accounts = parse(
       z.object({
@@ -427,7 +484,7 @@ if (import.meta.main) {
       await import(
         new URL("./account-id.js", pathToFileURL(configModule)).href
       ),
-      "TeamClaude account library",
+      { source: "account-library" },
     );
     const configFile = library.getConfigPath();
 
@@ -452,8 +509,7 @@ if (import.meta.main) {
       },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`teamclaude: provisioning failed: ${message}`);
+    console.error("teamclaude: provisioning failed:", error);
     process.exitCode = 1;
   }
 }

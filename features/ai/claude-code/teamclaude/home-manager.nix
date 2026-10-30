@@ -97,11 +97,30 @@ in {
       '';
     };
 
+    accountSettings = lib.mkOption {
+      default = {};
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          allowExtraUsage = lib.mkOption {
+            type = lib.types.nullOr lib.types.bool;
+            default = null;
+            description = "Whether the subscription may use paid extra usage, or null to preserve the runtime setting.";
+          };
+        };
+      });
+      description = ''
+        Policy for existing accounts, indexed by their exact TeamClaude names.
+        Activation and server startup apply declared values without replacing
+        credentials. Missing accounts are skipped until they have been added
+        with TeamClaude. Removing a declaration preserves its runtime value.
+      '';
+    };
+
     provision = lib.mkOption {
       type = lib.types.package;
       readOnly = true;
       default = packages.provision {
-        inherit (cfg) configFile settings apiKeyAccounts;
+        inherit (cfg) configFile settings apiKeyAccounts accountSettings;
         teamclaude = cfg.package;
         sopsProgram =
           if pkgs.stdenv.hostPlatform.isDarwin && cfg.apiKeyAccounts != {} && (config.sops.secrets or {}) != {}

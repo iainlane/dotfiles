@@ -20,10 +20,12 @@ in {
     configFile,
     settings,
     apiKeyAccounts,
+    accountSettings ? {},
     sopsProgram ? null,
   }: let
     specification = builtins.toFile "teamclaude-provision.json" (builtins.toJSON {
       inherit settings apiKeyAccounts;
+      accountSettings = lib.mapAttrs (_: lib.filterAttrs (_: value: value != null)) accountSettings;
     });
   in
     writeShellApplication {

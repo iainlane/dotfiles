@@ -179,6 +179,22 @@ proxy. Settings that the proxy cannot reload, such as its listen port, take
 effect when the service next starts. Removing a declared API-key account removes
 its managed runtime entry. Accounts added through TeamClaude remain unchanged.
 
+Declare policy for an existing subscription without storing its OAuth tokens in
+Nix:
+
+```nix
+dotfiles.claudeCode.teamclaude = {
+  accountSettings."me@example.com".allowExtraUsage = true;
+  settings.quotaProbeSeconds = 300;
+};
+```
+
+Account settings use exact TeamClaude account names. Missing accounts are
+skipped until login adds them and activation or server startup reconciles the
+configuration again. Undeclared fields remain unchanged. Subscription extra
+usage is a fallback after every eligible account, including API-key accounts.
+The quota probe refreshes extra-usage availability and spend every five minutes.
+
 [teamclaude]: https://github.com/KarpelesLab/teamclaude
 
 Select `features.ai.claude-code.teamclaude.frontend` to run the [Claude API
