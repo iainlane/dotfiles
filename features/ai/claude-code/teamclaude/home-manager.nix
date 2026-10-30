@@ -34,6 +34,47 @@ in {
       '';
     };
 
+    frontend = {
+      enable = lib.mkEnableOption "the Claude API conversion frontend before TeamClaude";
+      package = lib.mkPackageOption pkgs "claude-api-frontend" {};
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 3457;
+        description = "Loopback port for the frontend.";
+      };
+      stateDirectory = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.xdg.stateHome}/claude-api-frontend";
+        description = "Private directory for the persistent local certificate authority.";
+      };
+      account = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "anthropic";
+        description = "TeamClaude account for inference requests, or null for normal account rotation.";
+      };
+      configFile = lib.mkOption {
+        type = lib.types.str;
+        readOnly = true;
+        default = toString ((pkgs.formats.json {}).generate "claude-api-frontend.json" {
+          inherit (cfg.frontend) port stateDirectory account;
+          teamclaudeConfigFile = cfg.configFile;
+        });
+        description = "Generated frontend configuration, without credentials.";
+      };
+      server = lib.mkOption {
+        type = lib.types.package;
+        readOnly = true;
+        default = pkgs.writeShellApplication {
+          name = "teamclaude-frontend";
+          text = ''
+            exec ${lib.getExe cfg.frontend.package} serve --config ${lib.escapeShellArg cfg.frontend.configFile}
+          '';
+        };
+        description = "The command that starts the frontend user service.";
+      };
+    };
+
     apiKeyAccounts = lib.mkOption {
       default = {};
       type = lib.types.attrsOf (lib.types.submodule {
@@ -112,6 +153,10 @@ in {
       inherit (cfg) configFile;
       claudeCode = config.dotfiles.claudeCode.package;
       teamclaude = cfg.package;
+      frontend = lib.optionalAttrs cfg.frontend.enable {
+        inherit (cfg.frontend) package configFile port;
+        caFile = "${cfg.frontend.stateDirectory}/authority/ca.pem";
+      };
     };
   };
 }

@@ -181,6 +181,27 @@ its managed runtime entry. Accounts added through TeamClaude remain unchanged.
 
 [teamclaude]: https://github.com/KarpelesLab/teamclaude
 
+Select `features.ai.claude-code.teamclaude.frontend` to run the [Claude API
+frontend][claude-api-frontend] before TeamClaude. This child includes
+TeamClaude, starts a second user service, and configures the `claude` launcher
+with its proxy and process-local CA. The launcher requires both services to be
+available. The frontend converts the Claude Code user agent, beta flag and
+system-prompt billing attribution for API usage; TeamClaude manages credentials.
+
+Normal account rotation remains the default. To use a specific API-key account:
+
+```nix
+dotfiles.claudeCode.teamclaude.frontend.account = "anthropic";
+```
+
+The frontend listens on port `3457` by default. Set
+`dotfiles.claudeCode.teamclaude.frontend.port` to change it. Its private CA is
+stored under `$XDG_STATE_HOME/claude-api-frontend`. Restart both user services
+after changing TeamClaude's listen port. Selecting the frontend does not add an
+API key or test provider billing eligibility.
+
+[claude-api-frontend]: ../../pkgs/claude-api-frontend/README.md
+
 ## Instructions, output styles and skills
 
 `skills.nix` publishes three values through `_module.args`, beside `mcp`: the

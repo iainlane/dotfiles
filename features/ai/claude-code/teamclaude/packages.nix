@@ -90,6 +90,7 @@ in {
     claudeCode,
     teamclaude,
     configFile,
+    frontend ? {},
   }: let
     launcher = writeShellApplication {
       name = "claude";
@@ -98,6 +99,18 @@ in {
 
       text = ''
         claude=${lib.escapeShellArg "${claudeCode}/bin/claude"}
+        ${lib.optionalString (frontend != {}) ''
+          if ! ${lib.getExe frontend.package} check --config ${lib.escapeShellArg frontend.configFile}; then
+            echo "claude: the configured TeamClaude frontend is unavailable. Check the teamclaude and teamclaude-frontend user services." >&2
+            exit 1
+          fi
+          export HTTPS_PROXY=http://127.0.0.1:${toString frontend.port}
+          export HTTP_PROXY=$HTTPS_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTPS_PROXY
+          export NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost
+          export NODE_EXTRA_CA_CERTS=${lib.escapeShellArg frontend.caFile}
+          unset ANTHROPIC_BASE_URL
+          exec "$claude" "$@"
+        ''}
         ${setConfig configFile}
 
         if [[ ! -e $config ]]; then

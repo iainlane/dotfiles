@@ -9,6 +9,7 @@ export default defineConfig({
       launchers: {
         claude: process.env.TEAMCLAUDE_TEST_CLAUDE ?? "",
         server: process.env.TEAMCLAUDE_TEST_SERVER ?? "",
+        frontend: process.env.TEAMCLAUDE_TEST_FRONTEND ?? "",
       },
     },
     testTimeout: 30000,

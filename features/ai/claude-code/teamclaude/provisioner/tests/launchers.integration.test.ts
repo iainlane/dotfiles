@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 declare module "vitest" {
   interface ProvidedContext {
-    launchers: { claude: string; server: string };
+    launchers: { claude: string; server: string; frontend: string };
   }
 }
 

@@ -11,11 +11,22 @@
 }: {
   dotfiles.flakeSystem.includes = [config.dotfiles.features.ai.claude-code.teamclaude];
   dotfiles.features.ai.claude-code.teamclaude = {
-    checks = [./teamclaude-check.nix];
+    checks = [
+      ./teamclaude-check.nix
+      ({pkgs, ...}: {inherit (pkgs) claude-api-frontend;})
+      (import ./frontend-check.nix {
+        inherit featureResolver;
+        inherit (config.dotfiles) features;
+      })
+    ];
     includes = [
       (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
       (featureResolver.when featureResolver.isDarwin [{homeManager = ./home-manager-darwin.nix;}])
     ];
     homeManager = ./home-manager.nix;
+    frontend = {
+      includes = [config.dotfiles.features.ai.claude-code.teamclaude];
+      homeManager.dotfiles.claudeCode.teamclaude.frontend.enable = true;
+    };
   };
 }
