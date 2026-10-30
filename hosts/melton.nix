@@ -8,6 +8,7 @@ in {
     motd = halls.melton;
     features = [
       features.agentsview
+      features.ai.claude-code.teamclaude.frontend
       features.ai.rea
       features.inference.ollama
       features.inference.librechat
@@ -44,7 +45,10 @@ in {
       dotfiles = {
         ai.openrouterApiKeyFile = config.sops.secrets.openrouter-api-key.path;
         agentsview.disabledAgents = ["warp"];
-        claudeCode.teamclaude.apiKeyAccounts.anthropic.apiKeyFile = config.sops.secrets.teamclaude-anthropic-api-key.path;
+        claudeCode.teamclaude = {
+          apiKeyAccounts.anthropic.apiKeyFile = config.sops.secrets.teamclaude-anthropic-api-key.path;
+          frontend.account = "anthropic";
+        };
         inference.librechat.anthropicKeyFile = config.sops.secrets.librechat-anthropic-api-key.path;
         inference.librechat.excludeBundles = ["rea"];
         git.signing.global.openpgp.key = "E352D5C51C5041D4";
