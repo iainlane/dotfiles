@@ -88,7 +88,15 @@ it.each([true, false])(
       beginning: output.includes("Paragraph 0"),
       ending: output.includes("Paragraph 44"),
       revision: output.includes("reviewed"),
-    }).toStrictEqual({ beginning: true, ending: true, revision: true });
+      pendingFooter: output.includes("Awaiting approval"),
+      finalSummary: output.includes("Review finished."),
+    }).toStrictEqual({
+      beginning: true,
+      ending: true,
+      revision: true,
+      pendingFooter: false,
+      finalSummary: !isPartial,
+    });
   },
 );
 

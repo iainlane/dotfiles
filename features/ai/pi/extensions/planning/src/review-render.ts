@@ -41,8 +41,8 @@ export function renderPlanReview(
   document.addChild(
     new Markdown(presentedPlan.content, 1, 0, getMarkdownTheme()),
   );
-  document.addChild(
-    new Text(decision === "pending" ? "Awaiting approval" : summary, 1, 0),
-  );
+  if (decision !== "pending") {
+    document.addChild(new Text(summary, 1, 0));
+  }
   return document;
 }
