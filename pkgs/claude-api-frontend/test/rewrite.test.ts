@@ -69,6 +69,42 @@ describe("API request conversion", () => {
     },
   );
 
+  it("omits system when attribution removal empties a thread continuation", () => {
+    const continuation = {
+      model: "claude-haiku-5-5",
+      thread: { type: "continue", previous_message_id: "msg_previous" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool_readme",
+              content: "Project README.",
+            },
+          ],
+        },
+      ],
+    };
+    const body = {
+      ...continuation,
+      system: [
+        {
+          type: "text",
+          text: "x-anthropic-billing-header: cc_version=test; cc_entrypoint=cli;",
+        },
+      ],
+    };
+
+    expect(
+      JSON.parse(
+        new TextDecoder().decode(
+          rewriteBody(new TextEncoder().encode(JSON.stringify(body))),
+        ),
+      ),
+    ).toStrictEqual(continuation);
+  });
+
   it.each([
     "invalid JSON",
     '{ "system": "Leave this alone." }',

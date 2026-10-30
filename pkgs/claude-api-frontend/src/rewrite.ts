@@ -84,5 +84,9 @@ export function rewriteBody(body: Uint8Array): Uint8Array {
     });
   }
 
+  if (changed && Array.isArray(payload.system) && payload.system.length === 0) {
+    delete payload.system;
+  }
+
   return changed ? new TextEncoder().encode(JSON.stringify(payload)) : body;
 }
