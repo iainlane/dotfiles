@@ -23,6 +23,9 @@ const runtimeRequire =
 const integration = [
   "test/store.test.ts",
   "test/native.test.ts",
+  "test/clear-context.test.ts",
+  "test/background.test.ts",
+  "test/editor.test.ts",
   "test/rpc.test.ts",
 ];
 
@@ -46,6 +49,7 @@ export default defineConfig({
     })),
   },
   test: {
+    fileParallelism: false,
     projects: [
       {
         extends: true,

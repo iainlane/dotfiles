@@ -17,6 +17,7 @@ import {
   SessionManager,
   SettingsManager,
   type ExtensionFactory,
+  type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import subagents from "pi-subagents";
 import { getCurrentTools } from "@earendil-works/pi-ai";
@@ -28,6 +29,7 @@ import researchFixture from "./fixtures/research.ts";
 
 const nativeResearchTools = [
   "bash",
+  "bg_wait",
   "codemode",
   "find",
   "grep",
@@ -321,12 +323,14 @@ it.each([
     const delegationErrors: string[] = [];
     const depthErrors: string[] = [];
     const childStarted = Promise.withResolvers<void>();
+    let parentApi: ExtensionAPI | undefined;
     const requests: {
       sessionId: string | undefined;
       tools: string[];
       guardBlocked: boolean;
     }[] = [];
     const provider: ExtensionFactory = (pi) => {
+      parentApi = pi;
       pi.registerProvider(model.provider, {
         apiKey: "fixture",
         api: model.api,
@@ -449,10 +453,11 @@ it.each([
                         {
                           type: "toolCall",
                           id: "research-fixture",
-                          name: "planning_research",
+                          name: "subagent",
                           arguments: {
-                            role: "explore",
-                            brief: "Return the offline fixture report.",
+                            agent: "planning-explore",
+                            task: "Return the offline fixture report.",
+                            async: false,
                           },
                         },
                       ]
@@ -621,12 +626,30 @@ it.each([
           "ls",
           "codemode",
           "enter_plan_mode",
-          "planning_research",
+          "subagent",
+          "bg_wait",
+          "subagents_enable",
           "submit_plan",
           ...(mode === "nested" ? fixtureTools : []),
         ],
       }));
       await session.bindExtensions({});
+      const requiredTools = [
+        "enter_plan_mode",
+        "subagent",
+        ...(mode === "nested" ? ["mcp__fixture__inspect_tool"] : []),
+      ];
+      await expect
+        .poll(
+          () =>
+            requiredTools.filter(
+              (name) =>
+                parentApi?.getAllTools().some((tool) => tool.name === name) !==
+                true,
+            ),
+          { timeout: 10_000 },
+        )
+        .toStrictEqual([]);
       const running = session.prompt("Exercise the fixed planning fixture.");
       if (mode === "research-cancel") {
         await childStarted.promise;
@@ -706,4 +729,5 @@ it.each([
       await rm(cwd, { recursive: true, force: true });
     }
   },
+  30_000,
 );

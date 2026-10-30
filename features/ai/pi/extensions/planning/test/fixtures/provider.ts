@@ -38,6 +38,13 @@ export default function provider(pi: ExtensionAPI): void {
       );
     }
   });
+  pi.on("session_before_compact", (event) => ({
+    compaction: {
+      summary: "Offline compaction fixture.",
+      firstKeptEntryId: event.preparation.firstKeptEntryId,
+      tokensBefore: event.preparation.tokensBefore,
+    },
+  }));
   const model: Model<"planning-rpc-fixture"> = {
     id: "fixture",
     name: "Fixture",
@@ -55,10 +62,16 @@ export default function provider(pi: ExtensionAPI): void {
     api: model.api,
     baseUrl: model.baseUrl,
     models: [model],
-    streamSimple: () => {
+    streamSimple: (_model, context) => {
       const step = calls++;
+      const trace = process.env.PI_PLANNING_REQUEST_TRACE;
+      if (trace !== undefined && trace !== "") {
+        appendFileSync(trace, JSON.stringify({ step, context }) + "\n");
+      }
+      const workflow =
+        process.env.PI_PLANNING_RESUME_PROBE === "1" ? "resume" : reason;
       const content: AssistantMessage["content"] =
-        reason === "startup" && step === 0
+        workflow === "startup" && step === 0
           ? [
               {
                 type: "toolCall",
@@ -67,7 +80,7 @@ export default function provider(pi: ExtensionAPI): void {
                 arguments: {},
               },
             ]
-          : reason === "startup" && step === 1
+          : workflow === "startup" && step === 1
             ? [
                 {
                   type: "toolCall",
@@ -79,7 +92,7 @@ export default function provider(pi: ExtensionAPI): void {
                   },
                 },
               ]
-            : reason === "startup" && step === 2
+            : workflow === "startup" && step === 2
               ? [
                   {
                     type: "toolCall",
@@ -88,7 +101,7 @@ export default function provider(pi: ExtensionAPI): void {
                     arguments: {},
                   },
                 ]
-              : reason === "resume" && step === 0
+              : workflow === "resume" && step === 0
                 ? [
                     {
                       type: "toolCall",
@@ -101,8 +114,8 @@ export default function provider(pi: ExtensionAPI): void {
                     {
                       type: "text",
                       text:
-                        reason === "new"
-                          ? "Fresh implementation fixture ready"
+                        workflow === "startup" && step >= 4
+                          ? "Implementation fixture ready"
                           : "Fixture finished",
                     },
                   ];

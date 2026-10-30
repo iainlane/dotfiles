@@ -117,7 +117,7 @@
           "exa/web_search_exa", "exa/web_fetch_exa",
         ].sort());
         const planningTools = [
-          "read", "bash", "grep", "find", "ls", "codemode", "ask_user", "planning_research", "submit_plan", "enter_plan_mode",
+          "read", "bash", "grep", "find", "ls", "codemode", "ask_user", "submit_plan", "enter_plan_mode",
           "ast_grep_search", "ast_grep_outline", "ast_grep_replace", "lsp_navigation", "todo", "web_search", "fetch_content",
           "get_search_content", "source_check",
         ].sort();
@@ -125,7 +125,11 @@
         assert.ok(pi.getCommands().some(command => command.name === "footer"));
         assert.ok(pi.getCommands().some(command => command.name === "pr"));
         assert.ok(pi.getCommands().some(command => command.name === "ultrafast"));
-        assert.ok(!pi.getAllTools().some(tool => tool.name === "apply_patch"));
+        assert.ok(!pi.getAllTools().some(tool => ["apply_patch", "planning_research"].includes(tool.name)));
+        assert.equal(pi.getAllTools().find(tool => tool.name === "submit_plan")?.exposure, "model-only");
+        for (const name of ["subagents_enable", "subagent", "bg_wait"]) {
+          assert.ok(pi.getAllTools().some(tool => tool.name === name));
+        }
         const roles = provider => discoverAgents(process.cwd(), "user", provider, { globalNpmRoot: null }).agents
           .filter(agent => ["reviewer", "researcher"].includes(agent.name))
           .map(({ name, model, thinking, tools, subagentOnlyExtensions }) => ({ name, model, thinking, tools, subagentOnlyExtensions }))

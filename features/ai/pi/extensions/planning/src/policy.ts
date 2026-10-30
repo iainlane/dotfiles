@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { Check } from "typebox/value";
 import type { PlanStore } from "./store.ts";
 import { classifyShell, inspectionCommand } from "./shell.ts";
+import { subagentPolicy } from "./subagents.ts";
 
 export const researchReaders = [
   "read",
@@ -11,6 +12,7 @@ export const researchReaders = [
   "ls",
   "codemode",
   "todo",
+  "bg_wait",
   "web_enable",
   "pi_lens_activate_tools",
   "lsp_navigation",
@@ -69,6 +71,9 @@ export function researchPolicy(
   event: PlanningToolCall,
   readOnlyTools: readonly string[],
 ): { block: true; reason: string } | undefined {
+  if (event.toolName === "subagent") {
+    return subagentPolicy(event);
+  }
   if (
     event.toolName === "lsp_navigation" &&
     !Check(navigationOperations, event.input.operation)
@@ -145,12 +150,9 @@ export async function planningPolicy(
     return undefined;
   }
   if (
-    [
-      "ask_user",
-      "planning_research",
-      "submit_plan",
-      "enter_plan_mode",
-    ].includes(event.toolName)
+    ["ask_user", "subagents_enable", "submit_plan", "enter_plan_mode"].includes(
+      event.toolName,
+    )
   ) {
     return undefined;
   }

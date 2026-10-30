@@ -1,18 +1,40 @@
 import type {
   BoundaryResult,
+  BeforeAgentStartEventResult,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { research, type ResearchTransport } from "./delegation.ts";
+import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { planningPolicy } from "./policy.ts";
-import { planningPrompt, planningReminder, reminderType } from "./prompt.ts";
-import type { ReviewContext, ReviewDecision } from "./review.ts";
+import {
+  attachedPlanContext,
+  clearContextType,
+  exitReminderType,
+  implementationContext,
+  planExitReminder,
+  planningPrompt,
+  planningReminder,
+  reminderType,
+} from "./prompt.ts";
+import type { ReviewContext, ReviewRequest, ReviewResult } from "./review.ts";
 import { PlanningSession, type SavedState } from "./session.ts";
 import type { PlanRevision, PlanStore } from "./store.ts";
+
+const clearedContextSchema = Type.Object({
+  type: Type.Literal("compaction"),
+  id: Type.String(),
+  firstKeptEntryId: Type.String(),
+  summary: Type.String(),
+  details: Type.Object({
+    customType: Type.Literal(clearContextType),
+    token: Type.String(),
+  }),
+});
+const compactionTypeSchema = Type.Pick(clearedContextSchema, ["type"]);
 
 export interface PlanningContext extends ReviewContext {
   cwd: string;
   signal?: AbortSignal;
-  thinkingLevel?: ExtensionContext["thinkingLevel"];
   sessionManager: {
     getSessionId(): string;
     getBranch(): readonly unknown[];
@@ -22,24 +44,10 @@ export interface PlanningContext extends ReviewContext {
     Pick<ExtensionContext["ui"], "notify" | "setStatus" | "confirm">;
 }
 
-export interface PlanningCommandContext extends PlanningContext {
-  handoff: (request: {
-    parentSession?: string;
-    message: string;
-  }) => Promise<void>;
-}
-
 export interface PlanningResult {
   content: { type: "text"; text: string }[];
   details: Record<string, unknown>;
   structuredContent?: Record<string, string>;
-}
-
-export interface ResearchParameters {
-  role: "explore" | "plan";
-  brief: string;
-  model?: string;
-  thinking?: ExtensionContext["thinkingLevel"];
 }
 
 export interface PlanningDependencies {
@@ -47,18 +55,27 @@ export interface PlanningDependencies {
   recordSavedState: (state: SavedState) => void;
   configure: (sessionId: string) => (() => void)[];
   readOnlyTools: () => readonly string[];
+  ensureSubagentsIdle: (signal: AbortSignal) => Promise<void>;
   startInPlan: () => boolean;
   sendUserMessage: (
     message: string,
     options?: { deliverAs?: "steer"; expandPromptTemplates?: boolean },
   ) => void;
   requestId: () => string;
-  transport: ResearchTransport;
-  review: (
-    ctx: ReviewContext,
-    plan: PlanRevision,
-    signal: AbortSignal,
-  ) => Promise<ReviewDecision>;
+  review: (ctx: ReviewContext, request: ReviewRequest) => Promise<ReviewResult>;
+}
+
+function exitMessage(
+  state: PlanningSession,
+): { customType: string; content: string; display: boolean } | undefined {
+  if (!state.consumeExitReminder() || !state.store.exists()) {
+    return undefined;
+  }
+  return {
+    customType: exitReminderType,
+    content: planExitReminder(state.store.path),
+    display: false,
+  };
 }
 
 export function createPlanning(dependencies: PlanningDependencies) {
@@ -68,20 +85,16 @@ export function createPlanning(dependencies: PlanningDependencies) {
         token: string;
         session: PlanningSession;
         plan: PlanRevision;
-        phase: "approved" | "queued" | "pending" | "failed";
+        phase: "approved" | "verified" | "clearing";
+        verificationSignal?: AbortSignal;
+        summary?: string;
       }
     | undefined;
   let review: AbortController | undefined;
-  let researching = 0;
   let turnsSinceReminder = 0;
 
   function status(ctx: PlanningContext): void {
-    ctx.ui.setStatus(
-      "planning",
-      session?.active === true
-        ? `Plan${researching ? ` · ${researching} researching` : ""}`
-        : undefined,
-    );
+    ctx.ui.setStatus("planning", session?.active === true ? "Plan" : undefined);
   }
 
   function configure(state: PlanningSession): void {
@@ -123,7 +136,6 @@ export function createPlanning(dependencies: PlanningDependencies) {
     review?.abort();
     ticket = undefined;
     session?.dispose();
-    researching = 0;
     turnsSinceReminder = 0;
     session = replacement;
     if (session.active) {
@@ -139,52 +151,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     status(ctx);
   }
 
-  async function fresh(
-    args: string,
-    ctx: PlanningCommandContext,
-  ): Promise<void> {
-    const approval = ticket;
-    if (
-      !approval ||
-      approval.phase === "pending" ||
-      args !== approval.token ||
-      session !== approval.session ||
-      !approval.session.active ||
-      !approval.session.store.matches(approval.plan)
-    ) {
-      ctx.ui.notify(
-        "The plan approval expired. Review the current file again.",
-        "warning",
-      );
-      return;
-    }
-    const source =
-      ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
-    approval.phase = "pending";
-    try {
-      await ctx.handoff({
-        parentSession: ctx.sessionManager.getSessionFile(),
-        message: `Implement this approved plan.\n\nSource conversation: ${source}\nPlan: ${approval.plan.path}\nApproved revision: ${approval.plan.revision}\n\n${approval.plan.content}`,
-      });
-      if (ticket === approval) {
-        ticket = undefined;
-      }
-    } catch (error) {
-      if (ticket === approval) {
-        approval.phase = "failed";
-      }
-      throw error;
-    }
-  }
-
-  const command = async (
-    args: string,
-    ctx: PlanningCommandContext,
-  ): Promise<void> => {
-    if (args.startsWith("handoff ")) {
-      await fresh(args.slice(8), ctx);
-      return;
-    }
+  const command = async (args: string, ctx: PlanningContext): Promise<void> => {
     const state = current(ctx);
     if (args.trim() === "review") {
       ticket = undefined;
@@ -245,85 +212,10 @@ export function createPlanning(dependencies: PlanningDependencies) {
       },
     };
   };
-  const investigate = async (
-    params: ResearchParameters,
-    ctx: PlanningContext,
-    signal?: AbortSignal,
-    onUpdate?: (result: PlanningResult) => void,
-  ): Promise<PlanningResult> => {
-    const state = current(ctx);
-    if (!state.active) {
-      throw new Error("Enter Plan mode before delegating planning research.");
-    }
-    configure(state);
-    if (researching >= 3) {
-      throw new Error(
-        "Three investigations are already running. Wait for a result before starting another.",
-      );
-    }
-    const combined = signal
-      ? AbortSignal.any([state.signal, signal])
-      : state.signal;
-    researching++;
-    status(ctx);
-    try {
-      const result = await research(
-        dependencies.transport,
-        {
-          ownerRunId: state.id,
-          agent: `planning-${params.role}`,
-          task: params.brief,
-          cwd: ctx.cwd,
-          model: params.model,
-          thinking: params.thinking ?? ctx.thinkingLevel,
-          timeoutMs: 300_000,
-          skill: false,
-          artifacts: false,
-        },
-        combined,
-        (update) => {
-          if (session !== state || combined.aborted) {
-            return;
-          }
-          onUpdate?.({
-            content: [
-              {
-                type: "text",
-                text:
-                  update.recentOutput ?? update.currentTool ?? "Researching…",
-              },
-            ],
-            details: { role: params.role },
-          });
-        },
-      );
-      combined.throwIfAborted();
-      if (session !== state || !state.active) {
-        throw new Error("The planning investigation expired.");
-      }
-      if (result.status !== "completed" || result.result?.kind !== "text") {
-        throw new Error(
-          `Planning research ${result.status}: ${result.error ?? "no report returned"}`,
-        );
-      }
-      return {
-        content: [{ type: "text", text: result.result.text }],
-        details: {
-          role: params.role,
-          runId: result.runId,
-          usage: result.usage,
-        },
-      };
-    } finally {
-      if (session === state) {
-        researching--;
-        status(ctx);
-      }
-    }
-  };
   const submit = async (
     ctx: PlanningContext,
     signal?: AbortSignal,
+    onUpdate?: (result: PlanningResult) => void,
   ): Promise<PlanningResult> => {
     const state = current(ctx);
     if (!state.active) {
@@ -349,18 +241,36 @@ export function createPlanning(dependencies: PlanningDependencies) {
       review.signal,
       ...(signal ? [signal] : []),
     ]);
-    let decision;
+    let reviewed: ReviewResult = { decision: "cancel", presentedPlan: plan };
     try {
-      decision = await dependencies.review(ctx, plan, combined);
+      await dependencies.ensureSubagentsIdle(combined);
+      if (!combined.aborted) {
+        reviewed = await dependencies.review(ctx, {
+          plan,
+          signal: combined,
+          read: () => state.store.read(),
+          present: (presentedPlan) =>
+            onUpdate?.({
+              content: [{ type: "text", text: "Review the presented plan." }],
+              details: { decision: "pending", presentedPlan },
+            }),
+        });
+      }
+    } catch (error) {
+      if (!combined.aborted) {
+        throw error;
+      }
     } finally {
       review = undefined;
     }
+    let decision = reviewed.decision;
+    const presented = reviewed.presentedPlan;
     if (combined.aborted || session !== state || !state.active) {
       decision = "cancel";
     }
     if (
-      (decision === "current" || decision === "fresh") &&
-      !state.store.matches(plan)
+      (decision === "current" || decision === "clear") &&
+      !state.store.matches(presented)
     ) {
       throw new Error(
         "The plan changed during review. Review the new revision before implementation.",
@@ -370,29 +280,31 @@ export function createPlanning(dependencies: PlanningDependencies) {
       state.setActive(false);
       status(ctx);
     }
-    if (decision === "fresh") {
+    if (decision === "clear") {
       const token = dependencies.requestId();
-      ticket = { token, session: state, plan, phase: "approved" };
+      ticket = { token, session: state, plan: presented, phase: "approved" };
       ctx.ui.notify(
-        "Plan approved. A fresh conversation will start when this turn finishes.",
+        "Plan approved. Context will be cleared when this turn finishes.",
         "info",
       );
     }
+    const messages: Record<ReviewResult["decision"], string> = {
+      current: `Plan approved. Implement revision ${presented.revision} in this conversation.`,
+      clear:
+        "Plan approved. Wait for context clearing; keep this conversation in planning until the transition finishes.",
+      revise:
+        "The user requested revisions. Continue planning and ask for the necessary feedback.",
+      cancel:
+        "Plan review was cancelled. Continue planning; implementation has not been approved.",
+    };
     return {
-      content: [
-        {
-          type: "text",
-          text:
-            decision === "current"
-              ? `Plan approved. Implement revision ${plan.revision} in this conversation.`
-              : decision === "fresh"
-                ? "Plan approved for a fresh conversation. Wait for the handoff; keep this conversation in planning."
-                : decision === "revise"
-                  ? "The user requested revisions. Continue planning and ask for the necessary feedback."
-                  : "Plan review was cancelled. Continue planning; implementation has not been approved.",
-        },
-      ],
-      details: { decision, path: plan.path, revision: plan.revision },
+      content: [{ type: "text", text: messages[decision] }],
+      details: {
+        decision,
+        path: presented.path,
+        revision: presented.revision,
+        presentedPlan: presented,
+      },
     };
   };
 
@@ -424,7 +336,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
   const prompt = (
     event: { systemPrompt: string },
     ctx: PlanningContext,
-  ): { systemPrompt: string } | undefined => {
+  ): BeforeAgentStartEventResult | undefined => {
     const state = current(ctx);
     if (state.active) {
       turnsSinceReminder = 0;
@@ -433,15 +345,22 @@ export function createPlanning(dependencies: PlanningDependencies) {
       };
     }
 
-    return undefined;
+    const message = exitMessage(state);
+    return message === undefined ? undefined : { message };
   };
   const turnEnd = (
     event: { outcome: "completed" | "aborted" | "error" },
     ctx: PlanningContext,
   ): BoundaryResult | undefined => {
     const state = current(ctx);
-    if (!state.active || event.outcome !== "completed") {
+    if (event.outcome !== "completed") {
       return undefined;
+    }
+    if (!state.active) {
+      const message = exitMessage(state);
+      return message === undefined
+        ? undefined
+        : { entries: [{ type: "custom_message", ...message }] };
     }
     turnsSinceReminder++;
     if (turnsSinceReminder < 5) {
@@ -459,19 +378,122 @@ export function createPlanning(dependencies: PlanningDependencies) {
       ],
     };
   };
-  const settled = (event: { aborted: boolean }): void => {
-    if (event.aborted) {
-      if (ticket?.phase !== "failed") {
-        ticket = undefined;
-      }
+  const verifyClear = async (ctx: PlanningContext): Promise<void> => {
+    const approval = ticket;
+    if (!approval || approval.phase === "clearing") {
       return;
     }
-    if (ticket?.phase === "approved") {
-      ticket.phase = "queued";
-      dependencies.sendUserMessage(`/plan handoff ${ticket.token}`, {
-        expandPromptTemplates: true,
-      });
+    const runSignal = ctx.signal;
+    if (
+      session !== approval.session ||
+      !approval.session.active ||
+      runSignal?.aborted !== false
+    ) {
+      ticket = undefined;
+      return;
     }
+    ticket = { ...approval, phase: "approved", verificationSignal: undefined };
+    const pending = ticket;
+    const signal = AbortSignal.any([approval.session.signal, runSignal]);
+    try {
+      await dependencies.ensureSubagentsIdle(signal);
+      signal.throwIfAborted();
+      if (
+        ticket !== pending ||
+        session !== approval.session ||
+        !approval.session.store.matches(approval.plan)
+      ) {
+        throw new Error(
+          "The plan approval expired. Review the current file again.",
+        );
+      }
+      ticket = { ...pending, phase: "verified", verificationSignal: signal };
+    } catch (error) {
+      if (ticket === pending) {
+        ticket = undefined;
+      }
+      if (!signal.aborted) {
+        ctx.ui.notify(
+          `Cannot clear planning context: ${String(error)}`,
+          "error",
+        );
+      }
+    }
+  };
+  const beforeSettle = (
+    event: { outcome: "completed" | "aborted" | "error" },
+    ctx: PlanningContext,
+  ): BoundaryResult | undefined => {
+    const approval = ticket;
+    if (!approval || approval.phase === "clearing") {
+      return undefined;
+    }
+    if (
+      event.outcome !== "completed" ||
+      approval.phase !== "verified" ||
+      approval.verificationSignal?.aborted !== false ||
+      session !== approval.session ||
+      !approval.session.active
+    ) {
+      ticket = undefined;
+      return undefined;
+    }
+    if (!approval.session.store.matches(approval.plan)) {
+      ticket = undefined;
+      ctx.ui.notify(
+        "The plan approval expired. Review the current file again.",
+        "error",
+      );
+      return undefined;
+    }
+    const source = ctx.sessionManager.getSessionFile() ?? approval.session.id;
+    const summary = implementationContext(approval.plan, source);
+    ticket = { ...approval, phase: "clearing", summary };
+    return {
+      entries: [
+        {
+          type: "compaction",
+          summary,
+          firstKeptEntryId: null,
+          details: { customType: clearContextType, token: approval.token },
+        },
+      ],
+    };
+  };
+  const settled = (event: { aborted: boolean }, ctx: PlanningContext): void => {
+    const approval = ticket;
+    ticket = undefined;
+    if (
+      event.aborted ||
+      approval?.phase !== "clearing" ||
+      session !== approval.session ||
+      !approval.session.active
+    ) {
+      return;
+    }
+    const entry = ctx.sessionManager
+      .getBranch()
+      .findLast((candidate) => Check(compactionTypeSchema, candidate));
+    if (
+      !Check(clearedContextSchema, entry) ||
+      entry.firstKeptEntryId !== entry.id ||
+      entry.details.token !== approval.token ||
+      entry.summary !== approval.summary ||
+      !approval.session.store.matches(approval.plan)
+    ) {
+      ctx.ui.notify(
+        "Context clearing was not confirmed for the approved revision. Review the plan again.",
+        "error",
+      );
+      return;
+    }
+    approval.session.setActive(false);
+    approval.session.consumeExitReminder();
+    status(ctx);
+    dependencies.sendUserMessage(
+      `Implement the approved plan at ${approval.plan.path} (approved revision ${approval.plan.revision}).`,
+      { expandPromptTemplates: false },
+    );
   };
   const start = (event: { reason: string }, ctx: PlanningContext): void => {
     restore(ctx);
@@ -488,10 +510,29 @@ export function createPlanning(dependencies: PlanningDependencies) {
     if (!session) {
       return undefined;
     }
+    const parts: string[] = [];
+    if (session.active) {
+      parts.push(planningReminder(session.store.path));
+    } else {
+      const message = exitMessage(session);
+      if (message) {
+        parts.push(message.content);
+      }
+    }
     session.setActive(session.active);
     turnsSinceReminder = 0;
     status(ctx);
-    return session.active ? planningReminder(session.store.path) : undefined;
+    try {
+      if (session.store.exists()) {
+        const plan = session.store.read();
+        if (plan.content.trim()) {
+          parts.push(attachedPlanContext(plan));
+        }
+      }
+    } catch (error) {
+      ctx.ui.notify(`Cannot restore plan context: ${String(error)}`, "warning");
+    }
+    return parts.length > 0 ? parts.join("\n\n") : undefined;
   };
   const shutdown = (): void => {
     review?.abort();
@@ -503,11 +544,12 @@ export function createPlanning(dependencies: PlanningDependencies) {
     command,
     toggle,
     enterTool,
-    investigate,
     submit,
     toolCall,
     prompt,
     turnEnd,
+    verifyClear,
+    beforeSettle,
     settled,
     start,
     restore,

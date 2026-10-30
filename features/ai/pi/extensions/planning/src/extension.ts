@@ -5,15 +5,18 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   getAgentDir,
-  getMarkdownTheme,
+  SettingsManager,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { Text, Markdown } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { registerSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { registerRequiredChildExtensions } from "pi-subagents/required-child-extensions";
 import { researchTools } from "./policy.ts";
+import { ensureSubagentsIdle, planningAgents } from "./subagents.ts";
 import { reviewPlan } from "./review.ts";
+import { renderPlanReview } from "./review-render.ts";
+import { openPlanEditor } from "./editor.ts";
 import { reminderType } from "./prompt.ts";
 import { registerPlanningRoles } from "./roles.ts";
 import { stateEntry } from "./session.ts";
@@ -43,7 +46,7 @@ function configureChildren(
       source: "planning",
       ceiling: {
         allowedTools: [...researchTools, ...settings.readOnlyTools],
-        allowedAgents: ["planning-explore", "planning-plan"],
+        allowedAgents: planningAgents,
       },
     });
     stops.push(() => ceiling.dispose());
@@ -66,23 +69,16 @@ export default function planning(pi: ExtensionAPI): void {
     recordSavedState: (state) => pi.appendEntry(stateEntry, state),
     configure: (id) => configureChildren(pi, id),
     readOnlyTools: () => readPlanningSettings().readOnlyTools,
+    ensureSubagentsIdle: (signal) => ensureSubagentsIdle(pi.events, signal),
     startInPlan: () => pi.getFlag("plan") === true,
     sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
     requestId: randomUUID,
-    transport: {
-      events: pi.events,
-      requestId: randomUUID,
-      after(milliseconds, callback) {
-        const timer = setTimeout(callback, milliseconds);
-        return () => clearTimeout(timer);
-      },
-    },
-    review: (ctx, plan, signal) =>
-      reviewPlan(
-        ctx,
-        plan,
-        signal,
-        (content) => new Markdown(content, 1, 0, getMarkdownTheme()),
+    review: (ctx, request) =>
+      reviewPlan(ctx, request, (path) =>
+        openPlanEditor(
+          path,
+          SettingsManager.inMemory(pi.getSettings()).getExternalEditorCommand(),
+        ),
       ),
   });
   pi.registerFlag("plan", {
@@ -93,18 +89,7 @@ export default function planning(pi: ExtensionAPI): void {
   pi.registerCommand("plan", {
     description:
       "Toggle Plan mode, start planning a task, or review the active plan",
-    handler: (args, ctx) =>
-      controller.command(args, {
-        ...ctx,
-        handoff: async ({ parentSession, message }) => {
-          await ctx.newSession({
-            parentSession,
-            withSession: async (replacement) => {
-              await replacement.sendUserMessage(message);
-            },
-          });
-        },
-      }),
+    handler: (args, ctx) => controller.command(args, ctx),
   });
   pi.registerShortcut("ctrl+alt+p", {
     description: "Toggle Plan mode",
@@ -129,57 +114,28 @@ export default function planning(pi: ExtensionAPI): void {
     renderCall: () => new Text("Enter Plan mode"),
   });
   pi.registerTool({
-    name: "planning_research",
-    label: "Planning research",
-    reachesTools: () => "all",
-    description:
-      "Run fresh read-only research. Use explore to locate code and evidence, or plan to assess implementation approaches, trade-offs and verification. Supply a focused brief with requirements, constraints, critical paths and prior findings.",
-    parameters: Type.Object({
-      role: Type.Union([Type.Literal("explore"), Type.Literal("plan")]),
-      brief: Type.String({ minLength: 1 }),
-      model: Type.Optional(Type.String()),
-      thinking: Type.Optional(
-        Type.Union([
-          Type.Literal("off"),
-          Type.Literal("minimal"),
-          Type.Literal("low"),
-          Type.Literal("medium"),
-          Type.Literal("high"),
-          Type.Literal("xhigh"),
-          Type.Literal("max"),
-        ]),
-      ),
-    }),
-    async execute(_id, params, signal, onUpdate, ctx) {
-      return controller.investigate(params, ctx, signal, onUpdate);
-    },
-    renderCall: (args) => new Text(`Planning ${args.role}`),
-    renderResult: (result, options) =>
-      new Text(
-        options.expanded
-          ? result.content
-              .filter((item) => item.type === "text")
-              .map((item) => item.text)
-              .join("\n")
-          : "Research report · expand to read",
-      ),
-  });
-  pi.registerTool({
     name: "submit_plan",
+    exposure: "model-only",
+    executionMode: "sequential",
     label: "Review plan",
     description:
       "Read the active Markdown plan and request explicit approval for this exact revision. Questions do not approve implementation.",
     parameters: Type.Object({}),
-    async execute(_id, _params, signal, _update, ctx) {
-      return controller.submit(ctx, signal);
+    async execute(_id, _params, signal, onUpdate, ctx) {
+      return controller.submit(ctx, signal, onUpdate);
     },
     renderCall: () => new Text("Review plan"),
+    renderResult: renderPlanReview,
   });
 
   pi.on("tool_call", (event, ctx) => controller.toolCall(event, ctx));
   pi.on("before_agent_start", (event, ctx) => controller.prompt(event, ctx));
   pi.on("turn_end", (event, ctx) => controller.turnEnd(event, ctx));
-  pi.on("agent_settled", (event) => controller.settled(event));
+  pi.on("agent_end", (_event, ctx) => controller.verifyClear(ctx));
+  pi.on("agent_before_settle", (event, ctx) =>
+    controller.beforeSettle(event, ctx),
+  );
+  pi.on("agent_settled", (event, ctx) => controller.settled(event, ctx));
   pi.on("session_start", (event, ctx) => controller.start(event, ctx));
   pi.on("session_tree", (_event, ctx) => controller.restore(ctx));
   pi.on("session_compact", (_event, ctx) => {

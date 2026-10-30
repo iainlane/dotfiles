@@ -8,6 +8,7 @@ const savedStateSchema = Type.Object({
   version: Type.Literal(1),
   active: Type.Boolean(),
   sourceSessionId: Type.String(),
+  exitReminderPending: Type.Optional(Type.Boolean()),
 });
 const savedEntrySchema = Type.Object({
   type: Type.Literal("custom"),
@@ -29,6 +30,7 @@ export class PlanningSession {
     return this.operation.signal;
   }
   active = false;
+  private exitReminderPending = false;
   readonly disposers: (() => void)[] = [];
 
   constructor(
@@ -46,6 +48,7 @@ export class PlanningSession {
     }
     const previous = entry.data;
     this.active = previous.active;
+    this.exitReminderPending = previous.exitReminderPending ?? !previous.active;
     if (previous.sourceSessionId === this.id) {
       return;
     }
@@ -57,16 +60,8 @@ export class PlanningSession {
       }
     }
 
-    if (!this.active) {
-      this.record({
-        version: 1,
-        active: false,
-        sourceSessionId: this.id,
-      });
-      return;
-    }
-
-    this.setActive(true);
+    this.exitReminderPending = !this.active;
+    this.setActive(this.active);
   }
 
   enter(): void {
@@ -82,16 +77,35 @@ export class PlanningSession {
     if (active && this.operation.signal.aborted) {
       this.operation = new AbortController();
     }
+    if (active) {
+      this.exitReminderPending = false;
+    } else if (this.active) {
+      this.exitReminderPending = true;
+    }
     this.active = active;
-    this.record({
-      version: 1,
-      active,
-      sourceSessionId: this.id,
-    });
+    this.save();
     if (!active) {
       this.operation.abort();
       this.release();
     }
+  }
+
+  consumeExitReminder(): boolean {
+    if (!this.exitReminderPending) {
+      return false;
+    }
+    this.exitReminderPending = false;
+    this.save();
+    return true;
+  }
+
+  private save(): void {
+    this.record({
+      version: 1,
+      active: this.active,
+      sourceSessionId: this.id,
+      exitReminderPending: this.exitReminderPending,
+    });
   }
 
   release(): void {
