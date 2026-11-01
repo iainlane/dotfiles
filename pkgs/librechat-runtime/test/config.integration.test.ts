@@ -85,6 +85,22 @@ describe("provider configuration", () => {
   );
 });
 
+it.each(["hvf", "kvm", "tcg"])(
+  "accepts the %s guest accelerator",
+  (accelerator) => {
+    const guest = {
+      image: "/nix/store/image",
+      kernel: "/nix/store/kernel",
+      initrd: "/nix/store/initrd",
+      init: "/nix/store/init",
+      architecture: "aarch64",
+      accelerator,
+    };
+
+    expect(hostManifestSchema.shape.guest.parse(guest)).toStrictEqual(guest);
+  },
+);
+
 it("publishes the ordinary-chat instructions as a managed library default", () => {
   expect(
     configureChatPrompts(

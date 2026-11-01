@@ -117,38 +117,45 @@ it("keeps only the latest complete archive after committing its pointer", async 
   });
 });
 
-it("restores the complete disk with its pinned runtime after an upgrade", async () => {
-  const disk = join(directory, "vms", session.runtimeId, "root.qcow2");
-  await writeFile(disk, "work and nix state");
-  await storage.saveSnapshot(session, disk);
-  await writeFile(disk, "uncommitted changes");
-  storage = new FileVmStorage({
-    ...options,
-    init: "/nix/store/upgraded/init",
-    runtime: {
-      ...options.runtime,
-      executable: "/nix/store/upgraded/bin/qemu",
-      memoryMiB: 8192,
-    },
-  });
-  const boot = await storage.prepare(session, true);
-  expect({
-    contents: await readFile(disk, "utf8"),
-    snapshot: boot.snapshot,
-    runtime: boot.runtime,
-  }).toStrictEqual({
-    contents: "work and nix state",
-    snapshot: "librechat",
-    runtime: {
-      executable: "/nix/store/qemu/bin/qemu-system-aarch64",
-      forwarder: "/nix/store/socat/bin/socat",
-      architecture: "aarch64",
-      accelerator: "hvf",
-      memoryMiB: 4096,
-      cpus: 2,
-    },
-  });
-});
+it.each(["hvf", "kvm", "tcg"] as const)(
+  "restores the complete disk with its pinned %s runtime after an upgrade",
+  async (accelerator) => {
+    await rm(options.directory, { recursive: true });
+    options = { ...options, runtime: { ...options.runtime, accelerator } };
+    storage = new FileVmStorage(options);
+    await storage.prepare(session);
+    const disk = join(directory, "vms", session.runtimeId, "root.qcow2");
+    await writeFile(disk, "work and nix state");
+    await storage.saveSnapshot(session, disk);
+    await writeFile(disk, "uncommitted changes");
+    storage = new FileVmStorage({
+      ...options,
+      init: "/nix/store/upgraded/init",
+      runtime: {
+        ...options.runtime,
+        executable: "/nix/store/upgraded/bin/qemu",
+        memoryMiB: 8192,
+      },
+    });
+    const boot = await storage.prepare(session, true);
+    expect({
+      contents: await readFile(disk, "utf8"),
+      snapshot: boot.snapshot,
+      runtime: boot.runtime,
+    }).toStrictEqual({
+      contents: "work and nix state",
+      snapshot: "librechat",
+      runtime: {
+        executable: "/nix/store/qemu/bin/qemu-system-aarch64",
+        forwarder: "/nix/store/socat/bin/socat",
+        architecture: "aarch64",
+        accelerator,
+        memoryMiB: 4096,
+        cpus: 2,
+      },
+    });
+  },
+);
 
 it.each(["digest", "bytes"])(
   "rejects a snapshot with incorrect %s without replacing the working disk",

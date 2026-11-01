@@ -60,6 +60,22 @@ it("forces guest egress through explicit forwards without host file shares", () 
 });
 
 it.each([
+  { accelerator: "hvf", cpu: "host" },
+  { accelerator: "kvm", cpu: "host" },
+  { accelerator: "tcg", cpu: "max" },
+] as const)(
+  "selects the $cpu CPU model for $accelerator",
+  ({ accelerator, cpu }) => {
+    const args = qemuArguments({ ...specification, accelerator });
+
+    expect({
+      machine: args.at(args.indexOf("-machine") + 1),
+      cpu: args.at(args.indexOf("-cpu") + 1),
+    }).toStrictEqual({ machine: `virt,accel=${accelerator}`, cpu });
+  },
+);
+
+it.each([
   [{ forwarder: "/bin/socat;bad" }, VmForwarderPathError],
   [{ controlSocket: "x".repeat(104) }, VmSocketLengthError],
   [{ ironPort: 0 }, VmPortError],

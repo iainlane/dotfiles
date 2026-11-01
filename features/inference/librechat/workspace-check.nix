@@ -52,6 +52,7 @@ in {
       mkdir -p "$HOME"
       mkdir -p runtime/test/fixtures
       cp ${../../../pkgs/librechat-runtime/test/fixtures/workspace.ts} runtime/test/fixtures/workspace.ts
+      cp ${../../../pkgs/librechat-runtime/test/fixtures/accelerator.ts} runtime/test/fixtures/accelerator.ts
       ln -s ${pkgs.librechat-runtime}/lib/librechat-runtime/src runtime/src
       ln -s ${pkgs.librechat-runtime}/lib/librechat-runtime/node_modules runtime/node_modules
       cp ${pkgs.librechat-runtime}/lib/librechat-runtime/package.json runtime/package.json

@@ -1,6 +1,6 @@
 export interface VmBootSpecification {
   architecture: "aarch64" | "x86_64";
-  accelerator: "hvf" | "kvm";
+  accelerator: "hvf" | "kvm" | "tcg";
   kernel: string;
   initrd: string;
   init: string;
@@ -96,7 +96,7 @@ export function qemuArguments(specification: VmBootSpecification): string[] {
     "-machine",
     `${machine},accel=${specification.accelerator}`,
     "-cpu",
-    "host",
+    specification.accelerator === "tcg" ? "max" : "host",
     "-smp",
     String(specification.cpus),
     "-m",

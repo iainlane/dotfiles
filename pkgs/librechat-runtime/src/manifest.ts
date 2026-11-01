@@ -82,7 +82,7 @@ export const hostManifestSchema = z.object({
     initrd: z.string(),
     init: z.string(),
     architecture: z.enum(["aarch64", "x86_64"]),
-    accelerator: z.enum(["hvf", "kvm"]),
+    accelerator: z.enum(["hvf", "kvm", "tcg"]),
   }),
 });
 

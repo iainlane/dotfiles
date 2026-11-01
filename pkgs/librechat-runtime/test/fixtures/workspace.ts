@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -16,6 +17,7 @@ import { stopExistingVm } from "../../src/vm-monitor.ts";
 import { startFileServer } from "../../src/file-server.ts";
 import { httpReady } from "../../src/startup.ts";
 import type { Session } from "../../src/sessions.ts";
+import { workspaceAccelerator } from "./accelerator.ts";
 
 const configuration = z
   .object({
@@ -122,10 +124,18 @@ const runtime = {
   executable: programs.qemu,
   forwarder: programs.socat,
   architecture: configuration.manifest.guest.architecture,
-  accelerator: configuration.manifest.guest.accelerator,
+  accelerator: workspaceAccelerator(
+    configuration.manifest.guest.accelerator,
+    () =>
+      execFileSync("/usr/sbin/sysctl", ["-n", "kern.hv_support"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+  ),
   memoryMiB: 2048,
   cpus: 2,
 };
+console.log(`workspace accelerator: ${runtime.accelerator}`);
 const files = new FileVmStorage({
   directory: join(root, "sessions"),
   socketDirectory: join(root, "sockets"),

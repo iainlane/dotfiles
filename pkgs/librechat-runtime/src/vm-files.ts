@@ -69,7 +69,7 @@ const runtimeSchema = z.object({
   executable: z.string().startsWith("/nix/store/"),
   forwarder: z.string().startsWith("/nix/store/"),
   architecture: z.enum(["aarch64", "x86_64"]),
-  accelerator: z.enum(["hvf", "kvm"]),
+  accelerator: z.enum(["hvf", "kvm", "tcg"]),
   memoryMiB: z.number().int().positive(),
   cpus: z.number().int().positive(),
 });
