@@ -247,10 +247,14 @@ registration needs a separate host test.
 
 The separate `librechat-workspace` check boots the real guest inside the Nix
 sandbox. It uses KVM on Linux and requires the `kvm` system feature. On Darwin,
-the check probes `kern.hv_support` when it runs and uses HVF when available,
-otherwise TCG software emulation. Selection occurs on the builder, so flake
-evaluation does not depend on the evaluator’s virtualisation capabilities.
-Hosted macOS CI runs the same check with TCG; capable Macs use HVF.
+the test configuration selects `auto`. The fixture probes `kern.hv_support` when
+it runs and uses HVF when available, otherwise TCG software emulation. Explicit
+accelerators do not use this fallback. The service manifest accepts only `hvf`,
+`kvm` or `tcg`.
+
+Selection occurs on the builder, so flake evaluation does not depend on the
+evaluator’s virtualisation capabilities. Hosted macOS CI runs the same check
+with TCG; capable Macs use HVF.
 
 The check verifies executable files in `/work`, `noexec` in `/mnt/data`, an
 offline Nix build and profile installation, input and output transfer, and full

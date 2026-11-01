@@ -2,9 +2,10 @@ import { expect, it } from "vitest";
 import { workspaceAccelerator } from "./fixtures/accelerator.ts";
 
 it.each([
-  { configured: "hvf", support: "1\n", accelerator: "hvf", probed: true },
-  { configured: "hvf", support: "0\n", accelerator: "tcg", probed: true },
-  { configured: "hvf", support: undefined, accelerator: "tcg", probed: true },
+  { configured: "auto", support: "1\n", accelerator: "hvf", probed: true },
+  { configured: "auto", support: "0\n", accelerator: "tcg", probed: true },
+  { configured: "auto", support: undefined, accelerator: "tcg", probed: true },
+  { configured: "hvf", support: undefined, accelerator: "hvf", probed: false },
   { configured: "kvm", support: undefined, accelerator: "kvm", probed: false },
   { configured: "tcg", support: undefined, accelerator: "tcg", probed: false },
 ] as const)(

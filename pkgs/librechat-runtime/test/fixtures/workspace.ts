@@ -31,7 +31,12 @@ const configuration = z
         egressGateway: true,
         iron: true,
       }),
-      guest: hostManifestSchema.shape.guest,
+      guest: hostManifestSchema.shape.guest.extend({
+        accelerator: z.union([
+          hostManifestSchema.shape.guest.shape.accelerator,
+          z.literal("auto"),
+        ]),
+      }),
     }),
     codeSource: z.string(),
     bashVersion: z.string(),

@@ -31,7 +31,7 @@
         inherit architecture;
         accelerator =
           if pkgs.stdenv.hostPlatform.isDarwin
-          then "hvf"
+          then "auto"
           else "kvm";
       };
     };

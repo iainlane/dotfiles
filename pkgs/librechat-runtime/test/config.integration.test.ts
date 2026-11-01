@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 import { hostManifestSchema } from "../src/manifest.ts";
 import {
   configureChatPrompts,
@@ -100,6 +101,12 @@ it.each(["hvf", "kvm", "tcg"])(
     expect(hostManifestSchema.shape.guest.parse(guest)).toStrictEqual(guest);
   },
 );
+
+it("rejects automatic acceleration in the service manifest", () => {
+  expect(() =>
+    hostManifestSchema.shape.guest.shape.accelerator.parse("auto"),
+  ).toThrow(ZodError);
+});
 
 it("publishes the ordinary-chat instructions as a managed library default", () => {
   expect(
