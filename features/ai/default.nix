@@ -24,6 +24,7 @@ in {
     ./opencode2
     ./pi
     ./rea
+    ./t3code
   ];
 
   dotfiles.flakeSystem.includes = [config.dotfiles.features.ai];
@@ -43,6 +44,7 @@ in {
       pi
       claude-code
       codex
+      t3code
     ];
 
     homeManager = [
