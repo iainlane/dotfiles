@@ -5,6 +5,7 @@
   fetchFromGitHub,
   gitMinimal,
   lib,
+  pi,
   stdenv,
   updaters,
 }:
@@ -17,6 +18,7 @@ buildNpmPackage {
     rev = "39853ae8bf85255f818892d8d8371ff5e5918ad5";
     hash = "sha256-grBGjLTFUegQoBTWGN5l1OR8NtA2JOqCJ2jkQwWLqUQ=";
   };
+  patches = [./native-file-renderers.patch];
   npmDepsHash = "sha256-QLO36cXHZMLsuswlhv02FXS6ZMprIYNZIS16nlyizjA=";
   npmFlags = ["--ignore-scripts"];
   npmPackFlags = ["--ignore-scripts"];
@@ -25,6 +27,9 @@ buildNpmPackage {
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];
   nativeCheckInputs = [gitMinimal];
   doCheck = true;
+  preBuild = ''
+    bash ${../../features/ai/pi/scripts/setup-native-sdk.bash} "${pi.sdk}/${pi.sdkPackageRoot}"
+  '';
   preCheck = lib.optionalString stdenv.hostPlatform.isLinux ''
     autoPatchelf node_modules/@biomejs/cli-linux-${stdenv.hostPlatform.node.arch}/biome
   '';
@@ -34,7 +39,7 @@ buildNpmPackage {
     mkdir -p "$HOME"
     npm run typecheck
     npm run lint
-    npm test
+    npm test -- --maxWorkers=1
     runHook postCheck
   '';
   passthru = {

@@ -31,14 +31,16 @@
     ]
     pkgs;
 
+  nativePi = import ./pi-package.nix {inherit inputs system;};
+
   # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
   sessionFooter = import ./session-footer-package.nix {
     inherit pkgs;
-    pi = inputs.llm-agents.packages.${system}.pi;
+    pi = nativePi;
   };
   planning = import ./planning-package.nix {
     inherit pkgs;
-    pi = inputs.llm-agents.packages.${system}.pi;
+    pi = nativePi;
   };
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
@@ -47,7 +49,7 @@
   };
 
   wrappedPi = mcp.wrapWithTools {
-    package = inputs.llm-agents.packages.${system}.pi;
+    package = nativePi;
     binName = "pi";
     extraWrapperArgs = [
       "--set"
@@ -194,19 +196,7 @@
     };
   };
 
-  planningMcpTools = lib.filterAttrs (server: _: builtins.hasAttr server config.dotfiles.ai.mcpServers) {
-    context7 = ["resolve-library-id" "query-docs"];
-    nixos = ["nix" "nix_versions"];
-    exa = ["web_search_exa" "web_fetch_exa"];
-    cloudflare-docs = ["search_cloudflare_documentation"];
-  };
   planningConfig = {
-    readOnlyTools = lib.concatLists (lib.mapAttrsToList
-      (server: tools: map (tool: "mcp__${lib.replaceStrings ["-"] ["_"] server}__${lib.replaceStrings ["-"] ["_"] tool}") tools)
-      planningMcpTools);
-    mcpDirectTools = lib.concatLists (lib.mapAttrsToList
-      (server: tools: map (tool: "${server}/${tool}") tools)
-      planningMcpTools);
     researchExtensions = map (name: "~/.pi/agent/packages/${name}") ["pi-lens" "pi-web-access" "rpiv-todo"];
   };
 

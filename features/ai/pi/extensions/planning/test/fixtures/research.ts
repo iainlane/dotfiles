@@ -7,7 +7,7 @@ export default function researchFixture(pi: ExtensionAPI): void {
   for (const name of [
     "web_enable",
     "pi_lens_activate_tools",
-    "inspect_fixture",
+    "project_report",
     ...deferred,
   ]) {
     pi.registerTool({

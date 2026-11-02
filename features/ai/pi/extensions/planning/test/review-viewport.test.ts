@@ -4,11 +4,11 @@ import {
   ToolExecutionComponent,
 } from "@earendil-works/pi-coding-agent";
 import {
+  CURSOR_MARKER,
   matchesKey,
   ScrollView,
   TuiAltScreen,
   VStack,
-  type Terminal,
 } from "@earendil-works/pi-tui";
 import { beforeAll, expect, it, vi } from "vitest";
 import {
@@ -16,40 +16,90 @@ import {
   type ReviewContext,
   type ReviewResult,
 } from "../src/review.ts";
-import { renderPlanReview } from "../src/review-render.ts";
+import { renderPlanDocument, renderPlanReview } from "../src/review-render.ts";
+import { TestTerminal } from "./terminal.ts";
 
 beforeAll(() => initTheme("dark", false));
 
-class TestTerminal implements Terminal {
-  columns = 80;
-  rows = 24;
-  kittyProtocolActive = false;
-  private input: ((data: string) => void) | undefined;
-  start(input: (data: string) => void): void {
-    this.input = input;
-  }
-  stop(): void {
-    this.input = undefined;
-  }
-  send(data: string): void {
-    this.input?.(data);
-  }
-  async drainInput(): Promise<void> {}
-  write(): void {}
-  moveBy(): void {}
-  hideCursor(): void {}
-  showCursor(): void {}
-  clearLine(): void {}
-  clearFromCursor(): void {}
-  clearScreen(): void {}
-  setTitle(): void {}
-  setProgress(): void {}
-  setProgramStatus(): void {}
-}
+it.each([
+  { text: "\u001B[8mhidden\u001B[0m", visible: "\\u001b[8mhidden\\u001b[0m" },
+  { text: "before\rhidden\bafter", visible: "before\\u000dhidden\\u0008after" },
+  { text: "before\u202Eafter", visible: "before\\u202eafter" },
+])(
+  "visibly escapes untrusted controls in plan text and paths: $visible",
+  ({ text, visible }) => {
+    const plan = {
+      path: `/plans/${text}.md`,
+      revision: "canonical-revision",
+      content: `# Context\n\n${text}`,
+    };
+    const output = renderPlanDocument(plan)
+      .render(200)
+      .map((line) => stripVTControlCharacters(line))
+      .join("\n");
+    expect({
+      path: output.includes(`/plans/${visible}.md`),
+      body: output.includes(visible),
+      canonical: plan,
+    }).toStrictEqual({
+      path: true,
+      body: true,
+      canonical: {
+        path: `/plans/${text}.md`,
+        revision: "canonical-revision",
+        content: `# Context\n\n${text}`,
+      },
+    });
+  },
+);
 
-it.each([true, false])(
-  "renders the full plan in collapsed native tool output with partial:%s",
-  (isPartial) => {
+it("recognises current display metadata when native rendering omits structured content", () => {
+  const output = renderPlanReview(
+    {
+      content: [],
+      details: {
+        formatVersion: 1,
+        decision: "current",
+        presentedPlan: {
+          path: "/plans/review.md",
+          revision: "technical-revision",
+          content: "# Current plan\n",
+        },
+      },
+    },
+    { expanded: true, isPartial: false },
+  )
+    .render(100)
+    .join("\n");
+  expect({
+    body: output.includes("Current plan"),
+    legacy: output.includes("Legacy review metadata"),
+    hash: output.includes("technical-revision"),
+  }).toStrictEqual({ body: true, legacy: false, hash: false });
+});
+
+it("labels unrecognised historical results as safe legacy content", () => {
+  const result = {
+    content: [{ type: "text", text: "Old review \u001B[8mhidden\u001B[0m" }],
+    details: { olderFormat: "stored metadata" },
+  } satisfies Parameters<typeof renderPlanReview>[0];
+  const output = renderPlanReview(result)
+    .render(120)
+    .map((line) => stripVTControlCharacters(line))
+    .join("\n");
+  expect({
+    legacy: output.includes("Legacy/raw plan review"),
+    visible: output.includes("\\u001b[8mhidden\\u001b[0m"),
+  }).toStrictEqual({ legacy: true, visible: true });
+});
+
+it.each([
+  { isPartial: true, edited: false },
+  { isPartial: false, edited: false },
+  { isPartial: false, edited: true },
+])(
+  "renders the plan once in collapsed native output (partial:$isPartial, edited:$edited)",
+  ({ isPartial, edited }) => {
     const terminal = new TestTerminal();
     const tui = new TuiAltScreen(terminal);
     const plan = {
@@ -70,10 +120,14 @@ it.each([true, false])(
     );
     component.updateResult(
       {
-        content: [{ type: "text", text: "Review finished." }],
+        content: [
+          { type: "text", text: "Review finished." },
+          ...(edited ? [{ type: "text" as const, text: plan.content }] : []),
+        ],
         details: {
           decision: isPartial ? "pending" : "current",
           presentedPlan: plan,
+          ...(edited ? { reviewSummary: "Review finished." } : {}),
         },
         isError: false,
       },
@@ -85,17 +139,17 @@ it.each([true, false])(
       .map((line) => stripVTControlCharacters(line))
       .join("\n");
     expect({
-      beginning: output.includes("Paragraph 0"),
+      beginning: output.split("Paragraph 0").length - 1,
       ending: output.includes("Paragraph 44"),
       revision: output.includes("reviewed"),
       pendingFooter: output.includes("Awaiting approval"),
       finalSummary: output.includes("Review finished."),
     }).toStrictEqual({
-      beginning: true,
+      beginning: 1,
       ending: true,
-      revision: true,
+      revision: false,
       pendingFooter: false,
-      finalSummary: !isPartial,
+      finalSummary: false,
     });
   },
 );
@@ -120,6 +174,9 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
     hasUI: true,
     ui: {
       select: vi.fn<ReviewContext["ui"]["select"]>(),
+      input: vi.fn<ReviewContext["ui"]["input"]>(),
+      getToolsExpanded: () => false,
+      setToolsExpanded: () => {},
       custom: (factory) =>
         new Promise<ReviewResult>((resolve) => {
           question = factory(
@@ -135,6 +192,8 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
         }),
     },
   };
+  const edit = vi.fn<(path: string) => Promise<void>>(async () => {});
+  const start = vi.spyOn(tui, "start");
   const pending = reviewPlan(
     ctx,
     {
@@ -161,7 +220,7 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
         );
       },
     },
-    async () => {},
+    { name: "nvim", open: edit },
   );
   if (!question || !document) {
     throw new Error("Expected both a plan transcript and a question.");
@@ -198,6 +257,33 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
       wheel: true,
       dock,
       rows: terminal.rows,
+    });
+
+    terminal.send("\t");
+    tui.renderNow();
+    const cursorRow = question
+      .render(terminal.columns)
+      .findIndex((line) => line.includes(CURSOR_MARKER));
+    expect(cursorRow).toBeGreaterThan(0);
+    const inputRow = transcript.viewportHeight + cursorRow + 1;
+    terminal.send(`\u001B[<0;3;${inputRow}M`);
+    terminal.send(`\u001B[<0;3;${inputRow}m`);
+    terminal.send("Keep interfaces.");
+    terminal.send("\u0007");
+    await expect
+      .poll(() => ({ edits: edit.mock.calls, starts: start.mock.calls }))
+      .toStrictEqual({
+        edits: [[plan.path]],
+        starts: [[], []],
+      });
+    for (const key of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
+      terminal.send(key);
+    }
+    tui.renderNow();
+    expect(await pending).toStrictEqual({
+      decision: "current",
+      presentedPlan: plan,
+      feedback: "Keep interfaces.",
     });
   } finally {
     abort.abort();

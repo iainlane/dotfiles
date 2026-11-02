@@ -1,5 +1,16 @@
 import { spawn } from "node:child_process";
+import type {
+  ExtensionContext,
+  ExtensionUIContext,
+} from "@earendil-works/pi-coding-agent";
+import type { TUI } from "@earendil-works/pi-tui";
+import { basename } from "node:path";
 import { forEachChild, parse, type SyntaxNode } from "unbash";
+
+export interface PlanEditor {
+  name: string;
+  open(path: string): Promise<void>;
+}
 
 const literalNodes = new Set([
   "Command",
@@ -51,6 +62,79 @@ function editorArguments(source: string): {
       return argument.value;
     }),
   };
+}
+
+export function editorName(command: string): string {
+  try {
+    return basename(editorArguments(command).executable);
+  } catch {
+    return "the configured editor";
+  }
+}
+
+export async function openPlanEditorInTerminal(
+  tui: Pick<TUI, "stop" | "start" | "requestRender">,
+  path: string,
+  command: string,
+): Promise<void> {
+  tui.stop();
+  try {
+    await openPlanEditor(path, command);
+  } finally {
+    tui.start();
+    tui.requestRender(true);
+  }
+}
+
+export async function openPlanEditorInUi(
+  ctx: Pick<ExtensionContext, "hasUI" | "mode"> & {
+    ui: Pick<ExtensionUIContext, "custom" | "notify">;
+  },
+  path: string,
+  command: string,
+): Promise<void> {
+  if (!ctx.hasUI || ctx.mode !== "tui") {
+    throw new Error(
+      "Opening the plan in an external editor requires Pi's terminal UI.",
+    );
+  }
+  const failure = await ctx.ui.custom<Error | undefined>(
+    (tui, _theme, _keys, done) => {
+      let live = true;
+      const edit = async (): Promise<void> => {
+        if (!live) {
+          return;
+        }
+        let error: Error | undefined;
+        try {
+          await openPlanEditorInTerminal(tui, path, command);
+        } catch (cause) {
+          error = cause instanceof Error ? cause : new Error(String(cause));
+        }
+        if (live) {
+          done(error);
+        }
+      };
+      queueMicrotask(() => {
+        edit().catch((cause: unknown) => {
+          ctx.ui.notify(
+            `Cannot restore the plan editor UI: ${String(cause)}`,
+            "error",
+          );
+        });
+      });
+      return {
+        render: () => [],
+        invalidate() {},
+        dispose() {
+          live = false;
+        },
+      };
+    },
+  );
+  if (failure) {
+    throw failure;
+  }
 }
 
 export async function openPlanEditor(

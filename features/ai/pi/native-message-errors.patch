@@ -1,0 +1,34 @@
+diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
+index aba2a96..ed1aece 100644
+--- a/dist/core/agent-session.d.ts
++++ b/dist/core/agent-session.d.ts
+@@ -613,0 +614,2 @@ export declare class AgentSession {
++        /** Reports failures after delivery deferred by agent_settled. */
++        onError?: (error: unknown) => void;
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index 8728a3e..8faf957 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -1867 +1867,9 @@ export class AgentSession {
+-                this._deferredSettledActions.push(async () => await this.sendCustomMessage(message, options));
++                this._deferredSettledActions.push(async () => {
++                    try {
++                        await this.sendCustomMessage(message, options);
++                    }
++                    catch (error) {
++                        options.onError?.(error);
++                        throw error;
++                    }
++                });
+@@ -2766,0 +2775 @@ export class AgentSession {
++                    options?.onError?.(err);
+diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
+index d6232b3..eca61bd 100644
+--- a/dist/core/extensions/types.d.ts
++++ b/dist/core/extensions/types.d.ts
+@@ -1269,0 +1270,2 @@ export interface ExtensionAPI {
++        /** Reports asynchronous delivery or triggered-run failures. */
++        onError?: (error: unknown) => void;
+@@ -1575,0 +1578,2 @@ export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "
++    /** Reports asynchronous delivery or triggered-run failures. */
++    onError?: (error: unknown) => void;

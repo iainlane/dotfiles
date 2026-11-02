@@ -11,6 +11,7 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { PlanStore } from "../../src/store.ts";
+import { boundaryText } from "./boundary.ts";
 
 export default function provider(pi: ExtensionAPI): void {
   let calls = 0;
@@ -69,9 +70,13 @@ export default function provider(pi: ExtensionAPI): void {
         appendFileSync(trace, JSON.stringify({ step, context }) + "\n");
       }
       const workflow =
-        process.env.PI_PLANNING_RESUME_PROBE === "1" ? "resume" : reason;
+        process.env.PI_PLANNING_ENTRY_PROBE === "1"
+          ? "entry"
+          : process.env.PI_PLANNING_RESUME_PROBE === "1"
+            ? "resume"
+            : reason;
       const content: AssistantMessage["content"] =
-        workflow === "startup" && step === 0
+        (workflow === "startup" || workflow === "entry") && step === 0
           ? [
               {
                 type: "toolCall",
@@ -88,7 +93,15 @@ export default function provider(pi: ExtensionAPI): void {
                   name: "write",
                   arguments: {
                     path,
-                    content: "# RPC plan\n\nImplement the reviewed fixture.\n",
+                    content:
+                      process.env.PI_PLANNING_BOUNDARY_KIND === undefined
+                        ? "# RPC plan\n\nImplement the reviewed fixture.\n"
+                        : boundaryText(
+                            "# Context\n\n",
+                            process.env.PI_PLANNING_BOUNDARY_KIND === "unicode"
+                              ? "🦉"
+                              : "\u0000",
+                          ),
                   },
                 },
               ]

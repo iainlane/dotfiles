@@ -1,11 +1,25 @@
 import { spawn } from "node:child_process";
+import { createInterface } from "node:readline";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { Type } from "typebox";
+import { Check } from "typebox/value";
+import { submitPlanOutputSchema } from "../src/contracts.ts";
+import { displayText } from "../src/presentation.ts";
+import { maxPlanCodeUnits } from "../src/validation.ts";
+import { boundaryText } from "./fixtures/boundary.ts";
 import { attachedPlanContext } from "../src/prompt.ts";
 import { stateEntry } from "../src/session.ts";
 import { PlanStore } from "../src/store.ts";
@@ -67,6 +81,159 @@ function requestContext(value: unknown, step: number): string[] {
   const text = JSON.stringify(value.context);
   return text === undefined ? [] : [text];
 }
+
+it.each(["controls", "unicode"])(
+  "preserves boundary-size plans and feedback through native RPC: %s",
+  async (kind) => {
+    const cwd = await realpath(
+      await mkdtemp(join(tmpdir(), "pi-rpc-boundary-")),
+    );
+    await mkdir(join(cwd, "agent"));
+    const sdk = dirname(
+      fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent")),
+    );
+    const args = [
+      "--mode",
+      "rpc",
+      "--offline",
+      "--no-extensions",
+      "--no-skills",
+      "--no-mcp",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--session-dir",
+      join(cwd, "sessions"),
+      "--provider",
+      "planning-rpc-fixture",
+      "--model",
+      "fixture",
+      "-e",
+      fileURLToPath(import.meta.resolve("pi-subagents")),
+      "-e",
+      fileURLToPath(new URL("../index.ts", import.meta.url)),
+      "-e",
+      fileURLToPath(new URL("./fixtures/provider.ts", import.meta.url)),
+    ];
+    const nativeHost = process.env.PI_TEST_HOST;
+    const useNativeHost = nativeHost !== undefined && nativeHost !== "";
+    const child = spawn(
+      useNativeHost ? nativeHost : process.execPath,
+      useNativeHost ? args : [join(sdk, "bundle/cli.js"), ...args],
+      {
+        cwd,
+        env: {
+          ...process.env,
+          HOME: cwd,
+          PI_CODING_AGENT_DIR: join(cwd, "agent"),
+          PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
+          PI_PLANNING_BOUNDARY_KIND: kind,
+          PI_OFFLINE: "1",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+    const feedback = boundaryText(
+      "Feedback:\n",
+      kind === "unicode" ? "🦉" : "\u0000",
+    );
+    const records: RecordLine[] = [];
+    let selections = 0;
+    let errors = "";
+    const send = (value: unknown) =>
+      child.stdin.write(JSON.stringify(value) + "\n");
+    child.stderr.on("data", (data: Buffer) => {
+      errors += data.toString();
+    });
+    const output = createInterface({ input: child.stdout });
+    output.on("line", (line) => {
+      const record = recordLine(JSON.parse(line));
+      records.push(record);
+      if (record.type !== "extension_ui_request") {
+        return;
+      }
+      if (record.method === "confirm") {
+        send({ type: "extension_ui_response", id: record.id, confirmed: true });
+      }
+      if (record.method === "select") {
+        send({
+          type: "extension_ui_response",
+          id: record.id,
+          value: selections++ === 0 ? "Add a comment" : "No, keep planning",
+        });
+      }
+      if (record.method === "input") {
+        send({ type: "extension_ui_response", id: record.id, value: feedback });
+      }
+    });
+    try {
+      send({ type: "prompt", message: "Review the boundary fixture." });
+      await vi.waitFor(
+        () => {
+          if (!records.some((record) => record.type === "agent_settled")) {
+            throw new Error(
+              `The native RPC fixture has not settled: ${errors}`,
+            );
+          }
+        },
+        { timeout: 25_000 },
+      );
+      const source = startLine(
+        JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
+      );
+      const plan = new PlanStore(
+        join(cwd, "agent", "plans"),
+        source.id,
+        nodeFiles,
+      ).read();
+      const title = `Review plan ${join("~", relative(cwd, plan.path))}\n\n${displayText(plan.content)}`;
+      const resultSchema = Type.Object({
+        type: Type.Literal("tool_execution_end"),
+        toolCallId: Type.Literal("submit"),
+        result: Type.Object({ structuredContent: submitPlanOutputSchema }),
+      });
+      const result = records.find(
+        (record) =>
+          record.type === "tool_execution_end" &&
+          record.toolCallId === "submit",
+      );
+      if (!Check(resultSchema, result)) {
+        throw new Error(
+          `Expected a complete structured RPC review result: ${errors}`,
+        );
+      }
+      expect({
+        codeUnits: [plan.content.length, feedback.length],
+        titles: records
+          .filter(
+            (record) =>
+              record.type === "extension_ui_request" &&
+              record.method === "select",
+          )
+          .map((record) => record.title),
+        structured: result.result.structuredContent,
+      }).toStrictEqual({
+        codeUnits: [maxPlanCodeUnits, maxPlanCodeUnits],
+        titles: [title, `${title}\n\nComment: ${displayText(feedback)}`],
+        structured: {
+          version: 1,
+          decision: "revise",
+          plan,
+          imageCount: 0,
+          feedback,
+        },
+      });
+    } finally {
+      output.close();
+      if (child.exitCode === null) {
+        const exited = once(child, "exit");
+        child.kill();
+        await exited;
+      }
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+  40_000,
+);
 
 it("clears context in the same native session and preserves the plan through compaction, forks and restart", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-planning-rpc-"));
@@ -142,12 +309,23 @@ it("clears context in the same native session and preserves the plan through com
         records.push(record);
         if (
           record.type === "extension_ui_request" &&
+          record.method === "confirm" &&
+          record.title === "Enter Plan mode?"
+        ) {
+          send({
+            type: "extension_ui_response",
+            id: record.id,
+            confirmed: true,
+          });
+        }
+        if (
+          record.type === "extension_ui_request" &&
           record.method === "select"
         ) {
           send({
             type: "extension_ui_response",
             id: record.id,
-            value: "Approve and clear context",
+            value: "Yes, clear context",
           });
         }
       }
@@ -331,7 +509,10 @@ it("clears context in the same native session and preserves the plan through com
       plan: expectedPlan,
       project: "original",
     });
-    await commandResult({ type: "prompt", message: "/plan" }, "human-exit");
+    await commandResult(
+      { type: "prompt", message: "/plan exit" },
+      "human-exit",
+    );
     await restart();
     await commandResult(
       { type: "prompt", message: "Probe restored ordinary mode." },
@@ -385,3 +566,155 @@ it("clears context in the same native session and preserves the plan through com
     await rm(cwd, { recursive: true, force: true });
   }
 }, 90_000);
+
+it.each([
+  { decision: "declined", response: { confirmed: false } },
+  { decision: "cancelled", response: { cancelled: true } },
+  { decision: "malformed", response: { confirmed: "yes" } },
+])(
+  "keeps native Plan mode inactive when entry is $decision",
+  async ({ response }) => {
+    const cwd = await mkdtemp(join(tmpdir(), "pi-entry-consent-"));
+    await mkdir(join(cwd, "agent"));
+    const sdk = dirname(
+      fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent")),
+    );
+    const args = [
+      "--mode",
+      "rpc",
+      "--offline",
+      "--no-extensions",
+      "--no-skills",
+      "--no-mcp",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--session-dir",
+      join(cwd, "sessions"),
+      "--provider",
+      "planning-rpc-fixture",
+      "--model",
+      "fixture",
+      "-e",
+      fileURLToPath(new URL("../index.ts", import.meta.url)),
+      "-e",
+      fileURLToPath(new URL("./fixtures/provider.ts", import.meta.url)),
+    ];
+    const nativeHost = process.env.PI_TEST_HOST;
+    const useNativeHost = nativeHost !== undefined && nativeHost !== "";
+    const child = spawn(
+      useNativeHost ? nativeHost : process.execPath,
+      useNativeHost ? args : [join(sdk, "bundle/cli.js"), ...args],
+      {
+        cwd,
+        env: {
+          ...process.env,
+          HOME: cwd,
+          PI_CODING_AGENT_DIR: join(cwd, "agent"),
+          PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
+          PI_PLANNING_ENTRY_PROBE: "1",
+          PI_OFFLINE: "1",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+    const records: RecordLine[] = [];
+    const output = createInterface({ input: child.stdout });
+    output.on("line", (line) => records.push(recordLine(JSON.parse(line))));
+    let errors = "";
+    child.stderr.on("data", (data: Buffer) => {
+      errors += data.toString();
+    });
+    const send = (value: unknown) =>
+      child.stdin.write(JSON.stringify(value) + "\n");
+    try {
+      send({ type: "prompt", message: "Exercise entry consent." });
+      const question = await vi.waitFor(
+        () => {
+          const record = records.find(
+            (item) =>
+              item.type === "extension_ui_request" && item.method === "confirm",
+          );
+          if (!record) {
+            throw new Error(`Expected entry consent: ${errors}`);
+          }
+          return record;
+        },
+        { timeout: 15_000 },
+      );
+      const source = startLine(
+        JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
+      );
+      const plan = new PlanStore(
+        join(cwd, "agent/plans"),
+        source.id,
+        nodeFiles,
+      );
+      expect({
+        title: question.title,
+        planExists: plan.exists(),
+        saved: SessionManager.open(source.file)
+          .getBranch()
+          .filter(
+            (item) => item.type === "custom" && item.customType === stateEntry,
+          ),
+      }).toStrictEqual({
+        title: "Enter Plan mode?",
+        planExists: false,
+        saved: [],
+      });
+
+      send({ type: "extension_ui_response", id: question.id, ...response });
+      await vi.waitFor(
+        () => {
+          expect(records.some((item) => item.type === "agent_settled")).toBe(
+            true,
+          );
+        },
+        { timeout: 15_000 },
+      );
+      const manager = SessionManager.open(source.file);
+      const result = manager
+        .buildSessionContext()
+        .messages.find(
+          (message) =>
+            message.role === "toolResult" && message.toolCallId === "enter",
+        );
+      expect({
+        result:
+          result?.role === "toolResult"
+            ? {
+                content: result.content,
+                isError: result.isError,
+              }
+            : undefined,
+        planExists: plan.exists(),
+        saved: manager
+          .getBranch()
+          .filter(
+            (item) => item.type === "custom" && item.customType === stateEntry,
+          ),
+      }).toStrictEqual({
+        result: {
+          content: [
+            {
+              type: "text",
+              text: "Plan mode was not entered. Continue in the current mode and follow the user's request.",
+            },
+          ],
+          isError: false,
+        },
+        planExists: false,
+        saved: [],
+      });
+    } finally {
+      output.close();
+      if (child.exitCode === null) {
+        const exited = once(child, "exit");
+        child.kill();
+        await exited;
+      }
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+  40_000,
+);

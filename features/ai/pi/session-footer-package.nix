@@ -14,6 +14,9 @@
   doCheck = true;
 
   passthru.packageRoot = "lib/node_modules/@dotfiles/pi-session-footer";
+  preCheck = pkgs.lib.optionalString (pi != null) ''
+    bash ${./scripts/setup-native-sdk.bash} "${pi.sdk}/${pi.sdkPackageRoot}"
+  '';
   PI_TEST_HOST = pkgs.lib.optionalString (pi != null) "${pi}/bin/pi";
 
   PI_FOOTER_CORE_PATCH = ../../../pkgs/pi-sub-core/reading-metadata.patch;

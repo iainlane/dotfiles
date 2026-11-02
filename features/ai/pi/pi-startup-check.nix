@@ -5,7 +5,11 @@
   ...
 }: let
   inherit (pkgs) lib;
-  testSupport = import ./test-package.nix {inherit pkgs;};
+  nativePi = import ./pi-package.nix {inherit inputs system;};
+  testSupport = import ./test-package.nix {
+    inherit pkgs;
+    pi = nativePi;
+  };
   testRoot = "${testSupport}/${testSupport.packageRoot}/dist";
   piArgs = {
     inherit pkgs inputs lib system modelCatalog;
@@ -110,12 +114,9 @@
         const ceiling = resolveCurrentSubagentCapabilityCeiling(ctx.sessionManager.getSessionId());
         assert.deepStrictEqual(ceiling.allowedAgents, ["planning-explore", "planning-plan"]);
         const launch = resolvePiLaunchToolPlan({agentName: "planning-explore", cwd: ctx.cwd, tools: ["read", "write", "bash"], capabilityCeiling: ceiling});
-        assert.deepStrictEqual(launch.effectiveToolAllowlist, ["read", "bash"]);
-        assert.deepStrictEqual(${builtins.toJSON (builtins.fromJSON piConfig.home.file.".pi/agent/planning.json".text).mcpDirectTools}.sort(), [
-          "context7/resolve-library-id", "context7/query-docs",
-          "cloudflare-docs/search_cloudflare_documentation", "nixos/nix", "nixos/nix_versions",
-          "exa/web_search_exa", "exa/web_fetch_exa",
-        ].sort());
+        assert.equal(ceiling.allowedTools, undefined);
+        assert.deepStrictEqual(launch.effectiveToolAllowlist, ["read", "write", "bash"]);
+        assert.deepStrictEqual(Object.keys(${piConfig.home.file.".pi/agent/planning.json".text}), ["researchExtensions"]);
         const planningTools = [
           "read", "bash", "grep", "find", "ls", "codemode", "ask_user", "submit_plan", "enter_plan_mode",
           "ast_grep_search", "ast_grep_outline", "ast_grep_replace", "lsp_navigation", "todo", "web_search", "fetch_content",

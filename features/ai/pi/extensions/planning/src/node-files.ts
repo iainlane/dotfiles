@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import type { PlanFiles } from "./files.ts";
+import { decodePlanText } from "./validation.ts";
 
 export const nodeFiles: PlanFiles = {
   ensureDirectory(path) {
@@ -29,7 +30,7 @@ export const nodeFiles: PlanFiles = {
   read(path): string | undefined {
     let content: string | undefined;
     try {
-      content = readFileSync(path, "utf8");
+      content = decodePlanText(readFileSync(path));
     } catch (error) {
       if (
         !(error instanceof Error && "code" in error && error.code === "ENOENT")

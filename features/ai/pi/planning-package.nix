@@ -18,7 +18,12 @@ in
     postInstall = ''
       ln -s ${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot} "$out/${packageRoot}/node_modules/pi-subagents"
     '';
+    preCheck = pkgs.lib.optionalString (pi != null) ''
+      bash ${./scripts/setup-native-sdk.bash} "${pi.sdk}/${pi.sdkPackageRoot}"
+    '';
     PI_TEST_HOST = pkgs.lib.optionalString (pi != null) "${pi}/bin/pi";
+    PI_TEST_PRETTY = "${pkgs.pi-pretty}/${pkgs.pi-pretty.packageRoot}";
+    PI_TEST_DIFF = "${pkgs.pi-diff}/${pkgs.pi-diff.packageRoot}";
     PI_TEST_SUBAGENTS = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
     checkPhase = ''
       runHook preCheck

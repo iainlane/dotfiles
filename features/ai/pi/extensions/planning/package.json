@@ -4,6 +4,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "setup:native-sdk": "bash ../../scripts/setup-native-sdk.bash",
     "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint && npm test",
     "test:unit": "vitest run --project unit",

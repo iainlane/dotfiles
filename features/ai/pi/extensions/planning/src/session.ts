@@ -9,6 +9,7 @@ const savedStateSchema = Type.Object({
   active: Type.Boolean(),
   sourceSessionId: Type.String(),
   exitReminderPending: Type.Optional(Type.Boolean()),
+  reassessmentPending: Type.Optional(Type.Boolean()),
 });
 const savedEntrySchema = Type.Object({
   type: Type.Literal("custom"),
@@ -31,6 +32,7 @@ export class PlanningSession {
   }
   active = false;
   private exitReminderPending = false;
+  private reassessmentPending = false;
   readonly disposers: (() => void)[] = [];
 
   constructor(
@@ -49,6 +51,7 @@ export class PlanningSession {
     const previous = entry.data;
     this.active = previous.active;
     this.exitReminderPending = previous.exitReminderPending ?? !previous.active;
+    this.reassessmentPending = previous.reassessmentPending ?? false;
     if (previous.sourceSessionId === this.id) {
       return;
     }
@@ -64,13 +67,24 @@ export class PlanningSession {
     this.setActive(this.active);
   }
 
-  enter(): void {
-    if (!this.store.exists()) {
-      this.store.write(
-        "# Implementation plan\n\nDraft the recommended approach here.\n",
-      );
+  enter(reassess = false): void {
+    if (!this.active || reassess) {
+      this.reassessmentPending = this.store.exists();
     }
     this.setActive(true);
+  }
+
+  consumeReassessment(): boolean {
+    if (!this.reassessmentPending) {
+      return false;
+    }
+    this.reassessmentPending = false;
+    this.save();
+    return true;
+  }
+
+  hasExitReminder(): boolean {
+    return this.exitReminderPending;
   }
 
   setActive(active: boolean): void {
@@ -83,6 +97,9 @@ export class PlanningSession {
       this.exitReminderPending = true;
     }
     this.active = active;
+    if (!active) {
+      this.reassessmentPending = false;
+    }
     this.save();
     if (!active) {
       this.operation.abort();
@@ -105,6 +122,7 @@ export class PlanningSession {
       active: this.active,
       sourceSessionId: this.id,
       exitReminderPending: this.exitReminderPending,
+      ...(this.reassessmentPending ? { reassessmentPending: true } : {}),
     });
   }
 

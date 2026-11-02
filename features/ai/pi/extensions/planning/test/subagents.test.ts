@@ -1,7 +1,37 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
-import { ensureSubagentsIdle } from "../src/subagents.ts";
+import { ensureSubagentsIdle, subagentPolicy } from "../src/subagents.ts";
+
+it.each([undefined, 123, 2_000_000])(
+  "preserves the native caller's timeout choice: %s",
+  (timeoutMs) => {
+    const options = timeoutMs === undefined ? {} : { timeoutMs };
+    const input = {
+      agent: "planning-explore",
+      task: "Inspect the code",
+      options,
+    };
+
+    expect({
+      decision: subagentPolicy({ toolName: "subagent", input }),
+      input,
+    }).toStrictEqual({
+      decision: undefined,
+      input: {
+        agent: "planning-explore",
+        task: "Inspect the code",
+        output: false,
+        options: {
+          ...options,
+          context: "fresh",
+          artifacts: false,
+          mission: false,
+        },
+      },
+    });
+  },
+);
 
 const requestSchema = Type.Object({ requestId: Type.String() });
 afterEach(() => vi.useRealTimers());

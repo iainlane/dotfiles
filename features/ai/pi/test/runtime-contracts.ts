@@ -6,19 +6,79 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   createReadTool,
+  createWriteToolDefinition,
+  resolveToCwd,
+  ToolExecutionComponent,
   type ExtensionAPI,
   type ExtensionContext,
   type ExtensionCommandContext,
   type ExtensionToolContext,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import {
+  ProcessTerminal,
+  stripTerminalSequences,
+  TuiAltScreen,
+} from "@earendil-works/pi-tui";
+import { Check } from "typebox/value";
 
 export default function contracts(pi: ExtensionAPI): void {
   pi.registerCommand("dotfiles-runtime-contracts", {
     handler: async (_args, ctx) => {
       const root = await mkdtemp(join(tmpdir(), "pi-contracts-"));
       try {
+        assert.equal(
+          resolveToCwd("@./plans/draft\u00A0name.md", root),
+          join(root, "plans", "draft name.md"),
+        );
+        const nativeWrite = createWriteToolDefinition(root);
+        const renderCall = nativeWrite.renderCall;
+        assert.ok(renderCall);
+        const headingArgs = {
+          path: join(root, "plans", "missing.md"),
+          content: "Preserved native preview",
+        };
+        const heading = new ToolExecutionComponent(
+          "write",
+          "unchanged-identity",
+          headingArgs,
+          {},
+          {
+            resolveCallLabel: (_input, context) => {
+              assert.deepStrictEqual(context, { toolName: "write", cwd: root });
+              return "Updated plan";
+            },
+            renderCall: (value, theme, context) => {
+              if (!Check(nativeWrite.parameters, value)) {
+                throw new Error("Expected complete native Write arguments");
+              }
+              return renderCall(value, theme, { ...context, args: value });
+            },
+          },
+          new TuiAltScreen(new ProcessTerminal()),
+          root,
+        );
+        const renderedHeading = heading
+          .render(100)
+          .map((line) => stripTerminalSequences(line))
+          .join("\n");
+        assert.deepStrictEqual(
+          {
+            label: heading.getCallLabel(),
+            heading: renderedHeading.includes("Updated plan"),
+            preview: renderedHeading.includes("Preserved native preview"),
+            args: headingArgs,
+          },
+          {
+            label: "Updated plan",
+            heading: true,
+            preview: true,
+            args: {
+              path: join(root, "plans", "missing.md"),
+              content: "Preserved native preview",
+            },
+          },
+        );
         const hooks = new Map<
           string,
           (event: unknown, context: ExtensionContext) => unknown

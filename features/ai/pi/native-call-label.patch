@@ -1,0 +1,240 @@
+diff --git a/dist/core/extensions/index.d.ts b/dist/core/extensions/index.d.ts
+index 05c1604..8e78dc2 100644
+--- a/dist/core/extensions/index.d.ts
++++ b/dist/core/extensions/index.d.ts
+@@ -6,7 +6,7 @@ export type { SourceInfo } from "../source-info.ts";
+ export { createExtensionRuntime, discoverAndLoadExtensions, loadExtensionFromFactory, loadExtensions, } from "./loader.ts";
+ export type { ExtensionErrorListener, ForkHandler, NavigateTreeHandler, NewSessionHandler, ShutdownHandler, SwitchSessionHandler, } from "./runner.ts";
+ export { ExtensionRunner } from "./runner.ts";
+-export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppendEntryHandler, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BashToolResultEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, CustomToolResultEvent, EditorFactory, EditToolCallEvent, EditToolResultEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionMode, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, FindToolResultEvent, GetActiveToolsHandler, GetAllToolsHandler, GetCommandsHandler, GetThinkingLevelHandler, GrepToolCallEvent, GrepToolResultEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, LsToolResultEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, PowerShellToolResultEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, ReadToolResultEvent, RegisteredCommand, RegisteredTool, ReplacedSessionContext, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SendMessageHandler, SendUserMessageHandler, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SetActiveToolsHandler, SetLabelHandler, SetModelHandler, SetThinkingLevelHandler, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TreePreparation, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, WriteToolResultEvent, } from "./types.ts";
++export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppendEntryHandler, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BashToolResultEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, CustomToolResultEvent, EditorFactory, EditToolCallEvent, EditToolResultEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionMode, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, FindToolResultEvent, GetActiveToolsHandler, GetAllToolsHandler, GetCommandsHandler, GetThinkingLevelHandler, GrepToolCallEvent, GrepToolResultEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, LsToolResultEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, PowerShellToolResultEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, ReadToolResultEvent, RegisteredCommand, RegisteredTool, ReplacedSessionContext, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SendMessageHandler, SendUserMessageHandler, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SetActiveToolsHandler, SetLabelHandler, SetModelHandler, SetThinkingLevelHandler, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolCallLabelContext, ToolCallLabelResolver, ToolRenderContext, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TreePreparation, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, WriteToolResultEvent, } from "./types.ts";
+ export { defineTool, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, } from "./types.ts";
+ export { wrapRegisteredTool, wrapRegisteredTools } from "./wrapper.ts";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
+index 43c7ad4..d6232b3 100644
+--- a/dist/core/extensions/types.d.ts
++++ b/dist/core/extensions/types.d.ts
+@@ -344,7 +344,16 @@ export interface ToolRenderResultOptions {
+     isPartial: boolean;
+ }
+ /** Context passed to tool renderers. */
++export interface ToolCallLabelContext {
++    /** The execution identifier, even when the displayed heading changes. */
++    toolName: string;
++    /** Working directory captured when the tool row was created. */
++    cwd: string;
++}
++export type ToolCallLabelResolver<TArgs = unknown> = (args: TArgs, context: ToolCallLabelContext) => string | undefined;
+ export interface ToolRenderContext<TState = any, TArgs = any> {
++    /** The heading resolved for this display update. Call and result renderers receive the same value. */
++    callLabel?: string;
+     /** Current tool call arguments. Shared across call/result renders for the same tool call. */
+     args: TArgs;
+     /** Unique id for this tool execution. Stable across call/result renders for the same tool call. */
+@@ -512,13 +521,15 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
+     executionMode?: ToolExecutionMode;
+     /** Execute the tool. */
+     execute(toolCallId: string, params: Static<TParams>, signal: AbortSignal | undefined, onUpdate: AgentToolUpdateCallback<TDetails> | undefined, ctx: ExtensionToolContext): Promise<AgentToolResult<TDetails>>;
++    /** Changes only the displayed heading, not the tool identity or execution. */
++    resolveCallLabel?: ToolCallLabelResolver<Partial<Static<TParams>>>;
+     /** Custom rendering for tool call display */
+     renderCall?: (args: Static<TParams>, theme: Theme, context: ToolRenderContext<TState, Static<TParams>>) => Component;
+     /** Custom rendering for tool result display */
+     renderResult?: (result: AgentToolResult<TDetails>, options: ToolRenderResultOptions, theme: Theme, context: ToolRenderContext<TState, Static<TParams>>) => Component;
+ }
+ type AnyToolDefinition = ToolDefinition<any, any, any>;
+-export type ToolRenderers = Pick<AnyToolDefinition, "renderShell" | "renderCall" | "renderResult">;
++export type ToolRenderers = Pick<AnyToolDefinition, "resolveCallLabel" | "renderShell" | "renderCall" | "renderResult">;
+ /**
+  * Chooses how calls to a tool are drawn, including tools that are not registered. `next()` returns
+  * the renderers the remaining resolvers, then the registered tool, would use.
+diff --git a/dist/core/tools/renderers/edit.js b/dist/core/tools/renderers/edit.js
+index a64a3d1..5bfd6f0 100644
+--- a/dist/core/tools/renderers/edit.js
++++ b/dist/core/tools/renderers/edit.js
+@@ -48,9 +48,9 @@ function getRenderablePreviewInput(args) {
+     }
+     return null;
+ }
+-function formatEditCall(args, theme, cwd) {
++function formatEditCall(args, theme, cwd, callLabel) {
+     const pathDisplay = renderToolPath(str(args?.file_path ?? args?.path), theme, cwd);
+-    return `${theme.fg("toolTitle", theme.bold("edit"))} ${pathDisplay}`;
++    return `${theme.fg("toolTitle", theme.bold(callLabel ?? "edit"))} ${pathDisplay}`;
+ }
+ function formatEditResult(args, preview, result, theme, isError) {
+     const rawPath = str(args?.file_path ?? args?.path);
+@@ -84,11 +84,11 @@ function getEditHeaderBg(preview, settledError, theme) {
+     }
+     return (text) => theme.bg("toolPendingBg", text);
+ }
+-function buildEditCallComponent(component, args, theme, cwd, outputPad) {
++function buildEditCallComponent(component, args, theme, cwd, outputPad, callLabel) {
+     component.setBgFn(getEditHeaderBg(component.preview, component.settledError, theme));
+     component.setPaddingX(outputPad);
+     component.clear();
+-    component.addChild(new Text(formatEditCall(args, theme, cwd), 0, 0));
++    component.addChild(new Text(formatEditCall(args, theme, cwd, callLabel), 0, 0));
+     if (!component.preview) {
+         return component;
+     }
+@@ -132,7 +132,7 @@ export const editRenderers = {
+                 }
+             });
+         }
+-        return buildEditCallComponent(component, args, theme, context.cwd, context.outputPad);
++        return buildEditCallComponent(component, args, theme, context.cwd, context.outputPad, context.callLabel);
+     },
+     renderResult(result, _options, theme, context) {
+         const callComponent = context.state.callComponent;
+@@ -151,7 +151,7 @@ export const editRenderers = {
+                 changed = true;
+             }
+             if (changed) {
+-                buildEditCallComponent(callComponent, context.args, theme, context.cwd, context.outputPad);
++                buildEditCallComponent(callComponent, context.args, theme, context.cwd, context.outputPad, context.callLabel);
+             }
+         }
+         const output = formatEditResult(context.args, callComponent?.preview, typedResult, theme, context.isError);
+diff --git a/dist/core/tools/renderers/write.js b/dist/core/tools/renderers/write.js
+index dcf5bf9..6f0981a 100644
+--- a/dist/core/tools/renderers/write.js
++++ b/dist/core/tools/renderers/write.js
+@@ -83,11 +83,11 @@ function trimTrailingEmptyLines(lines) {
+     }
+     return lines.slice(0, end);
+ }
+-function formatWriteCall(args, options, theme, cache, cwd) {
++function formatWriteCall(args, options, theme, cache, cwd, callLabel) {
+     const rawPath = str(args?.file_path ?? args?.path);
+     const fileContent = str(args?.content);
+     const pathDisplay = renderToolPath(rawPath, theme, cwd);
+-    let text = `${theme.fg("toolTitle", theme.bold("write"))} ${pathDisplay}`;
++    let text = `${theme.fg("toolTitle", theme.bold(callLabel ?? "write"))} ${pathDisplay}`;
+     if (fileContent === null) {
+         text += `\n\n${theme.fg("error", "[invalid content arg - expected string]")}`;
+     }
+@@ -135,7 +135,7 @@ export const writeRenderers = {
+         else {
+             component.cache = undefined;
+         }
+-        component.setText(formatWriteCall(renderArgs, { expanded: context.expanded, isPartial: context.isPartial }, theme, component.cache, context.cwd));
++        component.setText(formatWriteCall(renderArgs, { expanded: context.expanded, isPartial: context.isPartial }, theme, component.cache, context.cwd, context.callLabel));
+         return component;
+     },
+     renderResult(result, _options, theme, context) {
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 3821d9f..e063e89 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -2,10 +2,11 @@ export { type Args, parseArgs } from "./cli/args.ts";
+ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.ts";
+ export { AgentSession, type AgentSessionConfig, type AgentSessionEvent, type AgentSessionEventListener, type ModelCycleResult, type ParsedSkillBlock, type PromptOptions, parseSkillBlock, type SessionStats, } from "./core/agent-session.ts";
+ export { readStoredCredential } from "./core/auth-storage.ts";
++export { resolveToCwd } from "./core/tools/path-utils.ts";
+ export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
+ export { type BranchPreparation, type BranchSummaryResult, type CollectEntriesResult, type CompactionResult, type CutPointResult, calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, type FileOperations, findCutPoint, findTurnStartIndex, type GenerateBranchSummaryOptions, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.ts";
+ export { createEventBus, type EventBus, type EventBusController } from "./core/event-bus.ts";
+-export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
++export type { AfterProviderResponseEvent, AgentActivityOutcome, AgentBeforeSettleEvent, AgentBeforeSettleEventResult, AgentEndEvent, AgentSettledEvent, AgentStartEvent, AgentToolResult, AgentToolUpdateCallback, AppKeybinding, AutocompleteProviderFactory, BashToolCallEvent, BeforeAgentStartCustomEvent, BeforeAgentStartEvent, BeforeAgentStartEventResult, BeforeAgentStartUserEvent, BeforeProviderHeadersEvent, BeforeProviderRequestEvent, BeforeProviderRequestEventResult, BoundaryContextPreview, BoundaryResult, BoundaryState, BuildSystemPromptOptions, CacheWarmingDecisionEvent, CacheWarmingDecisionEventResult, CompactionEntryDraft, CompactOptions, ContextEditEntryDraft, ContextEvent, ContextEventResult, ContextUsage, ContextWithSystemEvent, CustomEntryDraft, CustomMessageEntryDraft, CustomToolCallEvent, EditToolCallEvent, EntryRenderer, EntryRenderOptions, ExecOptions, ExecResult, ExecuteToolOptions, Extension, ExtensionActions, ExtensionAPI, ExtensionCommandContext, ExtensionCommandContextActions, ExtensionContext, ExtensionContextActions, ExtensionError, ExtensionEvent, ExtensionFactory, ExtensionFlag, ExtensionHandler, ExtensionRuntime, ExtensionShortcut, ExtensionToolContext, ExtensionUIContext, ExtensionUIDialogOptions, ExtensionVirtualModel, ExtensionWidgetOptions, FindToolCallEvent, GrepToolCallEvent, InlineExtension, InputEvent, InputEventResult, InputSource, KeybindingsManager, LoadExtensionsResult, LsToolCallEvent, MarkdownTransformContext, MarkdownTransformer, McpServersChangeEvent, MessageEndEvent, MessageEndEventResult, MessageRenderer, MessageRenderOptions, MessageStartEvent, MessageUpdateEvent, ModelSelectEvent, ModelSelectSource, NormalizedBuildSystemPromptOptions, PowerShellToolCallEvent, ProjectTrustContext, ProjectTrustEvent, ProjectTrustEventDecision, ProjectTrustEventResult, ProjectTrustHandler, ProviderConfig, ProviderModelConfig, ProviderStreamEvent, ReadToolCallEvent, RegisteredCommand, RegisteredTool, ResolvedCommand, ResourcesDiscoverEvent, ResourcesDiscoverResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeForkEvent, SessionBeforeForkResult, SessionBeforeSwitchEvent, SessionBeforeSwitchResult, SessionBeforeTreeEvent, SessionBeforeTreeResult, SessionBoundaryDraft, SessionCompactEvent, SessionCompactFailedEvent, SessionInfoChangedEvent, SessionShutdownEvent, SessionStartEvent, SessionTreeEvent, SlashCommandInfo, SlashCommandSource, SourceInfo, TerminalInputHandler, ThinkingLevelSelectEvent, ToolAnnotations, ToolCallEvent, ToolCallEventResult, ToolDefinition, ToolExecutionEndEvent, ToolExecutionMode, ToolExecutionStartEvent, ToolExecutionUpdateEvent, ToolExposure, ToolInfo, ToolLoadout, ToolLoadoutChanges, ToolNamespace, ToolCallLabelContext, ToolCallLabelResolver, ToolRenderContext, ToolRendererResolver, ToolRenderers, ToolRenderResultOptions, ToolResultEvent, ToolResultEventResult, TurnEndEvent, TurnEndEventResult, TurnStartEvent, UIPromptEndEvent, UIPromptKind, UIPromptStartEvent, UserBashEvent, UserBashEventResult, WidgetPlacement, WorkingIndicatorOptions, WriteToolCallEvent, } from "./core/extensions/index.ts";
+ export { createExtensionRuntime, defineTool, discoverAndLoadExtensions, ExtensionRunner, isBashToolResult, isEditToolResult, isFindToolResult, isGrepToolResult, isLsToolResult, isPowerShellToolResult, isReadToolResult, isToolCallEventType, isWriteToolResult, wrapRegisteredTool, wrapRegisteredTools, } from "./core/extensions/index.ts";
+ export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.ts";
+ export type { RegisteredMcpServer } from "./core/mcp-servers.ts";
+diff --git a/dist/index.js b/dist/index.js
+index ab5cfcc..24dc6e6 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -4,6 +4,7 @@ export { parseArgs } from "./cli/args.js";
+ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageDir, getReadmePath, VERSION, } from "./config.js";
+ export { AgentSession, parseSkillBlock, } from "./core/agent-session.js";
+ export { readStoredCredential } from "./core/auth-storage.js";
++export { resolveToCwd } from "./core/tools/path-utils.js";
+ // Compaction
+ export { calculateContextTokens, collectEntriesForBranchSummary, compact, DEFAULT_COMPACTION_SETTINGS, estimateTokens, findCutPoint, findTurnStartIndex, generateBranchSummary, generateSummary, generateSummaryWithUsage, getLastAssistantUsage, prepareBranchEntries, serializeConversation, shouldCompact, } from "./core/compaction/index.js";
+ export { createEventBus } from "./core/event-bus.js";
+diff --git a/dist/modes/interactive/components/tool-execution.d.ts b/dist/modes/interactive/components/tool-execution.d.ts
+index 0736b6f..9dd41ea 100644
+--- a/dist/modes/interactive/components/tool-execution.d.ts
++++ b/dist/modes/interactive/components/tool-execution.d.ts
+@@ -16,6 +16,7 @@ export declare class ToolExecutionComponent extends Container {
+     private callRendererComponent?;
+     private resultRendererComponent?;
+     private rendererState;
++    private resolvedCallLabel;
+     private imageComponents;
+     /** Inputs of imageComponents, so updateDisplay can reuse images and keep their converted PNG data. */
+     private imageSources;
+@@ -36,6 +37,8 @@ export declare class ToolExecutionComponent extends Container {
+     private result?;
+     private hideComponent;
+     constructor(toolName: string, toolCallId: string, args: any, options: ToolExecutionOptions | undefined, toolDefinition: ToolRenderers | ToolDefinition<any, any, any> | undefined, ui: TUI, cwd: string);
++    /** The resolved heading for grouped summaries. */
++    getCallLabel(): string | undefined;
+     private getCallRenderer;
+     private getResultRenderer;
+     private hasRendererDefinition;
+diff --git a/dist/modes/interactive/components/tool-execution.js b/dist/modes/interactive/components/tool-execution.js
+index d447db5..7ae82dc 100644
+--- a/dist/modes/interactive/components/tool-execution.js
++++ b/dist/modes/interactive/components/tool-execution.js
+@@ -13,6 +13,7 @@ export class ToolExecutionComponent extends Container {
+     callRendererComponent;
+     resultRendererComponent;
+     rendererState = {};
++    resolvedCallLabel;
+     imageComponents = [];
+     /** Inputs of imageComponents, so updateDisplay can reuse images and keep their converted PNG data. */
+     imageSources = [];
+@@ -59,6 +60,9 @@ export class ToolExecutionComponent extends Container {
+         }
+         this.updateDisplay();
+     }
++    getCallLabel() {
++        return this.resolvedCallLabel;
++    }
+     getCallRenderer() {
+         return this.toolDefinition?.renderCall;
+     }
+@@ -74,6 +78,7 @@ export class ToolExecutionComponent extends Container {
+     getRenderContext(lastComponent) {
+         return {
+             args: this.args,
++            callLabel: this.resolvedCallLabel,
+             toolCallId: this.toolCallId,
+             invalidate: () => {
+                 this.invalidate();
+@@ -93,7 +98,7 @@ export class ToolExecutionComponent extends Container {
+         };
+     }
+     createCallFallback() {
+-        return new Text(formatToolCallWithArgs(this.toolName, this.args, theme, this.expanded), 0, 0);
++        return new Text(formatToolCallWithArgs(this.resolvedCallLabel ?? this.toolName, this.args, theme, this.expanded), 0, 0);
+     }
+     createResultFallback() {
+         const output = this.getTextOutput();
+@@ -197,6 +202,14 @@ export class ToolExecutionComponent extends Container {
+         });
+     }
+     updateDisplay() {
++        this.resolvedCallLabel = undefined;
++        try {
++            const label = this.toolDefinition?.resolveCallLabel?.(this.args, { toolName: this.toolName, cwd: this.cwd });
++            if (typeof label === "string" && label.trim().length > 0) {
++                this.resolvedCallLabel = label;
++            }
++        }
++        catch { }
+         const bgFn = this.isPartial
+             ? (text) => theme.bg("toolPendingBg", text)
+             : this.result?.isError
+@@ -309,7 +322,7 @@ export class ToolExecutionComponent extends Container {
+         return getRenderedTextOutput(this.result, this.showImages);
+     }
+     formatToolExecution() {
+-        let text = theme.fg("toolTitle", theme.bold(this.toolName));
++        let text = theme.fg("toolTitle", theme.bold(this.resolvedCallLabel ?? this.toolName));
+         const content = JSON.stringify(this.args, null, 2);
+         if (content) {
+             text += `\n\n${content}`;

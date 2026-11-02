@@ -54,7 +54,7 @@ async function stopRuns(pi: ExtensionAPI, ids: Set<string>): Promise<void> {
   );
 }
 
-it("runs planning roles in the background while the parent investigates and leaves human-exited children read-only", async () => {
+it("runs planning roles in the background and preserves native child permissions after human exit", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-planning-background-"));
   const agentDir = join(cwd, "agent");
   vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
@@ -88,8 +88,8 @@ it("runs planning roles in the background while the parent investigates and leav
     await writeFile(
       join(agentDir, "planning.json"),
       JSON.stringify({
-        readOnlyTools: [],
         researchExtensions: [
+          fileURLToPath(new URL("./fixtures/permissions.ts", import.meta.url)),
           fileURLToPath(new URL("./fixtures/background.ts", import.meta.url)),
         ],
       }),
@@ -188,7 +188,7 @@ it("runs planning roles in the background while the parent investigates and leav
         );
       }),
     ]);
-    await session.prompt("/plan");
+    await session.prompt("/plan exit");
     await writeFile(join(agentDir, "release"), "");
     await running;
     await completed.promise;

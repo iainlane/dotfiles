@@ -21,9 +21,12 @@ const runtimeRequire =
     : undefined;
 
 const integration = [
+  "test/styled-headings.test.ts",
+  "test/tool-labels.test.ts",
   "test/store.test.ts",
   "test/native.test.ts",
   "test/clear-context.test.ts",
+  "test/transport.test.ts",
   "test/background.test.ts",
   "test/editor.test.ts",
   "test/rpc.test.ts",

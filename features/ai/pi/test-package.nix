@@ -1,4 +1,7 @@
-{pkgs}:
+{
+  pkgs,
+  pi,
+}:
 (pkgs.callPackage ../../../lib/build-typescript-package.nix {}) {
   pname = "pi-integration-tests";
   version = "0.1.0";
@@ -8,6 +11,9 @@
   npmPackFlags = ["--ignore-scripts"];
   npmPruneFlags = ["--omit=peer"];
   doCheck = true;
+  preBuild = ''
+    bash ${./scripts/setup-native-sdk.bash} "${pi.sdk}/${pi.sdkPackageRoot}"
+  '';
   passthru.packageRoot = "lib/node_modules/@dotfiles/pi-integration-tests";
   checkPhase = ''
     runHook preCheck

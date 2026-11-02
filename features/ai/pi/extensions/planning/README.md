@@ -5,28 +5,92 @@ code, develops an approach, resolves questions and writes a Markdown plan for
 review. Focused Explore and Plan agents help the parent understand the code and
 assess designs. The parent remains responsible for the final recommendation.
 
+![An offline planning demo][demo-preview]
+
+The recording uses a scripted provider with the extension's actual tools and UI.
+It shows entry consent, a blocked project edit, plan review and scrolling,
+Ctrl+G editing, review feedback, approval with a context reset, and
+implementation in a temporary project.
+
+[demo-preview]: demo/planning.webp
+
 ## Starting and reviewing a plan
 
-- `/plan` or Ctrl+Alt+P toggles Plan mode without starting a model turn.
-- `/plan <task>` enters Plan mode and starts planning that task.
-- `pi --plan` starts a session in Plan mode.
+- `/plan` enters or remains in Plan mode and displays the associated plan. If
+  the file is missing, Pi reports its path. Displaying does not start a model
+  turn.
+- `/plan exit` leaves Plan mode without approving implementation.
+- `/plan open` enters if needed and opens the saved plan in the configured
+  external editor. This requires Pi's terminal UI and does not create a missing
+  draft. Pi rereads saved changes even after an editor error.
 - `/plan review` asks the model to finalise the active draft and request review.
+- `/plan <task>` enters Plan mode and starts planning that task.
+- Ctrl+Alt+P toggles Plan mode without starting a model turn.
+- `pi --plan` starts a session in Plan mode.
 
-Drafts remain in Pi's agent directory under `plans/` (`~/.pi/agent/plans/` by
-default) when Plan mode ends. This follows Pi's `PI_CODING_AGENT_DIR` override.
-Returning to the same session preserves the draft. A fork from a planning
-session gets its own copy. Reloading, resuming and compaction preserve planning
-state.
+When the model calls `enter_plan_mode`, Pi asks for consent before activating
+Plan mode or creating a draft. No or Escape leaves the current mode unchanged.
+An interrupted request cannot activate Plan mode later. Without a UI,
+model-requested entry is refused. RPC clients must answer the confirmation
+explicitly. The commands, shortcut and startup flag above are direct user
+actions and do not ask again. Calls while Plan mode is already active do not ask
+again either. Entry consent does not approve implementation; the completed plan
+still requires separate review.
+
+Entry associates a plan path without creating a placeholder. The file is created
+on the first actual write. Drafts remain in Pi's agent directory under `plans/`
+(`~/.pi/agent/plans/` by default) when Plan mode ends. This follows Pi's
+`PI_CODING_AGENT_DIR` override. Returning to the same session preserves the
+draft. A fork from a planning session gets its own copy. Reloading, resuming and
+compaction preserve planning state. On re-entry, Pi asks the model once to read
+the existing plan and compare it with the current request. A pending instruction
+persists across restart, but later runs do not repeat an instruction already
+delivered. A different task requires a new plan; a continuation requires an
+update that removes obsolete details.
+
+Ordinary `write` and `edit` calls below the agent plans directory display
+`Updated plan` in both native Pi and the configured pi-pretty style. The heading
+also applies outside Plan mode and to missing or failed targets. Path matching
+uses native normalisation and directory boundaries; a sibling such as
+`plans-other` does not match. The heading does not change tool identity,
+execution or permissions.
 
 The model presents the file for approval when the plan is ready. The complete
 plan appears in Pi's transcript, with an approval question in the fixed editor
 dock. In fullscreen mode, scroll with the wheel or Page Up/Down. In regular
-mode, use the terminal's scrollback. Use Up/Down and Enter to choose, or press:
+mode, use the terminal's scrollback. The approval question combines Pi's native
+selection and editing controls. Use Up/Down and Enter to choose:
 
-- `a`: approve implementation in the current conversation.
-- `c`: approve implementation and clear the conversation context.
-- `r`: request revisions.
-- Escape: cancel review and continue planning.
+- `Yes, keep context`: approve implementation in the current conversation.
+- `Yes, clear context`: approve implementation and clear the conversation
+  context.
+- `No, keep planning`: submit revision feedback from the embedded multiline row.
+- `Continue planning`: cancel review and continue planning.
+
+Tab switches between the choices and the feedback editor. The other choices
+remain visible while editing. Enter in the negative row requires text or an
+attached image; Shift+Enter inserts a newline. Native cursor and mouse editing
+remain available. Escape returns to the choices with the draft retained. An
+explicit positive choice can include that feedback. Escape at the choices
+cancels review and discards unsent text and images. Typing or attaching feedback
+does not approve implementation. Pi displays its native context usage when
+available; unknown usage is not estimated by this extension. Approval displays
+`User approved Pi's plan` separately from the plan body. The plan item contains
+the plan and its path, without an approval instruction or revision hash.
+
+Use the configured `app.clipboard.pasteImage` binding (Ctrl+V by default) to
+attach a native clipboard image. PNG, JPEG, GIF and WebP are supported;
+unsupported formats, including BMP, are refused explicitly. Native clipboard
+support varies by platform. Linux support depends on X11; this extension adds no
+Wayland or clipboard-command fallback. Unavailable, empty and failed image
+transfers leave text feedback available. Pending transfers cannot approve a
+plan, and late results are discarded after cancellation. Images remain native
+image blocks in tool results and implementation context, not base64 Markdown.
+Pi's public image processor validates encoded images and applies its native size
+and dimension limits. The current `blockImages` and `autoResize` settings apply.
+If auto-resizing is disabled, an image above those limits is refused. Models
+without declared image support cannot accept image feedback. Provider context,
+image-count and request limits still apply.
 
 Ctrl+G opens the actual plan file in your editor. This uses Pi's configurable
 `app.editor.external` keybinding and the effective `externalEditor` setting,
@@ -34,18 +98,62 @@ then `VISUAL`, `EDITOR`, or Pi's platform default. Quoted executable paths and
 literal arguments are supported; use a wrapper script for shell constructs. GUI
 editors need a wait-capable command such as `code --wait`. After the editor
 returns, Pi rereads and displays the saved revision. Editing does not approve
-the plan; approve the updated version explicitly.
+the plan; approve the updated version explicitly. Approval returns the complete
+reviewed plan to the model, including edits made before review began. Edits made
+during review also reach the model when requesting revisions or cancelling,
+without granting implementation approval. Saving identical contents does not
+publish another preview. Clear-context approval includes the complete reviewed
+plan and any review feedback in the new context.
 
-`submit_plan` is a direct model interaction, so call it outside codemode. Its
-final tool result retains the displayed snapshot for transcript reconstruction.
+Both planning tools are sequential, model-only interactions. Call them outside
+codemode with an empty argument object. Entry returns an explicit active or
+declined result; submission returns a versioned structured result with the
+presented plan and decision. The final tool result retains the displayed
+snapshot for transcript reconstruction.
 
-RPC clients receive the same choices through Pi's dialogue protocol. Approval
-applies to the displayed revision. If the file changes during review, Pi asks
-for another review. Cancelling a dialogue or answering a question does not
-approve implementation. Toggling Plan mode off preserves the draft and ends the
-tool restrictions; it does not record plan approval.
+RPC clients receive the context choices through Pi's dialogue protocol, with
+`Add a comment` and a separate input request for feedback. Blank revision
+feedback cancels review; RPC does not expose the embedded TUI or image input.
+Approval applies to the displayed revision. If the file changes during review,
+Pi asks for another review. Cancelling a dialogue or answering a question does
+not approve implementation. Toggling Plan mode off preserves the draft and ends
+the tool restrictions; it does not record plan approval.
+
+## Review safety and history
+
+Inline plans and text feedback are each limited to 200,000 UTF-16 code units.
+Oversized editor returns cannot be approved, and oversized feedback remains
+editable. Invalid UTF-8 documents and invalid Unicode feedback are refused.
+Terminal controls and bidirectional formatting controls appear as visible
+Unicode escapes. Displayed paths use home-relative notation where possible and
+escape embedded layout controls. Presentation does not change the canonical plan
+content or its revision.
+
+Approval, revision requests, cancellations, feedback and implementation failures
+have separate, versioned native history entries. Outcome entries do not add
+model instructions or restore implementation authority. Supported older plan
+snapshots remain readable; unrecognised results are labelled as legacy/raw
+content with expandable metadata. The plan body does not contain an approval
+caption.
+
+Research must be idle both before review and after an approval choice. New user
+input or a planning command cancels pending review authority, including during
+that second idle check. Settlement verifies research and the document again.
+Failed verification and failed implementation launches do not reuse the ticket.
+
+Offline tests capture complete request bodies from the native Anthropic
+Messages, OpenAI Responses, OpenAI Completions and Google Generative AI HTTP
+clients. They cover boundary-size plans and feedback, JSON escaping, UTF-8 and
+native image blocks. Native RPC tests also exercise boundary-size previews,
+feedback and structured results. These checks verify client serialisation, not
+remote model acceptance or every provider and platform.
 
 ## Implementation context
+
+Both approval choices finish the planning run before starting a fresh native
+implementation run in the same session. Keep-context approval preserves the
+conversation. The implementation run receives refreshed system instructions, the
+exact approved plan and review feedback.
 
 Clearing context uses Pi's native retain-none compaction after the planning run
 finishes. The next run receives the approved plan, its path and revision, and a
@@ -54,10 +162,12 @@ and plan path stay the same. Earlier messages remain on disk but are excluded
 from the model's context. Implementation starts only after Pi confirms that the
 approved context was committed and the plan still matches the reviewed revision.
 
-Leaving Plan mode adds a one-time model-facing reminder with the plan path. An
+A manual exit adds a one-time model-facing reminder, including the plan path
+when the file exists. A missing draft does not suppress the exit notice. An
 undelivered reminder remains pending across restart. After later compaction, Pi
 restores the current plan path and contents in both planning and ordinary modes.
-The model uses the normal file tools to read or update the plan.
+The model uses the normal file tools to read or update the plan. An approved
+implementation transition does not send the manual-exit reminder.
 
 ## Investigation and questions
 
@@ -69,7 +179,9 @@ supplies a focused task with requirements, constraints and prior findings for
 each fresh context. Planning agents run in the background by default; set
 `async:false` when the parent must wait for a result. Native completion
 notifications let the parent continue independent investigation while children
-run. Use the normal status, wait and cancellation controls.
+run. Use the normal status, wait and cancellation controls. Planning does not
+set a default research-job timeout. Callers can choose `options.timeoutMs` on
+native `subagent` calls; omitted values follow native pi-subagents policy.
 
 Research children can delegate focused subtasks to either planning role through
 `subagent`. Descendants inherit the research restrictions, required policy
@@ -77,7 +189,8 @@ extension and runtime depth and fan-out limits. The deployment permits two
 levels of research agents and uses the native concurrency and fan-out limits.
 Direct planning-role launches and read-only inspection or cancellation controls
 are available; workflows and agent-authoring actions are blocked. Research
-agents cannot edit project files or the parent's plan.
+agents must not edit project files or the parent's plan. Their ordinary
+file-editing tools are blocked; shell and MCP execution follows native policy.
 
 The general `ask_user` tool remains available to the parent, including outside
 Plan mode. Children return unresolved questions to the parent. The parent writes
@@ -85,7 +198,8 @@ the final plan and requests approval through `submit_plan`. Pure research can
 finish with findings without submitting an implementation plan. `submit_plan`
 refuses to request approval while subagents are active; the model must wait or
 cancel them. A human leaving Plan mode does not stop native background jobs.
-Their inherited read-only restrictions remain in force until they finish.
+Their inherited planning guards and native permissions remain in force until
+they finish.
 
 Planning guidance is refreshed when a new run starts. Concise reminders are
 added after five completed turns and after compaction.
@@ -93,33 +207,105 @@ added after five completed turns and after compaction.
 ## Tool restrictions
 
 The parent and research descendants can read and search, use Lens, consult the
-web and call configured read-only MCP tools. Web and Lens activation tools are
+web and use normal native MCP discovery. Web and Lens activation tools are
 permitted. LSP navigation and AST rewrites are available as read-only operations
 or edit previews; applying changes remains blocked. The parent can use ordinary
 `write` and `edit` calls for the active plan only. Nested codemode calls receive
 the same checks.
 
-`planning.json` specifies trusted `readOnlyTools`, raw `mcpDirectTools`
-selectors and the `researchExtensions` to load in children. MCP annotations
-alone do not grant planning access. Tool identifiers use Pi's normalised form;
-MCP selectors use the server's original tool identifiers, such as
-`context7/resolve-library-id`.
+`planning.json` specifies the `researchExtensions` to load in children. Child
+runtimes initialise Pi's native MCP extension without a planning-specific
+server/tool list. Normal MCP configuration, exposure, project trust and
+permissions apply. Parent-only extension registrations follow native inheritance
+rules; planning does not copy server registrations or credentials.
 
-Recognised shell inspections run with potentially executable Git helpers
-disabled. Known mutations are blocked. An unclassified parent command requires
-explicit permission for that command; research children must return the
-investigation to the parent. Command permission does not approve the plan.
+Planning does not classify, confirm, deny or rewrite shell commands. Parent,
+child and nested codemode calls use native bash and the host's ordinary
+permission hooks. MCP calls use the same normal dispatch. Independent native
+capability ceilings still apply.
 
-These are tool and command policies, not an operating-system sandbox. The
-policies trust the configured shell, executable resolution, inherited
-environment and extension implementations. Changing shell prefixes or replacing
-tools changes that boundary.
+The research instructions prohibit implementation, but planning is not an
+operating-system sandbox. If native policy permits a shell or MCP action,
+planning adds no command or MCP restriction. This configuration does not install
+an automatic permission classifier. Command permission does not approve a plan.
+
+## Recording the demo
+
+The [VHS tape][demo-tape] uses Pi 1.4, Node.js 24 or later, Vim, VHS 0.12.1 and
+FFmpeg. VHS also needs its ttyd and browser dependencies. Use cell-based
+terminal sizing when changing the tape dimensions so the PTY and recording agree
+on the number of rows. Follow the [local validation setup][validation] first,
+then record from this directory:
+
+```sh
+PI_TEST_HOST="$native/bin/pi" \
+PI_TEST_SUBAGENTS="$subagents/lib/node_modules/pi-subagents" bash demo/record.bash
+```
+
+[validation]: #validation
+
+The launcher creates a temporary home, agent directory and project, and runs Pi
+with an explicit environment, offline mode and no discovered extensions or MCP
+servers. It loads the planning extension, subagent runtime and [demo provider].
+The provider scripts model responses without external model requests; the
+extension enforces its normal policy and revision checks. The launcher deletes
+the temporary workspace when Pi exits.
+
+The tape edits the plan through Vim, adds a review comment and approves clearing
+context. The provider refuses to continue unless the project edit was blocked,
+the edited plan and feedback are included in the next run, the earlier research
+has been removed, and the session ID is unchanged. The final check runs the
+fixture CLI and verifies that its temporary cache file still exists.
+
+The recording script produces the animated `demo/planning.webp`, then removes
+its intermediate recording. `PI_TEST_HOST` selects the compiled Pi executable;
+otherwise the launcher uses `pi` from PATH. The launcher loads the npm subagent
+dependency by default. `PI_TEST_SUBAGENTS` selects a deployed `pi-subagents`
+package root.
+
+[demo-tape]: demo/demo.tape
+[demo provider]: demo/provider.ts
 
 ## Validation
 
-The Nix package checks types and lint rules against the declared development
-dependencies, then runs tests with the deployed `pi-subagents` package. That
-package includes the child-runtime registration patch required for nested
-planning roles. For local npm checks, set `PI_TEST_SUBAGENTS` to that package's
-root. Native tests exercise web and Lens activation, selected MCP tools,
-inherited restrictions, background completion and the delegation depth limit.
+The profile and package checks use the patched compiled Pi executable and its
+separate development SDK output. The SDK includes the public heading resolver,
+render context, component accessor, path helper and asynchronous message-error
+callback. The release's prebuilt Node CLI bundle is unchanged; use the compiled
+executable for CLI checks. Setting `PI_TEST_HOST` alone does not change Node
+imports or TypeScript resolution. Restart Pi after deploying the profile.
+Reloading extensions does not replace a compiled host that is already running.
+
+From the repository root, build the matching packages:
+
+```sh
+native=$(direnv exec . nix build .#pi-native --no-link --print-out-paths --option allow-import-from-derivation false)
+sdk=$(direnv exec . nix build .#pi-native-sdk --no-link --print-out-paths --option allow-import-from-derivation false)
+pretty=$(direnv exec . nix build .#pi-pretty --no-link --print-out-paths --option allow-import-from-derivation false)
+diff=$(direnv exec . nix build .#pi-diff --no-link --print-out-paths --option allow-import-from-derivation false)
+subagents=$(direnv exec . nix build .#pi-subagents --no-link --print-out-paths --option allow-import-from-derivation false)
+cd features/ai/pi/extensions/planning
+npm ci --ignore-scripts
+npm run setup:native-sdk -- "$sdk/libexec/pi-sdk"
+PI_TEST_HOST="$native/bin/pi" \
+PI_TEST_PRETTY="$pretty/lib/node_modules/@heyhuynhgiabuu/pi-pretty" \
+PI_TEST_DIFF="$diff/lib/node_modules/@heyhuynhgiabuu/pi-diff" \
+PI_TEST_SUBAGENTS="$subagents/lib/node_modules/pi-subagents" npm run check
+```
+
+Repeat SDK setup after `npm ci`, which restores the stock development packages.
+Nix performs the same setup for planning, session-footer and runtime-contract
+checks. Deployed extensions do not include host SDK modules; startup checks
+reject bundled copies.
+
+The subagent package includes the child-runtime registration patch required for
+nested planning roles. Native tests exercise web and Lens activation, unfiltered
+MCP discovery, native permission denials, inherited planning guards, background
+completion and the delegation depth limit. Heading tests cover both
+planning/pretty load orders and all six orders with pi-diff, grouped rows,
+streamed arguments, replay and native Edit's preview and result rebuild. An
+offline native regression also covers automatic threshold compaction after
+keep-context approval, with stale plan wording and a contradictory summary. The
+regression verifies inactive planning state, a nonplanning system prompt,
+continued project writes and no replayed approval. It does not test a model's
+interpretation of the restored text.

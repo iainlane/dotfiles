@@ -24,13 +24,19 @@ import { getCurrentTools } from "@earendil-works/pi-ai";
 import { resolveCurrentSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { resolvePiLaunchToolPlan } from "pi-subagents/child-tool-plan";
 import { expect, it, vi } from "vitest";
+import { Check } from "typebox/value";
 import planning from "../src/extension.ts";
+import { enterPlanDescription, planDisplayType } from "../src/prompt.ts";
+import { PlanStore } from "../src/store.ts";
+import { nodeFiles } from "../src/node-files.ts";
 import researchFixture from "./fixtures/research.ts";
+import nativePermissionsFixture from "./fixtures/permissions.ts";
 
 const nativeResearchTools = [
   "bash",
   "bg_wait",
   "codemode",
+  "contact_supervisor",
   "find",
   "grep",
   "ls",
@@ -39,7 +45,7 @@ const nativeResearchTools = [
 ];
 const fixtureTools = [
   "ast_grep_replace",
-  "inspect_fixture",
+  "project_report",
   "lsp_navigation",
   "pi_lens_activate_tools",
   "web_enable",
@@ -48,13 +54,79 @@ const fixtureTools = [
 const extendedResearchTools = [
   ...nativeResearchTools,
   ...fixtureTools,
-  "mcp__fixture__inspect_tool",
 ].toSorted();
 const initialResearchTools = extendedResearchTools.filter(
   (name) =>
     !["web_search", "lsp_navigation", "ast_grep_replace"].includes(name),
 );
-const researchScript = `text(await tools.web_enable({})); text(await tools.pi_lens_activate_tools({tools:['lsp_navigation']})); text(await tools.web_search({})); text(await tools.inspect_fixture({})); text(await tools.mcp__fixture__inspect_tool({})); text(await tools.lsp_navigation({operation:'definition'})); text(await tools.ast_grep_replace({apply:false})); try { await tools.lsp_navigation({operation:'rename',apply:true}); } catch(error) { text(String(error)); }`;
+const researchScript = `text(await tools.web_enable({})); text(await tools.pi_lens_activate_tools({tools:['lsp_navigation']})); text(await tools.web_search({})); text(await tools.project_report({})); text(await tools.mcp__fixture__inspect_tool({})); try { await tools.mcp__fixture__mutate_tool({}); throw new Error('Expected native permission refusal'); } catch(error) { if (!String(error).includes('Native permission fixture refused')) throw error; text(String(error)); } text(await tools.lsp_navigation({operation:'definition'})); text(await tools.ast_grep_replace({apply:false})); try { await tools.lsp_navigation({operation:'rename',apply:true}); } catch(error) { text(String(error)); }`;
+
+it("declares strict empty model-only planning inputs and structured outputs in the native registry", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-planning-contracts-"));
+  vi.stubEnv("PI_CODING_AGENT_DIR", join(cwd, "agent"));
+  let session:
+    | Awaited<ReturnType<typeof createAgentSession>>["session"]
+    | undefined;
+  try {
+    const settings = SettingsManager.inMemory({
+      compaction: { enabled: false },
+    });
+    const loader = new DefaultResourceLoader({
+      cwd,
+      agentDir: join(cwd, "agent"),
+      settingsManager: settings,
+      noExtensions: true,
+      noSkills: true,
+      noThemes: true,
+      noPromptTemplates: true,
+      noContextFiles: true,
+      extensionFactories: [planning],
+    });
+    await loader.reload();
+    const runtime = await ModelRuntime.create({
+      authPath: join(cwd, "auth.json"),
+      modelsPath: join(cwd, "models.json"),
+    });
+    ({ session } = await createAgentSession({
+      cwd,
+      agentDir: join(cwd, "agent"),
+      resourceLoader: loader,
+      modelRuntime: runtime,
+      sessionManager: SessionManager.create(cwd, join(cwd, "sessions")),
+      settingsManager: settings,
+    }));
+    const active = session;
+    expect(
+      ["enter_plan_mode", "submit_plan"].map((name) => {
+        const tool = active.getToolDefinition(name);
+        if (!tool) {
+          throw new Error(`Missing native planning tool ${name}`);
+        }
+        return {
+          name,
+          exposure: tool.exposure,
+          executionMode: tool.executionMode,
+          validEmpty: Check(tool.parameters, {}),
+          acceptsExtra: Check(tool.parameters, { compatibility: true }),
+          output: tool.outputSchema !== undefined,
+        };
+      }),
+    ).toStrictEqual(
+      ["enter_plan_mode", "submit_plan"].map((name) => ({
+        name,
+        exposure: "model-only",
+        executionMode: "sequential",
+        validEmpty: true,
+        acceptsExtra: false,
+        output: true,
+      })),
+    );
+  } finally {
+    session?.dispose();
+    vi.unstubAllEnvs();
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
 
 it.each([
   {
@@ -213,6 +285,30 @@ it.each([
         pending: 0,
         streaming: false,
       });
+      const plan = new PlanStore(
+        join(cwd, "agent", "plans"),
+        session.sessionManager.getSessionId(),
+        nodeFiles,
+      ).write("# Displayed plan\n");
+      const callsBefore = calls;
+      const messagesBefore = [...session.messages];
+      await session.prompt("/plan");
+      await session.prompt("/plan");
+      expect({
+        calls: calls - callsBefore,
+        messages: session.messages,
+        displays: session.sessionManager
+          .getBranch()
+          .flatMap((entry) =>
+            entry.type === "custom" && entry.customType === planDisplayType
+              ? [entry.data]
+              : [],
+          ),
+      }).toStrictEqual({
+        calls: 0,
+        messages: messagesBefore,
+        displays: [plan, plan],
+      });
     } finally {
       release.resolve();
       await running;
@@ -229,7 +325,7 @@ it.each([
     mode: "codemode",
     expected: {
       childCancelled: false,
-      sessions: ["parent", "parent"],
+      sessions: ["parent", "parent", "parent"],
       childSessionCount: 0,
       childTools: [],
       blocked: [],
@@ -319,6 +415,7 @@ it.each([
       maxTokens: 4096,
     };
     let calls = 0;
+    let planPath = "";
     let childCancelled = false;
     const delegationErrors: string[] = [];
     const depthErrors: string[] = [];
@@ -327,6 +424,7 @@ it.each([
     const requests: {
       sessionId: string | undefined;
       tools: string[];
+      entryDescription: string | undefined;
       guardBlocked: boolean;
     }[] = [];
     const provider: ExtensionFactory = (pi) => {
@@ -355,20 +453,20 @@ it.each([
               depthErrors.push(JSON.stringify(message.content));
             }
           }
+          const availableTools = getCurrentTools(context.messages);
           requests.push({
             sessionId: options?.sessionId,
-            tools: getCurrentTools(context.messages)
-              .map((tool) => tool.name)
-              .toSorted(),
+            tools: availableTools.map((tool) => tool.name).toSorted(),
+            entryDescription: availableTools.find(
+              (tool) => tool.name === "enter_plan_mode",
+            )?.description,
             guardBlocked: context.messages.some(
               (message) =>
                 (message.role === "toolResult" &&
                   message.toolCallId === "child-mutation" &&
                   message.isError &&
                   JSON.stringify(message.content).includes(
-                    mode === "settings-error"
-                      ? "Planning settings are unavailable:"
-                      : "Return the required investigation to the parent.",
+                    "Native permission fixture refused",
                   )) ||
                 (message.role === "toolResult" &&
                   message.toolCallId === "research-script" &&
@@ -428,18 +526,18 @@ it.each([
               ? (nestedCalls[step] ?? [
                   { type: "text", text: "Offline fixture report" },
                 ])
-              : step === 0 && mode === "codemode"
+              : step === 1 && mode === "codemode"
                 ? [
                     {
                       type: "toolCall",
                       id: "native-fixture",
                       name: "codemode",
                       arguments: {
-                        code: `const plan = await tools.enter_plan_mode({}); try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:plan.path,content:'# Native plan\\n'}));`,
+                        code: `try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:${JSON.stringify(planPath)},content:'# Native plan\\n'}));`,
                       },
                     },
                   ]
-                : mode !== "codemode" && calls === 1
+                : calls === 1
                   ? [
                       {
                         type: "toolCall",
@@ -539,17 +637,24 @@ it.each([
     try {
       await writeFile(join(cwd, "project.ts"), "original");
       await mkdir(join(cwd, "agent"), { recursive: true });
+      await writeFile(
+        join(cwd, "agent", "planning.json"),
+        JSON.stringify({
+          researchExtensions: [
+            fileURLToPath(
+              new URL("./fixtures/permissions.ts", import.meta.url),
+            ),
+            ...(mode === "nested"
+              ? [
+                  fileURLToPath(
+                    new URL("./fixtures/research.ts", import.meta.url),
+                  ),
+                ]
+              : []),
+          ],
+        }),
+      );
       if (mode === "nested") {
-        await writeFile(
-          join(cwd, "agent", "planning.json"),
-          JSON.stringify({
-            readOnlyTools: ["inspect_fixture", "mcp__fixture__inspect_tool"],
-            mcpDirectTools: ["fixture/inspect-tool"],
-            researchExtensions: [
-              fileURLToPath(new URL("./fixtures/research.ts", import.meta.url)),
-            ],
-          }),
-        );
         await writeFile(
           join(cwd, "agent", "settings.json"),
           JSON.stringify({ subagents: { maxSubagentDepth: 2 } }),
@@ -585,6 +690,7 @@ it.each([
         additionalExtensionPaths: mode === "nested" ? ["builtin:mcp"] : [],
         extensionFactories: [
           provider,
+          nativePermissionsFixture,
           ...(mode === "nested"
             ? [
                 researchFixture,
@@ -607,6 +713,11 @@ it.each([
         modelsPath: join(cwd, "models.json"),
       });
       const manager = SessionManager.create(cwd, join(cwd, "sessions"));
+      planPath = new PlanStore(
+        join(cwd, "agent", "plans"),
+        manager.getSessionId(),
+        nodeFiles,
+      ).path;
       ({ session } = await createAgentSession({
         cwd,
         agentDir: join(cwd, "agent"),
@@ -633,7 +744,13 @@ it.each([
           ...(mode === "nested" ? fixtureTools : []),
         ],
       }));
-      await session.bindExtensions({});
+      await session.bindExtensions({
+        mode: "rpc",
+        uiContext: {
+          ...session.extensionRunner.getUIContext(),
+          confirm: async (title) => title === "Enter Plan mode?",
+        },
+      });
       const requiredTools = [
         "enter_plan_mode",
         "subagent",
@@ -657,6 +774,7 @@ it.each([
       }
       await running;
       const parentId = manager.getSessionId();
+      expect(requests[0]?.entryDescription).toContain(enterPlanDescription);
       expect(delegationErrors).toStrictEqual([]);
       const childRequests = requests.filter(
         (request) => request.sessionId !== parentId,
@@ -719,7 +837,7 @@ it.each([
         tools: launch.effectiveToolAllowlist,
         required: launch.requiredExtensions.map(({ id }) => id),
       }).toStrictEqual({
-        tools: ["read", "bash", "subagent"],
+        tools: ["read", "write", "bash", "ask_user", "subagent"],
         required: ["planning-policy"],
       });
     } finally {

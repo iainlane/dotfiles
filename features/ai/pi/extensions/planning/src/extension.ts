@@ -8,20 +8,32 @@ import {
   SettingsManager,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { getNativeClipboard, Text } from "@earendil-works/pi-tui";
+import { readClipboardImage } from "./feedback.ts";
+import {
+  emptyPlanInputSchema,
+  enterPlanOutputSchema,
+  submitPlanOutputSchema,
+} from "./contracts.ts";
 import { registerSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { registerRequiredChildExtensions } from "pi-subagents/required-child-extensions";
-import { researchTools } from "./policy.ts";
 import { ensureSubagentsIdle, planningAgents } from "./subagents.ts";
 import { reviewPlan } from "./review.ts";
-import { renderPlanReview } from "./review-render.ts";
-import { openPlanEditor } from "./editor.ts";
-import { reminderType } from "./prompt.ts";
+import { renderPlanDocument, renderPlanReview } from "./review-render.ts";
+import { editorName, openPlanEditor, openPlanEditorInUi } from "./editor.ts";
+import {
+  enterPlanDescription,
+  submitPlanDescription,
+  planDisplayType,
+  implementationMessageType,
+  reminderType,
+} from "./prompt.ts";
 import { registerPlanningRoles } from "./roles.ts";
 import { stateEntry } from "./session.ts";
 import { createPlanning } from "./controller.ts";
 import { PlanStore } from "./store.ts";
+import { registerPlanHeadings } from "./plan-headings.ts";
+import { outcomeEntryType, renderPlanningOutcome } from "./outcomes.ts";
 
 function configureChildren(
   pi: ExtensionAPI,
@@ -45,7 +57,6 @@ function configureChildren(
       sessionId,
       source: "planning",
       ceiling: {
-        allowedTools: [...researchTools, ...settings.readOnlyTools],
         allowedAgents: planningAgents,
       },
     });
@@ -63,24 +74,47 @@ function configureChildren(
 }
 
 export default function planning(pi: ExtensionAPI): void {
+  registerPlanHeadings(pi, join(getAgentDir(), "plans"));
   const controller = createPlanning({
     openPlan: (id) =>
       new PlanStore(join(getAgentDir(), "plans"), id, nodeFiles),
     recordSavedState: (state) => pi.appendEntry(stateEntry, state),
+    recordOutcome: (outcome) => pi.appendEntry(outcomeEntryType, outcome),
+    presentPlan: (plan) => pi.appendEntry(planDisplayType, plan),
     configure: (id) => configureChildren(pi, id),
-    readOnlyTools: () => readPlanningSettings().readOnlyTools,
     ensureSubagentsIdle: (signal) => ensureSubagentsIdle(pi.events, signal),
     startInPlan: () => pi.getFlag("plan") === true,
     sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
-    requestId: randomUUID,
-    review: (ctx, request) =>
-      reviewPlan(ctx, request, (path) =>
-        openPlanEditor(
-          path,
-          SettingsManager.inMemory(pi.getSettings()).getExternalEditorCommand(),
-        ),
+    sendImplementationMessage: (content, onError) =>
+      pi.sendMessage(
+        { customType: implementationMessageType, content, display: false },
+        { triggerTurn: true, onError },
       ),
+    requestId: randomUUID,
+    review: (ctx, request) => {
+      const settings = SettingsManager.inMemory(pi.getSettings());
+      const command = settings.getExternalEditorCommand();
+      return reviewPlan(
+        ctx,
+        {
+          ...request,
+          readImage: () =>
+            request.readImage?.() ??
+            readClipboardImage(getNativeClipboard(), settings),
+        },
+        {
+          name: editorName(command),
+          open: (path) => openPlanEditor(path, command),
+        },
+      );
+    },
   });
+  pi.registerEntryRenderer(planDisplayType, (entry) =>
+    renderPlanDocument(entry.data),
+  );
+  pi.registerEntryRenderer(outcomeEntryType, (entry, options, theme) =>
+    renderPlanningOutcome(entry.data, options, theme),
+  );
   pi.registerFlag("plan", {
     description: "Start in Plan mode",
     type: "boolean",
@@ -88,8 +122,16 @@ export default function planning(pi: ExtensionAPI): void {
   });
   pi.registerCommand("plan", {
     description:
-      "Toggle Plan mode, start planning a task, or review the active plan",
-    handler: (args, ctx) => controller.command(args, ctx),
+      "Enter or show Plan mode; use exit, open or review, or describe a task",
+    handler: (args, ctx) => {
+      const command = SettingsManager.inMemory(
+        pi.getSettings(),
+      ).getExternalEditorCommand();
+      return controller.command(args, ctx, {
+        name: editorName(command),
+        open: (path) => openPlanEditorInUi(ctx, path, command),
+      });
+    },
   });
   pi.registerShortcut("ctrl+alt+p", {
     description: "Toggle Plan mode",
@@ -100,14 +142,12 @@ export default function planning(pi: ExtensionAPI): void {
 
   pi.registerTool({
     name: "enter_plan_mode",
+    exposure: "model-only",
     label: "Enter Plan mode",
-    description:
-      "Enter planning before implementation when the task warrants investigation and design.",
-    parameters: Type.Object({}),
-    outputSchema: Type.Object({
-      path: Type.String(),
-      instructions: Type.String(),
-    }),
+    executionMode: "sequential",
+    description: enterPlanDescription,
+    parameters: emptyPlanInputSchema,
+    outputSchema: enterPlanOutputSchema,
     async execute(_id, _params, signal, _update, ctx) {
       return controller.enterTool(ctx, signal);
     },
@@ -118,9 +158,9 @@ export default function planning(pi: ExtensionAPI): void {
     exposure: "model-only",
     executionMode: "sequential",
     label: "Review plan",
-    description:
-      "Read the active Markdown plan and request explicit approval for this exact revision. Questions do not approve implementation.",
-    parameters: Type.Object({}),
+    description: submitPlanDescription,
+    parameters: emptyPlanInputSchema,
+    outputSchema: submitPlanOutputSchema,
     async execute(_id, _params, signal, onUpdate, ctx) {
       return controller.submit(ctx, signal, onUpdate);
     },
@@ -128,6 +168,7 @@ export default function planning(pi: ExtensionAPI): void {
     renderResult: renderPlanReview,
   });
 
+  pi.on("input", () => controller.input());
   pi.on("tool_call", (event, ctx) => controller.toolCall(event, ctx));
   pi.on("before_agent_start", (event, ctx) => controller.prompt(event, ctx));
   pi.on("turn_end", (event, ctx) => controller.turnEnd(event, ctx));

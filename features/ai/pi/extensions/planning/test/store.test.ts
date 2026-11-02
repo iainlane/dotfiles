@@ -49,6 +49,23 @@ it.each(["unwritten", "deleted"])(
   },
 );
 
+it("refuses invalid UTF-8 instead of approving replacement characters", () => {
+  const { store } = fixture();
+  store.write("# Context\n");
+  writeFileSync(store.path, Uint8Array.from([192, 175]));
+  expect(() => store.read()).toThrow(/UTF-8/iu);
+});
+
+it("preserves a UTF-8 byte-order mark in the canonical document", () => {
+  const { store } = fixture();
+  const content = "\uFEFF# Context\n";
+  const written = store.write(content);
+  expect({
+    written: written.content,
+    read: store.read().content,
+  }).toStrictEqual({ written: content, read: content });
+});
+
 it("binds approval to the displayed document revision", () => {
   const { store } = fixture();
   store.write("First plan\n");

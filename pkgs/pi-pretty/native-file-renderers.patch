@@ -1,0 +1,120 @@
+diff --git a/src/claude-style.ts b/src/claude-style.ts
+index 83cfca5..cfc6341 100644
+--- a/src/claude-style.ts
++++ b/src/claude-style.ts
+@@ -15,2 +15,2 @@
+-import { highlightCode, keyText } from "@earendil-works/pi-coding-agent";
+-import { Container, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
++import { highlightCode, keyText, type ExtensionAPI, type ToolRenderContext, type Theme, type ThemeColor } from "@earendil-works/pi-coding-agent";
++import { Container, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
+@@ -18 +18,3 @@ import { ELAPSED_KEY, shortPath } from "./helpers.js";
+-import type { RenderCtxLike, ThemeLike } from "./types.js";
++import type { RenderCtxLike } from "./types.js";
++
++type ThemeLike = Pick<Theme, "fg" | "bold">;
+@@ -297 +299 @@ function elapsedMs(result: any, ctx: RenderCtxLike): number | undefined {
+-function rowComponent(build: (width: number) => string[]): AnyComponent {
++function rowComponent(build: (width: number) => string[]): Component {
+@@ -313 +315 @@ function buildCallRow(
+-): AnyComponent {
++): Component {
+@@ -325 +327 @@ function buildCallRow(
+-function buildResultRow(theme: ThemeLike, ctx: RenderCtxLike, text: string, failed: boolean): AnyComponent {
++function buildResultRow(theme: ThemeLike, ctx: RenderCtxLike, text: string, failed: boolean): Component {
+@@ -361 +363 @@ function claudeRenderers(name: string, label: string, original?: AnyFn, expanded
+-				label,
++				ctx.callLabel ?? label,
+@@ -426 +428,64 @@ export function withClaudeToolStyle<
+-const EXTERNAL_TOOLS = ["write", "edit", "apply_patch", "codemode", "recall"];
++interface FileToolRenderState {
++	call: Container;
++	result: Container;
++	nativeCall?: Component;
++	nativeResult?: Component;
++}
++
++type FileToolRenderContext = ToolRenderContext<Record<string, unknown>, unknown>;
++
++function isToolArgs(value: unknown): value is Record<string, unknown> {
++	return typeof value === "object" && value !== null && !Array.isArray(value);
++}
++
++/** Styles file-tool rows through the native renderer registry. */
++export function registerClaudeFileToolRenderers(pi: Pick<ExtensionAPI, "registerToolRenderer">, enabled: boolean): void {
++	for (const tool of ["write", "edit"]) {
++		if (enabled) styledToolNames.add(tool);
++		else styledToolNames.delete(tool);
++	}
++	if (!enabled) return;
++	pi.registerToolRenderer((toolName, next) => {
++		const delegated = next();
++		if (toolName !== "write" && toolName !== "edit") return delegated;
++		const nativeCall = delegated?.renderCall;
++		const nativeResult = delegated?.renderResult;
++		if (nativeCall === undefined || nativeResult === undefined) return delegated;
++		const label = toolName === "write" ? "Write" : "Edit";
++		const styled = claudeRenderers(toolName, label);
++		const states = new WeakMap<object, FileToolRenderState>();
++		const stateFor = (context: FileToolRenderContext): FileToolRenderState => {
++			const previous = states.get(context.state);
++			if (previous) return previous;
++			const state = { call: new Container(), result: new Container() };
++			states.set(context.state, state);
++			return state;
++		};
++		return {
++			...delegated,
++			renderShell: "self",
++			renderCall(args: unknown, theme, context: FileToolRenderContext) {
++				const state = stateFor(context);
++				const display = { ...context, callLabel: context.callLabel ?? label };
++				state.nativeCall = nativeCall(args, theme, { ...display, lastComponent: state.nativeCall });
++				state.call.clear();
++				state.call.addChild(context.expanded
++					? state.nativeCall
++					: styled.renderCall(isToolArgs(args) ? args : {}, theme, { ...display, args: isToolArgs(context.args) ? context.args : {}, lastComponent: undefined }));
++				return state.call;
++			},
++			renderResult(result, options, theme, context: FileToolRenderContext) {
++				const state = stateFor(context);
++				const display = { ...context, callLabel: context.callLabel ?? label };
++				state.nativeResult = nativeResult(result, options, theme, { ...display, lastComponent: state.nativeResult });
++				state.result.clear();
++				state.result.addChild(context.expanded
++					? state.nativeResult
++					: styled.renderResult(result, options, theme, { ...display, args: isToolArgs(context.args) ? context.args : {}, lastComponent: undefined }));
++				return state.result;
++			},
++		};
++	});
++}
++
++const EXTERNAL_TOOLS = ["apply_patch", "codemode", "recall"];
+@@ -433,4 +498,3 @@ type ComponentProto = Record<RendererLookup, AnyFn> & { [EXTERNAL_TOOL_ORIGINALS
+- * Give write/edit/apply_patch the Claude Code rows without owning their registration (pi-diff or Pi's
+- * builtins keep their schema, execute and diff renderer). Rendering is decided per component,
+- * so the host's lookups are patched by tool name, as pi-droid-styling does. Collapsed: call
+- * and `+N -N` rows; expanded: the provider's own result renderer. Pass `false` to restore.
++ * Style externally registered tools without changing their definitions.
++ * Expanded rows use the delegated result renderer.
++ * Pass `false` to restore the original lookups.
+@@ -500 +564 @@ const MIN_GROUPED_TOOLS = 2;
+-const fg = (color: string, text: string): string => groupTheme.fg(color, text);
++const fg = (color: ThemeColor, text: string): string => groupTheme.fg(color, text);
+@@ -531,0 +596,2 @@ function toolLabel(tool: any): string {
++	const resolved = tool.getCallLabel?.();
++	if (typeof resolved === "string" && resolved) return resolved;
+diff --git a/src/index.ts b/src/index.ts
+index f30893a..916ff1d 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -26,0 +27 @@ import {
++	registerClaudeFileToolRenderers,
+@@ -86,0 +88 @@ export default async function piPrettyExtension(pi: ExtensionAPI, deps?: PiPrett
++	registerClaudeFileToolRenderers(pi, claudeStyle);
+diff --git a/src/types.ts b/src/types.ts
+index 9f3f69d..23b2206 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -33,0 +34 @@ export interface RenderCtxLike {
++	callLabel?: string;
