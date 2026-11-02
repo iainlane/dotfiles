@@ -114,6 +114,7 @@ in {
     programs.claude-code = {
       enable = true;
       package = lib.mkDefault cfg.package;
+      configDir = "${config.xdg.configHome}/claude";
 
       # Source the shared set directly, without the servers listed in
       # `dotfiles.claudeCode.excludeMcpServers`.
