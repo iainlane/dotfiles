@@ -67,62 +67,71 @@ in {
             manifest_check = false;
           };
 
-          keys.command = [
-            {
-              key = "prefix+a";
-              type = "plugin_action";
-              command = "annotate.capture";
-              description = "Annotate selected text";
-            }
-            {
-              key = "prefix+shift+a";
-              type = "plugin_action";
-              command = "annotate.copy-context";
-              description = "Copy annotations as feedback";
-            }
-            {
-              key = "prefix+ctrl+a";
-              type = "plugin_action";
-              command = "annotate.copy-archive";
-              description = "Copy and archive annotations";
-            }
-            {
-              key = "prefix+ctrl+v";
-              type = "plugin_action";
-              command = "annotate.paste-archive";
-              description = "Paste annotations without submitting and archive them";
-            }
-            {
-              key = "prefix+ctrl+s";
-              type = "plugin_action";
-              command = "annotate.send-archive";
-              description = "Send annotations to the agent and archive them";
-            }
-            {
-              key = "prefix+m";
-              type = "plugin_action";
-              command = "annotate.manage";
-              description = "Manage annotations";
-            }
-            {
-              key = "prefix+o";
-              type = "plugin_action";
-              command = "annotate.open";
-              description = "Review documents in this folder";
-            }
-            {
-              key = "prefix+shift+o";
-              type = "plugin_action";
-              command = "annotate.last";
-              description = "Review the agent's recent replies";
-            }
-            {
-              key = "prefix+ctrl+o";
-              type = "plugin_action";
-              command = "annotate.last-newest";
-              description = "Review the agent's newest reply";
-            }
-          ];
+          keys = {
+            open_worktree = "prefix+shift+o";
+            last_pane = "prefix+t";
+            previous_agent = "prefix+shift+k";
+            next_agent = "prefix+shift+j";
+            switch_workspace = "prefix+shift+1..9";
+            open_notification_target = "prefix+f";
+
+            command = [
+              {
+                key = "prefix+a";
+                type = "plugin_action";
+                command = "annotate.capture";
+                description = "Annotate selected text";
+              }
+              {
+                key = "prefix+shift+a";
+                type = "plugin_action";
+                command = "annotate.copy-context";
+                description = "Copy annotations as feedback";
+              }
+              {
+                key = "prefix+ctrl+a";
+                type = "plugin_action";
+                command = "annotate.copy-archive";
+                description = "Copy and archive annotations";
+              }
+              {
+                key = "prefix+ctrl+v";
+                type = "plugin_action";
+                command = "annotate.paste-archive";
+                description = "Paste annotations without submitting and archive them";
+              }
+              {
+                key = "prefix+ctrl+s";
+                type = "plugin_action";
+                command = "annotate.send-archive";
+                description = "Send annotations to the agent and archive them";
+              }
+              {
+                key = "prefix+m";
+                type = "plugin_action";
+                command = "annotate.manage";
+                description = "Manage annotations";
+              }
+              {
+                key = "prefix+o";
+                type = "plugin_action";
+                command = "annotate.open";
+                description = "Review documents in this folder";
+              }
+              {
+                key = "prefix+shift+l";
+                type = "plugin_action";
+                command = "annotate.last";
+                description = "Review the agent's recent replies";
+              }
+              {
+                key = "prefix+ctrl+o";
+                type = "plugin_action";
+                command = "annotate.last-newest";
+                description = "Review the agent's newest reply";
+              }
+            ];
+          };
 
           theme = {
             name = "catppuccin";
