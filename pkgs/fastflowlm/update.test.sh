@@ -10,7 +10,7 @@ export UPDATE_TEST_ROOT="${fixture}"
 export UPDATE_TEST_VERSION=1.2.3
 export PATH="${fixture}/bin:${PATH}"
 
-for command in git gh nix nix-update cargo; do
+for command in git gh nix nix-update nix-prefetch-git cargo; do
 	printf '#!%s\n' "${BASH}" >"${fixture}/bin/${command}"
 done
 cat >>"${fixture}/bin/git" <<'SH'
@@ -31,17 +31,22 @@ case "$1" in
 eval) printf '{"version":"1.0.7","sourceHash":"old-source-hash","tokenizersVersion":"0.1.1-unstable-2026-02-20","rev":"old-revision","hash":"old-hash"}\n' ;;
 flake)
   case "$4" in
-  github:ROCm/FastFlowLM/v*)
-    if [[ "${UPDATE_TEST_FAIL:-}" == prefetch ]]; then exit 2; fi
-    touch "${UPDATE_TEST_ROOT}/called"
-    printf '{"hash":"new-source-hash"}\n'
-    ;;
   github:mlc-ai/tokenizers-cpp/*) printf '{"hash":"new-hash","storePath":"%s/source"}\n' "${UPDATE_TEST_ROOT}" ;;
   *) exit 1 ;;
   esac
   ;;
 *) exit 1 ;;
 esac
+SH
+cat >>"${fixture}/bin/nix-prefetch-git" <<'SH'
+set -euo pipefail
+if [[ "${UPDATE_TEST_FAIL:-}" == prefetch ]]; then exit 2; fi
+case " $* " in
+*" --quiet "*) ;;
+*) echo 'nix-prefetch-git must be called with --quiet so stdout is JSON only.' >&2; exit 1 ;;
+esac
+touch "${UPDATE_TEST_ROOT}/called"
+printf '{"hash":"new-source-hash"}\n'
 SH
 cat >>"${fixture}/bin/nix-update" <<'SH'
 echo 'Source hashing must not build target-system derivations.' >&2

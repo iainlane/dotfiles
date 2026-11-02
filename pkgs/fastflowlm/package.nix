@@ -5,6 +5,7 @@
   callPackage,
   updaters,
   gh,
+  nix-prefetch-git,
   python3,
   cargo,
   autoPatchelfHook,
@@ -20,9 +21,13 @@
   fftwFloat,
   fftwLongDouble,
   libdrm,
+  libedit,
+  libjpeg_turbo,
+  libogg,
   libuuid,
-  ncurses,
-  readline,
+  libvorbis,
+  libwebp,
+  opus,
   sentencepiece,
   xrt,
 }: let
@@ -39,12 +44,17 @@ in
       owner = "ROCm";
       repo = "FastFlowLM";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-pqMMPeH51hsdZnwfXnTTircsH7lgzo8ngISIRL0TK4M=";
+      # v1.0.11 builds flm_xgrammar from the third_party/xgrammar submodule.
+      fetchSubmodules = true;
+      hash = "sha256-XSm9mCO/NjN9obzQgMr6DmHm3cdI23RezkGxWsk1b5s=";
     };
 
     sourceRoot = "${finalAttrs.src.name}/src";
 
-    patches = [./use-external-tokenizers.patch];
+    patches = [
+      ./use-external-tokenizers.patch
+      ./use-packaged-codecs.patch
+    ];
 
     nativeBuildInputs = [
       autoPatchelfHook
@@ -62,9 +72,13 @@ in
       fftwFloat
       fftwLongDouble
       libdrm
+      libedit
+      libjpeg_turbo
+      libogg
       libuuid
-      ncurses
-      readline
+      libvorbis
+      libwebp
+      opus
       sentencepiece
       (lib.getLib stdenv.cc.cc)
       xrt.xdna
@@ -99,7 +113,7 @@ in
       updateScript = updaters.mkScriptUpdater {
         pname = "fastflowlm";
         script = ./update.sh;
-        extraRuntimeInputs = [gh python3 cargo];
+        extraRuntimeInputs = [gh nix-prefetch-git python3 cargo];
       };
 
       tests = {

@@ -20,7 +20,11 @@ if [[ "${version}" == "$(jq -r .version <<<"${current}")" && "${1:-}" != "--forc
 	exit 0
 fi
 
-release="$(nix flake prefetch --json "github:ROCm/FastFlowLM/${tag}")"
+# package.nix fetches this source with submodules, so the hash must cover
+# the submodule trees: nix flake prefetch would hash only the plain checkout.
+# --quiet keeps stdout to the JSON summary; other modes may print
+# human-readable lines that jq would choke on.
+release="$(nix-prefetch-git --quiet --url "https://github.com/ROCm/FastFlowLM.git" --rev "${tag}" --fetch-submodules)"
 release_hash="$(jq -er .hash <<<"${release}")"
 revision="$(gh api "repos/ROCm/FastFlowLM/contents/third_party/tokenizers-cpp?ref=${tag}" --jq .sha)"
 if [[ ! "${revision}" =~ ^[0-9a-f]{40}$ ]]; then
