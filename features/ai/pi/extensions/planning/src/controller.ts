@@ -241,14 +241,15 @@ export function createPlanning(dependencies: PlanningDependencies) {
   function showPlan(
     state: PlanningSession,
     ctx: PlanningContext,
+    missingMessage:
+      | string
+      | null = `No plan has been written yet. Plan file: ${state.store.path}`,
   ): PlanRevision | undefined {
     try {
       if (!state.store.exists()) {
-        notify(
-          ctx,
-          `No plan has been written yet. Plan file: ${state.store.path}`,
-          "info",
-        );
+        if (missingMessage !== null) {
+          notify(ctx, missingMessage, "info");
+        }
         return undefined;
       }
       const plan = state.store.read();
@@ -352,12 +353,17 @@ export function createPlanning(dependencies: PlanningDependencies) {
       });
       return;
     }
-    if (!state.active) {
+    const entering = !state.active;
+    if (entering) {
       enter(ctx);
       notify(ctx, "Enabled plan mode", "info");
     }
     if (action === "") {
-      showPlan(state, ctx);
+      showPlan(
+        state,
+        ctx,
+        entering ? null : "Already in plan mode. No plan written yet.",
+      );
       return;
     }
     await editPlan(state, ctx, editor);

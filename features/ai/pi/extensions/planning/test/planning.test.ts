@@ -529,6 +529,38 @@ it("rechecks idle research after the approval choice before accepting it", async
   }).toStrictEqual({ outcomes: [], sends: [] });
 });
 
+it.each([
+  { alreadyActive: false, message: "Enabled plan mode" },
+  {
+    alreadyActive: true,
+    message: "Already in plan mode. No plan written yet.",
+  },
+])(
+  "acknowledges /plan without a draft (already active: $alreadyActive)",
+  async ({ alreadyActive, message }) => {
+    const f = fixture();
+    if (alreadyActive) {
+      f.controller.toggle(f.ctx);
+    }
+    await f.command("");
+    expect({
+      notifications: vi.mocked(f.ctx.ui.notify).mock.calls,
+      exists: f.openPlan("session-one").exists(),
+      displayed: f.presentPlan.mock.calls,
+      active: (await f.call("write", { path: "project.ts" }))?.block,
+      modelTurns: f.sendUserMessage.mock.calls,
+      implementation: f.sendImplementationMessage.mock.calls,
+    }).toStrictEqual({
+      notifications: [[message, "info"]],
+      exists: false,
+      displayed: [],
+      active: true,
+      modelTurns: [],
+      implementation: [],
+    });
+  },
+);
+
 it("enters lazily and shows the saved plan without toggling off or starting a turn", async () => {
   const f = fixture();
   await f.command("");
