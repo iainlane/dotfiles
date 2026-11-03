@@ -9,7 +9,6 @@
   makeWrapper,
   autoPatchelfHook,
   nodejs,
-  nix-update,
   procps,
   python3,
   runCommand,
@@ -84,19 +83,15 @@ in
         '';
 
       passthru = {
-        updateScript = updaters.mkScriptUpdater {
-          pname = "rea";
-          script = ./update.sh;
-          extraRuntimeInputs = [nix-update];
+        updateScript = updaters.mkNixUpdateUpdater {
+          attr = "rea";
+          extraFlags = [
+            "--version=stable"
+            "--use-github-releases"
+            "--version-regex=^rea-agents-([0-9]+\\.[0-9]+\\.[0-9]+)$"
+          ];
         };
         tests = {
-          updater = updaters.mkScriptUpdaterTest {
-            pname = "rea";
-            script = ./update.sh;
-            test = ./update.test.sh;
-            extraArgs = [nix-update ./select-version.test.py];
-            extraInputs = [python3];
-          };
           setup-policy = runCommand "rea-setup-policy" {nativeBuildInputs = [python3];} ''
             python3 ${./package.test.py} ${finalAttrs.finalPackage}
             touch "$out"
