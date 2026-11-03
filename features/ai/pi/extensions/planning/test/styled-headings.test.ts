@@ -117,6 +117,8 @@ it.each([
       }));
       const runner = session.extensionRunner;
       initTheme("dark", false);
+      runner.setUIContext(runner.getUIContext(), "tui");
+      await runner.emit({ type: "agent_start" });
       const nativeSession = session;
       const components = new Map<string, ToolExecutionComponent>();
       const traces = new Map<string, RendererTrace>();
