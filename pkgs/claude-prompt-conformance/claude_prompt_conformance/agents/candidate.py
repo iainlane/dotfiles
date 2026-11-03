@@ -316,8 +316,12 @@ def parse_claude_response(
     actual_style = initialisation.output_style
     if actual_style != expected_style:
         raise CandidateOutputStyleError(actual_style, expected_style)
-    if initialisation.model != expected_model:
-        raise CandidateModelError(initialisation.model, expected_model)
+    # Clients report the resolved model id at initialisation without the
+    # `[1m]` suffix that selects the 1M-token context variant, and send the
+    # API request with that plain id too.
+    expected_init_model = expected_model.removesuffix("[1m]")
+    if initialisation.model != expected_init_model:
+        raise CandidateModelError(initialisation.model, expected_init_model)
     results = (event for event in reversed(events) if event.type == "result")
     try:
         terminal = next(results)
