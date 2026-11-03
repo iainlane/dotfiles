@@ -3,11 +3,13 @@
   stdenv,
   buildNpmPackage,
   fetchFromGitHub,
+  fetchNpmDeps,
   installAgentSkills,
   installShellFiles,
   makeWrapper,
   autoPatchelfHook,
   nodejs,
+  nix-update,
   procps,
   python3,
   runCommand,
@@ -42,6 +44,11 @@ in
       patches = [./external-tools.patch];
 
       npmDepsHash = "sha256-JSlBkkqNWSOLooWjJmAQijrlcQgJwKaha2r5celKXsQ=";
+      npmDeps = fetchNpmDeps {
+        name = "${finalAttrs.pname}-${finalAttrs.version}-npm-deps";
+        inherit (finalAttrs) src;
+        hash = finalAttrs.npmDepsHash;
+      };
       npmFlags = ["--ignore-scripts"];
       npmBuildScript = "compile";
       postBuild = "node scripts/generate-skill-metadata.mjs";
@@ -77,11 +84,20 @@ in
         '';
 
       passthru = {
-        updateScript = updaters.mkNixUpdateUpdater {
-          attr = "rea";
-          extraFlags = ["--version=branch"];
+        updateScript = updaters.mkScriptUpdater {
+          pname = "rea";
+          script = ./update.sh;
+          extraRuntimeInputs = [nix-update];
         };
         tests = {
+          npm-deps = callPackage ./npm-deps-check.nix {rea = finalAttrs.finalPackage;};
+          updater = updaters.mkScriptUpdaterTest {
+            pname = "rea";
+            script = ./update.sh;
+            test = ./update.test.sh;
+            extraArgs = [nix-update];
+            extraInputs = [python3];
+          };
           setup-policy = runCommand "rea-setup-policy" {nativeBuildInputs = [python3];} ''
             python3 ${./package.test.py} ${finalAttrs.finalPackage}
             touch "$out"
