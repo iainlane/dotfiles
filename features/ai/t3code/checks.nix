@@ -1,6 +1,7 @@
 {pkgs, ...}: let
+  t3Home = "/home/fixture/config with spaces/t3";
   probe = pkgs.writeShellScript "t3code-environment-probe" ''
-    printf '%s\n' "''${T3CODE_TELEMETRY_ENABLED-unset}" "$@"
+    printf '%s\n' "''${T3CODE_TELEMETRY_ENABLED-unset}" "''${T3CODE_HOME-unset}" "$@"
   '';
   fixture = pkgs.stdenvNoCC.mkDerivation {
     pname = "t3code-fixture";
@@ -28,21 +29,21 @@
   configured = desktop:
     import ./package.nix {
       pkgs = pkgs // {t3code = fixturePackage;};
-      inherit desktop;
+      inherit desktop t3Home;
     };
   cli = configured false;
   desktop = configured true;
 in {
   t3code-environment = pkgs.runCommand "t3code-environment" {} ''
-    printf '%s\n' false 'argument with spaces' --flag > expected
+    printf '%s\n' false '${t3Home}' 'argument with spaces' --flag > expected
     for program in \
       ${cli}/bin/t3 \
       ${desktop}/bin/t3 \
       ${desktop}/bin/t3code-desktop \
       "${desktop}/Applications/T3 Code (Alpha).app/Contents/MacOS/T3 Code (Alpha)"; do
-      env -u T3CODE_TELEMETRY_ENABLED "$program" 'argument with spaces' --flag > actual
+      env -u T3CODE_TELEMETRY_ENABLED -u T3CODE_HOME "$program" 'argument with spaces' --flag > actual
       diff -u expected actual
-      T3CODE_TELEMETRY_ENABLED=true "$program" 'argument with spaces' --flag > actual
+      T3CODE_TELEMETRY_ENABLED=true T3CODE_HOME=/other/t3 "$program" 'argument with spaces' --flag > actual
       diff -u expected actual
     done
 

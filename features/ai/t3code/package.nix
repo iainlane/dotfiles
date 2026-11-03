@@ -1,17 +1,23 @@
 {
   pkgs,
   desktop,
+  t3Home,
 }: let
-  t3code = pkgs.t3code.override {
-    t3code-unwrapped = pkgs.t3code.unwrapped.overrideAttrs (previous: {
-      postFixup =
-        (previous.postFixup or "")
-        + ''
-          for program in t3 t3code-desktop; do
-            wrapProgram "$out/bin/$program" --set T3CODE_TELEMETRY_ENABLED false
-          done
-        '';
-    });
+  t3code = pkgs.symlinkJoin {
+    inherit (pkgs.t3code) pname version meta;
+    paths = [pkgs.t3code];
+    nativeBuildInputs = [pkgs.makeBinaryWrapper];
+    postBuild = ''
+      for program in "$out/bin/"* "$out/Applications/"*.app/Contents/MacOS/*; do
+        if [ ! -f "$program" ]; then
+          continue
+        fi
+
+        wrapProgram "$program" \
+          --set T3CODE_TELEMETRY_ENABLED false \
+          --set T3CODE_HOME ${pkgs.lib.escapeShellArg t3Home}
+      done
+    '';
   };
 in
   if desktop
