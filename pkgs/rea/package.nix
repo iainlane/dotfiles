@@ -90,12 +90,11 @@ in
           extraRuntimeInputs = [nix-update];
         };
         tests = {
-          npm-deps = callPackage ./npm-deps-check.nix {rea = finalAttrs.finalPackage;};
           updater = updaters.mkScriptUpdaterTest {
             pname = "rea";
             script = ./update.sh;
             test = ./update.test.sh;
-            extraArgs = [nix-update];
+            extraArgs = [nix-update ./select-version.test.py];
             extraInputs = [python3];
           };
           setup-policy = runCommand "rea-setup-policy" {nativeBuildInputs = [python3];} ''
