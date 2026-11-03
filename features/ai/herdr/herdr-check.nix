@@ -20,7 +20,8 @@ in {
         ${lib.getExe herdr} \
         ${pkgs.herdr-annotate.pluginRoot} \
         ${pkgs.herdr-annotate-links.pluginRoot} \
-        ${lib.getExe inputs.llm-agents.packages.${system}.plannotator-tui}
+        ${lib.getExe inputs.llm-agents.packages.${system}.plannotator-tui} \
+        ${inputs.llm-agents.packages.${system}.plannotator-tui.version}
 
       touch "$out"
     '';

@@ -810,6 +810,7 @@ def codex_isolated_features() -> dict[str, bool]:
         "in_app_browser": False,
         "memories": False,
         "mcp_2026_07_28": False,
+        "mcp_connection_sharing": False,
         "mentions_v2": False,
         "multi_agent": False,
         "plugins": False,

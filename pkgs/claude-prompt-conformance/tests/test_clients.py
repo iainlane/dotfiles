@@ -1583,6 +1583,7 @@ def test_codex_judge_uses_bespoke_mcp_and_shared_auth(
                 "in_app_browser": False,
                 "memories": False,
                 "mcp_2026_07_28": False,
+                "mcp_connection_sharing": False,
                 "mentions_v2": False,
                 "multi_agent": False,
                 "plugins": False,

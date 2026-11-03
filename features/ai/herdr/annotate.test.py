@@ -5,7 +5,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-herdr, annotate_arg, links_arg, tui_arg = sys.argv[1:]
+herdr, annotate_arg, links_arg, tui_arg, tui_version = sys.argv[1:]
 annotate = Path(annotate_arg)
 links = Path(links_arg)
 tui = Path(tui_arg)
@@ -19,7 +19,7 @@ manifest = tomllib.loads((annotate / "herdr-plugin.toml").read_text())
 assert "build" not in manifest, "Nix must stage every runtime dependency"
 assert (annotate / "bin/plannotator-tui.exe").resolve() == tui.resolve()
 assert run(str(annotate / "bin/herdr-annotate.exe"), "--version") == "herdr-annotate 0.2.0"
-assert run(str(annotate / "bin/plannotator-tui.exe"), "--version") == "plannotator-tui 0.9.4"
+assert run(str(annotate / "bin/plannotator-tui.exe"), "--version") == f"plannotator-tui {tui_version}"
 doc = next(pane for pane in manifest["panes"] if pane["id"] == "doc")
 assert doc["command"] == [str(tui), "herdr", "pane"]
 for action in manifest["actions"]:
