@@ -1,21 +1,21 @@
 {
   "platforms": {
     "aarch64-darwin": {
-      "hash": "sha256-2nWLpeBH6wiJwuD06wNgd0gxBiAUpCqWSbw2yauVMT4=",
-      "url": "https://dl.enforce.dev/chainctl/0.2.391/chainctl_darwin_arm64"
+      "hash": "sha256-Q2xlZFv2TDQdJKElGu07umKbZULpZ+7joBlBBtRMR4g=",
+      "url": "https://dl.enforce.dev/chainctl/0.2.394/chainctl_darwin_arm64"
     },
     "aarch64-linux": {
-      "hash": "sha256-mxyKMUyx3poeUYSW8ErbofQKB+wPnhra/gUDOj7Ullc=",
-      "url": "https://dl.enforce.dev/chainctl/0.2.391/chainctl_linux_arm64"
+      "hash": "sha256-fEp/geka1dUr/NIB32sJNBWc3ZJNjLGaKvaGAKhXnTU=",
+      "url": "https://dl.enforce.dev/chainctl/0.2.394/chainctl_linux_arm64"
     },
     "x86_64-darwin": {
-      "hash": "sha256-RNQ5wXB94yHTMIOKf7QI1N137B2phDNyPhaH6LA4vQc=",
-      "url": "https://dl.enforce.dev/chainctl/0.2.391/chainctl_darwin_x86_64"
+      "hash": "sha256-y7z4AYLpOM2SkS2kUAgRAtWJXpc9qsMx6HgUswk9OAE=",
+      "url": "https://dl.enforce.dev/chainctl/0.2.394/chainctl_darwin_x86_64"
     },
     "x86_64-linux": {
-      "hash": "sha256-rA2C7iR6eZfSt5iWJ0AN7FZqAjtYAzXOyxDKEkWt9hg=",
-      "url": "https://dl.enforce.dev/chainctl/0.2.391/chainctl_linux_x86_64"
+      "hash": "sha256-HSm+YJL3h0tbFD0zXUFNiQwXDkO3p4OIsfHcWK8T7cg=",
+      "url": "https://dl.enforce.dev/chainctl/0.2.394/chainctl_linux_x86_64"
     }
   },
-  "version": "0.2.391"
+  "version": "0.2.394"
 }

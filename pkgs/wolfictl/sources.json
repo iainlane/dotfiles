@@ -1,21 +1,21 @@
 {
   "platforms": {
     "aarch64-darwin": {
-      "hash": "sha256-zTyH1mL8o+rvQO1Nq4a5JMuur8l0VrLawCVVMwGmIFE=",
-      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.29/wolfictl_darwin_arm64_0.39.29_darwin_arm64"
+      "hash": "sha256-J93NZlv9PfNOv/+WzGhMNa7ex3/n9J9BCMZS5q2Bh6Y=",
+      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.30/wolfictl_darwin_arm64_0.39.30_darwin_arm64"
     },
     "aarch64-linux": {
-      "hash": "sha256-mw3Bh2VdNsssdn2uvcT69dEEIZuEgQPoIDoAiW2KIao=",
-      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.29/wolfictl_linux_arm64_0.39.29_linux_arm64"
+      "hash": "sha256-pK62YGJeNPHmD9VvXA1SbPzyFWzsfdeasNHapMpFWco=",
+      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.30/wolfictl_linux_arm64_0.39.30_linux_arm64"
     },
     "x86_64-darwin": {
-      "hash": "sha256-rOhS4od7Mz5VXfF4r/fYDZFSF1nUcz4UU7nwMop1laQ=",
-      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.29/wolfictl_darwin_amd64_0.39.29_darwin_amd64"
+      "hash": "sha256-BrNiy5LiyZinfGeHxLz14qUTpYteUL9Qo89zJQjKvuM=",
+      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.30/wolfictl_darwin_amd64_0.39.30_darwin_amd64"
     },
     "x86_64-linux": {
-      "hash": "sha256-az01DkuEXeU6ThfCq4FuLQRe7VlKiNiOyWbWeSzrLeU=",
-      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.29/wolfictl_linux_amd64_0.39.29_linux_amd64"
+      "hash": "sha256-UFL7Vzszn/atXcLatJXx9gDgB/KUmIrdKlWNkFoM4hY=",
+      "url": "https://github.com/wolfi-dev/wolfictl/releases/download/v0.39.30/wolfictl_linux_amd64_0.39.30_linux_amd64"
     }
   },
-  "version": "0.39.29"
+  "version": "0.39.30"
 }
