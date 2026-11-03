@@ -41,10 +41,12 @@ SH
 cat >>"${fixture}/bin/nix-prefetch-git" <<'SH'
 set -euo pipefail
 if [[ "${UPDATE_TEST_FAIL:-}" == prefetch ]]; then exit 2; fi
-case " $* " in
-*" --quiet "*) ;;
-*) echo 'nix-prefetch-git must be called with --quiet so stdout is JSON only.' >&2; exit 1 ;;
-esac
+for flag in --quiet --fetch-submodules; do
+  case " $* " in
+  *" $flag "*) ;;
+  *) echo "nix-prefetch-git must be called with $flag." >&2; exit 1 ;;
+  esac
+done
 touch "${UPDATE_TEST_ROOT}/called"
 printf '{"hash":"new-source-hash"}\n'
 SH
