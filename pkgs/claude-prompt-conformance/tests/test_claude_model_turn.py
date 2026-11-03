@@ -40,9 +40,10 @@ from .claude_stream_protocol import ScriptedMessagesEndpoint, text, tool_use
 from .helpers import make_fixture
 
 OUTPUT_STYLE = "Plain technical prose"
-# The `[1m]` form the managed settings use. The client reports it verbatim at
-# initialisation and sends the model without the suffix to the API.
-MODEL = "claude-fable-5-1[1m]"
+# The managed settings contain the model in its `[1m]` form. Current clients
+# report the plain model at initialisation and send the same plain model to
+# the API.
+MODEL = "claude-fable-5-1"
 REQUESTED_MODEL = "claude-fable-5-1"
 FINAL_RESPONSE = "The requested deletion was refused; nothing was changed."
 
