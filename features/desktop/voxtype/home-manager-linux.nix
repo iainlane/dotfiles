@@ -48,14 +48,12 @@ in {
     ];
 
     settings = lib.recursiveUpdate voxtypeSettings {
-      # The desktop manages the binding through the XDG GlobalShortcuts
-      # portal: hold to record, release to transcribe. The desktop's saved
-      # binding is authoritative; change it in the desktop's own shortcut
-      # settings.
+      # The desktop's saved binding is authoritative. Change the key in
+      # the desktop's shortcut settings.
       hotkey = {
         enabled = true;
         backend = "portal";
-        mode = "push_to_talk";
+        mode = "toggle";
       };
 
       output = {

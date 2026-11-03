@@ -28,7 +28,7 @@
     lib.recursiveUpdate {
       hotkey = {
         key = "FN";
-        mode = "push_to_talk";
+        mode = "toggle";
       };
 
       audio = {

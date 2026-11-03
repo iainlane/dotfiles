@@ -1,5 +1,4 @@
-# voxtype, built from the fork branch this flake pins.
-# To update: nix run .#update-voxtype
+# To update the pinned fork: nix run .#update-voxtype
 {
   lib,
   stdenv,
@@ -151,9 +150,12 @@ in
     env =
       {
         LIBCLANG_PATH = "${lib.getLib libclang}/lib";
-        RUSTFLAGS = lib.optionalString (
-          stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isx86_64
-        ) "-C target-cpu=x86-64-v3";
+        RUSTFLAGS = lib.concatStringsSep " " (
+          lib.optional (
+            stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isx86_64
+          ) "-C target-cpu=x86-64-v3"
+          ++ lib.optional webgpuOnnxSupport "-C link-arg=-Wl,-rpath,${webgpuRuntime}/lib"
+        );
       }
       // lib.optionalAttrs webgpuOnnxSupport {
         ORT_CACHE_DIR = webgpuRuntime;

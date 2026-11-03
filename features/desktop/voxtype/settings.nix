@@ -4,7 +4,11 @@
   engine = "parakeet";
 
   parakeet = {
-    model = "${pkgs.parakeet-tdt-onnx}";
+    model = "${pkgs.parakeet-unified-onnx}";
+    streaming = true;
+    streaming_chunk_secs = 0.32;
+    streaming_left_context_secs = 5.6;
+    streaming_right_context_secs = 0.32;
   };
 
   output.notification.on_transcription = false;

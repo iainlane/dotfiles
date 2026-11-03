@@ -1,0 +1,12 @@
+{
+  "repository": "bobNight/parakeet-unified-en-0.6b-onnx",
+  "version": "0.6b",
+  "revision": "09e9060322d99c5f070010724786e6ee090fd51d",
+  "files": {
+    "encoder.onnx": "sha256-UAg90LKvUDuH6o/Pn9fX3BXdoxMOQRMBfIs37QBBi6Q=",
+    "encoder.onnx.data": "sha256-wFSyky7hOqOe2EmCo5mCLzGTMR+2/Y4eIEVmciYUvYc=",
+    "decoder_joint.onnx": "sha256-ZGSMkZNepIGenDHqiiDwEdOxyWC+OGHLi8dN8CWc2Zg=",
+    "tokenizer.model": "sha256-B9TlpjhApTqy1NEG0odHaBQ/s/vdR5OLORDS2gW/sKk=",
+    "vocab.txt": "sha256-rmHJt0PLR8BM5vsTBEQhBkbtD0DJU8d+4YVRhZYK+U8="
+  }
+}
