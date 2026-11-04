@@ -28,8 +28,8 @@ to another commit; an invalid reference reports an error. Pi Pretty formats
 reads and shell output, while native search tools preserve their path and query
 semantics. Pi Diff provides expandable file changes.
 
-[Plan mode]: extensions/planning/README.md
-[session footer]: extensions/session-footer/README.md
+[Plan mode]: ../../../pkgs/pi-planning/README.md
+[session footer]: ../../../pkgs/pi-session-footer/README.md
 
 ## Code intelligence
 

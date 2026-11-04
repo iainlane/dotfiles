@@ -7,7 +7,6 @@
   lib,
   mcp,
   modelCatalog,
-  system,
   ...
 }: let
   piExtensions =
@@ -31,17 +30,6 @@
     ]
     pkgs;
 
-  nativePi = import ./pi-package.nix {inherit inputs system;};
-
-  # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
-  sessionFooter = import ./session-footer-package.nix {
-    inherit pkgs;
-    pi = nativePi;
-  };
-  planning = import ./planning-package.nix {
-    inherit pkgs;
-    pi = nativePi;
-  };
   catppuccin = import ./catppuccin-themes.nix {
     inherit lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -49,7 +37,7 @@
   };
 
   wrappedPi = mcp.wrapWithTools {
-    package = nativePi;
+    package = pkgs.pi;
     binName = "pi";
     extraWrapperArgs = [
       "--set"
@@ -258,8 +246,9 @@
     piExtensions;
 
   localExtensionFiles = {
-    ".pi/agent/extensions/session-footer".source = "${sessionFooter}/${sessionFooter.packageRoot}";
-    ".pi/agent/extensions/planning".source = "${planning}/${planning.packageRoot}";
+    # Pi discovers ~/.pi/agent/extensions/*/index.ts without a settings entry.
+    ".pi/agent/extensions/session-footer".source = "${pkgs.pi-session-footer}/${pkgs.pi-session-footer.packageRoot}";
+    ".pi/agent/extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
   };
 in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};

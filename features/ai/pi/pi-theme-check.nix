@@ -1,10 +1,8 @@
 {
   inputs,
   pkgs,
-  system,
   ...
 }: let
-  pi = import ./pi-package.nix {inherit inputs system;};
   themes = import ./catppuccin-themes.nix {
     inherit (pkgs) lib;
     catppuccinPaletteSource = inputs.catppuccin-palette;
@@ -89,7 +87,7 @@ in {
     mkdir -p "$PI_CODING_AGENT_DIR"
     printf '%s\n' '{"defaultProjectTrust":"never","packages":[]}' > "$PI_CODING_AGENT_DIR/settings.json"
     printf '%s\n' '{"type":"get_state","id":"theme"}' | \
-      ${pi}/bin/pi --mode rpc --no-session --no-context-files --no-skills --no-prompt-templates --no-extensions -e ${probe} > rpc-output
+      ${pkgs.pi}/bin/pi --mode rpc --no-session --no-context-files --no-skills --no-prompt-templates --no-extensions -e ${probe} > rpc-output
     test -f theme-probe-ok || { cat rpc-output >&2; exit 1; }
     touch "$out"
   '';

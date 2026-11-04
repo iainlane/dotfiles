@@ -35,39 +35,27 @@ for (const [name, dependency] of [
   const patch =
     name === "pi-sub-core"
       ? (process.env.PI_FOOTER_CORE_PATCH ??
-        resolve(root, "../../../../../pkgs/pi-sub-core/reading-metadata.patch"))
+        resolve(root, "../pi-sub-core/reading-metadata.patch"))
       : name === "rpiv-btw"
         ? (process.env.PI_FOOTER_BTW_ISOLATION_PATCH ??
-          resolve(root, "../../../../../pkgs/rpiv-btw/session-isolation.patch"))
+          resolve(root, "../rpiv-btw/session-isolation.patch"))
         : (process.env.PI_FOOTER_TODO_PATCH ??
-          resolve(
-            root,
-            "../../../../../pkgs/rpiv-todo/widget-visibility.patch",
-          ));
+          resolve(root, "../rpiv-todo/widget-visibility.patch"));
 
   const patches =
     name === "pi-sub-core"
       ? [
           patch,
           process.env.PI_FOOTER_CORE_BACKGROUND_PATCH ??
-            resolve(
-              root,
-              "../../../../../pkgs/pi-sub-core/background-refresh.patch",
-            ),
+            resolve(root, "../pi-sub-core/background-refresh.patch"),
           process.env.PI_FOOTER_CORE_CREDENTIAL_PATCH ??
-            resolve(
-              root,
-              "../../../../../pkgs/pi-sub-core/credential-file.patch",
-            ),
+            resolve(root, "../pi-sub-core/credential-file.patch"),
         ]
       : name === "rpiv-btw"
         ? [
             patch,
             process.env.PI_FOOTER_BTW_RUNTIME_PATCH ??
-              resolve(
-                root,
-                "../../../../../pkgs/rpiv-btw/public-runtime.patch",
-              ),
+              resolve(root, "../rpiv-btw/public-runtime.patch"),
           ]
         : [patch];
   for (const source of patches) {

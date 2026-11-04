@@ -28,7 +28,7 @@ buildNpmPackage {
   nativeCheckInputs = [gitMinimal];
   doCheck = true;
   preBuild = ''
-    bash ${../../features/ai/pi/scripts/setup-native-sdk.bash} "${pi.sdk}/${pi.sdkPackageRoot}"
+    bash ${pi.setupNativeSdk} "${pi.sdk}/${pi.sdkPackageRoot}"
   '';
   preCheck = lib.optionalString stdenv.hostPlatform.isLinux ''
     autoPatchelf node_modules/@biomejs/cli-linux-${stdenv.hostPlatform.node.arch}/biome

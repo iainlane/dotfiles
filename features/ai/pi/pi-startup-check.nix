@@ -5,11 +5,7 @@
   ...
 }: let
   inherit (pkgs) lib;
-  nativePi = import ./pi-package.nix {inherit inputs system;};
-  testSupport = import ./test-package.nix {
-    inherit pkgs;
-    pi = nativePi;
-  };
+  testSupport = pkgs.pi-integration-tests;
   testRoot = "${testSupport}/${testSupport.packageRoot}/dist";
   piArgs = {
     inherit pkgs inputs lib system modelCatalog;

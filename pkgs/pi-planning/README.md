@@ -279,12 +279,12 @@ Reloading extensions does not replace a compiled host that is already running.
 From the repository root, build the matching packages:
 
 ```sh
-native=$(direnv exec . nix build .#pi-native --no-link --print-out-paths --option allow-import-from-derivation false)
-sdk=$(direnv exec . nix build .#pi-native-sdk --no-link --print-out-paths --option allow-import-from-derivation false)
+native=$(direnv exec . nix build .#pi --no-link --print-out-paths --option allow-import-from-derivation false)
+sdk=$(direnv exec . nix build .#pi.sdk --no-link --print-out-paths --option allow-import-from-derivation false)
 pretty=$(direnv exec . nix build .#pi-pretty --no-link --print-out-paths --option allow-import-from-derivation false)
 diff=$(direnv exec . nix build .#pi-diff --no-link --print-out-paths --option allow-import-from-derivation false)
 subagents=$(direnv exec . nix build .#pi-subagents --no-link --print-out-paths --option allow-import-from-derivation false)
-cd features/ai/pi/extensions/planning
+cd pkgs/pi-planning
 npm ci --ignore-scripts
 npm run setup:native-sdk -- "$sdk/libexec/pi-sdk"
 PI_TEST_HOST="$native/bin/pi" \
