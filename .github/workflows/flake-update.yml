@@ -66,10 +66,84 @@ jobs:
           set -euo pipefail
           nix build .#flake-lock-summary --out-link "${RUNNER_TEMP}/flake-lock-summary"
 
+      # The versions show which local packages the relock changes. A flake that
+      # does not evaluate before the relock still gets its relock, without
+      # dependent updates.
+      - name: Record the package versions
+        run: |
+          set -euo pipefail
+          if ! nix eval --json .#.packageVersions > "${RUNNER_TEMP}/versions-before.json"; then
+            echo "::warning::The flake does not evaluate before the relock; not updating dependent packages"
+            rm -f "${RUNNER_TEMP}/versions-before.json"
+          fi
+
       - name: Relock flake inputs
         run: |
           set -euo pipefail
           nix flake update
+          git add flake.lock
+
+      # A relock can change a package, such as pi from llm-agents, that other
+      # local packages pin. When the relocked flake does not evaluate, the pull
+      # request still opens, without these updates.
+      - name: Update the packages that depend on changed packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          : > "${RUNNER_TEMP}/updated.txt"
+          : > "${RUNNER_TEMP}/failed.txt"
+
+          if [[ ! -f "${RUNNER_TEMP}/versions-before.json" ]]; then
+            exit 0
+          fi
+
+          if ! nix eval --json .#.packageVersions > "${RUNNER_TEMP}/versions-after.json"; then
+            echo "::warning::The relocked flake does not evaluate; not updating the packages that depend on it"
+            exit 0
+          fi
+
+          mapfile -t changed < <(
+            jq -r --slurpfile before "${RUNNER_TEMP}/versions-before.json" \
+              'to_entries[] | select(.value != $before[0][.key]) | .key' \
+              "${RUNNER_TEMP}/versions-after.json"
+          )
+
+          if ((${#changed[@]} == 0)); then
+            echo "The relock changed no local package."
+            exit 0
+          fi
+
+          if ! names="$(nix run .#update-plan -- downstream "${changed[@]}")"; then
+            echo "::warning::update-plan failed; not updating the packages that depend on changed packages"
+            exit 0
+          fi
+
+          for name in ${names}; do
+            echo "::group::update-${name}"
+
+            if ! nix run ".#update-${name}"; then
+              echo "::warning::update-${name} failed; leaving it unchanged"
+              printf '%s\n' "${name}" >> "${RUNNER_TEMP}/failed.txt"
+              git checkout -- .
+              git clean -fd
+              echo '::endgroup::'
+              continue
+            fi
+
+            if git diff --quiet; then
+              echo "${name} already current."
+              echo '::endgroup::'
+              continue
+            fi
+
+            printf '%s\n' "${name}" >> "${RUNNER_TEMP}/updated.txt"
+            git add -A
+
+            echo '::endgroup::'
+          done
 
       - name: Open a pull request for the relocked inputs
         env:
@@ -77,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet; then
+          if git diff --cached --quiet; then
             echo "Flake inputs already current; nothing to propose."
             exit 0
           fi
@@ -108,21 +182,37 @@ jobs:
               done
 
           git switch -C "${branch}"
-          git commit -am "chore(flake): update inputs"
+          git commit -m "chore(flake): update inputs"
           git push origin "HEAD:refs/heads/${branch}"
 
-          body="$(printf '%s\n' \
-            "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow (\`nix flake update\`)." \
-            "" \
-            "Updated inputs:" \
-            "" \
-            "${summary}" \
-            "" \
-            "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.")"
+          {
+            echo "Automated relock of the flake inputs from the scheduled \`flake-update\` workflow (\`nix flake update\`)."
+            echo
+            echo "Updated inputs:"
+            echo
+            echo "${summary}"
+
+            if [[ -s "${RUNNER_TEMP}/updated.txt" ]]; then
+              echo
+              echo "Updated packages that depend on changed packages:"
+              echo
+              sed 's/^/- /' "${RUNNER_TEMP}/updated.txt"
+            fi
+
+            if [[ -s "${RUNNER_TEMP}/failed.txt" ]]; then
+              echo
+              echo "Failed to update, left unchanged:"
+              echo
+              sed 's/^/- /' "${RUNNER_TEMP}/failed.txt"
+            fi
+
+            echo
+            echo "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache."
+          } > "${RUNNER_TEMP}/body.md"
 
           gh pr create \
             --base main \
             --head "${branch}" \
             --title "chore(flake): update inputs" \
             --label dependencies \
-            --body "${body}"
+            --body-file "${RUNNER_TEMP}/body.md"

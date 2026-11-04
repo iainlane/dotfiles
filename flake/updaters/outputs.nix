@@ -1,16 +1,19 @@
 # Surface each package's update script as `apps.<system>.update-<name>`, so the
 # updaters are discoverable with `nix flake show` and runnable with
-# `nix run .#update-<name>`. `update-all` runs the lot in sequence.
+# `nix run .#update-<name>`. `update-all` runs the lot in the order from
+# `update-plan`; see `pkgs/update-plan`.
 #
 # Package updaters come from each derivation's `passthru.updateScript`
 # (attached via `pkgs/build-support/updaters.nix`). Flake inputs get an updater
 # here that either advances the release tag or refreshes the branch revision.
 #
-# `flake.updaterNames` lists the updater names for the package-update workflow
-# to iterate, the same way `flake.cupboardOutputs` feeds cupboard.
-# `flake.updaterVersions` maps each of those names to its current version, which
-# the workflow lists in the pull request.
+# `flake.updaterNames` lists the updater names. `flake.updaterVersions` maps
+# each of those names to its current version, which the package-update
+# workflow lists in the pull request. `flake.packageVersions` maps every local
+# package to its version, so the flake-update workflow can find the packages
+# that a relock changed.
 {
+  inputs,
   packages,
   lib,
 }: let
@@ -64,6 +67,8 @@
   packageVersion = name:
     (lib.findFirst (packages: packages ? ${name}) {} (lib.attrValues packages)).${name}.version or "";
 
+  packageVersions = lib.genAttrs packageNames packageVersion;
+
   updaterVersions =
     lib.genAttrs packageUpdaterNames packageVersion
     // lib.genAttrs releaseInputs (input: (lockedReference input).ref)
@@ -86,19 +91,50 @@ in {
 
     updaters = packageUpdaters // flakeInputUpdaters;
 
+    # Evaluating the derivation path writes the derivation to the store, where
+    # `update-plan` reads its closure. The derivation path's string context
+    # would instead make the plan depend on building every package.
+    available = packages.${pkgs.stdenv.hostPlatform.system} or {};
+    nodes = pkgs.writeText "update-plan-nodes.json" (builtins.toJSON (
+      map (name: {
+        inherit name;
+        path =
+          if available ? ${name}
+          then builtins.unsafeDiscardStringContext available.${name}.drvPath
+          else null;
+        updater = updaters ? ${name};
+      })
+      packageNames
+      ++ map (input: {
+        name = input;
+        path = builtins.unsafeDiscardStringContext inputs.${input}.outPath;
+        updater = true;
+      })
+      flakeInputs
+    ));
+
+    updatePlan = pkgs.writeShellApplication {
+      name = "update-plan";
+      runtimeInputs = [pkgs.update-plan];
+      text = ''
+        exec update-plan --nodes ${nodes} "$@"
+      '';
+    };
+
     # Run every updater so one upstream failure does not stop the others.
     # Report the failures together and exit nonzero.
     updateAll = pkgs.writeShellApplication {
       name = "update-all";
       text = ''
+        declare -A updaters=(
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: updater: "[${lib.escapeShellArg name}]=${lib.getExe updater}") updaters)}
+        )
         failed=()
 
-        ${
-          lib.concatStringsSep "\n"
-          (lib.mapAttrsToList
-            (name: updater: ''${lib.getExe updater} || failed+=("update-${name}")'')
-            updaters)
-        }
+        names="$(${lib.getExe updatePlan} order)"
+        for name in ''${names}; do
+          "''${updaters[''${name}]}" || failed+=("update-''${name}")
+        done
 
         if ((''${#failed[@]} > 0)); then
           printf 'These updaters failed: %s\n' "''${failed[*]}" >&2
@@ -123,10 +159,15 @@ in {
           update-all = {
             type = "app";
             program = lib.getExe updateAll;
-            meta.description = "Run every package and flake-input updater in sequence";
+            meta.description = "Run every package and flake-input updater in dependency order";
+          };
+          update-plan = {
+            type = "app";
+            program = lib.getExe updatePlan;
+            meta.description = "Order the updaters by the derivation graph";
           };
         };
     }.apps;
 
-  inherit updaterNames updaterVersions;
+  inherit packageVersions updaterNames updaterVersions;
 }

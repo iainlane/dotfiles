@@ -168,8 +168,9 @@ move this way. `update-pkgs` moves those.
 
 Run every registered updater. A package updater refreshes that package's source
 metadata and any dependency pins it needs. A tag-pinned flake input's updater
-moves the release tag in `flake.nix` and relocks that input.
-`./just update-pkg <name>` runs a single one, for example
+moves the release tag in `flake.nix` and relocks that input. Each updater runs
+after the updaters of its package's dependencies, which `update-plan` reads from
+the derivation graph. `./just update-pkg <name>` runs a single one, for example
 `./just update-pkg chainctl` or `./just update-pkg hermes-agent`.
 
 #### `./just update-system`

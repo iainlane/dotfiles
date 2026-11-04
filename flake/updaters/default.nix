@@ -1,10 +1,11 @@
 {
   config,
+  inputs,
   lib,
   ...
 }: let
   outputs = import ./outputs.nix {
-    inherit lib;
+    inherit inputs lib;
     inherit (config.flake) packages;
   };
   checks = import ./checks.nix {
@@ -21,12 +22,16 @@ in {
       type = lib.types.attrsOf lib.types.str;
       readOnly = true;
     };
+    packageVersions = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      readOnly = true;
+    };
   };
   config = {
     perSystem = {pkgs, ...}: {
       apps = outputs.apps {inherit pkgs;};
       checks = checks {inherit pkgs;};
     };
-    flake = {inherit (outputs) updaterNames updaterVersions;};
+    flake = {inherit (outputs) packageVersions updaterNames updaterVersions;};
   };
 }

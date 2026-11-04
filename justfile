@@ -41,7 +41,7 @@ update-flake *inputs:
 update-pkg name:
     nix run .#update-{{ name }}
 
-# Run every package and tag-pinned-input updater in sequence
+# Run every package and tag-pinned-input updater in dependency order
 update-pkgs:
     nix run .#update-all
 

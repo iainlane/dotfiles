@@ -1,7 +1,8 @@
 # Bump the locally packaged tools and the selected flake inputs, gathering
 # every bump from one run into a single pull request. Each updater is
 # `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
-# exported by `flake/updaters/outputs.nix`.
+# exported by `flake/updaters/outputs.nix`. The updaters run in the order that
+# `update-plan order` prints.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
 # on its own; this workflow updates the `pkgs/` packages, release-tag inputs
@@ -67,10 +68,10 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
-      # Run every updater, keeping going when one fails so an upstream outage
-      # does not block the others. A successful bump is staged; a failed one is
-      # reverted, so a partial write never reaches the commit. Each bump's new
-      # version is recorded for the pull request body.
+      # Run every updater in dependency order, keeping going when one fails so
+      # an upstream outage does not block the others. A successful bump is
+      # staged; a failed one is reverted, so a partial write never reaches the
+      # commit. Each bump's new version is recorded for the pull request body.
       - name: Run the updaters
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          names="$(nix eval --raw .#.updaterNames --apply 'names: builtins.concatStringsSep "\n" names')"
+          names="$(nix run .#update-plan -- order)"
 
           : > "${RUNNER_TEMP}/changed.txt"
           : > "${RUNNER_TEMP}/failed.txt"
