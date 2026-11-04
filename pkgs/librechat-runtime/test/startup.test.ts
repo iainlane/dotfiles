@@ -148,8 +148,7 @@ it.each([0, 2])("limits readiness polling to %i retries", async (retries) => {
 
         return false;
       },
-      SecretReadinessTimeoutError,
-      retries,
+      { attempts: retries, TimeoutError: SecretReadinessTimeoutError },
     ),
   ).rejects.toThrow(SecretReadinessTimeoutError);
 
@@ -159,7 +158,7 @@ it.each([0, 2])("limits readiness polling to %i retries", async (retries) => {
   ]);
 });
 
-it("waits indefinitely for account bootstrap until the probe succeeds", async () => {
+it("waits without a limit until the probe succeeds", async () => {
   let probes = 0;
 
   let pauses = 0;
@@ -171,21 +170,17 @@ it("waits indefinitely for account bootstrap until the probe succeeds", async ()
     },
   });
 
-  await waiter.wait(
-    async () => {
-      probes += 1;
+  await waiter.wait(async () => {
+    probes += 1;
 
-      return probes === 10_001;
-    },
-    SecretReadinessTimeoutError,
-    Number.POSITIVE_INFINITY,
-  );
+    return probes === 10_001;
+  });
 
   expect({ probes, pauses }).toStrictEqual({ probes: 10_001, pauses: 10_000 });
 });
 
 it.each(["before", "during"])(
-  "cancels indefinite readiness polling %s a delay",
+  "cancels unlimited readiness polling %s a delay",
   async (stage) => {
     const controller = new AbortController();
 
@@ -205,15 +200,11 @@ it.each(["before", "during"])(
     }
 
     await expect(
-      waiter.wait(
-        async () => {
-          events.push("probe");
+      waiter.wait(async () => {
+        events.push("probe");
 
-          return false;
-        },
-        SecretReadinessTimeoutError,
-        Number.POSITIVE_INFINITY,
-      ),
+        return false;
+      }),
     ).rejects.toMatchObject({ name: "AbortError" });
 
     expect(events).toStrictEqual(stage === "before" ? [] : ["probe", "pause"]);

@@ -93,8 +93,7 @@ async function attemptStart(
         }
         return probe(port, options.token);
       },
-      FileServerReadinessError,
-      60,
+      { attempts: 60, TimeoutError: FileServerReadinessError },
     );
     signal.throwIfAborted();
     return { process: child, port };

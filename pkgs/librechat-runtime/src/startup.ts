@@ -73,6 +73,12 @@ interface ReadinessDependencies {
   pause(): Promise<void>;
 }
 
+interface ReadinessLimit {
+  attempts: number;
+
+  TimeoutError: new () => Error;
+}
+
 export class ReadinessWaiter {
   private readonly dependencies: ReadinessDependencies;
 
@@ -82,9 +88,10 @@ export class ReadinessWaiter {
 
   async wait(
     probe: () => Promise<boolean>,
-    TimeoutError: new () => Error,
-    remaining = 90,
+    limit?: ReadinessLimit,
   ): Promise<void> {
+    let remaining = limit?.attempts ?? Number.POSITIVE_INFINITY;
+
     while (true) {
       this.dependencies.signal.throwIfAborted();
 
@@ -93,8 +100,8 @@ export class ReadinessWaiter {
         return;
       }
 
-      if (remaining === 0) {
-        throw new TimeoutError();
+      if (limit !== undefined && remaining === 0) {
+        throw new limit.TimeoutError();
       }
 
       // oxlint-disable-next-line no-await-in-loop -- Delay each retry after the failed probe.

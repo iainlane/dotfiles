@@ -75,46 +75,6 @@ const secretSchema = z.object({
   iv: z.string(),
 });
 
-export class MongoReadinessError extends Error {
-  constructor() {
-    super("MongoDB did not become ready before its startup deadline");
-
-    this.name = "MongoReadinessError";
-  }
-}
-
-export class PostgresReadinessError extends Error {
-  constructor() {
-    super("PostgreSQL did not become ready before its startup deadline");
-
-    this.name = "PostgresReadinessError";
-  }
-}
-
-export class CodeApiReadinessError extends Error {
-  constructor() {
-    super("CodeAPI did not become ready before its startup deadline");
-
-    this.name = "CodeApiReadinessError";
-  }
-}
-
-export class RagReadinessError extends Error {
-  constructor() {
-    super("The retrieval API did not become ready before its startup deadline");
-
-    this.name = "RagReadinessError";
-  }
-}
-
-export class AccountBootstrapReadinessError extends Error {
-  constructor() {
-    super("The personal account has not been bootstrapped");
-
-    this.name = "AccountBootstrapReadinessError";
-  }
-}
-
 async function exists(file: string): Promise<boolean> {
   try {
     await stat(file);
@@ -352,10 +312,7 @@ export class NativeHostStack {
       ],
     });
 
-    await this.readiness.wait(
-      () => this.mongo(mongoUri, secrets.mongodb),
-      MongoReadinessError,
-    );
+    await this.readiness.wait(() => this.mongo(mongoUri, secrets.mongodb));
 
     const postgresDirectory = join(state, "postgres");
 
@@ -416,7 +373,7 @@ export class NativeHostStack {
       } catch {
         return false;
       }
-    }, PostgresReadinessError);
+    });
 
     if (
       (
@@ -476,11 +433,7 @@ export class NativeHostStack {
 
     const accountFile = join(state, "account.json");
 
-    await this.readiness.wait(
-      () => exists(accountFile),
-      AccountBootstrapReadinessError,
-      Number.POSITIVE_INFINITY,
-    );
+    await this.readiness.wait(() => exists(accountFile));
 
     const accountRaw: unknown = JSON.parse(await readFile(accountFile, "utf8"));
 
@@ -769,9 +722,8 @@ export class NativeHostStack {
       ),
     );
 
-    await this.readiness.wait(
-      () => httpReady(`http://127.0.0.1:${ports.codeApi}/v1/health`),
-      CodeApiReadinessError,
+    await this.readiness.wait(() =>
+      httpReady(`http://127.0.0.1:${ports.codeApi}/v1/health`),
     );
 
     const supervisor = new ConversationRuntimeSupervisor({
@@ -862,9 +814,8 @@ export class NativeHostStack {
     }
 
     if (ragEnabled) {
-      await this.readiness.wait(
-        () => httpReady("http://127.0.0.1:3180/health"),
-        RagReadinessError,
+      await this.readiness.wait(() =>
+        httpReady("http://127.0.0.1:3180/health"),
       );
     }
 
