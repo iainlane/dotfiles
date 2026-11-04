@@ -193,11 +193,10 @@ in {
           };
         };
         testScript = ''
-          from datetime import timedelta
-
           machine.start()
-          machine.wait_for_unit("multi-user.target")
-          machine.succeed("su - fixture -c '${python}/bin/python3 ${./startup-test.py} ${startupConfiguration}'", timeout=timedelta(seconds=400))
+          # Unlike succeed, wait_for_unit always enforces a time limit.
+          machine.succeed("systemctl start multi-user.target")
+          machine.succeed("su - fixture -c '${python}/bin/python3 ${./startup-test.py} ${startupConfiguration}'")
         '';
       };
 

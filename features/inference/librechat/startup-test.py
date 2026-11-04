@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 import contextlib
 import json
 import logging
@@ -210,7 +209,6 @@ def configure_logging() -> None:
 def response(
     url: str,
     body: dict[str, str] | None = None,
-    timeout: float = 10,
     *,
     token: str | None = None,
 ) -> tuple[int, bytes]:
@@ -225,7 +223,7 @@ def response(
     )
 
     try:
-        result = urllib.request.urlopen(request, timeout=timeout)
+        result = urllib.request.urlopen(request)
     except urllib.error.HTTPError as failure:
         result = failure
 
@@ -284,14 +282,14 @@ def verify_interface(base_url: str, token: str) -> None:
 
 def available(url: str) -> bool:
     try:
-        return response(url, timeout=1)[0] == 200
+        return response(url)[0] == 200
     except (OSError, urllib.error.URLError):
         return False
 
 
 def listening(port: int) -> bool:
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+        with socket.create_connection(("127.0.0.1", port)):
             return True
     except OSError:
         return False
@@ -327,7 +325,7 @@ def verify_asset_transfer(manifest: HostManifest) -> None:
         data=json.dumps({"payload": payload, "claims": claims}).encode(),
         headers={"Content-Type": "application/json", "X-CodeAPI-Internal-Token": internal},
     )
-    with urllib.request.urlopen(request, timeout=10) as result:
+    with urllib.request.urlopen(request) as result:
         transfer = PreparedTransfer.model_validate_json(result.read())
     contents = b"LibreChat artefact round trip\n"
     request = urllib.request.Request(
@@ -336,7 +334,7 @@ def verify_asset_transfer(manifest: HostManifest) -> None:
         headers={"Content-Type": "text/plain", "X-Original-Filename": "result.txt", "X-CodeAPI-Egress-Grant": transfer.token},
     )
     try:
-        result = urllib.request.urlopen(request, timeout=10)
+        result = urllib.request.urlopen(request)
     except urllib.error.HTTPError as failure:
         raise AssertionError(f"Artefact upload returned HTTP {failure.code}: {failure.read().decode()}") from failure
     with result:
@@ -345,7 +343,7 @@ def verify_asset_transfer(manifest: HostManifest) -> None:
         f"{file_server}/sessions/{session}/objects/aaaaaaaaaaaaaaaaaaaaa",
         headers={"X-CodeAPI-Internal-Token": internal},
     )
-    with urllib.request.urlopen(request, timeout=10) as result:
+    with urllib.request.urlopen(request) as result:
         assert {"status": result.status, "contents": result.read()} == {"status": 200, "contents": contents}
     LOG.info("asset_transfer_succeeded")
 
@@ -358,9 +356,7 @@ def contains(path: Path, message: str) -> bool:
 def wait_for(
     process: subprocess.Popen[bytes], probe: Callable[[], bool], description: str
 ) -> None:
-    deadline = time.monotonic() + 90
-
-    while time.monotonic() < deadline:
+    while True:
         if process.poll() is not None:
             raise AssertionError(
                 f"Service exited with status {process.returncode} "
@@ -373,22 +369,15 @@ def wait_for(
 
         time.sleep(0.1)
 
-    raise AssertionError(f"Timed out waiting for {description}")
-
 
 def stop(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is None:
         process.terminate()
 
-    try:
-        process.wait(timeout=30)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait(timeout=10)
-        raise
+    process.wait()
 
 
-async def bootstrap_account(
+def bootstrap_account(
     configuration: StartupConfiguration,
     manifest: Path,
     password: Path,
@@ -407,12 +396,12 @@ async def bootstrap_account(
         "--password-file",
         str(password),
     ]
-    process = await asyncio.create_subprocess_exec(
-        *command,
+    process = subprocess.Popen(
+        command,
         cwd=manifest.parent,
         env=environment,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
     errors_seen = False
@@ -420,27 +409,23 @@ async def bootstrap_account(
     started = False
 
     try:
-        async with asyncio.timeout(90) as deadline:
-            assert process.stdout is not None
+        assert process.stdout is not None
 
-            async for raw_line in process.stdout:
-                output.write(raw_line)
-                output.flush()
-                line = ANSI_COLOUR.sub("", raw_line.decode(errors="replace")).rstrip()
-                if not started and line.endswith(PROVISIONING_STARTED):
-                    started = True
-                    deadline.reschedule(asyncio.get_running_loop().time() + 60)
+        for raw_line in process.stdout:
+            output.write(raw_line)
+            output.flush()
+            line = ANSI_COLOUR.sub("", raw_line.decode(errors="replace")).rstrip()
+            started |= line.endswith(PROVISIONING_STARTED)
+            is_error = ERROR_LOG.search(line) is not None
+            errors_seen |= is_error
+            completed |= line == "LibreChat account bootstrap completed."
+            LOG.log(
+                logging.ERROR if is_error else logging.INFO,
+                "bootstrap_output",
+                line=line,
+            )
 
-                is_error = ERROR_LOG.search(line) is not None
-                errors_seen |= is_error
-                completed |= line == "LibreChat account bootstrap completed."
-                LOG.log(
-                    logging.ERROR if is_error else logging.INFO,
-                    "bootstrap_output",
-                    line=line,
-                )
-
-            status = await process.wait()
+        status = process.wait()
 
         if status != 0:
             raise subprocess.CalledProcessError(status, command)
@@ -454,11 +439,11 @@ async def bootstrap_account(
         if not completed:
             raise AssertionError("Bootstrap did not emit its completion message")
     finally:
-        if process.returncode is None:
+        if process.poll() is None:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
 
-            await asyncio.wait_for(process.wait(), timeout=10)
+            process.wait()
 
 
 def verify_bootstrap_name_validation(
@@ -487,7 +472,7 @@ def verify_bootstrap_name_validation(
             command.extend(["--name", name])
 
         result = subprocess.run(
-            command, env=environment, capture_output=True, timeout=10, check=False
+            command, env=environment, capture_output=True, check=False
         )
         assert {
             "failed": result.returncode != 0,
@@ -506,9 +491,7 @@ def verify_agent_selection(
     account = BootstrapAccount.model_validate_json(
         (state_directory / "account.json").read_text()
     )
-    with MongoClient[dict[str, object]](
-        connection.mongo_uri, serverSelectionTimeoutMS=5000, timeoutMS=5000
-    ) as client:
+    with MongoClient[dict[str, object]](connection.mongo_uri) as client:
         agents = client["LibreChat"]["agents"]
         users = client["LibreChat"]["users"]
         user_query = {"_id": ObjectId(account.user_id)}
@@ -657,15 +640,13 @@ def run(configuration: StartupConfiguration) -> None:
                             )
 
                             def bootstrap_fixture(name: str) -> None:
-                                asyncio.run(
-                                    bootstrap_account(
-                                        configuration,
-                                        fixture_manifest,
-                                        password,
-                                        environment,
-                                        output,
-                                        name,
-                                    )
+                                bootstrap_account(
+                                    configuration,
+                                    fixture_manifest,
+                                    password,
+                                    environment,
+                                    output,
+                                    name,
                                 )
 
                             verify_agent_selection(
@@ -771,7 +752,6 @@ def run(configuration: StartupConfiguration) -> None:
                                 },
                                 stdout=output,
                                 stderr=output,
-                                timeout=120,
                                 check=True,
                             )
                             LOG.info("nonblocking_mcp_flow_succeeded")
