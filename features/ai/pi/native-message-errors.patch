@@ -1,15 +1,24 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index aba2a96..ed1aece 100644
+index 2d847a8..2cec218 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -613,0 +614,2 @@ export declare class AgentSession {
+@@ -616,6 +616,8 @@ export declare class AgentSession {
+      * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
+      */
+     sendCustomMessage<T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
 +        /** Reports failures after delivery deferred by agent_settled. */
 +        onError?: (error: unknown) => void;
+         triggerTurn?: boolean;
+         deliverAs?: "steer" | "followUp" | "nextTurn";
+     }): Promise<void>;
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 8728a3e..8faf957 100644
+index ccbb5a9..fd59cd5 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -1867 +1867,9 @@ export class AgentSession {
+@@ -1882,7 +1882,15 @@ export class AgentSession {
+         }
+         else if (options?.triggerTurn) {
+             if (this._isEmittingAgentSettled) {
 -                this._deferredSettledActions.push(async () => await this.sendCustomMessage(message, options));
 +                this._deferredSettledActions.push(async () => {
 +                    try {
@@ -20,15 +29,36 @@ index 8728a3e..8faf957 100644
 +                        throw error;
 +                    }
 +                });
-@@ -2766,0 +2775 @@ export class AgentSession {
+                 return;
+             }
+             await this._startRun({ messageType: "custom", message: appMessage });
+@@ -2782,6 +2790,7 @@ export class AgentSession {
+         runner.bindCore({
+             sendMessage: (message, options) => {
+                 this.sendCustomMessage(message, options).catch((err) => {
 +                    options?.onError?.(err);
+                     runner.emitError({
+                         extensionPath: "<runtime>",
+                         event: "send_message",
 diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
-index d6232b3..eca61bd 100644
+index 4cfbdd3..5edc54e 100644
 --- a/dist/core/extensions/types.d.ts
 +++ b/dist/core/extensions/types.d.ts
-@@ -1269,0 +1270,2 @@ export interface ExtensionAPI {
+@@ -1290,6 +1290,8 @@ export interface ExtensionAPI {
+     registerToolRenderer(resolver: ToolRendererResolver): void;
+     /** Send a custom message to the session. */
+     sendMessage<T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
 +        /** Reports asynchronous delivery or triggered-run failures. */
 +        onError?: (error: unknown) => void;
-@@ -1575,0 +1578,2 @@ export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "
+         triggerTurn?: boolean;
+         deliverAs?: "steer" | "followUp" | "nextTurn";
+     }): void;
+@@ -1596,6 +1598,8 @@ export interface ExtensionShortcut {
+ }
+ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
+ export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
 +    /** Reports asynchronous delivery or triggered-run failures. */
 +    onError?: (error: unknown) => void;
+     triggerTurn?: boolean;
+     deliverAs?: "steer" | "followUp" | "nextTurn";
+ }) => void;

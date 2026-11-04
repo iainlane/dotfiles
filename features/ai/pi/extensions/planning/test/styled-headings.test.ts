@@ -7,6 +7,8 @@ import {
   createAgentSession,
   DefaultResourceLoader,
   initTheme,
+  keyHint,
+  keyText,
   ModelRuntime,
   SessionManager,
   SettingsManager,
@@ -185,7 +187,7 @@ it.each([
           customType: "fixture-group",
           data: [...components.values()],
         },
-        { expanded: false },
+        { expanded: false, keyText, keyHint },
         runner.createContext().ui.theme,
       );
       const grouped = group

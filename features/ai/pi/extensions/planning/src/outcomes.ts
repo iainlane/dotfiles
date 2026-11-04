@@ -63,7 +63,7 @@ const reviewTitles: Record<SubmitPlanOutput["decision"], string> = {
 
 export function renderPlanningOutcome(
   value: unknown,
-  options: EntryRenderOptions,
+  options: Pick<EntryRenderOptions, "expanded">,
   theme: Pick<Theme, "fg">,
 ): Component {
   const result = new Container();

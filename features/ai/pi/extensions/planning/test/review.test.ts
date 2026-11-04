@@ -742,11 +742,18 @@ it("keeps the plan in the transcript rather than a private question viewport", a
   const f = fixture();
   const before = f.lines();
   f.question().handleInput?.("\u001B[6~");
+  const after = f.lines();
   expect({
-    containsPlan: before.some((line) => line.includes(original.content)),
-    question: before.some((line) => line.includes("Ready to code?")),
-    stableDock: f.lines(),
-  }).toStrictEqual({ containsPlan: false, question: true, stableDock: before });
+    containsPlan: [before, after].map((lines) =>
+      lines.some((line) => line.includes(original.content)),
+    ),
+    question: after.some((line) => line.includes("Ready to code?")),
+    height: after.length,
+  }).toStrictEqual({
+    containsPlan: [false, false],
+    question: true,
+    height: before.length,
+  });
   f.abort.abort();
   await f.pending;
 });

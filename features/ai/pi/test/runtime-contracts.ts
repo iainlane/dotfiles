@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import {
   createReadTool,
   createWriteToolDefinition,
+  keyHint,
+  keyText,
   resolveToCwd,
   ToolExecutionComponent,
   type ExtensionAPI,
@@ -247,6 +249,8 @@ export default function contracts(pi: ExtensionAPI): void {
             isError: false,
             durationMs: undefined,
             outputPad: 1,
+            keyText,
+            keyHint,
             invalidate() {},
           },
         );

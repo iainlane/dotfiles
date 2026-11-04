@@ -11,12 +11,12 @@
 }:
 buildNpmPackage {
   pname = "pi-diff";
-  version = "0.9.3-unstable-2026-10-24";
+  version = "0.9.3-unstable-2026-11-04";
   src = fetchFromGitHub {
     owner = "iainlane";
     repo = "pi-diff";
-    rev = "39853ae8bf85255f818892d8d8371ff5e5918ad5";
-    hash = "sha256-grBGjLTFUegQoBTWGN5l1OR8NtA2JOqCJ2jkQwWLqUQ=";
+    rev = "b76776ddcf6ad2451f4a83ec8cee65ca37b21222";
+    hash = "sha256-1I5fz/DV4pM5VM7xuUiiPMxuafzdIa24MvNX9BQRuZg=";
   };
   patches = [./native-file-renderers.patch];
   npmDepsHash = "sha256-QLO36cXHZMLsuswlhv02FXS6ZMprIYNZIS16nlyizjA=";
