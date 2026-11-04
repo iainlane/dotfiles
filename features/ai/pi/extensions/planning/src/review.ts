@@ -45,6 +45,8 @@ export interface ReviewRequest {
 }
 export type ReviewTerminal = TUI;
 
+type CustomOptions = NonNullable<Parameters<ExtensionUIContext["custom"]>[1]>;
+
 export interface ReviewContext {
   hasUI: boolean;
   mode: ExtensionContext["mode"];
@@ -61,11 +63,15 @@ export interface ReviewContext {
         keys: Pick<KeybindingsManager, "matches" | "getKeys">,
         done: (result: ReviewResult) => void,
       ) => Component & Focusable & { dispose(): void },
+      options?: Pick<CustomOptions, "blocked">,
     ) => Promise<ReviewResult>;
   };
 }
 
 const commentChoice = "Add a comment";
+const questionStatus: Pick<CustomOptions, "blocked"> = {
+  blocked: { kind: "question", message: "Plan ready for review" },
+};
 const decisions: { value: ReviewDecision; label: string }[] = [
   { value: "current", label: "Yes, keep context" },
   { value: "clear", label: "Yes, clear context" },
@@ -409,5 +415,5 @@ export async function reviewPlan(
       cancel();
     }
     return question;
-  });
+  }, questionStatus);
 }

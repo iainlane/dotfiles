@@ -74,6 +74,7 @@ function fixture(editorKey: KeyId = "ctrl+g") {
     start: vi.fn<ReviewTerminal["start"]>(),
   });
   let component: ReviewComponent | undefined;
+  const customOptions: Parameters<ReviewContext["ui"]["custom"]>[1][] = [];
   const ctx: ReviewContext = {
     mode: "tui",
     hasUI: true,
@@ -84,8 +85,9 @@ function fixture(editorKey: KeyId = "ctrl+g") {
       input: vi.fn<ReviewContext["ui"]["input"]>(),
       getToolsExpanded: expanded,
       setToolsExpanded: setExpanded,
-      custom: (factory) =>
-        new Promise((resolve) => {
+      custom: (factory, options) => {
+        customOptions.push(options);
+        return new Promise((resolve) => {
           component = factory(
             tui,
             { fg: (_color, text) => text },
@@ -106,7 +108,8 @@ function fixture(editorKey: KeyId = "ctrl+g") {
               resolve(result);
             },
           );
-        }),
+        });
+      },
     },
   };
   const pending = reviewPlan(
@@ -139,6 +142,7 @@ function fixture(editorKey: KeyId = "ctrl+g") {
     pending,
     question,
     lines,
+    customOptions,
   };
 }
 
@@ -727,6 +731,15 @@ it("does not add letter accelerators to the choice list", () => {
     f.question().handleInput?.(key);
   }
   expect(f.done.mock.calls).toStrictEqual([]);
+});
+
+it("reports pi as waiting for the plan decision", async () => {
+  const f = fixture();
+  expect(f.customOptions).toStrictEqual([
+    { blocked: { kind: "question", message: "Plan ready for review" } },
+  ]);
+  f.abort.abort();
+  await f.pending;
 });
 
 it("retains the native tool-expansion shortcut", () => {
