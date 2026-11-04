@@ -268,35 +268,36 @@ package root.
 
 ## Validation
 
-The profile and package checks use the patched compiled Pi executable and its
-separate development SDK output. The SDK includes the public heading resolver,
-render context, component accessor, path helper and asynchronous message-error
-callback. The release's prebuilt Node CLI bundle is unchanged; use the compiled
-executable for CLI checks. Setting `PI_TEST_HOST` alone does not change Node
-imports or TypeScript resolution. Restart Pi after deploying the profile.
-Reloading extensions does not replace a compiled host that is already running.
+The profile and package checks use the patched compiled Pi executable. Its SDK
+adds the public heading resolver, render context, component accessor, path
+helper and asynchronous message-error callback. The package build installs that
+SDK in place of npm's `@earendil-works/pi-coding-agent`, and installs this
+repository's `pi-subagents` build in place of npm's release. The release's
+prebuilt Node CLI bundle is unchanged; use the compiled executable for CLI
+checks. Setting `PI_TEST_HOST` alone does not change Node imports or TypeScript
+resolution. Restart Pi after deploying the profile. Reloading extensions does
+not replace a compiled host that is already running.
 
-From the repository root, build the matching packages:
+From the repository root, build the matching packages, then run the checks in
+the package's development shell. Entering the shell links the build's
+`node_modules` into the working tree:
 
 ```sh
 native=$(direnv exec . nix build .#pi --no-link --print-out-paths --option allow-import-from-derivation false)
-sdk=$(direnv exec . nix build .#pi.sdk --no-link --print-out-paths --option allow-import-from-derivation false)
 pretty=$(direnv exec . nix build .#pi-pretty --no-link --print-out-paths --option allow-import-from-derivation false)
 diff=$(direnv exec . nix build .#pi-diff --no-link --print-out-paths --option allow-import-from-derivation false)
 subagents=$(direnv exec . nix build .#pi-subagents --no-link --print-out-paths --option allow-import-from-derivation false)
 cd pkgs/pi-planning
-npm ci --ignore-scripts
-npm run setup:native-sdk -- "$sdk/libexec/pi-sdk"
-PI_TEST_HOST="$native/bin/pi" \
-PI_TEST_PRETTY="$pretty/lib/node_modules/@heyhuynhgiabuu/pi-pretty" \
-PI_TEST_DIFF="$diff/lib/node_modules/@heyhuynhgiabuu/pi-diff" \
-PI_TEST_SUBAGENTS="$subagents/lib/node_modules/pi-subagents" npm run check
+direnv exec ../.. nix develop ../..#pi-planning.devShell --option allow-import-from-derivation false --command env \
+  PI_TEST_HOST="$native/bin/pi" \
+  PI_TEST_PRETTY="$pretty/lib/node_modules/@heyhuynhgiabuu/pi-pretty" \
+  PI_TEST_DIFF="$diff/lib/node_modules/@heyhuynhgiabuu/pi-diff" \
+  PI_TEST_SUBAGENTS="$subagents/lib/node_modules/pi-subagents" npm run check
 ```
 
-Repeat SDK setup after `npm ci`, which restores the stock development packages.
-Nix performs the same setup for planning, session-footer and runtime-contract
-checks. Deployed extensions do not include host SDK modules; startup checks
-reject bundled copies.
+The development shell manages `node_modules`, so change dependencies with
+`npm install --package-lock-only` and enter the shell again. Deployed extensions
+do not include host SDK modules; startup checks reject bundled copies.
 
 The subagent package includes the child-runtime registration patch required for
 nested planning roles. Native tests exercise web and Lens activation, unfiltered

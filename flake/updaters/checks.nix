@@ -19,6 +19,16 @@ in
             touch $out
           '';
 
+        npm-lock-updater =
+          pkgs.runCommandLocal "npm-lock-updater-test" {
+            nativeBuildInputs = [pkgs.bash pkgs.diffutils pkgs.jq];
+            passthru.ci.runOnce = true;
+          } ''
+            bash ${../../pkgs/build-support/npm-lock-updater.test.bash} \
+              ${../../pkgs/build-support/npm-lock-updater.bash}
+            touch $out
+          '';
+
         package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without passthru.updateScript (set it to null when a package has no updater): ${lib.concatStringsSep ", " missing}";
           pkgs.runCommandLocal "package-updater-coverage" {} ''
             touch $out

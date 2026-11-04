@@ -22,6 +22,7 @@
   runCommandLocal,
   wget,
   writeShellApplication,
+  writeText,
 }: {
   # Run a package's own update script from its directory in the working tree.
   # Use it when the upstream's release metadata needs more than a version
@@ -298,6 +299,31 @@
         ${lib.concatStringsSep "\n" (lib.imap0 (index: destination: ''mv "''${metadataStages[${toString index}]}" ${lib.escapeShellArg destination}'') (lib.attrNames metadataFiles))}
 
         echo "Updated ${pname} to ''${version}." >&2
+      '';
+    };
+
+  # Pin a Node package's package.json and lockfile to the local npm packages
+  # that its build installs in place of the registry releases (see
+  # `lib/npm-packages.nix`). When npm nests a different version of one of the
+  # Node package's direct dependencies under a local package, the updater moves
+  # the direct dependency to the nested version so npm installs a single copy.
+  mkNpmLockUpdater = {
+    pname,
+    directory,
+    packages,
+  }: let
+    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map npmPackages.npmPackage packages));
+  in
+    writeShellApplication {
+      name = "update-${pname}";
+
+      runtimeInputs = [coreutils git jq nodejs];
+
+      text = ''
+        cd "$(git rev-parse --show-toplevel)/${directory}"
+
+        bash ${./npm-lock-updater.bash} ${provided}
       '';
     };
 

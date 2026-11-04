@@ -1,11 +1,14 @@
 {
+  callPackage,
   lib,
   stdenv,
   upstreamPi,
 }: let
+  npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+  npmName = "@earendil-works/pi-coding-agent";
   sdkPackageRoot = "libexec/pi-sdk";
 in
-  upstreamPi.overrideAttrs (old: {
+  upstreamPi.overrideAttrs (finalAttrs: old: {
     patches = (old.patches or []) ++ [./native-call-label.patch ./native-message-errors.patch];
     buildInputs = (old.buildInputs or []) ++ lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];
     outputs = (old.outputs or ["out"]) ++ ["sdk"];
@@ -20,5 +23,19 @@ in
         inherit sdkPackageRoot;
         setupNativeSdk = ./setup-native-sdk.bash;
         updateScript = null;
+
+        npmTarball = callPackage ../build-support/npm-tarball.nix {} {
+          name = npmName;
+          inherit (finalAttrs) version;
+          directory = "${finalAttrs.finalPackage.sdk}/${sdkPackageRoot}";
+        };
+      };
+    meta =
+      old.meta
+      // {
+        identifiers.purlParts = npmPackages.purlParts {
+          name = npmName;
+          inherit (finalAttrs) version;
+        };
       };
   })

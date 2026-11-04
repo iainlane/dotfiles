@@ -6,9 +6,9 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
@@ -26,44 +26,15 @@ for (const [name, dependency] of [
     filter: (path) =>
       !path.includes(`${dependency}/node_modules`) && basename(path) !== "test",
   });
+  // The installed packages can be read-only, as in the Nix store, and the
+  // copy keeps their modes. The fixture edits its copy below.
+  execFileSync("chmod", ["-R", "u+w", target]);
   symlinkSync(resolve(root, "node_modules"), join(target, "node_modules"));
   writeFileSync(
     join(target, "tsconfig.json"),
     '{ "extends": "../../tsconfig.json" }',
   );
 
-  const patch =
-    name === "pi-sub-core"
-      ? (process.env.PI_FOOTER_CORE_PATCH ??
-        resolve(root, "../pi-sub-core/reading-metadata.patch"))
-      : name === "rpiv-btw"
-        ? (process.env.PI_FOOTER_BTW_ISOLATION_PATCH ??
-          resolve(root, "../rpiv-btw/session-isolation.patch"))
-        : (process.env.PI_FOOTER_TODO_PATCH ??
-          resolve(root, "../rpiv-todo/widget-visibility.patch"));
-
-  const patches =
-    name === "pi-sub-core"
-      ? [
-          patch,
-          process.env.PI_FOOTER_CORE_BACKGROUND_PATCH ??
-            resolve(root, "../pi-sub-core/background-refresh.patch"),
-          process.env.PI_FOOTER_CORE_CREDENTIAL_PATCH ??
-            resolve(root, "../pi-sub-core/credential-file.patch"),
-        ]
-      : name === "rpiv-btw"
-        ? [
-            patch,
-            process.env.PI_FOOTER_BTW_RUNTIME_PATCH ??
-              resolve(root, "../rpiv-btw/public-runtime.patch"),
-          ]
-        : [patch];
-  for (const source of patches) {
-    execFileSync("patch", ["--batch", "-p1", "-i", source], {
-      cwd: target,
-      stdio: "inherit",
-    });
-  }
   if (name === "pi-sub-core") {
     const path = join(target, "index.ts");
     const source = readFileSync(path, "utf8");

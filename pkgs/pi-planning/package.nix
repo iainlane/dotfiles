@@ -17,15 +17,9 @@ in
     npmPackFlags = ["--ignore-scripts"];
     npmPruneFlags = ["--omit=peer"];
     doCheck = true;
-    passthru = {
-      inherit packageRoot;
-      updateScript = null;
-    };
+    passthru = {inherit packageRoot;};
     postInstall = ''
       ln -s ${pi-subagents}/${pi-subagents.packageRoot} "$out/${packageRoot}/node_modules/pi-subagents"
-    '';
-    preCheck = ''
-      bash ${pi.setupNativeSdk} "${pi.sdk}/${pi.sdkPackageRoot}"
     '';
     PI_TEST_HOST = "${pi}/bin/pi";
     PI_TEST_PRETTY = "${pi-pretty}/${pi-pretty.packageRoot}";

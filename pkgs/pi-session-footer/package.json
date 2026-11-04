@@ -15,11 +15,12 @@
     "pi-prs": "0.6.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.4.0",
-    "@earendil-works/pi-tui": "1.4.0",
-    "@juicesharp/rpiv-btw": "2.13.9",
-    "@juicesharp/rpiv-todo": "2.13.9",
+    "@earendil-works/pi-coding-agent": "1.5.0",
+    "@earendil-works/pi-tui": "1.5.0",
+    "@juicesharp/rpiv-btw": "2.15.0",
+    "@juicesharp/rpiv-todo": "2.15.0",
     "@marckrenn/pi-sub-core": "1.5.0",
+    "@mariozechner/pi-coding-agent": "npm:@earendil-works/pi-coding-agent@1.5.0",
     "@types/node": "24.19.2",
     "@xterm/headless": "6.0.0",
     "msw": "2.15.0",

@@ -3,6 +3,7 @@
 # The resulting lockfile is committed in npm-deps/ for offline builds.
 {
   buildNpmPackage,
+  callPackage,
   fetchFromGitHub,
   fetchurl,
   importNpmLock,
@@ -42,6 +43,8 @@
   # Pi loads an extension from the directory containing its `package.json`.
   # `npmInstallHook` installs that directory under the scoped npm name.
   packageRoot = "lib/node_modules/${npmName}";
+
+  npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
 
   projected = import ./project-pi-npm-package.nix {inherit lib;} {
     package = manifest;
@@ -116,6 +119,12 @@ in
       passthru = {
         inherit packageRoot;
 
+        npmTarball = callPackage ./npm-tarball.nix {} {
+          name = npmName;
+          inherit (pin) version;
+          directory = "${finalAttrs.finalPackage}/${packageRoot}";
+        };
+
         updateScript = updaters.mkPiExtensionUpdater {
           inherit npmName pname npmDependencies metadataFiles gitHub tagPrefix;
           patches = finalAttrs.patches or [];
@@ -130,6 +139,10 @@ in
             then "https://github.com/${gitHub.owner}/${gitHub.repo}"
             else "https://www.npmjs.com/package/${npmName}";
           platforms = lib.platforms.unix;
+          identifiers.purlParts = npmPackages.purlParts {
+            name = npmName;
+            inherit (pin) version;
+          };
         }
         // lib.optionalAttrs (license != null) {
           inherit license;
