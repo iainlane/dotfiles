@@ -74,6 +74,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
   const listeners = new Map<string, Set<(value: unknown) => void>>();
   const snapshots: ReturnType<typeof readQuota>[] = [];
+  const firstSnapshot = Promise.withResolvers<void>();
   const rendered: string[] = [];
   const events = {
     on(event: string, listener: (value: unknown) => void) {
@@ -92,6 +93,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
         state.quota = readQuota(value);
         snapshots.push(state.quota);
+        firstSnapshot.resolve();
         rendered.push(renderFooter(state, 120)[1]?.trim() ?? "");
       }
 
@@ -114,7 +116,8 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     core(api, dependencies);
 
     await runner.emit({ type: "session_start", reason: "startup" });
-    await vi.waitFor(() => expect(snapshots).toHaveLength(1));
+    await firstSnapshot.promise;
+    expect(snapshots).toHaveLength(1);
 
     for (const elapsed of [11_000, 31_000, 300_001]) {
       vi.setSystemTime(fetchedAt + elapsed);

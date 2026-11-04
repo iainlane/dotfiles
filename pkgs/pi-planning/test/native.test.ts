@@ -261,10 +261,17 @@ it.each([
       }
       running = session.prompt("Investigate slowly");
       await ready.promise;
+      const queued = new Promise<void>((resolve) => {
+        const unsubscribe = activeSession.subscribe((event) => {
+          if (event.type === "queue_update" && event.steering.length > 0) {
+            unsubscribe();
+            resolve();
+          }
+        });
+      });
       await session.prompt(`/plan ${command}`);
-      await expect
-        .poll(() => activeSession.getSteeringMessages())
-        .toStrictEqual([message]);
+      await queued;
+      expect(activeSession.getSteeringMessages()).toStrictEqual([message]);
       expect(errors).toStrictEqual([]);
       release.resolve();
       await running;
@@ -421,6 +428,28 @@ it.each([
     const depthErrors: string[] = [];
     const childStarted = Promise.withResolvers<void>();
     let parentApi: ExtensionAPI | undefined;
+    // The MCP extension registers the fixture server's tools after it connects
+    // to the fixture server, and pi announces no event for that registration.
+    const mcpToolsRegistered = Promise.withResolvers<void>();
+    const mcp: ExtensionFactory = (pi) =>
+      createMcpExtension()(
+        new Proxy(pi, {
+          get(target, property) {
+            if (property === "registerTool") {
+              return (tool: Parameters<ExtensionAPI["registerTool"]>[0]) => {
+                target.registerTool(tool);
+                if (tool.name === "mcp__fixture__inspect_tool") {
+                  mcpToolsRegistered.resolve();
+                }
+              };
+            }
+            const value: unknown = Reflect.get(target, property);
+            return typeof value === "function"
+              ? (value.bind(target) as unknown)
+              : value;
+          },
+        }),
+      );
     const requests: {
       sessionId: string | undefined;
       tools: string[];
@@ -698,7 +727,7 @@ it.each([
                   name: "mcp",
                   builtin: true as const,
                   replaceable: true as const,
-                  factory: createMcpExtension(),
+                  factory: mcp,
                 },
               ]
             : []),
@@ -756,17 +785,16 @@ it.each([
         "subagent",
         ...(mode === "nested" ? ["mcp__fixture__inspect_tool"] : []),
       ];
-      await expect
-        .poll(
-          () =>
-            requiredTools.filter(
-              (name) =>
-                parentApi?.getAllTools().some((tool) => tool.name === name) !==
-                true,
-            ),
-          { timeout: 10_000 },
-        )
-        .toStrictEqual([]);
+      if (mode === "nested") {
+        await mcpToolsRegistered.promise;
+      }
+      expect(
+        requiredTools.filter(
+          (name) =>
+            parentApi?.getAllTools().some((tool) => tool.name === name) !==
+            true,
+        ),
+      ).toStrictEqual([]);
       const running = session.prompt("Exercise the fixed planning fixture.");
       if (mode === "research-cancel") {
         await childStarted.promise;

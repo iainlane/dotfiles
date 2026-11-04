@@ -1,4 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { watch } from "node:fs";
+import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import xterm from "@xterm/headless";
@@ -27,6 +29,7 @@ export class PiTerminal {
   private output = "";
   private code: number | undefined;
   private stderr = "";
+  private readonly changes = new Set<() => void>();
 
   constructor(configuration: Configuration) {
     this.process = spawn("python3", [
@@ -35,6 +38,7 @@ export class PiTerminal {
 
     this.process.on("error", (error) => {
       this.failure = error.message;
+      this.notify();
     });
     this.process.on("close", () => {
       if (this.code === undefined && !this.closing) {
@@ -42,6 +46,7 @@ export class PiTerminal {
       }
 
       this.closed.resolve();
+      this.notify();
     });
     this.process.stdin.on("error", (error) => {
       if (!this.closing) {
@@ -68,6 +73,7 @@ export class PiTerminal {
 
       if (message.type === "exit" && typeof message.code === "number") {
         this.code = message.code;
+        this.notify();
       }
 
       if (message.type !== "data" || typeof message.data !== "string") {
@@ -80,12 +86,93 @@ export class PiTerminal {
       this.writes = this.writes.then(
         () =>
           new Promise<void>((resolve) => {
-            this.terminal.write(data, resolve);
+            this.terminal.write(data, () => {
+              resolve();
+              this.notify();
+            });
           }),
       );
     });
 
     this.send(configuration);
+  }
+
+  private notify(): void {
+    for (const change of this.changes) {
+      change();
+    }
+  }
+
+  /**
+   * Resolves once `check` passes. `check` runs against the screen now, after
+   * each write of Pi's output to the terminal, and after each change in the
+   * directories of the `watched` files. When Pi or the PTY bridge exits
+   * first, the wait rejects with the exit and the last failure of `check`.
+   */
+  until(
+    check: (screen: string[]) => void | Promise<void>,
+    watched: string[] = [],
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let done = false;
+      let running = false;
+      let again = false;
+      let lastFailure: unknown;
+      const watchers = [...new Set(watched.map((path) => dirname(path)))].map(
+        (directory) => watch(directory, () => schedule()),
+      );
+      const finish = (error?: Error) => {
+        done = true;
+        this.changes.delete(schedule);
+        for (const watcher of watchers) {
+          watcher.close();
+        }
+        if (error === undefined) {
+          resolve();
+        } else {
+          reject(error);
+        }
+      };
+      const attempt = async () => {
+        let screen: string[];
+        try {
+          screen = await this.screen();
+        } catch (error) {
+          finish(
+            new Error(
+              `${String(error)}\nLast check failure: ${String(lastFailure)}`,
+            ),
+          );
+          return;
+        }
+        try {
+          await check(screen);
+          finish();
+        } catch (error) {
+          lastFailure = error;
+        }
+      };
+      const schedule = (): void => {
+        if (done) {
+          return;
+        }
+        if (running) {
+          again = true;
+          return;
+        }
+        running = true;
+        const after = () => {
+          running = false;
+          if (again) {
+            again = false;
+            schedule();
+          }
+        };
+        attempt().then(after, after);
+      };
+      this.changes.add(schedule);
+      schedule();
+    });
   }
 
   private send(message: object): void {

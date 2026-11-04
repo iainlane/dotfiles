@@ -41,14 +41,9 @@ function waitForMarker(path: string, signal: AbortSignal): Promise<void> {
         finish();
       }
     });
-    const timer = setTimeout(
-      () => finish(new Error(`Fixture marker timed out: ${path}`)),
-      60_000,
-    );
     const cancel = () => finish(new Error("Fixture was cancelled."));
     const finish = (error?: Error) => {
       watcher.close();
-      clearTimeout(timer);
       signal.removeEventListener("abort", cancel);
       if (error) {
         reject(error);
@@ -75,7 +70,7 @@ export default function backgroundFixture(pi: ExtensionAPI): void {
       const phase = calls++;
       const directory = getAgentDir();
       const trace = join(directory, "background-trace");
-      const signal = options?.signal ?? AbortSignal.timeout(60_000);
+      const signal = options?.signal ?? new AbortController().signal;
       let content: AssistantMessage["content"];
       if (child) {
         content =

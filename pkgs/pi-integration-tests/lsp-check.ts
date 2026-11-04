@@ -71,25 +71,7 @@ const server = registry.registeredServers.find(
 );
 assert.ok(server, "The TypeScript language server must remain registered");
 const root = await mkdtemp(join(tmpdir(), "pi-lsp-"));
-const launchDeadline = Promise.withResolvers<never>();
-const launching = setTimeout(
-  () =>
-    launchDeadline.reject(
-      new Error(
-        "Lens did not launch the TypeScript language server within 20 seconds",
-      ),
-    ),
-  20_000,
-);
-let launched: unknown;
-try {
-  launched = await Promise.race([
-    server.spawn(root, { allowInstall: false }),
-    launchDeadline.promise,
-  ]);
-} finally {
-  clearTimeout(launching);
-}
+const launched: unknown = await server.spawn(root, { allowInstall: false });
 assert.ok(
   launched !== undefined && launched !== null,
   "The selected TypeScript server must start without installing tools",
@@ -181,12 +163,21 @@ stdout.on("data", (chunk: Buffer) => {
     }
   }
 });
-const deadline = Promise.withResolvers<never>();
-const timer = setTimeout(
-  () =>
-    deadline.reject(new Error(`TypeScript diagnostics timed out: ${errors}`)),
-  20_000,
-);
+const crashed = Promise.withResolvers<never>();
+let stopping = false;
+const crash = (status: number | string | null) => {
+  if (!stopping) {
+    crashed.reject(
+      new Error(
+        `The TypeScript language server exited before the check finished (${status}): ${errors}`,
+      ),
+    );
+  }
+};
+child.once("exit", (code, signal) => crash(code ?? signal));
+if (child.exitCode !== null || child.signalCode !== null) {
+  crash(child.exitCode ?? child.signalCode);
+}
 try {
   await Promise.race([
     (async () => {
@@ -222,13 +213,13 @@ try {
         },
       ]);
       await request("shutdown");
+      stopping = true;
       send({ jsonrpc: "2.0", method: "exit" });
       await exited;
     })(),
-    deadline.promise,
+    crashed.promise,
   ]);
 } finally {
-  clearTimeout(timer);
   child.kill();
   await rm(root, { recursive: true, force: true });
 }

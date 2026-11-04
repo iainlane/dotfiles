@@ -25,12 +25,6 @@ const child = spawn(
 );
 const completed = Promise.withResolvers<void>();
 const lines = createInterface({ input: child.stdout });
-const deadline = (phase: "startup" | "command", milliseconds: number) =>
-  setTimeout(
-    () => completed.reject(new Error(`The Pi ${phase} probe timed out`)),
-    milliseconds,
-  );
-let timer = deadline("startup", 120_000);
 lines.on("line", (line) => {
   process.stdout.write(line + "\n");
   const record = parseRecord(line);
@@ -59,8 +53,6 @@ lines.on("line", (line) => {
     return;
   }
   if (record.id === "ready") {
-    clearTimeout(timer);
-    timer = deadline("command", 30_000);
     child.stdin.write(
       JSON.stringify({ id: "probe", type: "prompt", message: `/${command}` }) +
         "\n",
@@ -90,7 +82,6 @@ try {
   const code: unknown = result[0];
   assert.equal(code, 0);
 } finally {
-  clearTimeout(timer);
   lines.close();
   child.kill();
 }

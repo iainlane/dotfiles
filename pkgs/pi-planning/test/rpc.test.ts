@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { once } from "node:events";
 import {
@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { submitPlanOutputSchema } from "../src/contracts.ts";
@@ -28,6 +28,53 @@ import { nodeFiles } from "../src/node-files.ts";
 interface RecordLine {
   type: string;
   [key: string]: unknown;
+}
+
+/**
+ * Waits for records from an RPC child. Call `notify` after each record; it
+ * checks every waiting condition. A child whose output closes before the
+ * condition is true rejects the wait with `failure()`.
+ */
+class RecordWaits {
+  private readonly checks = new Set<() => void>();
+
+  notify(): void {
+    for (const check of this.checks) {
+      check();
+    }
+  }
+
+  until(
+    child: ChildProcess,
+    condition: () => boolean,
+    failure: () => string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const settle = (error?: Error) => {
+        this.checks.delete(check);
+        child.stdout?.off("close", closed);
+        if (error === undefined) {
+          resolve();
+        } else {
+          reject(error);
+        }
+      };
+      const check = () => {
+        if (condition()) {
+          settle();
+        }
+      };
+      const closed = () => {
+        settle(condition() ? undefined : new Error(failure()));
+      };
+      this.checks.add(check);
+      child.stdout?.on("close", closed);
+      check();
+      if (this.checks.has(check) && child.stdout?.closed === true) {
+        closed();
+      }
+    });
+  }
 }
 function recordLine(value: unknown): RecordLine {
   if (
@@ -137,6 +184,7 @@ it.each(["controls", "unicode"])(
       kind === "unicode" ? "🦉" : "\u0000",
     );
     const records: RecordLine[] = [];
+    const waits = new RecordWaits();
     let selections = 0;
     let errors = "";
     const send = (value: unknown) =>
@@ -148,6 +196,7 @@ it.each(["controls", "unicode"])(
     output.on("line", (line) => {
       const record = recordLine(JSON.parse(line));
       records.push(record);
+      waits.notify();
       if (record.type !== "extension_ui_request") {
         return;
       }
@@ -167,15 +216,10 @@ it.each(["controls", "unicode"])(
     });
     try {
       send({ type: "prompt", message: "Review the boundary fixture." });
-      await vi.waitFor(
-        () => {
-          if (!records.some((record) => record.type === "agent_settled")) {
-            throw new Error(
-              `The native RPC fixture has not settled: ${errors}`,
-            );
-          }
-        },
-        { timeout: 25_000 },
+      await waits.until(
+        child,
+        () => records.some((record) => record.type === "agent_settled"),
+        () => `The native RPC fixture has not settled: ${errors}`,
       );
       const source = startLine(
         JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
@@ -291,6 +335,7 @@ it("clears context in the same native session and preserves the plan through com
   let output = "";
   let errors = "";
   const records: RecordLine[] = [];
+  const waits = new RecordWaits();
   const send = (value: unknown) => {
     child.stdin.write(JSON.stringify(value) + "\n");
   };
@@ -306,6 +351,7 @@ it("clears context in the same native session and preserves the plan through com
         output = output.slice(index + 1);
         const record = recordLine(JSON.parse(line));
         records.push(record);
+        waits.notify();
         if (
           record.type === "extension_ui_request" &&
           record.method === "confirm" &&
@@ -331,20 +377,13 @@ it("clears context in the same native session and preserves the plan through com
     });
   };
   attachOutput();
-  const wait = async (condition: () => boolean) => {
-    const limit = Date.now() + 20_000;
-    while (!condition()) {
-      if (child.exitCode !== null || Date.now() > limit) {
-        throw new Error(
-          `RPC fixture did not complete: ${errors}\n${JSON.stringify(records)}`,
-        );
-      }
-      // eslint-disable-next-line no-await-in-loop -- Poll the running fixture until it produces the required record.
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 20);
-      });
-    }
-  };
+  const wait = (condition: () => boolean) =>
+    waits.until(
+      child,
+      condition,
+      () =>
+        `RPC fixture did not complete: ${errors}\n${JSON.stringify(records)}`,
+    );
   const commandResult = async (value: Record<string, unknown>, id: string) => {
     send({ ...value, id });
     await wait(() =>
@@ -617,8 +656,12 @@ it.each([
       },
     );
     const records: RecordLine[] = [];
+    const waits = new RecordWaits();
     const output = createInterface({ input: child.stdout });
-    output.on("line", (line) => records.push(recordLine(JSON.parse(line))));
+    output.on("line", (line) => {
+      records.push(recordLine(JSON.parse(line)));
+      waits.notify();
+    });
     let errors = "";
     child.stderr.on("data", (data: Buffer) => {
       errors += data.toString();
@@ -627,19 +670,17 @@ it.each([
       child.stdin.write(JSON.stringify(value) + "\n");
     try {
       send({ type: "prompt", message: "Exercise entry consent." });
-      const question = await vi.waitFor(
-        () => {
-          const record = records.find(
-            (item) =>
-              item.type === "extension_ui_request" && item.method === "confirm",
-          );
-          if (!record) {
-            throw new Error(`Expected entry consent: ${errors}`);
-          }
-          return record;
-        },
-        { timeout: 15_000 },
+      const consent = (item: RecordLine) =>
+        item.type === "extension_ui_request" && item.method === "confirm";
+      await waits.until(
+        child,
+        () => records.some((item) => consent(item)),
+        () => `Expected entry consent: ${errors}`,
       );
+      const question = records.find((item) => consent(item));
+      if (question === undefined) {
+        throw new Error("Expected the entry consent record.");
+      }
       const source = startLine(
         JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
       );
@@ -663,13 +704,10 @@ it.each([
       });
 
       send({ type: "extension_ui_response", id: question.id, ...response });
-      await vi.waitFor(
-        () => {
-          expect(records.some((item) => item.type === "agent_settled")).toBe(
-            true,
-          );
-        },
-        { timeout: 15_000 },
+      await waits.until(
+        child,
+        () => records.some((item) => item.type === "agent_settled"),
+        () => `The entry consent fixture has not settled: ${errors}`,
       );
       const manager = SessionManager.open(source.file);
       const result = manager

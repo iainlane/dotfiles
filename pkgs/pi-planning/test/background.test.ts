@@ -29,20 +29,15 @@ async function stopRuns(pi: ExtensionAPI, ids: Set<string>): Promise<void> {
   await Promise.all(
     [...ids].map(
       (id) =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<void>((resolve) => {
           const requestId = randomUUID();
           const unsubscribe = pi.events.on(
             `subagents:rpc:v1:reply:${requestId}`,
             () => {
-              clearTimeout(timer);
               unsubscribe();
               resolve();
             },
           );
-          const timer = setTimeout(() => {
-            unsubscribe();
-            reject(new Error(`Native cleanup did not acknowledge run ${id}.`));
-          }, 5000);
           pi.events.emit("subagents:rpc:v1:request", {
             version: 1,
             requestId,
@@ -195,7 +190,7 @@ it("runs planning roles in the background and preserves native child permissions
     if (!parentApi) {
       throw new Error("The native parent extension API was not registered.");
     }
-    await ensureSubagentsIdle(parentApi.events, AbortSignal.timeout(10_000));
+    await ensureSubagentsIdle(parentApi.events, new AbortController().signal);
     const trace = (await readFile(tracePath, "utf8")).trim().split("\n");
     expect({
       started: trace.filter((line) => line.startsWith("child-start:")).length,

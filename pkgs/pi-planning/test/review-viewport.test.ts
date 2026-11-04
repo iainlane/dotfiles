@@ -193,7 +193,14 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
     },
   };
   const edit = vi.fn<(path: string) => Promise<void>>(async () => {});
-  const start = vi.spyOn(tui, "start");
+  const startTui = tui.start.bind(tui);
+  const restarted = Promise.withResolvers<void>();
+  const start = vi.spyOn(tui, "start").mockImplementation(() => {
+    startTui();
+    if (start.mock.calls.length === 2) {
+      restarted.resolve();
+    }
+  });
   const pending = reviewPlan(
     ctx,
     {
@@ -270,12 +277,11 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
     terminal.send(`\u001B[<0;3;${inputRow}m`);
     terminal.send("Keep interfaces.");
     terminal.send("\u0007");
-    await expect
-      .poll(() => ({ edits: edit.mock.calls, starts: start.mock.calls }))
-      .toStrictEqual({
-        edits: [[plan.path]],
-        starts: [[], []],
-      });
+    await restarted.promise;
+    expect({ edits: edit.mock.calls, starts: start.mock.calls }).toStrictEqual({
+      edits: [[plan.path]],
+      starts: [[], []],
+    });
     for (const key of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
       terminal.send(key);
     }

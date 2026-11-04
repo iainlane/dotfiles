@@ -17,7 +17,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, type Component } from "@earendil-works/pi-tui";
 import { beforeAll, expect, it, vi } from "vitest";
-import { TestTerminal } from "./terminal.ts";
+import { TestTerminal, untilRendered } from "./terminal.ts";
 import { registerPlanHeadings } from "../src/plan-headings.ts";
 
 let session: AgentSession | undefined;
@@ -172,18 +172,19 @@ it("preserves the native Edit preview, state and component through the result re
       return result(output, options, theme, context);
     },
   };
+  const screen = new TuiAltScreen(new TestTerminal());
   const component = new ToolExecutionComponent(
     "edit",
     "native-edit",
     args,
     {},
     renderers,
-    new TuiAltScreen(new TestTerminal()),
+    screen,
     directory,
   );
   component.setExpanded(true);
   component.setArgsComplete();
-  await vi.waitFor(() => expect(visible(component)).toContain("after"));
+  await untilRendered(screen, () => visible(component).includes("after"));
   component.updateResult(
     {
       content: [],

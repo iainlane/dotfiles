@@ -122,13 +122,9 @@ it.each([
     );
     await fetching.promise;
     const drained = idle();
-    const settled = await Promise.race([
-      turn.then(() => true),
-      new Promise<boolean>((resolve) => {
-        setTimeout(() => resolve(false), 2000);
-      }),
-    ]);
-    expect(settled).toBe(true);
+    // The first quota response is released only after the turn, so a turn
+    // that waited for the fetch would never finish.
+    await turn;
     const reply = vi.fn<(value: unknown) => void>();
     const entries = [...(channels.get("sub-core:request") ?? [])].map(
       (callback) => callback({ type: "entries", force: true, reply }),
@@ -191,7 +187,6 @@ it.each([
         },
       }),
     );
-    await turn;
     await Promise.all(entries);
     await drained;
     expect(reply.mock.calls).toStrictEqual(

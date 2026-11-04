@@ -17,7 +17,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, type Component } from "@earendil-works/pi-tui";
 import { expect, it, vi } from "vitest";
-import { TestTerminal } from "./terminal.ts";
+import { TestTerminal, untilRendered } from "./terminal.ts";
 
 interface RendererTrace {
   native: Component[];
@@ -123,6 +123,7 @@ it.each([
       await runner.emit({ type: "agent_start" });
       const nativeSession = session;
       const components = new Map<string, ToolExecutionComponent>();
+      const screens = new Map<string, TuiAltScreen>();
       const traces = new Map<string, RendererTrace>();
       const rows = (["write", "edit"] as const).map((tool) => {
         const args = {
@@ -158,16 +159,18 @@ it.each([
             return component;
           },
         };
+        const screen = new TuiAltScreen(new TestTerminal());
         const component = new ToolExecutionComponent(
           tool,
           `${tool}-identity`,
           args,
           {},
           instrumented,
-          new TuiAltScreen(new TestTerminal()),
+          screen,
           cwd,
         );
         components.set(tool, component);
+        screens.set(tool, screen);
         const output = visible(component);
         return {
           tool,
@@ -209,8 +212,13 @@ it.each([
       });
 
       const edit = components.get("edit");
+      const editScreen = screens.get("edit");
       const trace = traces.get("edit");
-      if (edit === undefined || trace === undefined) {
+      if (
+        edit === undefined ||
+        editScreen === undefined ||
+        trace === undefined
+      ) {
         throw new Error("Expected an instrumented Edit component");
       }
       await mkdir(join(agentDir, "plans"));
@@ -221,7 +229,9 @@ it.each([
       edit.setExpanded(true);
       edit.setArgsComplete();
       const pendingPreview = withDiff ? "Updated plan" : "after";
-      await vi.waitFor(() => expect(visible(edit)).toContain(pendingPreview));
+      await untilRendered(editScreen, () =>
+        visible(edit).includes(pendingPreview),
+      );
       edit.updateResult(
         {
           content: [],
@@ -237,7 +247,9 @@ it.each([
       edit.setExpanded(false);
       const collapsed = visible(edit);
       edit.setExpanded(true);
-      await vi.waitFor(() => expect(visible(edit)).toContain("result-after"));
+      await untilRendered(editScreen, () =>
+        visible(edit).includes("result-after"),
+      );
       const expanded = visible(edit);
       expect({
         collapsed: collapsed.includes("Updated plan"),

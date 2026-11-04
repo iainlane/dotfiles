@@ -488,15 +488,22 @@ it.each(["input", "show", "review", "open"])(
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
     const checking = Promise.withResolvers<void>();
+    const secondCheck = Promise.withResolvers<void>();
     f.review.mockResolvedValueOnce({
       decision: "current",
       presentedPlan: plan,
     });
-    f.ensureSubagentsIdle
-      .mockResolvedValueOnce()
-      .mockReturnValueOnce(checking.promise);
+    f.ensureSubagentsIdle.mockResolvedValueOnce().mockImplementationOnce(() => {
+      secondCheck.resolve();
+      return checking.promise;
+    });
     const submitted = f.execute("submit_plan");
-    await expect.poll(() => f.ensureSubagentsIdle.mock.calls.length).toBe(2);
+    await Promise.race([
+      secondCheck.promise,
+      submitted.then(() => {
+        throw new Error("submit_plan finished before the second idle check.");
+      }),
+    ]);
     if (action === "input") {
       f.controller.input();
     } else {

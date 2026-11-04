@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { PiTerminal } from "./tui/terminal.ts";
 
@@ -81,24 +81,19 @@ async function seed(
 async function footer(terminal: PiTerminal, width: number): Promise<string[]> {
   let lines: string[] = [];
 
-  await vi.waitFor(
-    async () => {
-      lines = (await terminal.screen()).slice(-2);
+  await terminal.until((screen) => {
+    lines = screen.slice(-2);
 
-      expect(lines[0]).toContain("ctx 20.1%/500k");
-      expect(lines[0]).toContain(" footer-fixture");
-      expect(lines[1]).toContain("5h 40% used");
-      expect(lines[1]).toContain(
-        width >= 120 ? "week 42% used" : "5h 40% used",
-      );
-      expect(lines.join("\n")).not.toContain("unavailable");
-      expect(lines.map((line) => visibleWidth(line))).toStrictEqual([
-        width,
-        width,
-      ]);
-    },
-    { timeout: 10_000, interval: 25 },
-  );
+    expect(lines[0]).toContain("ctx 20.1%/500k");
+    expect(lines[0]).toContain(" footer-fixture");
+    expect(lines[1]).toContain("5h 40% used");
+    expect(lines[1]).toContain(width >= 120 ? "week 42% used" : "5h 40% used");
+    expect(lines.join("\n")).not.toContain("unavailable");
+    expect(lines.map((line) => visibleWidth(line))).toStrictEqual([
+      width,
+      width,
+    ]);
+  });
 
   return lines;
 }
@@ -107,14 +102,10 @@ async function restored(
   terminal: PiTerminal,
   expected: string[],
 ): Promise<void> {
-  await vi.waitFor(
-    async () => {
-      const screen = await terminal.screen();
-      expect(screen.join("\n")).not.toContain("Footer:");
-      expect(screen.slice(-2)).toStrictEqual(expected);
-    },
-    { timeout: 5000, interval: 25 },
-  );
+  await terminal.until((screen) => {
+    expect(screen.join("\n")).not.toContain("Footer:");
+    expect(screen.slice(-2)).toStrictEqual(expected);
+  });
 }
 
 it.each([
@@ -211,27 +202,21 @@ it.each([
         },
       });
 
-      await vi.waitFor(
-        async () => {
-          expect(
-            Number(await readFile(updateLog, "utf8")),
-          ).toBeGreaterThanOrEqual(1);
-        },
-        { timeout: 10_000 },
-      );
+      await terminal.until(async () => {
+        expect(
+          Number(await readFile(updateLog, "utf8")),
+        ).toBeGreaterThanOrEqual(1);
+      }, [updateLog]);
 
       const wide = await footer(terminal, 220);
 
       expect(terminal.color()).toBeDefined();
 
-      await vi.waitFor(
-        async () => {
-          expect(
-            Number(await readFile(updateLog, "utf8")),
-          ).toBeGreaterThanOrEqual(3);
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until(async () => {
+        expect(
+          Number(await readFile(updateLog, "utf8")),
+        ).toBeGreaterThanOrEqual(3);
+      }, [updateLog]);
 
       await restored(terminal, wide);
 
@@ -256,23 +241,17 @@ it.each([
 
       terminal.input(`/fixture-theme ${theme === "dark" ? "light" : "dark"}\r`);
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.slice(-2)).toStrictEqual(wide);
-          expect(terminal?.color("gpt-5.4")).not.toBe(originalColor);
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.slice(-2)).toStrictEqual(wide);
+        expect(terminal?.color("gpt-5.4")).not.toBe(originalColor);
+      });
 
       terminal.input(`/fixture-theme ${theme}\r`);
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.slice(-2)).toStrictEqual(wide);
-          expect(terminal?.color("gpt-5.4")).toBe(originalColor);
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.slice(-2)).toStrictEqual(wide);
+        expect(terminal?.color("gpt-5.4")).toBe(originalColor);
+      });
 
       terminal.resize(72);
 
@@ -288,14 +267,9 @@ it.each([
 
       terminal.input("/footer quota\r");
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.join("\n")).toContain(
-            "Footer: quota",
-          );
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Footer: quota");
+      });
 
       terminal.input("\u001B");
 
@@ -303,36 +277,21 @@ it.each([
 
       terminal.input("/footer workflow\r");
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.join("\n")).toContain(
-            "#1 [completed] Task 1",
-          );
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("#1 [completed] Task 1");
+      });
 
       terminal.input("\u001B[6~");
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.join("\n")).not.toContain(
-            "#1 [completed] Task 1",
-          );
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).not.toContain("#1 [completed] Task 1");
+      });
 
       terminal.input("\u001B[6~");
 
-      await vi.waitFor(
-        async () => {
-          expect((await terminal?.screen())?.join("\n")).toContain(
-            "Use /todos and /subagents",
-          );
-        },
-        { timeout: 5000 },
-      );
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Use /todos and /subagents");
+      });
 
       terminal.input("\u001B");
 

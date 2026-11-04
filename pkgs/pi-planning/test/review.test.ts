@@ -56,7 +56,15 @@ type ReviewComponent = ReturnType<Parameters<ReviewContext["ui"]["custom"]>[0]>;
 function fixture(editorKey: KeyId = "ctrl+g") {
   const abort = new AbortController();
   aborts.push(abort);
-  const present = vi.fn<ReviewRequest["present"]>();
+  // Checks the conditions that tests wait for, after each call that can change
+  // the review's state.
+  const waiters = new Set<() => void>();
+  const notify = () => {
+    for (const check of waiters) {
+      check();
+    }
+  };
+  const present = vi.fn<ReviewRequest["present"]>(notify);
   const read = vi.fn<ReviewRequest["read"]>(() => original);
   const readImage = vi.fn<NonNullable<ReviewRequest["readImage"]>>(
     async () => feedbackImage,
@@ -69,9 +77,9 @@ function fixture(editorKey: KeyId = "ctrl+g") {
   const setExpanded = vi.fn<ReviewContext["ui"]["setToolsExpanded"]>();
   const terminal = new TestTerminal();
   const tui = Object.assign(new TuiAltScreen(terminal), {
-    requestRender: vi.fn<ReviewTerminal["requestRender"]>(),
-    stop: vi.fn<ReviewTerminal["stop"]>(),
-    start: vi.fn<ReviewTerminal["start"]>(),
+    requestRender: vi.fn<ReviewTerminal["requestRender"]>(notify),
+    stop: vi.fn<ReviewTerminal["stop"]>(notify),
+    start: vi.fn<ReviewTerminal["start"]>(notify),
   });
   let component: ReviewComponent | undefined;
   const customOptions: Parameters<ReviewContext["ui"]["custom"]>[1][] = [];
@@ -114,9 +122,48 @@ function fixture(editorKey: KeyId = "ctrl+g") {
   };
   const pending = reviewPlan(
     ctx,
-    { plan: original, signal: abort.signal, present, read, readImage },
+    {
+      plan: original,
+      signal: abort.signal,
+      present,
+      read: () => {
+        try {
+          return read();
+        } finally {
+          notify();
+        }
+      },
+      readImage,
+    },
     { name: "nvim", open: edit },
   );
+  let finished = false;
+  const markFinished = () => {
+    finished = true;
+  };
+  pending.then(markFinished, markFinished);
+  // Resolves once `predicate` is true. If the review finishes while the wait is
+  // pending, the wait rejects. A wait that starts after the review has
+  // finished does not reject, because the editor can still restart the TUI.
+  const until = (predicate: () => boolean) =>
+    new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (predicate()) {
+          waiters.delete(check);
+          resolve();
+        }
+      };
+      waiters.add(check);
+      check();
+      if (!finished) {
+        const rejectIfWaiting = () => {
+          if (waiters.delete(check)) {
+            reject(new Error("The review finished before the awaited state."));
+          }
+        };
+        pending.then(rejectIfWaiting, rejectIfWaiting);
+      }
+    });
   const question = () => {
     if (!component) {
       throw new Error("Expected an open plan question.");
@@ -142,6 +189,7 @@ function fixture(editorKey: KeyId = "ctrl+g") {
     pending,
     question,
     lines,
+    until,
     customOptions,
   };
 }
@@ -185,9 +233,9 @@ it.each(["current", "clear", "revise"] as const)(
   async (decision) => {
     const f = fixture();
     f.question().handleInput?.("\u0016");
-    await expect
-      .poll(() => f.lines().some((line) => line.includes("Attached image")))
-      .toBe(true);
+    await f.until(() =>
+      f.lines().some((line) => line.includes("Attached image")),
+    );
     if (decision !== "revise") {
       f.question().handleInput?.("\u001B");
       f.question().handleInput?.("\u001B[A");
@@ -208,9 +256,9 @@ it("keeps text feedback available when the model cannot receive images", async (
   const f = fixture();
   f.ctx.model = { input: ["text"] };
   f.question().handleInput?.("\u0016");
-  await expect
-    .poll(() => f.lines().some((line) => line.includes("image-capable model")))
-    .toBe(true);
+  await f.until(() =>
+    f.lines().some((line) => line.includes("image-capable model")),
+  );
   for (const input of ["\t", "Text feedback", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -270,11 +318,9 @@ it("keeps text feedback available after a clipboard transfer failure", async () 
   const f = fixture();
   f.readImage.mockRejectedValueOnce(new Error("Clipboard transfer failed"));
   f.question().handleInput?.("\u0016");
-  await expect
-    .poll(() =>
-      f.lines().some((line) => line.includes("Clipboard transfer failed")),
-    )
-    .toBe(true);
+  await f.until(() =>
+    f.lines().some((line) => line.includes("Clipboard transfer failed")),
+  );
   for (const input of ["\t", "Text feedback", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -288,16 +334,15 @@ it("keeps text feedback available after a clipboard transfer failure", async () 
 it("retains native images and text through external-editor failure and saved readback", async () => {
   const f = fixture();
   f.question().handleInput?.("\u0016");
-  await expect
-    .poll(() => f.lines().some((line) => line.includes("Attached image")))
-    .toBe(true);
+  await f.until(() =>
+    f.lines().some((line) => line.includes("Attached image")),
+  );
   f.question().handleInput?.("Keep this interface.");
   f.read.mockReturnValueOnce(edited);
   f.edit.mockRejectedValueOnce(new Error("Editor failed"));
   f.question().handleInput?.("\u0007");
-  await expect
-    .poll(() => f.present.mock.calls)
-    .toStrictEqual([[original], [edited]]);
+  await f.until(() => f.present.mock.calls.length === 2);
+  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
   for (const input of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -312,9 +357,9 @@ it("retains native images and text through external-editor failure and saved rea
 it("discards attached images and unsent text when cancelling from the choices", async () => {
   const f = fixture();
   f.question().handleInput?.("\u0016");
-  await expect
-    .poll(() => f.lines().some((line) => line.includes("Attached image")))
-    .toBe(true);
+  await f.until(() =>
+    f.lines().some((line) => line.includes("Attached image")),
+  );
   for (const input of ["Unsent", "\u001B", "\u001B"]) {
     f.question().handleInput?.(input);
   }
@@ -693,9 +738,8 @@ it("preserves the comment while the actual plan is edited", async () => {
   }
   f.read.mockReturnValueOnce(edited);
   f.question().handleInput?.("\u0007");
-  await expect
-    .poll(() => f.present.mock.calls)
-    .toStrictEqual([[original], [edited]]);
+  await f.until(() => f.present.mock.calls.length === 2);
+  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
   for (const input of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -810,9 +854,8 @@ it.each([
       decisions: f.done.mock.calls,
     }).toStrictEqual({ edits: [[original.path]], decisions: [] });
     editor.resolve();
-    await expect
-      .poll(() => f.present.mock.calls)
-      .toStrictEqual([[original], [edited]]);
+    await f.until(() => f.present.mock.calls.length === 2);
+    expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
     expect({
       stopped: f.tui.stop.mock.calls,
       started: f.tui.start.mock.calls,
@@ -838,7 +881,8 @@ it("keeps the presented revision when the editor leaves the contents unchanged",
   const f = fixture();
   f.read.mockReturnValue({ ...original });
   f.question().handleInput?.("\u0007");
-  await expect.poll(() => f.read.mock.calls).toStrictEqual([[]]);
+  await f.until(() => f.read.mock.calls.length === 1);
+  expect(f.read.mock.calls).toStrictEqual([[]]);
   f.question().handleInput?.("\r");
   expect({
     presented: f.present.mock.calls,
@@ -854,9 +898,8 @@ it("restores the terminal and rereads saved edits after editor failure", async (
   f.edit.mockRejectedValueOnce(new Error("Editor failed"));
   f.read.mockReturnValueOnce(edited);
   f.question().handleInput?.("\u0007");
-  await expect
-    .poll(() => f.present.mock.calls)
-    .toStrictEqual([[original], [edited]]);
+  await f.until(() => f.present.mock.calls.length === 2);
+  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
   expect({
     started: f.tui.start.mock.calls,
     warning: f.lines().some((line) => line.includes("Editor failed")),
@@ -895,7 +938,8 @@ it.each(["missing", "empty", "template", "oversized"])(
       });
     }
     f.question().handleInput?.("\u0007");
-    await expect.poll(() => f.read.mock.calls).toStrictEqual([[]]);
+    await f.until(() => f.read.mock.calls.length === 1);
+    expect(f.read.mock.calls).toStrictEqual([[]]);
     f.question().handleInput?.("\r");
     f.question().handleInput?.("\u001B[B");
     f.question().handleInput?.("\r");
@@ -914,7 +958,8 @@ it("does not revive an aborted question after the editor returns", async () => {
   const expected = { decision: "cancel", presentedPlan: original };
   expect(await f.pending).toStrictEqual(expected);
   editor.resolve();
-  await expect.poll(() => f.tui.start.mock.calls).toStrictEqual([[]]);
+  await f.until(() => f.tui.start.mock.calls.length === 1);
+  expect(f.tui.start.mock.calls).toStrictEqual([[]]);
   expect({
     presented: f.present.mock.calls,
     decisions: f.done.mock.calls,

@@ -231,6 +231,9 @@ export default function contracts(pi: ExtensionAPI): void {
           undefined,
           toolContext,
         );
+        // pi-pretty renders plain lines first and invalidates the component
+        // when its highlighting finishes.
+        const highlighted = Promise.withResolvers<void>();
         const component = readTool.renderResult?.(
           result,
           { expanded: true, isPartial: false },
@@ -251,13 +254,13 @@ export default function contracts(pi: ExtensionAPI): void {
             outputPad: 1,
             keyText,
             keyHint,
-            invalidate() {},
+            invalidate() {
+              highlighted.resolve();
+            },
           },
         );
         assert.ok(component);
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 50);
-        });
+        await highlighted.promise;
         const lines = component
           .render(120)
           .map((line) => stripTerminalSequences(line));
