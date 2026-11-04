@@ -48,6 +48,7 @@ it("replays auxiliary records once without changing native totals", () => {
       cacheRead: 0,
       cacheWrite: 0,
       cost: 1,
+      costFromProvider: false,
       latestHit: 0,
     },
     auxiliary: {
@@ -56,6 +57,7 @@ it("replays auxiliary records once without changing native totals", () => {
       cacheRead: 3,
       cacheWrite: 0,
       cost: 0.25,
+      costFromProvider: false,
       latestHit: undefined,
     },
   });
@@ -71,6 +73,7 @@ it("replays auxiliary records once without changing native totals", () => {
     cacheRead: 3,
     cacheWrite: 0,
     cost: 0.25,
+    costFromProvider: false,
     latestHit: undefined,
   });
 });
@@ -96,6 +99,7 @@ it.each([NaN, Infinity, -1, "17"])(
       cacheRead: 0,
       cacheWrite: 0,
       cost: 0.5,
+      costFromProvider: false,
       latestHit: undefined,
     });
   },

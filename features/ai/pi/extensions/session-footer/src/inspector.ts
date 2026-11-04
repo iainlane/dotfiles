@@ -183,10 +183,14 @@ export function detailsLines(
     const u = state.usage;
     const auxiliary = state.auxiliaryUsage;
     const prompt = u.input + u.cacheRead + u.cacheWrite;
+    const sessionScope =
+      "includes abandoned branches, reported tool usage, summaries and cache warming";
 
     return [
-      `Whole-session recorded estimate: $${u.cost.toFixed(4)} (includes abandoned branches, reported tool usage, summaries and cache warming; not a verified invoice)`,
-      `Auxiliary recorded estimate (separate from session cost): $${auxiliary.cost.toFixed(4)}`,
+      u.costFromProvider
+        ? `Whole-session billed total reported by the provider: $${u.cost.toFixed(4)} (${sessionScope})`
+        : `Whole-session recorded estimate: $${u.cost.toFixed(4)} (${sessionScope}; not a verified invoice)`,
+      `Auxiliary ${auxiliary.costFromProvider ? "billed total reported by the provider" : "recorded estimate"} (separate from session cost): $${auxiliary.cost.toFixed(4)}`,
       `Auxiliary tokens: input ${auxiliary.input}, output ${auxiliary.output}, cache read ${auxiliary.cacheRead}, cache write ${auxiliary.cacheWrite}`,
       `Tokens: input ${u.input}, output ${u.output}, cache read ${u.cacheRead}, cache write ${u.cacheWrite}`,
       `Latest active-branch request cache hit rate: ${u.latestHit === undefined ? "unknown" : `${u.latestHit.toFixed(1)}%`}`,

@@ -54,6 +54,7 @@ it("counts whole-session records once and takes cache hit rate from the active b
     cacheRead: 90,
     cacheWrite: 0,
     cost: 1.6,
+    costFromProvider: false,
     latestHit: 90,
   });
 
@@ -65,6 +66,7 @@ it("counts whole-session records once and takes cache hit rate from the active b
     cacheRead: 90,
     cacheWrite: 0,
     cost: 1.6,
+    costFromProvider: false,
     latestHit: undefined,
   });
 
@@ -76,9 +78,80 @@ it("counts whole-session records once and takes cache hit rate from the active b
     cacheRead: 0,
     cacheWrite: 0,
     cost: 0,
+    costFromProvider: false,
     latestHit: undefined,
   });
 });
+
+it.each([
+  { billed: [true, true], costFromProvider: true },
+  { billed: [true, false], costFromProvider: false },
+  { billed: [true, undefined], costFromProvider: false },
+  { billed: [false, false], costFromProvider: false },
+  { billed: [], costFromProvider: false },
+])(
+  "marks the session cost provider-reported only when every part is: $billed",
+  ({ billed, costFromProvider }) => {
+    const ledger = new UsageLedger();
+    const entries = billed.map((fromProvider, index) => ({
+      id: String(index),
+      type: "usage",
+      usage: {
+        input: 1,
+        output: 1,
+        ...(fromProvider === undefined
+          ? {}
+          : {
+              cost: fromProvider
+                ? { total: 0.5, totalFromProvider: true }
+                : { total: 0.5 },
+            }),
+      },
+    }));
+
+    ledger.update(entries, []);
+
+    expect(ledger.totals).toStrictEqual({
+      input: billed.length,
+      output: billed.length,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.5 * billed.filter((value) => value !== undefined).length,
+      costFromProvider,
+      latestHit: undefined,
+    });
+  },
+);
+
+it.each([
+  {
+    costFromProvider: false,
+    lines: [
+      "Whole-session recorded estimate: $1.5000 (includes abandoned branches, reported tool usage, summaries and cache warming; not a verified invoice)",
+      "Auxiliary recorded estimate (separate from session cost): $0.2500",
+    ],
+  },
+  {
+    costFromProvider: true,
+    lines: [
+      "Whole-session billed total reported by the provider: $1.5000 (includes abandoned branches, reported tool usage, summaries and cache warming)",
+      "Auxiliary billed total reported by the provider (separate from session cost): $0.2500",
+    ],
+  },
+])(
+  "describes cost totals by their source when provider-reported is $costFromProvider",
+  ({ costFromProvider, lines }) => {
+    const state = createSnapshot(100, "/work");
+    state.usage = { ...state.usage, cost: 1.5, costFromProvider };
+    state.auxiliaryUsage = {
+      ...state.auxiliaryUsage,
+      cost: 0.25,
+      costFromProvider,
+    };
+
+    expect(detailsLines(state, "usage").slice(0, 2)).toStrictEqual(lines);
+  },
+);
 
 it("correlates RPC replies and cleans up timeout and disposal", async () => {
   const handlers = new Map<string, (value: unknown) => void>();

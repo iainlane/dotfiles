@@ -11,6 +11,11 @@ export interface UsageTotals {
   cacheRead: number;
   cacheWrite: number;
   cost: number;
+  /**
+   * True when every record that used tokens reported a cost and the provider
+   * billed every reported cost.
+   */
+  costFromProvider: boolean;
   latestHit: number | undefined;
 }
 
@@ -79,6 +84,7 @@ export function createSnapshot(now: number, cwd: string): FooterSnapshot {
       cacheRead: 0,
       cacheWrite: 0,
       cost: 0,
+      costFromProvider: false,
       latestHit: undefined,
     },
     auxiliaryUsage: {
@@ -87,6 +93,7 @@ export function createSnapshot(now: number, cwd: string): FooterSnapshot {
       cacheRead: 0,
       cacheWrite: 0,
       cost: 0,
+      costFromProvider: false,
       latestHit: undefined,
     },
     activity: {

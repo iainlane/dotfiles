@@ -10,6 +10,7 @@ function empty(): UsageTotals {
     cacheRead: 0,
     cacheWrite: 0,
     cost: 0,
+    costFromProvider: false,
     latestHit: undefined,
   };
 }
@@ -20,7 +21,12 @@ const usageSchema = Type.Object({
   output: measurement,
   cacheRead: measurement,
   cacheWrite: measurement,
-  cost: Type.Optional(Type.Object({ total: measurement })),
+  cost: Type.Optional(
+    Type.Object({
+      total: measurement,
+      totalFromProvider: Type.Optional(Type.Boolean()),
+    }),
+  ),
 });
 const messageEntrySchema = Type.Object({
   type: Type.Literal("message"),
@@ -51,9 +57,16 @@ const assistantEntrySchema = Type.Object({
   }),
 });
 
-function usage(raw: unknown): Omit<UsageTotals, "latestHit"> {
+interface UsageRecord extends Omit<
+  UsageTotals,
+  "costFromProvider" | "latestHit"
+> {
+  costSource: "provider" | "estimate" | undefined;
+}
+
+function usage(raw: unknown): UsageRecord {
   if (!Check(usageSchema, raw)) {
-    return empty();
+    return { ...empty(), costSource: undefined };
   }
   const value = raw;
 
@@ -63,12 +76,44 @@ function usage(raw: unknown): Omit<UsageTotals, "latestHit"> {
     cacheRead: value.cacheRead ?? 0,
     cacheWrite: value.cacheWrite ?? 0,
     cost: value.cost?.total ?? 0,
+    costSource:
+      value.cost === undefined
+        ? undefined
+        : value.cost.totalFromProvider === true
+          ? "provider"
+          : "estimate",
   };
 }
 
-function entryUsage(
-  entry: unknown,
-): Omit<UsageTotals, "latestHit"> | undefined {
+class UsageSum {
+  readonly totals = empty();
+  private costed = 0;
+  private billed = 0;
+  private uncosted = 0;
+
+  add(entry: UsageRecord): void {
+    this.totals.input += entry.input;
+    this.totals.output += entry.output;
+    this.totals.cacheRead += entry.cacheRead;
+    this.totals.cacheWrite += entry.cacheWrite;
+    this.totals.cost += entry.cost;
+
+    if (entry.costSource === undefined) {
+      if (entry.input + entry.output + entry.cacheRead + entry.cacheWrite > 0) {
+        this.uncosted += 1;
+      }
+    } else {
+      this.costed += 1;
+      if (entry.costSource === "provider") {
+        this.billed += 1;
+      }
+    }
+    this.totals.costFromProvider =
+      this.costed > 0 && this.billed === this.costed && this.uncosted === 0;
+  }
+}
+
+function entryUsage(entry: unknown): UsageRecord | undefined {
   if (Check(messageEntrySchema, entry)) {
     return usage(entry.message.usage);
   }
@@ -80,11 +125,19 @@ function entryUsage(
 }
 
 export class UsageLedger {
-  totals = empty();
-  auxiliary = empty();
+  private session = new UsageSum();
+  private auxiliarySum = new UsageSum();
   private readonly auxiliaryIds = new Set<string>();
   private count = 0;
   private lastId: unknown;
+
+  get totals(): UsageTotals {
+    return this.session.totals;
+  }
+
+  get auxiliary(): UsageTotals {
+    return this.auxiliarySum.totals;
+  }
 
   update(entries: readonly unknown[], branch: readonly unknown[]): void {
     const previous = entries[this.count - 1];
@@ -93,8 +146,8 @@ export class UsageLedger {
       entries.length < this.count ||
       (this.count > 0 && (!record(previous) || previous.id !== this.lastId))
     ) {
-      this.totals = empty();
-      this.auxiliary = empty();
+      this.session = new UsageSum();
+      this.auxiliarySum = new UsageSum();
       this.auxiliaryIds.clear();
       this.count = 0;
     }
@@ -105,13 +158,8 @@ export class UsageLedger {
         if (this.auxiliaryIds.has(data.id)) {
           continue;
         }
-        const addition = usage(data.usage);
         this.auxiliaryIds.add(data.id);
-        this.auxiliary.input += addition.input;
-        this.auxiliary.output += addition.output;
-        this.auxiliary.cacheRead += addition.cacheRead;
-        this.auxiliary.cacheWrite += addition.cacheWrite;
-        this.auxiliary.cost += addition.cost;
+        this.auxiliarySum.add(usage(data.usage));
         continue;
       }
 
@@ -121,11 +169,7 @@ export class UsageLedger {
         continue;
       }
 
-      this.totals.input += addition.input;
-      this.totals.output += addition.output;
-      this.totals.cacheRead += addition.cacheRead;
-      this.totals.cacheWrite += addition.cacheWrite;
-      this.totals.cost += addition.cost;
+      this.session.add(addition);
     }
 
     this.count = entries.length;
