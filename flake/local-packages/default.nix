@@ -7,7 +7,11 @@ in {
     outputs = outputsFor {inherit pkgs;};
   in {
     inherit (outputs) packages;
-    checks = lib.mkMerge [outputs.checks (checks {inherit pkgs;})];
+    checks = lib.mkMerge [
+      outputs.checks
+      (checks {inherit pkgs;})
+      (import ./checks/typecheck.nix {inherit pkgs;})
+    ];
     legacyPackages = {inherit (outputs) slowChecks;};
   };
 }

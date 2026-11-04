@@ -12,7 +12,7 @@ in
     // {
       src = lib.fileset.toSource {
         inherit root;
-        fileset = lib.fileset.unions [directory ../.oxlintrc.json ../.oxfmtrc.json];
+        fileset = lib.fileset.unions [directory ./typecheck.ts ../.oxlintrc.json ../.oxfmtrc.json];
       };
       sourceRoot = "source/${relative}";
       npmDeps = importNpmLock {npmRoot = directory;};

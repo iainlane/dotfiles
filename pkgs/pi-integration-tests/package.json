@@ -2,7 +2,7 @@
   "name": "@dotfiles/pi-integration-tests",
   "version": "0.1.0",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node ../../lib/typecheck.ts --noEmit",
     "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint",
     "build": "tsc"
