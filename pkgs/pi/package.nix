@@ -20,8 +20,6 @@ in
     passthru =
       (old.passthru or {})
       // {
-        inherit sdkPackageRoot;
-        setupNativeSdk = ./setup-native-sdk.bash;
         updateScript = null;
 
         npmTarball = callPackage ../build-support/npm-tarball.nix {} {

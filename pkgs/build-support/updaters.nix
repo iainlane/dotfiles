@@ -144,24 +144,35 @@
 
   # Bump a package whose derivation nix-update understands: version, source
   # hash, and dependency hashes such as `vendorHash` or `pnpmDeps`.
+  #
+  # `npmLockfile` is the repository path of a copy of the source's
+  # package-lock.json, for a build that reads the lockfile during evaluation.
+  # Reading it from the fetched source would be import-from-derivation.
   mkNixUpdateUpdater = {
     attr,
     filename ? "pkgs/${attr}/package.nix",
     extraFlags ? [],
     unsetEnv ? [],
+    npmLockfile ? null,
   }:
     writeShellApplication {
       name = "update-${attr}";
 
-      runtimeInputs = [git nix nix-update];
+      runtimeInputs = [coreutils git nix nix-update];
 
-      text = ''
-        cd "$(git rev-parse --show-toplevel)"
+      text =
+        ''
+          cd "$(git rev-parse --show-toplevel)"
 
-        ${lib.concatMapStringsSep "\n" (name: "unset ${lib.escapeShellArg name}") unsetEnv}
+          ${lib.concatMapStringsSep "\n" (name: "unset ${lib.escapeShellArg name}") unsetEnv}
 
-        nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${attr}"
-      '';
+          nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${attr}"
+        ''
+        + lib.optionalString (npmLockfile != null) ''
+
+          source="$(nix build --no-link --print-out-paths ".#${attr}.src")"
+          install -m 0644 "''${source}/package-lock.json" ${lib.escapeShellArg npmLockfile}
+        '';
     };
 
   # Bump a Pi extension: rewrite `source.json` with the new version and source
