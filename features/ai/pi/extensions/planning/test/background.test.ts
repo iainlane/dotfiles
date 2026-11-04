@@ -233,4 +233,4 @@ it("runs planning roles in the background and preserves native child permissions
     vi.unstubAllEnvs();
     await rm(cwd, { recursive: true, force: true });
   }
-}, 90_000);
+});

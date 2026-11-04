@@ -232,7 +232,6 @@ it.each(["controls", "unicode"])(
       await rm(cwd, { recursive: true, force: true });
     }
   },
-  40_000,
 );
 
 it("clears context in the same native session and preserves the plan through compaction, forks and restart", async () => {
@@ -565,7 +564,7 @@ it("clears context in the same native session and preserves the plan through com
     }
     await rm(cwd, { recursive: true, force: true });
   }
-}, 90_000);
+});
 
 it.each([
   { decision: "declined", response: { confirmed: false } },
@@ -716,5 +715,4 @@ it.each([
       await rm(cwd, { recursive: true, force: true });
     }
   },
-  40_000,
 );

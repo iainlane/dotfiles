@@ -20,7 +20,7 @@ beforeAll(async () => {
     JSON.stringify({ crossSessionHint: false }),
   );
   await vi.importActual("../.fixtures/rpiv-btw/btw.ts");
-}, 30_000);
+});
 
 afterAll(async () => {
   vi.unstubAllEnvs();

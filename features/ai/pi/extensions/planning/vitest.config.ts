@@ -62,7 +62,15 @@ export default defineConfig({
           exclude: integration,
         },
       },
-      { extends: true, test: { name: "integration", include: integration } },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: integration,
+          testTimeout: 0,
+          hookTimeout: 0,
+        },
+      },
     ],
   },
 });

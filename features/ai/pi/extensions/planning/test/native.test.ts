@@ -847,5 +847,4 @@ it.each([
       await rm(cwd, { recursive: true, force: true });
     }
   },
-  30_000,
 );

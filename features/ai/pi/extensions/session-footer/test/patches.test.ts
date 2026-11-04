@@ -30,7 +30,7 @@ beforeAll(async () => {
   await vi.importActual(
     "../.fixtures/pi-sub-core/src/providers/impl/anthropic.ts",
   );
-}, 30_000);
+});
 
 afterEach(() => {
   server.resetHandlers();

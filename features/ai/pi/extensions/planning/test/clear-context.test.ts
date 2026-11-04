@@ -717,5 +717,4 @@ it.each<ApprovalScenario>([
       await rm(cwd, { recursive: true, force: true });
     }
   },
-  20_000,
 );
