@@ -72,8 +72,8 @@
 
   expected = {
     schema = {
-      availableSystems = lib.sort builtins.lessThan systems;
-      selectedSystems = [validationSystem];
+      availableSystems = lib.optionals (nodes != {}) (lib.sort builtins.lessThan systems);
+      selectedSystems = lib.optional (nodes != {}) validationSystem;
     };
     coverage = lib.attrNames required;
     policy =
