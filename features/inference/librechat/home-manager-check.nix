@@ -13,6 +13,7 @@
 }: let
   mkAssertionCheck = import ../../../lib/assertion-check.nix {inherit lib pkgs;};
   inherit (import ../../../lib/home.nix {inherit inputs lib featureResolver;}) mkHomeConfiguration;
+  inherit (import ../../../lib/channels.nix {inherit inputs;}) channelFor;
   mcp = flakeContext.mcpByChannel.unstable;
 
   hostConfig = {
@@ -29,13 +30,16 @@
     excludes = [];
   };
 
-  makeHome = extra:
+  makeHome = extra: let
+    host = hostConfig // (extra.hostConfig or {});
+  in
     mkHomeConfiguration {
       homeManager = inputs.home-manager;
       inherit pkgs;
       extraSpecialArgs =
         {
-          inherit inputs hostConfig modelCatalog flakeContext flakeContexts mcp;
+          inherit inputs modelCatalog flakeContext flakeContexts mcp;
+          hostConfig = host;
           defaultModels = modelCatalog.defaults;
           pkgs-unstable = pkgs;
         }
@@ -43,7 +47,7 @@
       modules =
         featureResolver.resolveFeatures {
           class = "homeManager";
-          inherit hostConfig;
+          hostConfig = host;
         }
         ++ [
           inputs.sops-nix.homeManagerModules.sops
@@ -209,6 +213,32 @@ in {
       }
     ];
   };
+
+  librechat-guest-channel = let
+    channels = ["stable" "unstable"];
+
+    # The guest's `init` is in its system toplevel, whose name ends with the
+    # NixOS version.
+    guestVersion = channel: let
+      init = (makeHome {hostConfig = {inherit channel;};}).config.dotfiles.inference.librechat.manifest.value.guest.init;
+    in
+      lib.last (lib.splitString "-" (baseNameOf (dirOf (builtins.unsafeDiscardStringContext init))));
+
+    nixpkgsVersion = channel:
+      (channelFor {
+        inherit channel;
+        inherit (flakeContext) pkgs pkgs-stable;
+      }).nixpkgs.lib.version;
+  in
+    mkAssertionCheck {
+      name = "librechat-guest-channel";
+      assertions = [
+        {
+          assertion = lib.genAttrs channels guestVersion == lib.genAttrs channels nixpkgsVersion;
+          message = "The LibreChat guest system must come from the host's nixpkgs channel.";
+        }
+      ];
+    };
 
   librechat-bundle-exclusion = let
     actual = {
