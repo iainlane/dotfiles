@@ -144,7 +144,7 @@
         inherit system;
         pkgs = {inherit runCommandLocal;};
       };
-    deployChecks = (import ../flake/deployment/checks.nix {
+    deployChecks = (import ../features/deploy-rs/checks.nix {
       inherit lib;
       deployLibFor = _: {
         deployChecks = {nodes}: builtins.deepSeq nodes {};

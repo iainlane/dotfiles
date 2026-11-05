@@ -2,9 +2,7 @@
 # system that builds the host's system configuration, the flake output that
 # configuration appears under, the directory the user's home lives in, and the
 # second half of the host's Nix system string. To add an operating system, add
-# an entry here, an adapter under `os/`, the activation call in
-# `flake/deployment/outputs.nix` and the derivation-path accessor in
-# `flake/host-assembly/checks/evaluation.nix`.
+# an entry here and an adapter under `os/`.
 {
   nixos = {
     systemClass = "nixos";
