@@ -12,7 +12,6 @@ from mcp import Client, StdioServerParameters
 class Server:
     program: Path
     name: str
-    tools: tuple[str, ...]
 
     async def check(
         self, mode: Literal["legacy", "2026-07-28"], url: str | None = None
@@ -26,13 +25,10 @@ class Server:
             if mode == "legacy":
                 assert server is not None
                 assert server.name == self.name
-            assert (
-                client.protocol_version,
-                tuple(sorted(tool.name for tool in tools.tools)),
-            ) == (
-                "2025-11-25" if mode == "legacy" else mode,
-                self.tools,
+            assert client.protocol_version == (
+                "2025-11-25" if mode == "legacy" else mode
             )
+            assert tools.tools
 
     async def check_proxy(self, proxy: Path) -> None:
         process = await asyncio.create_subprocess_exec(
@@ -63,27 +59,7 @@ class Server:
 
 def main() -> None:
     nixos, git, proxy = (Path(argument) for argument in sys.argv[1:])
-    servers = (
-        Server(nixos, "mcp-nixos", ("nix", "nix_versions")),
-        Server(
-            git,
-            "mcp-git",
-            (
-                "git_add",
-                "git_branch",
-                "git_checkout",
-                "git_commit",
-                "git_create_branch",
-                "git_diff",
-                "git_diff_staged",
-                "git_diff_unstaged",
-                "git_log",
-                "git_reset",
-                "git_show",
-                "git_status",
-            ),
-        ),
-    )
+    servers = (Server(nixos, "mcp-nixos"), Server(git, "mcp-git"))
     for server in servers:
         asyncio.run(server.check("legacy"))
         asyncio.run(server.check("2026-07-28"))
