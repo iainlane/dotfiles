@@ -1,19 +1,25 @@
-# deploy-rs's flake outputs: a node for each host, the deployment checks, and
-# the deploy-rs package and app.
+# Marks a host that deploy-rs deploys, and builds deploy-rs's flake outputs.
+# Only hosts with this feature get deploy-rs nodes and activation checks, and CI
+# publishes their deploy-rs profiles. Other hosts are switched locally, so CI
+# publishes their system and home outputs.
 {
   config,
   inputs,
   lib,
   hostResults,
   flakeContexts,
+  featureResolver,
   ...
 }: let
   outputs = import ./outputs.nix {
     inherit lib hostResults;
-    inherit (config.dotfiles) hosts username;
+    inherit (config.dotfiles) username;
+    hosts = lib.filterAttrs (_: host: featureResolver.hasFeature host config.dotfiles.features.deploy-rs) config.dotfiles.hosts;
     deployLibFor = system: flakeContexts.${system}.deployRs.lib;
   };
 in {
+  dotfiles.features.deploy-rs = {};
+
   flake = {inherit (outputs) deploy;};
 
   perSystem = {

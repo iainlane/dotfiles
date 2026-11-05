@@ -1,12 +1,14 @@
 # Everything that varies by operating system and is not code: the module
 # system that builds the host's system configuration, the flake output that
-# configuration appears under, the directory the user's home lives in, and the
+# configuration appears under, the attribute path from that configuration to
+# its top-level derivation, the directory the user's home lives in, and the
 # second half of the host's Nix system string. To add an operating system, add
 # an entry here and an adapter under `os/`.
 {
   nixos = {
     systemClass = "nixos";
     outputName = "nixosConfigurations";
+    toplevelPath = ["config" "system" "build" "toplevel"];
     homeBaseDir = "/home";
     systemSuffix = "linux";
   };
@@ -14,6 +16,7 @@
   "generic-linux" = {
     systemClass = "systemManager";
     outputName = "systemConfigs";
+    toplevelPath = ["config" "build" "toplevel"];
     homeBaseDir = "/home";
     systemSuffix = "linux";
   };
@@ -21,6 +24,7 @@
   darwin = {
     systemClass = "darwin";
     outputName = "darwinConfigurations";
+    toplevelPath = ["config" "system" "build" "toplevel"];
     homeBaseDir = "/Users";
     systemSuffix = "darwin";
   };

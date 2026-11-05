@@ -145,11 +145,12 @@ versions, deploys the current system and home configuration, and refreshes the
 `direnv` caches (see [above][terms]). The home configuration builds and retains
 the project shells.
 
-To deploy to a managed remote system, run `./just update-host <hostname>`. To
-deploy only the system or home deploy-rs profile, run
-`./just update-host-system <hostname>` or `./just update-host-home <hostname>`.
-Only generic Linux hosts have a separate home profile. The system profile of a
-NixOS or macOS host includes its home configuration.
+To deploy to a remote host, run `./just update-host <hostname>`. The host needs
+the `deploy-rs` feature, which gives it deploy-rs profiles. To deploy only the
+system or home deploy-rs profile, run `./just update-host-system <hostname>` or
+`./just update-host-home <hostname>`. Only generic Linux hosts have a separate
+home profile. The system profile of a NixOS or macOS host includes its home
+configuration.
 
 The individual steps can also be run separately.
 

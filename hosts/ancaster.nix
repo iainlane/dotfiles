@@ -19,6 +19,7 @@ in {
       features.agentsview-server
       features.base
       features.containers
+      features.deploy-rs
       features.dex
       features.larapaper
       features.matrix

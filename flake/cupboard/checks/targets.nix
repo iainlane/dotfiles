@@ -1,6 +1,7 @@
 {
   hosts,
   nodes,
+  homeConfigurations,
   username,
   systems,
   checks,
@@ -12,6 +13,7 @@
 }: let
   inherit (import ../../../lib/ci.nix) validationSystem;
   nixbuild = import ../../../lib/nixbuild.nix {inherit lib;};
+  operatingSystems = import ../../../lib/operating-systems.nix;
 
   buildable = system: check:
     featureResolver.isDarwin (featureResolver.contextForSystem system) || nixbuild.canBuild system check;
@@ -19,12 +21,21 @@
   entry = attr: system: rootSuffix:
     lib.nameValuePair attr {inherit system rootSuffix;};
 
-  profiles = lib.concatLists (lib.mapAttrsToList (hostname: host:
-    [
-      (entry ".#deploy.nodes.${hostname}.profiles.system.path" host.system "${host.system}/${host.os}-${hostname}")
-    ]
-    ++ lib.optional (nodes.${hostname}.profiles ? ${username})
-    (entry ".#deploy.nodes.${hostname}.profiles.${username}.path" host.system "${host.system}/home-${hostname}"))
+  profiles = lib.concatLists (lib.mapAttrsToList (hostname: host: let
+    os = operatingSystems.${host.os};
+    deployed = nodes ? ${hostname};
+    systemAttr =
+      if deployed
+      then ".#deploy.nodes.${hostname}.profiles.system.path"
+      else ".#${os.outputName}.${hostname}.${lib.concatStringsSep "." os.toplevelPath}";
+    homeAttr =
+      if deployed
+      then ".#deploy.nodes.${hostname}.profiles.${username}.path"
+      else ".#homeConfigurations.\"${username}@${hostname}\".activationPackage";
+  in
+    [(entry systemAttr host.system "${host.system}/${host.os}-${hostname}")]
+    ++ lib.optional (homeConfigurations ? "${username}@${hostname}")
+    (entry homeAttr host.system "${host.system}/home-${hostname}"))
   hosts);
 
   deployTools =
@@ -49,7 +60,7 @@
 
   deploymentTargets =
     lib.listToAttrs (profiles ++ deployTools)
-    // lib.genAttrs (map (system: ".#checks.${system}.deploy-activate") systems) (_: true);
+    // lib.genAttrs (map (system: ".#checks.${system}.deploy-activate") (lib.unique (map (hostname: hosts.${hostname}.system) (lib.attrNames nodes)))) (_: true);
 
   required = lib.listToAttrs (
     profiles
