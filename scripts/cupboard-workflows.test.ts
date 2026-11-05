@@ -178,53 +178,146 @@ function admittedJobs(event: Event): Record<string, boolean> {
   };
 }
 
-interface FlakeUpdateRun {
+interface UpdateRun {
   status: number | null;
   stderr: string;
   nixCalls: string;
   gitCalls: string;
   body: string | null;
+  pushed: Readonly<Record<string, Readonly<Record<string, string>>>> | null;
 }
 
-// Runs the flake-update job's steps after the secrets setup, each in its own
-// shell as on a runner, with stub `nix`, `git`, `gh` and `date` commands.
-// The `nix` argument is the stub's body for every call other than building the
+function runGit(cwd: string, env: NodeJS.ProcessEnv, args: string[]): string {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8", env });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
+}
+
+// The files of each branch in a bare repository, by ref and then by path.
+function branches(
+  origin: string,
+  env: NodeJS.ProcessEnv,
+): Record<string, Record<string, string>> {
+  const refs = runGit(origin, env, ["for-each-ref", "--format=%(refname)"])
+    .split("\n")
+    .filter((ref) => ref !== "");
+  return Object.fromEntries(
+    refs.map((ref) => [
+      ref,
+      Object.fromEntries(
+        runGit(origin, env, ["ls-tree", "-r", "--name-only", ref])
+          .split("\n")
+          .filter((path) => path !== "")
+          .map((path) => [
+            path,
+            runGit(origin, env, ["show", `${ref}:${path}`]),
+          ]),
+      ),
+    ]),
+  );
+}
+
+// Runs the `update` job's steps after the secrets setup, each in its own shell
+// as on a runner, with stub `nix`, `gh` and `date` commands. The `nix` argument
+// is the stub's body for every call other than building the flake relock
 // summariser.
-function runFlakeUpdate(nix: string): FlakeUpdateRun {
-  const directory = mkdtempSync(join(tmpdir(), "flake-update-workflow-"));
+//
+// Without `repository`, `git` is a stub too. With it, the job runs in a Git
+// repository with a bare `origin`, and the repository's first commit contains
+// the given files. `git` then runs the real command, and the result includes
+// the files of each branch that the job pushed to `origin`.
+function runUpdateWorkflow(
+  filename: string,
+  nix: string,
+  repository: Readonly<Record<string, string>> | null = null,
+): UpdateRun {
+  const directory = mkdtempSync(join(tmpdir(), "update-workflow-"));
+  const bin = join(directory, "bin");
+  const log = join(directory, "log");
+  const work = join(directory, "work");
+  const origin = join(directory, "origin.git");
   const runnerTemp = join(directory, "temp");
-  mkdirSync(runnerTemp);
-  writeFileSync(join(directory, "flake.lock"), "before\n");
+  for (const path of [bin, log, work, runnerTemp]) mkdirSync(path);
+
+  // Git hooks and `git rebase --exec` can set variables such as `GIT_DIR` and
+  // `GIT_INDEX_FILE`, which would point the fixture's Git commands at the
+  // caller's repository.
+  const env: NodeJS.ProcessEnv = {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")),
+    ),
+    HOME: directory,
+    XDG_CONFIG_HOME: join(directory, "config"),
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+
   writeFileSync(
-    join(directory, "summary"),
+    join(bin, "summary"),
     `#!${bash}
 set -euo pipefail
 printf 'before=%s; after=%s\\n' "$(cat "$1")" "$(cat "$2")"
 `,
     { mode: 0o755 },
   );
+
+  if (repository === null) {
+    writeFileSync(join(work, "flake.lock"), "before\n");
+  } else {
+    for (const [path, contents] of Object.entries(repository)) {
+      mkdirSync(dirname(join(work, path)), { recursive: true });
+      writeFileSync(join(work, path), contents);
+    }
+
+    runGit(directory, env, ["init", "--quiet", "--bare", origin]);
+    runGit(work, env, ["init", "--quiet", "--initial-branch=main"]);
+    runGit(work, env, ["add", "-A"]);
+    runGit(work, env, [
+      "-c",
+      "user.name=fixture",
+      "-c",
+      "user.email=fixture@example.invalid",
+      "commit",
+      "--quiet",
+      "-m",
+      "fixture",
+    ]);
+    runGit(work, env, ["remote", "add", "origin", origin]);
+  }
+
   const commands: Readonly<Record<string, string>> = {
     nix: `
-printf '%s\\n' "$*" >> nix-calls
+printf '%s\\n' "$*" >> '${log}/nix-calls'
 if [ "$1 $2" = 'build .#flake-lock-summary' ]; then
   mkdir -p "$RUNNER_TEMP/flake-lock-summary/bin"
-  cp summary "$RUNNER_TEMP/flake-lock-summary/bin/flake-lock-summary"
+  cp '${bin}/summary' "$RUNNER_TEMP/flake-lock-summary/bin/flake-lock-summary"
   exit 0
 fi
 ${nix}
 `,
-    git: `
-printf '%s\\n' "$*" >> git-calls
+    git:
+      repository === null
+        ? `
+printf '%s\\n' "$*" >> '${log}/git-calls'
 case "$*" in
   'diff --quiet' | 'diff --cached --quiet') exit 1 ;;
   'show HEAD:flake.lock') printf 'before\\n' ;;
 esac
+`
+        : // Git prints progress messages that contain temporary paths on
+          // stderr. Send them to a file so the job's stderr is deterministic.
+          `
+printf '%s\\n' "$*" >> '${log}/git-calls'
+PATH='${process.env.PATH}' exec git "$@" 2>> '${log}/git-stderr'
 `,
     gh: `
+if [ "$1 $2" = 'pr view' ]; then
+  exit 1
+fi
 if [ "$1 $2" = 'pr create' ]; then
   while [ "$#" -gt 0 ]; do
     if [ "$1" = '--body-file' ]; then
-      cp "$2" pr-body
+      cp "$2" '${log}/pr-body'
       break
     fi
     shift
@@ -235,13 +328,13 @@ fi
   };
 
   for (const [command, script] of Object.entries(commands)) {
-    writeFileSync(join(directory, command), `#!${bash}\n${script}`, {
+    writeFileSync(join(bin, command), `#!${bash}\n${script}`, {
       mode: 0o755,
     });
   }
 
   try {
-    const update = record(record(workflow("flake-update.yml").jobs).update);
+    const update = record(record(workflow(filename).jobs).update);
     assert.ok(Array.isArray(update.steps));
     const updateSteps = update.steps.map(record);
     const setup = updateSteps.findIndex(
@@ -253,25 +346,26 @@ fi
       .map((step) => `(\n${string(step.run)}\n)`)
       .join(" &&\n");
     const result = spawnSync(bash, ["--noprofile", "--norc", "-c", script], {
-      cwd: directory,
+      cwd: work,
       encoding: "utf8",
       env: {
-        ...process.env,
-        PATH: `${directory}:${process.env.PATH}`,
+        ...env,
+        PATH: `${bin}:${process.env.PATH}`,
         RUNNER_TEMP: runnerTemp,
         GITHUB_RUN_ID: "123",
       },
     });
-    const body = join(directory, "pr-body");
+    const body = join(log, "pr-body");
     return {
       status: result.status,
       stderr: result.stderr,
-      nixCalls: readFileSync(join(directory, "nix-calls"), "utf8").replaceAll(
+      nixCalls: readFileSync(join(log, "nix-calls"), "utf8").replaceAll(
         runnerTemp,
         "$RUNNER_TEMP",
       ),
-      gitCalls: readFileSync(join(directory, "git-calls"), "utf8"),
+      gitCalls: readFileSync(join(log, "git-calls"), "utf8"),
       body: existsSync(body) ? readFileSync(body, "utf8") : null,
+      pushed: repository === null ? null : branches(origin, env),
     };
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -285,7 +379,7 @@ const relockSummary = [
   "",
   "before=before; after=after",
 ];
-const relockFooter = [
+const cupboardFooter = [
   "",
   "After merging, the `cupboard` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.",
   "",
@@ -304,7 +398,9 @@ const publication = [
 describe("Scheduled flake updates", () => {
   it("opens a PR with the prebuilt summary when the relocked flake cannot evaluate", () => {
     assert.deepEqual(
-      runFlakeUpdate(`
+      runUpdateWorkflow(
+        "flake-update.yml",
+        `
 if [ -f relocked ]; then
   echo 'The relocked flake cannot evaluate.' >&2
   exit 1
@@ -317,7 +413,8 @@ case "$*" in
     ;;
   *) exit 1 ;;
 esac
-`),
+`,
+      ),
       {
         status: 0,
         stderr: "The relocked flake cannot evaluate.\n",
@@ -329,14 +426,17 @@ esac
           "",
         ].join("\n"),
         gitCalls: ["add flake.lock", ...publication, ""].join("\n"),
-        body: [...relockSummary, ...relockFooter].join("\n"),
+        body: [...relockSummary, ...cupboardFooter].join("\n"),
+        pushed: null,
       },
     );
   });
 
   it("opens a PR without dependent updates when the current flake cannot evaluate", () => {
     assert.deepEqual(
-      runFlakeUpdate(`
+      runUpdateWorkflow(
+        "flake-update.yml",
+        `
 case "$*" in
   'eval --json .#.packageVersions')
     echo 'The current flake cannot evaluate.' >&2
@@ -345,7 +445,8 @@ case "$*" in
   'flake update') printf 'after\\n' > flake.lock ;;
   *) exit 1 ;;
 esac
-`),
+`,
+      ),
       {
         status: 0,
         stderr: "The current flake cannot evaluate.\n",
@@ -356,14 +457,17 @@ esac
           "",
         ].join("\n"),
         gitCalls: ["add flake.lock", ...publication, ""].join("\n"),
-        body: [...relockSummary, ...relockFooter].join("\n"),
+        body: [...relockSummary, ...cupboardFooter].join("\n"),
+        pushed: null,
       },
     );
   });
 
   it("runs the updaters of packages that depend on a package that the relock changed", () => {
     assert.deepEqual(
-      runFlakeUpdate(`
+      runUpdateWorkflow(
+        "flake-update.yml",
+        `
 case "$*" in
   'eval --json .#.packageVersions')
     if [ -f relocked ]; then
@@ -381,7 +485,8 @@ case "$*" in
   'run .#update-pi-planning') touch planning-updated ;;
   *) exit 1 ;;
 esac
-`),
+`,
+      ),
       {
         status: 0,
         stderr: "",
@@ -414,8 +519,92 @@ esac
           "Failed to update, left unchanged:",
           "",
           "- pi-diff",
-          ...relockFooter,
+          ...cupboardFooter,
         ].join("\n"),
+        pushed: null,
+      },
+    );
+  });
+});
+
+describe("Scheduled package updates", () => {
+  it("commits the bumps on each side of a failed updater without its edits or new files", () => {
+    assert.deepEqual(
+      runUpdateWorkflow(
+        "package-update.yml",
+        `
+case "$*" in
+  'run .#update-plan -- order')
+    printf 'pi-session-footer\\npi-diff\\npi-planning\\n'
+    ;;
+  'run .#update-pi-session-footer')
+    printf '0.2.0\\n' > pkgs/pi-session-footer/version
+    ;;
+  'run .#update-pi-diff')
+    printf '0.4.0\\n' > pkgs/pi-diff/version
+    printf 'partial\\n' > pkgs/pi-diff/package-lock.json
+    exit 1
+    ;;
+  'run .#update-pi-planning')
+    printf '0.3.0\\n' > pkgs/pi-planning/version
+    ;;
+  'eval --raw .#.updaterVersions.pi-session-footer') printf '0.2.0' ;;
+  'eval --raw .#.updaterVersions.pi-planning') printf '0.3.0' ;;
+  *) exit 1 ;;
+esac
+`,
+        {
+          "pkgs/pi-diff/version": "0.3.0\n",
+          "pkgs/pi-planning/version": "0.2.0\n",
+          "pkgs/pi-session-footer/version": "0.1.0\n",
+        },
+      ),
+      {
+        status: 0,
+        stderr: "",
+        nixCalls: [
+          "run .#update-plan -- order",
+          "run .#update-pi-session-footer",
+          "eval --raw .#.updaterVersions.pi-session-footer",
+          "run .#update-pi-diff",
+          "run .#update-pi-planning",
+          "eval --raw .#.updaterVersions.pi-planning",
+          "",
+        ].join("\n"),
+        gitCalls: [
+          "diff --quiet",
+          "add -A",
+          "checkout -- .",
+          "clean -fd",
+          "diff --quiet",
+          "add -A",
+          "diff --cached --quiet",
+          "config user.name github-actions[bot]",
+          "config user.email 41898282+github-actions[bot]@users.noreply.github.com",
+          "ls-remote --heads origin refs/heads/package-update/*",
+          "switch -C package-update/2026-11-04",
+          "commit -m chore(pkgs): update packages",
+          "push --force origin HEAD:refs/heads/package-update/2026-11-04",
+          "",
+        ].join("\n"),
+        body: [
+          "Automated package bumps from the scheduled `package-update` workflow.",
+          "",
+          "Updated:",
+          "- pi-session-footer 0.2.0",
+          "- pi-planning 0.3.0",
+          "",
+          "Failed to update, left unchanged:",
+          "- pi-diff",
+          ...cupboardFooter,
+        ].join("\n"),
+        pushed: {
+          "refs/heads/package-update/2026-11-04": {
+            "pkgs/pi-diff/version": "0.3.0\n",
+            "pkgs/pi-planning/version": "0.3.0\n",
+            "pkgs/pi-session-footer/version": "0.2.0\n",
+          },
+        },
       },
     );
   });

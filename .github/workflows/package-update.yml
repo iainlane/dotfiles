@@ -68,10 +68,11 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
-      # Run every updater in dependency order, keeping going when one fails so
-      # an upstream outage does not block the others. A successful bump is
-      # staged; a failed one is reverted, so a partial write never reaches the
-      # commit. Each bump's new version is recorded for the pull request body.
+      # Run every updater in dependency order and stage each successful bump.
+      # When an updater fails, revert its edits and remove any files that it
+      # created, so the commit never includes a partial update. Then continue
+      # with the next updater, so one upstream outage does not block the
+      # others. Each bump's new version is recorded for the pull request body.
       - name: Run the updaters
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,6 +92,7 @@ jobs:
               echo "::warning::update-${name} failed; leaving it unchanged"
               printf '%s\n' "${name}" >> "${RUNNER_TEMP}/failed.txt"
               git checkout -- .
+              git clean -fd
               echo '::endgroup::'
               continue
             fi

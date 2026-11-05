@@ -12,7 +12,7 @@
 in {
   checks.cupboard-workflows =
     pkgs.runCommandLocal "cupboard-workflows-test" {
-      nativeBuildInputs = [pkgs.jq pkgs.yq-go];
+      nativeBuildInputs = [pkgs.git pkgs.jq pkgs.yq-go];
     }
     ''
       CUPBOARD_SHARED_NIX_CONFIG=${pkgs.writeText "shared-nix.conf" nixConfiguration.substituterConfig} \
