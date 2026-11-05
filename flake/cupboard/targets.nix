@@ -1,7 +1,9 @@
-# Deployment profiles, deployment tools and activation checks share a cohort
-# for each system. Other packages and checks use a separate cohort.
+# Host outputs, deployment tools and activation checks share a cohort for each
+# system. Other packages and checks use a separate cohort. A host with the
+# `deploy-rs` feature is published as its deploy-rs profiles, and any other
+# host as its system and home outputs.
 #
-# Public targets omit deploy profiles and checks that read the private secrets
+# Public targets omit host outputs and checks that read the private secrets
 # input. Fork pull requests and merge groups build this subset without publishing.
 #
 # Linux targets build on nixbuild.net. Darwin runners also enable those
@@ -18,6 +20,7 @@
   inherit (config.flake) deploy;
   inherit (config.dotfiles) hosts;
   inherit (import ../../lib/ci.nix) validationSystem;
+  operatingSystems = import ../../lib/operating-systems.nix;
   nixbuild = import ../../lib/nixbuild.nix {inherit lib;};
 
   baseFor = system: let
@@ -39,29 +42,45 @@
     baseFor system
     // {cohort = "${system}-deploy";};
 
-  systemEntry = name: host: let
-    profile = deploy.nodes.${name}.profiles.system.path;
+  homeName = name: "${username}@${name}";
+
+  systemTarget = name: host: let
+    os = operatingSystems.${host.os};
   in
-    deploymentFor host.system
-    // {
+    if deploy.nodes ? ${name}
+    then {
       attr = ".#deploy.nodes.${name}.profiles.system.path";
-      rootDrvPath = profile.drvPath;
-      rootSuffix = "${host.system}/${host.os}-${name}";
+      rootDrvPath = deploy.nodes.${name}.profiles.system.path.drvPath;
+    }
+    else {
+      attr = ".#${os.outputName}.${name}.${lib.concatStringsSep "." os.toplevelPath}";
+      rootDrvPath = (lib.getAttrFromPath os.toplevelPath config.flake.${os.outputName}.${name}).drvPath;
     };
 
-  homeEntry = name: host: let
-    profile = deploy.nodes.${name}.profiles.${username}.path;
-  in
-    deploymentFor host.system
-    // {
+  homeTarget = name:
+    if deploy.nodes ? ${name}
+    then {
       attr = ".#deploy.nodes.${name}.profiles.${username}.path";
-      rootDrvPath = profile.drvPath;
-      rootSuffix = "${host.system}/home-${name}";
+      rootDrvPath = deploy.nodes.${name}.profiles.${username}.path.drvPath;
+    }
+    else {
+      attr = ".#homeConfigurations.\"${homeName name}\".activationPackage";
+      rootDrvPath = config.flake.homeConfigurations.${homeName name}.activationPackage.drvPath;
     };
+
+  systemEntry = name: host:
+    deploymentFor host.system
+    // systemTarget name host
+    // {rootSuffix = "${host.system}/${host.os}-${name}";};
+
+  homeEntry = name: host:
+    deploymentFor host.system
+    // homeTarget name
+    // {rootSuffix = "${host.system}/home-${name}";};
 
   profileEntries =
     lib.mapAttrsToList systemEntry hosts
-    ++ lib.mapAttrsToList homeEntry (lib.filterAttrs (name: _: deploy.nodes.${name}.profiles ? ${username}) hosts);
+    ++ lib.mapAttrsToList homeEntry (lib.filterAttrs (name: _: config.flake.homeConfigurations ? ${homeName name}) hosts);
 
   deployToolEntries =
     map

@@ -28,6 +28,7 @@
       };
       mac.profiles.system.path = fakePackage "system-mac";
     };
+    homeConfigurations."tester@test".activationPackage = fakePackage "home-test";
     packages = {
       aarch64-darwin.deploy-rs = fakePackage "deploy-rs-darwin";
       x86_64-linux = {

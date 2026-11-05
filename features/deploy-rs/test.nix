@@ -54,6 +54,12 @@
     username = "fixture";
   };
   checks = system: subject.checks {inherit system;};
+  undeployed = import ./outputs.nix {
+    inherit lib deployLibFor;
+    hosts = {};
+    hostResults = {};
+    username = "fixture";
+  };
   schema = builtins.fromJSON (checks "aarch64-darwin").deploy-schema.name;
   native = system: builtins.fromJSON (checks system).deploy-activate.name;
   paths = {
@@ -85,6 +91,10 @@
     nativeLinux = native "x86_64-linux";
     nativeDarwin = native "aarch64-darwin";
     policy = lib.genAttrs ["aarch64-darwin" "x86_64-linux"] checkPolicy;
+    checkNames = {
+      withoutHosts = lib.attrNames (checks "aarch64-linux");
+      withoutNodes = lib.attrNames (undeployed.checks {system = "x86_64-linux";});
+    };
   };
   expected = {
     profileNames = {
@@ -135,6 +145,10 @@
       };
       activate.requiredSystemFeatures = [];
     });
+    checkNames = {
+      withoutHosts = ["deploy-schema"];
+      withoutNodes = [];
+    };
   };
 in {
   deployment-contracts = assert lib.assertMsg (actual == expected) "Deployment profiles or check policy differ from the expected configuration.";

@@ -19,17 +19,21 @@
 in
   {system, ...}: let
     inherit (deployLibFor system) deployChecks;
-    nativeNodes = lib.filterAttrs (hostname: _: hosts.${hostname}.system == system) nodes;
-  in {
-    deploy-schema = lib.lazyDerivation {
-      derivation = (deployChecks {nodes = schemaNodes;}).deploy-schema;
-      passthru = {
-        ci.runOnce = true;
-        requiredSystemFeatures = [];
+    nativeHosts = lib.filterAttrs (_: host: host.system == system) hosts;
+    nativeNodes = lib.intersectAttrs nativeHosts nodes;
+  in
+    lib.optionalAttrs (hosts != {}) {
+      deploy-schema = lib.lazyDerivation {
+        derivation = (deployChecks {nodes = schemaNodes;}).deploy-schema;
+        passthru = {
+          ci.runOnce = true;
+          requiredSystemFeatures = [];
+        };
       };
-    };
-    deploy-activate = lib.lazyDerivation {
-      derivation = (deployChecks {nodes = nativeNodes;}).deploy-activate;
-      passthru.requiredSystemFeatures = [];
-    };
-  }
+    }
+    // lib.optionalAttrs (nativeHosts != {}) {
+      deploy-activate = lib.lazyDerivation {
+        derivation = (deployChecks {nodes = nativeNodes;}).deploy-activate;
+        passthru.requiredSystemFeatures = [];
+      };
+    }

@@ -5,6 +5,6 @@ in {
     os = "generic-linux";
     arch = "x86_64";
     motd = halls.cripps;
-    features = [features.base];
+    features = [features.base features.deploy-rs];
   };
 }
