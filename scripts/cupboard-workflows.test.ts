@@ -525,6 +525,74 @@ esac
       },
     );
   });
+
+  it("commits a dependent update that only adds files", () => {
+    assert.deepEqual(
+      runUpdateWorkflow(
+        "flake-update.yml",
+        `
+case "$*" in
+  'eval --json .#.packageVersions')
+    if [ -f "$RUNNER_TEMP/relocked" ]; then
+      printf '{"pi": "1.6.0", "pi-planning": "0.1.0"}\\n'
+    else
+      printf '{"pi": "1.5.0", "pi-planning": "0.1.0"}\\n'
+    fi
+    ;;
+  'flake update')
+    printf 'after\\n' > flake.lock
+    touch "$RUNNER_TEMP/relocked"
+    ;;
+  'run .#update-plan -- downstream pi') printf 'pi-planning\\n' ;;
+  'run .#update-pi-planning')
+    printf 'locked\\n' > pkgs/pi-planning/package-lock.json
+    ;;
+  *) exit 1 ;;
+esac
+`,
+        {
+          "flake.lock": "before\n",
+          "pkgs/pi-planning/version": "0.1.0\n",
+        },
+      ),
+      {
+        status: 0,
+        stderr: "",
+        nixCalls: [
+          "build .#flake-lock-summary --out-link $RUNNER_TEMP/flake-lock-summary",
+          "eval --json .#.packageVersions",
+          "flake update",
+          "eval --json .#.packageVersions",
+          "run .#update-plan -- downstream pi",
+          "run .#update-pi-planning",
+          "",
+        ].join("\n"),
+        gitCalls: [
+          "add flake.lock",
+          "diff --quiet",
+          "ls-files --others --exclude-standard",
+          "add -A",
+          ...publication,
+          "",
+        ].join("\n"),
+        body: [
+          ...relockSummary,
+          "",
+          "Updated packages that depend on changed packages:",
+          "",
+          "- pi-planning",
+          ...cupboardFooter,
+        ].join("\n"),
+        pushed: {
+          "refs/heads/flake-update/2026-11-04-123": {
+            "flake.lock": "after\n",
+            "pkgs/pi-planning/package-lock.json": "locked\n",
+            "pkgs/pi-planning/version": "0.1.0\n",
+          },
+        },
+      },
+    );
+  });
 });
 
 describe("Scheduled package updates", () => {
@@ -603,6 +671,61 @@ esac
             "pkgs/pi-diff/version": "0.3.0\n",
             "pkgs/pi-planning/version": "0.3.0\n",
             "pkgs/pi-session-footer/version": "0.2.0\n",
+          },
+        },
+      },
+    );
+  });
+
+  it("commits an updater that only adds files", () => {
+    assert.deepEqual(
+      runUpdateWorkflow(
+        "package-update.yml",
+        `
+case "$*" in
+  'run .#update-plan -- order') printf 'pi-diff\\n' ;;
+  'run .#update-pi-diff')
+    printf 'locked\\n' > pkgs/pi-diff/package-lock.json
+    ;;
+  'eval --raw .#.updaterVersions.pi-diff') printf '0.3.0' ;;
+  *) exit 1 ;;
+esac
+`,
+        { "pkgs/pi-diff/version": "0.3.0\n" },
+      ),
+      {
+        status: 0,
+        stderr: "",
+        nixCalls: [
+          "run .#update-plan -- order",
+          "run .#update-pi-diff",
+          "eval --raw .#.updaterVersions.pi-diff",
+          "",
+        ].join("\n"),
+        gitCalls: [
+          "diff --quiet",
+          "ls-files --others --exclude-standard",
+          "add -A",
+          "diff --cached --quiet",
+          "config user.name github-actions[bot]",
+          "config user.email 41898282+github-actions[bot]@users.noreply.github.com",
+          "ls-remote --heads origin refs/heads/package-update/*",
+          "switch -C package-update/2026-11-04",
+          "commit -m chore(pkgs): update packages",
+          "push --force origin HEAD:refs/heads/package-update/2026-11-04",
+          "",
+        ].join("\n"),
+        body: [
+          "Automated package bumps from the scheduled `package-update` workflow.",
+          "",
+          "Updated:",
+          "- pi-diff 0.3.0",
+          ...cupboardFooter,
+        ].join("\n"),
+        pushed: {
+          "refs/heads/package-update/2026-11-04": {
+            "pkgs/pi-diff/package-lock.json": "locked\n",
+            "pkgs/pi-diff/version": "0.3.0\n",
           },
         },
       },

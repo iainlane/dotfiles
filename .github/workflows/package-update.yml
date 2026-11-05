@@ -97,7 +97,7 @@ jobs:
               continue
             fi
 
-            if git diff --quiet; then
+            if git diff --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
               echo "${name} already current."
               echo '::endgroup::'
               continue
