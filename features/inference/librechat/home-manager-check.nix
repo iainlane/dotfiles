@@ -23,6 +23,7 @@
       then "darwin"
       else "generic-linux";
     inherit system;
+    channel = "unstable";
     homeDirectory = "/home/fixture";
     features = [features.inference.librechat];
     excludes = [];

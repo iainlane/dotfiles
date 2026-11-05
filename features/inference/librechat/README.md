@@ -142,7 +142,8 @@ files use a writable directory on the VM disk.
 
 Nix clients connect to the VM's own daemon. The sandbox sees `/nix/store`
 read-only, and the daemon installs and builds packages outside the sandbox. The
-guest registry pins `nixpkgs` to the dotfiles input. For example:
+guest is built from the host's nixpkgs channel, and its registry pins `nixpkgs`
+to the same input. For example:
 
 ```sh
 nix shell nixpkgs#uv nixpkgs#gcc
@@ -245,10 +246,11 @@ check. The existing LibreChat service can continue running. On Linux, the check
 uses a NixOS VM to provide sysfs for MongoDB's allocator. Service manager
 registration needs a separate host test.
 
-The separate `librechat-workspace` check boots the real guest inside the Nix
-sandbox. It uses KVM on Linux and requires the `kvm` system feature. On Darwin,
-the test configuration selects `auto`. The fixture probes `kern.hv_support` when
-it runs and uses HVF when available, otherwise TCG software emulation. Explicit
+The separate `librechat-workspace-stable` and `librechat-workspace-unstable`
+checks boot the real guest, built from each channel, inside the Nix sandbox.
+They use KVM on Linux and require the `kvm` system feature. On Darwin, the test
+configuration selects `auto`. The fixture probes `kern.hv_support` when it runs
+and uses HVF when available, otherwise TCG software emulation. Explicit
 accelerators do not use this fallback. The service manifest accepts only `hvf`,
 `kvm` or `tcg`.
 

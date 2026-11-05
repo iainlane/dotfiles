@@ -15,13 +15,24 @@
 } @ moduleArgs: let
   cfg = config.dotfiles.inference.librechat;
 
+  inherit (import ../../../lib/channels.nix {inherit inputs;}) channelFor;
+
   native = pkgs-unstable;
 
   guestSystem = "${hostConfig.arch}-linux";
 
-  guestPkgs = flakeContexts.${guestSystem}.pkgs;
+  guestChannel = channelFor {
+    inherit (hostConfig) channel;
+    inherit (flakeContexts.${guestSystem}) pkgs pkgs-stable;
+  };
 
-  guestRegistry = flakeContexts.${guestSystem}.mcpByChannel.unstable;
+  guestPkgs = guestChannel.primary;
+
+  # The guest's LibreChat components talk to the host services, so they come
+  # from the same package set as `native`.
+  inherit (guestChannel.unstable) librechat-code librechat-runtime;
+
+  guestRegistry = flakeContexts.${guestSystem}.mcpByChannel.${hostConfig.channel};
 
   bundles = config.dotfiles.ai.bundles;
 
@@ -74,7 +85,7 @@
   guestServers = lib.genAttrs localNames guestServer;
 
   archiveCli = guestPkgs.writeShellScriptBin "agentsview" ''
-    exec ${lib.getExe guestPkgs.librechat-runtime} archive "$@"
+    exec ${lib.getExe librechat-runtime} archive "$@"
   '';
 
   dependencyNames = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name sharedSkills) config.dotfiles.ai.skillRuntimeDependencies)));
@@ -90,7 +101,8 @@
 
   guest =
     moduleArgs.librechatGuest or (import ./guest-image.nix {
-      inherit inputs archiveCli skillPackages skills;
+      inherit archiveCli librechat-code librechat-runtime skillPackages skills;
+      inherit (guestChannel) nixpkgs;
       pkgs = guestPkgs;
       servers = guestServers;
     });
