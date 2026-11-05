@@ -23,3 +23,32 @@ assert.equal(
   "TShark (Wireshark) 5.0.0",
 );
 assert.equal(parseWiresharkVersion("invalid", "tshark"), null);
+const {
+  ghidraReleaseAccepted,
+  ghidraReleaseCompatibility,
+  unverifiedGhidraBuildLimitation,
+} = await load("ghidra/GhidraReleasePolicy.js");
+for (const [raw, major, minor, patch, status] of [
+  ["12.1.4", 12, 1, 4, "verified"],
+  ["12.2", 12, 2, 0, "compatible"],
+  ["13.0.1", 13, 0, 1, "compatible"],
+  ["11.4", 11, 4, 0, "compatible"],
+]) {
+  assert.equal(ghidraReleaseAccepted(raw), true);
+  assert.deepEqual(ghidraReleaseCompatibility(raw), {
+    status,
+    version: { major, minor, patch, suffix: "" },
+    raw,
+  });
+}
+for (const raw of [null, undefined, "", "invalid"]) {
+  assert.equal(ghidraReleaseAccepted(raw), false);
+  assert.deepEqual(ghidraReleaseCompatibility(raw), {
+    status: "unresolved",
+    raw: raw ?? null,
+  });
+}
+assert.equal(
+  unverifiedGhidraBuildLimitation("12.2"),
+  "This session uses Ghidra 12.2. The bridge is verified against 12.1.4; the observed version is reported and output validation remains enabled.",
+);

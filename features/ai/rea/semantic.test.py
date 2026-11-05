@@ -15,6 +15,8 @@ COMMAND = sys.argv.pop(1)
 BROWSER = sys.argv.pop(1)
 ELF = sys.argv.pop(1)
 WAKARU_VERSION = sys.argv.pop(1)
+NATIVE = sys.argv.pop(1)
+NATIVE_PROVIDERS = json.loads(sys.argv.pop(1))
 
 
 def native_record(value):
@@ -135,6 +137,28 @@ class ToolTest(unittest.TestCase):
         return result.get("structuredContent") or json.loads(
             result["content"][0]["text"]
         )
+
+    def test_native_decompilers(self):
+        for expected in NATIVE_PROVIDERS:
+            provider = expected["id"]
+            with self.subTest(provider=provider):
+                self.tool("open_binary", {"path": NATIVE, "provider_id": provider})
+                try:
+                    procedures = self.tool("list_procedures", {})["normalized_result"]
+                    procedure = next(
+                        entry["address"]
+                        for entry in procedures
+                        if entry["value"].lstrip("_") == "rea_fixture"
+                    )
+                    result = self.tool(
+                        "procedure_pseudo_code", {"procedure": procedure}
+                    )
+                    self.assertEqual(result["provider"], expected)
+                    self.assertRegex(
+                        result["normalized_result"], r"return\s+(?:42|0x2a)\s*;"
+                    )
+                finally:
+                    self.tool("close_binary", {})
 
     def test_wireshark(self):
         result = self.tool("inspect_pcap_client", {})

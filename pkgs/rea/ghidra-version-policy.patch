@@ -1,0 +1,68 @@
+--- a/src/ghidra/GhidraReleasePolicy.ts
++++ b/src/ghidra/GhidraReleasePolicy.ts
+@@ -26,5 +25,0 @@
+-  | {
+-      readonly status: "unsupported";
+-      readonly version: GhidraReleaseVersion;
+-      readonly raw: string;
+-    }
+@@ -35 +30 @@
+-/** Classify `application.version` against the verified release line. */
++/** Classify the observed version without restricting its release number. */
+@@ -45,4 +40 @@
+-  const verified = verifiedGhidraRelease();
+-  return version.major === verified.major && version.minor === verified.minor
+-    ? { status: "compatible", version, raw }
+-    : { status: "unsupported", version, raw };
++  return { status: "compatible", version, raw };
+@@ -60 +52 @@
+-  return `This session uses Ghidra ${providerVersion}. The bridge is verified against ${SUPPORTED_GHIDRA_VERSION}; other ${ghidraReleaseLine()} builds are accepted and the observed version is reported.`;
++  return `This session uses Ghidra ${providerVersion}. The bridge is verified against ${SUPPORTED_GHIDRA_VERSION}; the observed version is reported and output validation remains enabled.`;
+@@ -63,7 +55 @@
+-/** Release line accepted by this bridge, such as `12.1.x`. */
+-export const ghidraReleaseLine = (): string => {
+-  const verified = verifiedGhidraRelease();
+-  return `${String(verified.major)}.${String(verified.minor)}.x`;
+-};
+-
+-/** Detail for the installation version check, including the accepted line. */
++/** Detail for the installation version check. */
+@@ -78,3 +64 @@
+-      return `${compatibility.raw}; compatible ${ghidraReleaseLine()} release (verified build ${SUPPORTED_GHIDRA_VERSION})`;
+-    case "unsupported":
+-      return `${compatibility.raw}; accepted releases are ${ghidraReleaseLine()} (verified build ${SUPPORTED_GHIDRA_VERSION})`;
++      return `${compatibility.raw}; bridge verified with ${SUPPORTED_GHIDRA_VERSION}`;
+@@ -88 +72 @@
+-/** Whether this release line can run the packaged bridge. */
++/** Whether the installation reports a parseable Ghidra version. */
+@@ -94,9 +77,0 @@
+-};
+-
+-const verifiedGhidraRelease = (): GhidraReleaseVersion => {
+-  const version = parseGhidraRelease(SUPPORTED_GHIDRA_VERSION);
+-  if (version === undefined)
+-    throw new TypeError(
+-      `SUPPORTED_GHIDRA_VERSION ${SUPPORTED_GHIDRA_VERSION} is not a Ghidra release`,
+-    );
+-  return version;
+--- a/src/ghidra/GhidraInstallation.ts
++++ b/src/ghidra/GhidraInstallation.ts
+@@ -42,2 +41,0 @@
+-  ghidraReleaseCompatibility,
+-  ghidraReleaseLine,
+@@ -45 +42,0 @@
+-  SUPPORTED_GHIDRA_VERSION,
+@@ -712 +709 @@
+-      remediation: `Set GHIDRA_INSTALL_DIR to an extracted Ghidra ${ghidraReleaseLine()} release directory.`,
++      remediation: "Set GHIDRA_INSTALL_DIR to the Ghidra installation directory.",
+@@ -990,6 +987 @@
+-    code:
+-      parseError != null
+-        ? "version_unresolved"
+-        : ghidraReleaseCompatibility(raw).status === "unsupported"
+-          ? "unsupported_version"
+-          : "version_unresolved",
++    code: "version_unresolved",
+@@ -1000 +992 @@
+-    remediation: `Install a Ghidra ${ghidraReleaseLine()} release (verified with ${SUPPORTED_GHIDRA_VERSION}), or update REA for another Ghidra line.`,
++    remediation: "Supply a Ghidra installation with a parseable application.version.",

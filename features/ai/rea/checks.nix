@@ -3,6 +3,10 @@
   featureResolver,
 }: {pkgs, ...}: let
   rea = import ./runtime.nix {inherit pkgs;};
+  nativeFixture = pkgs.runCommandCC "rea-native-fixture" {} ''
+    mkdir -p "$out/bin"
+    $CC -O0 -g ${./native-fixture.c} -o "$out/bin/rea-native-fixture"
+  '';
   entrypoints = pkgs.symlinkJoin {
     name = "rea-entrypoint-fixture";
     paths = map (command:
@@ -32,7 +36,20 @@ in {
     } ''
       python3 ${./semantic.test.py} ${rea}/bin/rea \
         ${rea.environment.REA_BROWSER_EXECUTABLE} ${pkgs.hello}/bin/hello \
-        ${pkgs.lib.escapeShellArg pkgs.wakaru.version}
+        ${pkgs.lib.escapeShellArg pkgs.wakaru.version} \
+        ${nativeFixture}/bin/rea-native-fixture \
+        ${pkgs.lib.escapeShellArg (builtins.toJSON [
+        {
+          id = "ghidra";
+          name = "Ghidra";
+          version = pkgs.ghidra.version;
+        }
+        {
+          id = "kuna";
+          name = "Kuna";
+          version = pkgs.kuna.version;
+        }
+      ])}
       touch "$out"
     '';
 }

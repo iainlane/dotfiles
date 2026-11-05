@@ -279,13 +279,15 @@ bundled workflow to the shared skill tree. Nix manages these registrations;
 activation does not run `rea setup`. The server and the skill are in the `rea`
 bundle, so a harness can exclude both by that name.
 
-The configured command includes Wireshark tools and headless Chromium. Linux
-also includes GDB, Binwalk, Unblob and mitmproxy. Linux x64 includes pwntools
-with its Python dependencies and Wakaru, built from Rust source. Absolute tool
-paths and resource-limit helpers are configured in the wrapper. Every tool comes
-from the unstable package set, including on stable hosts. REA's existing
-platform restrictions remain in effect. Other analysis engines remain separate
-prerequisites; Hopper and IDA are not included.
+The configured command includes Ghidra, Kuna, Wireshark tools and headless
+Chromium. Ghidra and Kuna are also available as standalone commands. Linux also
+includes GDB, Binwalk, Unblob and mitmproxy. Linux x64 includes pwntools with
+its Python dependencies and Wakaru, built from Rust source. Absolute tool paths
+and resource-limit helpers are configured in the wrapper. Every tool comes from
+the unstable package set, including on stable hosts. REA's existing platform
+restrictions remain in effect. Ghidra uses its bundled JDK, and both native
+backends are tested by decompiling a small compiled fixture through MCP. Hopper
+and IDA are not included.
 
 The local REA package builds a pinned source snapshot that preserves
 client-owned MCP policies during setup. External tool banners identify the

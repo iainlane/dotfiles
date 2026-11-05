@@ -40,7 +40,7 @@ in
         hash = "sha256-2ADn3U3lvUoB4tCEpzO0rMfYE4sis+5uBiEazcp0gpI=";
       };
 
-      patches = [./external-tools.patch];
+      patches = [./external-tools.patch ./ghidra-version-policy.patch];
 
       npmDepsHash = "sha256-3WPXD+qm5WVfrTEvepKwX5RZBfbLBcPB0uDmKIx4MR8=";
       npmDeps = fetchNpmDeps {

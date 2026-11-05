@@ -17,6 +17,9 @@
   '';
   environment =
     {
+      GHIDRA_INSTALL_DIR = "${pkgs.ghidra}/lib/ghidra";
+      JAVA_HOME = pkgs.openjdk25.home;
+      REA_KUNA_COMMAND = "${pkgs.kuna}/bin/kuna";
       REA_BROWSER_EXECUTABLE = "${chromium}/bin/rea-chromium";
       REA_TSHARK_COMMAND = "${pkgs.wireshark-cli}/bin/tshark";
       REA_CAPINFOS_COMMAND = "${pkgs.wireshark-cli}/bin/capinfos";
