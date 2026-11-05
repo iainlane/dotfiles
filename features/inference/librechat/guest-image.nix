@@ -1,14 +1,16 @@
 {
-  inputs,
+  nixpkgs,
   pkgs,
+  librechat-code,
+  librechat-runtime,
   servers,
   skillPackages,
   skills,
   archiveCli,
 }: let
   inherit (pkgs) lib;
-  runtimes = pkgs.librechat-code.runtimes;
-  runner = pkgs.librechat-code.runner;
+  inherit (librechat-code) runtimes;
+  inherit (librechat-code) runner;
   workspaceUid = 200000;
   workspaceGid = 200000;
   tools = pkgs.buildEnv {
@@ -21,7 +23,7 @@
     PATH = "/work/.local/state/nix/profiles/profile/bin:/work/.local/bin:/usr/bin:/bin";
     XDG_STATE_HOME = "/work/.local/state";
     NIX_REMOTE = "daemon";
-    NIX_PATH = "nixpkgs=${inputs.nixpkgs}";
+    NIX_PATH = "nixpkgs=${nixpkgs}";
     NIX_SSL_CERT_FILE = "/run/librechat-guest/ca-bundle.crt";
     HTTP_PROXY = "http://10.0.2.100:3128";
     HTTPS_PROXY = "http://10.0.2.100:3128";
@@ -126,7 +128,7 @@
       SANDBOX_RUN_TIMEOUT = "300000";
     };
   });
-  system = inputs.nixpkgs.lib.nixosSystem {
+  system = nixpkgs.lib.nixosSystem {
     inherit pkgs;
     modules = [
       ({
@@ -203,8 +205,8 @@
         services.openssh.enable = false;
 
         nix = {
-          registry.nixpkgs.flake = inputs.nixpkgs;
-          nixPath = ["nixpkgs=${inputs.nixpkgs}"];
+          registry.nixpkgs.flake = nixpkgs;
+          nixPath = ["nixpkgs=${nixpkgs}"];
           settings = {
             experimental-features = ["nix-command" "flakes"];
             max-jobs = 1;
@@ -263,7 +265,7 @@
               requires = ["nftables.service" "nix-daemon.socket"];
               unitConfig.FailureAction = "poweroff-force";
               serviceConfig = {
-                ExecStart = "${lib.getExe pkgs.librechat-runtime} guest ${specification}";
+                ExecStart = "${lib.getExe librechat-runtime} guest ${specification}";
                 RuntimeDirectory = "librechat-guest";
                 RuntimeDirectoryMode = "0755";
                 Restart = "no";
