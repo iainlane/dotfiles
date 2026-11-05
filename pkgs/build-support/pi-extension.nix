@@ -35,7 +35,8 @@
 
   packageLock = lib.importJSON (npmRoot + "/package-lock.json");
 
-  # The updater keeps only the lockfile. Its root record contains the manifest.
+  # The updater keeps only the lockfile. Its root record contains the manifest,
+  # and the updater adds the manifest's `overrides` to it.
   manifest = packageLock.packages."";
 
   license = lib.getLicenseFromSpdxIdOr (manifest.license or "") null;

@@ -13,6 +13,11 @@
           printf '%s\n' called >>"$PI_UPDATER_NPM_CALLS"
           cp "$PI_UPDATER_LOCK" package-lock.json
           ;;
+        ls)
+          test "$*" = 'ls --all --package-lock-only'
+          cp package.json "$PI_UPDATER_LISTED_MANIFEST"
+          exit "''${PI_UPDATER_LS_STATUS:-0}"
+          ;;
         *) exit 1 ;;
       esac
     '';

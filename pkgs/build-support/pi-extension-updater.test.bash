@@ -18,6 +18,7 @@ export PI_UPDATER_LOCK="$fixture/new-lock.json"
 export PI_UPDATER_ARCHIVE="$fixture/source.tgz"
 export PI_UPDATER_NPM_CALLS="$fixture/npm-calls"
 export PI_UPDATER_CONSUMED_MANIFEST="$fixture/consumed-manifest.json"
+export PI_UPDATER_LISTED_MANIFEST="$fixture/listed-manifest.json"
 
 reset_outputs() {
 	printf '%s\n' '{"version":"1.0.0","tarballHash":"old"}' >source.json
@@ -29,7 +30,8 @@ reset_outputs() {
 }
 
 make_archive() {
-	printf '%s\n' '{"name":"fixture","version":"2.0.0"}' >"$fixture/archive/package/package.json"
+	local manifest='{"name":"fixture","version":"2.0.0"}'
+	printf '%s\n' "${1:-$manifest}" >"$fixture/archive/package/package.json"
 	cp "$PI_UPDATER_LOCK" "$fixture/archive/package/package-lock.json"
 	printf '%s\n' before >"$fixture/archive/package/support.txt"
 	printf '%s\n' '{"release":"2.0.0"}' >"$fixture/archive/package/scripts/metadata.json"
@@ -89,6 +91,22 @@ for program in "$registry" "$github"; do
 	cmp "$fixture/valid-lock.json" npm-deps/package-lock.json
 	"$program" --force
 	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+
+	cp "$fixture/valid-lock.json" "$PI_UPDATER_LOCK"
+	make_archive '{"name":"fixture","version":"2.0.0","overrides":{"shared":"1.0.0"}}'
+	reset_outputs
+	export PI_UPDATER_LS_STATUS=1
+	if "$program"; then
+		echo 'A lockfile that does not satisfy its manifest must fail the updater' >&2
+		exit 1
+	fi
+	unchanged
+	export PI_UPDATER_LS_STATUS=0
+
+	"$program"
+	jq '.packages[""].overrides = {"shared": "1.0.0"}' "$PI_UPDATER_LOCK" >"$fixture/expected-lock.json"
+	cmp "$fixture/expected-lock.json" npm-deps/package-lock.json
+	jq '.packages[""]' "$fixture/expected-lock.json" | cmp - "$PI_UPDATER_LISTED_MANIFEST"
 done
 
 export PI_UPDATER_EXPECT_PATCH=1

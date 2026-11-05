@@ -297,6 +297,23 @@
           and .packages[""].name == $name
           and (.lockfileVersion == 2 or .lockfileVersion == 3)
         ' "''${lockfile}" >/dev/null
+
+        # The build uses the lockfile's root record as its manifest, but npm
+        # leaves the manifest's `overrides` out of the lockfile. Without them,
+        # the build's npm finds the overridden edges invalid and tries to
+        # fetch the versions that the overrides replaced.
+        if jq --exit-status 'has("overrides")' "$sourceDir/package.json" >/dev/null; then
+          jq --slurpfile manifest "$sourceDir/package.json" \
+            '.packages[""].overrides = $manifest[0].overrides' \
+            "''${lockfile}" >"$tmpdir/package-lock.json"
+          lockfile="$tmpdir/package-lock.json"
+        fi
+
+        verify="$tmpdir/verify"
+        mkdir "$verify"
+        cp "''${lockfile}" "$verify/package-lock.json"
+        jq '.packages[""]' "''${lockfile}" >"$verify/package.json"
+        (cd "$verify" && npm ls --all --package-lock-only >/dev/null)
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList (destination: sourcePath: ''
             stagedFile="$(mktemp ${lib.escapeShellArg "${destination}.XXXXXX"})"
             metadataStages+=("$stagedFile")
