@@ -1306,11 +1306,11 @@
     },
     "nixpkgs-measured-boot_2": {
       "locked": {
-        "lastModified": 1781184956,
-        "narHash": "sha256-myLhcynssRWbr1sYZPOqHy9E8exzNK12eLdN1NHVVpc=",
+        "lastModified": 1793973275,
+        "narHash": "sha256-C0jYNod4tKFEbKYe8lKEYbzIpZD482YcOTgGa0kT3R8=",
         "owner": "iainlane",
         "repo": "nixpkgs",
-        "rev": "8f43f520ef1010110cd3674860b2f8152c6e400a",
+        "rev": "a425e9f9af51ec44862656fb2c617dda725f59c8",
         "type": "github"
       },
       "original": {
