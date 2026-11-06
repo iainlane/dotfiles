@@ -8,6 +8,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -59,6 +60,7 @@ class StartupConfiguration(BaseModel):
 
     manifest: Path
     runtime: Path
+    search_fixture: Path = Field(alias="searchFixture")
     fixture_command: list[str] = Field(alias="fixtureCommand", min_length=1)
     fixture_package_root: Path = Field(alias="fixturePackageRoot")
     command: list[str] = Field(min_length=1)
@@ -377,6 +379,52 @@ def stop(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
+def restore_search_fixture(
+    configuration: StartupConfiguration, manifest: HostManifest
+) -> None:
+    database = manifest.state_directory / "meili"
+    database.mkdir(mode=0o700, parents=True)
+    with tarfile.open(configuration.search_fixture, "r:gz") as fixture:
+        fixture.extractall(database, filter="data")
+    assert (database / "VERSION").read_text().strip() == "1.55.0"
+
+
+def verify_search_upgrade(
+    process: subprocess.Popen[bytes], manifest: HostManifest, previous_version: str
+) -> None:
+    base_url = f"http://127.0.0.1:{manifest.ports['meilisearch']}"
+    token = (manifest.state_directory / "secrets" / "meili").read_text().strip()
+    status, body = response(
+        base_url + "/indexes/upgrade-fixture/documents/retained", token=token
+    )
+    assert {"status": status, "document": json.loads(body)} == {
+        "status": 200,
+        "document": {"id": "retained", "text": "Search data from the previous engine"},
+    }
+
+    def upgraded() -> bool:
+        status, body = response(base_url + "/tasks?types=upgradeDatabase", token=token)
+        tasks = [task["status"] for task in json.loads(body)["results"]]
+        assert status == 200 and not {"failed", "canceled"}.intersection(tasks), (
+            body.decode()
+        )
+        return tasks == ["succeeded"]
+
+    wait_for(process, upgraded, "search database upgrade is complete")
+    database = manifest.state_directory / "meili"
+    version = (database / "VERSION").read_text().strip()
+    backups = manifest.state_directory / "meili-backups"
+    backup = backups / f"{previous_version}-to-{version}"
+    assert {
+        "backups": sorted(path.name for path in backups.iterdir()),
+        "version": (backup / "VERSION").read_text().strip(),
+    } == {
+        "backups": sorted(["1.41.0-to-1.42.0", backup.name]),
+        "version": previous_version,
+    }
+    LOG.info("search_upgrade_succeeded")
+
+
 def bootstrap_account(
     configuration: StartupConfiguration,
     manifest: Path,
@@ -609,9 +657,25 @@ def run(configuration: StartupConfiguration) -> None:
         log = home / "service.log"
         reservations.close()
 
+        previous_version: str | None = None
+
         try:
-            for first_start in (True, False):
+            for phase in ("bootstrap", "restart", "upgrade", "upgraded-restart"):
+                first_start = phase == "bootstrap"
                 with log.open("ab") as output:
+                    if phase == "upgrade":
+                        database = manifest.state_directory / "meili"
+                        database.rename(manifest.state_directory / "meili-current")
+                        restore_search_fixture(configuration, manifest)
+                        previous_version = (database / "VERSION").read_text().strip()
+                        for index, versions in enumerate(
+                            ("1.40.0-to-1.41.0", "1.41.0-to-1.42.0"), start=1
+                        ):
+                            backup = manifest.state_directory / "meili-backups" / versions
+                            backup.mkdir(parents=True)
+                            (backup / "VERSION").write_text(versions.split("-to-")[0])
+                            os.utime(backup, (index, index))
+
                     process = subprocess.Popen(
                         [str(fixture_service), *configuration.command[1:]],
                         cwd=working_directory,
@@ -729,8 +793,10 @@ def run(configuration: StartupConfiguration) -> None:
                         }
                         LOG.info(
                             "login_succeeded",
-                            phase="bootstrap" if first_start else "restart",
+                            phase=phase,
                         )
+                        if previous_version is not None:
+                            verify_search_upgrade(process, manifest, previous_version)
                         verify_chat_prompt(base_url, login.token, manifest.chat_prompt)
                         verify_interface(base_url, login.token)
                         verify_asset_transfer(manifest)

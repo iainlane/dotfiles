@@ -25,6 +25,30 @@ Bootstrap also repairs the legacy `Ollama` provider value to LibreChat's
 canonical `ollama` identifier. The repair preserves the existing agent ID and
 its other settings.
 
+## Database upgrades
+
+Meilisearch starts with `--upgrade-db`. Before starting a different engine
+version against an existing database, the runtime copies the stopped database to
+`meili-backups/<old-version>-to-<new-version>` under the private state
+directory. The backup is published only after the copy completes. Startup fails
+if the backup cannot be created, and retries preserve the original backup.
+Same-version restarts do not create backups.
+
+After Meilisearch reports a successful upgrade to the running engine version and
+the database's `VERSION` confirms that version, the runtime retains the two
+newest pre-upgrade backups and removes older backups. Failed, cancelled or
+unverified upgrades do not remove backups. A same-version restart can finish
+interrupted cleanup. The policy applies only to directories with the
+`<old-version>-to-<new-version>` format.
+
+Meilisearch upgrades are not atomic. To roll back, stop LibreChat, restore a
+retained backup as `meili`, and reactivate the matching old engine. Downgrades
+do not migrate the database backwards. Upgrades unsupported by `--upgrade-db`
+require a [dump migration].
+
+[dump migration]:
+  https://www.meilisearch.com/docs/learn/update_and_migration/updating
+
 ## Providers
 
 Select providers and models directly from the model selector. The saved Personal
@@ -240,11 +264,17 @@ selection, and verifies that repeated bootstrap does not create another agent
 version. A loopback model, OAuth provider and MCP exercise an ordinary chat
 before authentication, explicit connection and automatic tool discovery. The
 check verifies web health, login and artefact transfer through the egress
-gateway, restarts the service and repeats those checks. External provider and
-MCP calls, skills, RAG, workspace hooks and conversation VMs are outside this
-check. The existing LibreChat service can continue running. On Linux, the check
-uses a NixOS VM to provide sysfs for MongoDB's allocator. Service manager
-registration needs a separate host test.
+gateway, restarts the service and repeats those checks. It then restores a
+stored Meilisearch 1.55.0 database fixture, starts the current service against
+that database, and verifies the retained document, completed upgrade task and
+pre-upgrade backup. It seeds older backups and checks that successful migration
+retains only the two newest backups. Another restart verifies the upgraded
+database and retained backups. The fixture contains the old on-disk format, so
+the check does not need an older Meilisearch package. External provider and MCP
+calls, skills, RAG, workspace hooks and conversation VMs are outside this check.
+The existing LibreChat service can continue running. On Linux, the check uses a
+NixOS VM to provide sysfs for MongoDB's allocator. Service manager registration
+needs a separate host test.
 
 The separate `librechat-workspace-stable` and `librechat-workspace-unstable`
 checks boot the real guest, built from each channel, inside the Nix sandbox.

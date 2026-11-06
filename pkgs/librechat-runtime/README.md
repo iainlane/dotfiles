@@ -28,6 +28,9 @@ The `librechat-startup` flake check additionally starts the generated service,
 bootstraps an administrator and a personal agent with a whole-server MCP
 selection, checks bootstrap idempotence and streamed output, and exercises
 nonblocking authentication with loopback model, OAuth and MCP fixtures. It logs
-in, restarts the service and logs in again. Darwin runs in the Nix sandbox;
-Linux runs inside a NixOS VM. That check isolates external providers, MCPs,
-skills, retrieval, workspace hooks and conversation VM execution.
+in, restarts the service and logs in again. It also restores a stored
+Meilisearch 1.55.0 database fixture and verifies migration, document retention,
+pre-upgrade backup retention and a subsequent restart. No older engine is
+required to run the check. Darwin runs in the Nix sandbox; Linux runs inside a
+NixOS VM. That check isolates external providers, MCPs, skills, retrieval,
+workspace hooks and conversation VM execution.

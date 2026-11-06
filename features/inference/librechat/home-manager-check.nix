@@ -126,6 +126,8 @@
   startupConfiguration = pkgs.writeText "librechat-startup.json" (builtins.toJSON {
     manifest = toString startupHome.config.dotfiles.inference.librechat.manifest;
     runtime = lib.getExe pkgs.librechat-runtime;
+    searchFixture = assert lib.assertMsg (lib.versionOlder "1.55.0" pkgs.meilisearch.version) "LibreChat upgrade coverage needs a database fixture older than the current engine.";
+      ./fixtures/meilisearch-1.55.0.tar.gz;
     fixtureCommand = [
       (lib.getExe pkgs.nodejs_24)
       "${pkgs.librechat.src}/e2e/setup/mcp-nonblocking.mjs"

@@ -39,6 +39,7 @@ import { CODE_ENVIRONMENT_ID, CODE_TENANT_ID } from "./identity.ts";
 import { credentialService, ironConfiguration } from "./iron-service.ts";
 import type { HostManifest } from "./manifest.ts";
 import { McpRouter } from "./mcp-router.ts";
+import { MeilisearchDatabase } from "./meilisearch.ts";
 import {
   type ProcessRunner,
   type Command,
@@ -400,9 +401,12 @@ export class NativeHostStack {
       args: [redisConfiguration],
     });
 
+    const search = new MeilisearchDatabase(state);
+    await search.prepareUpgrade(programs.meilisearch, this.processes);
+
     await this.start({
       executable: programs.meilisearch,
-      args: [],
+      args: ["--upgrade-db"],
       environment: {
         MEILI_HTTP_ADDR: `127.0.0.1:${ports.meilisearch}`,
         MEILI_DB_PATH: join(state, "meili"),
@@ -413,6 +417,13 @@ export class NativeHostStack {
         MEILI_NO_ANALYTICS: "true",
       },
     });
+
+    await this.readiness.wait(() =>
+      search.upgradeReady({
+        url: `http://127.0.0.1:${ports.meilisearch}`,
+        token: secrets.meili,
+      }),
+    );
 
     await this.start({
       executable: programs.rustfs,
