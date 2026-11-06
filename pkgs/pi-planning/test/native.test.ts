@@ -12,6 +12,7 @@ import {
   createAgentSession,
   createCodemodeExtension,
   createMcpExtension,
+  createToolSearchExtension,
   DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
@@ -43,6 +44,8 @@ const nativeResearchTools = [
   "read",
   "subagent",
 ];
+const mcpResearchTools = [...nativeResearchTools, "tool_search"].toSorted();
+const mcpScript = `text('MCP_RESULT=' + JSON.stringify({resources:await tools.list_mcp_resources({server:'fixture'}),templates:await tools.list_mcp_resource_templates({server:'fixture'}),document:await tools.read_mcp_resource({server:'fixture',uri:'fixture://document'})}));`;
 const fixtureTools = [
   "ast_grep_replace",
   "project_report",
@@ -373,6 +376,21 @@ it.each([
     },
   },
   {
+    mode: "mcp",
+    expected: {
+      childCancelled: false,
+      sessions: ["parent", "parent", "child", "child", "child", "parent"],
+      childSessionCount: 1,
+      childTools: [
+        mcpResearchTools,
+        [...mcpResearchTools, "mcp__fixture__inspect_tool"].toSorted(),
+        [...mcpResearchTools, "mcp__fixture__inspect_tool"].toSorted(),
+      ],
+      blocked: [false, false, false],
+      depthErrors: [],
+    },
+  },
+  {
     mode: "nested",
     expected: {
       childCancelled: false,
@@ -426,11 +444,27 @@ it.each([
     let childCancelled = false;
     const delegationErrors: string[] = [];
     const depthErrors: string[] = [];
+    const mcpResults: unknown[] = [];
+    const hasMcp = mode === "nested" || mode === "mcp";
+    const gate = join(cwd, "mcp-ready");
+    const mcpConfig = (gated: boolean) =>
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [
+              fileURLToPath(new URL("./fixtures/mcp.ts", import.meta.url)),
+              ...(gated ? [gate] : []),
+            ],
+          },
+        },
+      });
     const childStarted = Promise.withResolvers<void>();
     let parentApi: ExtensionAPI | undefined;
     // The MCP extension registers the fixture server's tools after it connects
     // to the fixture server, and pi announces no event for that registration.
     const mcpToolsRegistered = Promise.withResolvers<void>();
+    const mcpResourcesRegistered = Promise.withResolvers<void>();
     const mcp: ExtensionFactory = (pi) =>
       createMcpExtension()(
         new Proxy(pi, {
@@ -440,6 +474,9 @@ it.each([
                 target.registerTool(tool);
                 if (tool.name === "mcp__fixture__inspect_tool") {
                   mcpToolsRegistered.resolve();
+                }
+                if (tool.name === "read_mcp_resource") {
+                  mcpResourcesRegistered.resolve();
                 }
               };
             }
@@ -465,6 +502,18 @@ it.each([
         models: [model],
         streamSimple: (_model, context, options) => {
           for (const message of context.messages) {
+            if (
+              message.role === "toolResult" &&
+              message.toolCallId === "mcp-script"
+            ) {
+              const text = message.content
+                .flatMap((block) => (block.type === "text" ? [block.text] : []))
+                .join("\n");
+              const result = /MCP_RESULT=(\{.*\})/.exec(text)?.[1];
+              const parsed: unknown =
+                result === undefined ? message.content : JSON.parse(result);
+              mcpResults.push({ isError: message.isError, result: parsed });
+            }
             if (
               message.role === "toolResult" &&
               ["research-fixture", "nested-research"].includes(
@@ -505,6 +554,12 @@ it.each([
             ),
           });
           const step = calls++;
+          if (mode === "mcp" && step === 1) {
+            writeFileSync(join(cwd, "agent", "mcp.json"), mcpConfig(true));
+          }
+          if (mode === "mcp" && step === 2) {
+            writeFileSync(gate, "");
+          }
           if (mode === "settings-error" && step === 2) {
             writeFileSync(join(cwd, "agent", "planning.json"), "{invalid");
           }
@@ -555,52 +610,73 @@ it.each([
               ? (nestedCalls[step] ?? [
                   { type: "text", text: "Offline fixture report" },
                 ])
-              : step === 1 && mode === "codemode"
+              : mode === "mcp" && step === 2
                 ? [
                     {
                       type: "toolCall",
-                      id: "native-fixture",
-                      name: "codemode",
+                      id: "mcp-search",
+                      name: "tool_search",
                       arguments: {
-                        code: `try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:${JSON.stringify(planPath)},content:'# Native plan\\n'}));`,
+                        query: "mcp__fixture__inspect_tool",
+                        limit: 1,
                       },
                     },
                   ]
-                : calls === 1
+                : mode === "mcp" && step === 3
                   ? [
                       {
                         type: "toolCall",
-                        id: "enter-fixture",
-                        name: "enter_plan_mode",
-                        arguments: {},
+                        id: "mcp-script",
+                        name: "codemode",
+                        arguments: { code: mcpScript },
                       },
                     ]
-                  : mode !== "codemode" && calls === 2
+                  : step === 1 && mode === "codemode"
                     ? [
                         {
                           type: "toolCall",
-                          id: "research-fixture",
-                          name: "subagent",
+                          id: "native-fixture",
+                          name: "codemode",
                           arguments: {
-                            agent: "planning-explore",
-                            task: "Return the offline fixture report.",
-                            async: false,
+                            code: `try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:${JSON.stringify(planPath)},content:'# Native plan\\n'}));`,
                           },
                         },
                       ]
-                    : ["research", "settings-error"].includes(mode) &&
-                        calls === 3
+                    : calls === 1
                       ? [
                           {
                             type: "toolCall",
-                            id: "child-mutation",
-                            name: "bash",
-                            arguments: {
-                              command: "printf changed > project.ts",
-                            },
+                            id: "enter-fixture",
+                            name: "enter_plan_mode",
+                            arguments: {},
                           },
                         ]
-                      : [{ type: "text", text: "Offline fixture report" }];
+                      : mode !== "codemode" && calls === 2
+                        ? [
+                            {
+                              type: "toolCall",
+                              id: "research-fixture",
+                              name: "subagent",
+                              arguments: {
+                                agent: "planning-explore",
+                                task: "Return the offline fixture report.",
+                                async: false,
+                              },
+                            },
+                          ]
+                        : ["research", "settings-error"].includes(mode) &&
+                            calls === 3
+                          ? [
+                              {
+                                type: "toolCall",
+                                id: "child-mutation",
+                                name: "bash",
+                                arguments: {
+                                  command: "printf changed > project.ts",
+                                },
+                              },
+                            ]
+                          : [{ type: "text", text: "Offline fixture report" }];
           const waitForCancel = mode === "research-cancel" && calls === 3;
           const reason = content[0]?.type === "toolCall" ? "toolUse" : "stop";
           const message: AssistantMessage = {
@@ -688,19 +764,9 @@ it.each([
           join(cwd, "agent", "settings.json"),
           JSON.stringify({ subagents: { maxSubagentDepth: 2 } }),
         );
-        await writeFile(
-          join(cwd, "agent", "mcp.json"),
-          JSON.stringify({
-            mcpServers: {
-              fixture: {
-                command: process.execPath,
-                args: [
-                  fileURLToPath(new URL("./fixtures/mcp.ts", import.meta.url)),
-                ],
-              },
-            },
-          }),
-        );
+      }
+      if (hasMcp) {
+        await writeFile(join(cwd, "agent", "mcp.json"), mcpConfig(false));
       }
       const settings = SettingsManager.inMemory({
         compaction: { enabled: false },
@@ -716,13 +782,14 @@ it.each([
         noThemes: true,
         noPromptTemplates: true,
         noContextFiles: true,
-        additionalExtensionPaths: mode === "nested" ? ["builtin:mcp"] : [],
+        additionalExtensionPaths: hasMcp ? ["builtin:mcp"] : [],
         extensionFactories: [
           provider,
           nativePermissionsFixture,
-          ...(mode === "nested"
+          ...(mode === "nested" ? [researchFixture] : []),
+          ...(mode === "mcp" ? [createToolSearchExtension()] : []),
+          ...(hasMcp
             ? [
-                researchFixture,
                 {
                   name: "mcp",
                   builtin: true as const,
@@ -771,6 +838,7 @@ it.each([
           "subagents_enable",
           "submit_plan",
           ...(mode === "nested" ? fixtureTools : []),
+          ...(mode === "mcp" ? ["tool_search"] : []),
         ],
       }));
       await session.bindExtensions({
@@ -783,10 +851,14 @@ it.each([
       const requiredTools = [
         "enter_plan_mode",
         "subagent",
-        ...(mode === "nested" ? ["mcp__fixture__inspect_tool"] : []),
+        ...(hasMcp ? ["mcp__fixture__inspect_tool", "read_mcp_resource"] : []),
+        ...(mode === "mcp" ? ["tool_search"] : []),
       ];
-      if (mode === "nested") {
-        await mcpToolsRegistered.promise;
+      if (hasMcp) {
+        await Promise.all([
+          mcpToolsRegistered.promise,
+          mcpResourcesRegistered.promise,
+        ]);
       }
       expect(
         requiredTools.filter(
@@ -804,6 +876,47 @@ it.each([
       const parentId = manager.getSessionId();
       expect(requests[0]?.entryDescription).toContain(enterPlanDescription);
       expect(delegationErrors).toStrictEqual([]);
+      expect(mcpResults).toStrictEqual(
+        mode === "mcp"
+          ? [
+              {
+                isError: false,
+                result: {
+                  resources: {
+                    server: "fixture",
+                    resources: [
+                      {
+                        server: "fixture",
+                        uri: "fixture://document",
+                        name: "document",
+                      },
+                    ],
+                  },
+                  templates: {
+                    server: "fixture",
+                    resourceTemplates: [
+                      {
+                        server: "fixture",
+                        uriTemplate: "fixture://{name}",
+                        name: "document",
+                      },
+                    ],
+                  },
+                  document: {
+                    server: "fixture",
+                    uri: "fixture://document",
+                    contents: [
+                      {
+                        uri: "fixture://document",
+                        text: "Offline resource contents.",
+                      },
+                    ],
+                  },
+                },
+              },
+            ]
+          : [],
+      );
       const childRequests = requests.filter(
         (request) => request.sessionId !== parentId,
       );
@@ -869,6 +982,7 @@ it.each([
         required: ["planning-policy"],
       });
     } finally {
+      writeFileSync(gate, "");
       await session?.abort();
       session?.dispose();
       vi.unstubAllEnvs();

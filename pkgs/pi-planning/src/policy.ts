@@ -4,6 +4,12 @@ import { Check } from "typebox/value";
 import type { PlanStore } from "./store.ts";
 import { subagentPolicy } from "./subagents.ts";
 
+export const mcpResourceReaders = [
+  "list_mcp_resources",
+  "list_mcp_resource_templates",
+  "read_mcp_resource",
+];
+
 export const researchReaders = [
   "read",
   "grep",
@@ -12,9 +18,7 @@ export const researchReaders = [
   "codemode",
   "contact_supervisor",
   "tool_search",
-  "list_mcp_resources",
-  "list_mcp_resource_templates",
-  "read_mcp_resource",
+  ...mcpResourceReaders,
   "todo",
   "bg_wait",
   "web_enable",

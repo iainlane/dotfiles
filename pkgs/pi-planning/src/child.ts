@@ -1,5 +1,6 @@
 import {
   createMcpExtension,
+  createToolSearchExtension,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { researchPolicy, type PlanningToolCall } from "./policy.ts";
@@ -24,6 +25,7 @@ export function childPolicy(
 }
 
 export default async function planningChild(pi: ExtensionAPI): Promise<void> {
+  await createToolSearchExtension()(pi);
   await createMcpExtension()(pi);
   let registrations: ReturnType<typeof registerPlanningRoles> = [];
   pi.on("tool_call", (event) => childPolicy(event));

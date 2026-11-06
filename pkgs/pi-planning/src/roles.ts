@@ -3,7 +3,7 @@ import {
   registerAgentViaEvents,
   type RuntimeAgentRegistration,
 } from "pi-subagents/agents";
-import { researchReaders } from "./policy.ts";
+import { mcpResourceReaders, researchReaders } from "./policy.ts";
 import type { PlanningSettings } from "./settings.ts";
 
 const prompts = {
@@ -54,7 +54,9 @@ export function registerPlanningRoles(
   settings: PlanningSettings,
 ): RuntimeAgentRegistration[] {
   const available = new Set(pi.getAllTools().map((tool) => tool.name));
-  const tools = researchReaders.filter((tool) => available.has(tool));
+  const tools = researchReaders.filter(
+    (tool) => available.has(tool) && !mcpResourceReaders.includes(tool),
+  );
   const registrations: RuntimeAgentRegistration[] = [];
   try {
     for (const role of ["explore", "plan"] as const) {

@@ -214,10 +214,14 @@ or edit previews; applying changes remains blocked. The parent can use ordinary
 the same checks.
 
 `planning.json` specifies the `researchExtensions` to load in children. Child
-runtimes initialise Pi's native MCP extension without a planning-specific
-server/tool list. Normal MCP configuration, exposure, project trust and
-permissions apply. Parent-only extension registrations follow native inheritance
-rules; planning does not copy server registrations or credentials.
+runtimes initialise Pi's native MCP and tool-search extensions without a
+planning-specific server/tool list. Normal MCP configuration, exposure, project
+trust and permissions apply. MCP resource tools become available after a
+resource-capable server connects; they are permitted by planning policy but are
+not required at child startup. Other research tools available in the parent are
+required in the child. This does not copy parent-only tools or load their
+extensions. Parent-only extension registrations follow native inheritance rules;
+planning does not copy server registrations or credentials.
 
 Planning does not classify, confirm, deny or rewrite shell commands. Parent,
 child and nested codemode calls use native bash and the host's ordinary
@@ -302,11 +306,13 @@ do not include host SDK modules; startup checks reject bundled copies.
 The subagent package includes the child-runtime registration patch required for
 nested planning roles. Native tests exercise web and Lens activation, unfiltered
 MCP discovery, native permission denials, inherited planning guards, background
-completion and the delegation depth limit. Heading tests cover both
-planning/pretty load orders and all six orders with pi-diff, grouped rows,
-streamed arguments, replay and native Edit's preview and result rebuild. An
-offline native regression also covers automatic threshold compaction after
-keep-context approval, with stale plan wording and a contradictory summary. The
-regression verifies inactive planning state, a nonplanning system prompt,
-continued project writes and no replayed approval. It does not test a model's
-interpretation of the restored text.
+completion and the delegation depth limit. A gated local MCP server reproduces
+child startup before resource registration, without sleeps or external requests.
+The scripted child then uses native tool search and all three resource tools.
+Heading tests cover both planning/pretty load orders and all six orders with
+pi-diff, grouped rows, streamed arguments, replay and native Edit's preview and
+result rebuild. An offline native regression also covers automatic threshold
+compaction after keep-context approval, with stale plan wording and a
+contradictory summary. The regression verifies inactive planning state, a
+nonplanning system prompt, continued project writes and no replayed approval. It
+does not test a model's interpretation of the restored text.
