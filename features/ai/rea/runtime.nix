@@ -39,7 +39,13 @@
       REA_JAVASCRIPT_PRLIMIT_COMMAND = "${lib.getBin pkgs.util-linux}/bin/prlimit";
     };
   helpers = [pkgs.bash pkgs.coreutils pkgs.procps];
-  flags = lib.concatStringsSep " " (lib.mapAttrsToList (key: value: "--set ${key} ${lib.escapeShellArg value}") environment);
+  flags = lib.concatStringsSep " " (
+    lib.mapAttrsToList (key: value: "--set ${key} ${lib.escapeShellArg value}") environment
+    ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+      "--unset SDKROOT"
+      "--unset DEVELOPER_DIR"
+    ]
+  );
 in
   pkgs.symlinkJoin {
     name = "${pkgs.rea.name}-configured";

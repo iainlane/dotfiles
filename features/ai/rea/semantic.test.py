@@ -58,6 +58,8 @@ class ToolTest(unittest.TestCase):
             "XDG_CONFIG_HOME": str(self.root / "config"),
             "PATH": "",
             "REA_LOG_LEVEL": "silent",
+            "SDKROOT": "/fixture-sdk",
+            "DEVELOPER_DIR": "/fixture-developer",
         }
         self.process = subprocess.Popen(
             [COMMAND, "mcp"],
@@ -137,6 +139,22 @@ class ToolTest(unittest.TestCase):
         return result.get("structuredContent") or json.loads(
             result["content"][0]["text"]
         )
+
+    def test_javascript(self):
+        application = self.root / "application"
+        application.mkdir()
+        (application / "main.js").write_text(
+            "export function answer() { return 42; }\n"
+        )
+        result = self.tool(
+            "analyze_javascript_application",
+            {
+                "input_path": str(application),
+                "format": "directory",
+                "detail": "complete",
+            },
+        )
+        self.assertEqual(values(result, "export_names"), [["answer"]])
 
     def test_native_decompilers(self):
         for expected in NATIVE_PROVIDERS:
