@@ -3,11 +3,13 @@
   inputs,
   lib,
   pkgs,
+  pkgs-unstable,
   username,
   hostConfig,
   ...
 }: let
   secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
+  stableEnvfs = inputs.nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.envfs;
 
   # lib/sops.nix states the policy for a per-host secrets file that the secrets
   # input does not have. When the input has no such file, the account has no
@@ -67,7 +69,14 @@ in {
 
   # envfs and nix-ld let binaries and scripts built for other distributions
   # find `/usr/bin/env` and the dynamic loader that they were linked against.
-  services.envfs.enable = true;
+  services.envfs = {
+    enable = true;
+    package = assert lib.assertMsg (lib.versionOlder stableEnvfs.version "1.2.0") ''
+      envfs ${stableEnvfs.version} from nixpkgs-stable includes the deadlock fix.
+      Remove the services.envfs.package override in os/nixos/system.nix.
+    '';
+      pkgs-unstable.envfs;
+  };
   programs.nix-ld.enable = true;
 
   security = {
