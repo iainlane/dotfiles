@@ -16,6 +16,11 @@ implementation in a temporary project.
 
 ## Starting and reviewing a plan
 
+The entry guidance retains Claude Code's criteria and examples, with planning
+reserved for significant unresolved design choices or an explicit request.
+Bounded fixes and small features can proceed directly. Investigation, file count
+and focused clarification alone do not require Plan mode.
+
 - `/plan` enters or remains in Plan mode and displays the associated plan. If
   the file is missing, Pi reports its path. Displaying does not start a model
   turn.
@@ -105,11 +110,15 @@ without granting implementation approval. Saving identical contents does not
 publish another preview. Clear-context approval includes the complete reviewed
 plan and any review feedback in the new context.
 
-Both planning tools are sequential, model-only interactions. Call them outside
-codemode with an empty argument object. Entry returns an explicit active or
-declined result; submission returns a versioned structured result with the
-presented plan and decision. The final tool result retains the displayed
-snapshot for transcript reconstruction.
+Both planning tools are sequential, model-only interactions. `enter_plan_mode`
+is available in ordinary work. `submit_plan` is active only while Plan mode is
+active; leaving Plan mode or starting approved implementation removes it from
+the model's tools. Reload, resume, compaction and tree navigation restore review
+availability from the planning state without changing other tool selections.
+Call the planning tools outside codemode with an empty argument object. Entry
+returns an explicit active or declined result; submission returns a versioned
+structured result with the presented plan and decision. The final tool result
+retains the displayed snapshot for transcript reconstruction.
 
 RPC clients receive the context choices through Pi's dialogue protocol, with
 `Add a comment` and a separate input request for feedback. Blank revision

@@ -85,6 +85,7 @@ export interface PlanningDependencies {
   configure: (sessionId: string) => (() => void)[];
   ensureSubagentsIdle: (signal: AbortSignal) => Promise<void>;
   startInPlan: () => boolean;
+  setReviewAvailable: (available: boolean) => void;
   sendUserMessage: (
     message: string,
     options?: { deliverAs?: "steer"; expandPromptTemplates?: boolean },
@@ -162,10 +163,9 @@ export function createPlanning(dependencies: PlanningDependencies) {
   }
 
   function status(ctx: PlanningContext): void {
-    ctx.ui.setStatus(
-      "planning",
-      session?.active === true ? "plan mode on" : undefined,
-    );
+    const active = session?.active === true;
+    dependencies.setReviewAvailable(active);
+    ctx.ui.setStatus("planning", active ? "plan mode on" : undefined);
   }
 
   function configure(state: PlanningSession): void {

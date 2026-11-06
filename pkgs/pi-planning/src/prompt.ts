@@ -6,11 +6,11 @@ export const exitReminderType = "dotfiles:planning-exit:v1";
 export const clearContextType = "dotfiles:planning-clear:v1";
 export const implementationMessageType = "dotfiles:planning-implementation:v1";
 
-export const enterPlanDescription = `Use this tool proactively when you are about to start a non-trivial implementation task. Agree on the approach with the user before writing code so the user can correct design choices before you implement them. This tool requests permission to enter read-only Plan mode, where you can explore the codebase and design an implementation approach for user approval.
+export const enterPlanDescription = `Use this tool when a non-trivial implementation task needs agreement on significant design choices. Agree on the approach with the user before writing code so the user can correct design choices before you implement them. This tool requests permission to enter read-only Plan mode, where you can explore the codebase and design an implementation approach for user approval.
 
 ## When to Use This Tool
 
-**Prefer using enter_plan_mode** for implementation tasks unless they are simple. Use it when ANY of these conditions apply:
+**Prefer using enter_plan_mode** for non-trivial implementation tasks with significant unresolved design choices, or when the user requests planning. Inspect relevant code first. The following situations can warrant planning; they are not automatic entry triggers. Investigation, file count and focused clarification alone do not require Plan mode.
 
 1. **New Feature Implementation**: Adding meaningful new functionality
    - Example: "Add a logout button" - where should it appear? What should happen on click?
@@ -20,7 +20,7 @@ export const enterPlanDescription = `Use this tool proactively when you are abou
    - Example: "Add caching to the API" - Redis, in-memory or file-based caching could work
    - Example: "Improve performance" - several optimisation strategies are possible
 
-3. **Code Modifications**: Changes affect existing behaviour or structure
+3. **Code Modifications**: Changes significantly affect existing behaviour or architecture
    - Example: "Update the login flow" - what should change?
    - Example: "Refactor this component" - what is the target architecture?
 
@@ -28,16 +28,16 @@ export const enterPlanDescription = `Use this tool proactively when you are abou
    - Example: "Add real-time updates" - WebSockets, SSE or polling?
    - Example: "Implement state management" - Redux, Context or a custom solution?
 
-5. **Multi-File Changes**: The task will likely change more than 2-3 files
+5. **Multi-File Changes**: Changes span components and require agreement on interfaces or sequencing
    - Example: "Refactor the authentication system"
    - Example: "Add a new API endpoint with tests"
 
-6. **Unclear Requirements**: You need to investigate before you can determine the full scope
+6. **Unclear Requirements**: Investigation reveals unresolved scope or requirements that affect the design
    - Example: "Make the app faster" - profile and identify bottlenecks first
    - Example: "Fix the bug in checkout" - investigate the root cause first
 
 7. **User Preferences Matter**: The implementation could reasonably go in several directions
-   - If you would use ask_user to clarify the implementation approach, use enter_plan_mode first
+   - Use ask_user directly for a focused clarification; use enter_plan_mode when the choice requires a broader design discussion
    - Plan mode lets you explore first, then present options with context
 
 ## When NOT to Use This Tool
@@ -45,6 +45,7 @@ export const enterPlanDescription = `Use this tool proactively when you are abou
 Skip enter_plan_mode for these tasks:
 - Single-line or few-line fixes, such as typos, obvious bugs or small tweaks
 - Adding a single function with clear requirements
+- Bounded fixes and small features with clear requirements, including their tests
 - Tasks where the user has given very specific, detailed instructions
 - Pure research or exploration tasks (use subagent instead when delegation is authorised)
 
@@ -73,10 +74,10 @@ User: "Implement dark mode"
 - Requires an architectural decision about the theme system and affects several components
 
 User: "Add a delete button to the user profile"
-- Appears simple but requires decisions about placement, confirmation, the API call, error handling and state updates
+- Requires agreement on placement, confirmation and API behaviour not established by existing patterns
 
 User: "Update the error handling in the API"
-- Affects several files; the user should approve the approach
+- Changes error semantics across the API; the user should approve the approach
 
 ### BAD - Do not use enter_plan_mode:
 User: "Fix the typo in the README"
@@ -91,7 +92,7 @@ User: "What files handle routing?"
 ## Important Notes
 
 - This tool requires user consent before entering Plan mode. If Plan mode is inactive, calling it opens Pi's entry confirmation.
-- If unsure whether to use it, prefer asking to enter Plan mode so the user can review the approach before changes.
+- If unsure, investigate the relevant code first. Proceed directly when the task is bounded and the intended behaviour is clear.
 - Entry consent does not approve implementation. The completed plan requires separate approval through submit_plan.
 `;
 

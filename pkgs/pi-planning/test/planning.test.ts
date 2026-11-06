@@ -10,6 +10,7 @@ import { childPolicy } from "../src/child.ts";
 import type { PlanEditor } from "../src/editor.ts";
 import {
   attachedPlanContext,
+  enterPlanDescription,
   implementationContext,
   planExitReminder,
   planningPrompt,
@@ -90,6 +91,8 @@ function fixture(
     reviewPlan(context, request, { name: "nvim", open: async () => {} }),
   );
   const startInPlan = vi.fn<PlanningDependencies["startInPlan"]>(() => false);
+  const setReviewAvailable =
+    vi.fn<PlanningDependencies["setReviewAvailable"]>();
   const controller = createPlanning({
     openPlan,
     configure,
@@ -102,6 +105,7 @@ function fixture(
     },
     ensureSubagentsIdle,
     startInPlan,
+    setReviewAvailable,
     requestId: () => `ticket-${++identity}`,
     review,
   });
@@ -155,6 +159,7 @@ function fixture(
     openPlan,
     ensureSubagentsIdle,
     startInPlan,
+    setReviewAvailable,
     review,
     commit,
     completeApproval: async () => {
@@ -163,6 +168,44 @@ function fixture(
     },
   };
 }
+
+it("retains Claude's planning criteria without treating ordinary work as an entry trigger", () => {
+  expect({
+    criteria: [...enterPlanDescription.matchAll(/^\d\. \*\*([^*]+)\*\*/gm)].map(
+      (match) => match[1],
+    ),
+    automaticTriggers: enterPlanDescription.includes(
+      "Use it when ANY of these conditions apply",
+    ),
+    requiresPlanningBeforeClarification: enterPlanDescription.includes(
+      "use enter_plan_mode first",
+    ),
+    boundedWork: enterPlanDescription.includes(
+      "Bounded fixes and small features with clear requirements, including their tests",
+    ),
+    ordinaryInvestigation: enterPlanDescription.includes(
+      "Investigation, file count and focused clarification alone do not require Plan mode.",
+    ),
+    uncertainEntry: enterPlanDescription.includes(
+      "If unsure whether to use it, prefer asking to enter Plan mode",
+    ),
+  }).toStrictEqual({
+    criteria: [
+      "New Feature Implementation",
+      "Multiple Valid Approaches",
+      "Code Modifications",
+      "Architectural Decisions",
+      "Multi-File Changes",
+      "Unclear Requirements",
+      "User Preferences Matter",
+    ],
+    automaticTriggers: false,
+    requiresPlanningBeforeClarification: false,
+    boundedWork: true,
+    ordinaryInvestigation: true,
+    uncertainEntry: false,
+  });
+});
 
 it.each(["a", "🦉"])(
   "accepts the complete 200,000 UTF-16-unit plan at the boundary: %s",
@@ -985,6 +1028,7 @@ it("honours the explicit startup flag without a consent UI", () => {
   f.startInPlan.mockReturnValueOnce(true);
   f.controller.start({ reason: "startup" }, f.ctx);
   expect({
+    reviewAvailability: f.setReviewAvailable.mock.calls,
     prompts: f.confirm.mock.calls,
     planExists: f.openPlan("session-one").exists(),
     configure: f.configure.mock.calls,
@@ -992,6 +1036,7 @@ it("honours the explicit startup flag without a consent UI", () => {
     prompts: [],
     planExists: false,
     configure: [["session-one"]],
+    reviewAvailability: [[false], [false], [true]],
   });
 });
 
@@ -1715,6 +1760,7 @@ it.each(["current", "clear"] as const)(
       plan,
       projectWrite: await f.call("write", { path: "project.ts" }),
       prompt: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
+      reviewAvailability: f.setReviewAvailable.mock.calls,
     }).toStrictEqual({
       sends: [[implementationContext(plan, "/fixture/session.jsonl")]],
       sessionId: "session-one",
@@ -1725,6 +1771,7 @@ it.each(["current", "clear"] as const)(
       },
       projectWrite: undefined,
       prompt: undefined,
+      reviewAvailability: [[false], [true], [false]],
     });
   },
 );
@@ -1847,6 +1894,12 @@ it("restores planning through reload and compaction without replaying a model pr
   f.files.replace(path, "# Durable plan\n");
   f.controller.start({ reason: "reload" }, f.ctx);
   f.controller.compact(f.ctx);
+  expect(f.setReviewAvailable.mock.calls).toStrictEqual([
+    [false],
+    [true],
+    [true],
+    [true],
+  ]);
   expect(f.path()).toBe(path);
   expect(f.files.read(path)).toBe("# Durable plan\n");
   expect(await f.call("write", { path: "project.ts" })).toMatchObject({

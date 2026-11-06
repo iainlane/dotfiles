@@ -220,6 +220,7 @@ it.each<ApprovalScenario>([
         configure: () => [],
         ensureSubagentsIdle: (signal) => ensureSubagentsIdle(pi.events, signal),
         startInPlan: () => true,
+        setReviewAvailable: () => {},
         requestId: () => "approval-fixture",
         sendUserMessage: (message, options) =>
           pi.sendUserMessage(message, options),

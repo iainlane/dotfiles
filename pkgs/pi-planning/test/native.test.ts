@@ -112,6 +112,7 @@ it("declares strict empty model-only planning inputs and structured outputs in t
           validEmpty: Check(tool.parameters, {}),
           acceptsExtra: Check(tool.parameters, { compatibility: true }),
           output: tool.outputSchema !== undefined,
+          active: active.getActiveToolNames().includes(name),
         };
       }),
     ).toStrictEqual(
@@ -122,9 +123,145 @@ it("declares strict empty model-only planning inputs and structured outputs in t
         validEmpty: true,
         acceptsExtra: false,
         output: true,
+        active: name === "enter_plan_mode",
       })),
     );
   } finally {
+    session?.dispose();
+    vi.unstubAllEnvs();
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+it("shows plan review only in active planning across reload, resume and tree navigation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-planning-tool-visibility-"));
+  const agentDir = join(cwd, "agent");
+  vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
+  let session:
+    | Awaited<ReturnType<typeof createAgentSession>>["session"]
+    | undefined;
+  try {
+    const settings = SettingsManager.inMemory({
+      compaction: { enabled: false },
+    });
+    const loader = new DefaultResourceLoader({
+      cwd,
+      agentDir,
+      settingsManager: settings,
+      noExtensions: true,
+      noSkills: true,
+      noThemes: true,
+      noPromptTemplates: true,
+      noContextFiles: true,
+      extensionFactories: [subagents, planning],
+    });
+    const runtime = await ModelRuntime.create({
+      authPath: join(cwd, "auth.json"),
+      modelsPath: join(cwd, "models.json"),
+    });
+    const open = async (manager: SessionManager) => {
+      await loader.reload();
+      const created = await createAgentSession({
+        cwd,
+        agentDir,
+        resourceLoader: loader,
+        modelRuntime: runtime,
+        sessionManager: manager,
+        settingsManager: settings,
+      });
+      session = created.session;
+      await session.bindExtensions({ mode: "rpc" });
+      return session;
+    };
+    const manager = SessionManager.create(cwd, join(cwd, "sessions"));
+    manager.appendMessage({
+      role: "user",
+      content: "Inspect the tool visibility fixture.",
+      timestamp: 1,
+    });
+    const active = await open(manager);
+    active.setActiveToolsByName(["enter_plan_mode", "read", "grep"]);
+    const snapshots: { phase: string; tools: string[] }[] = [];
+    const capture = (phase: string) => {
+      if (!session) {
+        throw new Error("The visibility fixture session is unavailable.");
+      }
+      snapshots.push({
+        phase,
+        tools: session
+          .getActiveToolNames()
+          .filter((name) => ["enter_plan_mode", "submit_plan"].includes(name))
+          .toSorted(),
+      });
+    };
+    capture("ordinary");
+    await active.prompt("/plan");
+    capture("entry");
+    const otherToolsAfterEntry = active
+      .getActiveToolNames()
+      .filter((name) => !["enter_plan_mode", "submit_plan"].includes(name))
+      .toSorted();
+    await active.reload();
+    capture("reload");
+    const file = manager.getSessionFile();
+    if (file === undefined) {
+      throw new Error("The visibility fixture must persist its session.");
+    }
+    await active.extensionRunner.emit({
+      type: "session_shutdown",
+      reason: "quit",
+    });
+    active.dispose();
+    const resumed = await open(SessionManager.open(file));
+    capture("resume");
+    await resumed.prompt("/plan exit");
+    capture("exit");
+    const inactiveEntry = resumed.sessionManager.getLeafId();
+    await resumed.prompt("/plan");
+    capture("reentry");
+    const activeEntry = resumed.sessionManager.getLeafId();
+    if (inactiveEntry === null || activeEntry === null) {
+      throw new Error("Expected persisted planning state entries.");
+    }
+    await resumed.navigateTree(inactiveEntry, { summarize: false });
+    capture("inactive branch");
+    await resumed.navigateTree(activeEntry, { summarize: false });
+    capture("active branch");
+    await resumed.prompt("/plan exit");
+    capture("exit after tree");
+    await resumed.reload();
+    capture("inactive reload");
+    await resumed.extensionRunner.emit({
+      type: "session_shutdown",
+      reason: "quit",
+    });
+    resumed.dispose();
+    await open(SessionManager.open(file));
+    capture("inactive resume");
+
+    const ordinary = ["enter_plan_mode"];
+    const planningTools = [...ordinary, "submit_plan"];
+    expect({ otherToolsAfterEntry, snapshots }).toStrictEqual({
+      otherToolsAfterEntry: ["grep", "read"],
+      snapshots: [
+        { phase: "ordinary", tools: ordinary },
+        { phase: "entry", tools: planningTools },
+        { phase: "reload", tools: planningTools },
+        { phase: "resume", tools: planningTools },
+        { phase: "exit", tools: ordinary },
+        { phase: "reentry", tools: planningTools },
+        { phase: "inactive branch", tools: ordinary },
+        { phase: "active branch", tools: planningTools },
+        { phase: "exit after tree", tools: ordinary },
+        { phase: "inactive reload", tools: ordinary },
+        { phase: "inactive resume", tools: ordinary },
+      ],
+    });
+  } finally {
+    await session?.extensionRunner.emit({
+      type: "session_shutdown",
+      reason: "quit",
+    });
     session?.dispose();
     vi.unstubAllEnvs();
     await rm(cwd, { recursive: true, force: true });

@@ -84,6 +84,17 @@ export default function planning(pi: ExtensionAPI): void {
     configure: (id) => configureChildren(pi, id),
     ensureSubagentsIdle: (signal) => ensureSubagentsIdle(pi.events, signal),
     startInPlan: () => pi.getFlag("plan") === true,
+    setReviewAvailable: (available) => {
+      const tools = pi.getActiveTools();
+      if (tools.includes("submit_plan") === available) {
+        return;
+      }
+      pi.setActiveTools(
+        available
+          ? [...tools, "submit_plan"]
+          : tools.filter((name) => name !== "submit_plan"),
+      );
+    },
     sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
     sendImplementationMessage: (content, onError) =>
       pi.sendMessage(
@@ -156,6 +167,7 @@ export default function planning(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "submit_plan",
     exposure: "model-only",
+    defaultActive: false,
     executionMode: "sequential",
     label: "Review plan",
     description: submitPlanDescription,

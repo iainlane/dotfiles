@@ -123,6 +123,7 @@ it.each(
         configure: () => [],
         ensureSubagentsIdle: async () => {},
         startInPlan: () => true,
+        setReviewAvailable: () => {},
         sendUserMessage: () => {},
         sendImplementationMessage: (message) => sends(message),
         requestId: () => "transport-fixture",
