@@ -31,6 +31,30 @@ semantics. Pi Diff provides expandable file changes.
 [Plan mode]: ../../../pkgs/pi-planning/README.md
 [session footer]: ../../../pkgs/pi-session-footer/README.md
 
+## Permissions
+
+Shell commands use [automatic permission review]. Other tools run without
+permission review. The reviewer uses `openai-codex/codex-auto-review` with the
+existing Codex login. A failed or unavailable review falls back to a human
+prompt; a refusal blocks the command.
+
+Nix manages `authorizerChain` and the complete `permission` policy. Activation
+merges those settings into a writable config file and preserves other fields,
+including runtime YOLO and logging toggles. Existing invalid JSON is left
+untouched and stops activation.
+
+Use `/auto-stats` to inspect reviewer state and `/permission-auto-review` to
+configure the reviewer. Investigation requires a separately configured sandbox
+provider. This setup does not enable a provider, so the reviewer uses transcript
+evidence without investigation tools. Permission review is not an OS sandbox for
+the main agent.
+
+Statistics start new totals in SQLite. Older journals and session metrics are
+not imported or removed.
+
+[automatic permission review]:
+  https://github.com/iainlane/pi-packages/tree/codex-parity/packages/pi-permission-auto-review
+
 ## Code intelligence
 
 Lens supplies structural code inspection and diagnostic feedback. Grammars and
@@ -51,5 +75,17 @@ subagent runtime's model and thinking settings.
 
 ## Maintenance
 
-Update an upstream extension with `nix run .#update-<package>`. Local extension
-sources are under `extensions/`.
+Update an upstream extension with `nix run .#update-<package>`. Automatic
+permission review is an exception: `pkgs/pi-permission-auto-review/source.json`
+pins the `codex-parity` branch to a commit, and its npm lockfile is maintained
+alongside that pin. The same file pins the BYOS SDK source. Nix packs its SDK
+subdirectory for npm and includes it with the extension; no local checkout is
+needed. The npm lockfile resolves workspace catalogue versions and declares Pi's
+runtime modules as peers.
+
+The startup check uses scripted models in the native Pi runtime to test shell
+allows, shell denials, direct writes, unavailable investigation and statistics
+across sessions. These checks do not establish live reviewer judgement or
+sandbox isolation.
+
+Local extension sources are under `pkgs/`.

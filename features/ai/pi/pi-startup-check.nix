@@ -8,7 +8,8 @@
   testSupport = pkgs.pi-integration-tests;
   testRoot = "${testSupport}/${testSupport.packageRoot}/dist";
   piArgs = {
-    inherit pkgs inputs lib system modelCatalog;
+    inherit pkgs inputs system modelCatalog;
+    lib = lib // {inherit (inputs.home-manager.lib) hm;};
     config = {
       catppuccin = {
         accent = "blue";
@@ -31,6 +32,43 @@
     };
   };
   piConfig = import ./home-manager.nix piArgs;
+  permissionConfigPath = ".pi/agent/extensions/pi-permission-system/config.json";
+  permissionActivation = piConfig.home.activation.piPermissionConfig;
+  permissionConfigActivation = pkgs.writeText "pi-permission-config-activation.bash" ''
+    set -euo pipefail
+    run() {
+      if [[ "''${DRY_RUN:-0}" == 1 ]]; then
+        return
+      fi
+      "$@"
+    }
+    ${permissionActivation.data}
+  '';
+  permissionDefaults = {
+    authorizerChain = ["auto-review"];
+    permission = {
+      "*" = "allow";
+      bash = "ask";
+    };
+  };
+  runtimeSettings = {
+    yoloMode = true;
+    debugLog = true;
+    permissionReviewLog = false;
+    futureSetting = "preserved";
+  };
+  runtimeConfig = pkgs.writeText "pi-permission-runtime.json" (builtins.toJSON ({
+      authorizerChain = ["other-reviewer"];
+      permission = {
+        "*" = "ask";
+        write = "deny";
+      };
+    }
+    // runtimeSettings));
+  previousPermissionGeneration = pkgs.runCommand "previous-pi-permission-generation" {} ''
+    mkdir -p "$out/home-files/.pi/agent/extensions/pi-permission-system"
+    cp ${runtimeConfig} "$out/home-files/${permissionConfigPath}"
+  '';
   promptConfig = import ./home-manager.nix (piArgs
     // {
       modelCatalog = {
@@ -122,6 +160,9 @@
         assert.ok(pi.getCommands().some(command => command.name === "footer"));
         assert.ok(pi.getCommands().some(command => command.name === "pr"));
         assert.ok(pi.getCommands().some(command => command.name === "ultrafast"));
+        assert.ok(pi.getCommands().some(command => command.name === "permission-auto-review"));
+        assert.ok(pi.getCommands().some(command => command.name === "auto-stats"));
+        assert.ok(pi.getAllTools().some(tool => tool.name === "request_manual_approval"));
         assert.ok(!pi.getAllTools().some(tool => ["apply_patch", "planning_research"].includes(tool.name)));
         assert.equal(pi.getAllTools().find(tool => tool.name === "submit_plan")?.exposure, "model-only");
         for (const name of ["subagents_enable", "subagent", "bg_wait"]) {
@@ -308,6 +349,21 @@
       };
     });
 in {
+  pi-permission-config =
+    pkgs.runCommandLocal "pi-permission-config" {
+      nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.jq];
+    } ''
+      test ${lib.boolToString (builtins.hasAttr permissionConfigPath piConfig.home.file)} = false
+      test ${lib.boolToString (lib.elem "linkGeneration" permissionActivation.after)} = true
+      bash ${./permission-config-check.bash} \
+        ${permissionConfigActivation} \
+        ${pkgs.writeText "pi-permission-defaults.json" (builtins.toJSON permissionDefaults)} \
+        ${runtimeConfig} \
+        ${pkgs.writeText "pi-permission-merged.json" (builtins.toJSON (permissionDefaults // runtimeSettings))} \
+        ${previousPermissionGeneration}
+      touch "$out"
+    '';
+
   pi-startup = pkgs.runCommandLocal "pi-startup" {nativeBuildInputs = [pkgs.gitMinimal];} ''
     export HOME="$TMPDIR/home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
@@ -353,6 +409,7 @@ in {
     export HOME="$TMPDIR/configured-home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     ${installHomeFiles}
+    bash ${permissionConfigActivation}
     install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
     ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
       "$PI_CODING_AGENT_DIR/auth.json" >auth.json
@@ -366,7 +423,8 @@ in {
       cat errors.txt responses.jsonl >&2
       exit 1
     fi
-    if [[ -s errors.txt || ! -f role-probe-ok || ! -f live-models-probe-ok ]]; then
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' errors.txt >unexpected-errors.txt || true
+    if [[ -s unexpected-errors.txt || ! -f role-probe-ok || ! -f live-models-probe-ok ]]; then
       cat errors.txt responses.jsonl >&2
       exit 1
     fi
@@ -383,6 +441,19 @@ in {
     test ! -s contracts-errors.txt || { cat contracts-errors.txt >&2; exit 1; }
 
     ${pkgs.nodejs}/bin/node ${testRoot}/lsp-check.js ${pkgs.pi-lens}/${pkgs.pi-lens.packageRoot} "$HOME/.pi-lens/config.json"
+
+    export HOME="$TMPDIR/permission-home"
+    export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
+    bash ${permissionConfigActivation}
+    export PI_AUTO_REVIEW_ROOT=${pkgs.pi-permission-auto-review}/${pkgs.pi-permission-auto-review.packageRoot}
+    export PI_PERMISSIONS_ROOT=${pkgs.pi-permission-system}/${pkgs.pi-permission-system.packageRoot}
+    if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-permission-contracts --offline --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/permission-contracts.js >permissions.jsonl 2>permissions-errors.txt; then
+      cat permissions-errors.txt permissions.jsonl >&2
+      exit 1
+    fi
+    test -f permission-contracts-ok || { cat permissions-errors.txt permissions.jsonl >&2; exit 1; }
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' permissions-errors.txt >unexpected-errors.txt || true
+    test ! -s unexpected-errors.txt || { cat permissions-errors.txt >&2; exit 1; }
 
     touch "$out"
   '';

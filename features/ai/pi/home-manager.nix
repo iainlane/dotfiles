@@ -18,6 +18,8 @@
       "pi-lens"
       "pi-live-models"
       "pi-notify"
+      "pi-permission-auto-review"
+      "pi-permission-system"
       "pi-pretty"
       "pi-prompt-template-model"
       "pi-service-tier"
@@ -202,6 +204,7 @@
   };
 
   toJson = builtins.toJSON;
+  permissionConfig = import ./permission-config.nix {inherit pkgs;};
 
   promptDir = ./prompts;
   promptModels.sol = "${modelCatalog.openai.sol}, openrouter/${modelCatalog.openrouter.sol}";
@@ -256,6 +259,15 @@ in {
 
   home = {
     packages = [managedPi];
+
+    activation.piPermissionConfig = lib.hm.dag.entryAfter ["linkGeneration"] ''
+      previousConfig=
+      if [[ -n "''${oldGenPath:-}" ]]; then
+        previousConfig="$oldGenPath/home-files/.pi/agent/extensions/pi-permission-system/config.json"
+      fi
+      run ${lib.getExe permissionConfig} \
+        "$HOME/.pi/agent/extensions/pi-permission-system/config.json" "$previousConfig"
+    '';
 
     file =
       {
