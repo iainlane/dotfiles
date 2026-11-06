@@ -18,11 +18,9 @@ assert.ok(
   pi !== undefined && pi !== "" && command !== undefined && command !== "",
   "Pass Pi, the command and its arguments",
 );
-const child = spawn(
-  pi,
-  ["--mode", "rpc", "--no-session", "--no-context-files", ...args],
-  { stdio: ["pipe", "pipe", "inherit"] },
-);
+const child = spawn(pi, ["--mode", "rpc", "--no-context-files", ...args], {
+  stdio: ["pipe", "pipe", "inherit"],
+});
 const completed = Promise.withResolvers<void>();
 const lines = createInterface({ input: child.stdout });
 lines.on("line", (line) => {

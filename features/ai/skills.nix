@@ -28,48 +28,15 @@
   pkgs-unstable,
   ...
 }: let
-  dir = ./skills;
-
-  subdirs =
-    lib.filterAttrs
-    (_name: type: type == "directory")
-    (builtins.readDir dir);
-
-  local =
-    lib.mapAttrs
-    (name: _: {skill = import (dir + "/${name}");})
-    subdirs;
-
-  external = {
-    gh-stack.directory = "${inputs.gh-stack-skill}/skills/gh-stack";
-  };
-
-  instructions = import ./agent-instructions.nix {inherit lib;};
-
-  outputStyles = import ./output-styles.nix {inherit lib;};
-
-  # The preamble tells the model to adopt the style from this point on; the
-  # style body follows verbatim.
-  styleSkill = stem: style: {
-    skill = {
-      frontmatter.description = "Adopt the ${style.name} output style (${style.description}). ${
-        if stem == outputStyles.default.stem
-        then "Use when writing or auditing comments, commit messages, documentation or any prose that goes into a repository, and whenever the user asks for this style."
-        else "Use when the user asks for output in this style."
-      }";
-
-      body = ''
-        Apply the ${style.name} output style below to all prose you write for the
-        rest of the session. This style replaces any output style that was active
-        before; all other instructions still apply.
-
-        ${style.body}'';
-    };
-  };
-
-  styles = lib.mapAttrs styleSkill outputStyles.styles;
+  defaults = import ./skill-defaults.nix {inherit inputs lib;};
+  inherit (defaults) instructions outputStyles;
 
   skillTree = import ./skill-tree.nix {inherit lib pkgs;};
+  runtimePackages =
+    pkgs-unstable
+    // {inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;}
+    // lib.optionalAttrs config.programs.git.enable {git = config.programs.git.package;}
+    // lib.optionalAttrs config.programs.gh.enable {gh = config.programs.gh.package;};
 in {
   options.dotfiles.ai = {
     skills = lib.mkOption {
@@ -101,20 +68,12 @@ in {
 
   config = {
     dotfiles.ai = {
-      skills = lib.mkMerge ([(local // external // styles)] ++ lib.mapAttrsToList (_: bundle: bundle.skills) config.dotfiles.ai.bundles);
+      skills = lib.mkMerge ([defaults.skillDefinitions] ++ lib.mapAttrsToList (_: bundle: bundle.skills) config.dotfiles.ai.bundles);
 
-      skillRuntimeDependencies = {
-        gh-stack = ["git" "gh" "gh-stack"];
-        stacked-prs = ["git" "gh"];
-      };
+      skillRuntimeDependencies = defaults.runtimeDependencies;
     };
 
     home.packages = let
-      runtimePackages =
-        pkgs-unstable
-        // {inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;}
-        // lib.optionalAttrs config.programs.git.enable {git = config.programs.git.package;}
-        // lib.optionalAttrs config.programs.gh.enable {gh = config.programs.gh.package;};
       dependencies = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name config.dotfiles.ai.skills) config.dotfiles.ai.skillRuntimeDependencies)));
     in
       map (name: lib.attrByPath (lib.splitString "." name) (throw "Unknown skill runtime package: ${name}") runtimePackages) dependencies;
@@ -124,6 +83,9 @@ in {
       recursive = true;
     };
 
-    _module.args = {inherit instructions outputStyles skillTree;};
+    _module.args = {
+      inherit instructions outputStyles skillTree;
+      skillRuntimePackages = runtimePackages;
+    };
   };
 }

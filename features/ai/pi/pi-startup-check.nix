@@ -24,7 +24,7 @@
       };
     };
     defaultModels = modelCatalog.defaults;
-    instructions.concatenated = "";
+    instructions.concatenated = "Pi profile fixture instructions.";
     mcp = import ../mcp-servers.nix {
       inherit pkgs inputs lib;
       servers = {};
@@ -69,13 +69,22 @@
     mkdir -p "$out/home-files/.pi/agent/extensions/pi-permission-system"
     cp ${runtimeConfig} "$out/home-files/${permissionConfigPath}"
   '';
-  promptConfig = import ./home-manager.nix (piArgs
-    // {
-      modelCatalog = {
-        openai.sol = "gpt-test-sol";
-        openrouter.sol = "~openai/gpt-test-sol-latest";
-      };
-    });
+  bundleArgs = {
+    inherit pkgs inputs modelCatalog;
+    inherit (piArgs) defaultModels instructions mcp;
+    inherit (piArgs.config.catppuccin) accent;
+    mcpServers = piArgs.config.dotfiles.ai.mcpServers;
+    proseLintEnabled = true;
+  };
+  bundle = import ./bundle.nix bundleArgs;
+  promptConfig =
+    (import ./bundle.nix (bundleArgs
+      // {
+        modelCatalog = {
+          openai.sol = "gpt-test-sol";
+          openrouter.sol = "~openai/gpt-test-sol-latest";
+        };
+      })).normalFiles;
   prompts =
     lib.mapAttrs (_: file: file.text)
     (lib.filterAttrs (path: _: lib.hasPrefix ".pi/agent/prompts/" path) promptConfig.home.file);
@@ -102,7 +111,7 @@
     ---
     A plain prompt.
   '';
-  settings = builtins.fromJSON piConfig.home.file.".pi/agent/settings.json".text;
+  settings = builtins.fromJSON (builtins.unsafeDiscardStringContext piConfig.home.file.".pi/agent/settings.json".text);
   webSearchSettings = builtins.fromJSON piConfig.home.file.".pi/agent/web-search.json".text;
   pi = builtins.head piConfig.home.packages;
   codexAuth = pkgs.writeText "pi-test-auth.json" (builtins.toJSON {
@@ -129,11 +138,17 @@
     "typebox"
   ];
   allHomeFiles = piConfig.home.file // lib.mapAttrs' (path: file: lib.nameValuePair ".config/${path}" file) piConfig.xdg.configFile;
-  installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file: ''
+  installHomeFiles = lib.concatStringsSep "\n" (lib.mapAttrsToList (path: file:
+    if file.recursive or false
+    then ''
+      mkdir -p "$HOME/"${lib.escapeShellArg path}
+      ${pkgs.lndir}/bin/lndir -silent -ignorelinks ${file.source} "$HOME/"${lib.escapeShellArg path}
+    ''
+    else ''
       mkdir -p "$HOME/"${lib.escapeShellArg (dirOf path)}
       ln -s ${file.source or (pkgs.writeText (baseNameOf path) file.text)} "$HOME/"${lib.escapeShellArg path}
     '')
-    allHomeFiles);
+  allHomeFiles);
   webAccessRoot = "${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}";
   subagentsRoot = "${pkgs.pi-subagents}/${pkgs.pi-subagents.packageRoot}";
   roleProbe = pkgs.writeText "pi-role-probe.ts" ''
@@ -178,7 +193,7 @@
             model: "openai-codex/${modelCatalog.openai.sol}",
             thinking: "medium",
             tools: ["read", "write", "web_search", "fetch_content", "get_search_content", "source_check", "codemode"],
-            subagentOnlyExtensions: ["~/.pi/agent/packages/pi-web-access"],
+            subagentOnlyExtensions: ["${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}"],
           },
           {
             name: "reviewer",
@@ -200,6 +215,14 @@
         }
         writeFileSync("role-probe-ok", "");
       }});
+    }
+  '';
+  profileProbe = pkgs.writeText "pi-profile-probe.ts" ''
+    import profileContracts from "${testRoot}/profile-contracts.js";
+    import { createDefaultChildSessionFactory } from "${subagentsRoot}/src/runs/shared/child-session.ts";
+
+    export default function (pi) {
+      profileContracts(pi, createDefaultChildSessionFactory);
     }
   '';
   liveModelsProbe = pkgs.writeText "pi-live-models-probe.ts" ''
@@ -368,6 +391,10 @@ in {
     export HOME="$TMPDIR/home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     export PI_OFFLINE=1
+    check_startup_errors() {
+      grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' "$1" >unexpected-errors.txt || true
+      test ! -s unexpected-errors.txt
+    }
     mkdir -p "$PI_CODING_AGENT_DIR"
     cp ${testSettings} "$PI_CODING_AGENT_DIR/settings.json"
     cp ${pkgs.writeText "web-search.json" (builtins.toJSON webSearchSettings)} "$PI_CODING_AGENT_DIR/web-search.json"
@@ -383,7 +410,7 @@ in {
     for models in ${modelsFile ""} ${modelsFile "vendor/"}; do
       rm -f startup-probe-ok
       install -m644 "$models" "$PI_CODING_AGENT_DIR/models.json"
-      if ! printf '%s\n' '{"type":"get_state"}' '{"type":"get_commands"}' | ${lib.getExe pi} \
+      if ! printf '%s\n' '{"type":"get_state"}' '{"type":"get_commands"}' | ${lib.getExe pkgs.pi} \
         --mode rpc --no-session --no-context-files >responses.jsonl 2>errors.txt; then
         cat errors.txt responses.jsonl >&2
         exit 1
@@ -410,11 +437,14 @@ in {
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     ${installHomeFiles}
     bash ${permissionConfigActivation}
+
+    mkdir -p "$HOME/.agents"
+    ln -s ${bundle.collections.skills} "$HOME/.agents/skills"
     install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
     ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
       "$PI_CODING_AGENT_DIR/auth.json" >auth.json
     mv auth.json "$PI_CODING_AGENT_DIR/auth.json"
-    find -L "$PI_CODING_AGENT_DIR/packages" "$PI_CODING_AGENT_DIR/extensions" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
+    find -L "$PI_CODING_AGENT_DIR/packages" "$PI_CODING_AGENT_DIR/extensions" "$PI_CODING_AGENT_DIR/managed-extensions" \( ${lib.concatMapStringsSep " -o " (module: "-path ${lib.escapeShellArg "*/node_modules/${module}"}") hostProvidedModules} \) -print >host-provided-copies.txt
     if [[ -s host-provided-copies.txt ]]; then
       cat host-provided-copies.txt >&2
       exit 1
@@ -454,6 +484,51 @@ in {
     test -f permission-contracts-ok || { cat permissions-errors.txt permissions.jsonl >&2; exit 1; }
     grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' permissions-errors.txt >unexpected-errors.txt || true
     test ! -s unexpected-errors.txt || { cat permissions-errors.txt >&2; exit 1; }
+
+    export OPENROUTER_API_KEY=openrouter-fixture
+    for profile in clean installed; do
+      if [[ "$profile" == clean ]]; then
+        export HOME="$TMPDIR/clean-app-home"
+      else
+        export HOME="$TMPDIR/configured-home"
+      fi
+      export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
+      mkdir -p "$PI_CODING_AGENT_DIR" "$TMPDIR/app-$profile"
+      install -m600 ${modelsFile ""} "$PI_CODING_AGENT_DIR/models.json"
+      cd "$TMPDIR/app-$profile"
+      if [[ -f "$PI_CODING_AGENT_DIR/auth.json" ]]; then
+        cp "$PI_CODING_AGENT_DIR/auth.json" source-auth.json
+      fi
+      if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe bundle.app} dotfiles-integration-check --provider fixture --model gpt-test --plan -e ${roleProbe} -e ${liveModelsProbe} >responses.jsonl 2>errors.txt; then
+        cat errors.txt responses.jsonl >&2
+        exit 1
+      fi
+      check_startup_errors errors.txt && test -f role-probe-ok && test -f live-models-probe-ok || { cat errors.txt responses.jsonl >&2; exit 1; }
+      if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe bundle.app} dotfiles-profile-check --provider fixture --model gpt-test -e ${profileProbe} >profile.jsonl 2>profile-errors.txt; then
+        cat profile-errors.txt profile.jsonl >&2
+        exit 1
+      fi
+      check_startup_errors profile-errors.txt && test -f profile-probe-ok || { cat profile-errors.txt profile.jsonl >&2; exit 1; }
+      if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe bundle.app} dotfiles-profile-lifecycle --provider fixture --model gpt-test -e ${profileProbe} >lifecycle.jsonl 2>lifecycle-errors.txt; then
+        cat lifecycle-errors.txt lifecycle.jsonl >&2
+        exit 1
+      fi
+      check_startup_errors lifecycle-errors.txt && test -f lifecycle-probe-ok && test ! -f unexpected-model-turn || { cat lifecycle-errors.txt lifecycle.jsonl >&2; exit 1; }
+      if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe bundle.app} dotfiles-permission-contracts --offline --provider fixture --model gpt-test --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/permission-contracts.js >app-permissions.jsonl 2>app-permissions-errors.txt; then
+        cat app-permissions-errors.txt app-permissions.jsonl >&2
+        exit 1
+      fi
+      check_startup_errors app-permissions-errors.txt && test -f permission-contracts-ok || { cat app-permissions-errors.txt app-permissions.jsonl >&2; exit 1; }
+      if [[ -f source-auth.json ]]; then
+        cmp source-auth.json "$PI_CODING_AGENT_DIR/auth.json"
+      else
+        test ! -e "$PI_CODING_AGENT_DIR/auth.json"
+      fi
+    done
+
+    mkdir "$TMPDIR/app-tui"
+    cd "$TMPDIR/app-tui"
+    ${pkgs.python3}/bin/python ${./test/tui.py} ${lib.getExe bundle.app} ${profileProbe}
 
     touch "$out"
   '';

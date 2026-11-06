@@ -9,6 +9,44 @@ MCP servers. Nix manages configuration and extension versions. Change shared
 settings here; Pi cannot save changes over the generated files in
 `~/.pi/agent/`.
 
+## Installation and temporary runs
+
+Home Manager installs the configured executable and recursively links its shared
+resource collections. The executable uses that installation without changing
+configuration at launch. `nix build .#pi-configured` builds the executable and
+its assets; `packages.pi` remains the independent upstream core.
+
+Run the shared configuration without activating Home Manager:
+
+```sh
+nix run .#pi
+```
+
+The app uses shared model, instruction, skill and MCP defaults, not a host
+profile. Native CLI arguments pass through unchanged. Each invocation links the
+built collections into a private writable agent directory in the OS temporary
+area. Pretty, Lens and rpiv use the temporary profile. HOME stays unchanged;
+unrelated XDG helper configuration remains accessible through symlinks.
+
+Environment credentials are inherited. The app can reuse validated static
+`api_key` records from the source profile, but it does not copy or link provider
+OAuth records or MCP grants. Independent copies of rotating grants can diverge
+after a refresh, and path aliases do not guarantee a shared credential lock. Use
+native login in the app when needed; those credentials remain temporary.
+
+`PI_CODING_AGENT_DIR` selects the source profile before launch and defaults to
+`~/.pi/agent`. Optional `models.json` and `keybindings.json` are copied into
+private files. Installed settings and package/resource lists are not imported.
+Extension code uses the immutable `managed-extensions/` collection. The native
+`extensions/` directory stays writable for permission configuration, logs and
+statistics. Its managed `subagent/config.json` remains read-only. Sessions,
+authentication and runtime caches use writable state outside the collections.
+
+The launcher does not remove its temporary directory on exit, so detached
+children can continue to read it. OS temporary cleanup, Nix garbage collection
+or reboot can invalidate the environment. Use the Home Manager installation for
+durable sessions and background work.
+
 ## Everyday use
 
 [Plan mode] develops a reviewed implementation plan before project changes.
@@ -38,10 +76,12 @@ permission review. The reviewer uses `openai-codex/codex-auto-review` with the
 existing Codex login. A failed or unavailable review falls back to a human
 prompt; a refusal blocks the command.
 
-Nix manages `authorizerChain` and the complete `permission` policy. Activation
-merges those settings into a writable config file and preserves other fields,
-including runtime YOLO and logging toggles. Existing invalid JSON is left
-untouched and stops activation.
+Nix manages `authorizerChain` and the complete `permission` policy. Home Manager
+activation merges those settings into a writable config file and preserves other
+fields, including runtime YOLO and logging toggles. Existing invalid JSON is
+left untouched and stops activation. The app initialises the same policy in
+private writable state. Temporary runs require their own Codex login for
+automatic review because provider OAuth credentials are not imported.
 
 Use `/auto-stats` to inspect reviewer state and `/permission-auto-review` to
 configure the reviewer. Investigation requires a separately configured sandbox
@@ -89,3 +129,9 @@ across sessions. These checks do not establish live reviewer judgement or
 sandbox isolation.
 
 Local extension sources are under `pkgs/`.
+
+`bundle.nix` constructs the executable, resource collections and configuration
+from explicit inputs. Home Manager supplies merged host settings; the flake app
+supplies shared defaults. `render-files.nix` uses the pinned Home Manager file
+renderer and encapsulates its internal `home-files` output. The renderer
+excludes the configured executable and does not evaluate a host profile.
