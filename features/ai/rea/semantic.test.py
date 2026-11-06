@@ -70,11 +70,20 @@ class ToolTest(unittest.TestCase):
             env=environment,
             cwd=self.root,
         )
+        stdin = self.process.stdin
+        stdout = self.process.stdout
+        stderr = self.process.stderr
+        if stdin is None or stdout is None or stderr is None:
+            self.fail("REA did not create all three subprocess pipes")
+
+        self.stdin = stdin
+        self.stdout = stdout
+        self.stderr = stderr
         self.addCleanup(self.close)
         self.messages = queue.Queue()
 
         def read():
-            for line in self.process.stdout:
+            for line in self.stdout:
                 self.messages.put(json.loads(line))
             self.messages.put(None)
 
@@ -89,7 +98,7 @@ class ToolTest(unittest.TestCase):
                 "clientInfo": {"name": "rea-nix-test", "version": "1"},
             },
         )
-        self.process.stdin.write(
+        self.stdin.write(
             json.dumps(
                 {
                     "jsonrpc": "2.0",
@@ -98,23 +107,23 @@ class ToolTest(unittest.TestCase):
             )
             + "\n"
         )
-        self.process.stdin.flush()
+        self.stdin.flush()
 
     def close(self):
         if self.process.poll() is None:
-            self.process.stdin.close()
+            self.stdin.close()
             try:
                 self.process.wait(timeout=15)
             except subprocess.TimeoutExpired:
                 self.process.terminate()
                 self.process.wait(timeout=15)
         self.reader.join(timeout=15)
-        for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
+        for stream in (self.stdin, self.stdout, self.stderr):
             stream.close()
 
     def request(self, method, params):
         self.sequence += 1
-        self.process.stdin.write(
+        self.stdin.write(
             json.dumps(
                 {
                     "jsonrpc": "2.0",
@@ -125,7 +134,7 @@ class ToolTest(unittest.TestCase):
             )
             + "\n"
         )
-        self.process.stdin.flush()
+        self.stdin.flush()
         while True:
             message = self.messages.get(timeout=180)
             self.assertIsNotNone(message, "REA closed its MCP stream")
@@ -297,7 +306,7 @@ class ToolTest(unittest.TestCase):
                 self.end_headers()
                 self.wfile.write(body)
 
-            def log_message(self, *_):
+            def log_message(self, format: str, *args: object) -> None:
                 pass
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)

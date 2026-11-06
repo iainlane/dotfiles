@@ -32,8 +32,9 @@ in {
 
   rea-toolchain =
     pkgs.runCommand "rea-toolchain" {
-      nativeBuildInputs = [pkgs.python3];
+      nativeBuildInputs = [pkgs.python3 pkgs.pyright];
     } ''
+      pyright --pythonversion ${pkgs.python3.pythonVersion} ${./semantic.test.py}
       python3 ${./semantic.test.py} ${rea}/bin/rea \
         ${rea.environment.REA_BROWSER_EXECUTABLE} ${pkgs.hello}/bin/hello \
         ${pkgs.lib.escapeShellArg pkgs.wakaru.version} \
