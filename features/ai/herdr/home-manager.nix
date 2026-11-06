@@ -68,7 +68,9 @@ in {
           };
 
           keys = {
-            open_worktree = "prefix+shift+o";
+            new_worktree = "prefix+ctrl+c";
+            open_worktree = "prefix+ctrl+o";
+            remove_worktree = "prefix+ctrl+d";
             last_pane = "prefix+t";
             previous_agent = "prefix+shift+k";
             next_agent = "prefix+shift+j";
@@ -125,7 +127,7 @@ in {
                 description = "Review the agent's recent replies";
               }
               {
-                key = "prefix+ctrl+o";
+                key = "prefix+ctrl+l";
                 type = "plugin_action";
                 command = "annotate.last-newest";
                 description = "Review the agent's newest reply";
