@@ -21,21 +21,21 @@
   installDir = "/opt/CrowdStrike";
   falconSensorPackage = inputs.secrets.packages.${pkgs.stdenv.hostPlatform.system}.falcon;
 
-  # The sensor writes registration state into its install directory, so it
-  # must run from a mutable copy of the package. Staging in
-  # ExecStartPre ties the copy to a service restart: the store path embedded
-  # in the unit changes with the package, so NixOS restarts the service and
-  # the binaries are only ever replaced underneath a stopped daemon.
+  # The sensor writes registration state beside its binaries, so staging
+  # must preserve files that are absent from the package.
   falconInstall = pkgs.writeShellScript "falcon-install" ''
     set -euo pipefail
 
+    if ${pkgs.procps}/bin/pgrep -x 'falcond|falcon-sensor|falcon-sensor-b' > /dev/null; then
+      echo "CrowdStrike Falcon is running; reboot before replacing its files." >&2
+      exit 1
+    fi
+
     echo "staging CrowdStrike Falcon into ${installDir}..."
     mkdir -p ${installDir}
-    ${pkgs.rsync}/bin/rsync -a --delete \
+    ${pkgs.rsync}/bin/rsync -a --chown=root:root --chmod=D750,F750 \
       ${falconSensorPackage}/opt/CrowdStrike/ \
       ${installDir}/
-    chown -R root:root ${installDir}
-    chmod -R 0750 ${installDir}
   '';
 
   falconStartPre = pkgs.writeShellScript "falcon-start-pre" ''
@@ -144,6 +144,7 @@ in {
       description = "CrowdStrike Falcon Sensor";
       after = ["local-fs.target" "network.target" "sops-install-secrets.service"];
       wantedBy = ["multi-user.target"];
+      restartIfChanged = false;
       conflicts = ["shutdown.target"];
       before = ["shutdown.target"];
 
