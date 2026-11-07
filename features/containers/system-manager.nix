@@ -21,29 +21,21 @@
     config.users.users
   );
 
-  # Nix builds an image's OCI config with an epoch creation time, for
-  # reproducibility (see `lib/container-image.nix`), so the `until=168h`
-  # prune filter below can never treat one as recent no matter when it
-  # was actually pulled into local storage. That leaves the prune's
-  # other check, being referenced by an existing container, as the only
-  # thing keeping a Nix-built image alive. A container that only runs
-  # briefly on a timer, rather than staying up, has no such reference
-  # between runs, so a prune sweeping through in that window removes an
-  # image the current generation still wants.
+  # Nix-built images have an epoch creation time for reproducibility (see
+  # `lib/container-image.nix`), so `until=168h` does not protect recently
+  # imported images from pruning. A timer-driven container can leave its
+  # image unreferenced between runs, so pruning can remove an image required
+  # by the current generation.
   #
-  # Rather than track which containers stay running, make every
-  # Nix-built image unit run again whenever something depends on it.
-  # `RemainAfterExit = false` makes the unit go inactive once it
-  # finishes, so `Requires=`/`After=` on a dependent unit reruns it on
-  # every start.
+  # `RemainAfterExit = false` makes image units inactive after each import.
+  # A dependent unit's `Requires=`/`After=` then starts the image unit on
+  # every run, so it restores an image removed by pruning.
   #
-  # Importing a docker-archive decompresses and hashes every layer, which
-  # on a large image takes tens of seconds of CPU and writes the layers
-  # to disk again, so a container that keeps crashing would spend most of
-  # each restart re-importing an image it already has. The condition
-  # skips the pull while the tag is in local storage; after a prune has
-  # removed it, the tag is missing and the pull runs.
-  imageAbsent = pkgs.writeShellScript "podman-image-absent" (builtins.readFile ../../lib/podman-image-absent.sh);
+  # Importing a docker-archive decompresses and hashes every layer and writes
+  # the layers to disk. On large images this takes tens of seconds of CPU.
+  # Skip the import while the tag exists locally so crashing containers do
+  # not repeat that work on every restart.
+  imageAbsent = pkgs.writeShellScript "podman-image-absent" (builtins.readFile ../../lib/podman-image-absent.bash);
 
   nixBuiltImageOverrides =
     lib.mapAttrs' (

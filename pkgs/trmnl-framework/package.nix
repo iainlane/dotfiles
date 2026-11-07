@@ -42,13 +42,13 @@ in
     '';
     passthru.updateScript = updaters.mkScriptUpdater {
       pname = "trmnl-framework";
-      script = ./update.sh;
+      script = ./update.bash;
       extraRuntimeInputs = [gh];
     };
     passthru.tests.updater = updaters.mkScriptUpdaterTest {
       pname = "trmnl-framework";
-      script = ./update.sh;
-      test = ./update.test.sh;
+      script = ./update.bash;
+      test = ./update.test.bash;
     };
     meta = {
       description = "TRMNL framework assets built from source";

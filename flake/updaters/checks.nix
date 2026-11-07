@@ -43,7 +43,7 @@ in
           pkgs.runCommandLocal "flake-input-updater-test" {
             nativeBuildInputs = [pkgs.bash pkgs.jq pkgs.diffutils pkgs.git pkgs.nix];
           } ''
-            bash ${../../pkgs/build-support/replace-once.test.sh} \
+            bash ${../../pkgs/build-support/replace-once.test.bash} \
               ${../../pkgs/build-support/replace-once.jq}
             bash ${../../pkgs/build-support/flake-branch-updater.test.bash} \
               ${lib.getExe (pkgs.updaters.mkFlakeBranchUpdater {input = "hermes-agent";})}

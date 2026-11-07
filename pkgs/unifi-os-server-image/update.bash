@@ -60,7 +60,7 @@ x64_installer="${tmpdir}/unifi-os-server-x64.bin"
 wget --show-progress -qO "${x64_installer}" "${x64_url}"
 
 echo "Extracting embedded image tag..." >&2
-bash ./extract-image.sh "${arm64_installer}" "${tmpdir}/extract"
+bash ./extract-image.bash "${arm64_installer}" "${tmpdir}/extract"
 image_tag="$(cat "${tmpdir}/extract/image-tag")"
 
 echo "Hashing Linux x64..." >&2

@@ -18,8 +18,7 @@
 # results were ready. The fix is to capture command output into variables and
 # to neutralise the expected non-zero exits with `|| true`.
 
-# Extract the query field with a tolerant sed expression so the script stays
-# usable even when jq is not on the PATH Claude Code inherits.
+# Claude Code may inherit a PATH without jq, so parse the query with sed.
 read -r INPUT || INPUT=''
 QUERY=$(printf '%s' "$INPUT" | sed -n 's/.*"query"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
@@ -49,11 +48,9 @@ if [[ -z "$QUERY" ]]; then
 	exit 0
 fi
 
-# `fzf --filter` exits 1 when no matches are found; `|| true` keeps that from
-# tripping `errexit`. `fd` output is captured into a variable so that the
-# `head`-style trim downstream does not SIGPIPE the walker. When fzf returns
-# zero matches `$RANKED` is empty; printing it would emit a blank result line
-# the picker shows as a phantom row, so skip the print in that case.
+# `fzf --filter` exits 1 on zero matches; tolerate that under `errexit`.
+# Do not print an empty result: printf would emit a blank line, and the
+# picker would display a phantom row.
 ALL=$(fd --type f --type d --hidden --follow --exclude .git --exclude .direnv --color never 2>/dev/null || true)
 RANKED=$(printf '%s\n' "$ALL" | fzf --filter "$QUERY" 2>/dev/null || true)
 if [[ -n "$RANKED" ]]; then

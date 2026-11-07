@@ -18,14 +18,13 @@
 
   backupName = "agentsview";
 
-  # Nothing is substituted into the script, so it stays a plain shell file that
-  # shellcheck can run over. Every setting arrives in the environment: the
-  # systemd service supplies the non-secret values and the sops env file
-  # supplies the R2 credentials.
+  # Pass settings through the environment so ShellCheck can analyse the source
+  # without Nix substitutions. The service sets non-secret values, and the
+  # sops environment file supplies R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "agentsview-backup-r2";
     runtimeInputs = with pkgs; [coreutils podman pv r2Tool];
-    text = builtins.readFile ./backup-r2.sh;
+    text = builtins.readFile ./backup-r2.bash;
   };
   secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {

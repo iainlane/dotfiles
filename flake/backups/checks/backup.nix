@@ -119,7 +119,7 @@
         });
     }
     {
-      name = "the rendered template gives each credential the name r2.sh reads";
+      name = "the rendered template provides every credential used by r2.bash";
       pass =
         sopsFragment.templates."example-backup.env".content
         == ''
@@ -172,7 +172,7 @@ in
           pkgs.runCommandLocal "r2-archive-test" {
             nativeBuildInputs = with pkgs; [age bash coreutils diffutils gnutar zstd];
           } ''
-            bash ${../../../lib/r2-backup.test.bash} ${../../../lib/r2.sh} ${pkgs.zstd}/bin/zstd
+            bash ${../../../lib/r2-backup.test.bash} ${../../../lib/r2.bash} ${pkgs.zstd}/bin/zstd
             touch $out
           '';
       };

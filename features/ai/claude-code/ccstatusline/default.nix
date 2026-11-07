@@ -7,7 +7,7 @@
 #
 # The custom-command widgets are backed by the small helpers built below, each
 # reading the status-line JSON on stdin, the usage API, or local git state. See
-# the matching .sh files for their logic.
+# the matching .bash files for their logic.
 #
 # Import this file directly with `pkgs` and `lib`. `callPackage` would add
 # `override` functions to the result, and `home-manager.nix` serialises that
@@ -29,7 +29,7 @@
       coreutils
     ];
 
-    text = builtins.readFile ./extra-usage.sh;
+    text = builtins.readFile ./extra-usage.bash;
   };
 
   worktree = pkgs.writeShellApplication {
@@ -41,7 +41,7 @@
       coreutils
     ];
 
-    text = builtins.readFile ./worktree.sh;
+    text = builtins.readFile ./worktree.bash;
   };
 
   gitAheadBehind = pkgs.writeShellApplication {
@@ -53,7 +53,7 @@
       coreutils
     ];
 
-    text = builtins.readFile ./git-ahead-behind.sh;
+    text = builtins.readFile ./git-ahead-behind.bash;
   };
 
   usagePct = pkgs.writeShellApplication {
@@ -64,7 +64,7 @@
       gawk
     ];
 
-    text = builtins.readFile ./usage-pct.sh;
+    text = builtins.readFile ./usage-pct.bash;
   };
 
   extraUsageCommand = lib.getExe extraUsage;
@@ -78,11 +78,10 @@ in {
   defaultSeparator = "|";
 
   lines = [
-    # ccstatusline has no width-based priority: when the line overflows it
-    # truncates from the right, so widgets are ordered left-to-right by
-    # importance. `hideWhenEmpty` drops widgets that have nothing to show
-    # (clean tree, enterprise account without subscription limits), which
-    # does most of the contextual trimming.
+    # ccstatusline truncates overflowing lines from the right, so widgets are
+    # ordered left-to-right by importance. `hideWhenEmpty` hides widgets whose
+    # output is empty, such as a clean tree or an enterprise account without
+    # subscription limits.
     [
       {
         id = "model";
@@ -103,10 +102,10 @@ in {
       # per-widget separator, and `merge` suppresses the separator after a
       # widget (merging it with the next), so every git widget sets merge to
       # drop the "|", and merged " · " custom-text widgets supply a light
-      # separator. The worktree and ahead-behind come from helpers that print
-      # their own leading separator and collapse to nothing when they have
-      # nothing to show, so they leave no dangling separator. git-changes always
-      # renders, so its separator is a plain custom-text widget.
+      # separator. The worktree and ahead-behind helpers print their leading
+      # separator only when they produce output, so an empty segment leaves
+      # no separator. git-changes always renders, so its separator is a plain
+      # custom-text widget.
       {
         id = "git-branch";
         type = "git-branch";

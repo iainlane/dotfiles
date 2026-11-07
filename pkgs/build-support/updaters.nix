@@ -84,7 +84,7 @@
   # version, then download and hash one prebuilt binary per platform.
   #
   # `discoverVersion` is a shell fragment that must set `version` (and any
-  # other variables the URL needs). The helpers from `prefetch.sh`, such as
+  # other variables the URL needs). The helpers from `prefetch.bash`, such as
   # `download`, are in scope. `urlTemplate` is a shell-syntax string expanded
   # once per platform with `suffix`, `version` and any variable set by
   # `discoverVersion`; write its `${...}` references with a backslash so Nix
@@ -113,7 +113,7 @@
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
 
         # shellcheck disable=SC1091
-        source "${./prefetch.sh}"
+        source "${./prefetch.bash}"
 
         declare -A PLATFORMS=(
         ${platformLines}
@@ -204,7 +204,7 @@
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
 
         # shellcheck disable=SC1091
-        source "${./prefetch.sh}"
+        source "${./prefetch.bash}"
 
         tmpdir="$(mktemp -d)"
         sourceDir="$tmpdir/source"

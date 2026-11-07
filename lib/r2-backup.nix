@@ -31,7 +31,7 @@ let
     pkgs.writeShellApplication {
       name = "r2";
       runtimeInputs = with pkgs; [age coreutils gnutar jq rclone zstd];
-      text = builtins.readFile ./r2.sh;
+      text = builtins.readFile ./r2.bash;
     };
 in {
   inherit credentialKeys recipient tool;

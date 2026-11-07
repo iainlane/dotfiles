@@ -23,7 +23,7 @@
   backupScript = pkgs.writeShellApplication {
     name = "matrix-backup";
     runtimeInputs = [pkgs.coreutils];
-    text = builtins.readFile ./backup.sh;
+    text = builtins.readFile ./backup.bash;
   };
   secretsFile = inputs.secrets + "/${cfg.backup.secretsFile}";
 in {

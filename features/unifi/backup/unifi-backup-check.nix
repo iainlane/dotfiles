@@ -11,7 +11,7 @@
     }
     ''
       bash ${./backup.test.bash} \
-        ${./backup.sh}
+        ${./backup.bash}
 
       touch $out
     '';

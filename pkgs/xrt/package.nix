@@ -101,13 +101,13 @@ stdenv.mkDerivation (finalAttrs: {
     xdna = callPackage ./xdna.nix {xrt = finalAttrs.finalPackage;};
     updateScript = updaters.mkScriptUpdater {
       pname = "xrt";
-      script = ./update.sh;
+      script = ./update.bash;
       extraRuntimeInputs = [gh nix-update];
     };
     tests.updater = updaters.mkScriptUpdaterTest {
       pname = "xrt";
-      script = ./update.sh;
-      test = ./update.test.sh;
+      script = ./update.bash;
+      test = ./update.test.bash;
       extraInputs = [python3];
     };
   };

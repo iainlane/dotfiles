@@ -1,4 +1,11 @@
-{config, ...}: {
+{
+  config,
+  lib,
+  ...
+}: let
+  inherit (import ../../../lib/discovery.nix {inherit lib;}) fileNames;
+  functionsDir = ../../base/zsh/functions;
+in {
   home.sessionPath = [
     "${config.home.homeDirectory}/bin/ubuntu-dev-tools"
     "${config.home.homeDirectory}/bin/ubuntu-archive-tools"
@@ -29,5 +36,8 @@
     };
   };
 
-  xdg.configFile."zsh/functions".source = ../../base/zsh/functions;
+  xdg.configFile = lib.listToAttrs (map (name: {
+    name = "zsh/functions/${lib.removeSuffix ".zsh" name}";
+    value.source = functionsDir + "/${name}";
+  }) (fileNames functionsDir ".zsh"));
 }

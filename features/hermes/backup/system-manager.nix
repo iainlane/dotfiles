@@ -15,14 +15,13 @@
   r2Backup = import ../../../lib/r2-backup.nix;
   r2Tool = r2Backup.tool {inherit pkgs;};
   envTemplate = "hermes-backup.env";
-  # Nothing is substituted into the script, so it stays a plain shell file, and
-  # shellcheck can run over it. Every setting arrives in the environment: the
-  # systemd service supplies the non-secret values and the sops env file
-  # supplies the R2 credentials.
+  # Pass settings through the environment so ShellCheck can analyse the source
+  # without Nix substitutions. The service sets non-secret values, and the
+  # sops environment file supplies R2 credentials.
   backupScript = pkgs.writeShellApplication {
     name = "hermes-backup-r2";
     runtimeInputs = with pkgs; [coreutils rsync sqlite podman r2Tool];
-    text = builtins.readFile ./backup-r2.sh;
+    text = builtins.readFile ./backup-r2.bash;
   };
 
   # The containers with the state volume mounted. A restore stops them for as
@@ -43,7 +42,7 @@
       BACKUP_NAME = "hermes";
       BACKUP_PREFIX = cfg.backup.prefix;
     };
-    text = builtins.readFile ./restore-r2.sh;
+    text = builtins.readFile ./restore-r2.bash;
   };
 in {
   imports = [../../../lib/backup-resources.nix];

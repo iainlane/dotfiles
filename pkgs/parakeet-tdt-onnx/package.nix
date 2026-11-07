@@ -42,7 +42,7 @@ in
 
     passthru.updateScript = updaters.mkScriptUpdater {
       pname = "parakeet-tdt-onnx";
-      script = ./update.sh;
+      script = ./update.bash;
       extraRuntimeInputs = [python3];
     };
 

@@ -31,7 +31,7 @@
       findutils
       jq
     ];
-    text = builtins.readFile ./profile-picture.sh;
+    text = builtins.readFile ./profile-picture.bash;
   };
   profilePictureImage = mkNixImage profilePictureContainerName [
     profilePictureScript

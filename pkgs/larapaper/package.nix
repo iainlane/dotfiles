@@ -95,7 +95,7 @@ in
       inherit php frontend composerVendor webLibraries;
       updateScript = updaters.mkScriptUpdater {
         pname = "larapaper";
-        script = ./update.sh;
+        script = ./update.bash;
         extraRuntimeInputs = [gh python3 nix-update];
       };
       tests = {
@@ -107,8 +107,8 @@ in
         source = src;
         updater = updaters.mkScriptUpdaterTest {
           pname = "larapaper";
-          script = ./update.sh;
-          test = ./update.test.sh;
+          script = ./update.bash;
+          test = ./update.test.bash;
           extraInputs = [python3];
         };
       };

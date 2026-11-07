@@ -238,7 +238,7 @@ in
 
     passthru.updateScript = updaters.mkScriptUpdater {
       pname = "voxtype";
-      script = ./update.sh;
+      script = ./update.bash;
       extraRuntimeInputs = [gh];
     };
 

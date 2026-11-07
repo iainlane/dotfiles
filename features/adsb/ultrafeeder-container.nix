@@ -19,7 +19,7 @@
   runtimeEnvFile = "/run/${runtimeDirectory}/ultrafeeder-runtime.env";
   targetsCsv = lib.concatStringsSep ";" (map (target: "${target.name},${target.adsbHost},${toString target.adsbPort},${target.mlatHost},${toString target.mlatPort}") ultrafeederTargets);
   mlathubTargetsCsv = lib.concatStringsSep ";" (map (target: "${target.name},${target.host},${toString target.port},${target.protocol}") mlathubTargets);
-  runtimeConfigBuilder = pkgs.writeShellScript "adsb-build-ultrafeeder-env" (builtins.readFile ./build-ultrafeeder-env.sh);
+  runtimeConfigBuilder = pkgs.writeShellScript "adsb-build-ultrafeeder-env" (builtins.readFile ./build-ultrafeeder-env.bash);
 
   feederName = hostConfig.hostname;
 

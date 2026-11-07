@@ -1,8 +1,7 @@
 # The UniFi OS controller.
 #
-# Ubiquiti publish it as a firmware installer rather than a container image, so
-# the OCI archive is unpacked out of that installer at build time and loaded
-# from the store.
+# Ubiquiti publish UniFi OS Server as a firmware installer with an embedded
+# OCI archive. Extract the archive at build time and load it from the store.
 {config, ...}: let
   inherit (config.dotfiles) features;
 in {
@@ -40,7 +39,7 @@ in {
       uuidBuilder = pkgs.writeShellApplication {
         name = "unifi-build-uuid-env";
         runtimeInputs = with pkgs; [coreutils util-linux gnugrep];
-        text = builtins.readFile ./build-uuid-env.sh;
+        text = builtins.readFile ./build-uuid-env.bash;
       };
 
       unifiContainer = import ./container.nix {

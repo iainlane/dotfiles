@@ -10,7 +10,7 @@ _: {pkgs, ...}:
     }
     ''
       bash ${../../../lib/podman-image-absent.test.bash} \
-        ${../../../lib/podman-image-absent.sh}
+        ${../../../lib/podman-image-absent.bash}
 
       touch $out
     '';

@@ -95,7 +95,7 @@
       coreutils
       systemd
     ];
-    text = builtins.readFile ./falcon-sensor-check.sh;
+    text = builtins.readFile ./falcon-sensor-check.bash;
   };
 in {
   options.services.falcon-sensor = {

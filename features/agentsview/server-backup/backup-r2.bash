@@ -15,7 +15,7 @@
 #
 # Postgres keeps serving while this runs. `pg_dump` reads inside a single
 # repeatable-read transaction, so the dump shows the database as it was when
-# the dump began, and the machines carry on pushing throughout.
+# the dump began. The machines continue pushing throughout the dump.
 #
 # This dumps only that database. The roles belong to the cluster, and the roles
 # unit recreates them from the secrets repository at every start.

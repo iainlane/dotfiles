@@ -112,7 +112,7 @@ in
 
       updateScript = updaters.mkScriptUpdater {
         pname = "fastflowlm";
-        script = ./update.sh;
+        script = ./update.bash;
         extraRuntimeInputs = [gh nix-prefetch-git python3 cargo];
       };
 
@@ -120,8 +120,8 @@ in
         runtime = callPackage ./test.nix {fastflowlm = finalAttrs.finalPackage;};
         updater = updaters.mkScriptUpdaterTest {
           pname = "fastflowlm";
-          script = ./update.sh;
-          test = ./update.test.sh;
+          script = ./update.bash;
+          test = ./update.test.bash;
           extraInputs = [python3];
         };
       };

@@ -25,7 +25,7 @@
   backupScript = pkgs.writeShellApplication {
     name = "larapaper-backup-r2";
     runtimeInputs = with pkgs; [coreutils podman rsync sqlite r2Tool];
-    text = builtins.readFile ./backup-r2.sh;
+    text = builtins.readFile ./backup-r2.bash;
   };
 in {
   imports = [../../../lib/backup-resources.nix];

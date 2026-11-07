@@ -1,6 +1,5 @@
-# Ubiquiti publish UniFi OS Server as a firmware installer rather than a
-# container image, so the OCI archive is unpacked out of the installer at
-# build time.
+# Ubiquiti publish UniFi OS Server as a firmware installer with an embedded
+# OCI archive. Extract the archive at build time.
 {
   lib,
   stdenvNoCC,
@@ -36,7 +35,7 @@ in
     buildPhase = ''
       runHook preBuild
 
-      bash ${./extract-image.sh} "$src" extracted
+      bash ${./extract-image.bash} "$src" extracted
 
       runHook postBuild
     '';
@@ -75,7 +74,7 @@ in
 
       updateScript = updaters.mkScriptUpdater {
         pname = "unifi-os-server-image";
-        script = ./update.sh;
+        script = ./update.bash;
         extraRuntimeInputs = [binwalk curl gnutar unzip];
       };
     };

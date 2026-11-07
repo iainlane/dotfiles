@@ -11,7 +11,7 @@
     }
     ''
       bash ${./backup-inbox.test.bash} \
-        ${./backup-r2.sh}
+        ${./backup-r2.bash}
 
       touch $out
     '';

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Month-to-date extra-usage spend for the Claude Code status line.
 #
-# Claude Code puts rate_limits on the status-line stdin but not extra_usage,
-# so the spend is the one figure that still needs the OAuth usage API. No
-# other widget needs that API, so ccstatusline makes no usage call of its own
-# and this helper fetches the spend itself, caching it for a few minutes and
-# backing off after a request that does not return 200.
+# The status-line input includes rate_limits but omits extra_usage. Only
+# this helper needs the OAuth usage API, so ccstatusline makes no usage call
+# of its own. This helper fetches the spend, caches it for a few minutes and
+# backs off after a request that does not return 200.
 #
 # Whenever the API cannot be reached, the token is rejected, or a backoff
 # window is open, the helper prints the cached spend. It prints nothing only
@@ -65,8 +64,8 @@ file_mtime() {
 	stat -c %Y "$1" 2>/dev/null || echo 0
 }
 
-# Read the OAuth token the way Claude Code stores it: the macOS Keychain on
-# Darwin, the plaintext credentials file elsewhere (and as a Darwin fallback).
+# Claude Code stores OAuth credentials in the macOS Keychain or a plaintext
+# file. On Darwin, try the Keychain first and use the file as a fallback.
 read_token() {
 	local t=""
 

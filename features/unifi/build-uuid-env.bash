@@ -5,9 +5,9 @@
 
 set -euo pipefail
 
-# systemd sets RUNTIME_DIRECTORY, and creates the directory, from the unit's
-# `RuntimeDirectory=`. The container's `EnvironmentFile=` names the same path,
-# built from the same setting.
+# systemd sets RUNTIME_DIRECTORY and creates the directory from the unit's
+# `RuntimeDirectory=`. The container reads runtime.env from that directory
+# through `EnvironmentFile=`.
 if [ -z "${RUNTIME_DIRECTORY:-}" ]; then
 	echo "RUNTIME_DIRECTORY environment variable is required" >&2
 	exit 1

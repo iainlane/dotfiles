@@ -13,6 +13,12 @@
     pkgs.writeText "zsh-completion-init" (lib.replaceStrings [homeConfig.xdg.cacheHome] ["$HOME/.cache"] text);
   completionInit = homeScript homeConfig.programs.zsh.completionInit;
   activation = homeScript homeConfig.home.activation.zshCompletionDump.data;
+  autoloadFiles = lib.filterAttrs (name: _: lib.hasPrefix "zsh/functions/" name) homeConfig.xdg.configFile;
+  autoloadDirectory = pkgs.linkFarm "zsh-autoload-functions" (lib.mapAttrsToList (name: file: {
+      name = lib.removePrefix "zsh/functions/" name;
+      path = file.source;
+    })
+    autoloadFiles);
   globalProbe = pkgs.writeText "global-compinit-probe.zsh" ''
     setopt ERR_EXIT NO_UNSET
 
@@ -58,6 +64,15 @@ in
         export ZDOTDIR="$HOME"
         mkdir -p "$HOME"
         zsh -f ${cacheProbe}
+        touch "$out"
+      '';
+  }
+  // lib.optionalAttrs (autoloadFiles != {}) {
+    "zsh-autoload-functions-${hostConfig.name}" =
+      pkgs.runCommandLocal "zsh-autoload-functions-${hostConfig.name}" {
+        nativeBuildInputs = [zsh];
+      } ''
+        zsh -f ${./autoload.test.zsh} ${autoloadDirectory}
         touch "$out"
       '';
   }

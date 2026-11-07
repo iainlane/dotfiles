@@ -2,5 +2,5 @@
 pkgs.writeShellApplication {
   name = "hermes-prepare-config";
   runtimeInputs = [pkgs.coreutils];
-  text = builtins.readFile ./prepare-config.sh;
+  text = builtins.readFile ./prepare-config.bash;
 }

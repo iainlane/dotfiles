@@ -14,7 +14,6 @@ dir=$(printf '%s' "${input}" | jq -r '.cwd // .workspace.current_dir // .workspa
 
 [ -n "${dir}" ] || exit 0
 
-# No upstream: nothing to compare against.
 git -C "${dir}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1 || exit 0
 
 counts=$(git -C "${dir}" rev-list --left-right --count 'HEAD...@{upstream}' 2>/dev/null) || exit 0

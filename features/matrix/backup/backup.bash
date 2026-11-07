@@ -4,7 +4,7 @@
 # hand the result to `r2 backup`.
 #
 #   MATRIX_CONTAINER      container to signal
-#   MATRIX_BACKUP_VOLUME  podman volume the backups are written to
+#   MATRIX_BACKUP_VOLUME  podman volume for backup files
 #   MATRIX_BACKUP_TIMEOUT seconds to wait for one to appear
 #
 # plus everything `r2 backup` reads.

@@ -41,7 +41,7 @@
   backupScript = pkgs.writeShellApplication {
     name = "unifi-backup-r2";
     runtimeInputs = with pkgs; [coreutils curl jq r2Tool];
-    text = builtins.readFile ./backup.sh;
+    text = builtins.readFile ./backup.bash;
   };
 in {
   imports = [../../../lib/backup-resources.nix];

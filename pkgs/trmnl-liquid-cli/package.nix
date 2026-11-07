@@ -37,7 +37,7 @@ in
       extractSource = callPackage ./extract-source.nix {};
       updateScript = updaters.mkScriptUpdater {
         pname = "trmnl-liquid-cli";
-        script = ./update.sh;
+        script = ./update.bash;
         extraRuntimeInputs = [python3 bundix];
       };
       tests.updater = updaters.mkPythonUpdaterTest {
