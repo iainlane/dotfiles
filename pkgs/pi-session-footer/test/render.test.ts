@@ -1,40 +1,28 @@
-import type { ThemeColor } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "../src/state.ts";
-import { renderFooter as render } from "../src/render.ts";
-
-function renderFooter(
-  ...[state, width, theme, home = "/Users/test"]: Parameters<typeof render>
-) {
-  return render(state, width, theme, home);
-}
+import { layoutFooter, renderFooter } from "../src/render.ts";
+import { resolveSettings } from "../src/settings.ts";
 import { readQuota } from "../src/quota.ts";
 import { parseGitStatus } from "../src/git.ts";
-
-function aligned(left: string, right: string, width: number): string {
-  return (
-    left + " ".repeat(width - visibleWidth(left) - visibleWidth(right)) + right
-  );
-}
-
+import { readSegments, SEGMENTS } from "../src/segments.ts";
+import type { SegmentId } from "../src/settings.ts";
 const now = Date.UTC(2026, 9, 20, 12);
-
-function fixture(age = 0, error?: string) {
+function fixture() {
   const state = createSnapshot(now - 3_000_000, "/Users/test/dev/dotfiles");
-
-  state.now = now;
-  state.model = "gpt-6-astra";
-  state.provider = "openai-codex";
-  state.thinking = "high";
+  Object.assign(state, {
+    now,
+    model: "gpt-6-astra",
+    provider: "openai-codex",
+    thinking: "high",
+    reasoning: true,
+  });
   state.context = { tokens: 66_000, capacity: 272_000, percent: 24.3 };
   state.quota = readQuota({
     state: {
       provider: "codex",
       usage: {
-        lastSuccessAt: now - age,
-        error:
-          error !== undefined && error !== "" ? { code: error } : undefined,
+        lastSuccessAt: now,
         windows: [
           {
             label: "5h",
@@ -50,500 +38,433 @@ function fixture(age = 0, error?: string) {
       },
     },
   });
-
   return state;
 }
-
-describe("two-row fitting", () => {
-  it.each([1, 2, 10, 30, 60, 80, 120, 180, 240])(
-    "fits %i columns, including wide and combining text",
-    (width) => {
-      const state = fixture();
-
-      state.cwd = "/work/界界/é-feature-with-a-long-name";
-      state.model = "a-very-long-model-name";
-      state.serviceTier = "⚡⚡";
-      state.statuses = new Map([["other", "extra \u001B[31mstatus"]]);
-
-      const lines = renderFooter(state, width);
-
-      expect(lines.length).toBeLessThanOrEqual(2);
-      expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
-    },
-  );
-
-  it.each([
-    { serviceTier: undefined, reasoning: "high" },
-    { serviceTier: "", reasoning: "high" },
-    { serviceTier: "⚡", reasoning: "high ⚡" },
-    { serviceTier: "⚡⚡", reasoning: "high ⚡⚡" },
-  ])(
-    "groups $reasoning with yellow service-tier bolts",
-    ({ serviceTier, reasoning }) => {
-      const state = fixture();
-
-      state.serviceTier = serviceTier;
-
-      const roles = colours(state);
-
-      expect({
-        lines: renderFooter(state, 240),
-        thinkingColour: roles.get("high"),
-        serviceTierColour:
-          serviceTier !== undefined && serviceTier !== ""
-            ? roles.get(serviceTier)
-            : undefined,
-      }).toStrictEqual({
-        lines: [
-          aligned(
-            `codex/gpt-6-astra  ${reasoning}  ~/dev/dotfiles`,
-            " ctx 24.3%/272k",
-            240,
-          ),
-          aligned(
-            "",
-            " 5h 15% used (2h)  week 18% used (3d)  $0.00  50m",
-            240,
-          ),
-        ],
-        thinkingColour: "thinkingHigh",
-        serviceTierColour:
-          serviceTier !== undefined && serviceTier !== ""
-            ? "warning"
-            : undefined,
-      });
-    },
-  );
-
-  it("removes countdowns before quota percentages and restores them on widening", () => {
+it.each([false, true])(
+  "fits extension messages independently with a known LSP failure=%s",
+  (failure) => {
     const state = fixture();
-    const wide = renderFooter(state, 180);
-    const narrow = renderFooter(state, 35);
+    state.activity.waiting = !failure;
+    const statuses = new Map([["other", "x".repeat(100)]]);
 
-    expect(wide.join(" ")).toContain("(2h)");
-    expect(narrow.join(" ")).not.toContain("(2h)");
-    expect(narrow.join(" ")).toContain("week 18% used");
-    expect(renderFooter(state, 180)).toStrictEqual(wide);
-  });
+    if (failure) {
+      statuses.set("pi-lens-lsp", "LSP Failed");
+    }
 
-  it.each([false, true])(
-    "right-aligns both rows with left-hand notices: %s",
-    (notice) => {
-      const state = fixture();
+    state.statuses = statuses;
 
-      if (notice) {
-        state.statuses = new Map([["pi-lens-lsp", "LSP Failed"]]);
-      }
-
-      const theme = {
-        fg: (_role: string, value: string) => `\u001B[35m${value}\u001B[0m`,
-        bold: (value: string) => `\u001B[1m${value}\u001B[22m`,
-      };
-
-      expect(
-        renderFooter(state, 240, theme).map((line) => visibleWidth(line)),
-      ).toStrictEqual([240, 240]);
-    },
-  );
-
-  it("mirrors separators and preserves right alignment after a notice disappears", () => {
-    const state = fixture();
-
-    state.git = parseGitStatus("# branch.head main", now);
-
-    const left = "codex/gpt-6-astra  high  ~/dev/dotfiles   main";
-    const context = " ctx 24.3%/272k";
-    const quota = " 5h 15% used (2h)  week 18% used (3d)  $0.00  50m";
-
-    state.statuses = new Map([["pi-lens-lsp", "LSP Failed"]]);
-
-    const withNotice = renderFooter(state, 240);
-
-    state.statuses = new Map();
-
-    const withoutNotice = renderFooter(state, 240);
-
-    expect({ withNotice, withoutNotice }).toStrictEqual({
-      withNotice: [
-        aligned(left, context, 240),
-        aligned("LSP Failed", quota, 240),
-      ],
-      withoutNotice: [aligned(left, context, 240), aligned("", quota, 240)],
-    });
-  });
-
-  it.each([
-    ["/Users/test", "~"],
-    ["/Users/test/dev/dotfiles", "~/dev/dotfiles"],
-    ["/Users/test-other/dev", "/Users/test-other/dev"],
-    ["/work/界/é", "/work/界/é"],
-  ])("abbreviates only the actual home directory in %s", (cwd, expected) => {
-    const state = fixture();
-
-    state.cwd = cwd;
-
-    expect(renderFooter(state, 240, undefined, "/Users/test")[0]).toBe(
-      aligned(
-        `codex/gpt-6-astra  high  ${expected}`,
-        " ctx 24.3%/272k",
-        240,
-      ),
+    const frame = layoutFooter(
+      state,
+      { top: 0, bottom: 40 },
+      {
+        settings: resolveSettings({
+          "top-left": [],
+          "top-right": [],
+          "bottom-left": ["activity", "statuses"],
+          "bottom-right": [],
+        }),
+      },
     );
-  });
-
-  it.each([
-    {
-      age: 0,
-      error: undefined,
-      expected: " 5h 15% used (2h)  week 18% used (3d)",
-    },
-    {
-      age: 1000,
-      error: "LIMIT",
-      expected: " 5h 15% used (2h) cached  week 18% used (3d) cached",
-    },
-    {
-      age: 31_000,
-      error: undefined,
-      expected: " 5h 15% used (2h) stale  week 18% used (3d) stale",
-    },
-    {
-      age: 300_001,
-      error: undefined,
-      expected: " 5h unavailable  week unavailable",
-    },
-  ])(
-    "uses explicit quota freshness at age $age with error $error",
-    ({ age, error, expected }) => {
-      expect(renderFooter(fixture(age, error), 240)[1]).toBe(
-        aligned("", `${expected}  $0.00  50m`, 240),
-      );
-    },
-  );
-
-  it.each(["run failed", "LSP Failed"])(
-    "preserves %s before quota percentages at 35 columns",
-    (attention) => {
-      const state = fixture();
-
-      if (attention === "run failed") {
-        state.activity.outcome = "failed";
-      } else {
-        state.statuses = new Map([["pi-lens-lsp", attention]]);
-      }
-
-      expect(renderFooter(state, 35)[1]).toBe(
-        aligned(`${attention}  +3`, " 5h 15% used", 35),
-      );
-    },
-  );
-
-  it("preserves Git conflicts before routine identity fields", () => {
-    const state = fixture();
-
-    state.git = parseGitStatus("# branch.head main", now);
-    state.git.conflicts = 1;
-
-    expect(renderFooter(state, 35)[0]).toContain("conflicts 1");
-  });
-
-  it("keeps provider-order countdown importance explicit", () => {
-    const state = fixture();
-
-    expect(renderFooter(state, 48)[1]).toBe(
-      " 5h 15% used (2h)  week 18% used  $0.00  50m",
-    );
-
-    state.quota?.windows.reverse();
-
-    expect(renderFooter(state, 48)[1]).toBe(
-      " week 18% used (3d)  5h 15% used  $0.00  50m",
-    );
-  });
-
-  it("uses a compact omission marker without mixing right-hand separators", () => {
-    expect(renderFooter(fixture(), 32)[1]).toBe(
-      aligned("…", " 5h 15% used  week 18% used", 32),
-    );
-  });
-
-  it.each([1, 2])("retains two rows without quota at width %i", (width) => {
-    const state = fixture();
-
-    state.quota = undefined;
 
     expect(
-      renderFooter(state, width).map((line) => visibleWidth(line)),
-    ).toStrictEqual([width, width]);
-  });
-
-  it("fits identity independently of quota", () => {
+      frame.decisions.map(({ id, child, decision }) => ({
+        id,
+        child,
+        decision,
+      })),
+    ).toStrictEqual([
+      {
+        id: "activity",
+        child: "activity",
+        decision: failure ? "suppressed" : "full",
+      },
+      { id: "statuses", child: "other", decision: "omitted" },
+      ...(failure
+        ? [{ id: "statuses", child: "pi-lens-lsp", decision: "full" }]
+        : []),
+    ]);
+  },
+);
+it.each<[SegmentId, string]>([
+  ["model", " codex/gpt-6-astra"],
+  ["thinking", "◒ high"],
+  ["directory", " /Users/test/dev/dotfiles"],
+  ["git", " main ✚1 ✎2 ?3 ↑4 ↓5"],
+  ["context", "◫ 24.3%/272k"],
+  ["tasks", "☑ 0/1 Verify layout"],
+  ["blocked", " 1"],
+  ["agents", " 2 stale"],
+  ["pending", " pending"],
+  ["planning", "≡ Plan · implementation"],
+  ["statuses", "◇ source: actual message"],
+  ["quota", "◴ 5h 15% ↻2h"],
+  ["cache", " 0.0%"],
+  ["auxiliary-cost", " ≈$0.25"],
+  ["age", " 50m"],
+])(
+  "renders %s with its semantic symbol and a matching legend",
+  (id, expected) => {
     const state = fixture();
-
-    state.git = parseGitStatus("# branch.head main", now);
-
-    const withQuota = renderFooter(state, 90)[0];
-
-    state.quota = undefined;
-
-    expect(renderFooter(state, 90)[0]).toBe(withQuota);
-  });
-
-  it("does not claim healthy diagnostics or a zero context before observation", () => {
-    expect(
-      renderFooter(createSnapshot(now, "/work"), 80).join(" "),
-    ).not.toMatch(/clean|Ready|LSP Active|ctx 0/);
-  });
-});
-
-function colours(
-  state: ReturnType<typeof fixture>,
-  bold = (value: string) => value,
-) {
-  const roles = new Map<string, ThemeColor>();
-  const lines = renderFooter(state, 400, {
-    fg: (role, value) => {
-      roles.set(value, role);
-
-      return value;
-    },
-    bold,
-  });
-
-  expect(lines).toStrictEqual(renderFooter(state, 400));
-
-  return roles;
-}
-
-describe("semantic theme colours", () => {
-  it("distinguishes identity, activity, measurements and secondary detail", () => {
-    const state = fixture();
-
-    state.git = parseGitStatus("# branch.head main", now);
-    state.git.staged = 1;
-    state.git.unstaged = 2;
+    state.git = {
+      ...parseGitStatus("# branch.head main", now),
+      staged: 1,
+      unstaged: 2,
+      untracked: 3,
+      ahead: 4,
+      behind: 5,
+    };
     state.tasks = [
       {
         id: 1,
-        subject: "Review",
-        status: "in_progress",
+        subject: "Verify layout",
         activeForm: undefined,
-        blockedBy: [],
+        status: "in_progress",
+        blockedBy: [2],
       },
     ];
     state.agents = {
       active: 2,
-      failed: 0,
-      paused: 0,
-      incomplete: false,
-      stale: false,
+      failed: 1,
+      paused: 1,
+      incomplete: true,
+      stale: true,
       runs: [],
     };
-    state.activity.tool = "read";
-    state.statuses = new Map([["planning", "plan: implementation"]]);
-    state.serviceTier = "⚡⚡";
-
-    const bold = vi.fn<(value: string) => string>((value: string) => value);
-    const roles = colours(state, bold);
-
-    expect(bold.mock.calls).toStrictEqual([
-      ["gpt-6-astra"],
-      ["gpt-6-astra"],
-      ["gpt-6-astra"],
-      ["~/dev/dotfiles"],
-      ["dotfiles"],
+    state.pending = true;
+    state.statuses = new Map([
+      ["planning", "Plan · implementation"],
+      ["source", "actual message"],
     ]);
-    expect(
-      Object.fromEntries(
-        [
-          "codex/",
-          "gpt-6-astra",
-          "high",
-          "~/dev/dotfiles",
-          "main",
-          "+1",
-          "±2",
-          "ctx ",
-          "24.3%",
-          "/272k",
-          "5h",
-          "15%",
-          " used",
-          " (2h)",
-          "read",
-          "tasks ",
-          "0/1",
-          " Review",
-          "agents ",
-          "2",
-          "plan: implementation",
-          "⚡⚡",
-          "$0.00",
-          "50m",
-          "  ",
-          "",
-        ].map((value) => [value, roles.get(value)]),
-      ),
-    ).toStrictEqual({
-      "codex/": "muted",
-      "gpt-6-astra": "accent",
-      high: "thinkingHigh",
-      "~/dev/dotfiles": "mdCode",
-      main: "warning",
-      "+1": "success",
-      "±2": "warning",
-      "ctx ": "muted",
-      "24.3%": "toolTitle",
-      "/272k": "dim",
-      "5h": "muted",
-      "15%": "toolTitle",
-      " used": "muted",
-      " (2h)": "dim",
-      read: "toolTitle",
-      "tasks ": "muted",
-      "0/1": "mdLink",
-      " Review": "text",
-      "agents ": "muted",
-      "2": "mdLink",
-      "plan: implementation": "accent",
-      "⚡⚡": "warning",
-      "$0.00": "dim",
-      "50m": "dim",
-      "  ": "border",
-      "": "border",
-    });
+    state.usage.latestHit = 0;
+    state.auxiliaryUsage.cost = 0.25;
+    expect({
+      value: readSegments(state)[id].parts[0]?.variants[0],
+      legend: SEGMENTS[id].symbols.includes(expected.split(" ")[0] ?? ""),
+    }).toStrictEqual({ value: expected, legend: true });
+  },
+);
+it("fits delegation warnings independently from exact active children", () => {
+  const state = fixture();
+  state.agents = {
+    active: 1,
+    failed: 1,
+    paused: 0,
+    incomplete: true,
+    stale: true,
+    runs: [],
+  };
+  state.diagnostics.receive({
+    v: 1,
+    cwd: state.cwd,
+    seq: 1,
+    files: [
+      {
+        path: "test.ts",
+        diagnostics: [{ severity: "error", message: "Error" }],
+      },
+    ],
   });
-
-  it.each([
-    { changes: {}, expected: "success" },
-    { changes: { staged: 1 }, expected: "warning" },
-    { changes: { unstaged: 1 }, expected: "warning" },
-    { changes: { untracked: 1 }, expected: "warning" },
-    { changes: { conflicts: 1 }, expected: "error" },
-    { changes: { stale: true }, expected: "dim" },
-    { changes: { staged: 1, stale: true }, expected: "dim" },
-  ])(
-    "colours full and compact Git branches for $changes",
-    ({ changes, expected }) => {
-      const state = fixture();
-
-      state.git = { ...parseGitStatus("# branch.head main", now), ...changes };
-
-      const fg = vi.fn<(role: ThemeColor, value: string) => string>(
-        (_role: ThemeColor, value: string) => value,
-      );
-
-      renderFooter(state, 400, { fg, bold: (value) => value });
-
-      expect(
-        fg.mock.calls.filter(([, value]) => value === "main"),
-      ).toStrictEqual([
-        [expected, "main"],
-        [expected, "main"],
-      ]);
+  const frame = layoutFooter(
+    state,
+    { top: 25, bottom: 25 },
+    {
+      settings: resolveSettings({
+        "bottom-left": ["diagnostics", "agents"],
+        "bottom-right": [],
+      }),
     },
   );
-
-  it.each([
-    ["off", "thinkingOff"],
-    ["minimal", "thinkingMinimal"],
-    ["low", "thinkingLow"],
-    ["medium", "thinkingMedium"],
-    ["high", "thinkingHigh"],
-    ["xhigh", "thinkingXhigh"],
-    ["max", "thinkingMax"],
-    ["unknown", "muted"],
-  ])("uses the theme's thinking colour for %s", (level, expected) => {
+  expect({
+    failed: frame.bottom.text.includes("failed 1+ stale"),
+    active: frame.bottom.text.includes(" 1 stale"),
+    decisions: frame.decisions
+      .filter((d) => d.id === "agents")
+      .map(({ child, decision }) => ({ child, decision })),
+  }).toStrictEqual({
+    failed: true,
+    active: false,
+    decisions: [
+      { child: "active", decision: "omitted" },
+      { child: "failed", decision: "full" },
+    ],
+  });
+});
+it.each([
+  ["off", "⊘"],
+  ["minimal", "○"],
+  ["low", "◔"],
+  ["medium", "◑"],
+  ["high", "◒"],
+  ["xhigh", "◕"],
+  ["max", "◉"],
+])(
+  "offers full and compact native thinking variants for %s",
+  (level, glyph) => {
     const state = fixture();
-
     state.thinking = level;
-
-    expect(colours(state).get(level)).toBe(expected);
-  });
-
-  it.each([
-    [null, "?", "dim"],
-    [24.3, "24.3%", "toolTitle"],
-    [75, "75.0%", "warning"],
-    [90, "90.0%", "error"],
-  ])(
-    "colours context value %s without highlighting its capacity",
-    (percent, value, expected) => {
-      const state = fixture();
-
-      state.context.percent = percent;
-
-      const roles = colours(state);
-
-      expect({
-        value: roles.get(value),
-        capacity: roles.get("/272k"),
-      }).toStrictEqual({ value: expected, capacity: "dim" });
-    },
-  );
-
-  it.each([
-    { age: 0, error: undefined, value: "toolTitle", freshness: undefined },
-    { age: 1000, error: "LIMIT", value: "warning", freshness: " cached" },
-    { age: 31_000, error: undefined, value: "warning", freshness: " stale" },
-    { age: 300_001, error: undefined, value: undefined, freshness: undefined },
-  ])(
-    "keeps freshness explicit at age $age with error $error",
-    ({ age, error, value, freshness }) => {
-      const roles = colours(fixture(age, error));
-
-      expect({
-        label: roles.get("5h"),
-        value: roles.get("15%"),
-        freshness:
-          freshness !== undefined && freshness !== ""
-            ? roles.get(freshness)
-            : undefined,
-        unavailable: roles.get("unavailable"),
-      }).toStrictEqual({
-        label: "muted",
-        value,
-        freshness:
-          freshness !== undefined && freshness !== "" ? "warning" : undefined,
-        unavailable: value !== undefined && value !== "" ? undefined : "dim",
-      });
-    },
-  );
-
-  it("distinguishes errors from warnings and colours compact attention variants", () => {
+    expect(readSegments(state).thinking.parts[0]?.variants).toStrictEqual(
+      level === "off" ? [glyph, ""] : [`${glyph} ${level}`, glyph, ""],
+    );
+  },
+);
+it.each(["", "provider"])(
+  "keeps model shortening before omission with provider '%s'",
+  (provider) => {
     const state = fixture();
-
-    state.activity.outcome = "failed";
-    state.statuses = new Map([["pi-lens-lsp", "language server ✗"]]);
-    state.diagnostics.receive({
-      v: 1,
-      cwd: state.cwd,
-      seq: 1,
-      files: [
-        {
-          path: "fixture.ts",
-          diagnostics: [
-            { severity: "error", message: "Synthetic error" },
-            { severity: "warning", message: "Synthetic warning" },
-          ],
-        },
-      ],
-    });
-
-    const roles = colours(state);
-
+    state.provider = provider;
+    state.model = "a-long-model-name-for-fitting";
+    const frame = layoutFooter(
+      state,
+      { top: 15, bottom: 0 },
+      {
+        settings: resolveSettings({
+          "top-left": ["model"],
+          "top-right": [],
+          "bottom-left": [],
+          "bottom-right": [],
+        }),
+      },
+    );
     expect(
-      Object.fromEntries(
-        ["run failed", "1E", "1W", "LSP failed"].map((value) => [
-          value,
-          roles.get(value),
-        ]),
-      ),
-    ).toStrictEqual({
-      "run failed": "error",
-      "1E": "error",
-      "1W": "warning",
-      "LSP failed": "error",
-    });
+      frame.decisions.map(({ id, decision }) => ({ id, decision })),
+    ).toStrictEqual([{ id: "model", decision: "shortened" }]);
+  },
+);
+it("retains source failure and provenance without fabricating missing readings", () => {
+  const state = createSnapshot(now, "/work");
+  state.gitError = "permission denied";
+  state.quota = readQuota({
+    state: {
+      provider: "codex",
+      usage: { error: { code: "AUTH_FAILED" }, credentialSource: "fixture" },
+    },
   });
+  const readings = readSegments(state);
+  expect({
+    git: readings.git.parts[0]?.variants[0],
+    quota: readings.quota.parts[0]?.variants[0],
+    source: readings.quota.details.some((line) => line.includes("fixture")),
+  }).toStrictEqual({
+    git: " ⚠ permission denied",
+    quota: "◴ ⚠ AUTH_FAILED",
+    source: true,
+  });
+  state.quota = fixture().quota;
+  state.now += 300_001;
+  expect({
+    state: readSegments(state).quota.state,
+    expired: readSegments(state).quota.reason,
+    retained: readSegments(state).quota.details.some((line) =>
+      line.includes("5h"),
+    ),
+  }).toStrictEqual({
+    state: "unavailable",
+    expired: "Quota percentages expired",
+    retained: true,
+  });
+});
+it.each([0, 1, 2, 10, 30, 60, 80, 120, 180, 240])(
+  "fits %i columns with Unicode and semantic omission",
+  (width) => {
+    const state = fixture();
+    state.cwd = "/work/界界/é-feature-with-a-long-name";
+    state.activity.outcome = "failed";
+    const rows = renderFooter(state, width);
+    expect({
+      fits: rows.every((line) => visibleWidth(line) <= width),
+      generic: rows.some((line) => /status \+\d| \+\d/.test(line)),
+    }).toStrictEqual({ fits: true, generic: false });
+  },
+);
+it.each(["rich", "compact", "minimal", "workflow"] as const)(
+  "uses configured %s order and no unselected attention",
+  (preset) => {
+    const state = fixture();
+    state.activity.outcome = "failed";
+    const frame = layoutFooter(
+      state,
+      { top: 240, bottom: 240 },
+      { settings: resolveSettings({ preset }), home: "/Users/test" },
+    );
+    expect(
+      frame.decisions.filter((d) => d.display).map((d) => [d.region, d.id]),
+    ).toStrictEqual([
+      ...(preset === "minimal"
+        ? [["top-left", "directory"]]
+        : [
+            ["top-left", "model"],
+            ["top-left", "thinking"],
+            ["top-left", "directory"],
+          ]),
+      ["top-right", "context"],
+      ...(["rich", "workflow"].includes(preset)
+        ? [
+            ["bottom-left", "activity"],
+            ["bottom-right", "quota"],
+            ["bottom-right", "quota"],
+          ]
+        : []),
+      ...(preset === "rich" ? [["bottom-right", "age"]] : []),
+    ]);
+  },
+);
+it.each([
+  [null, 0, ""],
+  [null, 272000, "◫ 272k"],
+  [0, 272000, "◫ 0.0%/272k"],
+] as const)(
+  "distinguishes missing context from true zero: %s/%i",
+  (percent, capacity, expected) => {
+    const state = createSnapshot(now, "/work");
+    state.context = { tokens: null, percent, capacity };
+    expect(readSegments(state).context.parts[0]?.variants[0] ?? "").toBe(
+      expected,
+    );
+  },
+);
+it.each([false, true])("uses native reasoning capability: %s", (reasoning) => {
+  const state = fixture();
+  state.reasoning = reasoning;
+  expect(readSegments(state).thinking.state).toBe(
+    reasoning ? "available" : "unavailable",
+  );
+});
+it.each(["off", "minimal", "low", "medium", "high", "xhigh", "max", "unknown"])(
+  "uses native semantic thinking colours for %s",
+  (thinking) => {
+    const state = fixture();
+    state.thinking = thinking;
+    const fg = vi.fn<(role: string, value: string) => string>(
+      (_role, value) => value,
+    );
+    readSegments(state, { theme: { fg, bold: (s) => s } });
+    expect(
+      fg.mock.calls.filter(([, value]) => value === thinking),
+    ).toStrictEqual([
+      [
+        thinking === "unknown"
+          ? "muted"
+          : `thinking${thinking[0]?.toUpperCase()}${thinking.slice(1)}`,
+        thinking,
+      ],
+    ]);
+  },
+);
+it.each([
+  ["/Users/test", "~"],
+  ["/Users/test/dev", "~/dev"],
+  ["/Users/test-other", "/Users/test-other"],
+  ["/界/é", "/界/é"],
+])("abbreviates only actual home %s", (cwd, expected) => {
+  const state = fixture();
+  state.cwd = cwd;
+  expect(
+    readSegments(state, { home: "/Users/test" }).directory.parts[0]
+      ?.variants[0],
+  ).toBe(` ${expected}`);
+});
+it.each([
+  { changes: {}, role: "success" },
+  { changes: { staged: 1 }, role: "warning" },
+  { changes: { unstaged: 1 }, role: "warning" },
+  { changes: { conflicts: 1 }, role: "error" },
+  { changes: { stale: true }, role: "dim" },
+])("preserves semantic Git colours: $role", ({ changes, role }) => {
+  const state = fixture();
+  state.git = { ...parseGitStatus("# branch.head main", now), ...changes };
+  const fg = vi.fn<(role: string, value: string) => string>(
+    (_role, value) => value,
+  );
+  readSegments(state, { theme: { fg, bold: (s) => s } });
+  expect(fg.mock.calls.filter(([, value]) => value === "main")).toStrictEqual([
+    [role, "main"],
+    [role, "main"],
+  ]);
+});
+it("captures actual extension messages rather than integration health or generic counts", () => {
+  const state = fixture();
+  state.statuses = new Map([
+    ["other", "\u001B[31mactual service error"],
+    ["pi-lens-lsp", "LSP Failed"],
+  ]);
+  expect(readSegments(state).statuses).toStrictEqual({
+    id: "statuses",
+    state: "available",
+    reason: "",
+    parts: [
+      {
+        key: "other",
+        variants: ["◇ other: actual service error", ""],
+        priority: 25,
+      },
+      {
+        key: "pi-lens-lsp",
+        variants: ["◇ pi-lens-lsp: LSP Failed", ""],
+        priority: 120,
+      },
+    ],
+    details: ["other: actual service error", "pi-lens-lsp: LSP Failed"],
+    symbols: "other: ◇; pi-lens-lsp: ◇",
+  });
+});
+it("preserves warnings before routine identity and quota detail", () => {
+  const state = fixture();
+  state.git = { ...parseGitStatus("# branch.head main", now), conflicts: 1 };
+  state.activity.outcome = "failed";
+  const frame = layoutFooter(
+    state,
+    { top: 35, bottom: 35 },
+    { settings: resolveSettings({}) },
+  );
+  expect({
+    conflict: frame.top.text.includes("conflicts 1"),
+    failed: frame.bottom.text.includes("run failed"),
+    countdown: frame.bottom.text.includes("↻2h"),
+  }).toStrictEqual({ conflict: true, failed: true, countdown: false });
+});
+it.each([0, 31000, 300001])(
+  "keeps quota freshness and omits expired percentages at age %i",
+  (age) => {
+    const state = fixture();
+    state.now += age;
+    const reading = readSegments(state).quota;
+    expect({
+      state: reading.state,
+      stale: reading.parts[0]?.variants[0]?.includes("stale") ?? false,
+    }).toStrictEqual({
+      state: age > 300000 ? "unavailable" : "available",
+      stale: age === 31000,
+    });
+  },
+);
+it("records child-level quota fits and restores countdowns on widening", () => {
+  const state = fixture();
+  const fit = (width: number) =>
+    layoutFooter(
+      state,
+      { top: width, bottom: width },
+      { settings: resolveSettings({}) },
+    );
+  const narrow = fit(32);
+  expect(
+    narrow.decisions
+      .filter((d) => d.id === "quota")
+      .map(({ child, decision }) => ({ child, decision })),
+  ).toStrictEqual([
+    { child: "0:5h", decision: "shortened" },
+    { child: "1:Week", decision: "shortened" },
+  ]);
+  expect(fit(240).bottom.text).toContain("↻2h");
+});
+it("retains zero measurements but suppresses initial idle cost and age", () => {
+  const state = createSnapshot(now, "/work");
+  expect([
+    readSegments(state).input.parts[0]?.variants[0],
+    readSegments(state).cost.state,
+    readSegments(state).age.state,
+  ]).toStrictEqual(["↑0", "idle", "idle"]);
+  state.usage.input = 1;
+  expect(readSegments(state).cost.parts[0]?.variants[0]).toBe("≈$0.00");
+  state.usage.costFromProvider = true;
+  expect(readSegments(state).cost.parts[0]?.variants[0]).toBe("$0.00");
 });

@@ -66,8 +66,12 @@ export function dependencies() {
   const runtime = {
     clock,
     homeDirectory: "/Users/test",
+    settingsPath: "/agent/session-footer.json",
+    readSettings: vi.fn<FooterRuntime["readSettings"]>((): undefined => {}),
     requestId: () => `request-${++id}`,
-    readGit: vi.fn<FooterRuntime["readGit"]>(async () => {}),
+    readGit: vi.fn<FooterRuntime["readGit"]>(
+      async (): Promise<undefined> => {},
+    ),
     reportError: vi.fn<FooterRuntime["reportError"]>(),
   } satisfies FooterRuntime;
   return runtime;

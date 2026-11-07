@@ -7,14 +7,23 @@ import { readAgents, readTasks } from "./workflow.ts";
 import { ActivityTracker, inactivity, type ActivityEvent } from "./activity.ts";
 import { quotaWindows } from "./quota.ts";
 import { duration, text } from "./text.ts";
+import { readStatus } from "./status.ts";
 
 export interface FooterContext {
   cwd: string;
-  model: { id: string; provider: string; contextWindow: number } | undefined;
+  model:
+    | {
+        id: string;
+        provider: string;
+        contextWindow: number;
+        reasoning?: boolean;
+      }
+    | undefined;
   thinkingLevel?: string;
   getContextUsage: ExtensionContext["getContextUsage"];
   hasPendingMessages: ExtensionContext["hasPendingMessages"];
   sessionManager: {
+    getSessionId?(): string;
     getHeader(): { timestamp: string } | null;
     getEntries(): readonly unknown[];
     getBranch(): readonly unknown[];
@@ -43,6 +52,7 @@ export class FooterSession {
     const now = this.runtime.clock.now();
 
     this.state = createSnapshot(now, context.cwd);
+    this.state.sessionId = context.sessionManager.getSessionId?.();
     this.tracker = new ActivityTracker(this.state.activity);
 
     const start = Date.parse(
@@ -70,6 +80,19 @@ export class FooterSession {
 
     this.stopClock();
     this.rpc.dispose();
+    this.state.cooperativeStatuses = new Map();
+  }
+
+  receiveStatus(raw: unknown): boolean {
+    const status = readStatus(raw);
+    if (this.disposed || !status || status.sessionId !== this.state.sessionId) {
+      return false;
+    }
+    this.state.cooperativeStatuses = new Map([
+      ...this.state.cooperativeStatuses,
+      [status.source, status],
+    ]);
+    return true;
   }
 
   get alive(): boolean {
@@ -93,6 +116,7 @@ export class FooterSession {
     this.state.model = context.model?.id ?? "no model";
     this.state.provider = provider;
     this.state.thinking = context.thinkingLevel ?? "";
+    this.state.reasoning = context.model?.reasoning === true;
 
     const usage = context.getContextUsage();
 

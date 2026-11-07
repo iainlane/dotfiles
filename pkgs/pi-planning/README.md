@@ -14,6 +14,35 @@ implementation in a temporary project.
 
 [demo-preview]: demo/planning.webp
 
+## Cooperative footer status
+
+Planning keeps its native `planning` status (`plan mode on`) as a standalone
+fallback. Alongside it, native `pi.events` publishes `dotfiles:status:v1`:
+
+```typescript
+type StatusPublication = {
+  version: 1;
+  source: "planning";
+  sessionId: string;
+  active: boolean;
+  text?: string;
+};
+```
+
+`active` is the actual Plan mode flag; no detail is supplied by default and no
+implementation phase is inferred. A cooperating footer shows its configured
+planning symbol alone. Optional producer-supplied detail belongs after that
+symbol; consumers do not parse native display labels.
+
+Consumers request a replay on `dotfiles:status:request:v1` with
+`{ version: 1, sessionId: string }`. Planning replays its latest snapshot only
+for the matching native session ID. Session restore republishes current state;
+shutdown publishes inactive state and removes the replay listener. Consumers
+validate versions/session IDs, sanitise detail text and retain inactive
+snapshots to suppress stale native fallbacks. See
+[the footer protocol](../pi-session-footer/README.md#cooperative-extension-status).
+Neither extension needs the other installed.
+
 ## Starting and reviewing a plan
 
 The entry guidance retains Claude Code's criteria and examples, with planning

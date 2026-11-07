@@ -140,10 +140,10 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     expect({ snapshots, rendered }).toStrictEqual({
       snapshots: Array.from({ length: 4 }, () => structuredClone(expected)),
       rendered: [
-        " week 42% used (2d)  $0.00  0m",
-        " week 42% used (1d23h)  $0.00  0m",
-        " week 42% used (1d23h) stale  $0.00  0m",
-        " week unavailable  $0.00  0m",
+        " ◴ week 42% ↻2d",
+        " ◴ week 42% ↻1d23h",
+        " ◴ week 42% ↻1d23h stale",
+        "",
       ],
     });
 

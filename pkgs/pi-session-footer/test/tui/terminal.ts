@@ -122,7 +122,12 @@ export class PiTerminal {
         (directory) => watch(directory, () => schedule()),
       );
       const finish = (error?: Error) => {
+        if (done) {
+          return;
+        }
+
         done = true;
+        clearTimeout(deadline);
         this.changes.delete(schedule);
         for (const watcher of watchers) {
           watcher.close();
@@ -170,6 +175,11 @@ export class PiTerminal {
         };
         attempt().then(after, after);
       };
+      const deadline = setTimeout(
+        () =>
+          finish(new Error("Terminal check timed out", { cause: lastFailure })),
+        30_000,
+      );
       this.changes.add(schedule);
       schedule();
     });
@@ -222,9 +232,9 @@ export class PiTerminal {
 
   style(value?: string): { color: number; bold: boolean } | undefined {
     const buffer = this.terminal.buffer.active;
-    const first = buffer.viewportY + this.terminal.rows - 2;
+    const last = buffer.viewportY + this.terminal.rows - 1;
 
-    for (let row = first; row < first + 2; row++) {
+    for (let row = last; row >= buffer.viewportY; row--) {
       const line = buffer.getLine(row);
 
       if (!line) {

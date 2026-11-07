@@ -93,9 +93,12 @@ function fixture(
   const startInPlan = vi.fn<PlanningDependencies["startInPlan"]>(() => false);
   const setReviewAvailable =
     vi.fn<PlanningDependencies["setReviewAvailable"]>();
+  const publishStatus =
+    vi.fn<NonNullable<PlanningDependencies["publishStatus"]>>();
   const controller = createPlanning({
     openPlan,
     configure,
+    publishStatus,
     presentPlan,
     sendUserMessage,
     sendImplementationMessage: (content) => sendImplementationMessage(content),
@@ -136,6 +139,7 @@ function fixture(
     }
   };
   return {
+    publishStatus,
     select,
     confirm,
     directory,
@@ -168,6 +172,41 @@ function fixture(
     },
   };
 }
+
+it("publishes semantic active state alongside the standalone native fallback", async () => {
+  const h = fixture();
+  expect(h.publishStatus).toHaveBeenLastCalledWith({
+    sessionId: "session-one",
+    active: false,
+  });
+  await h.command("");
+  expect(h.publishStatus).toHaveBeenLastCalledWith({
+    sessionId: "session-one",
+    active: true,
+  });
+  expect(h.ctx.ui.setStatus).toHaveBeenLastCalledWith(
+    "planning",
+    "plan mode on",
+  );
+  await h.command("exit");
+  expect(h.publishStatus).toHaveBeenLastCalledWith({
+    sessionId: "session-one",
+    active: false,
+  });
+  expect(h.ctx.ui.setStatus).toHaveBeenLastCalledWith("planning", undefined);
+  h.controller.restore({
+    ...h.ctx,
+    sessionManager: {
+      ...h.ctx.sessionManager,
+      getSessionId: () => "session-two",
+      getBranch: () => [],
+    },
+  });
+  expect(h.publishStatus).toHaveBeenLastCalledWith({
+    sessionId: "session-two",
+    active: false,
+  });
+});
 
 it("retains Claude's planning criteria without treating ordinary work as an entry trigger", () => {
   expect({

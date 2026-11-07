@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPiPrClient } from "pi-prs/api";
 import { createFooter } from "./controller.ts";
 import { nodeRuntime } from "./node-runtime.ts";
+import { completeFooter } from "./commands.ts";
 
 export default function sessionFooter(pi: ExtensionAPI): void {
   const footer = createFooter({
@@ -13,8 +14,10 @@ export default function sessionFooter(pi: ExtensionAPI): void {
     description:
       "Inspect footer measurements, workflow state and integration details",
     handler: (args, ctx) => footer.inspect(args, ctx),
+    getArgumentCompletions: completeFooter,
   });
   pi.on("session_start", (_event, ctx) => footer.start(ctx));
+  pi.on("resources_discover", (_event, ctx) => footer.mountComposer(ctx));
   pi.on("session_shutdown", () => footer.shutdown());
   pi.on("session_tree", (_event, ctx) => footer.selectBranch(ctx));
   pi.on("message_end", (event, ctx) =>

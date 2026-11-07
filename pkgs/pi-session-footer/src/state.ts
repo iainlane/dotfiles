@@ -4,6 +4,7 @@ import type { QuotaState } from "./quota.ts";
 import type { AgentSummary, Task } from "./workflow.ts";
 import type { GitState } from "./git.ts";
 import type { RpcFailure } from "./rpc.ts";
+import type { StatusSnapshot } from "./status.ts";
 
 export interface UsageTotals {
   input: number;
@@ -39,6 +40,7 @@ export interface FooterSnapshot {
   model: string;
   provider: string;
   thinking: string;
+  reasoning: boolean;
   context: { tokens: number | null; capacity: number; percent: number | null };
   quota: QuotaState | undefined;
   serviceTier: string | undefined;
@@ -52,6 +54,8 @@ export interface FooterSnapshot {
   rpcErrors: Record<"status" | "cost", RpcFailure | undefined>;
   pr: PullRequestStateEvent | undefined;
   statuses: ReadonlyMap<string, string>;
+  sessionId: string | undefined;
+  cooperativeStatuses: ReadonlyMap<string, StatusSnapshot>;
   usage: UsageTotals;
   auxiliaryUsage: UsageTotals;
   activity: Activity;
@@ -65,6 +69,7 @@ export function createSnapshot(now: number, cwd: string): FooterSnapshot {
     model: "no model",
     provider: "",
     thinking: "",
+    reasoning: false,
     context: { tokens: null, capacity: 0, percent: null },
     quota: undefined,
     serviceTier: undefined,
@@ -78,6 +83,8 @@ export function createSnapshot(now: number, cwd: string): FooterSnapshot {
     rpcErrors: { status: undefined, cost: undefined },
     pr: undefined,
     statuses: new Map(),
+    sessionId: undefined,
+    cooperativeStatuses: new Map(),
     usage: {
       input: 0,
       output: 0,

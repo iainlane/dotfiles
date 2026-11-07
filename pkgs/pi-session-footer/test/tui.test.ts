@@ -40,8 +40,59 @@ async function seed(
     },
     {
       type: "message",
-      id: "b",
+      id: "read-call",
       parentId: "a",
+      timestamp,
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "fixture-read",
+            name: "read",
+            arguments: { path: "fixture.ts" },
+          },
+        ],
+        api: "openai-codex-responses",
+        provider: "openai-codex",
+        model: "gpt-5.4",
+        stopReason: "toolUse",
+        timestamp: Date.now(),
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      },
+    },
+    {
+      type: "message",
+      id: "read-result",
+      parentId: "read-call",
+      timestamp,
+      message: {
+        role: "toolResult",
+        toolCallId: "fixture-read",
+        toolName: "read",
+        content: [{ type: "text", text: "export const fixture = true;" }],
+        details: {
+          _type: "readFile",
+          filePath: "fixture.ts",
+          content: "export const fixture = true;",
+          offset: 1,
+          lineCount: 1,
+        },
+        isError: false,
+        timestamp: Date.now(),
+      },
+    },
+    {
+      type: "message",
+      id: "b",
+      parentId: "read-result",
       timestamp,
       message: {
         role: "assistant",
@@ -78,20 +129,51 @@ async function seed(
   return session;
 }
 
-async function footer(terminal: PiTerminal, width: number): Promise<string[]> {
+function editorRows(screen: string[]): string {
+  const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+  const bottom = screen.findLastIndex((line) => line.startsWith("╰─ "));
+  return screen.slice(top + 1, bottom + 1).join("\n");
+}
+
+function composerStatusRows(screen: string[], compact: boolean): string[] {
+  return [
+    screen.findLast((line) => line.startsWith("╭─ ")) ?? "",
+    compact ? "" : (screen.findLast((line) => line.startsWith("╰─ ")) ?? ""),
+  ];
+}
+
+async function footer(
+  terminal: PiTerminal,
+  width: number,
+  quiet: boolean,
+): Promise<string[]> {
   let lines: string[] = [];
 
   await terminal.until((screen) => {
-    lines = screen.slice(-2);
+    lines = composerStatusRows(screen, quiet);
 
-    expect(lines[0]).toContain("ctx 20.1%/500k");
-    expect(lines[0]).toContain(" footer-fixture");
-    expect(lines[1]).toContain("5h 40% used");
-    expect(lines[1]).toContain(width >= 120 ? "week 42% used" : "5h 40% used");
+    expect(lines[0]).toMatch(/^╭─ /);
+    const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+    expect(screen[top + 1]).toMatch(quiet ? /^╰─ .*─╯$/ : /^│.*│$/);
+    expect(screen.slice(top + (quiet ? 2 : 3)).join("\n")).not.toMatch(
+      /gpt-5\.4|◫ |◴ 5h 40%/,
+    );
+
+    expect(lines[0]).toContain("◫ 20.1%/500k");
+    expect(lines[0]).toContain(" footer-fixture");
+    expect({
+      quotaWindows: /◴ 5h 40%.*◴ week 42%/.test(lines[1] ?? ""),
+      planning: lines[1]?.includes("≡") ?? false,
+    }).toStrictEqual({
+      quotaWindows: !quiet,
+      planning: !quiet,
+    });
+    expect(lines.join("\n")).not.toMatch(/status \+\d/);
+    expect(lines.join("\n")).not.toContain("FFF indexed");
     expect(lines.join("\n")).not.toContain("unavailable");
     expect(lines.map((line) => visibleWidth(line))).toStrictEqual([
       width,
-      width,
+      quiet ? 0 : width,
     ]);
   });
 
@@ -104,18 +186,32 @@ async function restored(
 ): Promise<void> {
   await terminal.until((screen) => {
     expect(screen.join("\n")).not.toContain("Footer:");
-    expect(screen.slice(-2)).toStrictEqual(expected);
+    expect(composerStatusRows(screen, expected[1] === "")).toStrictEqual(
+      expected,
+    );
   });
 }
 
 it.each([
-  { theme: "dark", quiet: false },
-  { theme: "dark", quiet: true },
-  { theme: "light", quiet: false },
-  { theme: "light", quiet: true },
+  { theme: "dark", quiet: false, prettyFirst: true, mode: "fullscreen" },
+  { theme: "dark", quiet: true, prettyFirst: false, mode: "regular" },
+  { theme: "light", quiet: false, prettyFirst: false, mode: "fullscreen" },
+  { theme: "light", quiet: true, prettyFirst: true, mode: "regular" },
+  { theme: "dark", quiet: true, prettyFirst: true, mode: "fullscreen" },
+  { theme: "dark", quiet: false, prettyFirst: false, mode: "regular" },
+  { theme: "light", quiet: true, prettyFirst: false, mode: "fullscreen" },
+  { theme: "light", quiet: false, prettyFirst: true, mode: "regular" },
 ])(
-  "runs real Pi with $theme theme and quiet=$quiet through theme changes, resizing and inspection",
-  async ({ theme, quiet }) => {
+  "runs real Pi in $mode mode with $theme theme, quiet=$quiet and Pretty first=$prettyFirst",
+  async ({ theme, quiet, prettyFirst, mode }) => {
+    const statusRows = (screen: string[]) => composerStatusRows(screen, quiet);
+    const pretty = process.env.PI_TEST_PRETTY;
+
+    if (pretty === undefined || pretty === "") {
+      throw new Error(
+        "Set PI_TEST_PRETTY to the installed pi-pretty package root.",
+      );
+    }
     const root = await mkdtemp(join(tmpdir(), "pi-footer-tui-"));
     const work = join(root, "work");
     const agent = join(root, "agent");
@@ -132,10 +228,25 @@ it.each([
         JSON.stringify({ quietStartup: "all", theme }),
       );
 
+      const footerConfig = JSON.stringify({
+        preset: quiet ? "compact" : "rich",
+      });
+      await writeFile(join(agent, "session-footer.json"), footerConfig);
+      await writeFile(
+        join(agent, "pi-pretty.json"),
+        JSON.stringify({
+          toolStyle: "claudecode",
+          disableTools: ["find", "grep"],
+          workingIndicator: { enabled: false },
+          thinkingIndicator: { enabled: false },
+        }),
+      );
+
       const session = await seed(root, work, quiet);
       const networkLog = join(root, "network.log");
       const modelLog = join(root, "model.log");
       const updateLog = join(root, "updates.log");
+      const startLog = join(root, "starts.log");
 
       terminal = new PiTerminal({
         command: [
@@ -154,13 +265,16 @@ it.each([
                 ),
               ]),
           "--offline",
+          "--tui-mode",
+          mode,
           "--no-extensions",
           "--no-skills",
           "--no-mcp",
           "--no-context-files",
           "--no-prompt-templates",
           "--no-approve",
-          "--no-tools",
+          "--tools",
+          "read",
           "--provider",
           "openai-codex",
           "--model",
@@ -171,8 +285,19 @@ it.each([
           session,
           "--use-theme",
           theme,
-          "-e",
-          fileURLToPath(new URL("../index.ts", import.meta.url)),
+          ...(prettyFirst
+            ? [
+                "-e",
+                pretty,
+                "-e",
+                fileURLToPath(new URL("../index.ts", import.meta.url)),
+              ]
+            : [
+                "-e",
+                fileURLToPath(new URL("../index.ts", import.meta.url)),
+                "-e",
+                pretty,
+              ]),
           "-e",
           fileURLToPath(new URL("./tui/fixture.ts", import.meta.url)),
         ],
@@ -187,6 +312,7 @@ it.each([
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
           PI_CODING_AGENT_DIR: agent,
+          PRETTY_CONFIG_DIR: agent,
           ...(process.env.PI_TEST_HOST !== undefined &&
           process.env.PI_TEST_HOST !== ""
             ? {
@@ -199,6 +325,8 @@ it.each([
           PI_FOOTER_NETWORK_LOG: networkLog,
           PI_FOOTER_MODEL_LOG: modelLog,
           PI_FOOTER_UPDATE_LOG: updateLog,
+          PI_FOOTER_START_LOG: startLog,
+          PI_FOOTER_SESSION: session,
         },
       });
 
@@ -208,7 +336,10 @@ it.each([
         ).toBeGreaterThanOrEqual(1);
       }, [updateLog]);
 
-      const wide = await footer(terminal, 220);
+      const wide = await footer(terminal, 220, quiet);
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Read (fixture.ts)");
+      });
 
       expect(terminal.color()).toBeDefined();
 
@@ -220,11 +351,82 @@ it.each([
 
       await restored(terminal, wide);
 
+      const history = `/fixture-theme ${theme}`;
+      terminal.input(`${history}\r`);
+      await restored(terminal, wide);
+      terminal.input("\u001B[A");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).toContain(history);
+      });
+      terminal.input("\u0005");
+      terminal.input("\u0015");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).not.toContain(history);
+      });
+
+      terminal.input("/footer he");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain(
+          "Command grammar, configuration and navigation",
+        );
+      });
+      terminal.input("\t");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).toContain("/footer help");
+      });
+      terminal.input("\u0015");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).not.toContain("/footer");
+      });
+
+      terminal.input("/footer c");
+      let row = -1;
+      await terminal.until((screen) => {
+        row = screen.findLastIndex((line) =>
+          line.includes(
+            "Inspect configuration and browse passive preset previews",
+          ),
+        );
+        expect(row).toBeGreaterThanOrEqual(0);
+      });
+      terminal.input(
+        mode === "fullscreen"
+          ? `\u001B[<0;8;${row + 1}M\u001B[<0;8;${row + 1}m`
+          : "\t",
+      );
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).toContain("/footer config");
+      });
+      terminal.input("\u0015");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).not.toContain("/footer");
+      });
+
+      terminal.input("/fixture-overflow\r");
+      await terminal.until((screen) => {
+        expect(statusRows(screen)[0]).toMatch(/↑ \d+ more/);
+        expect(editorRows(screen)).toContain("overflow 29");
+      });
+      terminal.input("\u0003");
+      await terminal.until((screen) => {
+        expect(editorRows(screen)).not.toContain("overflow");
+      });
+      const clearCooldownUpdates =
+        Number(await readFile(updateLog, "utf8")) + 2;
+      await terminal.until(async () => {
+        expect(
+          Number(await readFile(updateLog, "utf8")),
+        ).toBeGreaterThanOrEqual(clearCooldownUpdates);
+      }, [updateLog]);
+      await restored(terminal, wide);
+
       const originalColor = terminal.color("gpt-5.4");
 
       expect(originalColor).toBeDefined();
       expect(originalColor).not.toBe(terminal.color("codex/"));
-      expect(terminal.color("40%")).not.toBe(terminal.color("5h "));
+      expect(terminal.color(quiet ? "20.1%" : "40%")).not.toBe(
+        terminal.color(quiet ? "◫ " : "◴ 5h "),
+      );
       expect({
         model: terminal.style("gpt-5.4")?.bold,
         directory: terminal.style("~/work")?.bold,
@@ -235,47 +437,62 @@ it.each([
         model: true,
         directory: true,
         provider: false,
-        quota: false,
-        cost: false,
+        quota: quiet ? undefined : false,
+        cost: quiet ? undefined : false,
       });
 
       terminal.input(`/fixture-theme ${theme === "dark" ? "light" : "dark"}\r`);
 
       await terminal.until((screen) => {
-        expect(screen.slice(-2)).toStrictEqual(wide);
+        expect(statusRows(screen)).toStrictEqual(wide);
         expect(terminal?.color("gpt-5.4")).not.toBe(originalColor);
       });
 
       terminal.input(`/fixture-theme ${theme}\r`);
 
       await terminal.until((screen) => {
-        expect(screen.slice(-2)).toStrictEqual(wide);
+        expect(statusRows(screen)).toStrictEqual(wide);
         expect(terminal?.color("gpt-5.4")).toBe(originalColor);
       });
 
       terminal.resize(72);
 
-      const narrow = await footer(terminal, 72);
+      const narrow = await footer(terminal, 72, quiet);
 
-      expect(narrow[1]).toMatch(
-        quiet ? /^ + 5h/ : /^(?!.*1h59m).*1E 1W.*runs failed 1.*CI 1 failed/,
-      );
+      expect({
+        diagnostics: narrow[1]?.includes("⊗1 ⚠1"),
+        failedRun: narrow[1]?.includes(" failed 1"),
+        failedChecks: narrow[1]?.includes(" 1 failed"),
+      }).toStrictEqual({
+        diagnostics: !quiet,
+        failedRun: !quiet,
+        failedChecks: !quiet,
+      });
 
       terminal.resize(220);
 
       await restored(terminal, wide);
 
-      terminal.input("/footer quota\r");
+      terminal.input("/footer explain quota\r");
 
       await terminal.until((screen) => {
-        expect(screen.join("\n")).toContain("Footer: quota");
+        expect(screen.join("\n")).toContain("Footer: explain");
+        expect(screen.join("\n")).toContain("usable columns");
       });
 
+      terminal.input("\u001B");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("escape/ctrl+c close");
+      });
       terminal.input("\u001B");
 
       await restored(terminal, wide);
 
-      terminal.input("/footer workflow\r");
+      terminal.input("/footer\r");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Footer: explain");
+      });
+      terminal.input("\t\t\t\t");
 
       await terminal.until((screen) => {
         expect(screen.join("\n")).toContain("#1 [completed] Task 1");
@@ -296,13 +513,122 @@ it.each([
       terminal.input("\u001B");
 
       await restored(terminal, wide);
+
+      expect(await readFile(join(agent, "session-footer.json"), "utf8")).toBe(
+        footerConfig,
+      );
+      terminal.input("/fixture-inspect\r");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Footer: explain");
+      });
+      terminal.input("\u001B");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).not.toContain("Footer:");
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+        expect(screen[top + 1]).toContain("draft 界é");
+        expect(statusRows(screen)[0]).toBe(wide[0]);
+      });
+      terminal.input("\u0015");
+      terminal.input("\u001B[200~first\nsecond 界é\u001B[201~");
+      await terminal.until((screen) => {
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+        expect(
+          screen.slice(top + 1, top + 3).map((line) => line.trimEnd()),
+        ).toStrictEqual([
+          `│  first${" ".repeat(211)}│`,
+          quiet
+            ? `╰─ second 界é${" ".repeat(205)}─╯`
+            : `│  second 界é${" ".repeat(206)}│`,
+        ]);
+      });
+      terminal.input("\u0003");
+      terminal.input("/fo");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Inspect footer measurements");
+      });
+      terminal.input("\u001B");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).not.toContain("Inspect footer measurements");
+      });
+      terminal.input("\u0015");
+      await terminal.until((screen) => {
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+        expect(screen[top + 1]?.trim()).toMatch(quiet ? /^╰─ +─╯$/ : /^│ +│$/);
+      });
+
+      const border = terminal.color("╭─ ");
+      terminal.input("!echo fixture");
+      await terminal.until((screen) => {
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+        expect(screen[top + 1]).toContain("!echo fixture");
+        expect(terminal?.color("╭─ ")).not.toBe(border);
+      });
+      terminal.input("\u0015");
+      await terminal.until((screen) => {
+        expect({
+          frame:
+            screen[screen.findLastIndex((line) => line.startsWith("╭─ ")) + 1],
+          color: terminal?.color("╭─ "),
+        }).toStrictEqual({
+          frame: quiet ? `╰─${" ".repeat(216)}─╯` : `│${" ".repeat(218)}│`,
+          color: border,
+        });
+      });
+
+      const starts = await readFile(startLog, "utf8");
+      terminal.input("/reload");
+      await terminal.until((screen) => {
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+        expect(screen[top + 1]).toContain("/reload");
+      });
+      terminal.input("\r");
+      await terminal.until(async () => {
+        expect(await readFile(startLog, "utf8")).not.toBe(starts);
+      }, [startLog]);
+      await footer(terminal, 220, quiet);
+
+      const reloaded = await readFile(startLog, "utf8");
+      terminal.input("/new\r");
+      await terminal.until(async () => {
+        expect(await readFile(startLog, "utf8")).not.toBe(reloaded);
+      }, [startLog]);
+      await terminal.until((screen) => {
+        expect(statusRows(screen)[0]).toContain("gpt-5.4");
+        expect(screen.findLast((line) => line.startsWith("╰─ "))).toMatch(
+          /^╰─ .*─╯$/,
+        );
+      });
+      terminal.input("/fixture-resume\r");
+      await footer(terminal, 220, quiet);
+
+      terminal.input("/footer config\r");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Footer: config");
+      });
+      terminal.input("\u001B");
+      await restored(terminal, wide);
+      expect(await readFile(join(agent, "session-footer.json"), "utf8")).toBe(
+        footerConfig,
+      );
+      await writeFile(
+        join(agent, "session-footer.json"),
+        '{"preset":"invalid"}',
+      );
+      terminal.input("/reload\r");
+      await terminal.until((screen) => {
+        expect(screen.join("\n")).toContain("Cannot load");
+        expect(composerStatusRows(screen, false)[1]).toContain("◴ week 42%");
+      });
+      expect(await readFile(join(agent, "session-footer.json"), "utf8")).toBe(
+        '{"preset":"invalid"}',
+      );
       expect({
         network: existsSync(networkLog),
         model: existsSync(modelLog),
       }).toStrictEqual({ network: false, model: false });
     } catch (error) {
       throw new Error(
-        `${theme}/${quiet}\n${(await terminal?.screen())?.join("\n")}\n${terminal?.diagnostics()}`,
+        `${theme}/${quiet}\n${(await terminal?.screen().catch(() => []))?.join("\n")}\n${terminal?.diagnostics()}`,
         { cause: error },
       );
     } finally {

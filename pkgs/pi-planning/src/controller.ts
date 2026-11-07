@@ -36,6 +36,7 @@ import {
 import type { EnterPlanOutput, SubmitPlanOutput } from "./contracts.ts";
 import type { PlanningOutcome } from "./outcomes.ts";
 import { displayText } from "./presentation.ts";
+import type { PlanningStatus } from "./status.ts";
 
 const clearedContextSchema = Type.Object({
   type: Type.Literal("compaction"),
@@ -78,6 +79,7 @@ export interface PlanningResult<TStructured extends JsonValue = JsonObject> {
 }
 
 export interface PlanningDependencies {
+  publishStatus?: (status: PlanningStatus) => void;
   openPlan: (sessionId: string) => PlanStore;
   presentPlan: (plan: PlanRevision) => void;
   recordSavedState: (state: SavedState) => void;
@@ -166,6 +168,10 @@ export function createPlanning(dependencies: PlanningDependencies) {
     const active = session?.active === true;
     dependencies.setReviewAvailable(active);
     ctx.ui.setStatus("planning", active ? "plan mode on" : undefined);
+    dependencies.publishStatus?.({
+      sessionId: ctx.sessionManager.getSessionId(),
+      active,
+    });
   }
 
   function configure(state: PlanningSession): void {

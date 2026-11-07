@@ -37,7 +37,7 @@ function harness() {
     cwd: "/work",
     model: { id: "fixture", provider: "openai-codex", contextWindow: 200_000 },
     thinkingLevel: "high",
-    getContextUsage: () => {},
+    getContextUsage: (): undefined => {},
     hasPendingMessages: () => false,
     sessionManager: {
       getHeader: () => ({ timestamp: "2026-10-20T12:00:00Z" }),

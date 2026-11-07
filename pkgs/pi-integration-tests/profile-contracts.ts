@@ -168,6 +168,12 @@ async function assertResources(
       { name: "ultrafast", count: 1 },
     ],
   );
+  const footerConfig = join(agent, "session-footer.json");
+  assert.deepStrictEqual(parseRecord(readFileSync(footerConfig, "utf8")), {
+    preset: "rich",
+  });
+  assert.ok(lstatSync(footerConfig).isSymbolicLink());
+  assert.equal(statSync(footerConfig).mode & 0o222, 0);
   assert.equal(process.env.PRETTY_CONFIG_DIR, agent);
   assert.deepStrictEqual(parseRecord(readFileSync(lens, "utf8")).widget, {
     visible: false,

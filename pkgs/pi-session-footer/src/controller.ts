@@ -1,7 +1,16 @@
-import { Inspector, SECTIONS, type InspectorContext } from "./inspector.ts";
+import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { ComposerEditor } from "./composer.ts";
+import { Inspector, type InspectorContext } from "./inspector.ts";
+import { parseFooterCommand } from "./commands.ts";
+import { loadSettings, resolveSettings } from "./settings.ts";
 import { readPr, readServiceTier } from "./integrations.ts";
 import { readQuota, type QuotaState } from "./quota.ts";
-import { renderFooter } from "./render.ts";
+import {
+  fitFooterRow,
+  layoutFooter,
+  renderFooter,
+  type RenderFrame,
+} from "./render.ts";
 import { FooterSession, type FooterContext } from "./session.ts";
 import type { FooterRuntime } from "./runtime.ts";
 import type { FooterBus } from "./rpc.ts";
@@ -19,6 +28,19 @@ function matchesProvider(
 }
 
 const noop = () => {};
+const emptyStatuses = (): ReadonlyMap<string, string> => new Map();
+
+type EditorUI = Pick<
+  ExtensionUIContext,
+  "getEditorComponent" | "setEditorComponent"
+>;
+type EditorFactory = NonNullable<ReturnType<EditorUI["getEditorComponent"]>>;
+
+interface ComposerOwnership {
+  ui: EditorUI;
+  factory: EditorFactory;
+  previous: EditorFactory | undefined;
+}
 
 export interface FooterView {
   render(width: number): string[];
@@ -27,19 +49,20 @@ export interface FooterView {
 }
 
 export interface FooterUIContext extends FooterContext, InspectorContext {
-  ui: InspectorContext["ui"] & {
-    theme: NonNullable<Parameters<typeof renderFooter>[2]>;
-    setFooter(
-      factory: (
-        tui: { requestRender(): void },
-        theme: unknown,
-        data: {
-          onBranchChange(callback: () => void): () => void;
-          getExtensionStatuses(): ReadonlyMap<string, string>;
-        },
-      ) => FooterView,
-    ): void;
-  };
+  ui: InspectorContext["ui"] &
+    EditorUI & {
+      theme: NonNullable<Parameters<typeof renderFooter>[2]>;
+      setFooter(
+        factory: (
+          tui: { requestRender(): void },
+          theme: unknown,
+          data: {
+            onBranchChange(callback: () => void): () => void;
+            getExtensionStatuses(): ReadonlyMap<string, string>;
+          },
+        ) => FooterView,
+      ): void;
+    };
 }
 
 export interface FooterDependencies {
@@ -54,15 +77,51 @@ export function createFooter({
   subscribePr,
 }: FooterDependencies) {
   let session: FooterSession | undefined;
+  let composer: ComposerOwnership | undefined;
+
+  const ownsComposer = () =>
+    composer !== undefined &&
+    composer.ui.getEditorComponent() === composer.factory;
 
   let invalidate = noop;
 
   let quota: QuotaState | undefined;
   let tier: string | undefined;
   let pr: FooterSnapshot["pr"];
-  const inspector = new Inspector(() =>
-    session?.alive === true ? session.state : undefined,
-  );
+  let settings = loadSettings((): undefined => {}, runtime.settingsPath);
+  let lastFrame: RenderFrame | undefined;
+  let nativeStatuses = emptyStatuses;
+  const snapshot = (): FooterSnapshot | undefined => {
+    if (session?.alive !== true) {
+      return undefined;
+    }
+    session.state.statuses = new Map(nativeStatuses());
+    return session.state;
+  };
+  const inspector = new Inspector(snapshot, {
+    frame: () => lastFrame,
+    settings: () => settings,
+    preview: (preset) => {
+      const state = snapshot();
+      return state && lastFrame
+        ? layoutFooter(
+            state,
+            { top: lastFrame.top.width, bottom: lastFrame.bottom.width },
+            {
+              settings: {
+                ...resolveSettings({ preset }),
+                symbols: settings.symbols,
+              },
+              home: runtime.homeDirectory,
+              mode: "preview",
+            },
+          )
+        : undefined;
+    },
+    enterUsage: () => {
+      session?.refreshCost().catch(runtime.reportError);
+    },
+  });
   const stops: (() => void)[] = [];
 
   const requestRender = () => {
@@ -92,11 +151,23 @@ export function createFooter({
   };
 
   const stop = () => {
+    const mounted = composer;
+    composer = undefined;
+
+    if (
+      mounted !== undefined &&
+      mounted.ui.getEditorComponent() === mounted.factory
+    ) {
+      mounted.ui.setEditorComponent(mounted.previous);
+    }
+
     inspector.dispose();
     session?.dispose();
 
     session = undefined;
     invalidate = noop;
+    nativeStatuses = emptyStatuses;
+    lastFrame = undefined;
   };
 
   const updateQuota = (raw: unknown) => {
@@ -127,6 +198,11 @@ export function createFooter({
     }
 
     stops.push(
+      events.on("dotfiles:status:v1", (raw) => {
+        if (session?.receiveStatus(raw) === true) {
+          requestRender();
+        }
+      }),
       events.on("pi-fancy-footer:widget", (raw) => {
         const next = readServiceTier(raw);
 
@@ -181,10 +257,10 @@ export function createFooter({
   connect();
 
   const inspect = async (args: string, ctx: FooterUIContext) => {
-    const section = SECTIONS.find((candidate) => candidate === args.trim());
+    const route = parseFooterCommand(args);
 
-    if (args.trim() && !section) {
-      ctx.ui.notify(`Choose: ${SECTIONS.join(", ")}`, "warning");
+    if ("error" in route) {
+      ctx.ui.notify(route.error, "warning");
 
       return;
     }
@@ -196,8 +272,7 @@ export function createFooter({
     }
 
     update(ctx, true);
-    session.refreshCost().catch(runtime.reportError);
-    await inspector.open(ctx, section);
+    await inspector.open(ctx, route);
   };
 
   const start = (ctx: FooterUIContext) => {
@@ -208,6 +283,10 @@ export function createFooter({
       return;
     }
 
+    settings = loadSettings(() => runtime.readSettings(), runtime.settingsPath);
+    if (settings.diagnostic !== undefined) {
+      ctx.ui.notify(settings.diagnostic, "warning");
+    }
     session = new FooterSession(ctx, events, requestRender, runtime);
     session.state.serviceTier = tier;
     session.state.pr = pr;
@@ -217,8 +296,15 @@ export function createFooter({
     }
 
     const owner = session;
+    if (owner.state.sessionId !== undefined) {
+      events.emit("dotfiles:status:request:v1", {
+        version: 1,
+        sessionId: owner.state.sessionId,
+      });
+    }
 
     ctx.ui.setFooter((tui, _theme, footerData) => {
+      nativeStatuses = () => footerData.getExtensionStatuses();
       invalidate = () => {
         if (owner.alive) {
           tui.requestRender();
@@ -231,19 +317,29 @@ export function createFooter({
 
       return {
         render(width) {
-          owner.state.statuses = footerData.getExtensionStatuses();
-
-          return renderFooter(
+          if (ownsComposer() || !owner.alive) {
+            return [];
+          }
+          owner.state.statuses = new Map(nativeStatuses());
+          owner.state.now = runtime.clock.now();
+          const frame = layoutFooter(
             owner.state,
-            width,
-            ctx.ui.theme,
-            runtime.homeDirectory,
+            { top: width, bottom: width },
+            {
+              settings,
+              theme: ctx.ui.theme,
+              home: runtime.homeDirectory,
+              mode: "fallback",
+            },
+          );
+          lastFrame = frame;
+          return [frame.top.text, frame.bottom.text].filter(
+            (row) => row.trim() !== "",
           );
         },
         invalidate() {},
         dispose() {
           unsubscribe();
-          owner.dispose();
         },
       };
     });
@@ -263,6 +359,73 @@ export function createFooter({
         requestRender();
       },
     });
+  };
+
+  const mountComposer = (ctx: FooterUIContext) => {
+    if (
+      ctx.mode !== "tui" ||
+      session?.alive !== true ||
+      composer !== undefined
+    ) {
+      return;
+    }
+
+    const owner = session;
+    const factory: EditorFactory = (tui, theme, keybindings) => {
+      let pending: RenderFrame | undefined;
+      const render = (width: number, border: "top" | "bottom") => {
+        if (!owner.alive) {
+          return "";
+        }
+        if (border === "top") {
+          owner.state.now = runtime.clock.now();
+          owner.state.statuses = new Map(nativeStatuses());
+          pending = layoutFooter(
+            owner.state,
+            { top: width, bottom: 0 },
+            {
+              settings,
+              theme: ctx.ui.theme,
+              home: runtime.homeDirectory,
+              mode: "composer",
+            },
+          );
+          return pending.top.text;
+        }
+        if (!pending) {
+          return "";
+        }
+        const bottom = fitFooterRow(pending, settings, {
+          placement: "bottom",
+          width,
+          theme: ctx.ui.theme,
+        });
+        pending = {
+          ...pending,
+          bottom: bottom.row,
+          decisions: [
+            ...pending.decisions.filter((decision) =>
+              decision.region.startsWith("top-"),
+            ),
+            ...bottom.decisions,
+          ],
+        };
+        return pending.bottom.text;
+      };
+      return new ComposerEditor(tui, theme, keybindings, {
+        top: (width) => render(width, "top"),
+        bottom: (width) => render(width, "bottom"),
+        completed: () => {
+          if (owner.alive && ownsComposer() && pending) {
+            lastFrame = pending;
+          }
+        },
+      });
+    };
+
+    composer = { ui: ctx.ui, factory, previous: ctx.ui.getEditorComponent() };
+    ctx.ui.setEditorComponent(factory);
+    requestRender();
   };
 
   const shutdown = () => {
@@ -345,6 +508,7 @@ export function createFooter({
   return {
     inspect,
     start,
+    mountComposer,
     shutdown,
     selectBranch,
     endMessage,

@@ -9,6 +9,8 @@ export interface Clock {
 export interface FooterRuntime {
   clock: Clock;
   homeDirectory: string;
+  settingsPath: string;
+  readSettings(): string | undefined;
   requestId(): string;
   readGit(cwd: string, now: number): Promise<GitState | undefined>;
   reportError: (error: unknown) => void;

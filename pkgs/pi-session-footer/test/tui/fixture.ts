@@ -8,6 +8,19 @@ export default function fixture(pi: ExtensionAPI): void {
   const resetBase = Date.now();
   let interval: ReturnType<typeof setInterval> | undefined;
   let updates = 0;
+  let planning:
+    | { version: 1; source: string; sessionId: string; active: boolean }
+    | undefined;
+  const stopPlanning = pi.events.on("dotfiles:status:request:v1", (raw) => {
+    if (
+      record(raw) &&
+      raw.version === 1 &&
+      planning !== undefined &&
+      raw.sessionId === planning.sessionId
+    ) {
+      pi.events.emit("dotfiles:status:v1", planning);
+    }
+  });
 
   const quota = () => ({
     state: {
@@ -73,6 +86,34 @@ export default function fixture(pi: ExtensionAPI): void {
     });
   });
 
+  pi.registerCommand("fixture-overflow", {
+    handler: async (_args, ctx) => {
+      ctx.ui.setEditorText(
+        Array.from({ length: 30 }, (_, index) => `overflow ${index}`).join(
+          "\n",
+        ),
+      );
+    },
+  });
+  pi.registerCommand("fixture-inspect", {
+    description: "Open the footer inspector over a synthetic draft",
+    handler: async (_args, ctx) => {
+      ctx.ui.setEditorText("draft 界é");
+      pi.sendUserMessage("/footer explain", { expandPromptTemplates: true });
+    },
+  });
+  pi.registerCommand("fixture-resume", {
+    description: "Restore the original synthetic footer session",
+    handler: async (_args, ctx) => {
+      const session = process.env.PI_FOOTER_SESSION;
+
+      if (session === undefined || session === "") {
+        throw new Error("The fixture requires PI_FOOTER_SESSION.");
+      }
+
+      await ctx.switchSession(session);
+    },
+  });
   pi.registerCommand("fixture-theme", {
     description: "Switch the synthetic footer session's theme",
     handler: async (args, ctx) => {
@@ -92,7 +133,17 @@ export default function fixture(pi: ExtensionAPI): void {
     }
   });
   pi.on("session_start", (_event, ctx) => {
+    const startLog = process.env.PI_FOOTER_START_LOG;
+
+    if (startLog !== undefined && startLog !== "") {
+      writeFileSync(
+        startLog,
+        `${Date.now()} ${ctx.sessionManager.getSessionId()}`,
+      );
+    }
+
     const publish = () => {
+      ctx.ui.setStatus("fff", undefined);
       pi.events.emit("sub-core:update-current", quota());
       updates++;
 
@@ -123,6 +174,13 @@ export default function fixture(pi: ExtensionAPI): void {
       ],
     });
 
+    planning = {
+      version: 1,
+      source: "planning",
+      sessionId: ctx.sessionManager.getSessionId(),
+      active: !quiet,
+    };
+    pi.events.emit("dotfiles:status:v1", planning);
     if (quiet) {
       return;
     }
@@ -152,10 +210,14 @@ export default function fixture(pi: ExtensionAPI): void {
         },
       },
     });
-    ctx.ui.setStatus("plan-mode", "plan: implementation");
     pi.events.emit("subagents:rpc:v1:ready", {});
   });
   pi.on("session_shutdown", () => {
     clearInterval(interval);
+    stopPlanning();
+    if (planning !== undefined) {
+      pi.events.emit("dotfiles:status:v1", { ...planning, active: false });
+      planning = undefined;
+    }
   });
 }

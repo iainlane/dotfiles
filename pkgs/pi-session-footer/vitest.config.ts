@@ -16,6 +16,7 @@ const integration = [
   "test/btw.test.ts",
   "test/git.test.ts",
   "test/patches.test.ts",
+  "test/planning.test.ts",
   "test/tui.test.ts",
 ];
 

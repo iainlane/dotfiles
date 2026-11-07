@@ -31,6 +31,7 @@ import {
 import { registerPlanningRoles } from "./roles.ts";
 import { stateEntry } from "./session.ts";
 import { createPlanning } from "./controller.ts";
+import { createStatusPublisher } from "./status.ts";
 import { PlanStore } from "./store.ts";
 import { registerPlanHeadings } from "./plan-headings.ts";
 import { outcomeEntryType, renderPlanningOutcome } from "./outcomes.ts";
@@ -75,7 +76,9 @@ function configureChildren(
 
 export default function planning(pi: ExtensionAPI): void {
   registerPlanHeadings(pi, join(getAgentDir(), "plans"));
+  const status = createStatusPublisher(pi.events);
   const controller = createPlanning({
+    publishStatus: (snapshot) => status.publish(snapshot),
     openPlan: (id) =>
       new PlanStore(join(getAgentDir(), "plans"), id, nodeFiles),
     recordSavedState: (state) => pi.appendEntry(stateEntry, state),
@@ -200,5 +203,9 @@ export default function planning(pi: ExtensionAPI): void {
       );
     }
   });
-  pi.on("session_shutdown", () => controller.shutdown());
+  pi.on("session_shutdown", (_event, ctx) => {
+    controller.shutdown();
+    ctx.ui.setStatus("planning", undefined);
+    status.dispose();
+  });
 }
