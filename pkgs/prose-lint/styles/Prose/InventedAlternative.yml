@@ -1,7 +1,7 @@
 extends: existence
 message:
-  "'%s' contrasts with an alternative; keep it only where the alternative is
-  real."
+  "'%s' introduces an alternative. Does the reader need this comparison? If the
+  explanation is complete without it, state the behaviour directly."
 level: suggestion
 ignorecase: true
 nonword: true

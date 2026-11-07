@@ -1,1 +1,2 @@
-testinvalid.md:1:25:Prose.InventedAlternative:'rather than' contrasts with an alternative; keep it only where the alternative is real.
+testinvalid.md:1:25:Prose.InventedAlternative:'rather than' introduces an alternative. Does the reader need this comparison? If the explanation is complete without it, state the behaviour directly.
+testinvalid.md:3:58:Prose.InventedAlternative:'rather than' introduces an alternative. Does the reader need this comparison? If the explanation is complete without it, state the behaviour directly.

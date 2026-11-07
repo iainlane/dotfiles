@@ -49,8 +49,11 @@ them; where an explanation reads like a softening, the rule wins.
    is, goes to, uses, remains, has.
 5. Do not describe an exception through an abstract absence (`says nothing`,
    `names nothing`, `nothing to read`). State what happens.
-6. Write `X rather than Y`, `instead of Y` or `not just X` only when Y is a real
-   alternative that matters. Never invent one for contrast.
+6. State what happens directly. Use `X rather than Y`, `instead of Y` or
+   `not just X` only when the reader needs the distinction to understand a
+   choice, requirement or failure mode. An alternative is not relevant merely
+   because it is possible. If removing the comparison leaves the explanation
+   complete, omit it.
 7. A trailing participial clause never claims a benefit
    (`..., ensuring consistency`). State the mechanism or drop the claim.
 8. A commit message teaches: it takes the reader from the problem, through the
@@ -317,7 +320,18 @@ actual operations. Avoid invented constructions such as `raises an update` or
 `states a result` unless they are established terms for the system being
 described. Do not write `boasts` or `features` where `has` states the fact.
 
-Hard rule 6 governs the contrastive templates:
+Hard rule 6 governs the contrastive templates. A plausible alternative is not
+enough to justify a comparison:
+
+```text
+BAD:
+Ubiquiti publish UniFi OS Server as a firmware installer rather than a
+container image, so the OCI archive is unpacked at build time.
+
+GOOD:
+Ubiquiti publish UniFi OS Server as a firmware installer with an embedded
+OCI archive. Extract the archive at build time.
+```
 
 ```text
 BAD:
@@ -459,7 +473,8 @@ as a maintainer who did not see this session.
   identify its noun?
 - Are there em dashes, arrow chains, or verbs from hard rule 4 left?
 - Is an exception described as an abstract absence?
-- If a sentence says `X rather than Y` or `not just X`, is Y a real alternative?
+- Would the explanation remain complete without a comparison introduced by
+  `rather than`, `instead of` or `not just`? Then omit the comparison.
 - Does a trailing participial clause claim a benefit whose mechanism the text
   never states?
 - Does every pronoun have one obvious antecedent?

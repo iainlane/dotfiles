@@ -151,9 +151,8 @@ level = "warning"
 locked = false
 scope = "all"
 
-# Vale cannot tell whether the alternative is real, and across this repository
-# nearly every match turned out to be a real alternative, so the rule only
-# suggests.
+# Vale detects contrastive constructions but cannot judge whether the reader
+# needs the comparison, so the rule only suggests.
 [rules.InventedAlternative]
 tier = "portable"
 level = "suggestion"

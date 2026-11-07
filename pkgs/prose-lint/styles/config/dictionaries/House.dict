@@ -20,6 +20,7 @@ package	NN
 packages	NNS
 path	NN
 paths	NNS
+prebuilt	JJ
 provider	NN
 providers	NNS
 repositories	NNS
