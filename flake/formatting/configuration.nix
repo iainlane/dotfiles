@@ -38,6 +38,8 @@ in {
         excludes = ["**/package-lock.json"];
       };
 
+      shfmt.includes = ["*.zsh"];
+
       zizmor.options = ["--persona" "pedantic"];
 
       markdownlint = {
@@ -61,19 +63,9 @@ in {
         includes = ["*.lua"];
       };
 
-      # `zsh -n` takes one script per call.
-      zsh-syntax = {
-        command = lib.getExe (pkgs.writeShellScriptBin "zsh-syntax" ''
-          for file; do
-            ${lib.getExe pkgs.zsh} -n "$file"
-          done
-        '');
-        includes = [
-          "features/base/zsh/*.zsh"
-          "features/base/zsh/functions/*.zsh"
-          "features/base/zsh/plugins/*.zsh"
-          "features/development/mise/*.zsh"
-        ];
+      zsh-lint = {
+        command = lib.getExe pkgs.zsh-lint;
+        includes = ["*.zsh"];
       };
     };
   };

@@ -2,7 +2,7 @@ local DIR
 
 DIR="${${1%.orig.tar.gz}/_/-}"
 if ! [ -d "${DIR}" ]; then
-  mkdir "${DIR}"
+	mkdir "${DIR}"
 fi
 
 tar xzvf "${1}" -C "${DIR}" --strip-components 1

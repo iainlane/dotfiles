@@ -25,3 +25,8 @@ done
 
 fakeroot() { print -r -- "$*"; }
 [[ $(get-orig-source) == 'debian/rules get-orig-source' ]]
+
+hash edit-acl=/unused
+ubuntu-distro-info() { print -r -- unstable; }
+edit-acl() { print -r -- "$*"; }
+[[ $(who-can-upload example-package) == '-s example-package -S unstable query' ]]

@@ -2,5 +2,5 @@ local chroot
 local CHROOTS=("${(@f)$(schroot -l | awk -F: '/^source:/ && !/desktop/ { print $2 }')}")
 
 for chroot in "${CHROOTS[@]}"; do
-    sudo sbuild-update -udcar "${chroot}"
+	sudo sbuild-update -udcar "${chroot}"
 done

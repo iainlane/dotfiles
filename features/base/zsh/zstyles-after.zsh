@@ -90,7 +90,7 @@ zstyle ':fzf-tab:complete:cargo-*:*' fzf-preview '
 
 # environment variables
 for cmd in export unset; do
-  zstyle ":fzf-tab:complete:${cmd}:*" fzf-preview 'printenv "${word}" 2>/dev/null'
+	zstyle ":fzf-tab:complete:${cmd}:*" fzf-preview 'printenv "${word}" 2>/dev/null'
 done
 
 # tldr preview

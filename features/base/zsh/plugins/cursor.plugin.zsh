@@ -10,18 +10,18 @@
 # 6  ⇒  steady bar, xterm.
 
 function update-cursor-style {
-  # Only apply cursor styling to xterm, rxvt, or tmux terminal families
-  if [[ "${TERM}" != xterm(|-*) && "${TERM}" != rxvt(|-*) && "${TERM}" != tmux(|-*) && -z "${TMUX}" ]]; then
-    return
-  fi
+	# Only apply cursor styling to xterm, rxvt, or tmux terminal families
+	if [[ "${TERM}" != xterm(|-*) && "${TERM}" != rxvt(|-*) && "${TERM}" != tmux(|-*) && -z "${TMUX}" ]]; then
+		return
+	fi
 
-  local style
-  if ! zstyle -s ':laney:editor:emacs:cursor' style style; then
-    # Our default style is a steady block.
-    style=2
-  fi
+	local style
+	if ! zstyle -s ':laney:editor:emacs:cursor' style style; then
+		# Our default style is a steady block.
+		style=2
+	fi
 
-  printf '\e[%s q' ${style}
+	printf '\e[%s q' ${style}
 }
 
 # zephyr's editor plugin calls a widget of this name from its zle-line-init
@@ -32,7 +32,7 @@ zle -N update-cursor-style
 
 # Reset the cursor to the default style when the shell exits.
 function cleanup-cursor {
-  printf '\e[0 q'
+	printf '\e[0 q'
 }
 autoload -Uz add-zsh-hook
 
