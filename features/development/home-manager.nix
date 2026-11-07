@@ -33,19 +33,4 @@
 
     zizmor
   ];
-
-  programs.mise = {
-    enable = true;
-    enableZshIntegration = true;
-
-    globalConfig = {
-      settings = {
-        experimental = true;
-
-        idiomatic_version_file_enable_tools = ["go" "node" "python"];
-
-        not_found_auto_install = true;
-      };
-    };
-  };
 }

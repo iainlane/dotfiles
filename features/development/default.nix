@@ -53,6 +53,7 @@ in {
   imports = [
     ./languages.nix
     ./debuginfod
+    ./mise
     ./orbstack
   ];
 
@@ -61,7 +62,7 @@ in {
   dotfiles.features.development = {
     checks = ../../lib/project-directories/check.nix;
     includes =
-      [children.debuginfod]
+      [children.debuginfod children.mise]
       ++ [
         (featureResolver.when featureResolver.isLinux [{homeManager = ./home-manager-linux.nix;}])
         (featureResolver.when featureResolver.isDarwin [children.orbstack])

@@ -73,6 +73,7 @@ in {
           "features/base/zsh/*.zsh"
           "features/base/zsh/functions/*"
           "features/base/zsh/plugins/*.zsh"
+          "features/development/mise/*.zsh"
         ];
       };
     };

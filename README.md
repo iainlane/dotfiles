@@ -195,6 +195,27 @@ cache refresh prepares their environments for the next directory entry.
 `./just update` runs this step after a successful switch and then removes any
 legacy separate shell roots. Standalone refresh preserves those roots.
 
+### Development toolchains
+
+The `development.mise` subfeature is included by default in `development`. It
+uses [mise] for global defaults: Node's current LTS release and the latest
+stable Go and Python releases. Mise checks for updates in the background at
+shell prompts, at most once every 24 hours per tool, and retains its default
+release-age policy. Run `mise upgrade --global` to check immediately. Nix
+manages mise itself from the unstable package set.
+
+Entering a directory installs missing tools requested by `mise.toml`,
+`.tool-versions`, or enabled Go, Node and Python version files such as `.nvmrc`
+and `.python-version`. Trust new project configuration with `mise trust` when
+prompted. Project requests override the global defaults and are not changed by
+automatic updates.
+
+Mise tools take precedence over ordinary Nix profile tools. Explicit direnv
+dev-shell toolchains take precedence over mise; leaving the dev shell restores
+the mise toolchain.
+
+[mise]: https://mise.jdx.dev/
+
 ### Checks
 
 Run `./just fmt` to check and fix formatting errors, `./just check` to run
