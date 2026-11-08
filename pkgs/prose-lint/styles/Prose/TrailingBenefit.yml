@@ -1,9 +1,11 @@
 extends: existence
 message:
-  "The trailing '%s' clause claims a benefit without the mechanism that produces
-  it."
+  "State the mechanism and its result in a separate sentence; '%s' appends an
+  outcome claim."
 level: warning
 nonword: true
 tokens:
-  - ',
-    (?:ensuring|allowing|enabling|making|giving|providing|keeping|improving|guaranteeing)\b'
+  - ',\s+(?:ensuring|guaranteeing|improving|keeping)\b'
+  - ',\s+(?:allowing|enabling)\b(?=[^,.;!?]*\bto\s+[a-z]+\b)'
+  - ',\s+making\b(?=[^,.;!?]*\b(?:consistent|reliable|safe|safer|faster|simpler|easier|efficient|correct|compatible|available|visible|stable|deterministic|readable|maintainable)\b)'
+  - ',\s+(?:giving|providing)\b(?=[^,.;!?]*\b(?:consistency|reliability|safety|performance|efficiency|correctness|compatibility|stability|readability|maintainability)\b)'

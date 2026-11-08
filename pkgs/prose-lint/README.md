@@ -32,9 +32,15 @@ such as the trailer check, apply to the `*.commit` and `*.txt` scope.
 In markup documents and in comments read as Markdown, every rule skips
 identifier-shaped tokens outside code spans: hyphenated names with a capitalised
 later part, such as `SPDX-License-Identifier`, dotted names of lowercase parts,
-such as `kern.argmax`, and long options, such as `--color`. Lua comments are the
-exception, because Vale reads them as plain lines. `vale.ini.in` lists the
-patterns.
+such as `kern.argmax`, long options, such as `--color`, and uppercase underscore
+identifiers, such as `LS_COLORS`. Lua comments are the exception, because Vale
+reads them as plain lines. `vale.ini.in` lists the patterns.
+
+`ServesAs` recognises abbreviation definitions when an uppercase abbreviation
+matches the letters of its following expansion, as in “NAR stands for Nix
+Archive”. Vale masks inline code before sentence-scoped rules run. The rule
+therefore cannot verify a definition whose abbreviation is written as inline
+code, and still reports that case.
 
 The rules that match part-of-speech tags also read a lexicon,
 `styles/config/dictionaries/Lexicon.dict`. Each line gives a word its tags, and

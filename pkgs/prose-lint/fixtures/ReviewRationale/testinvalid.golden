@@ -1,1 +1,3 @@
-testinvalid.nix:1:3:Prose.ReviewRationale:'Previously' explains the change, which belongs in the commit message.
+testinvalid.nix:1:3:Prose.ReviewRationale:Remove patch history from the comment. Describe the current constraint and put the reason for the change in the commit message.
+testinvalid.nix:2:3:Prose.ReviewRationale:Remove patch history from the comment. Describe the current constraint and put the reason for the change in the commit message.
+testinvalid.nix:3:6:Prose.ReviewRationale:Remove patch history from the comment. Describe the current constraint and put the reason for the change in the commit message.

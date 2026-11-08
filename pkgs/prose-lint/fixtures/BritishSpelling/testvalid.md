@@ -11,3 +11,5 @@ Projects that license their code under the GPL are fine.
 You can license files with REUSE, and license text under CC0.
 
 See the LICENSE file.
+
+The service catalogued the files before cataloguing the directories.

@@ -1,15 +1,11 @@
 extends: existence
 message:
-  "'%s' recounts the order of the investigation; the message needs the
-  conclusion it reached."
+  "Replace the investigation sequence with the conclusion: explain the cause and
+  why the resulting change addresses it."
 level: warning
 nonword: true
+ignorecase: true
 tokens:
-  - '\bFirst I\b'
-  - '\bI then\b'
-  - '\bThen I\b'
-  - '\bInitially\b'
-  - '\bOriginally\b'
-  - '\bAfter that\b'
-  - '\bAt first\b'
-  - '\bI tried\b'
+  - '\b(?:first|then)\s+(?:I|we)\b'
+  - '\b(?:I|we)\s+(?:then|tried)\b'
+  - '\b(?:initially|originally|after that|at first),?\s+(?:I|we)\b'

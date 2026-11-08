@@ -1,1 +1,6 @@
-testinvalid.md:1:38:Prose.TrailingBenefit:The trailing ', ensuring' clause claims a benefit without the mechanism that produces it.
+testinvalid.md:1:38:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', ensuring' appends an outcome claim.
+testinvalid.md:3:17:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', making' appends an outcome claim.
+testinvalid.md:5:17:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', keeping' appends an outcome claim.
+testinvalid.md:7:17:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', allowing' appends an outcome claim.
+testinvalid.md:9:27:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', keeping' appends an outcome claim.
+testinvalid.md:11:20:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', keeping' appends an outcome claim.

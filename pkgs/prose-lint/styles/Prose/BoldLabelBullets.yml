@@ -1,8 +1,7 @@
 extends: existence
-message:
-  "A bold label on a bullet imposes a structure that the content does not have."
+message: "Remove the bold lead-in and begin the bullet with its statement."
 level: warning
 scope: raw
 nonword: true
 tokens:
-  - '(?m)^[ \t]*[-*] \*\*[^*]+:?\*\*'
+  - '(?m)^[ \t]*[-*] \*\*[^*]+?(?::\*\*|\*\*:)(?=\s+\S)'

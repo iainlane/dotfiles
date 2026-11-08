@@ -1,3 +1,7 @@
 fix(db): index foo by quux
 
 First I tried a partial index.
+
+Initially, I tried a partial index.
+
+After that, we tested a full index.

@@ -1,1 +1,5 @@
-testinvalid.md:1:13:Prose.ServesAs:'is' states the fact; 'serves as' adds no information.
+testinvalid.md:1:13:Prose.ServesAs:Replace 'serves as' with 'is' for identity, or state the subject's concrete role or behaviour.
+testinvalid.md:3:13:Prose.ServesAs:Replace 'stands in for' with 'substitutes for' to describe replacement.
+testinvalid.md:5:13:Prose.ServesAs:Replace 'stands for' with a verb that states what the subject represents or does.
+testinvalid.md:7:5:Prose.ServesAs:Replace 'stands for' with a verb that states what the subject represents or does.
+testinvalid.md:9:11:Prose.ServesAs:Use 'has' to state possession directly; preserve the original quantity or determiner.

@@ -1,0 +1,93 @@
+text := import("text")
+
+abbreviation_definition := func(begin, end) {
+    subject := text.re_find("\\b([A-Z]{2,10})`?\\s+$", scope[:begin], 1)
+    if subject == undefined {
+        return false
+    }
+
+    abbreviation := text.to_lower(subject[0][1].text)
+    expansion := scope[end:]
+    boundary := text.re_find("[.!?;,:]", expansion, 1)
+    if boundary != undefined {
+        expansion = expansion[:boundary[0][0].begin]
+    }
+
+    words := text.re_find("[A-Za-z]+", expansion, len(abbreviation) * 2)
+    if words == undefined {
+        return false
+    }
+
+    states := [0]
+    for index := 0; index < len(abbreviation); index++ {
+        states = append(states, -1)
+    }
+
+    for word_match in words {
+        word := text.to_lower(word_match[0].text)
+        connector := text.re_match("^(of|and|the|for|to|in|on)$", word)
+        next := []
+        for index := 0; index <= len(abbreviation); index++ {
+            next = append(next, -1)
+        }
+
+        for position, word_count in states {
+            if word_count < 0 {
+                continue
+            }
+            if connector && word_count > next[position] {
+                next[position] = word_count
+            }
+            if position == len(abbreviation) || word[0] != abbreviation[position] {
+                continue
+            }
+
+            matched := position + 1
+            if word_count + 1 > next[matched] {
+                next[matched] = word_count + 1
+            }
+            for index := 1; index < len(word) && matched < len(abbreviation); index++ {
+                if word[index] == abbreviation[matched] {
+                    matched++
+                    if word_count + 1 > next[matched] {
+                        next[matched] = word_count + 1
+                    }
+                }
+            }
+        }
+
+        if next[len(abbreviation)] >= 2 {
+            return true
+        }
+        states = next
+    }
+
+    return false
+}
+
+matches := []
+candidates := text.re_find("(?i)\\b(?:serves as|acts as|stands as|stands in for|stands for|boasts|features (?:an?|the|its|their|our|two|three|several|many))\\b", scope, -1)
+if candidates != undefined {
+    for candidate in candidates {
+        observed := candidate[0]
+        phrase := text.to_lower(observed.text)
+        if phrase == "stands for" && abbreviation_definition(observed.begin, observed.end) {
+            continue
+        }
+
+        message := "Replace '%s' with 'is' for identity, or state the subject's concrete role or behaviour."
+        if phrase == "stands in for" {
+            message = "Replace '%s' with 'substitutes for' to describe replacement."
+        } else if phrase == "stands for" {
+            message = "Replace '%s' with a verb that states what the subject represents or does."
+        } else if phrase == "boasts" || text.has_prefix(phrase, "features ") {
+            message = "Use 'has' to state possession directly; preserve the original quantity or determiner."
+        }
+
+        matches = append(matches, {
+            begin: observed.begin,
+            end: observed.end,
+            message: message
+        })
+    }
+}

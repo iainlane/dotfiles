@@ -1,1 +1,2 @@
-testinvalid.md:1:11:Prose.WarningVerbs:'holds' is a general verb; the relationship has its own word: contains, keeps, includes, lists, specifies, decides, is.
+testinvalid.md:1:11:Prose.WarningVerbs:Replace 'holds' with the verb for the actual relationship: 'contains' for data, 'specifies' for configuration, or 'owns' for a lock.
+testinvalid.md:3:12:Prose.WarningVerbs:Replace 'holds' with the verb for the actual relationship: 'contains' for data, 'specifies' for configuration, or 'owns' for a lock.

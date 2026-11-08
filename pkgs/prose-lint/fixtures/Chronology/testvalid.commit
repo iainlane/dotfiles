@@ -1,3 +1,9 @@
 fix(db): index foo by quux
 
 A partial index does not cover the sort.
+
+Initially the queue is empty.
+
+Originally supplied filenames are kept.
+
+After that, the worker drains the queue.

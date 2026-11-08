@@ -10,3 +10,5 @@ X-Color-Depth: 24
 
 The Content-Type header and the ui.color setting and the --color flag are
 identifiers. The color is wrong.
+
+The service cataloged the files before cataloging the directories.

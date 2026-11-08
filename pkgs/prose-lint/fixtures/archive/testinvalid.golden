@@ -1,11 +1,11 @@
 testinvalid.md:1:32:Prose.ZeroRelative:This noun phrase has a clause squeezed inside it, so the relationship between the two nouns is left for the reader to reconstruct. State the relationship as a plain clause, a prepositional phrase or its own sentence.
 testinvalid.md:3:23:Prose.ZeroRelative:This noun phrase has a clause squeezed inside it, so the relationship between the two nouns is left for the reader to reconstruct. State the relationship as a plain clause, a prepositional phrase or its own sentence.
-testinvalid.md:5:11:Prose.WarningVerbs:'holds' is a general verb; the relationship has its own word: contains, keeps, includes, lists, specifies, decides, is.
+testinvalid.md:5:11:Prose.WarningVerbs:Replace 'holds' with the verb for the actual relationship: 'contains' for data, 'specifies' for configuration, or 'owns' for a lock.
 testinvalid.md:7:21:Prose.AbstractAbsence:'nothing to reformat' describes an exception as an abstract absence; say what happens instead.
 testinvalid.md:9:26:Prose.ArrowChain:'host -> features' compresses a relationship into an arrow; write it as a sentence.
 testinvalid.md:11:25:Prose.InventedAlternative:'rather than' introduces an alternative. Does the reader need this comparison? If the explanation is complete without it, state the behaviour directly.
-testinvalid.md:13:38:Prose.TrailingBenefit:The trailing ', ensuring' clause claims a benefit without the mechanism that produces it.
-testinvalid.md:15:1:Prose.WarningVerbGerunds:'Naming' is a general verb; the relationship has its own word: contains, keeps, includes, lists, specifies, decides, is.
+testinvalid.md:13:38:Prose.TrailingBenefit:State the mechanism and its result in a separate sentence; ', ensuring' appends an outcome claim.
+testinvalid.md:15:1:Prose.WarningVerbGerunds:Replace 'Naming' with the verb for the actual relationship: 'contains' for data, 'specifies' for configuration, or 'owns' for a lock.
 testinvalid.md:15:19:Prose.InventedAlternative:'rather than' introduces an alternative. Does the reader need this comparison? If the explanation is complete without it, state the behaviour directly.
 testinvalid.md:16:1:Prose.WarningVerbPhrases:'is used by both' is more specific than 'serve both'.
 testinvalid.md:18:31:Prose.ZeroRelativePossessive:A noun followed by a possessive subject and a verb reads as a clause squeezed into a noun phrase. State the relationship as a plain clause, a prepositional phrase or its own sentence.

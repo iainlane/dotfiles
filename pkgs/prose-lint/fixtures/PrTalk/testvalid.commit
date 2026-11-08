@@ -1,3 +1,7 @@
 fix(db): index foo by quux
 
 The upcoming change uses the full index.
+
+Pull requests with unverified signatures are rejected.
+
+The server requests a PR review before merging.

@@ -1,1 +1,3 @@
 testinvalid.md:1:11:Prose.AmericanSpelling:American English writes 'colors' where 'colours' is the British spelling.
+testinvalid.md:3:13:Prose.AmericanSpelling:American English writes 'cataloged' where 'catalogued' is the British spelling.
+testinvalid.md:3:41:Prose.AmericanSpelling:American English writes 'cataloging' where 'cataloguing' is the British spelling.

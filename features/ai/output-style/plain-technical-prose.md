@@ -44,9 +44,10 @@ them; where an explanation reads like a softening, the rule wins.
 3. No arrow chains (`a -> b -> c`) in prose. State the relationship in words.
 4. In comments, commit messages and documentation, do not use `hold`, `carry`,
    `name`, `settle`, `sit`, `land on`, `reach for`, `survive as`, `serve as`,
-   `act as`, `stand as`, `stand for` or `stand in for`. Use the verb for the
-   actual relationship: contains, keeps, includes, lists, specifies, decides,
-   is, goes to, uses, remains, has.
+   `act as`, `stand as` or `stand in for`. Use the verb for the actual
+   relationship: contains, keeps, includes, lists, specifies, decides, is, goes
+   to, uses, remains, has. Use `stands for` only to define an abbreviation, as
+   in `NAR stands for Nix Archive`.
 5. Do not describe an exception through an abstract absence (`says nothing`,
    `names nothing`, `nothing to read`). State what happens.
 6. State what happens directly. Use `X rather than Y`, `instead of Y` or
@@ -183,8 +184,8 @@ request. A test can therefore tell a request that crossed the wire from
 a response served from Nix's own cache.
 ```
 
-The verbs in hard rule 4 do not appear in prose written into the repository. In
-conversation, use them only in their literal senses.
+Avoid the prohibited verb uses in hard rule 4 in repository prose. In
+conversation, use those verbs only in their literal senses.
 
 The fault is a general verb used where the relationship has its own word: a
 build produces an output, a URI refers to a store, and a setting specifies a

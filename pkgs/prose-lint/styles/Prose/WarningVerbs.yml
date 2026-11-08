@@ -1,8 +1,8 @@
 extends: sequence
 model: Lexicon
 message:
-  "'%s' is a general verb; the relationship has its own word: contains, keeps,
-  includes, lists, specifies, decides, is."
+  "Replace '%s' with the verb for the actual relationship: 'contains' for data,
+  'specifies' for configuration, or 'owns' for a lock."
 level: warning
 ignorecase: true
 tokens:

@@ -1,1 +1,3 @@
-testinvalid.commit:3:1:Prose.Chronology:'First I' recounts the order of the investigation; the message needs the conclusion it reached.
+testinvalid.commit:3:1:Prose.Chronology:Replace the investigation sequence with the conclusion: explain the cause and why the resulting change addresses it.
+testinvalid.commit:5:1:Prose.Chronology:Replace the investigation sequence with the conclusion: explain the cause and why the resulting change addresses it.
+testinvalid.commit:7:1:Prose.Chronology:Replace the investigation sequence with the conclusion: explain the cause and why the resulting change addresses it.

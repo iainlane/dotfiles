@@ -6,7 +6,7 @@
 [scopes]
 all = "*"
 commit = "*.{commit,txt}"
-code = "*.{bash,c,cc,cfg,conf,cpp,cs,go,h,hpp,ini,java,js,jsx,lua,nix,php,pl,py,r,rb,rs,scala,sh,swift,toml,ts,tsx,yaml,yml}"
+code = "*.{bash,c,cc,cfg,conf,cpp,cs,go,h,hpp,ini,java,js,jsx,lua,nix,php,pl,py,r,rb,rs,scala,sh,swift,toml,ts,tsx,yaml,yml,zsh}"
 markdown = "*.md"
 
 [rules.ArrowChain]

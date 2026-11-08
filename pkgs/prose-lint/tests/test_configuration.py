@@ -4,7 +4,13 @@ import pytest
 
 from prose_lint.configuration import render_configuration
 from prose_lint.levels import Level
-from prose_lint.rules import Rule, RuleCatalogue, Scope, Tier
+from prose_lint.rules import (
+    EXTRACTED_COMMENT_SUFFIXES,
+    Rule,
+    RuleCatalogue,
+    Scope,
+    Tier,
+)
 
 CATALOGUE = RuleCatalogue(
     scopes={
@@ -119,6 +125,16 @@ def test_the_lintable_suffixes_come_from_the_scope_globs() -> None:
 )
 def test_lintable_is_decided_by_suffix(path: Path, expected: bool) -> None:
     assert CATALOGUE.lintable(path) is expected
+
+
+def test_zsh_files_are_lintable_and_use_comment_extraction() -> None:
+    source = Path(__file__).resolve().parent.parent
+    catalogue = RuleCatalogue.load(source / "tiers.toml")
+
+    assert (
+        catalogue.lintable(Path("script.zsh")),
+        ".zsh" in EXTRACTED_COMMENT_SUFFIXES,
+    ) == (True, True)
 
 
 def test_identifier_patterns_cover_the_markup_and_the_code_read_as_markdown() -> None:

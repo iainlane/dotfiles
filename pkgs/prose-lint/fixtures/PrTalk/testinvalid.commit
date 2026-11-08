@@ -1,3 +1,7 @@
 fix(db): index foo by quux
 
 The pull request discussion chose the full index.
+
+This PR adds the full index.
+
+During review, I found the missing index.

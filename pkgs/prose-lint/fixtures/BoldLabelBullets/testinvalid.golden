@@ -1,1 +1,2 @@
-testinvalid.md:1:1:Prose.BoldLabelBullets:A bold label on a bullet imposes a structure that the content does not have.
+testinvalid.md:1:1:Prose.BoldLabelBullets:Remove the bold lead-in and begin the bullet with its statement.
+testinvalid.md:3:1:Prose.BoldLabelBullets:Remove the bold lead-in and begin the bullet with its statement.

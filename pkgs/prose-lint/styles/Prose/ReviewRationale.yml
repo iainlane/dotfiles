@@ -1,7 +1,11 @@
 extends: existence
-message: "'%s' explains the change, which belongs in the commit message."
+message:
+  "Remove patch history from the comment. Describe the current constraint and
+  put the reason for the change in the commit message."
 level: error
 nonword: true
+ignorecase: true
 tokens:
-  - '\b(?:Previously|Used to|This fix|This fixes|Before this change|Was
-    broken)\b'
+  - '\bPreviously\b(?=,?\s+(?:the|a|an|this|that|these|those|it|we|they|he|she)\b)'
+  - '(?<=\b(?:it|we|they|this|that)\s)used to\b'
+  - '\b(?:This fix|This fixes|Before this change|Was broken)\b'

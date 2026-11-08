@@ -34,7 +34,7 @@ _MARKUP_SUFFIXES = frozenset({".adoc", ".markdown", ".org", ".rst"})
 # Formats whose comments prose-lint extracts itself. Vale has no parser for
 # them, and its Perl fallback does not run the part-of-speech rules.
 HASH_COMMENT_SUFFIXES = frozenset(
-    {".bash", ".cfg", ".conf", ".ini", ".nix", ".sh", ".toml", ".yaml", ".yml"}
+    {".bash", ".cfg", ".conf", ".ini", ".nix", ".sh", ".toml", ".yaml", ".yml", ".zsh"}
 )
 EXTRACTED_COMMENT_SUFFIXES = HASH_COMMENT_SUFFIXES | frozenset({".php"})
 

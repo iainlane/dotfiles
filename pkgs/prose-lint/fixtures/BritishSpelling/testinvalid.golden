@@ -2,3 +2,5 @@ testinvalid.md:1:11:Prose.BritishSpelling:British English writes 'colours' where
 testinvalid.md:3:7:Prose.BritishSpelling:British English writes 'licence' where 'license' is the American spelling.
 testinvalid.md:5:5:Prose.BritishSpelling:British English writes 'colour' where 'color' is the American spelling.
 testinvalid.md:12:18:Prose.BritishSpelling:British English writes 'colour' where 'color' is the American spelling.
+testinvalid.md:14:13:Prose.BritishSpelling:British English writes 'catalogued' where 'cataloged' is the American spelling.
+testinvalid.md:14:40:Prose.BritishSpelling:British English writes 'cataloguing' where 'cataloging' is the American spelling.

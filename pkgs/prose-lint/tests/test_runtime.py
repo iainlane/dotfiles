@@ -339,12 +339,13 @@ def test_the_commit_rules_are_off_outside_a_commit_message(runtime: Runtime) -> 
     ]
 
 
+@pytest.mark.parametrize("suffix", [".sh", ".bash", ".zsh"])
 def test_hash_comment_files_are_mirrored_as_markdown_for_one_run(
-    tmp_path: Path,
+    tmp_path: Path, suffix: str
 ) -> None:
     module = tmp_path / "module.nix"
     module.write_text("# A comment.\nx = 1;\n")
-    script = tmp_path / "build.sh"
+    script = tmp_path / f"build{suffix}"
     script.write_text("# Another comment.\n")
     readme = tmp_path / "README.md"
     readme.write_text("Prose.\n")

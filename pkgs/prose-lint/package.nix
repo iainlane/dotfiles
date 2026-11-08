@@ -226,6 +226,20 @@
         exit 1
       fi
 
+      printf '%s\n' '# Every option this repository declares is listed.' >dirty.zsh
+      if prose-lint check dirty.zsh >zsh.txt; then
+        echo "an object-relative clause in a Zsh comment passed" >&2
+        exit 1
+      fi
+      grep --fixed-strings --quiet 'dirty.zsh:1:' zsh.txt
+      grep --fixed-strings --quiet 'Prose.ZeroRelative' zsh.txt
+
+      printf '%s\n' \
+        '# The colour setting comes from LS_COLORS.' \
+        'print -r -- "A string — which is code."' \
+        >clean.zsh
+      prose-lint check clean.zsh
+
       printf '%s\n' '-- A comment with nothing to report.' 'local x = 1' >clean.lua
       prose-lint check clean.lua
 
