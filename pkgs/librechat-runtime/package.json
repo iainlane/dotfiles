@@ -1,13 +1,16 @@
 {
-  "name": "@dotfiles/librechat-runtime",
+  "name": "@dotfiles/librechat-workspace",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.34.7",
   "scripts": {
+    "prepare:code-bridge": "node scripts/prepare-code-bridge.ts",
+    "build": "pnpm -r build",
     "test": "vitest run",
-    "typecheck": "node ../../lib/typecheck.ts --noEmit",
-    "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present typecheck",
+    "lint": "oxlint packages scripts vitest.config.ts",
+    "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
@@ -15,12 +18,5 @@
     "oxlint-tsgolint": "^7.0.2004",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  },
-  "dependencies": {
-    "@grpc/grpc-js": "1.14.6",
-    "@grpc/proto-loader": "0.8.1",
-    "http-status-codes": "2.3.0",
-    "mongodb": "7.1.0",
-    "zod": "4.6.7"
   }
 }

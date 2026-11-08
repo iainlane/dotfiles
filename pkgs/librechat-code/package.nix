@@ -39,12 +39,14 @@ bun2nix.mkDerivation {
       bun build "src/$entry.ts" --outdir .build --target bun --packages external
     done
 
-    cat > bridge-entry.ts <<'EOF'
-    export { BridgeWorker } from '../packages/code/src/worker.ts';
-    export { verifyExecutionManifestWithPublicKey, executionManifestBodySha256 } from './src/execution-manifest.ts';
-    EOF
+    cp ${./bridge-entry.mts} bridge-entry.mts
+    cp ${./bridge-tsconfig.json} bridge-tsconfig.json
+    bun build bridge-entry.mts --outfile .build/bridge/bridge-worker.mjs --target node --format esm
+    ${lib.getExe nodejs_24} node_modules/typescript/bin/tsc -p bridge-tsconfig.json
 
-    bun build bridge-entry.ts --outfile .build/bridge-worker.mjs --target node --format esm
+    cp -R .build/bridge-types .build/bridge/types
+    cp ../packages/code/package.json .build/bridge/types/packages/code/package.json
+    cp package.json .build/bridge/types/service/package.json
 
     runHook postBuild
   '';

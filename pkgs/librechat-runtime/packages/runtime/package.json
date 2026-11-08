@@ -1,0 +1,86 @@
+{
+  "name": "@dotfiles/librechat-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "imports": {
+    "#runtime/*": "./dist/*.js"
+  },
+  "exports": {
+    "./manifest": {
+      "types": "./dist/host/manifest.d.ts",
+      "import": "./dist/host/manifest.js"
+    },
+    "./archive": {
+      "types": "./dist/archive/archive.d.ts",
+      "import": "./dist/archive/archive.js"
+    },
+    "./processes": {
+      "types": "./dist/platform/processes.d.ts",
+      "import": "./dist/platform/processes.js"
+    },
+    "./startup": {
+      "types": "./dist/host/startup.d.ts",
+      "import": "./dist/host/startup.js"
+    },
+    "./config": {
+      "types": "./dist/host/config.d.ts",
+      "import": "./dist/host/config.js"
+    },
+    "./guest": {
+      "types": "./dist/guest/guest.d.ts",
+      "import": "./dist/guest/guest.js"
+    },
+    "./native-bootstrap": {
+      "types": "./dist/accounts/native-bootstrap.d.ts",
+      "import": "./dist/accounts/native-bootstrap.js"
+    },
+    "./host-stack": {
+      "types": "./dist/host/host-stack.d.ts",
+      "import": "./dist/host/host-stack.js"
+    },
+    "./qemu": {
+      "types": "./dist/vm/qemu.d.ts",
+      "import": "./dist/vm/qemu.js"
+    },
+    "./vm-backend": {
+      "types": "./dist/vm/vm-backend.d.ts",
+      "import": "./dist/vm/vm-backend.js"
+    },
+    "./vm-files": {
+      "types": "./dist/vm/vm-files.d.ts",
+      "import": "./dist/vm/vm-files.js"
+    },
+    "./http-socket": {
+      "types": "./dist/http/http-socket.d.ts",
+      "import": "./dist/http/http-socket.js"
+    },
+    "./vm-monitor": {
+      "types": "./dist/vm/vm-monitor.d.ts",
+      "import": "./dist/vm/vm-monitor.js"
+    },
+    "./file-server": {
+      "types": "./dist/host/file-server.d.ts",
+      "import": "./dist/host/file-server.js"
+    },
+    "./sessions": {
+      "types": "./dist/sessions/sessions.d.ts",
+      "import": "./dist/sessions/sessions.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@dotfiles/librechat-code-bridge": "workspace:*",
+    "@grpc/grpc-js": "1.14.6",
+    "@grpc/proto-loader": "0.8.1",
+    "http-status-codes": "2.3.0",
+    "mongodb": "7.1.0",
+    "zod": "catalog:"
+  }
+}

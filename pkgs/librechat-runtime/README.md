@@ -1,36 +1,47 @@
 # LibreChat runtime
 
-This private Node.js 24 ESM package manages the native LibreChat services,
-conversation workspaces and CodeAPI integration. Production TypeScript is in
-`src/`; unit, integration and provider contract tests are in `test/`.
+Run LibreChat locally with persistent, isolated workspaces for conversations.
+The [LibreChat feature] configures the application, its supporting services,
+providers and tools.
 
-The Nix package runs TypeScript directly with Node's type stripping. It installs
-production sources and dependencies, and adds the bundled CodeAPI bridge beside
-its declaration file. The LibreChat bootstrap adapter loads CommonJS modules
-relative to the installed LibreChat package and validates their exports at
-runtime.
+[LibreChat feature]: ../../features/inference/librechat/README.md
 
-From the repository root, enter the package's development environment:
+## Create your account
+
+After activating your dotfiles configuration, put your password in a private
+text file and run:
 
 ```sh
-direnv exec . nix develop .#librechat-runtime
-cd pkgs/librechat-runtime
-npm ci --ignore-scripts --offline --no-audit --no-fund
-npm run check
+chmod 600 ./password
+librechatctl bootstrap \
+  --email you@example.com \
+  --name "Your Name" \
+  --password-file ./password
 ```
 
-`npm run check` runs the compiler, type-aware lint and Vitest. The development
-environment supplies `LIBRECHAT_TEST_ROOT`, so the contract tests use the pinned
-LibreChat configuration schema, model loader and validator. The tests use
-fixture credentials and make no external provider calls.
+Open <http://127.0.0.1:3080> and sign in. Delete the password file after
+bootstrap succeeds.
 
-The `librechat-startup` flake check additionally starts the generated service,
-bootstraps an administrator and a personal agent with a whole-server MCP
-selection, checks bootstrap idempotence and streamed output, and exercises
-nonblocking authentication with loopback model, OAuth and MCP fixtures. It logs
-in, restarts the service and logs in again. It also restores a stored
-Meilisearch 1.55.0 database fixture and verifies migration, document retention,
-pre-upgrade backup retention and a subsequent restart. No older engine is
-required to run the check. Darwin runs in the Nix sandbox; Linux runs inside a
-NixOS VM. That check isolates external providers, MCPs, skills, retrieval,
-workspace hooks and conversation VM execution.
+Bootstrap creates your administrator account and personal agents. Running it
+again updates your display name and repairs agent permissions without changing
+your password or existing agent settings.
+
+## Reset a conversation workspace
+
+A reset permanently deletes the conversation's workspace files, including
+unpushed work. Finish active calls before running:
+
+```sh
+librechatctl reset --conversation CONVERSATION_UUID
+```
+
+The next workspace operation creates a fresh workspace.
+
+## Configuration and support
+
+See the [LibreChat feature] for provider configuration, tools, workspace
+retention, logs and backups.
+
+To build, test or change this package, see [Development].
+
+[Development]: docs/development.md

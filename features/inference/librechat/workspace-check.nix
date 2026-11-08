@@ -58,9 +58,8 @@
       export HOME="$TMPDIR/home"
       mkdir -p "$HOME"
       mkdir -p runtime/test/fixtures
-      cp ${../../../pkgs/librechat-runtime/test/fixtures/workspace.ts} runtime/test/fixtures/workspace.ts
-      cp ${../../../pkgs/librechat-runtime/test/fixtures/accelerator.ts} runtime/test/fixtures/accelerator.ts
-      ln -s ${pkgs.librechat-runtime}/lib/librechat-runtime/src runtime/src
+      cp ${../../../pkgs/librechat-runtime/packages/runtime/test/vm/fixtures/workspace.ts} runtime/test/fixtures/workspace.ts
+      cp ${../../../pkgs/librechat-runtime/packages/runtime/test/vm/fixtures/accelerator.ts} runtime/test/fixtures/accelerator.ts
       ln -s ${pkgs.librechat-runtime}/lib/librechat-runtime/node_modules runtime/node_modules
       cp ${pkgs.librechat-runtime}/lib/librechat-runtime/package.json runtime/package.json
       ${lib.getExe pkgs.nodejs_24} --disable-wasm-trap-handler runtime/test/fixtures/workspace.ts ${configuration}

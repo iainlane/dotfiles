@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+catalog:
+  zod: 4.6.7
+injectWorkspacePackages: true
+managePackageManagerVersions: false
+syncInjectedDepsAfterScripts:
+  - build

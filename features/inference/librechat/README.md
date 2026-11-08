@@ -60,12 +60,12 @@ skills. Ordinary chats use the [general assistant prompt], independently of the
 agent instructions and tool and skill selections.
 
 New ordinary chats switch on the tools listed by `configureInterface` in
-`pkgs/librechat-runtime/src/config.ts`. A tool switched off in the composer of a
-new chat stays off in that browser's later new chats. New ordinary chats also
-select the configured MCP servers that the chat picker permits. Stored server
-selections, including an empty selection, take precedence. MCP tools use
-deferred discovery, and a server awaiting authentication does not block the
-reply.
+`pkgs/librechat-runtime/packages/runtime/src/host/config.ts`. A tool switched
+off in the composer of a new chat stays off in that browser's later new chats.
+New ordinary chats also select the configured MCP servers that the chat picker
+permits. Stored server selections, including an empty selection, take
+precedence. MCP tools use deferred discovery, and a server awaiting
+authentication does not block the reply.
 
 [general assistant prompt]: chat-prompt.md
 
