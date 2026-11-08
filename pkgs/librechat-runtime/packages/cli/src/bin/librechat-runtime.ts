@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { main, logError } from "#cli/application/runtime";
 
 try {

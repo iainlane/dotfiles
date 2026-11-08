@@ -522,11 +522,23 @@ def verify_bootstrap_name_validation(
         result = subprocess.run(
             command, env=environment, capture_output=True, check=False
         )
+        expected_error = (
+            "Error: Non-interactive bootstrap requires --name.\n"
+            "For a new account, also provide --password-file. Run in a terminal to enter these values interactively.\n"
+            if name is None
+            else "Error: Invalid arguments. Use --name with a display name of 3 to 80 characters. Run librechat-runtime bootstrap --help for usage.\n"
+        )
         assert {
-            "failed": result.returncode != 0,
-            "name_error": b'"name"' in result.stderr,
+            "status": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr.decode(),
             "state_created": invalid_state.exists(),
-        } == {"failed": True, "name_error": True, "state_created": False}
+        } == {
+            "status": 2,
+            "stdout": b"",
+            "stderr": expected_error,
+            "state_created": False,
+        }
 
 
 def verify_agent_selection(

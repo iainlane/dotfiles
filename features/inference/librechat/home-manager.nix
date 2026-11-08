@@ -178,7 +178,8 @@
   };
 
   control = native.writeShellScriptBin "librechatctl" ''
-    exec ${lib.getExe native.librechat-runtime} "$1" ${manifest} "''${@:2}"
+    export LIBRECHAT_INTERNAL_MANIFEST=${manifest}
+    exec ${lib.getExe' native.librechat-runtime "librechatctl"} "$@"
   '';
 
   service = native.writeShellScript "librechat-service" ''

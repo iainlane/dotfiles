@@ -1,315 +1,62 @@
 import { readFile } from "node:fs/promises";
-import { userInfo } from "node:os";
-import { setTimeout as delay } from "node:timers/promises";
-import { Readable } from "node:stream";
-import { parseArgs } from "node:util";
-import { z } from "zod";
-import { hostManifestSchema } from "@dotfiles/librechat-runtime/manifest";
-import { archiveArguments } from "@dotfiles/librechat-runtime/archive";
-import {
-  CommandExecutionError,
-  NodeProcessRunner,
-} from "@dotfiles/librechat-runtime/processes";
-import { waitForSecrets } from "@dotfiles/librechat-runtime/startup";
-import { readCredential } from "@dotfiles/librechat-runtime/config";
+import { OperationalError, UsageError } from "#cli/application/errors";
+import { runCommand } from "#cli/application/dispatch";
+import { interactiveMode } from "#cli/application/inputs";
+import { openDeployment } from "#cli/adapters/deployment";
+import { NativeRuntimeServices } from "#cli/adapters/services";
+import type { EntryPoint } from "#cli/definitions/commands";
 import { exitAfterFlushing } from "#cli/presentation/output";
-
-export class RuntimeCommandError extends Error {
-  constructor() {
-    super(
-      "Use librechat-runtime serve <manifest>, bootstrap <manifest> --email <email> --name <name> --password-file <file>, reset <manifest> --conversation <UUID>, guest <specification>, archive session <query>, or hook <configuration>",
-    );
-
-    this.name = "RuntimeCommandError";
-  }
-}
-
-export class WorkspaceResetError extends Error {
-  constructor() {
-    super(
-      "The controller refused the workspace reset; finish active calls and check the conversation ID",
-    );
-
-    this.name = "WorkspaceResetError";
-  }
-}
-
-export class ArchiveQueryError extends Error {
-  constructor() {
-    super("The read-only AgentsView archive query failed");
-
-    this.name = "ArchiveQueryError";
-  }
-}
-
-export class ConversationHookError extends Error {
-  constructor() {
-    super(
-      "The conversation controller could not prepare the workspace reminder",
-    );
-
-    this.name = "ConversationHookError";
-  }
-}
-
-async function jsonFile(file: string): Promise<unknown> {
-  return JSON.parse(await readFile(file, "utf8"));
-}
+import { TerminalPresentation } from "#cli/presentation/terminal";
 
 export function logError(error: unknown): void {
-  if (error instanceof Error) {
-    process.stderr.write(`${error.name}: ${error.message}\n`);
-
-    return;
-  }
-
-  process.stderr.write("Unknown runtime failure\n");
+  const message =
+    error instanceof OperationalError || error instanceof UsageError
+      ? error.message
+      : "LibreChat command failed. Check the service logs.";
+  process.stderr.write(`Error: ${message}\n`);
 }
 
-export async function main(args: string[]): Promise<void> {
-  const [command, file] = args;
+function writeOutput(text: string): void {
+  process.stdout.write(text);
+}
 
-  if (
-    (command === "serve" || command === "bootstrap" || command === "reset") &&
-    file !== undefined
-  ) {
-    const manifest = hostManifestSchema.parse(await jsonFile(file));
+export async function main(
+  args: string[],
+  entry: EntryPoint = "runtime",
+): Promise<void> {
+  const files = {
+    readText: async (file: string): Promise<string> =>
+      await readFile(file, "utf8"),
+  };
+  const presentation = new TerminalPresentation({
+    input: process.stdin,
+    output: process.stderr,
+    interactive: interactiveMode({
+      stdinTTY: process.stdin.isTTY,
+      stderrTTY: process.stderr.isTTY,
+      ci: process.env.CI,
+    }),
+  });
+  const services = new NativeRuntimeServices({
+    files,
+    http: globalThis.fetch,
+    input: process.stdin,
+    brokerToken: process.env.AGENTSVIEW_BROKER_TOKEN,
+    writeOutput,
+    reportError: logError,
+  });
+  const result = await runCommand(args, entry, {
+    manifest: process.env.LIBRECHAT_INTERNAL_MANIFEST,
+    files,
+    services,
+    presentation,
+    writeOutput,
+    openDeployment: async (file) =>
+      await openDeployment(file, files, globalThis.fetch),
+  });
 
-    if (command === "reset") {
-      const options = parseArgs({
-        args: args.slice(2),
-        strict: true,
-        options: { conversation: { type: "string" } },
-      });
-
-      const { conversation } = z
-        .object({ conversation: z.uuid() })
-        .parse(options.values);
-
-      const token = await readCredential(
-        `${manifest.stateDirectory}/secrets/controller`,
-        "Generated service",
-      );
-
-      const response = await fetch(
-        `http://127.0.0.1:${manifest.ports.controller}/reset`,
-        {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${token}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ conversationId: conversation }),
-          signal: AbortSignal.timeout(30_000),
-        },
-      );
-
-      await response.body?.cancel();
-
-      if (!response.ok) {
-        throw new WorkspaceResetError();
-      }
-
-      return;
-    }
-
-    if (command === "bootstrap") {
-      const { bootstrapAccount } =
-        await import("@dotfiles/librechat-runtime/native-bootstrap");
-
-      const options = parseArgs({
-        args: args.slice(2),
-        strict: true,
-        options: {
-          email: { type: "string" },
-          "password-file": { type: "string" },
-          name: { type: "string" },
-        },
-      });
-
-      const input = z
-        .object({
-          email: z.email(),
-          "password-file": z.string(),
-          name: z.string(),
-        })
-        .parse(options.values);
-
-      let status = 0;
-
-      try {
-        await bootstrapAccount(manifest, {
-          email: input.email,
-          passwordFile: input["password-file"],
-          name: input.name,
-        });
-
-        process.stdout.write("LibreChat account bootstrap completed.\n");
-      } catch (error) {
-        logError(error);
-
-        status = 1;
-      }
-
-      await exitAfterFlushing(status);
-    }
-
-    const { NativeHostStack } =
-      await import("@dotfiles/librechat-runtime/host-stack");
-
-    const abort = new AbortController();
-
-    const stop = (): void => abort.abort();
-
-    process.once("SIGTERM", stop);
-    process.once("SIGINT", stop);
-
-    const processes = new NodeProcessRunner({
-      HOME: manifest.homeDirectory,
-      PATH: "/usr/bin:/bin",
-    });
-
-    try {
-      if (manifest.sopsProgram !== null) {
-        const job = `gui/${userInfo().uid}/org.nix-community.home.sops-nix`;
-
-        await waitForSecrets(manifest.sopsProgram, {
-          status: async () => {
-            try {
-              return await processes.run({
-                executable: "/bin/launchctl",
-                args: ["print", job],
-              });
-            } catch (error) {
-              if (error instanceof CommandExecutionError) {
-                return "";
-              }
-
-              throw error;
-            }
-          },
-          now: Date.now,
-          pause: () => delay(100, undefined, { signal: abort.signal }),
-        });
-      }
-
-      await new NativeHostStack(manifest, abort.signal, processes).serve();
-    } catch (error) {
-      if (
-        !abort.signal.aborted ||
-        !(error instanceof Error) ||
-        error.name !== "AbortError"
-      ) {
-        throw error;
-      }
-    } finally {
-      process.removeListener("SIGTERM", stop);
-      process.removeListener("SIGINT", stop);
-    }
-
-    return;
+  if (result.forceExit) {
+    await exitAfterFlushing(result.status);
   }
-
-  if (command === "guest" && file !== undefined) {
-    const { guestHttpService, guestSpecificationSchema, NodeGuestOperations } =
-      await import("@dotfiles/librechat-runtime/guest");
-
-    const specification = guestSpecificationSchema.parse(await jsonFile(file));
-
-    const processes = new NodeProcessRunner({
-      PATH: "/run/current-system/sw/bin",
-      HOME: "/root",
-    });
-
-    const operations = new NodeGuestOperations(specification, processes, {
-      fetch: globalThis.fetch,
-      onError: logError,
-    });
-
-    const server = guestHttpService(operations, logError);
-
-    server.on("error", (error) => {
-      logError(error);
-
-      process.exitCode = 1;
-    });
-
-    server.listen(8080, "0.0.0.0");
-
-    return;
-  }
-
-  if (command === "archive") {
-    const query = archiveArguments(args.slice(1));
-
-    const token =
-      process.env.AGENTSVIEW_BROKER_TOKEN ??
-      (await readCredential(
-        "/run/librechat-guest/archive-token",
-        "Generated service",
-      ));
-
-    const response = await fetch("http://10.0.2.102:3194/query", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(query),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!response.ok) {
-      await response.body?.cancel();
-
-      throw new ArchiveQueryError();
-    }
-
-    process.stdout.write(await response.text());
-
-    return;
-  }
-
-  if (command === "hook" && file !== undefined) {
-    const configuration = z
-      .object({ tokenFile: z.string(), baseURL: z.url() })
-      .parse(await jsonFile(file));
-
-    const input: unknown = JSON.parse(
-      await new Response(Readable.toWeb(process.stdin)).text(),
-    );
-
-    const payload = z.object({ session_id: z.uuid() }).parse(input);
-
-    const token = await readCredential(
-      configuration.tokenFile,
-      "Generated service",
-    );
-
-    const response = await fetch(`${configuration.baseURL}/activity`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ conversationId: payload.session_id }),
-      signal: AbortSignal.timeout(180_000),
-    });
-
-    if (!response.ok) {
-      await response.body?.cancel();
-
-      throw new ConversationHookError();
-    }
-
-    const result: unknown = await response.json();
-
-    const reminder = z.object({ additionalContext: z.string() }).parse(result);
-
-    process.stdout.write(`${JSON.stringify(reminder)}\n`);
-
-    return;
-  }
-
-  throw new RuntimeCommandError();
+  process.exitCode = result.status;
 }

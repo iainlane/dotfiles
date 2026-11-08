@@ -36,6 +36,12 @@ export interface StoredAgent {
   tenantId?: string;
 }
 
+export interface BootstrapInput {
+  email: string;
+  name: string;
+  password?: string;
+}
+
 export interface BootstrapOwner {
   userId: string;
   email: string;

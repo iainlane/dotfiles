@@ -9,6 +9,7 @@ import {
   configuredPersonalAgents,
   personalAgentData,
   provisionAgents,
+  type BootstrapInput,
   type BootstrapOwner,
   type StoredAgent,
 } from "#runtime/accounts/bootstrap";
@@ -116,9 +117,52 @@ async function readPreviousAccount(file: string): Promise<unknown> {
   }
 }
 
+export function passwordIssue(
+  root: string,
+  password: string,
+): string | undefined {
+  const require = createRequire(`${root}/package.json`);
+  const validators: unknown = require(
+    join(root, "api", "strategies", "validators"),
+  );
+  const result = z
+    .discriminatedUnion("success", [
+      z.object({ success: z.literal(true) }),
+      z.object({
+        success: z.literal(false),
+        error: z.object({
+          issues: z.array(
+            z.object({
+              code: z.string(),
+              minimum: z.number().optional(),
+              maximum: z.number().optional(),
+            }),
+          ),
+        }),
+      }),
+    ])
+    .parse(
+      invoke(member(validators, "loginSchema"), "safeParse", {
+        email: "policy@example.invalid",
+        password,
+      }),
+    );
+  if (result.success) {
+    return undefined;
+  }
+  const issue = result.error.issues[0];
+  if (issue?.code === "too_small" && issue.minimum !== undefined) {
+    return `Password must contain at least ${issue.minimum} characters.`;
+  }
+  if (issue?.code === "too_big" && issue.maximum !== undefined) {
+    return `Password must contain at most ${issue.maximum} characters.`;
+  }
+  return "Use a non-blank password accepted by LibreChat's password policy.";
+}
+
 export async function bootstrapAccount(
   manifest: HostManifest,
-  input: { email: string; passwordFile: string; name: string },
+  input: BootstrapInput,
 ): Promise<void> {
   const { name: displayName } = z
     .object({ name: z.string().trim().min(3).max(80) })
@@ -228,13 +272,7 @@ export async function bootstrapAccount(
     let rawOwner = await lookup();
 
     if (rawOwner === null) {
-      const password = z
-        .string()
-        .min(1)
-        .max(512)
-        .parse(
-          (await readFile(input.passwordFile, "utf8")).replace(/\r?\n$/u, ""),
-        );
+      const password = z.string().min(1).max(512).parse(input.password);
 
       const auth: unknown = require(
         join(

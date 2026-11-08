@@ -6,6 +6,10 @@
   "files": [
     "dist"
   ],
+  "bin": {
+    "librechat-runtime": "dist/bin/librechat-runtime.js",
+    "librechatctl": "dist/bin/librechatctl.js"
+  },
   "imports": {
     "#cli/*": "./dist/*.js"
   },
@@ -14,6 +18,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.declarations.json"
   },
   "dependencies": {
+    "@bomb.sh/router": "^0.8.0",
+    "@clack/prompts": "^1.8.1",
     "@dotfiles/librechat-runtime": "workspace:*",
     "zod": "catalog:"
   }

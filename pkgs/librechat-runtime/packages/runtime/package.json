@@ -10,6 +10,10 @@
     "#runtime/*": "./dist/*.js"
   },
   "exports": {
+    "./bootstrap": {
+      "types": "./dist/accounts/bootstrap.d.ts",
+      "import": "./dist/accounts/bootstrap.js"
+    },
     "./manifest": {
       "types": "./dist/host/manifest.d.ts",
       "import": "./dist/host/manifest.js"
@@ -33,6 +37,10 @@
     "./guest": {
       "types": "./dist/guest/guest.d.ts",
       "import": "./dist/guest/guest.js"
+    },
+    "./account-inspection": {
+      "types": "./dist/accounts/inspection.d.ts",
+      "import": "./dist/accounts/inspection.js"
     },
     "./native-bootstrap": {
       "types": "./dist/accounts/native-bootstrap.d.ts",

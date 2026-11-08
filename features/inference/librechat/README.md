@@ -7,7 +7,10 @@ the user's private state directory, which defaults to
 `$XDG_DATA_HOME/librechat`.
 
 The service starts the databases first and waits for a personal account. After
-activation, create a password file with mode `0600`, then run:
+activation, run `librechatctl bootstrap` in a terminal to enter your email,
+display name and password. Password entry is masked and repeated for
+verification. For non-interactive bootstrap, create a password file with mode
+`0600`, then run:
 
 ```sh
 librechatctl bootstrap --email you@example.com --name "Your Name" --password-file /private/password
@@ -15,11 +18,19 @@ librechatctl bootstrap --email you@example.com --name "Your Name" --password-fil
 
 Remove the password file afterwards. Bootstrap creates the first administrator
 and a personal agent for each configured provider. Repeating the command repairs
-agent permissions and creates agents for newly enabled providers. The required
-`--name` sets the account's display name on creation and updates it on
-subsequent runs. Names are trimmed and must contain 3 to 80 characters. Existing
-passwords and agent settings are preserved. Restart the service after changing
-provider options, and rerun bootstrap when enabling a new provider.
+agent permissions and creates agents for newly enabled providers. The `--name`
+option sets the account's display name on creation and updates it on subsequent
+runs. Names are trimmed and must contain 3 to 80 characters. Interactive prompts
+start with the bound email and current display name. Existing passwords and
+agent settings are preserved; an existing account never requires password input
+or a password file. Restart the service after changing provider options, and
+rerun bootstrap when enabling a new provider.
+
+Prompts require terminal stdin and stderr, with CI mode off. Non-interactive
+bootstrap requires `--email` and `--name`, plus `--password-file` for a new
+account. All commands accept `--yes` before or after the command. This option
+accepts confirmations only; it does not supply missing inputs or skip password
+verification. Use `librechatctl --help` for commands and examples.
 
 Bootstrap also repairs the legacy `Ollama` provider value to LibreChat's
 canonical `ollama` identifier. The repair preserves the existing agent ID and
@@ -219,6 +230,10 @@ To discard a workspace explicitly, finish active calls and run:
 ```sh
 librechatctl reset --conversation CONVERSATION_UUID
 ```
+
+The reset asks for confirmation, with No selected by default. Omit
+`--conversation` to enter the UUID interactively. For unattended deletion,
+supply both `--conversation CONVERSATION_UUID` and `--yes`.
 
 The reset deletes workspace files, including unpushed work. The next reminder
 reports the new generation. A quarantined workspace requires operator inspection

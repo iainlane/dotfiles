@@ -30,7 +30,7 @@ in
         inherit (finalAttrs) pname version src sourceRoot;
         inherit pnpm;
         fetcherVersion = 3;
-        hash = "sha256-iRij8Gqk+BAk3KxPHT43nD7iT+M+9/+0Rpp+RGKMZzQ=";
+        hash = "sha256-zabQRxZJGitwigu5RX09RN/unbXPk0Ft4tR6qVic8Ps=";
       };
 
       nativeBuildInputs = [nodejs_24 pnpm pnpmConfigHook makeWrapper] ++ lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook];
@@ -72,6 +72,8 @@ in
         find "$out/lib/librechat-runtime" -type d -name .bin -prune -exec rm -r {} +
         makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
           --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/dist/bin/librechat-runtime.js"
+        makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechatctl" \
+          --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/dist/bin/librechatctl.js"
         runHook postInstall
       '';
 

@@ -12,6 +12,7 @@ import {
   type ProviderOptions,
 } from "#runtime/host/config";
 import { CODE_ENVIRONMENT_ID } from "#runtime/platform/identity";
+import { passwordIssue } from "#runtime/accounts/native-bootstrap";
 
 type NativeFunction = (...args: unknown[]) => unknown;
 
@@ -54,6 +55,21 @@ const dataProvider = z
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+it.each([
+  { password: "short", issue: "Password must contain at least 8 characters." },
+  {
+    password: "x".repeat(129),
+    issue: "Password must contain at most 128 characters.",
+  },
+  {
+    password: " ".repeat(8),
+    issue: "Use a non-blank password accepted by LibreChat's password policy.",
+  },
+  { password: " valid password ", issue: undefined },
+])("uses the installed password policy: $issue", ({ password, issue }) => {
+  expect(passwordIssue(root, password)).toBe(issue);
 });
 
 it("preserves the managed chat prompt and default in LibreChat configuration", () => {

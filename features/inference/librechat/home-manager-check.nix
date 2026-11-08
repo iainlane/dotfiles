@@ -63,6 +63,7 @@
     };
 
   home = makeHome {};
+  control = lib.findFirst (package: lib.getName package == "librechatctl") (throw "The LibreChat control wrapper is missing.") home.config.home.packages;
 
   unusedGuest = {
     image = "/unused/image";
@@ -214,6 +215,26 @@ in {
         message = "LibreChat must evaluate without selecting the AgentsView or Ollama service features.";
       }
     ];
+    script = ''
+      ${lib.getExe control} >help 2>errors
+      grep -F librechatctl help
+      test ! -s errors
+      ${lib.getExe control} --yes bootstrap --help >help 2>errors
+      grep -F -- --password-file help
+      test ! -s errors
+      ${lib.getExe control} reset --help --yes >help 2>errors
+      grep -F -- --conversation help
+      test ! -s errors
+      if ${lib.getExe control} --yes bootstrap >output 2>errors; then
+        echo "Bootstrap accepted missing non-interactive input" >&2
+        exit 1
+      else
+        test "$?" -eq 2
+      fi
+      test ! -s output
+      grep -F 'Non-interactive bootstrap requires --email and --name.' errors
+      touch "$out"
+    '';
   };
 
   librechat-guest-channel = let
