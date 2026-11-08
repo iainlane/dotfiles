@@ -149,7 +149,8 @@ fmt *args:
 # Evaluate all systems and build checks for the native system
 check *args:
     ./scripts/check-evaluation.bash
-    NIX_CONFIG="${NIX_CONFIG:-}"$'\n'"$(<lib/nix/evaluation.conf)" nix flake check --all-systems {{ args }} --option allow-import-from-derivation false
+    ./scripts/check-evaluation.bash --raw .#.checks --apply 'checks: builtins.deepSeq (builtins.mapAttrs (_: builtins.mapAttrs (_: check: check.drvPath)) checks) "All checks evaluated.\n"'
+    NIX_CONFIG="${NIX_CONFIG:-}"$'\n'"$(<lib/nix/evaluation.conf)" nix flake check {{ args }} --option allow-import-from-derivation false
 
 # Lint: format and check the flake
 lint: fmt check
