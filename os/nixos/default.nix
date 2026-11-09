@@ -34,10 +34,6 @@
         hostInventory = hostInventories.${hostConfig.name};
       };
       home = {homeDefinition, ...}: home.mkStandaloneHome {inherit channel homeDefinition;};
-      # `stateVersion` is `nullOr str` on the host record because only NixOS
-      # reads it, and `system.stateVersion` is `str`. Refuse a NixOS host that
-      # leaves it null here, where the message can name the host; the type
-      # check would report it against `os/nixos/system.nix`.
       mkSystemConfig = _:
         assert lib.assertMsg (hostConfig.stateVersion != null)
         "Host '${hostConfig.name}' runs NixOS, so its record must set stateVersion.";
