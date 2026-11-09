@@ -11,6 +11,9 @@ cp "${source_root}/justfile" "${test_dir}/justfile"
 cp "${source_root}/scripts/check-evaluation.bash" "${test_dir}/scripts/"
 cp "${source_root}/lib/nix/evaluation.conf" "${test_dir}/lib/nix/"
 
+# The Linux build sandbox has no /usr/bin/env.
+sed -i "1s|^#!.*|#!${BASH}|" "${test_dir}/scripts/check-evaluation.bash"
+
 printf '#!%s\n' "${BASH}" >"${test_dir}/bin/gh"
 printf 'exit 1\n' >>"${test_dir}/bin/gh"
 
