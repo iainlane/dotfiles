@@ -11,33 +11,24 @@ const aliases = {
   "@sinclair/typebox": fileURLToPath(import.meta.resolve("typebox")),
 };
 
-const integration = [
-  "test/core-*.test.ts",
-  "test/btw.test.ts",
-  "test/git.test.ts",
-  "test/patches.test.ts",
-  "test/planning.test.ts",
-  "test/tui.test.ts",
-];
-
 export default defineConfig({
-  cacheDir: "./node_modules/.vite",
+  cacheDir: "./.cache/vitest",
   resolve: { alias: aliases },
   test: {
+    fileParallelism: false,
     projects: [
       {
         extends: true,
         test: {
           name: "unit",
-          include: ["test/**/*.test.ts"],
-          exclude: integration,
+          include: ["test/unit/**/*.test.ts"],
         },
       },
       {
         extends: true,
         test: {
           name: "integration",
-          include: integration,
+          include: ["test/integration/**/*.test.ts"],
           testTimeout: 0,
           hookTimeout: 0,
         },

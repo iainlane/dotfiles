@@ -3,20 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "imports": {
+    "#footer/*": "./src/*",
+    "#test/*": "./test/*",
+    "#demo/*": "./demo/*",
+    "#scripts/*": "./scripts/*",
+    "#fixtures/*": "./.fixtures/*",
+    "#footer-entry": "./index.ts"
+  },
   "scripts": {
-    "test": "node test/prepare-fixtures.ts && vitest run",
-    "typecheck": "node ../../lib/typecheck.ts --noEmit",
+    "test": "node scripts/prepare-fixtures.ts && vitest run",
+    "typecheck": "tsc -p tsconfig.source.json && tsc -p tsconfig.json",
     "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
     "test:unit": "vitest run --project unit",
-    "test:integration": "node test/prepare-fixtures.ts && vitest run --project integration"
+    "test:integration": "node scripts/prepare-fixtures.ts && vitest run --project integration"
   },
   "dependencies": {
     "pi-prs": "0.6.0"
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "1.5.2",
+    "@earendil-works/pi-ai": "1.5.2",
     "@earendil-works/pi-coding-agent": "1.5.2",
     "@earendil-works/pi-tui": "1.5.2",
+    "@homebridge/node-pty-prebuilt-multiarch": "0.15.0",
     "@juicesharp/rpiv-btw": "2.15.0",
     "@juicesharp/rpiv-todo": "2.15.0",
     "@marckrenn/pi-sub-core": "1.5.0",

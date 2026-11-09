@@ -11,6 +11,7 @@
   modelCatalog,
   ...
 }: let
+  footerPackage = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.pi-session-footer;
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
@@ -228,7 +229,7 @@
     piExtensions;
 
   localExtensionFiles = {
-    ".pi/agent/managed-extensions/session-footer".source = "${pkgs.pi-session-footer}/${pkgs.pi-session-footer.packageRoot}";
+    ".pi/agent/managed-extensions/session-footer".source = "${footerPackage}/${footerPackage.packageRoot}";
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
   };
 in {
@@ -240,7 +241,7 @@ in {
       {
         ".pi/agent/settings.json".text = toJson piSettings;
         ".pi/agent/planning.json".text = toJson planningConfig;
-        ".pi/agent/session-footer.json".text = toJson {preset = "rich";};
+        ".pi/agent/session-footer.json".text = toJson ({preset = "rich";} // lib.optionalAttrs temporary {persistence = "session";});
         ".pi/agent/ask-user.json".text = toJson {displayMode = "inline";};
         ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
         ".pi-lens/config.json".text = toJson {

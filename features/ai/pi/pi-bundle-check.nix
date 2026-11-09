@@ -5,7 +5,8 @@
 }: let
   inherit (pkgs) lib;
   bundle = import ./bundle.nix {
-    inherit inputs pkgs modelCatalog;
+    inherit inputs modelCatalog;
+    pkgs = pkgs // {pi-session-footer = throw "Use the pinned flake package for the footer.";};
     mcp = import ../mcp-servers.nix {
       inherit inputs pkgs lib;
       servers = {};

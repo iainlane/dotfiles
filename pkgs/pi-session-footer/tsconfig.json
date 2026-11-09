@@ -10,7 +10,22 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "#footer/*": ["./src/*"],
+      "#test/*": ["./test/*"],
+      "#demo/*": ["./demo/*"],
+      "#scripts/*": ["./scripts/*"],
+      "#fixtures/*": ["./.fixtures/*"],
+      "#footer-entry": ["./index.ts"]
+    }
   },
-  "include": ["index.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "index.ts",
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "demo/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ]
 }
