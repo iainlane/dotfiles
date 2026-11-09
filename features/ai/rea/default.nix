@@ -1,11 +1,6 @@
-{
-  config,
-  featureResolver,
-  ...
-}: {
+{config, ...}: {
   dotfiles.features.ai.rea = {
     checks = import ./checks.nix {
-      inherit featureResolver;
       features = config.dotfiles.features;
     };
     homeManager = ./home-manager.nix;

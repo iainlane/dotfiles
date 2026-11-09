@@ -1,17 +1,19 @@
-# Configure OpenCode with the shared MCP servers.
 {
   config,
   inputs,
   instructions,
   lib,
   mcp,
+  pkgs,
   system,
   ...
 }: let
-  # OpenCode's schema: `type` is remote/local, a local server's command and args
-  # are a single list, and `env` becomes `environment`.
+  cfg = config.dotfiles.opencode;
+
+  jsonFormat = pkgs.formats.json {};
+
   mkMcpServer = server:
-    {enabled = !(server.disabled or false);}
+    {disabled = server.disabled or false;}
     // (
       if server ? url
       then
@@ -28,47 +30,59 @@
         // lib.optionalAttrs (server ? env) {environment = server.env;}
     );
 
-  # OpenCode ignores `disable-model-invocation`. A `deny` rule for the skill
-  # leaves it out of the skills listed to the model, and the user can still run
-  # it as a command.
-  modelHiddenSkills =
-    lib.filterAttrs
-    (_name: value: value ? skill && value.skill.frontmatter.disable-model-invocation)
-    config.dotfiles.ai.skills;
+  opencode2 = inputs.llm-agents.packages.${system}.opencode2;
+  opencode = pkgs.symlinkJoin {
+    pname = "opencode";
+    inherit (opencode2) version;
+    meta = opencode2.meta // {mainProgram = "opencode";};
+    passthru = opencode2.passthru or {};
+    paths = [opencode2];
+    postBuild = ''
+      mv "$out/bin/opencode2" "$out/bin/opencode"
+    '';
+  };
 
-  # Wrap OpenCode to add shared tools to PATH. OpenCode also scans
-  # `~/.claude/skills`, which contains the same skills as `~/.agents/skills`
-  # with Claude Code's variant of each, so that scan is switched off.
   wrappedOpencode = mcp.wrapWithTools {
-    package = inputs.llm-agents.packages.${system}.opencode;
+    package = opencode;
     binName = "opencode";
-    extraWrapperArgs = [
-      "--set"
-      "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"
-      "1"
-    ];
+    extraWrapperArgs =
+      [
+        "--set"
+        "OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"
+        "1"
+      ]
+      ++ lib.optionals (cfg.cliConfig != {}) [
+        "--set"
+        "OPENCODE_CLI_CONFIG_CONTENT"
+        (builtins.toJSON cfg.cliConfig)
+      ];
   };
 in {
+  options.dotfiles.opencode.cliConfig = lib.mkOption {
+    inherit (jsonFormat) type;
+    default = {};
+    description = ''
+      Settings merged over `cli.json` through `OPENCODE_CLI_CONFIG_CONTENT`.
+      OpenCode 2 does not persist these overrides. Lists replace the
+      corresponding lists in `cli.json`, including `plugins`.
+    '';
+  };
+
   config = {
     programs.opencode = {
       enable = true;
       package = wrappedOpencode;
-
       context = instructions.concatenated;
-
       enableMcpIntegration = false;
 
-      settings =
-        {
-          # Updates come from Nix, not opencode's self-updater.
-          autoupdate = false;
-          mcp = lib.mapAttrs (_name: mkMcpServer) config.dotfiles.ai.mcpServers;
-        }
-        // lib.optionalAttrs (modelHiddenSkills != {}) {
-          permission.skill = lib.mapAttrs (_name: _: "deny") modelHiddenSkills;
-        };
-
-      tui.theme = "system";
+      settings = {
+        autoupdate = false;
+        mcp.servers = lib.mapAttrs (_name: mkMcpServer) config.dotfiles.ai.mcpServers;
+      };
     };
+
+    # OpenCode rewrites cli.json. It imports tui.json only if cli.json is absent.
+    xdg.configFile."opencode/tui.json".source =
+      jsonFormat.generate "tui.json" {theme = "system";};
   };
 }

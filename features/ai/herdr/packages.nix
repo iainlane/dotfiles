@@ -1,6 +1,3 @@
-# The programs that connect Herdr to the agents and to its plugins. Their
-# dependencies are function arguments, so the check in
-# `features/ai/herdr/checks.nix` can replace them.
 {
   bash,
   coreutils,
@@ -9,10 +6,7 @@
   runCommandLocal,
   writeShellApplication,
 }: {
-  # Runs the agent-state hook that Herdr ships for `agent`. The hook reports
-  # the agent's session to Herdr. It runs `python3` from PATH and exits
-  # without reporting anything when PATH has no Python, so the wrapper
-  # provides one.
+  # The hook silently skips session reporting when python3 is absent from PATH.
   agentStateHook = {
     herdr,
     agent,
@@ -27,15 +21,11 @@
       '';
     };
 
-  # Herdr's TUI plugin for OpenCode 2, as the directory to list in OpenCode 2's
-  # `plugins` setting. The plugin's `tui.js` imports `../herdr-tui-session.js`,
-  # so that file goes in the parent directory. The files are copies because
-  # the import is resolved from the real path of `tui.js`, and a symlink would
-  # point it back into Herdr's package. When the import fails, OpenCode 2
-  # starts without the plugin and logs no error, so the build checks that
-  # `tui.js` still imports that file.
-  opencode2TuiPlugin = {herdr}:
-    runCommandLocal "herdr-opencode2-tui-plugin" {} ''
+  # tui.js imports ../herdr-tui-session.js relative to its real path.
+  # Copy both files: symlinks would resolve the import inside Herdr's package.
+  # OpenCode silently skips the plugin if that import fails.
+  opencodeTuiPlugin = {herdr}:
+    runCommandLocal "herdr-opencode-tui-plugin" {} ''
       integrations=${herdr}/share/herdr/integrations/opencode
 
       if ! grep -qF 'from "../herdr-tui-session.js"' "$integrations/tui.js"; then
@@ -49,15 +39,8 @@
 
   # Usage: herdr-plugin-sync <store-dir> <plugin-root>...
   #
-  # Links each plugin root into Herdr and enables it. Then it removes every
-  # linked plugin whose root is under <store-dir> but is not among the
-  # arguments. When the configuration stops listing a plugin, the next
-  # activation therefore removes it. Plugins linked from outside <store-dir>
-  # are left alone.
-  #
-  # `herdr plugin unlink` fails when no server is running. `herdr plugin
-  # uninstall` edits Herdr's plugin registry directly in that case, and it
-  # deletes no files of a linked plugin.
+  # `herdr plugin unlink` requires a running server; `uninstall` also works
+  # offline and does not delete files from linked plugins.
   pluginSync = {herdr}:
     writeShellApplication {
       name = "herdr-plugin-sync";

@@ -1,7 +1,4 @@
-{
-  features,
-  featureResolver,
-}: {pkgs, ...}: let
+{features}: {pkgs, ...}: let
   rea = import ./runtime.nix {inherit pkgs;};
   nativeFixture = pkgs.runCommandCC "rea-native-fixture" {} ''
     mkdir -p "$out/bin"
@@ -19,7 +16,7 @@
     pkgs = pkgs // {rea = entrypoints;};
   };
 in {
-  imports = [(import ./registration-check.nix {inherit features featureResolver;})];
+  imports = [(import ./registration-check.nix {inherit features;})];
 
   rea-entrypoints = pkgs.runCommand "rea-entrypoints" {} ''
     for command in rea rea-agents; do

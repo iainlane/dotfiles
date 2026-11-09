@@ -19,15 +19,11 @@
     config.home.sessionVariables.CODEX_HOME
       or "${config.home.homeDirectory}/.codex";
 
-  # Catppuccin's colours as hex values, by flavour and then by name.
   catppuccin =
     lib.mapAttrs (_: flavour: lib.mapAttrs (_: colour: colour.hex) flavour.colors)
     (removeAttrs (lib.importJSON (inputs.catppuccin-palette + "/palette.json")) ["version"]);
 
-  # The colours for the sidebar rows below. Herdr's inline token styles accept
-  # only hex colours, and those colours stay the same when Herdr switches
-  # between its light and dark themes. The rows therefore use the configured
-  # Catppuccin flavour in both themes.
+  # Inline token styles require hex colours and do not switch with the theme.
   tokenColours = catppuccin.${config.catppuccin.flavor};
 
   themeColours = flavour: let
@@ -58,8 +54,6 @@ in {
         package = herdr;
 
         settings = {
-          # Herdr records that onboarding is finished by writing this setting
-          # to `config.toml`, which Home Manager makes read-only.
           onboarding = false;
 
           update = {
@@ -149,20 +143,11 @@ in {
           };
 
           ui = {
-            # The default width of 26 columns cuts off the model and effort
-            # after the agent's name.
             sidebar_width = 36;
 
-            # Herdr's default rows, with Model Display's `$model` and
-            # `$effort` after the agent's name and Context Bar's bar below.
-            # Context Bar sets one of its three tokens for each agent, so the
-            # bar takes the colour of the band that the context usage is in:
-            # below 50%, from 50% to 79%, or 80% and above.
             sidebar.agents.rows = [
               ["state_icon" "machine" "workspace" "tab"]
               [
-                # Each harness's name is close to its brand's colour. Green,
-                # yellow and red are left for the Context Bar.
                 {
                   token = "agent";
                   rules = map (rule: rule // {ignore_case = true;}) [
@@ -187,6 +172,7 @@ in {
                 "$model"
                 "$effort"
               ]
+              # Context Bar populates only the token for the current usage band.
               [
                 {
                   token = "$ctx_green";
@@ -215,9 +201,7 @@ in {
             ${lib.escapeShellArgs (map (plugin: plugin.pluginRoot) cfg.plugins)}
         '';
 
-        # Herdr ignores the whole of `config.toml` and uses its defaults when one
-        # setting does not parse. Checking the file here makes such a setting
-        # fail the build.
+        # Herdr silently uses defaults if any config.toml setting is invalid.
         extraBuilderCommands = ''
           HOME=$(mktemp -d) HERDR_CONFIG_PATH=${config.xdg.configFile."herdr/config.toml".source} \
             ${lib.getExe herdr} config check
@@ -225,11 +209,8 @@ in {
       };
     }
 
-    # Herdr's settings show the Claude Code or Codex integration as installed
-    # when Herdr's hook script is in the agent's configuration directory, and
-    # offer to install the integration otherwise. Installing it would also add
-    # Herdr's hook to the agent's own settings, and the hook would then run
-    # twice. The hooks in `./system.nix` run the copies in the Nix store.
+    # Herdr offers to install hooks unless these files exist. Installation
+    # would duplicate the hooks already configured by ./system.nix.
     (lib.mkIf (hasHarness hostConfig "claude-code") {
       home.file."${config.programs.claude-code.configDir}/hooks/herdr-agent-state.sh".source = "${integrations}/claude/herdr-agent-state.sh";
     })
@@ -245,23 +226,11 @@ in {
       };
     })
 
-    # OpenCode loads every plugin in `plugins/`, and its TUI loads the plugins
-    # that `tui.json` lists.
-    (lib.mkIf (hasHarness hostConfig "opencode") {
-      xdg.configFile = {
-        "opencode/plugins/herdr-agent-state.js".source = "${integrations}/opencode/herdr-agent-state.js";
-        "opencode/herdr-tui-session.js".source = "${integrations}/opencode/herdr-tui-session.js";
-      };
-
-      programs.opencode.tui.plugin = ["./herdr-tui-session.js"];
-    })
-
-    # OpenCode 2's background server runs outside the pane, so Herdr's plugin
-    # for OpenCode 2 runs in the TUI. `dotfiles.opencode2` exists only on a
-    # host with `ai.opencode2`.
-    (lib.optionalAttrs (hasHarness hostConfig "opencode2") {
-      dotfiles.opencode2.cliConfig.plugins = [
-        "${packages.opencode2TuiPlugin {inherit herdr;}}/herdr-opencode"
+    # OpenCode's server runs outside the pane, so Herdr needs a TUI plugin.
+    # Use optionalAttrs: dotfiles.opencode is undeclared without ai.opencode.
+    (lib.optionalAttrs (hasHarness hostConfig "opencode") {
+      dotfiles.opencode.cliConfig.plugins = [
+        "${packages.opencodeTuiPlugin {inherit herdr;}}/herdr-opencode"
       ];
     })
   ];

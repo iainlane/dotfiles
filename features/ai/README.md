@@ -1,464 +1,114 @@
-# AI Tools
+# AI tools
 
-Nix modules for AI coding assistants, all sharing a common set of [MCP
-servers][mcp].
+The `ai` feature installs coding assistants with shared [MCP servers],
+instructions, skills and language tools.
 
-## How it works
+[MCP servers]: https://modelcontextprotocol.io/
 
-Every tool should talk to the same MCP servers without repeating the config. We
-do this by:
+## Feature selection
 
-1. `mcp-server-definitions.nix` evaluates the `mcp-servers-nix` module once per
-   system to get a computed attrset of server definitions, and `mcp-servers.nix`
-   wraps that set with the helpers and tools of each channel
-2. The OS adapters pass that set to every module as the `mcp` argument.
-   `mcp-server-set.nix` combines `mcp.servers` with the secret servers for the
-   host and assigns the result to `dotfiles.ai.mcpServers`
-3. Each harness reads `config.dotfiles.ai.mcpServers`, so a feature can add a
-   server and every harness picks it up
+Add `features.ai` to a host's feature list to install Antigravity CLI, Claude
+Code, Codex, Copilot CLI, Crush, OpenCode 2, Pi, t3code and Herdr.
 
-Different tools need different approaches:
+These children are optional:
 
-### Direct server configuration
+| Feature                              | Purpose                                      |
+| ------------------------------------ | -------------------------------------------- |
+| `ai.claude-desktop`                  | Claude Desktop; included by `desktop`        |
+| `ai.claude-code.teamclaude`          | Pool Claude accounts through a local proxy   |
+| `ai.claude-code.teamclaude.frontend` | Add Claude API conversion before TeamClaude  |
+| `ai.cloudflare-mcp`                  | Cloudflare account and documentation servers |
+| `ai.rea`                             | Reverse-engineering tools and workflow       |
 
-Some tools' home-manager modules accept an `mcpServers` attribute directly:
+The `home` feature includes TeamClaude and the Cloudflare servers on hosts with
+`ai`. Select REA or the TeamClaude frontend explicitly when needed.
 
-- `antigravity-cli/`: uses `programs.antigravity-cli.mcpServers`
+Tool-specific guides:
 
-These are the simplest integrations: no configuration file has to be generated.
+- [Claude Code]: managed settings, skills and TeamClaude accounts
+- [Codex]: system defaults and user overrides
+- [OpenCode]: configuration and TUI plugins
+- [Pi]: authentication, commands, permissions and temporary runs
+- [Herdr]: workspaces, annotations and server management
+- [REA]: reverse-engineering tools and platform support
 
-### Config file generation
+[Claude Code]: claude-code/README.md
+[Codex]: codex/README.md
+[OpenCode]: opencode/README.md
+[Pi]: pi/README.md
+[Herdr]: herdr/README.md
+[REA]: rea/README.md
 
-Other tools expect a configuration file on disk. Each of these writes its own
-file, reshaping the shared set into the schema that the tool reads:
+## Shared MCP servers
 
-- `claude-desktop/`: generates JSON for Claude Desktop on macOS and Linux. On
-  Linux it also installs the application itself (from the `llm-agents` input);
-  macOS gets the app from the Homebrew cask. `desktop` lists this child, so only
-  GUI hosts get it
-- `crush/`: generates JSON for the crush config directory
-- `copilot-cli/`: generates JSON for GitHub Copilot CLI
-- `opencode/`: generates JSON for OpenCode
-- `opencode2/`: generates JSON for OpenCode 2
+Add servers through `dotfiles.ai.mcpServers` in a feature's Home Manager module.
+Remote servers use `url` and optional `headers`; local servers use `command`,
+optional `args` and optional `env`. Each harness converts these entries into its
+own configuration format.
 
-OpenCode 2 (`opencode2/`) ships as a separate `opencode2` binary but reads the
-same `~/.config/opencode` as OpenCode 1, and the two config schemas are not
-interchangeable: OpenCode 2 nests MCP servers under `mcp.servers`, replaces
-`enabled` with `disabled`, and moves the theme and keybindings into a `cli.json`
-of their own. So the wrapper sets `OPENCODE_CONFIG_DIR` to `~/.config/opencode2`
-and the module owns that directory instead. Credentials live under
-`~/.local/share/opencode` either way, so logging in once covers both versions.
-`cli.json` is left unmanaged, because OpenCode 2 rewrites it whenever the theme
-or a setting changes in the TUI. A `tui.json` is written instead: OpenCode 2
-reads that once, while `cli.json` is still absent, and translates it, which is
-enough to pick the theme on a new machine without taking the file over.
+The built-in servers are defined in `mcp-server-definitions.nix`. Host-specific
+secret files are declared through sops-nix and read at runtime. Harnesses may
+exclude individual servers; see their guides for the relevant options.
 
-[Pi][pi] provides coding tools, delegated research and reviewed implementation
-plans. Its dedicated guide describes authentication, commands, diagnostics and
-managed configuration.
-
-[pi]: pi/README.md
-
-### Managed config files
-
-Two tools use a system-level config file so the user-level config stays free for
-interactive edits:
-
-- `claude-code/`: writes Claude Code managed settings at the OS-specific system
-  path
-- `codex/system-config.nix`: writes `/etc/codex/config.toml` with shared
-  defaults and MCP servers
-
-Codex itself reads layered config files (`/etc/codex/config.toml`,
-`~/.codex/config.toml`, and `.codex/config.toml`). The system layer owns shared
-defaults without enforcing them, so isolated instances and interactive user
-configuration can override them. The legacy `managed_config.toml` layer is for
-enforced policy and takes precedence over instance configuration.
-
-### Binary wrapping
-
-Most tools still need a wrapped binary so their private tool dependencies are on
-`PATH`:
-
-- `antigravity-cli/`
-- `claude-code/`
-- `codex/`
-- `copilot-cli/`
-- `crush/`
-- `opencode/`
-- `opencode2/`
-- `pi/`
-
-## The shared server set
-
-`mcp-server-set.nix` is a function that returns a module, so the same servers
-can be declared in two module systems from one file. It takes
-`declareSopsSecrets` and `secretPath`, and the module that it returns declares
-`dotfiles.ai.mcpServers` and defines it from the `mcp` argument plus the
-credential-bearing servers for this host.
-
-- `mcp.nix`, the `ai` feature's home-manager module, calls it with the defaults:
-  it declares the sops secrets for those servers and reads each secret's runtime
-  path from `config.sops.secrets.<name>.path`.
-- `codex/system-config.nix` is a system module and calls it with
-  `declareSopsSecrets = false` and a `secretPath` built from the user's home
-  directory, because the home-manager configuration has already declared the
-  same secrets and a system module cannot read where it decided to put them.
-
-`cloudflare-mcp/` adds two more servers to the set: Cloudflare's account server
-and its documentation server. Cloudflare is personal infrastructure, so `ai`
-does not include this child, and `home` includes it on hosts that have `ai`.
-Both the Home Manager and the system level read the server set, so the same
-module is registered for each.
-
-## Bundles
-
-A feature that adds MCP servers and skills can declare them together in
-`dotfiles.ai.bundles.<name>`. `mcp-server-set.nix` declares a bundle's
-`mcpServers` and merges them into `dotfiles.ai.mcpServers`. `skills.nix` does
-the same for a bundle's `skills` and `dotfiles.ai.skills`. Every harness
-therefore receives the contents of a bundle in the same way as any other server
-or skill.
-
-A harness that cannot use a bundle can leave out all of its contents by
-excluding the bundle, without listing the servers and skills itself. LibreChat
-provides this through `dotfiles.inference.librechat.excludeBundles`.
-
-## Pooling Claude accounts
-
-`claude-code/teamclaude/` runs Claude Code through [TeamClaude][teamclaude], a
-local proxy for several Claude subscription accounts. The proxy sends each
-request with the token of an account that has quota left. When an account
-reaches its limit, the proxy sends the request again with another account's
-token. `ai` does not include this child. `home`, the personal machines' feature,
-includes it on hosts that have `ai`.
-
-The child replaces the `claude` binary with a launcher. When the proxy is
-running, the launcher sets the environment variables that `teamclaude env`
-prints and then runs Claude Code. Otherwise the launcher runs Claude Code
-unchanged, and Claude Code uses its own login.
-
-The proxy runs as a user service under systemd or launchd. TeamClaude's server
-exits with an error when its config lists no accounts, so the service runs the
-server only once the config lists an account. The service manager watches the
-config file, so the first `teamclaude login` starts the server.
-
-Declare a shared Anthropic API-key file through Home Manager:
-
-```nix
-dotfiles.ai.anthropicApiKeyFile = config.sops.secrets.anthropic-api-key.path;
-```
-
-The option defaults to `null`. When the TeamClaude child is selected, it uses
-this path for an API-key account called `anthropic`. Setting the option does not
-select TeamClaude. The path is available to other harness modules, and each
-harness decides how to use it. Secret files are read at runtime.
-
-Alternatively, declare TeamClaude-specific settings and accounts directly:
-
-```nix
-dotfiles.claudeCode.teamclaude = {
-  settings.switchThreshold = 0.98;
-  apiKeyAccounts.fallback = {
-    apiKeyFile = config.sops.secrets.anthropic-api-key.path;
-    priority = 100;
-  };
-};
-```
-
-The API-key file contains a single key. Activation and server startup reconcile
-the declared settings and accounts with the writable configuration. Declared
-settings override runtime values; undeclared settings and OAuth credentials
-remain unchanged. Arrays are replaced as a whole. Removing a setting from Nix
-leaves its current runtime value in place.
-
-API-key accounts default to priority `100`, after subscription accounts at
-priority `0`. Each reconciliation reads the key file again, so activating after
-a secret update replaces the saved key and requests a reload of the running
-proxy. Settings that the proxy cannot reload, such as its listen port, take
-effect when the service next starts. Removing a declared API-key account removes
-its managed runtime entry. Accounts added through TeamClaude remain unchanged.
-
-Declare policy for an existing subscription without storing its OAuth tokens in
-Nix:
-
-```nix
-dotfiles.claudeCode.teamclaude = {
-  accountSettings."me@example.com".allowExtraUsage = true;
-  settings.quotaProbeSeconds = 300;
-};
-```
-
-Account settings use exact TeamClaude account names. Missing accounts are
-skipped until login adds them and activation or server startup reconciles the
-configuration again. Undeclared fields remain unchanged. Subscription extra
-usage is a fallback after every eligible account, including API-key accounts.
-The quota probe refreshes extra-usage availability and spend every five minutes.
-
-[teamclaude]: https://github.com/KarpelesLab/teamclaude
-
-Select `features.ai.claude-code.teamclaude.frontend` to run the [Claude API
-frontend][claude-api-frontend] before TeamClaude. This child includes
-TeamClaude, starts a second user service, and configures the `claude` launcher
-with its proxy and process-local CA. The launcher requires both services to be
-available. The frontend converts the Claude Code user agent, beta flag and
-system-prompt billing attribution for API usage; TeamClaude manages credentials.
-
-Normal account rotation remains the default. To use a specific API-key account:
-
-```nix
-dotfiles.claudeCode.teamclaude.frontend.account = "anthropic";
-```
-
-The frontend listens on port `3457` by default. Set
-`dotfiles.claudeCode.teamclaude.frontend.port` to change it. Its private CA is
-stored under `$XDG_STATE_HOME/claude-api-frontend`. Restart both user services
-after changing TeamClaude's listen port. Selecting the frontend does not add an
-API key or test provider billing eligibility.
-
-[claude-api-frontend]: ../../pkgs/claude-api-frontend/README.md
+MCP servers use packages from unstable on both stable and unstable hosts.
+Language tools and wrappers follow the host's channel. Harness packages come
+from the `llm-agents` input.
 
 ## Instructions, output styles and skills
 
-`skills.nix` publishes three values through `_module.args`, beside `mcp`: the
-shared instruction set as `instructions`, the parsed output styles as
-`outputStyles`, and the function that builds a skill directory as `skillTree`.
-No harness module opens the source files itself. Only home-manager modules
-receive these arguments, which is why `claude-code/managed-settings-common.nix`,
-a system module, imports `output-styles.nix` directly. Harness modules read the
-shared skill definitions from `config.dotfiles.ai.skills`.
+Edit shared instructions under `instructions/`. Harnesses receive `AGENTS.md`
+first, followed by the other Markdown files in lexicographic order. Claude
+Code-specific instructions go under `instructions/claude-code/`; a file there
+replaces the shared file with the same filename for Claude Code.
 
-`agent-instructions.nix` reads every `.md` file directly under `instructions/`
-and returns them two ways: as `{ stem = content; }` for harnesses that accept
-separate rule files, and as one string with `AGENTS.md` first and the remaining
-stems in lexicographic order for harnesses that want a single blob. A harness
-with instructions of its own gets a named set instead: `harnesses.claudeCode`
-merges `instructions/claude-code/` over the shared files, so reusing a stem
-replaces the shared file for that harness alone. Every set also includes the
-default style's body as an ordinary instruction. A harness with no native
-output-style support has no other way to receive it, and Claude Code receives it
-twice on purpose: the output style reaches the main agent, and the rule file
-reaches subagents, which run their own system prompt and are given no output
-style.
+The default output style is `plain-technical-prose`. Add styles as Markdown
+files with `name` and `description` frontmatter under `output-style/`. Each
+style is also available as a skill for changing style during a session.
 
-`output-styles.nix` parses each `.md` file under `output-style/` into its
-frontmatter `name` and `description` and the body that follows, and names
-`plain-technical-prose` as the default. To add a style, drop a file in the
-directory.
+Shared skills are installed under `~/.agents/skills`. Add a skill through
+`dotfiles.ai.skills`:
 
-`skills.nix` assembles `dotfiles.ai.skills` from the directories under
-`skills/`, from skills that arrive as flake inputs, and from one generated skill
-per output style, so the user can ask any harness mid-session to adopt a style
-by invoking the skill named after it. The `skillTree` argument merges a set of
-skills into one directory and fails the build when two skills share a name and
-differ. The shared tree is linked into `~/.agents/skills`, the harness-neutral
-location; a harness that reads only its own directory calls `skillTree` again
-for a tree of its own. That call is also where a harness leaves out unwanted
-skills: `skillTree` takes an `excludes` list of names, removes them after the
-merge, and fails the build for a name that matches nothing. Claude Code exposes
-this as `dotfiles.claudeCode.excludeSkills`, beside `excludeMcpServers`.
+```nix
+dotfiles.ai.skills.example.directory = ./example-skill;
+```
 
-A value in the set is either a `directory` or a `skill` (see `skill-type.nix`).
-A `directory` is a skill directory or a directory of skills from elsewhere, and
-`skillTree` links it unchanged. A `skill` is defined in Nix: its `frontmatter`
-is an attribute set and its `body` is Markdown. Each directory under `skills/`
-has a `default.nix` with such a definition and keeps the body in
-`instructions.md`. `skillTree`, in `skill-tree.nix`, renders a `skill` into
-`SKILL.md` during evaluation, so it never parses YAML. Codex ignores
-`disable-model-invocation` in the frontmatter and reads the same setting from
-`agents/openai.yaml` as `policy.allow_implicit_invocation`. When the frontmatter
-sets `disable-model-invocation`, `skillTree` also renders that file, so a skill
-declares the setting once.
+A directory may contain one `SKILL.md` or several skill directories. For a
+Nix-defined skill, use `skill.frontmatter` and `skill.body`; existing
+definitions under `skills/` provide examples. Conflicting definitions with the
+same skill name fail the build.
 
-## REA
+## Bundles
 
-`rea/` is an optional child feature for [REA][rea], a reverse-engineering CLI
-and MCP server. Add `features.ai.rea` to a host's feature list to install the
-configured CLI, register the same command with the shared harnesses and add the
-bundled workflow to the shared skill tree. Nix manages these registrations;
-activation does not run `rea setup`. The server and the skill are in the `rea`
-bundle, so a harness can exclude both by that name.
+Use `dotfiles.ai.bundles.<name>` to group related `mcpServers` and `skills`.
+Bundle contents join the shared configuration automatically.
 
-The configured command includes Ghidra, Kuna, Wireshark tools and headless
-Chromium. Ghidra and Kuna are also available as standalone commands. Linux also
-includes GDB, Binwalk, Unblob and mitmproxy. Linux x64 includes pwntools with
-its Python dependencies and Wakaru, built from Rust source. Absolute tool paths
-and resource-limit helpers are configured in the wrapper. Every tool comes from
-the unstable package set, including on stable hosts. REA's existing platform
-restrictions remain in effect. Ghidra uses its bundled JDK, and both native
-backends are tested by decompiling a small compiled fixture through MCP. Hopper
-and IDA are not included.
-
-The local REA package builds a pinned source snapshot that preserves
-client-owned MCP policies during setup. External tool banners identify the
-installed versions; numeric release gates are removed, while platform, protocol,
-format and resource checks remain enabled. Dependency installation scripts are
-disabled, and Frida is omitted. REA and Wakaru have normal update commands,
-`./just update-pkg rea` and `./just update-pkg wakaru`.
-
-Package evaluation fails when nixpkgs provides REA 6.7.1 or newer. Verify setup
-policy preservation and the local integration before removing the package. REA
-currently uses Node 26 from the stable input. Evaluation also fails when the
-regular input provides Node 24.22.1 or newer, so the fallback can be removed.
-
-[rea]: https://github.com/morluto/rea
-
-## Herdr
-
-`herdr/` installs [Herdr][herdr], a terminal workspace manager for coding
-agents, from the `llm-agents` input. Home Manager writes `config.toml` through
-the unstable `programs.herdr` module, and the generation fails to build when
-`herdr config check` rejects the file. Herdr would otherwise ignore the whole
-file and start with its defaults.
-
-[herdr]: https://herdr.dev
-
-### The server
-
-A user service runs `herdr server`: `herdr.service` under systemd on Linux, and
-a launchd agent on macOS. It starts with the user manager or at login. The
-systemd unit sets `X-SwitchMethod=keep-old`, so a switch never restarts a
-running server and the processes in its panes. To run a new Herdr version, run
-`systemctl --user restart herdr`, which ends every pane's processes.
-
-A `herdr` client starts a server of its own when none is running. When that
-server has the socket, the service skips its start. To move to the service,
-detach the clients, run `herdr server stop`, and start the service.
-
-A server that starts before the desktop session imports its display variables
-gives its panes no display. On Linux, zsh in a Herdr pane without a display
-copies `DISPLAY`, `WAYLAND_DISPLAY` and the related variables from the user
-manager.
-
-### Plugins
-
-`dotfiles.herdr.plugins` lists the plugin packages to link from the Nix store.
-Each package specifies the plugin's directory in `passthru.pluginRoot`.
-Activation links and enables every listed plugin, then removes the plugins
-linked from the Nix store that the list no longer contains. Plugins linked from
-elsewhere are left alone.
-
-The default list has four plugins, packaged under `pkgs/`:
-
-- [Context Bar][ctx-bar] draws a bar under each agent in the sidebar. Its colour
-  shows how much of the context window the session uses.
-- [Model Display][disp-model] shows each agent's model and reasoning effort. A
-  patch keeps the agent's plain name in the sidebar, and the sidebar rows place
-  the model and effort after it.
-- [Annotate][annotate] collects comments on terminal selections and opens
-  Markdown documents, folders and agent replies for review. Its helper builds
-  from source, and document review uses `plannotator-tui` from `llm-agents`.
-- [Annotate Links][annotate-links] opens Ctrl-clicked `file://` links ending in
-  `.md`, `.markdown` or `.mdx` in Annotate. Herdr opens other links with its
-  normal file opener.
-
-The Context Bar and Model Display manifests use Python from the Nix store.
-Annotate's package includes both executable paths before activation, so linking
-the plugin does not download binaries. The TUI is also on PATH for standalone
-reviews with `plannotator-tui <file-or-folder>`.
-
-Annotate uses these bindings after Herdr's prefix, which defaults to Ctrl+B:
-
-| Key       | Action                                                                  |
-| --------- | ----------------------------------------------------------------------- |
-| `a`       | Comment on selected terminal text; Ctrl+S saves the comment             |
-| `Shift+A` | Copy annotations as feedback                                            |
-| `Ctrl+A`  | Copy and archive annotations                                            |
-| `Ctrl+V`  | Paste feedback into the agent's prompt without submitting, then archive |
-| `Ctrl+S`  | Submit feedback to the agent, then archive                              |
-| `m`       | Manage annotations                                                      |
-| `o`       | Review documents in the focused pane's folder                           |
-| `Shift+O` | Choose a recent agent reply to review                                   |
-| `Ctrl+O`  | Review the newest agent reply                                           |
-
-Feedback becomes a message to the agent; sending feedback does not itself edit
-the reviewed file. Annotations and feedback history persist outside the Nix
-store. Reload changed bindings with `herdr server reload-config`.
-
-Herdr runs a plugin's startup command only when the server starts. After an
-update, Context Bar's daemon keeps running from the old store path until the
-server restarts.
-
-[ctx-bar]: https://github.com/pdalinis/herdr-ctx-bar
-[disp-model]: https://github.com/pdalinis/herdr-disp-model
-[annotate]: https://github.com/plannotator/herdr-annotate
-[annotate-links]: https://github.com/plannotator/herdr-annotate/tree/main/links
-
-### Agent integrations
-
-Herdr learns each agent's session from a hook, and Context Bar reads that
-session's transcript. Herdr's package contains a hook for each agent that Herdr
-supports. The feature installs the hooks for each harness on the host, so
-`herdr integration install` is not needed:
-
-- Claude Code and Codex run Herdr's hook and the Model Display hooks from their
-  system configuration. `dotfiles.claudeCode.managedSettings` and
-  `dotfiles.codex.hooks` concatenate the hooks of each event, so the prose-lint
-  hooks remain. Herdr's settings show an integration as installed only when the
-  hook script is in the agent's configuration directory, so Home Manager links a
-  copy there as well.
-- Pi loads Herdr's extension and the Model Display adapter from
-  `~/.pi/agent/extensions`.
-- OpenCode loads Herdr's plugin from `~/.config/opencode/plugins`, and its TUI
-  loads Herdr's session plugin through `tui.json`.
-- OpenCode 2 lists its TUI plugins in `cli.json`, which OpenCode 2 rewrites
-  itself, so Nix cannot add Herdr's plugin to that file. The `opencode2` wrapper
-  passes `dotfiles.opencode2.cliConfig` in `OPENCODE_CLI_CONFIG_CONTENT`
-  instead, and OpenCode 2 merges it over `cli.json`. The Herdr feature lists its
-  plugin there. A list in that variable replaces the list in `cli.json`, so
-  OpenCode 2 ignores any plugins that `cli.json` lists.
-
-## Unstable home-manager modules
-
-`unstable-hm-modules.nix` replaces `programs.antigravity-cli`,
-`programs.claude-code`, `programs.codex`, `programs.mcp` and `programs.opencode`
-with the copies from the unstable home-manager input, on every host with `ai`.
-These tools move fast enough that the stable channel's copies lack options the
-modules here set. The stable channel has no `programs.herdr` module, so the file
-imports that module from unstable as well. `disabledModules` names both the
-single-file and the directory form of each module, because the two channels
-disagree on the layout and unmatched entries are ignored.
-
-The replacements are imported as values and not listed as paths in `imports`. A
-path in `imports` keeps the module key that `disabledModules` matches on, so
-listing the paths would disable these copies as well and leave the options
-undeclared.
-
-Those modules are written against unstable's `lib.hm`. On stable hosts,
-`lib/home.nix` passes home-manager a library extended with unstable's `lib.hm`.
-`desktop.voxtype` also uses an unstable module and needs the same extension.
+A harness can exclude a whole bundle if the harness provides an exclusion
+option. For example, `dotfiles.inference.librechat.excludeBundles = ["rea"];`
+excludes both REA's server and its skill from LibreChat.
 
 ## Prose linting
 
-`prose-lint.nix` installs `prose-lint`, [Vale][vale] and the Vale language
-server for every harness, and writes the Vale and `prose-lint` configuration
-that the package ships.
+Every harness receives `prose-lint`, Vale and the Vale language server. See the
+[prose-lint guide] for commands and repository-specific rule overrides.
 
-Rules come in two tiers. Portable rules encode the plain technical prose style
-and apply wherever the tool runs. House rules are local preferences that another
-project has no reason to share, so they report as errors only in a repository
-owned by one of the accounts in `dotfiles.ai.proseLint.owners`, and as warnings
-anywhere else. Ownership is read from the repository's git remotes.
+Portable rules apply everywhere. House rules report errors in repositories owned
+by an account in `dotfiles.ai.proseLint.owners` and warnings elsewhere;
+ownership is determined from Git remotes. Set
+`dotfiles.ai.proseLint.enable = false` to disable this tooling.
 
-A rule can be lowered for a single repository: the CLI records the override
-together with a reason and keeps it out of the commit. The package's own
-documentation has the commands. Claude Code runs the tool from hooks in its
-managed settings; this repository lints its own text and commit messages through
-`flake/git-hooks/configuration.nix`.
+[prose-lint guide]: ../../pkgs/prose-lint/README.md
 
-[vale]: https://vale.sh/
+## Adding a harness
 
-## Adding a new tool
+1. Create `<harness>/default.nix` and register `dotfiles.features.ai.<harness>`
+   with its Home Manager or system modules.
+2. Read servers from `config.dotfiles.ai.mcpServers`. Home Manager modules also
+   receive `instructions`, `outputStyles`, `skillTree` and `mcp` arguments. Use
+   `mcp.wrapWithTools` when the executable needs shared language tools.
+3. Import the directory from `default.nix`. Add the child to
+   `dotfiles.features.ai.includes` only if it should be installed by default.
+4. Document tool-specific configuration in `<harness>/README.md` and run
+   `./just check` from the repository root.
 
-1. Create `<tool>/` in this directory, with a `default.nix` registering
-   `dotfiles.features.ai.<tool>` and the class modules beside it
-2. Read the servers from `config.dotfiles.ai.mcpServers`
-3. Choose the integration method:
-   - If the home-manager module accepts `mcpServers`, hand it the set
-   - If it needs a config file, generate one with `pkgs.formats`
-   - If it needs system-managed defaults, follow the `claude-code/` or `codex/`
-     pattern
-4. Import the directory from `default.nix` and list the child in
-   `dotfiles.features.ai.includes`
-
-[mcp]: https://modelcontextprotocol.io/
+AI integrations use Home Manager modules from unstable on both host channels.
+Keep channel compatibility code in `unstable-hm-modules.nix` and `lib/home.nix`.

@@ -1,7 +1,4 @@
-{
-  features,
-  featureResolver,
-}: {
+{features}: {
   lib,
   inputs,
   pkgs,
@@ -26,7 +23,7 @@
       };
       claudeDesktop.excludeMcpServers = [];
       codex.hooks = {};
-      opencode2.cliConfig = {};
+      opencode.cliConfig = {};
     };
     home.homeDirectory = "/home/fixture";
     xdg.configHome = "/home/fixture/.config";
@@ -46,8 +43,7 @@
   actual = {
     claude = (apply ../claude-code/home-manager.nix).config.programs.claude-code.mcpServers.rea;
     codex = (apply ../codex/system-config.nix).config.environment.etc."codex/config.toml".source.value.mcp_servers.rea;
-    opencode = (apply ../opencode/home-manager.nix).config.programs.opencode.settings.mcp.rea;
-    opencode2 = (apply ../opencode2/home-manager.nix).config.xdg.configFile."opencode2/opencode.json".source.value.mcp.servers.rea;
+    opencode = (apply ../opencode/home-manager.nix).config.programs.opencode.settings.mcp.servers.rea;
     copilot = (builtins.fromJSON (builtins.unsafeDiscardStringContext (apply ../copilot-cli/home-manager.nix).home.file.".copilot/mcp-config.json".source.text)).servers.rea;
     crush = (builtins.fromJSON (builtins.unsafeDiscardStringContext (apply ../crush/home-manager.nix).xdg.configFile."crush/crush.json".source.text)).mcp.rea;
     antigravity = (apply ../antigravity-cli/home-manager.nix).config.programs.antigravity-cli.mcpServers.rea;
@@ -61,10 +57,6 @@
     cli = map toString home.home.packages;
     skill = home.dotfiles.ai.bundles.rea.skills.reverse-engineer-anything;
     activation = home.home.activation or {};
-    defaultHarnesses = lib.sort builtins.lessThan (lib.filter (name: lib.elem name ["ai.antigravity-cli" "ai.copilot-cli" "ai.crush" "ai.herdr" "ai.opencode" "ai.opencode2" "ai.pi" "ai.claude-code" "ai.codex"]) (featureResolver.featureNames {
-      features = [features.ai];
-      context = featureResolver.contextForSystem system;
-    }));
     herdr = {
       homeManager = features.ai.herdr.homeManager != null;
       system = features.ai.herdr.system != null;
@@ -77,11 +69,6 @@
     opencode = {
       type = "local";
       command = [server.command] ++ server.args;
-      enabled = true;
-    };
-    opencode2 = {
-      type = "local";
-      command = [server.command] ++ server.args;
       disabled = false;
     };
     copilot = stdio // {tools = ["*"];};
@@ -92,7 +79,6 @@
     cli = ["${rea}" "${pkgs.ghidra}" "${pkgs.kuna}"];
     skill.directory = "${rea}/share/skills/rea/reverse-engineer-anything";
     activation = {};
-    defaultHarnesses = lib.sort builtins.lessThan ["ai.antigravity-cli" "ai.copilot-cli" "ai.crush" "ai.herdr" "ai.opencode" "ai.opencode2" "ai.pi" "ai.claude-code" "ai.codex"];
     herdr = {
       homeManager = true;
       system = true;
