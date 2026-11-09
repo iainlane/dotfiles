@@ -10,6 +10,7 @@
   gh,
   git,
   gnutar,
+  gzip,
   jq,
   lib,
   nix,
@@ -23,6 +24,7 @@
   wget,
   writeShellApplication,
   writeText,
+  yq-go,
 }: {
   # Run a package's own update script from its directory in the working tree.
   # Use it when the upstream's release metadata needs more than a version
@@ -352,6 +354,37 @@
         cd "$(git rev-parse --show-toplevel)/${directory}"
 
         bash ${./npm-lock-updater.bash} ${provided}
+      '';
+    };
+
+  # Pin the local npm packages in a pnpm package's manifest to their local
+  # versions, record their dependencies as package extensions, regenerate the
+  # lockfile, and refresh the dependency hash.
+  mkPnpmLockUpdater = {
+    pname,
+    directory,
+    packages,
+    pnpm,
+  }: let
+    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map (
+        package: npmPackages.npmPackage package // {tarball = toString package.npmTarball;}
+      )
+      packages));
+  in
+    writeShellApplication {
+      name = "update-${pname}";
+
+      runtimeInputs = [bash coreutils git gnutar gzip jq nodejs pnpm nix nix-update yq-go];
+
+      text = ''
+        root="$(git rev-parse --show-toplevel)"
+        cd "$root/${directory}"
+
+        bash ${./pnpm-lock-updater.bash} ${provided}
+
+        cd "$root"
+        nix-update --flake --version=skip --no-src --override-filename ${lib.escapeShellArg "${directory}/package.nix"} ${lib.escapeShellArg pname}
       '';
     };
 

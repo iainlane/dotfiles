@@ -29,6 +29,57 @@ in
             touch $out
           '';
 
+        pnpm-lock-updater = let
+          command = name:
+            pkgs.writeShellApplication {
+              inherit name;
+              text = ''printf '${name}:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"'';
+            };
+          npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+          producer = name: version: manifest: {
+            meta.identifiers.purlParts = npmPackages.purlParts {inherit name version;};
+            npmTarball =
+              pkgs.runCommandLocal "${baseNameOf name}-${version}.tgz" {
+                manifest = builtins.toJSON ({inherit name version;} // manifest);
+                passAsFile = ["manifest"];
+              } ''
+                mkdir package
+                cp "$manifestPath" package/package.json
+                tar -czf "$out" package
+              '';
+          };
+          npm = pkgs.writeShellApplication {
+            name = "npm";
+            text = ''
+              printf 'npm:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"
+              cat "$REGISTRY/''${2//\//+}.json"
+            '';
+          };
+          updater =
+            (pkgs.updaters.override {
+              nix-update = command "nix-update";
+              nodejs = npm;
+            }).mkPnpmLockUpdater {
+              pname = "fixture";
+              directory = "fixture";
+              packages = [
+                (producer "@scope/host" "2.0.0" {
+                  dependencies.shared = "^1";
+                  peerDependencies.peer = "*";
+                })
+                (producer "linked" "1.0.0" {})
+              ];
+              pnpm = command "pnpm";
+            };
+        in
+          pkgs.runCommandLocal "pnpm-lock-updater-test" {
+            nativeBuildInputs = [pkgs.bash pkgs.diffutils pkgs.gitMinimal pkgs.jq pkgs.yq-go];
+            passthru.ci.runOnce = true;
+          } ''
+            bash ${../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
+            touch $out
+          '';
+
         package-updater-coverage = assert lib.assertMsg (missing == []) "Packages without passthru.updateScript (set it to null when a package has no updater): ${lib.concatStringsSep ", " missing}";
           pkgs.runCommandLocal "package-updater-coverage" {} ''
             touch $out

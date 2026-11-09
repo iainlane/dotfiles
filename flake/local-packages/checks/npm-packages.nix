@@ -74,6 +74,47 @@ in
             pass = npmPackages.attributesByName {inherit host github plain;} == {"@scope/host" = "host";};
           }
           {
+            name = "pnpm selects local providers from package keys, including transitive packages";
+            pass =
+              npmPackages.providePnpm {
+                packages = npmPackages.byName {
+                  inherit host linked;
+                  unscoped = producer "host" "2.0.0";
+                  unused = producer "unused" "1.0.0";
+                };
+                lockfile = ''
+                  lockfileVersion: '9.0'
+                  packages:
+                    '@scope/host@2.0.0':
+                      resolution: {integrity: sha512-registry}
+                    linked@1.0.0:
+                      resolution: {integrity: sha512-linked}
+                  snapshots:
+                    '@scope/host@2.0.0(linked@1.0.0)': {}
+                '';
+              }
+              == {
+                "@scope/host" = host;
+                inherit linked;
+              };
+          }
+          {
+            name = "pnpm selects providers from double-quoted package keys";
+            pass =
+              npmPackages.providePnpm {
+                packages = npmPackages.byName {inherit host linked;};
+                lockfile = ''
+                  packages:
+                    "@scope/host@2.0.0": {}
+                    "linked@1.0.0": {}
+                '';
+              }
+              == {
+                "@scope/host" = host;
+                inherit linked;
+              };
+          }
+          {
             name = "every lockfile entry for a local package, including an alias, installs its tarball";
             pass =
               npmPackages.provide {
@@ -107,9 +148,11 @@ in
         checks.npm-packages =
           pkgs.runCommandLocal "npm-packages" {
             inherit report;
+            nativeBuildInputs = [pkgs.jq pkgs.diffutils];
             passthru.ci.runOnce = true;
           } ''
             if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
+            bash ${../../../pkgs/build-support/pnpm-local-packages.test.bash} ${../../../pkgs/build-support/pnpm-local-packages.bash}
             touch "$out"
           '';
       }

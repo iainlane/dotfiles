@@ -1,0 +1,16 @@
+packages:
+  - "."
+autoInstallPeers: false
+onlyBuiltDependencies:
+  - node-pty
+overrides:
+  "pi-prs>@earendil-works/pi-coding-agent": "-"
+  "pi-prs>@earendil-works/pi-tui": "-"
+packageExtensions:
+  "@juicesharp/rpiv-btw@2.15.0":
+    dependencies:
+      "@juicesharp/rpiv-config": "^2.15.0"
+    peerDependencies:
+      "@earendil-works/pi-ai": "^1.4.0"
+      "@earendil-works/pi-coding-agent": "^1.4.0"
+      "@earendil-works/pi-tui": "^1.4.0"

@@ -3,18 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#footer/*": "./src/*",
+    "#test/*": "./test/*",
+    "#demo/*": "./demo/*",
+    "#scripts/*": "./scripts/*",
+    "#fixtures/*": "./.fixtures/*",
+    "#footer-entry": "./index.ts"
+  },
   "scripts": {
-    "test": "node test/prepare-fixtures.ts && vitest run",
-    "typecheck": "node ../../lib/typecheck.ts --noEmit",
+    "test": "node scripts/prepare-fixtures.ts && vitest run",
+    "typecheck": "node ../../lib/typecheck.ts -p tsconfig.source.json --noEmit && node ../../lib/typecheck.ts -p tsconfig.json --noEmit",
     "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
     "test:unit": "vitest run --project unit",
-    "test:integration": "node test/prepare-fixtures.ts && vitest run --project integration"
+    "test:integration": "node scripts/prepare-fixtures.ts && vitest run --project integration"
   },
   "dependencies": {
     "pi-prs": "0.6.0"
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "1.5.0",
+    "@earendil-works/pi-ai": "1.5.0",
     "@earendil-works/pi-coding-agent": "1.5.0",
     "@earendil-works/pi-tui": "1.5.0",
     "@juicesharp/rpiv-btw": "2.15.0",
@@ -24,6 +34,7 @@
     "@types/node": "24.19.2",
     "@xterm/headless": "6.0.0",
     "msw": "2.15.0",
+    "node-pty": "1.1.0",
     "oxlint": "1.89.0",
     "oxlint-tsgolint": "7.0.2004",
     "typebox": "1.3.27",

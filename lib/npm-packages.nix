@@ -63,4 +63,16 @@
     packageSourceOverrides = lib.mapAttrs (path: _: (providing path).npmTarball) matches;
     provided = lib.unique (map providing (lib.attrNames matches));
   };
+
+  # The packages, keyed by npm name, that a pnpm lockfile uses. Nix has no
+  # built-in YAML parser. Match pnpm's package-key prefixes here so evaluation
+  # does not need IFD.
+  providePnpm = {
+    packages,
+    lockfile,
+  }: let
+    lines = lib.splitString "\n" lockfile;
+    matches = name: lib.any (line: lib.any (quote: lib.hasPrefix "  ${quote}${name}@" line) ["" "'" "\""]) lines;
+  in
+    lib.filterAttrs (name: _: matches name) packages;
 }
