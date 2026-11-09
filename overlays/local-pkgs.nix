@@ -25,17 +25,17 @@ in
       # stays internal to the package set.
       updaters = final.callPackage (pkgsDir + "/build-support/updaters.nix") {};
 
-      # The local packages that build npm packages, keyed by npm name.
-      # nixpkgs-stable's meta checks drop `meta.identifiers.purlParts`, so the
-      # names come from the flake's own package set, built with
-      # nixpkgs-unstable. The packages come from this package set.
-      localNpmPackages =
-        lib.mapAttrs (_: attribute: final.${attribute})
-        (npmPackages.attributesByName (
-          lib.getAttrs
-          (lib.intersectLists names (lib.attrNames (inputs.self.packages.${final.stdenv.hostPlatform.system} or {})))
-          inputs.self.packages.${final.stdenv.hostPlatform.system}
-        ));
+      # The local packages that build npm packages, keyed by npm name. Every
+      # channel takes them from the flake's own package set, which uses
+      # nixpkgs-unstable. nixpkgs-stable's meta checks drop
+      # `meta.identifiers.purlParts`, which records the npm name. The pnpm
+      # dependency fetch also archives the tarballs' store paths, so its
+      # fixed-output hash matches only when every channel uses the same
+      # tarball derivations.
+      localNpmPackages = let
+        flakePackages = inputs.self.packages.${final.stdenv.hostPlatform.system} or {};
+      in
+        npmPackages.byName (lib.getAttrs (lib.intersectLists names (lib.attrNames flakePackages)) flakePackages);
     }
     // lib.genAttrs names (
       name: let

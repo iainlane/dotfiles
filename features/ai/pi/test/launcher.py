@@ -27,6 +27,7 @@ def probe():
         "auth": json.loads((agent / "auth.json").read_text()),
         "models": json.loads((agent / "models.json").read_text()),
         "keys": json.loads((agent / "keybindings.json").read_text()),
+        "footer": json.loads((agent / "session-footer.json").read_text()),
         "pretty": os.environ["PRETTY_CONFIG_DIR"],
         "lens": os.environ["PI_LENS_CONFIG_PATH"],
         "todo": json.loads((Path(os.environ["XDG_CONFIG_HOME"]) / "rpiv-todo/config.json").read_text()),
@@ -132,6 +133,7 @@ class LauncherTest(unittest.TestCase):
                     "auth": {"static": {"type": "api_key", "key": "fixture-key", "env": {"TOKEN": "fixture"}}},
                     "models": {"providers": {}},
                     "keys": {"app.interrupt": "escape"},
+                    "footer": {"preset": "rich", "persistence": "session"},
                     "pretty": str(runtime),
                     "lens": str(Path(PREVIEW) / ".pi-lens/config.json"),
                     "todo": {"widget": {"enabled": False}},
@@ -166,7 +168,15 @@ class LauncherTest(unittest.TestCase):
                     result[relative] = path.read_bytes()
             return result
 
-        self.assertEqual(contents(NORMAL), contents(PREVIEW))
+        normal_contents = contents(NORMAL)
+        preview_contents = contents(PREVIEW)
+        footer_path = ".pi/agent/session-footer.json"
+        self.assertEqual(
+            (json.loads(normal_contents[footer_path]), json.loads(preview_contents[footer_path])),
+            ({"preset": "rich"}, {"preset": "rich", "persistence": "session"}),
+        )
+        preview_contents[footer_path] = normal_contents[footer_path]
+        self.assertEqual(normal_contents, preview_contents)
         normal = json.loads((Path(NORMAL) / ".pi/agent/extensions/subagent/config.json").read_text())
         preview = json.loads((Path(PREVIEW) / ".pi/agent/extensions/subagent/config.json").read_text())
         self.assertEqual(normal, {**preview, "defaultSessionDir": "~/.pi/agent/sessions/subagent"})

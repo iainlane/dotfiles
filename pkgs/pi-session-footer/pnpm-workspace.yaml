@@ -1,0 +1,11 @@
+packages:
+  - "."
+
+injectWorkspacePackages: true
+autoInstallPeers: false
+ignoreScripts: true
+managePackageManagerVersions: false
+
+overrides:
+  "pi-prs>@earendil-works/pi-coding-agent": "-"
+  "pi-prs>@earendil-works/pi-tui": "-"

@@ -403,6 +403,36 @@
       '';
     };
 
+  # Pin local npm versions in a pnpm package, regenerate its portable lock,
+  # and refresh its dependency hashes on the configured systems.
+  mkPnpmLockUpdater = {
+    pname,
+    directory,
+    packages,
+    pnpm,
+    systems,
+  }: let
+    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map npmPackages.npmPackage packages));
+  in
+    writeShellApplication {
+      name = "update-${pname}";
+      passthru.maintenance = {
+        source = "repository";
+        refresh = true;
+      };
+      runtimeInputs = [bash coreutils git jq pnpm nix nix-update];
+      text = ''
+        root="$(git rev-parse --show-toplevel)"
+        cd "$root/${directory}"
+        bash ${./pnpm-lock-updater.bash} ${provided}
+        cd "$root"
+        for system in ${lib.escapeShellArgs systems}; do
+          nix-update --flake --system "$system" --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
+        done
+      '';
+    };
+
   mkFlakeBranchUpdater = {input}:
     writeShellApplication {
       name = "update-${input}";
