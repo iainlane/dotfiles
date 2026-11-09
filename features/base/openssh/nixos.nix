@@ -1,5 +1,6 @@
-{
+{username, ...}: {
   users.groups.ssh = {};
+  users.users.${username}.extraGroups = ["ssh"];
 
   services.openssh = {
     enable = true;

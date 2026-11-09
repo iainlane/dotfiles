@@ -54,14 +54,10 @@ in {
     };
   };
 
-  # `extraGroups` below names this group, and only `base.openssh` declares it,
-  # so a NixOS host without that feature would fail to evaluate.
-  users.groups.ssh = {};
-
   users.users.${username} = {
     isNormalUser = true;
     home = hostConfig.homeDirectory;
-    extraGroups = ["wheel" "networkmanager" "ssh"];
+    extraGroups = ["wheel" "networkmanager"];
     shell = pkgs.zsh;
     hashedPasswordFile = lib.mkIf havePassword config.sops.secrets.user-password-hash.path;
     openssh.authorizedKeys.keys = import ./authorized-keys.nix;
