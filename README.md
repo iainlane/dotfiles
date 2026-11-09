@@ -148,9 +148,8 @@ the project shells.
 To deploy to a remote host, run `./just update-host <hostname>`. The host needs
 the `deploy-rs` feature, which gives it deploy-rs profiles. To deploy only the
 system or home deploy-rs profile, run `./just update-host-system <hostname>` or
-`./just update-host-home <hostname>`. Only generic Linux hosts have a separate
-home profile. The system profile of a NixOS or macOS host includes its home
-configuration.
+`./just update-host-home <hostname>`. Only Linux hosts have a separate home
+profile. The system profile of a macOS host includes its home configuration.
 
 The individual steps can also be run separately.
 
@@ -176,16 +175,16 @@ the derivation graph. `./just update-pkg <name>` runs a single one, for example
 
 #### `./just update-system`
 
-Rebuild and activate the system configuration. NixOS and macOS also update the
-embedded home configuration. Generic Linux uses `update-home` separately.
+Rebuild and activate the system configuration. macOS also updates the embedded
+home configuration. NixOS and generic Linux use `update-home` separately.
 
 #### `./just update-home`
 
-_Generic Linux only. On NixOS and macOS the system configuration includes the
-home configuration, so `update-system` updates both, and on NixOS this target
-only prints a note._
+_Linux only. On macOS the system configuration includes the home configuration,
+so `update-system` updates both._
 
-Update the standalone `home-manager` configuration only.
+Update the standalone `home-manager` configuration only. It runs as the user
+without `sudo` and leaves the running system untouched.
 
 #### `./just refresh-direnvs`
 
@@ -294,6 +293,10 @@ The keys are cleaned up locally after a successful install. The SSH host key is
 installed at `/etc/ssh/ssh_host_ed25519_key` and the user age key at
 `~/.config/sops/age/keys.txt`. Without a keys directory the install proceeds but
 the host won't be able to decrypt secrets until keys are provided manually.
+
+The install activates only the system configuration. Run
+`./just update-host <host>`, or `./just update-home` on the host, to activate
+the home configuration.
 
 [nixos-anywhere]: https://github.com/nix-community/nixos-anywhere
 

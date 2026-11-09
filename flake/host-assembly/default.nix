@@ -18,6 +18,11 @@
         hostMetadata = config.flake.hosts;
       }
       {inherit pkgs system;}
+      // import ./checks/home-forms.nix {
+        inherit lib hostResults;
+        inherit (config.dotfiles) hosts;
+      }
+      {inherit pkgs system;}
       // import ./checks/home-configuration.nix {inherit inputs lib;} {inherit pkgs;}
       // import ./checks/system-manager-packages.nix {inherit inputs lib;} {inherit pkgs;};
   };

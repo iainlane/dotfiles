@@ -81,8 +81,7 @@ in rec {
       lib = unstableHmLib channel.stable;
     };
 
-  # The home-manager settings module shared by the NixOS and nix-darwin
-  # embeddings.
+  # The home-manager settings module for the nix-darwin embedding.
   mkEmbeddedHomeManager = {
     username,
     homeDefinition,
@@ -133,6 +132,22 @@ in rec {
           })
         ];
     };
+
+  # A host's standalone Home Manager configuration, built from the host's
+  # channel, in the form that an OS adapter's `home` function returns.
+  mkStandaloneHome = {
+    channel,
+    homeDefinition,
+  }: let
+    standalone = mkHomeConfiguration {
+      homeManager = channel.home-manager;
+      pkgs = channel.primary;
+      inherit (homeDefinition) modules extraSpecialArgs;
+    };
+  in {
+    inherit (standalone) config;
+    inherit standalone;
+  };
 
   # Assemble the modules and special arguments for a host's Home Manager
   # configuration.

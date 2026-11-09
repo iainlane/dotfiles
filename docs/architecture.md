@@ -132,10 +132,11 @@ embedded configurations. Stable hosts retain stable primary package sets and
 receive the explicit unstable package set for integrations that require it.
 
 Each host has one Home Manager configuration, and its adapter decides the form.
-The NixOS and nix-darwin adapters embed it in the system configuration. The
-system-manager adapter builds a standalone configuration, which appears in
-`homeConfigurations` and gets its own deployment profile. `homeResults` exposes
-the `config` of every host's Home Manager configuration, whichever form it has.
+The NixOS and system-manager adapters build a standalone configuration, which
+appears in `homeConfigurations` and gets its own deployment profile, so the home
+configuration can be switched without switching the system. The nix-darwin
+adapter embeds it in the system configuration. `homeResults` exposes the
+`config` of every host's Home Manager configuration, whichever form it has.
 
 ## Shared evaluation contexts
 

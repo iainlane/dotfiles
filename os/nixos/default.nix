@@ -33,11 +33,12 @@
         inherit hostConfig mcpByChannel modelCatalog pkgs pkgs-stable flakeContexts;
         hostInventory = hostInventories.${hostConfig.name};
       };
+      home = {homeDefinition, ...}: home.mkStandaloneHome {inherit channel homeDefinition;};
       # `stateVersion` is `nullOr str` on the host record because only NixOS
       # reads it, and `system.stateVersion` is `str`. Refuse a NixOS host that
       # leaves it null here, where the message can name the host; the type
       # check would report it against `os/nixos/system.nix`.
-      mkSystemConfig = homeDefinition:
+      mkSystemConfig = _:
         assert lib.assertMsg (hostConfig.stateVersion != null)
         "Host '${hostConfig.name}' runs NixOS, so its record must set stateVersion.";
           channel.nixpkgs.lib.nixosSystem {
@@ -57,11 +58,7 @@
                 class = "nixos";
                 inherit hostConfig;
               }
-              ++ [
-                hostConfig.systemModule
-                channel.home-manager.nixosModules.home-manager
-                (home.mkEmbeddedHomeManager {inherit username homeDefinition;})
-              ];
+              ++ [hostConfig.systemModule];
             specialArgs = mkSystemSpecialArgs {
               inherit hostConfig username mcpByChannel channel modelCatalog flakeContexts;
               hostInventory = hostInventories.${hostConfig.name};
@@ -75,8 +72,5 @@ in {
     user = "root";
     path = deployLib.activate.nixos configuration;
   };
-  home = {configuration, ...}: {
-    config = configuration.config.home-manager.users.${username};
-  };
-  inherit (result) homeSpecialArgs mkSystemConfig;
+  inherit (result) home homeSpecialArgs mkSystemConfig;
 }
