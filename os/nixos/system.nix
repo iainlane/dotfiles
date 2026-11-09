@@ -11,9 +11,11 @@
   secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
   stableEnvfs = inputs.nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.envfs;
 
-  # lib/sops.nix states the policy for a per-host secrets file that the secrets
-  # input does not have. When the input has no such file, the account has no
-  # password and can be logged into only over SSH.
+  # A machine that has not been through `scripts/generate-user-secrets.bash`
+  # has no password file in the secrets input, and it must still evaluate so
+  # that it can be built. Until then the account has no password, and the user
+  # can log in only over SSH with a key. lib/sops.nix follows the same rule for
+  # the other per-host secrets.
   havePassword = builtins.pathExists secretsFile;
 in {
   boot = {
