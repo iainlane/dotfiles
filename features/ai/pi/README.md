@@ -9,6 +9,11 @@ MCP servers. Nix manages configuration and extension versions. Change shared
 settings here; Pi cannot save changes over the generated files in
 `~/.pi/agent/`.
 
+The default model uses `openai`. Run `/login openai` to use a ChatGPT
+subscription. Pi 0.99.0 superseded `openai-codex` with this login and labelled
+the old provider as legacy. The providers use different OAuth grants, so do not
+rename an existing credential in `auth.json`.
+
 ## Installation and temporary runs
 
 Home Manager installs the configured executable and recursively links its shared
@@ -54,8 +59,11 @@ durable sessions and background work.
 questions through the general `ask_user` tool in planning and ordinary work.
 
 The [session footer] shows model, context, quota and work that needs attention.
-Use `/footer` to inspect details. `/subagents` manages delegated work, `/todos`
-manages execution tasks, and `/pr` inspects the pull request.
+OpenAI quota reporting still requires legacy Codex credentials because the
+`openai` grant cannot read the usage endpoint. Use `/login openai-codex` for
+quota reporting. Use `/footer` to inspect details. `/subagents` manages
+delegated work, `/todos` manages execution tasks, and `/pr` inspects the pull
+request.
 
 `/btw <question>` opens a side conversation using the current conversation as
 context. Its questions stay within that session. Its usage is reported
@@ -72,15 +80,15 @@ semantics. Pi Diff provides expandable file changes.
 ## Permissions
 
 Shell commands use [automatic permission review]. Other tools run without
-permission review. The reviewer uses `openai-codex/codex-auto-review` with the
-existing Codex login. A failed or unavailable review falls back to a human
-prompt; a refusal blocks the command.
+permission review. The reviewer uses `openai/codex-auto-review` with the same
+OpenAI login as the main agent. A failed or unavailable review falls back to a
+human prompt; a refusal blocks the command.
 
 Nix manages `authorizerChain` and the complete `permission` policy. Home Manager
 activation merges those settings into a writable config file and preserves other
 fields, including runtime YOLO and logging toggles. Existing invalid JSON is
 left untouched and stops activation. The app initialises the same policy in
-private writable state. Temporary runs require their own Codex login for
+private writable state. Temporary runs require their own OpenAI login for
 automatic review because provider OAuth credentials are not imported.
 
 Use `/auto-stats` to inspect reviewer state and `/permission-auto-review` to

@@ -41,7 +41,7 @@
   };
 
   piSettings = {
-    defaultProvider = "openai-codex";
+    defaultProvider = "openai";
     defaultModel = defaultModels.openai;
     defaultThinkingLevel = "high";
     thinkingBudgets = {
@@ -103,9 +103,9 @@
           subagentOnlyExtensions = ["${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}"];
         };
       };
-      agentOverridesByProvider.openai-codex = {
-        reviewer.model = "openai-codex/${modelCatalog.openai.sol}";
-        researcher.model = "openai-codex/${modelCatalog.openai.sol}";
+      agentOverridesByProvider.openai = {
+        reviewer.model = "openai/${modelCatalog.openai.sol}";
+        researcher.model = "openai/${modelCatalog.openai.sol}";
       };
     };
   };

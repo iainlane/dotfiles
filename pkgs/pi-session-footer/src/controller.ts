@@ -23,7 +23,8 @@ function matchesProvider(
   return Boolean(
     quota &&
     (provider === quota.provider ||
-      (provider === "openai-codex" && quota.provider === "codex")),
+      ((provider === "openai" || provider === "openai-codex") &&
+        quota.provider === "codex")),
   );
 }
 

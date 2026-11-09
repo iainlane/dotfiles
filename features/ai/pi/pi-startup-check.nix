@@ -114,13 +114,14 @@
   settings = builtins.fromJSON (builtins.unsafeDiscardStringContext piConfig.home.file.".pi/agent/settings.json".text);
   webSearchSettings = builtins.fromJSON piConfig.home.file.".pi/agent/web-search.json".text;
   pi = builtins.head piConfig.home.packages;
-  codexAuth = pkgs.writeText "pi-test-auth.json" (builtins.toJSON {
-    openai-codex = {
+  openaiAuth = pkgs.writeText "pi-test-auth.json" (builtins.toJSON {
+    openai = {
       type = "oauth";
       access = "fixture";
       refresh = "fixture";
       expires = 4102444800000;
-      accountId = "fixture";
+      clientId = "fixture";
+      scopes = ["chatgpt.tokens.use.direct"];
     };
   });
   # Pi's HOST_PROVIDED_EXTENSION_PACKAGES. An installed copy of one of these
@@ -190,20 +191,20 @@
         const expected = [
           {
             name: "researcher",
-            model: "openai-codex/${modelCatalog.openai.sol}",
+            model: "openai/${modelCatalog.openai.sol}",
             thinking: "medium",
             tools: ["read", "write", "web_search", "fetch_content", "get_search_content", "source_check", "codemode"],
             subagentOnlyExtensions: ["${pkgs.pi-web-access}/${pkgs.pi-web-access.packageRoot}"],
           },
           {
             name: "reviewer",
-            model: "openai-codex/${modelCatalog.openai.sol}",
+            model: "openai/${modelCatalog.openai.sol}",
             thinking: "high",
             tools: ["read", "grep", "find", "ls", "watchdog_diff", "contact_supervisor"],
             subagentOnlyExtensions: undefined,
           },
         ];
-        assert.deepStrictEqual(roles("openai-codex"), expected);
+        assert.deepStrictEqual(roles("openai"), expected);
         assert.deepStrictEqual(roles("anthropic"), expected.map(role => ({ ...role, model: undefined })));
         const expectedMcp = ["mcp__context7__resolve_library_id", "mcp__context7__query_docs", "mcp__cloudflare_docs__search_cloudflare_documentation", "mcp__nixos__nix", "mcp__nixos__nix_versions", "mcp__exa__web_search_exa", "mcp__exa__web_fetch_exa"].sort();
         while (expectedMcp.some(name => !pi.getAllTools().some(tool => tool.name === name))) await new Promise(resolve => setTimeout(resolve, 25));
@@ -404,6 +405,7 @@ in {
       prompts)}
     install -Dm644 ${plainPrompt} "$PI_CODING_AGENT_DIR/prompts/plain-fixture.md"
     ${pkgs.jq}/bin/jq --sort-keys 'sort_by(.name)' ${expectedCommands} >expected-commands.json
+    test ${lib.escapeShellArg settings.defaultProvider} = openai
     test ${lib.escapeShellArg webSearchSettings.fetch.answerProvider} = openai
     test ${lib.escapeShellArg webSearchSettings.fetch.answerModel} = ${lib.escapeShellArg modelCatalog.openai.sol}
 
@@ -440,7 +442,7 @@ in {
 
     mkdir -p "$HOME/.agents"
     ln -s ${bundle.collections.skills} "$HOME/.agents/skills"
-    install -m600 ${codexAuth} "$PI_CODING_AGENT_DIR/auth.json"
+    install -m600 ${openaiAuth} "$PI_CODING_AGENT_DIR/auth.json"
     ${pkgs.jq}/bin/jq '.openrouter = {type: "api_key", key: "openrouter-fixture"}' \
       "$PI_CODING_AGENT_DIR/auth.json" >auth.json
     mv auth.json "$PI_CODING_AGENT_DIR/auth.json"
@@ -460,7 +462,7 @@ in {
     fi
     ${pkgs.jq}/bin/jq --exit-status --slurp '
       [.[] | select(.command == "get_state" and .id == "state") | .data.model | "\(.provider)/\(.id)"]
-        == ["openai-codex/${modelCatalog.defaults.openai}"]
+        == ["openai/${modelCatalog.defaults.openai}"]
     ' responses.jsonl >/dev/null || { cat responses.jsonl >&2; exit 1; }
 
     export PI_NOTIFY_ROOT=${pkgs.pi-notify}/${pkgs.pi-notify.packageRoot}

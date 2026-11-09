@@ -93,7 +93,7 @@ function harness(mode = "tui") {
   const context: FooterUIContext = {
     mode,
     cwd: "/footer-fixture",
-    model: { id: "fixture", provider: "openai-codex", contextWindow: 200_000 },
+    model: { id: "fixture", provider: "openai", contextWindow: 200_000 },
     thinkingLevel: "high",
     getContextUsage: (): undefined => {},
     hasPendingMessages: () => false,

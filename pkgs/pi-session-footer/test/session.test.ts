@@ -35,7 +35,7 @@ function harness() {
   };
   const context: FooterContext = {
     cwd: "/work",
-    model: { id: "fixture", provider: "openai-codex", contextWindow: 200_000 },
+    model: { id: "fixture", provider: "openai", contextWindow: 200_000 },
     thinkingLevel: "high",
     getContextUsage: (): undefined => {},
     hasPendingMessages: () => false,

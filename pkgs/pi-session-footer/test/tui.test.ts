@@ -53,8 +53,8 @@ async function seed(
             arguments: { path: "fixture.ts" },
           },
         ],
-        api: "openai-codex-responses",
-        provider: "openai-codex",
+        api: "openai-responses",
+        provider: "openai",
         model: "gpt-5.4",
         stopReason: "toolUse",
         timestamp: Date.now(),
@@ -97,8 +97,8 @@ async function seed(
       message: {
         role: "assistant",
         content: [{ type: "text", text: "Footer fixture. No model requests." }],
-        api: "openai-codex-responses",
-        provider: "openai-codex",
+        api: "openai-responses",
+        provider: "openai",
         model: "gpt-5.4",
         stopReason: "stop",
         timestamp: Date.now(),
@@ -159,7 +159,7 @@ async function footer(
       /gpt-5\.4|◫ |◴ 5h 40%/,
     );
 
-    expect(lines[0]).toContain("◫ 20.1%/500k");
+    expect(lines[0]).toContain("◫ 36.9%/272k");
     expect(lines[0]).toContain(" footer-fixture");
     expect({
       quotaWindows: /◴ 5h 40%.*◴ week 42%/.test(lines[1] ?? ""),
@@ -276,7 +276,7 @@ it.each([
           "--tools",
           "read",
           "--provider",
-          "openai-codex",
+          "openai",
           "--model",
           "gpt-5.4",
           "--thinking",
@@ -423,14 +423,14 @@ it.each([
       const originalColor = terminal.color("gpt-5.4");
 
       expect(originalColor).toBeDefined();
-      expect(originalColor).not.toBe(terminal.color("codex/"));
-      expect(terminal.color(quiet ? "20.1%" : "40%")).not.toBe(
+      expect(originalColor).not.toBe(terminal.color("openai/"));
+      expect(terminal.color(quiet ? "36.9%" : "40%")).not.toBe(
         terminal.color(quiet ? "◫ " : "◴ 5h "),
       );
       expect({
         model: terminal.style("gpt-5.4")?.bold,
         directory: terminal.style("~/work")?.bold,
-        provider: terminal.style("codex/")?.bold,
+        provider: terminal.style("openai/")?.bold,
         quota: terminal.style("40%")?.bold,
         cost: terminal.style("$0.04")?.bold,
       }).toStrictEqual({

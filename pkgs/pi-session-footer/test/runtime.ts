@@ -80,7 +80,7 @@ export async function runtimeFixture(events: EventBus = createEventBus()) {
     model: {
       ...model,
       id: "fixture",
-      provider: "openai-codex",
+      provider: "openai",
       contextWindow: 200_000,
     },
     thinkingLevel: "high",

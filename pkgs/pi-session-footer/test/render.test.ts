@@ -13,7 +13,7 @@ function fixture() {
   Object.assign(state, {
     now,
     model: "gpt-6-astra",
-    provider: "openai-codex",
+    provider: "openai",
     thinking: "high",
     reasoning: true,
   });
@@ -86,7 +86,7 @@ it.each([false, true])(
   },
 );
 it.each<[SegmentId, string]>([
-  ["model", " codex/gpt-6-astra"],
+  ["model", " openai/gpt-6-astra"],
   ["thinking", "◒ high"],
   ["directory", " /Users/test/dev/dotfiles"],
   ["git", " main ✚1 ✎2 ?3 ↑4 ↓5"],
