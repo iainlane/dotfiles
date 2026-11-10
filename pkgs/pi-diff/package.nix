@@ -48,6 +48,9 @@ in
       npm test -- --maxWorkers=1
       runHook postCheck
     '';
+    postCheck = ''
+      rm -rf node_modules/.vite
+    '';
     passthru = {
       packageRoot = "lib/node_modules/@heyhuynhgiabuu/pi-diff";
       updateScript = updaters.mkNixUpdateUpdater {

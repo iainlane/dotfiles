@@ -12,6 +12,7 @@ in {
       outputs.checks
       (checks {inherit pkgs;})
       (npmPackageChecks {inherit pkgs;})
+      (import ./checks/npm-install.nix {inherit pkgs;})
       (import ./checks/typecheck.nix {inherit pkgs;})
     ];
     legacyPackages = {inherit (outputs) slowChecks;};

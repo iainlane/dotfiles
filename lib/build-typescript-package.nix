@@ -37,6 +37,11 @@ in
         ''
         + (args.preCheck or "");
 
+      postCheck = ''
+        ${args.postCheck or ""}
+        rm -rf node_modules/.vite
+      '';
+
       passthru =
         {
           npmTarball = callPackage ../pkgs/build-support/npm-tarball.nix {} {
