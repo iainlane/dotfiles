@@ -35,22 +35,29 @@ in
   runCommand "${pname}-${version}" {
     inherit pname version;
 
-    passthru.updateScript = writeShellApplication {
-      name = "update-${pname}";
+    passthru = {
+      maintenance = {
+        source = "derived";
+        refresh = true;
+        dependencies = ["larapaper"];
+      };
+      updateScript = writeShellApplication {
+        name = "update-${pname}";
 
-      runtimeInputs = [git nix python3];
+        runtimeInputs = [git nix python3];
 
-      text = ''
-        cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
+        text = ''
+          cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
 
-        python3 ${./update.py} ${lib.escapeShellArg library} "$@"
-      '';
-    };
+          python3 ${./update.py} ${lib.escapeShellArg library} "$@"
+        '';
+      };
 
-    passthru.tests.updater = updaters.mkPythonUpdaterTest {
-      pname = "larapaper-web-library";
-      script = ./update.py;
-      test = ./test_update.py;
+      tests.updater = updaters.mkPythonUpdaterTest {
+        pname = "larapaper-web-library";
+        script = ./update.py;
+        test = ./test_update.py;
+      };
     };
 
     meta.platforms = lib.platforms.all;

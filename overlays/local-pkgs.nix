@@ -6,17 +6,17 @@
   inherit (inputs.nixpkgs) lib;
   npmPackages = import ../lib/npm-packages.nix {inherit lib;};
   pkgsDir = ../pkgs;
+  callLocalPackage = import ../lib/local-package.nix {inherit lib;};
   names = discovery.discoverPackages pkgsDir;
 in
-  final: _prev: let
-    # A package can declare additional `callPackage` arguments in
-    # `pkgs/<name>/args.nix`. That file takes `{inputs, final}` and returns the
-    # arguments the package set cannot supply.
+  final: prev: let
+    # Argument files can request inputs, final and prev. Explicit upstream
+    # arguments use prev to avoid resolving the local replacement.
     extraArgs = name: let
       argsFile = pkgsDir + "/${name}/args.nix";
     in
       if builtins.pathExists argsFile
-      then import argsFile {inherit final inputs;}
+      then let arguments = import argsFile; in arguments (builtins.intersectAttrs (builtins.functionArgs arguments) {inherit final inputs prev;})
       else {};
   in
     {
@@ -38,5 +38,15 @@ in
         ));
     }
     // lib.genAttrs names (
-      name: final.callPackage (pkgsDir + "/${name}/package.nix") (extraArgs name)
+      name: let
+        package = callLocalPackage {
+          path = pkgsDir + "/${name}/package.nix";
+          pkgs = final;
+          args = extraArgs name;
+        };
+        updater = package.updateScript or null;
+      in
+        if package ? maintenance || updater == null || !(updater ? maintenance)
+        then package
+        else package.overrideAttrs (old: {passthru = (old.passthru or {}) // {inherit (updater) maintenance;};})
     )

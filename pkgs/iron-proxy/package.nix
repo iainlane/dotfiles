@@ -20,7 +20,10 @@ buildGoLatestModule (finalAttrs: {
   checkFlags = ["-short"];
   __darwinAllowLocalNetworking = true;
   passthru = {
-    updateScript = updaters.mkNixUpdateUpdater {attr = "iron-proxy";};
+    updateScript = updaters.mkNixUpdateUpdater {
+      refresh = true;
+      attr = "iron-proxy";
+    };
     transformProto = "${finalAttrs.src}/proto/transform/v1/transform.proto";
   };
   meta = {

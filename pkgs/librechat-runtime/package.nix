@@ -10,6 +10,7 @@
   pnpm_10,
   pnpmConfigHook,
   stdenv,
+  updaters,
 }: let
   pnpm = pnpm_10;
   manifest = lib.importJSON ./package.json;
@@ -84,7 +85,15 @@ in
       '';
 
       passthru = {
-        updateScript = null;
+        updateScript = updaters.mkNixUpdateUpdater {
+          attr = "librechat-runtime";
+          refresh = true;
+          extraFlags = ["--version=skip" "--no-src"];
+        };
+        maintenance = {
+          source = "repository";
+          refresh = true;
+        };
         devShell = mkShell {
           packages = [nodejs_24 pnpm];
           LIBRECHAT_CODE_BRIDGE = bridge;

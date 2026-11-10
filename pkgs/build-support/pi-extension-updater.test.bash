@@ -19,6 +19,7 @@ export PI_UPDATER_ARCHIVE="$fixture/source.tgz"
 export PI_UPDATER_NPM_CALLS="$fixture/npm-calls"
 export PI_UPDATER_CONSUMED_MANIFEST="$fixture/consumed-manifest.json"
 export PI_UPDATER_LISTED_MANIFEST="$fixture/listed-manifest.json"
+export PI_UPDATER_URL="$fixture/url"
 
 reset_outputs() {
 	printf '%s\n' '{"version":"1.0.0","tarballHash":"old"}' >source.json
@@ -91,6 +92,17 @@ for program in "$registry" "$github"; do
 	cmp "$fixture/valid-lock.json" npm-deps/package-lock.json
 	"$program" --force
 	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	if [[ "$program" == "$github" ]]; then
+		jq '.rev = "explicit-revision"' source.json >"$fixture/pinned-source.json"
+		cp "$fixture/pinned-source.json" source.json
+	fi
+	cp source.json "$fixture/pinned-source.json"
+	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --refresh
+	cmp "$fixture/pinned-source.json" source.json
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	if [[ "$program" == "$github" ]]; then
+		grep -Fx 'https://github.com/fixture/fixture/archive/explicit-revision.tar.gz' "$PI_UPDATER_URL"
+	fi
 
 	cp "$fixture/valid-lock.json" "$PI_UPDATER_LOCK"
 	make_archive '{"name":"fixture","version":"2.0.0","overrides":{"shared":"1.0.0"}}'

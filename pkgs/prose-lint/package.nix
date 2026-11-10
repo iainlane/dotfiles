@@ -351,6 +351,7 @@ in
       // {
         inherit application;
         updateScript = null;
+        maintenance.source = "repository";
         tests =
           (old.passthru.tests or {})
           // {

@@ -21,7 +21,10 @@ buildGo127Module (finalAttrs: {
   ldflags = ["-s" "-w"];
   nativeCheckInputs = [zsh];
 
-  passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "zsh-lint";};
+  passthru.updateScript = updaters.mkNixUpdateUpdater {
+    refresh = true;
+    attr = "zsh-lint";
+  };
 
   meta = {
     description = "Static analyser for Zsh scripts";

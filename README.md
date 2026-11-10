@@ -72,8 +72,7 @@ Host-facing features include:
   wrappers and nodocker marker).
 - `network`: The systemd-networkd links of a system-manager host, and the LAN
   address that other features bind published container ports to.
-- `inference`: A local model server, with `ollama` and `open-webui` as children
-  so a host can run one without the other.
+- `inference`: Local inference through `ollama` and the LibreChat integration.
 - `nixbuild-builder`: nixbuild.net remote build configuration, including
   build-machine registration and cross-architecture build support.
 - `nixbuild`: nixbuild.net SSH aliases and credentials for remote-store access
@@ -159,8 +158,11 @@ The individual steps can also be run separately.
 
 #### `./just update-flake`
 
-Update flake inputs to their latest versions. Name inputs as arguments to update
-only those, for example `./just update-flake llm-agents`.
+Update flake inputs and refresh derived package data without advancing unrelated
+local source pins. Specify inputs to update only those, for example
+`./just update-flake llm-agents`. Each input update and its required refreshes
+form one transaction. Failed transactions are restored; independent updates
+continue. The command reports failures and exits nonzero if any update failed.
 
 An input pinned to a release tag in its URL, such as `codex-plugin-cc`, does not
 move this way. `update-pkgs` moves those.
@@ -173,6 +175,14 @@ moves the release tag in `flake.nix` and relocks that input. Each updater runs
 after the updaters of its package's dependencies, which `update-plan` reads from
 the derivation graph. `./just update-pkg <name>` runs a single one, for example
 `./just update-pkg chainctl` or `./just update-pkg hermes-agent`.
+
+Use `./just update-pkg caddy --refresh` to regenerate Caddy's combined source
+hashes without upgrading its plugins. `nix run .#update-all -- --refresh` runs
+every registered refresh. Packages without a refresh operation reject that flag.
+Both local and scheduled updates use the same rollback and reporting rules. See
+[package maintenance] for source policies and directory ownership.
+
+[package maintenance]: docs/architecture.md#packages-and-updates
 
 #### `./just update-system`
 

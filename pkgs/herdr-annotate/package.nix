@@ -54,6 +54,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
   passthru = {
     pluginRoot = "${finalAttrs.finalPackage}/share/herdr/plugins/herdr-annotate";
     updateScript = null;
+    maintenance = {
+      source = "pin";
+      reason = "The plugin revision is selected for the current Herdr integration.";
+    };
   };
 
   meta = {

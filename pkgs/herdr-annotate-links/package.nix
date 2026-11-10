@@ -38,6 +38,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru = {
     pluginRoot = "${finalAttrs.finalPackage}/share/herdr/plugins/herdr-annotate-links";
     updateScript = null;
+    maintenance = {
+      source = "derived";
+      dependencies = ["herdr-annotate"];
+    };
   };
 
   meta = {

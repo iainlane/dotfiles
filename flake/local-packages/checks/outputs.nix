@@ -5,6 +5,7 @@
 
   fake = name: platforms: {
     inherit name;
+    type = "derivation";
     meta = lib.optionalAttrs (platforms != null) {inherit platforms;};
   };
   updater = fake "tool-updater" null;
@@ -15,6 +16,7 @@
       passthru = {
         tests = {
           inherit updater;
+          unsupported = {};
           vm = fake "tool-vm" ["aarch64-linux"];
         };
         slowTests = {inherit suite;};
@@ -55,9 +57,10 @@ in
         failures = lib.filter (assertion: !assertion.pass) assertions;
         report = lib.concatMapStringsSep "\n" (assertion: assertion.name) failures;
       in {
-        checks.package-outputs = pkgs.runCommandLocal "package-outputs" {inherit report;} ''
-          if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
-          touch "$out"
-        '';
+        checks.package-outputs = assert import ../../../lib/local-package.test.nix {inherit lib pkgs;};
+          pkgs.runCommandLocal "package-outputs" {inherit report;} ''
+            if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
+            touch "$out"
+          '';
       }
     ).checks

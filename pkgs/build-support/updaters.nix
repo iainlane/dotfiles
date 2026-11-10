@@ -31,13 +31,20 @@
     pname,
     script,
     extraRuntimeInputs ? [],
+    refresh ? false,
   }:
     writeShellApplication {
       name = "update-${pname}";
-
+      passthru.maintenance = {
+        source = "release";
+        inherit refresh;
+      };
       runtimeInputs = [coreutils git jq nix wget] ++ extraRuntimeInputs;
 
       text = ''
+        ${lib.optionalString (!refresh) ''
+          if [[ "''${1:-}" == --refresh ]]; then echo 'This updater does not support --refresh.'; exit 1; fi
+        ''}
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
 
         ${builtins.readFile script}
@@ -106,10 +113,11 @@
   in
     writeShellApplication {
       name = "update-${pname}";
-
+      passthru.maintenance = {source = "release";};
       runtimeInputs = [coreutils git jq nix wget] ++ extraRuntimeInputs;
 
       text = ''
+        if (($#)); then echo 'This updater does not accept arguments.'; exit 1; fi
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
 
         # shellcheck disable=SC1091
@@ -154,9 +162,15 @@
     extraFlags ? [],
     unsetEnv ? [],
     npmLockfile ? null,
+    refresh ? false,
+    refreshFlags ? [],
   }:
     writeShellApplication {
       name = "update-${attr}";
+      passthru.maintenance = {
+        source = "release";
+        inherit refresh;
+      };
 
       runtimeInputs = [coreutils git nix nix-update];
 
@@ -166,7 +180,18 @@
 
           ${lib.concatMapStringsSep "\n" (name: "unset ${lib.escapeShellArg name}") unsetEnv}
 
-          nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${attr}"
+          if [[ "$#" == 0 ]]; then
+            nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${attr}" >&2
+          elif [[ "$#" == 1 && "$1" == --refresh && ${
+            if refresh
+            then "true"
+            else "false"
+          } == true ]]; then
+            nix-update --flake --override-filename "${filename}" --version=skip --no-src ${lib.escapeShellArgs refreshFlags} "${attr}" >&2
+          else
+            echo 'Unsupported updater arguments.'
+            exit 1
+          fi
         ''
         + lib.optionalString (npmLockfile != null) ''
 
@@ -197,7 +222,10 @@
   }:
     writeShellApplication {
       name = "update-${pname}";
-
+      passthru.maintenance = {
+        source = "release";
+        refresh = true;
+      };
       runtimeInputs = [coreutils git gnutar patch jq nix nodejs wget];
 
       text = ''
@@ -219,14 +247,21 @@
         # Leave the caller's npm cache alone; this run only reads metadata.
         export npm_config_cache="''${tmpdir}/npm-cache"
 
-        version="$(npm view "${npmName}" version)"
+        refresh=false
+        if [[ "$#" == 1 && "$1" == --refresh ]]; then
+          refresh=true
+        elif (($# > 1)) || [[ "$#" == 1 && "$1" != --force ]]; then
+          echo 'Usage: update-${pname} [--force | --refresh]' >&2
+          exit 1
+        fi
         current="$(jq -r .version source.json)"
+        if $refresh; then version="$current"; else version="$(npm view "${npmName}" version)"; fi
 
         # Some changes need the lockfile rebuilt without a version bump:
         # moving a package to a GitHub source, or editing `npmDependencies`.
         # `--force` asks for that.
         if [[ "''${version}" == "''${current}" ]]; then
-          if [[ "''${1:-}" != "--force" ]]; then
+          if [[ "''${1:-}" != "--force" ]] && ! $refresh; then
             echo "${pname} is already on the latest version (''${version}); pass --force to resolve it again" >&2
             exit 0
           fi
@@ -240,7 +275,8 @@
           if gitHub != null
           then ''
             tag="${tagPrefix}''${version}"
-            url="https://github.com/${gitHub.owner}/${gitHub.repo}/archive/refs/tags/''${tag}.tar.gz"
+            if $refresh; then tag="$(jq -r '.rev // .tag // (.version | "${tagPrefix}" + .)' source.json)"; fi
+            url="https://github.com/${gitHub.owner}/${gitHub.repo}/archive/''${tag}.tar.gz"
 
             # `fetchFromGitHub` records the hash of the unpacked tree, so
             # `--unpack` produces the matching value. `nix-prefetch-url` prints
@@ -277,8 +313,15 @@
               '{version: $version, tarballHash: $hash}' >"''${staged}"
           ''
         }
+        if $refresh; then
+          if [[ "$(jq -r '.hash // .tarballHash' source.json)" != "$hash" ]]; then
+            echo 'The pinned source hash changed; refusing to repin during refresh.'
+            exit 1
+          fi
+          cp source.json "$staged"
+        fi
         ${lib.concatMapStringsSep "\n" (sourcePatch: ''
-            (cd "$sourceDir" && patch --batch --forward -p1 --input ${lib.escapeShellArg (toString sourcePatch)})
+            (cd "$sourceDir" && patch --batch --forward -p1 --input ${lib.escapeShellArg (toString sourcePatch)}) >&2
           '')
           patches}
         ${lib.optionalString (npmDependencies != {}) ''
@@ -288,7 +331,7 @@
           mv "$sourceDir/package.json.new" "$sourceDir/package.json"
         ''}
         ${lib.optionalString (gitHub == null || patches != [] || npmDependencies != {}) ''
-          (cd "$sourceDir" && npm install --package-lock-only --ignore-scripts)
+          (cd "$sourceDir" && npm install --package-lock-only --ignore-scripts) >&2
         ''}
         lockfile="$sourceDir/package-lock.json"
 
@@ -345,26 +388,30 @@
   in
     writeShellApplication {
       name = "update-${pname}";
-
+      passthru.maintenance = {
+        source = "repository";
+        refresh = true;
+      };
       runtimeInputs = [coreutils git jq nodejs];
 
       text = ''
+        if (($# > 1)) || [[ "$#" == 1 && "$1" != --refresh ]]; then echo 'Unsupported updater arguments.'; exit 1; fi
         cd "$(git rev-parse --show-toplevel)/${directory}"
 
-        bash ${./npm-lock-updater.bash} ${provided}
+        bash ${./npm-lock-updater.bash} ${provided} >&2
       '';
     };
 
   mkFlakeBranchUpdater = {input}:
     writeShellApplication {
       name = "update-${input}";
-
       runtimeInputs = [git nix];
 
       text = ''
         cd "$(git rev-parse --show-toplevel)"
 
-        nix flake update ${lib.escapeShellArg input}
+        if (($#)); then echo 'This input updater does not accept arguments.'; exit 1; fi
+        nix flake update ${lib.escapeShellArg input} >&2
       '';
     };
 
@@ -386,6 +433,7 @@
       text = ''
         cd "$(git rev-parse --show-toplevel)"
 
+        if (($#)); then echo 'This input updater does not accept arguments.'; exit 1; fi
         current_tag=${lib.escapeShellArg ref}
 
         if ! latest_tag="$(gh api "repos/${owner}/${repo}/releases/latest" --jq .tag_name)"; then
@@ -412,7 +460,7 @@
         mv "''${staged}" flake.nix
 
         echo "Re-locking ${input}" >&2
-        nix flake update "${input}"
+        nix flake update "${input}" >&2
       '';
     };
 }

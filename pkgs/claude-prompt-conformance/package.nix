@@ -427,6 +427,7 @@ in
         promptEnvironment = ./prompt-environment.nix;
         catalogue = expectedCatalogue;
         updateScript = null;
+        maintenance.source = "repository";
         slowTests = {
           claudeEndpoint = claudeEndpointCheck;
           codexEndpoint = codexEndpointCheck;

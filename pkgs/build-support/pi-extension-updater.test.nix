@@ -4,7 +4,10 @@
     name = "npm";
     text = ''
       case "$1" in
-        view) printf '%s\n' "$PI_UPDATER_VERSION" ;;
+        view)
+          if [[ "''${PI_UPDATER_FORBID_DISCOVERY:-0}" == 1 ]]; then exit 1; fi
+          printf '%s\n' "$PI_UPDATER_VERSION"
+          ;;
         install)
           if [[ "''${PI_UPDATER_EXPECT_PATCH:-0}" == 1 ]]; then
             test "$(cat support.txt)" = after
@@ -27,6 +30,7 @@
     text = ''
       test "$2" = -qO
       cp "$PI_UPDATER_ARCHIVE" "$3"
+      printf '%s\n' "$4" >"$PI_UPDATER_URL"
     '';
   };
   hash = pkgs.writeShellApplication {

@@ -198,6 +198,10 @@ in
     passthru = {
       inherit larapaper trmnl-framework entrypoint;
       updateScript = null;
+      maintenance = {
+        source = "derived";
+        dependencies = ["larapaper"];
+      };
       tests.smoke = callPackage ./test.nix {};
     };
     meta.platforms = lib.platforms.linux;

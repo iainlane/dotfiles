@@ -12,6 +12,7 @@ writeShellApplication {
 
   passthru = {
     updateScript = null;
+    maintenance = {source = "repository";};
     tests.follows =
       runCommandLocal "flake-lock-summary-follows" {
         nativeBuildInputs = [bash jq];

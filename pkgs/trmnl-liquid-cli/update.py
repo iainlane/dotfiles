@@ -6,6 +6,7 @@ import os
 import re
 import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -241,7 +242,7 @@ def update(package: Path, force: bool) -> None:
         and record["manifest_digest"] == release.manifest_digest
         and not force
     ):
-        print(f"Liquid CLI is already on {release.version}.")
+        print(f"Liquid CLI is already on {release.version}.", file=sys.stderr)
         return
     binary, layer = registry.binary(release)
     root = Path(run(["git", "rev-parse", "--show-toplevel"], cwd=package))
@@ -308,7 +309,7 @@ def update(package: Path, force: bool) -> None:
             "source.json": (json.dumps(record, indent=2) + "\n").encode(),
         }
         publish(package, files)
-    print(f"Updated Liquid CLI to {release.version}.")
+    print(f"Updated Liquid CLI to {release.version}.", file=sys.stderr)
 
 
 def main() -> None:

@@ -37,8 +37,8 @@ if [[ "${version}" == "${current}" ]]; then
 	preference=skip
 fi
 nix-update --flake --system x86_64-linux --version="${preference}" \
-	--override-filename pkgs/xrt/package.nix xrt
+	--override-filename pkgs/xrt/package.nix xrt >&2
 nix-update --flake --system x86_64-linux --version=skip \
-	--override-filename pkgs/xrt/xdna.nix xrt.xdna.plugin
+	--override-filename pkgs/xrt/xdna.nix xrt.xdna.plugin >&2
 
 echo "Updated XRT and its XDNA plugin to ${version}." >&2

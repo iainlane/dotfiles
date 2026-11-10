@@ -24,6 +24,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   buildInputs = [libxkbcommon];
 
   passthru.updateScript = updaters.mkNixUpdateUpdater {
+    refresh = true;
     attr = "eitype";
     extraFlags = [
       "--system"

@@ -93,7 +93,13 @@ in
     '';
     passthru = {
       inherit php frontend composerVendor webLibraries;
+      maintenance = {
+        source = "release";
+        refresh = true;
+        dependencies = [];
+      };
       updateScript = updaters.mkScriptUpdater {
+        refresh = true;
         pname = "larapaper";
         script = ./update.bash;
         extraRuntimeInputs = [gh python3 nix-update];
