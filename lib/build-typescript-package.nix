@@ -55,6 +55,10 @@ in
             };
           };
 
+          maintenance = {
+            source = "repository";
+            refresh = deps.provided != [] && (args.passthru.updateScript or true) != null;
+          };
           updateScript =
             if deps.provided == []
             then null

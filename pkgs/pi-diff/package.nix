@@ -51,6 +51,7 @@ in
     passthru = {
       packageRoot = "lib/node_modules/@heyhuynhgiabuu/pi-diff";
       updateScript = updaters.mkNixUpdateUpdater {
+        refresh = true;
         attr = "pi-diff";
         extraFlags = ["--version=branch=pi-integration-fixes"];
         npmLockfile = "pkgs/pi-diff/npm-deps/package-lock.json";

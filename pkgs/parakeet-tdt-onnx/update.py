@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -27,7 +28,7 @@ def update(source: Path, force: bool) -> None:
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise UpdateError("The model repository returned an invalid revision.")
     if revision == record["revision"] and not force:
-        print(f"Parakeet is already at {revision}.")
+        print(f"Parakeet is already at {revision}.", file=sys.stderr)
         return
 
     metadata = json.loads(
@@ -60,7 +61,7 @@ def update(source: Path, force: bool) -> None:
         os.replace(staged, source)
     finally:
         staged.unlink(missing_ok=True)
-    print(f"Updated Parakeet to {revision}.")
+    print(f"Updated Parakeet to {revision}.", file=sys.stderr)
 
 
 def main() -> None:

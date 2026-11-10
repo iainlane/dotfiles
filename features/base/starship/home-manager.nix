@@ -265,21 +265,7 @@ in {
   programs.starship = {
     enable = true;
 
-    # A fork of starship with a fix for the width of Unicode characters.
-    package = pkgs.starship.overrideAttrs (prevAttrs: {
-      src = inputs.starship-custom;
-
-      # Building the vendor directory from the fork's own `Cargo.lock`
-      # replaces the one nixpkgs fetches with `cargoHash`, so that hash is
-      # unused here and does not have to be updated when the fork moves.
-      cargoDeps = pkgs.rustPlatform.importCargoLock {
-        lockFile = "${inputs.starship-custom}/Cargo.lock";
-      };
-
-      # The time module uses jiff, which reads timezone data from the
-      # system. The build sandbox has none, so the tests fail without this.
-      env = (prevAttrs.env or {}) // {TZDIR = "${pkgs.tzdata}/share/zoneinfo";};
-    });
+    package = pkgs.starship;
 
     enableZshIntegration = true;
 

@@ -57,6 +57,31 @@ class PlanTest(unittest.TestCase):
             self.plan(listed).order(), ["docs", "mac-app", "source", "plugin"]
         )
 
+    def test_refresh_selection_preserves_provider_order(self) -> None:
+        nodes = [
+            Node("provider", "/nix/store/host.drv", True, refresh=True),
+            Node("consumer", "/nix/store/plugin.drv", True, refresh=True),
+            Node("source-only", None, True),
+        ]
+        plan = Plan.from_query(nodes, lambda _: path_info(REFERENCES))
+        self.assertEqual(plan.order(refresh=True), ["provider", "consumer"])
+
+    def test_declared_maintenance_dependencies_replace_build_order(self) -> None:
+        nodes = [
+            Node("host", "/nix/store/plugin.drv", True, dependencies=[]),
+            Node("assets", "/nix/store/docs.drv", True, dependencies=["host"]),
+        ]
+        plan = Plan.from_query(nodes, lambda _: path_info(REFERENCES))
+        self.assertEqual(plan.order(), ["host", "assets"])
+
+    def test_rejects_cyclic_maintenance_dependencies(self) -> None:
+        nodes = [
+            Node("a", None, True, dependencies=["b"]),
+            Node("b", None, True, dependencies=["a"]),
+        ]
+        with self.assertRaisesRegex(ValueError, "cycle"):
+            Plan.from_query(nodes, lambda _: "{}").order()
+
     def test_selects_the_updaters_downstream_of_changed_packages(self) -> None:
         plan = self.plan(path_info(REFERENCES))
         cases = {

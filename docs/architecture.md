@@ -291,17 +291,81 @@ native host-output collection.
 ## Packages and updates
 
 Every `pkgs/<name>/package.nix` becomes an overlay package and a public package
-when available on that platform. Optional `args.nix` files supply explicit
-inputs unavailable through ordinary package arguments.
+when available on that platform. Package definitions include maintained changes
+to upstream recipes: patches, forks, plugin lists and temporary backports belong
+beside their package's tests and updater. A package has one maintained
+definition, even when it reuses an upstream recipe.
+
+Overlays compose package sets, import external packages and expose scoped sets
+or aliases. Features configure applications and select package options. They do
+not define source pins or maintain patches.
+
+Optional `args.nix` functions can request `inputs`, `final` and `prev`. Pass an
+`upstreamPackage` argument explicitly from `prev` when replacing its attribute,
+so the recipe does not recursively resolve its own replacement. The loader
+preserves the resulting upstream `.override` API; complete local recipes use
+ordinary `callPackage` argument overrides. A different source channel or
+external package input must be selected explicitly.
 
 `passthru.tests` exports checks as `<package>-<test>`. `passthru.slowTests`
 exports `legacyPackages.<system>.slowChecks`. The router filters availability
-and rejects flattened-name collisions. `local-packages` contains discovered
-local packages, not every package exported by a feature.
+and rejects flattened-name collisions. The inherited Caddy, LibreChat, Podman
+and Starship VM suites use `slowTests`; their focused package and updater checks
+remain normal checks. CI builds slow suites on the Linux validation system.
+`local-packages` contains discovered local packages, not every package exported
+by a feature.
 
-The updater component derives apps and version metadata from package updater
-contracts and locked input policy. Dependency updates exercise package tests and
-explicitly included shared feature checks, even without a selecting host.
+Each package declares `passthru.maintenance.source`: `input`, `release`, `pin`,
+`repository` or `derived`. Input-following packages specify `inputs`; derived
+packages specify provider packages in `dependencies`. Manual pins require a
+`reason`. Temporary changes also specify `temporary = true` and a `retirement`
+condition. Shared package builders and local updater generators can declare this
+policy for their package family. An inherited upstream updater does not
+establish a local policy. Coverage checks validate both package channels.
+
+`passthru.updateScript` is an explicitly selected local executable or `null`.
+The normal `update-<name>` app may advance locally controlled pins and must
+regenerate the associated derived files. Packages with
+`maintenance.refresh = true` also accept `--refresh`: the operation keeps
+locally controlled source pins and regenerates their derived files. Caddy uses
+this mode to regenerate its plugin-source hashes for both selected package
+channels. Its plugin pins advance only during a normal update.
+
+Generic Nix updaters use the same explicit `system` selector in both modes. A
+Linux-only package can therefore refresh its hashes from a Darwin host through
+the configured remote builders.
+
+`update-plan` orders maintenance through the derivation graph. An explicit
+`maintenance.dependencies` list replaces inferred build ordering when source
+maintenance has a different order. LaraPaper's derived web-library pins follow
+its selected composer source, although the final application includes those
+libraries. `update-all --refresh` runs all registered refresh operations.
+
+The shared `update-runner` re-evaluates each executable after earlier updates.
+It snapshots operation-owned files and restores a failed update without deleting
+unrelated files or changing the caller's existing index. Local updates refuse
+pre-existing staged or unstaged changes in their ownership scopes. CI stages
+only accepted changes.
+
+Flake updates process inputs independently and run refresh-only maintenance
+before accepting each changed input. `lanzaboote` and `nixpkgs-measured-boot`
+update together because their integration requires matching revisions. A failed
+refresh or evaluation restores that input transaction, preserves earlier
+successes and permits independent updates to continue. A package update also
+refreshes dependent local packages before acceptance; a failed required refresh
+restores that provider update. Batches skip dependents of failed providers.
+Commands return nonzero after reporting any failures. The evaluation gate does
+not build packages; full builds remain separate verification.
+
+Updater stdout is optional plain text for the PR description. Progress and
+diagnostics go to stderr, and exit status determines success or failure. The
+runner includes stdout from successful no-change checks and failed updates.
+TeamClaude uses this channel to report newer upstream releases without changing
+its fork pin. A message-only run appears in the local report and Actions summary
+but does not create a PR without repository changes.
+
+Dependency updates exercise package tests and explicitly included shared feature
+checks, even without a selecting host.
 
 ## Validation and public interfaces
 

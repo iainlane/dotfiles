@@ -16,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-nix-update --flake --version=branch=main --override-filename "${package}" herdr-disp-model
+nix-update --flake --version=branch=main --override-filename "${package}" herdr-disp-model >&2
 source="$(nix build --no-link --print-out-paths .#herdr-disp-model.src)"
 current="$(nix eval --raw .#herdr-disp-model.version)"
 manifest_version="$(nix eval --raw --impure --expr "(builtins.fromTOML (builtins.readFile ${source}/herdr-plugin.toml)).version")"

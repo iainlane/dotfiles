@@ -74,7 +74,10 @@ in
       runHook postInstall
     '';
 
-    passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "mcp-remote";};
+    passthru.updateScript = updaters.mkNixUpdateUpdater {
+      refresh = true;
+      attr = "mcp-remote";
+    };
 
     meta = {
       description = "Remote proxy for Model Context Protocol stdio clients";

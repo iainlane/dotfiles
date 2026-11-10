@@ -45,6 +45,11 @@ rustPlatform.buildRustPackage {
 
   passthru.updateScript = null;
 
+  passthru.maintenance = {
+    source = "derived";
+    dependencies = ["voxtype"];
+  };
+
   meta = {
     description = "GTK4 on-screen display frontend for voxtype";
     homepage = "https://voxtype.io";

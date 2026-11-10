@@ -71,6 +71,10 @@ in
     passthru = {
       inherit packageRoot;
       updateScript = null;
+      maintenance = {
+        source = "pin";
+        reason = "The permission adapter and sandbox SDK are reviewed together.";
+      };
     };
 
     meta = {

@@ -84,6 +84,7 @@ in
 
       passthru = {
         updateScript = updaters.mkNixUpdateUpdater {
+          refresh = true;
           attr = "rea";
           extraFlags = [
             "--version=stable"

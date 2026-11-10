@@ -23,6 +23,8 @@ class Node:
     name: str
     path: str | None
     updater: bool
+    refresh: bool = False
+    dependencies: list[str] | None = None
 
 
 def references(output: str) -> dict[str, list[str]]:
@@ -74,18 +76,27 @@ class Plan:
             else set()
             for node in nodes
         }
+        for node in nodes:
+            if node.dependencies is not None:
+                dependencies[node.name] = set(node.dependencies)
         return cls(nodes=nodes, dependencies=dependencies)
 
-    def _sorted(self, names: set[str]) -> list[str]:
+    def _sorted(self, names: set[str], *, refresh: bool = False) -> list[str]:
         """The updaters among `names`, each after its dependencies. Names that
         are ready together appear in alphabetical order."""
-        updaters = {node.name for node in self.nodes if node.updater}
+        updaters = {
+            node.name
+            for node in self.nodes
+            if node.updater and (not refresh or node.refresh)
+        }
         waiting = {name: self.dependencies[name] & names for name in names}
         ready = [name for name, needs in waiting.items() if not needs]
         heapq.heapify(ready)
         order: list[str] = []
+        visited: set[str] = set()
         while ready:
             name = heapq.heappop(ready)
+            visited.add(name)
             if name in updaters:
                 order.append(name)
             for other, needs in waiting.items():
@@ -93,10 +104,31 @@ class Plan:
                     needs.discard(name)
                     if not needs:
                         heapq.heappush(ready, other)
+        if visited != names:
+            raise ValueError(
+                "Maintenance dependency cycle: " + ", ".join(sorted(names - visited))
+            )
         return order
 
-    def order(self) -> list[str]:
-        return self._sorted({node.name for node in self.nodes})
+    def order(self, *, refresh: bool = False) -> list[str]:
+        return self._sorted({node.name for node in self.nodes}, refresh=refresh)
+
+    def describe(self) -> dict:
+        dependencies: dict[str, list[str]] = {}
+        for name in self.dependencies:
+            seen: set[str] = set()
+            pending = list(self.dependencies[name])
+            while pending:
+                dependency = pending.pop()
+                if dependency not in seen:
+                    seen.add(dependency)
+                    pending.extend(self.dependencies[dependency])
+            dependencies[name] = sorted(seen)
+        return {
+            "order": self.order(),
+            "refreshOrder": self.order(refresh=True),
+            "dependencies": dependencies,
+        }
 
     def downstream(self, changed: list[str]) -> list[str]:
         """The updaters of the nodes that depend on a changed node. Each
@@ -128,7 +160,11 @@ def main() -> None:
         "--nodes", required=True, help="JSON list of {name, path, updater} records"
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("order", help="print every updater in dependency order")
+    order = commands.add_parser("order", help="print every updater in dependency order")
+    order.add_argument("--refresh", action="store_true")
+    commands.add_parser(
+        "describe", help="print maintenance order and dependencies as JSON"
+    )
     downstream = commands.add_parser(
         "downstream", help="print the updaters of nodes that depend on changed nodes"
     )
@@ -138,8 +174,11 @@ def main() -> None:
     with open(arguments.nodes) as file:
         nodes = [Node(**record) for record in json.load(file)]
     plan = Plan.from_query(nodes, path_info)
+    if arguments.command == "describe":
+        print(json.dumps(plan.describe(), sort_keys=True))
+        return
     names = (
-        plan.order()
+        plan.order(refresh=arguments.refresh)
         if arguments.command == "order"
         else plan.downstream(arguments.changed)
     )

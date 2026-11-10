@@ -9,8 +9,8 @@
     inherit (config.flake) packages;
   };
   checks = import ./checks.nix {
-    inherit lib;
-    inherit (config.flake) packages updaterNames updaterVersions;
+    inherit lib inputs;
+    inherit (config.flake) updaterNames updaterVersions;
   };
 in {
   options.flake = {
@@ -28,9 +28,20 @@ in {
     };
   };
   config = {
-    perSystem = {pkgs, ...}: {
-      apps = outputs.apps {inherit pkgs;};
-      checks = checks {inherit pkgs;};
+    perSystem = {
+      pkgs,
+      pkgs-stable,
+      system,
+      ...
+    }: let
+      systemOutputs = outputs.forSystem {inherit pkgs pkgs-stable system;};
+    in {
+      inherit (systemOutputs) apps legacyPackages;
+      checks = checks {
+        inherit pkgs pkgs-stable;
+        inherit (systemOutputs) apps;
+        inherit (systemOutputs.legacyPackages) updaterScripts;
+      };
     };
     flake = {inherit (outputs) packageVersions updaterNames updaterVersions;};
   };

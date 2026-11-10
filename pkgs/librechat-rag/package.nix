@@ -81,6 +81,10 @@ in
 
     passthru = {
       updateScript = null;
+      maintenance = {
+        source = "pin";
+        reason = "The service and committed Python workspace are updated together after integration review.";
+      };
       inherit environment;
     };
 

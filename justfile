@@ -33,13 +33,23 @@ default:
 
 # Update flake inputs (all, or specific ones if provided). Inputs pinned to a
 # release tag, such as catppuccin-palette, can't be moved this way; use update-pkg.
+[positional-arguments]
 update-flake *inputs:
-    nix flake update {{ inputs }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -n "${GITHUB_TOKEN:-}" ] || unset GITHUB_TOKEN
+    exec nix run .#update-flake -- "$@"
 
 # Update a local package or selected flake input to its latest upstream version
 # (e.g. just update-pkg chainctl, just update-pkg hermes-agent)
-update-pkg name:
-    nix run .#update-{{ name }}
+[positional-arguments]
+update-pkg name *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -n "${GITHUB_TOKEN:-}" ] || unset GITHUB_TOKEN
+    name="$1"
+    shift
+    exec nix run ".#update-${name}" -- "$@"
 
 # Run every package and tag-pinned-input updater in dependency order
 update-pkgs:

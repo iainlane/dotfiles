@@ -2,13 +2,13 @@
   callPackage,
   lib,
   stdenv,
-  upstreamPi,
+  upstreamPackage,
 }: let
   npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
   npmName = "@earendil-works/pi-coding-agent";
   sdkPackageRoot = "libexec/pi-sdk";
 in
-  upstreamPi.overrideAttrs (finalAttrs: old: {
+  upstreamPackage.overrideAttrs (finalAttrs: old: {
     patches = (old.patches or []) ++ [./native-call-label.patch ./native-message-errors.patch];
     buildInputs = (old.buildInputs or []) ++ lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];
     outputs = (old.outputs or ["out"]) ++ ["sdk"];
@@ -21,6 +21,10 @@ in
       (old.passthru or {})
       // {
         updateScript = null;
+        maintenance = {
+          source = "input";
+          inputs = ["llm-agents"];
+        };
 
         npmTarball = callPackage ../build-support/npm-tarball.nix {} {
           name = npmName;

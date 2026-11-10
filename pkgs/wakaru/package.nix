@@ -19,7 +19,10 @@ rustPlatform.buildRustPackage (finalAttrs: {
   cargoBuildFlags = ["--package" "wakaru-cli"];
   cargoTestFlags = ["--package" "wakaru-cli"];
 
-  passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "wakaru";};
+  passthru.updateScript = updaters.mkNixUpdateUpdater {
+    refresh = true;
+    attr = "wakaru";
+  };
 
   meta = {
     description = "JavaScript decompiler and bundle splitter";
