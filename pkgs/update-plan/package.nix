@@ -17,6 +17,7 @@ writeShellApplication {
 
   passthru = {
     updateScript = null;
+    maintenance = {source = "repository";};
     tests.unit =
       runCommandLocal "update-plan-test" {
         nativeBuildInputs = [pyright python3 ruff];

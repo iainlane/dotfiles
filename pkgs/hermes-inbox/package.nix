@@ -53,6 +53,10 @@ pythonPackages.buildPythonPackage {
   '';
   pythonImportsCheck = ["hermes_inbox"];
   passthru.updateScript = null;
+  passthru.maintenance = {
+    source = "input";
+    inputs = ["hermes-agent"];
+  };
   postInstall = ''
     mkdir -p "$out/share/hermes-inbox-plugin"
     cp plugin/__init__.py "$out/share/hermes-inbox-plugin/__init__.py"

@@ -8,5 +8,6 @@
 }: let
   unstable = inputs.nixpkgs.legacyPackages.${final.stdenv.hostPlatform.system};
 in {
-  inherit (unstable) melange buildGoLatestModule;
+  upstreamPackage = unstable.melange;
+  inherit (unstable) buildGoLatestModule;
 }

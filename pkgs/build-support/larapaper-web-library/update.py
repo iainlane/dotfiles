@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -32,7 +33,7 @@ def update(source: Path, config: str, library: str, force: bool) -> None:
     current = json.loads(source.read_bytes())
     wanted = version(config, library)
     if current.get("version") == wanted and not force:
-        print(f"{library} already matches the packaged renderer.")
+        print(f"{library} already matches the packaged renderer.", file=sys.stderr)
         return
 
     archive = fetch(f"https://registry.npmjs.org/{library}/-/{library}-{wanted}.tgz")
@@ -46,13 +47,14 @@ def update(source: Path, config: str, library: str, force: bool) -> None:
         os.replace(staged, source)
     finally:
         staged.unlink(missing_ok=True)
-    print(f"Updated {library} to {wanted} from the packaged renderer.")
+    print(f"Updated {library} to {wanted} from the packaged renderer.", file=sys.stderr)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("library")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--refresh", action="store_true")
     arguments = parser.parse_args()
     try:
         root = subprocess.check_output(
@@ -71,7 +73,12 @@ def main() -> None:
         config = (
             Path(vendor) / "vendor/bnussbau/laravel-trmnl-blade/config/trmnl-blade.php"
         ).read_text()
-        update(Path("source.json"), config, arguments.library, arguments.force)
+        update(
+            Path("source.json"),
+            config,
+            arguments.library,
+            arguments.force or arguments.refresh,
+        )
     except (
         UpdateError,
         OSError,

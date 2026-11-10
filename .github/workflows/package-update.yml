@@ -8,10 +8,6 @@
 # on its own; this workflow updates the `pkgs/` packages, release-tag inputs
 # and the Hermes integration branch.
 #
-# The updaters run in one job: each only fetches assets and records
-# platform-independent hashes, so a single run produces correct results for
-# every system. That job runs on an arm64 runner because those start promptly.
-#
 # As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
 # not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have the PR
 # run CI like any other.
@@ -68,48 +64,19 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
-      # Run every updater in dependency order and stage each successful bump.
-      # When an updater fails, revert its edits and remove any files that it
-      # created, so the commit never includes a partial update. Then continue
-      # with the next updater, so one upstream outage does not block the
-      # others. Each bump's new version is recorded for the pull request body.
-      - name: Run the updaters
+      - name: Run transactional package updates
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          names="$(nix run .#update-plan -- order)"
-
-          : > "${RUNNER_TEMP}/changed.txt"
-          : > "${RUNNER_TEMP}/failed.txt"
-
-          for name in ${names}; do
-            echo "::group::update-${name}"
-
-            if ! nix run ".#update-${name}"; then
-              echo "::warning::update-${name} failed; leaving it unchanged"
-              printf '%s\n' "${name}" >> "${RUNNER_TEMP}/failed.txt"
-              git checkout -- .
-              git clean -fd
-              echo '::endgroup::'
-              continue
-            fi
-
-            if git diff --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
-              echo "${name} already current."
-              echo '::endgroup::'
-              continue
-            fi
-
-            version="$(nix eval --raw ".#.updaterVersions.${name}")"
-
-            printf '%s %s\n' "${name}" "${version}" >> "${RUNNER_TEMP}/changed.txt"
-            git add -A
-
-            echo '::endgroup::'
-          done
+          nix build .#update-runner --out-link "${RUNNER_TEMP}/update-runner"
+          runner="${RUNNER_TEMP}/update-runner/bin/update-runner"
+          report="${RUNNER_TEMP}/update-report.md"
+          if ! "${runner}" packages --stage > "${report}"; then
+            echo "::warning::Some updates were skipped; see the update report."
+          fi
+          cat "${report}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Open or update the pull request
         env:
@@ -153,18 +120,7 @@ jobs:
           {
             echo "Automated package bumps from the scheduled \`package-update\` workflow."
             echo
-            echo "Updated:"
-            while read -r name version; do
-              echo "- ${name} ${version}"
-            done < "${RUNNER_TEMP}/changed.txt"
-
-            if [[ -s "${RUNNER_TEMP}/failed.txt" ]]; then
-              echo
-              echo "Failed to update, left unchanged:"
-              while read -r name; do
-                echo "- ${name}"
-              done < "${RUNNER_TEMP}/failed.txt"
-            fi
+            cat "${RUNNER_TEMP}/update-report.md"
 
             echo
             echo "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache."

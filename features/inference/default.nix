@@ -5,7 +5,6 @@ in {
     ./acceleration
     ./ollama
     ./librechat
-    ./open-webui
   ];
 
   dotfiles.features.inference = {

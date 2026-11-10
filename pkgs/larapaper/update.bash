@@ -2,13 +2,19 @@
 
 set -euo pipefail
 
-if (($# > 1)) || [[ "${1:-}" != "" && "${1:-}" != "--force" ]]; then
-	echo 'Usage: update-larapaper [--force]' >&2
+if (($# > 1)) || [[ "${1:-}" != "" && "${1:-}" != "--force" && "${1:-}" != "--refresh" ]]; then
+	echo 'Usage: update-larapaper [--force | --refresh]' >&2
 	exit 1
 fi
 
 root="$(git rev-parse --show-toplevel)"
 current="$(nix eval --json "${root}#packages.aarch64-linux.larapaper" --apply 'p: { inherit (p) version; inherit (p.src) rev; hash = p.src.outputHash; }')"
+if [[ "${1:-}" == --refresh ]]; then
+	cd "${root}"
+	nix-update --flake --system aarch64-linux --version=skip --no-src \
+		--subpackage frontend --override-filename pkgs/larapaper/package.nix larapaper >&2
+	exit 0
+fi
 tag="$(gh api repos/usetrmnl/larapaper/releases/latest --jq .tag_name)"
 
 if [[ ! "${tag}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -64,6 +70,6 @@ cd "${root}"
 # applyPatches exposes the original hash, but a source prefetch hashes the
 # patched tree. Prefetch the release above and leave source hashing disabled.
 nix-update --flake --system aarch64-linux --version=skip --no-src \
-	--subpackage frontend --override-filename pkgs/larapaper/package.nix larapaper
+	--subpackage frontend --override-filename pkgs/larapaper/package.nix larapaper >&2
 
 echo "Updated LaraPaper to ${version}." >&2

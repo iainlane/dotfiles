@@ -67,6 +67,10 @@ bun2nix.mkDerivation {
 
   passthru = {
     updateScript = null;
+    maintenance = {
+      source = "pin";
+      reason = "The code service release is selected for the native LibreChat integration.";
+    };
     runtimes = {
       inherit bash bun nodejs_24;
       python314 = python314.withPackages (packages: with packages; [matplotlib numpy pandas pillow requests]);

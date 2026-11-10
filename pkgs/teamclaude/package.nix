@@ -7,16 +7,19 @@
   nodejs,
   stdenvNoCC,
   updaters,
+  gh,
+  python3,
+  writeShellApplication,
 }:
-stdenvNoCC.mkDerivation (finalAttrs: {
+stdenvNoCC.mkDerivation {
   pname = "teamclaude";
-  version = "1.1.26";
+  version = "1.1.26-unstable-2026-10-30";
 
   src = fetchFromGitHub {
-    owner = "KarpelesLab";
+    owner = "iainlane";
     repo = "teamclaude";
-    tag = "v${finalAttrs.version}";
-    hash = "sha256-BlYAlg5GKRDp/+6b66bPIRAGyyJaQyAC5FYKGZR2ON4=";
+    rev = "654fd97303f927078cafafdbf980f0c11c5af61e";
+    hash = "sha256-aH+RFzSbS5boQlHv1L6b4Jn1Yx4Sy9oCT7RCWhTOTn8=";
   };
 
   nativeBuildInputs = [makeWrapper];
@@ -54,7 +57,22 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  passthru.updateScript = updaters.mkNixUpdateUpdater {attr = "teamclaude";};
+  passthru = {
+    maintenance = {
+      source = "pin";
+      reason = "The fork includes subscription routing fixes from PR #621.";
+    };
+    updateScript = writeShellApplication {
+      name = "update-teamclaude";
+      runtimeInputs = [gh python3];
+      text = ''exec python3 ${./update.py} "$@"'';
+    };
+    tests.updater = updaters.mkPythonUpdaterTest {
+      pname = "teamclaude";
+      script = ./update.py;
+      test = ./test_update.py;
+    };
+  };
 
   meta = {
     description = "Multi-account proxy that rotates Claude Code between subscription accounts on quota";
@@ -63,4 +81,4 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     mainProgram = "teamclaude";
     platforms = lib.platforms.unix;
   };
-})
+}

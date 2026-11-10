@@ -8,7 +8,7 @@
       (name: package:
         lib.mapAttrsToList
         (test: lib.nameValuePair "${name}-${test}")
-        (lib.filterAttrs (_: lib.meta.availableOn platform) (package.passthru.${attribute} or {})))
+        (lib.filterAttrs (_: test: lib.isDerivation test && lib.meta.availableOn platform test) (package.passthru.${attribute} or {})))
       packages);
     names = map (entry: entry.name) entries;
     duplicates = lib.unique (lib.filter (name: lib.count (other: other == name) names > 1) names);

@@ -9,24 +9,26 @@
 # 3.18.0 also stopped linting comments in a file that `[formats]` maps onto
 # Perl, which prose-lint does for Nix, shell and INI files. The patch restores
 # that. Vale 3.25.1 includes the fix.
-_: _: prev: let
-  inherit (prev) lib;
-
+{
+  upstreamPackage,
+  fetchFromGitHub,
+  lib,
+}: let
   version = "3.24.0";
-in {
-  vale =
-    if lib.versionAtLeast prev.vale.version "3.25.1"
-    then prev.vale
+in
+  (
+    if lib.versionAtLeast upstreamPackage.version "3.25.1"
+    then upstreamPackage
     else
-      assert lib.assertMsg (lib.versionOlder prev.vale.version version) ''
-        nixpkgs now provides vale ${prev.vale.version}. Check whether it includes
-        overlays/vale/0001-read-a-mapped-code-format-with-its-grammar.patch, then
-        remove overlays/vale.nix or move it to that release.
+      assert lib.assertMsg (lib.versionOlder upstreamPackage.version version) ''
+        nixpkgs now provides vale ${upstreamPackage.version}. Check whether it includes
+        pkgs/vale/0001-read-a-mapped-code-format-with-its-grammar.patch, then
+        remove the compatibility package or move it to that release.
       '';
-        prev.vale.overrideAttrs (finalAttrs: old: {
+        upstreamPackage.overrideAttrs (finalAttrs: old: {
           inherit version;
 
-          src = prev.fetchFromGitHub {
+          src = fetchFromGitHub {
             owner = "vale-cli";
             repo = "vale";
             tag = "v${finalAttrs.version}";
@@ -36,7 +38,7 @@ in {
           patches =
             (old.patches or [])
             ++ [
-              ./vale/0001-read-a-mapped-code-format-with-its-grammar.patch
+              ./0001-read-a-mapped-code-format-with-its-grammar.patch
             ];
 
           # By default buildGoModule builds from a `vendor` directory that
@@ -57,5 +59,17 @@ in {
             "-s"
             "-X main.version=${finalAttrs.version}"
           ];
-        });
-}
+        })
+  ) .overrideAttrs (old: {
+    passthru =
+      (old.passthru or {})
+      // {
+        updateScript = null;
+        maintenance = {
+          source = "input";
+          inputs = ["nixpkgs" "nixpkgs-stable"];
+          temporary = true;
+          retirement = "Remove compatibility packaging when every channel provides Vale 3.25.1 or newer.";
+        };
+      };
+  })

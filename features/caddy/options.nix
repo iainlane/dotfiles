@@ -133,7 +133,7 @@ in {
       type = lib.types.nullOr lib.types.package;
       default = null;
       description = ''
-        Caddy package to run. Defaults to `pkgs.caddy` rebuilt with the
+        Caddy package to run. The local `pkgs.caddy` includes the
         Cloudflare DNS plugin for certificate issuance and caddy-l4 for
         routing non-HTTP connections on the shared TLS port.
       '';

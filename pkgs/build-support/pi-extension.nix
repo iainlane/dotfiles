@@ -126,6 +126,10 @@ in
           directory = "${finalAttrs.finalPackage}/${packageRoot}";
         };
 
+        maintenance = {
+          source = "release";
+          refresh = true;
+        };
         updateScript = updaters.mkPiExtensionUpdater {
           inherit npmName pname npmDependencies metadataFiles gitHub tagPrefix;
           patches = finalAttrs.patches or [];

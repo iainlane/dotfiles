@@ -29,25 +29,10 @@ in {
 
       inherit (import ../../lib/container-image.nix {inherit pkgs;}) mkNixImage;
 
-      # renovate: datasource=go depName=github.com/caddy-dns/cloudflare
-      cloudflareDnsVersion = "v0.2.4";
-
-      # Serves `edgeProxy.streams`: this plugin matches a connection on its TLS
-      # handshake, before the HTTP server sees it.
-      # renovate: datasource=go depName=github.com/mholt/caddy-l4
-      caddyL4Version = "v0.1.2";
-
       caddyPackage =
         if cfg.package != null
         then cfg.package
-        else
-          pkgs.caddy.withPlugins {
-            plugins = [
-              "github.com/caddy-dns/cloudflare@${cloudflareDnsVersion}"
-              "github.com/mholt/caddy-l4@${caddyL4Version}"
-            ];
-            hash = "sha256-AV85IaY63+Jkb3JadhQFZ6CeBkzbk9AWqY0/B3KP/4U=";
-          };
+        else pkgs.caddy;
 
       secretsFile = inputs.secrets + "/${cfg.secretsFile}";
       authSecretsFile = inputs.secrets + "/${cfg.auth.secretsFile}";

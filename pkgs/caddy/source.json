@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "github.com/caddy-dns/cloudflare": "v0.2.4",
+    "github.com/mholt/caddy-l4": "v0.1.2"
+  },
+  "hashes": {
+    "stable": "sha256-eGv+I4CceOEqWrMs5fTWPrTF3DBXtB+0vu3Ndw4yArE=",
+    "unstable": "sha256-1ftAjenq1tao74sKdzm+zIsYx+EFDlgWvS6TpUUDiew="
+  }
+}
