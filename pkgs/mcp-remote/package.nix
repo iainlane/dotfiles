@@ -16,20 +16,20 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "mcp-remote";
-    version = "0.16.0";
+    version = "0.16.5";
 
     src = fetchFromGitHub {
       owner = "punkpeye";
       repo = "mcp-remote";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-hXelewj2m455ZyLaWKmppUvJKazjBgdYn6NuPSOV534=";
+      hash = "sha256-1OOoVM7ewifNlTms+AdfwVuhrLrslPeFJXm24ukWCJ4=";
     };
 
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname version src;
       inherit pnpm;
       fetcherVersion = 3;
-      hash = "sha256-KPasWdU7aLVWOO+hdGlhYsylgJRD5Xses0wL1s6yt8w=";
+      hash = "sha256-b/q4RsxsrqLBjcwMCs1Iccu79JpkO3mDN7HZTE96hcw=";
     };
 
     nativeBuildInputs = [
