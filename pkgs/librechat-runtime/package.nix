@@ -1,5 +1,6 @@
 {
   autoPatchelfHook,
+  callPackage,
   fetchPnpmDeps,
   lib,
   librechat,
@@ -68,9 +69,7 @@ in
       installPhase = ''
         runHook preInstall
         mkdir -p "$out/lib" "$out/bin"
-        pnpm --filter @dotfiles/librechat-cli deploy --prod --offline --ignore-scripts "$out/lib/librechat-runtime"
-        find "$out/lib/librechat-runtime" -type f \( -name .modules.yaml -o -name .pnpm-workspace-state-v1.json \) -delete
-        find "$out/lib/librechat-runtime" -type d -name .bin -prune -exec rm -r {} +
+        source ${./deploy.bash} "$out/lib/librechat-runtime"
         makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
           --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/dist/bin/librechat-runtime.js"
         makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechatctl" \
@@ -85,6 +84,7 @@ in
       '';
 
       passthru = {
+        tests.deployment = callPackage ./deploy.test.nix {inherit pnpm;};
         updateScript = updaters.mkNixUpdateUpdater {
           attr = "librechat-runtime";
           refresh = true;
