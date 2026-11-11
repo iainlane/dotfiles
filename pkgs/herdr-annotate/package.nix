@@ -32,6 +32,11 @@ rustPlatform.buildRustPackage (finalAttrs: {
       --replace-fail '#!/bin/sh' '#!${lib.getExe bash}'
   '';
 
+  preBuild = ''
+    export RUSTFLAGS="--remap-path-prefix=$NIX_BUILD_TOP=/build ''${RUSTFLAGS:-}"
+    export NIX_CFLAGS_COMPILE="-ffile-prefix-map=$NIX_BUILD_TOP=/build ''${NIX_CFLAGS_COMPILE:-}"
+  '';
+
   postInstall = ''
     pluginRoot="$out/share/herdr/plugins/herdr-annotate"
     mkdir -p "$pluginRoot/bin"
@@ -49,6 +54,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
     ln -s "$out/bin/herdr-annotate" "$pluginRoot/bin/herdr-annotate.exe"
     ln -s ${lib.getExe plannotator-tui} "$pluginRoot/bin/plannotator-tui.exe"
+  '';
+
+  doInstallCheck = true;
+  installCheckPhase = ''
+    runHook preInstallCheck
+    if [ "$NIX_BUILD_TOP" != /build ] && grep -arqF -- "$NIX_BUILD_TOP/" "$out"; then
+      echo 'herdr-annotate contains a temporary build path.' >&2
+      exit 1
+    fi
+    runHook postInstallCheck
   '';
 
   passthru = {
