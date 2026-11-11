@@ -1,4 +1,5 @@
 import { X509Certificate } from "node:crypto";
+import { callbackify } from "node:util";
 import http from "node:http";
 import http2 from "node:http2";
 import { Readable, type Duplex } from "node:stream";
@@ -189,22 +190,22 @@ export async function startProxy(
       const reply = await transport.send(outgoing);
       response.statusCode = reply.status;
 
-      for (const [key, value] of reply.headers) {
+      const responseHeaders = headersWithoutHop(
+        Object.fromEntries(reply.headers),
+      );
+      for (const [key, value] of Object.entries(responseHeaders)) {
         if (
-          ![
-            "connection",
-            "keep-alive",
-            "transfer-encoding",
-            "content-encoding",
-            "content-length",
-            "set-cookie",
-          ].includes(key)
+          value !== undefined &&
+          !["content-encoding", "content-length", "set-cookie"].includes(key)
         ) {
           response.setHeader(key, value);
         }
       }
 
-      const cookies = reply.headers.getSetCookie();
+      const cookies =
+        responseHeaders["set-cookie"] === undefined
+          ? []
+          : reply.headers.getSetCookie();
 
       if (cookies.length > 0) {
         response.setHeader("set-cookie", cookies);
@@ -264,16 +265,26 @@ export async function startProxy(
     }
   };
 
+  const forwardRequest = callbackify(
+    async (request: Request, response: Response) => {
+      try {
+        await forward(request, response);
+      } catch (error) {
+        response.once("finish", () => request.destroy());
+        sendError(response, error);
+      }
+    },
+  );
+
   const handle = (request: Request, response: Response): void => {
     request.on("error", () => response.destroy());
     response.on("error", () => request.destroy());
     request.setTimeout(config.timeoutMs, () => request.destroy());
-    forward(request, response)
-      .catch((error: unknown) => {
-        response.once("finish", () => request.destroy());
-        return sendError(response, error);
-      })
-      .catch(() => response.destroy());
+    forwardRequest(request, response, (error) => {
+      if (error !== null) {
+        response.destroy();
+      }
+    });
   };
 
   const secure = http2.createSecureServer({
@@ -287,7 +298,7 @@ export async function startProxy(
   secure.on(
     "upgrade",
     (request: http.IncomingMessage, socket: Duplex, head: Buffer) =>
-      relay.upgrade(request, socket, head),
+      relay.upgrade(request, socket, head, "origin"),
   );
   secure.on("session", (session) => {
     sessions.add(session);
@@ -318,7 +329,7 @@ export async function startProxy(
     },
   );
   server.on("upgrade", (request, socket, head) =>
-    relay.upgrade(request, socket, head),
+    relay.upgrade(request, socket, head, "proxy"),
   );
   server.maxConnections = 128;
   server.on("connection", track);

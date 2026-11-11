@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rewriteBody, rewriteHeaders } from "../src/rewrite.ts";
+import { rewriteBody, rewriteHeaders } from "#frontend/rewrite";
 
 describe("API request conversion", () => {
   it("removes only the Claude Code beta and changes the client variant", () => {

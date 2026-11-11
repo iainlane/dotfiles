@@ -128,7 +128,12 @@ export class TeamClaudeRelay {
     }
   }
 
-  upgrade(request: http.IncomingMessage, socket: Duplex, head: Buffer): void {
+  upgrade(
+    request: http.IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    form: "origin" | "proxy",
+  ): void {
     this.track(socket);
     let established = false;
 
@@ -148,10 +153,14 @@ export class TeamClaudeRelay {
     };
 
     try {
-      validateTarget(request.url ?? "", "origin");
+      const requestTarget = request.url ?? "";
+      const absolute = form === "proxy" && !requestTarget.startsWith("/");
+      validateTarget(requestTarget, absolute ? "absolute" : "origin");
 
       const headers = headersWithoutHop(request.headers);
-      headers.host = `127.0.0.1:${this.options.upstreamPort}`;
+      headers.host = absolute
+        ? (request.headers.host ?? new URL(requestTarget).host)
+        : `127.0.0.1:${this.options.upstreamPort}`;
       headers.connection = "Upgrade";
       headers.upgrade = request.headers.upgrade;
       const upstream = this.open(request, headers);

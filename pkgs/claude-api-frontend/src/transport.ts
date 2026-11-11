@@ -5,9 +5,15 @@ export interface Transport {
 }
 
 export class FetchTransport implements Transport {
+  private readonly http: typeof globalThis.fetch;
+
+  constructor(http: typeof globalThis.fetch = globalThis.fetch) {
+    this.http = http;
+  }
+
   async send(request: Request): Promise<Response> {
     try {
-      return await fetch(request, { redirect: "manual" });
+      return await this.http(request, { redirect: "manual" });
     } catch (cause) {
       throw new UpstreamError({ cause });
     }

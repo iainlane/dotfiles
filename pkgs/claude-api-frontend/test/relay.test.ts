@@ -5,10 +5,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StatusCodes } from "http-status-codes";
+import { callbackify } from "node:util";
+import { UnexpectedListenerError } from "#frontend/errors";
 import { afterEach, expect, it } from "vitest";
-import { certificates } from "../src/certificates.ts";
-import { configSchema } from "../src/config.ts";
-import { startProxy } from "../src/proxy.ts";
+import { certificates } from "#frontend/certificates";
+import { configSchema } from "#frontend/config";
+import { startProxy } from "#frontend/proxy";
+import { IncompleteSocketFrameError } from "./fakes.ts";
 
 const cleanup: (() => Promise<unknown>)[] = [];
 const date = "Thu, 01 Jan 1970 00:00:00 GMT";
@@ -33,7 +36,7 @@ async function fixture() {
   const address = upstream.address();
 
   if (address === null || typeof address === "string") {
-    throw new Error("Expected a TCP listener");
+    throw new UnexpectedListenerError();
   }
 
   const config = configSchema.parse({
@@ -146,7 +149,7 @@ async function readBytes(
       finish();
     };
     const closed = (): void =>
-      reject(new Error("Socket closed before the complete frame"));
+      reject(new IncompleteSocketFrameError(size, bytes.length));
     const finish = (): void => {
       if (bytes.length < size) {
         return;
@@ -165,17 +168,22 @@ async function readBytes(
   });
 }
 
-it.each(["plain", "tls"])(
+it.each(["plain", "tls", "absolute"])(
   "relays a WebSocket handshake and binary frames in both directions over %s HTTP",
   async (mode) => {
     const { upstream, proxy, chain, upstreamPort } = await fixture();
     const upgrades: object[] = [];
     const completed = Promise.withResolvers<void>();
-    const target = "/v1/code/test/ws?session=test";
+    const target =
+      mode === "absolute"
+        ? "http://example.org/socket?session=test"
+        : "/v1/code/test/ws?session=test";
+    const targetHost =
+      mode === "absolute" ? "example.org" : `127.0.0.1:${upstreamPort}`;
     const clientFrame = Buffer.from([0x82, 0x83, 1, 2, 3, 4, 0x41, 0x52, 0x63]);
     const serverFrame = Buffer.from([0x82, 0x03, 0x10, 0x20, 0x30]);
     const headers = {
-      host: "api.anthropic.com",
+      host: mode === "absolute" ? "example.org" : "api.anthropic.com",
       connection: "Upgrade",
       upgrade: "websocket",
       "sec-websocket-version": "13",
@@ -193,7 +201,7 @@ it.each(["plain", "tls"])(
       response.end();
     });
     upstream.on("upgrade", (request, socket, head) => {
-      if (request.headers.host !== `127.0.0.1:${upstreamPort}`) {
+      if (request.headers.host !== targetHost) {
         socket.end(
           `HTTP/1.1 ${StatusCodes.UNAUTHORIZED} Unauthorized\r\nConnection: close\r\n\r\n`,
         );
@@ -218,17 +226,20 @@ it.each(["plain", "tls"])(
         ]),
       );
 
-      readBytes(socket, clientFrame.length, head)
-        .then((frame) => {
-          upgrades.push({
-            method: request.method,
-            target: request.url,
-            headers: request.headers,
-            frame,
-          });
-          return completed.resolve();
-        })
-        .catch(completed.reject);
+      callbackify(async () => {
+        const frame = await readBytes(socket, clientFrame.length, head);
+        upgrades.push({
+          method: request.method,
+          target: request.url,
+          headers: request.headers,
+          frame,
+        });
+        completed.resolve();
+      })((error) => {
+        if (error !== null) {
+          completed.reject(error);
+        }
+      });
     });
 
     let secure: tls.TLSSocket | undefined;
@@ -296,18 +307,17 @@ it.each(["plain", "tls"])(
         socket.on("error", reject);
         socket.write(clientFrame);
 
-        Promise.all([
-          readBytes(socket, serverFrame.length, head),
-          completed.promise,
-        ])
-          .then(([frame]) => {
-            return resolve({
-              status: reply.statusCode,
-              headers: reply.headers,
-              frame,
-            });
-          })
-          .catch(reject);
+        callbackify(async () => {
+          const [frame] = await Promise.all([
+            readBytes(socket, serverFrame.length, head),
+            completed.promise,
+          ]);
+          resolve({ status: reply.statusCode, headers: reply.headers, frame });
+        })((error) => {
+          if (error !== null) {
+            reject(error);
+          }
+        });
       });
       request.end();
     });
@@ -317,7 +327,7 @@ it.each(["plain", "tls"])(
         {
           method: "GET",
           target,
-          headers: { ...headers, host: `127.0.0.1:${upstreamPort}` },
+          headers: { ...headers, host: targetHost },
           frame: clientFrame,
         },
       ],

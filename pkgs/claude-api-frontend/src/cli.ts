@@ -1,6 +1,6 @@
 import { errorText } from "./error-text.ts";
 import { FrontendError, InvalidArgumentsError } from "./errors.ts";
-import { parseArgs } from "node:util";
+import { callbackify, parseArgs } from "node:util";
 import { certificates } from "./certificates.ts";
 import { loadConfig, upstreamPort } from "./config.ts";
 import { checkHealth } from "./health.ts";
@@ -44,10 +44,12 @@ try {
           upstreamPort: port,
         }),
       );
+      const renew = callbackify(async () => {
+        proxy.reloadCertificates(await certificates(config.stateDirectory));
+      });
       const renewal = setInterval(() => {
-        certificates(config.stateDirectory)
-          .then((replacement) => proxy.reloadCertificates(replacement))
-          .catch((error: unknown) => {
+        renew((error) => {
+          if (error !== null) {
             console.error(
               JSON.stringify({
                 event: "certificate-renewal-failed",
@@ -57,7 +59,8 @@ try {
                     : "certificate-state",
               }),
             );
-          });
+          }
+        });
       }, 7 * 86400000);
 
       renewal.unref();
@@ -69,8 +72,12 @@ try {
         }
         stopping = true;
         clearInterval(renewal);
-        proxy.close().catch(() => {
-          process.exitCode = 1;
+        callbackify(async () => {
+          await proxy.close();
+        })((error) => {
+          if (error !== null) {
+            process.exitCode = 1;
+          }
         });
       };
       process.once("SIGINT", stop);

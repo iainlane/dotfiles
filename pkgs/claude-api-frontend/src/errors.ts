@@ -10,6 +10,10 @@ export interface ValidationIssue {
 export abstract class FrontendError extends Error {
   abstract readonly code: string;
 
+  constructor(options?: ErrorOptions) {
+    super(undefined, options);
+  }
+
   toJSON(): Record<string, unknown> {
     return Object.fromEntries(Object.entries(this));
   }
@@ -55,7 +59,7 @@ export class ConfigurationReadError extends FrontendError {
   readonly path: string;
 
   constructor(path: string, options: ErrorOptions) {
-    super(undefined, options);
+    super(options);
 
     this.path = path;
   }
@@ -79,9 +83,18 @@ export class PortConflictError extends FrontendError {
 
 export class CertificateCommandError extends FrontendError {
   readonly code = "certificate-command";
+}
 
-  constructor(options: ErrorOptions) {
-    super(undefined, options);
+export class CertificateCleanupError extends FrontendError {
+  readonly code = "certificate-cleanup";
+
+  constructor(primary: unknown, cleanup: unknown) {
+    super({
+      cause: new AggregateError(
+        [primary, cleanup],
+        "Certificate generation and cleanup both failed",
+      ),
+    });
   }
 }
 
@@ -100,10 +113,6 @@ export class CertificateExpiringError extends FrontendError {
 export class UpstreamError extends FrontendHttpError {
   readonly code = "upstream";
   readonly status = StatusCodes.BAD_GATEWAY;
-
-  constructor(options: ErrorOptions) {
-    super(undefined, options);
-  }
 }
 
 export class RequestTooLargeError extends FrontendHttpError {
@@ -147,7 +156,7 @@ export class ListenerError extends FrontendError {
   readonly port: number;
 
   constructor(port: number, options: ErrorOptions) {
-    super(undefined, options);
+    super(options);
 
     this.port = port;
   }
@@ -180,7 +189,7 @@ export class CertificateStateError extends FrontendError {
   readonly stateDirectory: string;
 
   constructor(stateDirectory: string, options: ErrorOptions) {
-    super(undefined, options);
+    super(options);
 
     this.stateDirectory = stateDirectory;
   }

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#frontend/*": "./src/*.ts"
+  },
   "packageManager": "pnpm@10.34.7",
   "scripts": {
     "test": "vitest run",

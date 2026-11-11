@@ -5,8 +5,8 @@ import {
   RequestTooLargeError,
   UnsupportedEncodingError,
   UpstreamError,
-} from "../src/errors.ts";
-import { errorResponse } from "../src/http-error.ts";
+} from "#frontend/errors";
+import { errorResponse } from "#frontend/http-error";
 import { errorSnapshot } from "./fakes.ts";
 
 const anyString: unknown = expect.any(String);

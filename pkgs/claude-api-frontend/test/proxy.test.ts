@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import tls from "node:tls";
 import { afterEach, expect, it } from "vitest";
-import { certificates } from "../src/certificates.ts";
-import { startProxy } from "../src/proxy.ts";
+import { certificates } from "#frontend/certificates";
+import { startProxy } from "#frontend/proxy";
 import { StatusCodes } from "http-status-codes";
 import { FakeTransport } from "./fakes.ts";
-import { UpstreamError } from "../src/errors.ts";
-import type { Transport } from "../src/transport.ts";
-import { configSchema } from "../src/config.ts";
+import { UnexpectedListenerError, UpstreamError } from "#frontend/errors";
+import type { Transport } from "#frontend/transport";
+import { configSchema } from "#frontend/config";
 
 const anyString: unknown = expect.any(String);
 const anyBuffer: unknown = expect.any(Buffer);
@@ -41,7 +41,7 @@ async function fixture(transport?: Transport) {
   });
   const address = upstream.address();
   if (address === null || typeof address === "string") {
-    throw new Error("Expected a TCP listener");
+    throw new UnexpectedListenerError();
   }
   const config = configSchema.parse({
     stateDirectory: directory,
@@ -273,12 +273,18 @@ it.each([
   },
 );
 
-it("preserves non-inference requests through the injected transport", async () => {
+it("preserves non-inference requests and removes connection-specific response headers", async () => {
   const transport = new FakeTransport(
     () =>
       new Response("upstream response", {
         status: StatusCodes.ACCEPTED,
-        headers: { "x-upstream": "retained" },
+        headers: {
+          "x-upstream": "retained",
+          connection: "x-upstream-internal, set-cookie",
+          "x-upstream-internal": "connection-local-value",
+          "proxy-authenticate": "Basic realm=fixture",
+          "set-cookie": "connection-local=value",
+        },
       }),
   );
   const { proxy, upstreamPort } = await fixture(transport);

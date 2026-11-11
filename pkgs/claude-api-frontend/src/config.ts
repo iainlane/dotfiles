@@ -5,7 +5,7 @@ import {
   type ValidationSource,
 } from "./errors.ts";
 import { decodeJson, validate } from "./validation.ts";
-import { readFile } from "node:fs/promises";
+import { NodeFrontendFiles, type FrontendFiles } from "./files.ts";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
 
@@ -27,14 +27,19 @@ export const configSchema = z.strictObject({
 
 export type Config = z.infer<typeof configSchema>;
 
+export type ConfigurationFiles = Pick<FrontendFiles, "readText">;
+
+const nativeFiles: ConfigurationFiles = new NodeFrontendFiles();
+
 async function readConfiguration(
   path: string,
   source: ValidationSource,
+  files: ConfigurationFiles,
 ): Promise<unknown> {
   let content: string;
 
   try {
-    content = await readFile(path, "utf8");
+    content = await files.readText(path);
   } catch (cause) {
     throw new ConfigurationReadError(path, { cause });
   }
@@ -42,16 +47,23 @@ async function readConfiguration(
   return decodeJson(content, source);
 }
 
-export async function loadConfig(path: string): Promise<Config> {
-  const decoded = await readConfiguration(path, "frontend");
+export async function loadConfig(
+  path: string,
+  files: ConfigurationFiles = nativeFiles,
+): Promise<Config> {
+  const decoded = await readConfiguration(path, "frontend", files);
 
   return validate(configSchema, decoded, "frontend");
 }
 
-export async function upstreamPort(config: Config): Promise<number> {
+export async function upstreamPort(
+  config: Config,
+  files: ConfigurationFiles = nativeFiles,
+): Promise<number> {
   const decoded = await readConfiguration(
     config.teamclaudeConfigFile,
     "teamclaude",
+    files,
   );
   const schema = z.object({
     proxy: z

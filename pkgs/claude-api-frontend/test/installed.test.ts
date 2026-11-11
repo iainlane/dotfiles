@@ -7,8 +7,26 @@ import tls from "node:tls";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
+import { UnexpectedListenerError } from "#frontend/errors";
+import {
+  FrontendEarlyExitError,
+  FrontendStartupTimeoutError,
+} from "./fakes.ts";
 
 const execute = promisify(execFile);
+
+async function earlyExit(
+  exited: Promise<number | null>,
+  stderr: () => string,
+): Promise<never> {
+  const code = await exited;
+  throw new FrontendEarlyExitError(code, stderr());
+}
+
+async function startupDeadline(stderr: () => string): Promise<never> {
+  await delay(20000, undefined, { ref: false });
+  throw new FrontendStartupTimeoutError(stderr());
+}
 
 async function listen(server: http.Server): Promise<number> {
   await new Promise<void>((ready) => {
@@ -16,7 +34,7 @@ async function listen(server: http.Server): Promise<number> {
   });
   const address = server.address();
   if (address === null || typeof address === "string") {
-    throw new Error("Expected a loopback TCP listener.");
+    throw new UnexpectedListenerError();
   }
   return address.port;
 }
@@ -88,14 +106,8 @@ it("serves an inference request through the executable with its packaged depende
   try {
     await Promise.race([
       listening,
-      exited.then((code) => {
-        throw new Error(
-          `Frontend exited before listening (${code}): ${stderr}`,
-        );
-      }),
-      delay(20000, undefined, { ref: false }).then(() => {
-        throw new Error(`Frontend did not start listening: ${stderr}`);
-      }),
+      earlyExit(exited, () => stderr),
+      startupDeadline(() => stderr),
     ]);
     const received = new Promise<{
       request: {
@@ -201,29 +213,31 @@ it("serves an inference request through the executable with its packaged depende
       request.once("error", reject);
       request.end(body);
     });
-    result.catch((error: unknown) => first.reject(error));
-    expect(await first.promise).toBe("data: first\n\n");
-    const captured = await received;
-    const converted = JSON.stringify({ system: "Keep.", messages: [] });
-    expect(captured.request).toStrictEqual({
-      url: "/tc-acct/fixture%20account/v1/messages?beta=true",
-      method: "POST",
-      headers: {
-        host: `127.0.0.1:${upstreamPort}`,
-        connection: "keep-alive",
-        "user-agent": "claude-cli/2.1.310 (external, sdk-cli)",
-        "anthropic-beta": "other-beta",
-        "content-length": String(Buffer.byteLength(converted)),
-        authorization: "Bearer fixture-private-token",
-        accept: "*/*",
-        "accept-language": "*",
-        "sec-fetch-mode": "cors",
-        "accept-encoding": "gzip, deflate",
-      },
-      body: converted,
-    });
-    captured.response.end("data: second\n\n");
-    expect(await result).toStrictEqual({
+    const verifyStream = async (): Promise<void> => {
+      expect(await first.promise).toBe("data: first\n\n");
+      const captured = await received;
+      const converted = JSON.stringify({ system: "Keep.", messages: [] });
+      expect(captured.request).toStrictEqual({
+        url: "/tc-acct/fixture%20account/v1/messages?beta=true",
+        method: "POST",
+        headers: {
+          host: `127.0.0.1:${upstreamPort}`,
+          connection: "keep-alive",
+          "user-agent": "claude-cli/2.1.310 (external, sdk-cli)",
+          "anthropic-beta": "other-beta",
+          "content-length": String(Buffer.byteLength(converted)),
+          authorization: "Bearer fixture-private-token",
+          accept: "*/*",
+          "accept-language": "*",
+          "sec-fetch-mode": "cors",
+          "accept-encoding": "gzip, deflate",
+        },
+        body: converted,
+      });
+      captured.response.end("data: second\n\n");
+    };
+    const [response] = await Promise.all([result, verifyStream()]);
+    expect(response).toStrictEqual({
       status: 200,
       contentType: "text/event-stream",
       marker: "preserved",

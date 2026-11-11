@@ -75,3 +75,10 @@ Run `pnpm check` for type checking, lint and tests. Tests use local HTTP and TLS
 listeners and require OpenSSL on `PATH`. Format with the repository's Oxfmt
 configuration. The Nix build runs the same checks and exercises the installed
 HTTPS proxy against a loopback TeamClaude fixture with an empty `PATH`.
+
+The package inherits the repository's strict, type-aware Oxlint rules and adds
+module/import and strict `await` rules. Package-local test imports use
+`#frontend/*`. Application operations receive file, transport and clock
+interfaces; native adapters provide their defaults. Each error category has a
+concrete type with domain fields and an optional cause. Error constructors do
+not accept caller-supplied messages.

@@ -1,4 +1,5 @@
 import {
+  CertificateCleanupError,
   CertificateCommandError,
   CertificateExpiringError,
   CertificateStateError,
@@ -34,6 +35,21 @@ export class OpenSslCommand implements CertificateCommand {
   }
 }
 
+export interface CertificateRuntime {
+  now(): number;
+  newSerial(): string;
+  removeTemporary?(directory: string): Promise<void>;
+}
+
+async function removeTemporary(directory: string): Promise<void> {
+  await rm(directory, { recursive: true, force: true });
+}
+
+const nativeRuntime: CertificateRuntime = {
+  now: Date.now,
+  newSerial: randomUUID,
+};
+
 export interface Certificates {
   key: Buffer;
   cert: Buffer;
@@ -43,14 +59,14 @@ export interface Certificates {
 async function createCertificates(
   stateDirectory: string,
   command: CertificateCommand,
+  runtime: CertificateRuntime,
 ): Promise<Certificates> {
   await mkdir(stateDirectory, { recursive: true, mode: 0o700 });
   await chmod(stateDirectory, 0o700);
   const temporary = await mkdtemp(join(stateDirectory, ".certificates-"));
   const authority = join(stateDirectory, "authority");
   const caFile = join(authority, "ca.pem");
-
-  try {
+  const issueCertificates = async (): Promise<Certificates> => {
     try {
       await readFile(caFile);
     } catch (error) {
@@ -101,7 +117,7 @@ async function createCertificates(
     const ca = await readFile(caFile);
     await chmod(join(authority, "ca.key"), 0o600);
     const root = new X509Certificate(ca);
-    if (Date.parse(root.validTo) < Date.now() + 366 * 86400000) {
+    if (Date.parse(root.validTo) < runtime.now() + 366 * 86400000) {
       throw new CertificateExpiringError(root.validTo);
     }
 
@@ -139,7 +155,7 @@ async function createCertificates(
       "-CAkey",
       join(authority, "ca.key"),
       "-set_serial",
-      `0x${randomUUID().replaceAll("-", "")}`,
+      `0x${runtime.newSerial().replaceAll("-", "")}`,
       "-days",
       "365",
       "-extfile",
@@ -153,17 +169,42 @@ async function createCertificates(
       cert: await readFile(certificateFile),
       ca,
     };
-  } finally {
-    await rm(temporary, { recursive: true, force: true });
+  };
+  let outcome: { certificates: Certificates } | { error: unknown };
+  try {
+    outcome = { certificates: await issueCertificates() };
+  } catch (error) {
+    outcome = { error };
   }
+  let cleanup: { error: unknown } | undefined;
+  try {
+    if (runtime.removeTemporary === undefined) {
+      await removeTemporary(temporary);
+    } else {
+      await runtime.removeTemporary(temporary);
+    }
+  } catch (error) {
+    cleanup = { error };
+  }
+  if ("error" in outcome) {
+    if (cleanup !== undefined) {
+      throw new CertificateCleanupError(outcome.error, cleanup.error);
+    }
+    throw outcome.error;
+  }
+  if (cleanup !== undefined) {
+    throw cleanup.error;
+  }
+  return outcome.certificates;
 }
 
 export async function certificates(
   stateDirectory: string,
   command: CertificateCommand = new OpenSslCommand(),
+  runtime: CertificateRuntime = nativeRuntime,
 ): Promise<Certificates> {
   try {
-    return await createCertificates(stateDirectory, command);
+    return await createCertificates(stateDirectory, command, runtime);
   } catch (cause) {
     if (cause instanceof FrontendError) {
       throw cause;

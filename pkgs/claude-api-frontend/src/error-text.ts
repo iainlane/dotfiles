@@ -17,6 +17,8 @@ const descriptions: Readonly<Record<string, string>> = {
   "loopback-disabled":
     "The frontend requires TeamClaude proxy.trustLoopback=true",
   "certificate-command": "OpenSSL certificate generation failed",
+  "certificate-cleanup":
+    "Certificate generation failed and its temporary state could not be removed",
   "certificate-authority-changed":
     "The local CA changed. Restart the frontend and Claude sessions to trust the replacement",
   "unsupported-encoding": "Compressed inference requests are unsupported",
