@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import assert from "node:assert/strict";
 import { parseCommand } from "#cli/definitions/commands";
 import { UsageError } from "#cli/application/errors";
 
@@ -45,10 +46,7 @@ it.each([[], ["--help"], ["bootstrap", "--help"], ["reset", "--help"]])(
   "provides public help without a manifest: %j",
   (...args) => {
     const result = parseCommand(args, "public");
-    expect(result.kind).toBe("help");
-    if (result.kind !== "help") {
-      throw new Error("Expected help");
-    }
+    assert.ok(result.kind === "help");
     expect(result.text).toContain("librechatctl");
     expect(result.text).toContain("--yes");
     expect(result.text).not.toContain("<MANIFEST>");

@@ -62,7 +62,7 @@ in
         runHook preCheck
         pnpm typecheck
         pnpm lint
-        pnpm test
+        pnpm test --maxWorkers=1
         runHook postCheck
       '';
 

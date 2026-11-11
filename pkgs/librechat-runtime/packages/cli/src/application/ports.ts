@@ -1,4 +1,7 @@
-import type { BootstrapInput } from "@dotfiles/librechat-runtime/bootstrap";
+import type {
+  BootstrapInput,
+  PasswordPolicyIssue,
+} from "@dotfiles/librechat-runtime/bootstrap";
 
 export interface AccountSummary {
   exists: boolean;
@@ -8,7 +11,7 @@ export interface AccountSummary {
 export interface AccountAccess {
   binding(): Promise<{ email: string } | null>;
   inspect(email: string): Promise<AccountSummary>;
-  passwordIssue(password: string): string | undefined;
+  passwordIssue(password: string): PasswordPolicyIssue | undefined;
   bootstrap(input: BootstrapInput): Promise<void>;
 }
 
@@ -59,4 +62,5 @@ export interface CommandDependencies {
   readonly services: RuntimeServices;
   openDeployment(file: string): Promise<Deployment>;
   writeOutput(text: string): void;
+  reportDiagnostics(error: unknown, service: boolean): void;
 }

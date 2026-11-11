@@ -22,6 +22,10 @@
       "types": "./dist/archive/archive.d.ts",
       "import": "./dist/archive/archive.js"
     },
+    "./diagnostics": {
+      "types": "./dist/platform/diagnostics.d.ts",
+      "import": "./dist/platform/diagnostics.js"
+    },
     "./processes": {
       "types": "./dist/platform/processes.d.ts",
       "import": "./dist/platform/processes.js"

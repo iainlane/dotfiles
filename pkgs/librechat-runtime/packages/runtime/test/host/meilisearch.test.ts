@@ -294,3 +294,27 @@ it.each([
     expect(await readdir(state)).toStrictEqual(["meili"]);
   },
 );
+
+it("records backup creation through the injected clock and reporter", async () => {
+  await seed("1.55.0");
+  const messages: string[] = [];
+  const now = 1700000000000;
+  const database = new MeilisearchDatabase(state, {
+    now: () => now,
+    report: (text) => {
+      messages.push(text);
+    },
+  });
+  await database.prepareUpgrade("meilisearch", {
+    run: vi
+      .fn<ProcessRunner["run"]>()
+      .mockResolvedValue("meilisearch 1.56.0\n"),
+  });
+  const backup = join(state, "meili-backups/1.55.0-to-1.56.0");
+  expect({ created: (await stat(backup)).mtimeMs, messages }).toStrictEqual({
+    created: now,
+    messages: [
+      `Meilisearch 1.55.0 backup saved to ${backup} before upgrading to 1.56.0.\n`,
+    ],
+  });
+});

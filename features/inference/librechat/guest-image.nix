@@ -7,6 +7,7 @@
   skillPackages,
   skills,
   archiveCli,
+  diagnostics ? false,
 }: let
   inherit (pkgs) lib;
   inherit (librechat-code) runtimes;
@@ -264,14 +265,20 @@
               after = ["network.target" "nftables.service" "nix-daemon.socket"];
               requires = ["nftables.service" "nix-daemon.socket"];
               unitConfig.FailureAction = "poweroff-force";
-              serviceConfig = {
-                ExecStart = "${lib.getExe librechat-runtime} guest ${specification}";
-                RuntimeDirectory = "librechat-guest";
-                RuntimeDirectoryMode = "0755";
-                Restart = "no";
-                KillMode = "control-group";
-                Delegate = true;
-              };
+              environment = lib.optionalAttrs diagnostics {LIBRECHAT_DIAGNOSTICS = "1";};
+              serviceConfig =
+                {
+                  ExecStart = "${lib.getExe librechat-runtime} guest ${specification}";
+                  RuntimeDirectory = "librechat-guest";
+                  RuntimeDirectoryMode = "0755";
+                  Restart = "no";
+                  KillMode = "control-group";
+                  Delegate = true;
+                }
+                // lib.optionalAttrs diagnostics {
+                  StandardOutput = "journal+console";
+                  StandardError = "journal+console";
+                };
             };
           };
         };

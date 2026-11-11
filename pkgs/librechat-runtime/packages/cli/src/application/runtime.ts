@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { OperationalError, UsageError } from "#cli/application/errors";
+import { ErrorReporter } from "#cli/presentation/errors";
 import { runCommand } from "#cli/application/dispatch";
 import { interactiveMode } from "#cli/application/inputs";
 import { openDeployment } from "#cli/adapters/deployment";
@@ -8,12 +8,39 @@ import type { EntryPoint } from "#cli/definitions/commands";
 import { exitAfterFlushing } from "#cli/presentation/output";
 import { TerminalPresentation } from "#cli/presentation/terminal";
 
+function writeError(text: string): void {
+  process.stderr.write(text);
+}
+
 export function logError(error: unknown): void {
-  const message =
-    error instanceof OperationalError || error instanceof UsageError
-      ? error.message
-      : "LibreChat command failed. Check the service logs.";
-  process.stderr.write(`Error: ${message}\n`);
+  new ErrorReporter({
+    diagnostics: process.env.LIBRECHAT_DIAGNOSTICS === "1",
+    write: writeError,
+  }).report(error);
+}
+
+export class RuntimeErrorPolicy {
+  private readonly commands: ErrorReporter;
+  private readonly services: ErrorReporter;
+
+  constructor(
+    environment: Record<string, string | undefined>,
+    write: (text: string) => void,
+  ) {
+    this.commands = new ErrorReporter({
+      diagnostics: environment.LIBRECHAT_DIAGNOSTICS === "1",
+      write,
+    });
+    this.services = new ErrorReporter({ diagnostics: true, write });
+  }
+
+  reportService(error: unknown): void {
+    this.services.report(error);
+  }
+
+  diagnose(error: unknown, service: boolean): void {
+    (service ? this.services : this.commands).diagnose(error);
+  }
 }
 
 function writeOutput(text: string): void {
@@ -37,13 +64,14 @@ export async function main(
       ci: process.env.CI,
     }),
   });
+  const errors = new RuntimeErrorPolicy(process.env, writeError);
   const services = new NativeRuntimeServices({
     files,
     http: globalThis.fetch,
     input: process.stdin,
     brokerToken: process.env.AGENTSVIEW_BROKER_TOKEN,
     writeOutput,
-    reportError: logError,
+    reportError: (error) => errors.reportService(error),
   });
   const result = await runCommand(args, entry, {
     manifest: process.env.LIBRECHAT_INTERNAL_MANIFEST,
@@ -51,6 +79,7 @@ export async function main(
     services,
     presentation,
     writeOutput,
+    reportDiagnostics: (error, service) => errors.diagnose(error, service),
     openDeployment: async (file) =>
       await openDeployment(file, files, globalThis.fetch),
   });

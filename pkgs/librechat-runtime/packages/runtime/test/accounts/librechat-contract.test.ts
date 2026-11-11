@@ -26,12 +26,26 @@ const models = {
   ollama: "qwen3:4b",
 };
 
+class LibreChatFixtureRequiredError extends Error {
+  constructor() {
+    super(
+      "Run tests in nix develop .#librechat-runtime to provide the pinned LibreChat package",
+    );
+    this.name = "LibreChatFixtureRequiredError";
+  }
+}
+
+class PersonalAgentFixtureMissingError extends Error {
+  constructor(provider: string) {
+    super(`No Personal agent is configured for ${provider}`);
+    this.name = "PersonalAgentFixtureMissingError";
+  }
+}
+
 const root = process.env.LIBRECHAT_TEST_ROOT;
 
 if (root === undefined) {
-  throw new Error(
-    "Run tests in nix develop .#librechat-runtime to provide the pinned LibreChat package",
-  );
+  throw new LibreChatFixtureRequiredError();
 }
 
 process.env.LOG_TO_FILE = "false";
@@ -58,18 +72,18 @@ afterEach(() => {
 });
 
 it.each([
-  { password: "short", issue: "Password must contain at least 8 characters." },
+  { password: "short", issue: { kind: "minimum", minimum: 8 } },
   {
     password: "x".repeat(129),
-    issue: "Password must contain at most 128 characters.",
+    issue: { kind: "maximum", maximum: 128 },
   },
   {
     password: " ".repeat(8),
-    issue: "Use a non-blank password accepted by LibreChat's password policy.",
+    issue: { kind: "rejected" },
   },
   { password: " valid password ", issue: undefined },
 ])("uses the installed password policy: $issue", ({ password, issue }) => {
-  expect(passwordIssue(root, password)).toBe(issue);
+  expect(passwordIssue(root, password)).toStrictEqual(issue);
 });
 
 it("preserves the managed chat prompt and default in LibreChat configuration", () => {
@@ -180,7 +194,7 @@ it.each([
     );
 
     if (definition === undefined) {
-      throw new Error(`No Personal agent is configured for ${provider}`);
+      throw new PersonalAgentFixtureMissingError(provider);
     }
 
     const owner = { userId: "fixture-user", email: "fixture@example.com" };

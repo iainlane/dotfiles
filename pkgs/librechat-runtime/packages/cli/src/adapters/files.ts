@@ -2,7 +2,7 @@ import {
   hostManifestSchema,
   type HostManifest,
 } from "@dotfiles/librechat-runtime/manifest";
-import { OperationalError } from "#cli/application/errors";
+import { DeploymentConfigurationError } from "#cli/application/errors";
 import type { FileAccess } from "#cli/application/ports";
 
 export async function jsonFile(
@@ -19,9 +19,6 @@ export async function loadManifest(
   try {
     return hostManifestSchema.parse(await jsonFile(file, files));
   } catch (cause) {
-    throw new OperationalError(
-      "Could not read the LibreChat deployment configuration. Check the installed librechatctl wrapper and rebuild the deployment if necessary.",
-      { cause },
-    );
+    throw new DeploymentConfigurationError(cause);
   }
 }

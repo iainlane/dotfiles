@@ -1,5 +1,15 @@
 import { readCredential } from "@dotfiles/librechat-runtime/config";
-import { OperationalError } from "#cli/application/errors";
+import {
+  AccountBindingMismatchError,
+  AccountInspectionOperationError,
+  AccountRegistrationRefusedError,
+  BootstrapOperationError,
+  ControllerUnavailableError,
+  NativeApiIncompatibleError,
+  OperationalError,
+  PasswordPolicyUnavailableError,
+  ResetRefusedError,
+} from "#cli/application/errors";
 import type { Deployment, FileAccess } from "#cli/application/ports";
 import { loadManifest } from "#cli/adapters/files";
 
@@ -17,23 +27,19 @@ export async function openDeployment(
     try {
       return await operation();
     } catch (cause) {
-      if (
-        cause instanceof inspection.AccountInspectionError ||
-        cause instanceof native.BootstrapAccountMismatchError ||
-        cause instanceof native.BootstrapRegistrationError
-      ) {
-        throw new OperationalError(cause.message, { cause });
+      if (cause instanceof inspection.AccountInspectionError) {
+        throw new AccountInspectionOperationError(cause);
+      }
+      if (cause instanceof native.BootstrapAccountMismatchError) {
+        throw new AccountBindingMismatchError(cause);
+      }
+      if (cause instanceof native.BootstrapRegistrationError) {
+        throw new AccountRegistrationRefusedError(cause);
       }
       if (cause instanceof native.BootstrapExportError) {
-        throw new OperationalError(
-          "The installed LibreChat native API is incompatible. Rebuild the LibreChat deployment with matching packages.",
-          { cause },
-        );
+        throw new NativeApiIncompatibleError(cause);
       }
-      throw new OperationalError(
-        "Could not bootstrap LibreChat. Check that the LibreChat services are running and consult their logs.",
-        { cause },
-      );
+      throw new BootstrapOperationError(cause);
     }
   }
 
@@ -54,10 +60,7 @@ export async function openDeployment(
             password,
           );
         } catch (cause) {
-          throw new OperationalError(
-            "The installed LibreChat password policy could not be loaded. Rebuild the deployment with matching packages.",
-            { cause },
-          );
+          throw new PasswordPolicyUnavailableError(cause);
         }
       },
       bootstrap: async (input) =>
@@ -86,18 +89,13 @@ export async function openDeployment(
         );
         await response.body?.cancel();
         if (!response.ok) {
-          throw new OperationalError(
-            "The controller refused the workspace reset. Finish active calls and check the conversation UUID.",
-          );
+          throw new ResetRefusedError(response.status);
         }
       } catch (cause) {
         if (cause instanceof OperationalError) {
           throw cause;
         }
-        throw new OperationalError(
-          "Could not contact the conversation controller. Start the LibreChat services and try again.",
-          { cause },
-        );
+        throw new ControllerUnavailableError(cause);
       }
     },
   };

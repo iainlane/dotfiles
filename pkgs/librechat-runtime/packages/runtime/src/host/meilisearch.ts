@@ -46,12 +46,36 @@ export class MeilisearchUpgradeError extends Error {
   }
 }
 
+export class MeilisearchBackupVersionError extends Error {
+  readonly backup: string;
+
+  constructor(backup: string) {
+    super(`Meilisearch backup has an unexpected version: ${backup}`);
+    this.name = "MeilisearchBackupVersionError";
+    this.backup = backup;
+  }
+}
+
+interface MeilisearchRuntime {
+  now(): number;
+  report(text: string): void;
+}
+
+const nativeRuntime: MeilisearchRuntime = {
+  now: Date.now,
+  report: (text) => {
+    process.stderr.write(text);
+  },
+};
+
 export class MeilisearchDatabase {
   private readonly state: string;
+  private readonly runtime: MeilisearchRuntime;
   private versions: { source: string; target: string } | undefined;
 
-  constructor(state: string) {
+  constructor(state: string, runtime: MeilisearchRuntime = nativeRuntime) {
     this.state = state;
+    this.runtime = runtime;
   }
 
   async prepareUpgrade(
@@ -95,9 +119,7 @@ export class MeilisearchDatabase {
       versionSchema.parse(saved.trim());
 
       if (saved.trim() !== source) {
-        throw new Error(
-          `Meilisearch backup has an unexpected version: ${backup}`,
-        );
+        throw new MeilisearchBackupVersionError(backup);
       }
 
       return;
@@ -115,14 +137,14 @@ export class MeilisearchDatabase {
     try {
       const copy = join(temporary, "database");
       await cp(database, copy, { recursive: true, preserveTimestamps: true });
-      const created = new Date();
+      const created = new Date(this.runtime.now());
       await utimes(copy, created, created);
       await rename(copy, backup);
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }
 
-    process.stderr.write(
+    this.runtime.report(
       `Meilisearch ${source} backup saved to ${backup} before upgrading to ${target}.\n`,
     );
   }

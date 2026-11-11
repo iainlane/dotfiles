@@ -28,8 +28,12 @@ const messages = {
 };
 
 export class AccountInspectionError extends Error {
+  readonly reason: keyof typeof messages;
+
   constructor(reason: keyof typeof messages, options?: ErrorOptions) {
     super(messages[reason], options);
+    this.name = "AccountInspectionError";
+    this.reason = reason;
   }
 }
 

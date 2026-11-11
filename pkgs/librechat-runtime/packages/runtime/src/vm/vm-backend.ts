@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { WorkspaceRecoveryError } from "#runtime/platform/errors";
+import {
+  WorkspaceRecoveryError,
+  WorkspaceStartupCleanupError,
+} from "#runtime/platform/errors";
 import {
   resumeVm,
   saveVmSnapshot,
@@ -23,6 +26,10 @@ const controlTimeouts = {
   resume: 480_000,
   quiesce: 150_000,
 };
+
+export class VmStartupCleanupError extends WorkspaceStartupCleanupError {
+  override readonly name = "VmStartupCleanupError";
+}
 
 export interface VmFiles {
   prepare(
@@ -61,6 +68,7 @@ interface VmBackendOptions {
   timeout(milliseconds: number): AbortSignal;
 
   newBootId(): string;
+  now(): number;
   caCertificate: string;
   archiveToken: string;
   executionPublicKey: string;
@@ -227,7 +235,7 @@ export class QemuBackend implements GuestBackend {
         headers: {
           "content-type": "application/json",
           ...(path === "resume"
-            ? { "x-librechat-resume-time": String(Date.now()) }
+            ? { "x-librechat-resume-time": String(this.options.now()) }
             : {}),
         },
         body: JSON.stringify(payload),
@@ -348,7 +356,11 @@ export class QemuBackend implements GuestBackend {
 
       return guest;
     } catch (error) {
-      await process.stop();
+      try {
+        await process.stop();
+      } catch (cleanup) {
+        throw new VmStartupCleanupError(guest, error, cleanup);
+      }
 
       this.processes.delete(guest.bootId);
       this.boots.delete(guest.bootId);

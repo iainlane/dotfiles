@@ -10,6 +10,7 @@ import {
   personalAgentData,
   provisionAgents,
   type BootstrapInput,
+  type PasswordPolicyIssue,
   type BootstrapOwner,
   type StoredAgent,
 } from "#runtime/accounts/bootstrap";
@@ -120,7 +121,7 @@ async function readPreviousAccount(file: string): Promise<unknown> {
 export function passwordIssue(
   root: string,
   password: string,
-): string | undefined {
+): PasswordPolicyIssue | undefined {
   const require = createRequire(`${root}/package.json`);
   const validators: unknown = require(
     join(root, "api", "strategies", "validators"),
@@ -152,12 +153,12 @@ export function passwordIssue(
   }
   const issue = result.error.issues[0];
   if (issue?.code === "too_small" && issue.minimum !== undefined) {
-    return `Password must contain at least ${issue.minimum} characters.`;
+    return { kind: "minimum", minimum: issue.minimum };
   }
   if (issue?.code === "too_big" && issue.maximum !== undefined) {
-    return `Password must contain at most ${issue.maximum} characters.`;
+    return { kind: "maximum", maximum: issue.maximum };
   }
-  return "Use a non-blank password accepted by LibreChat's password policy.";
+  return { kind: "rejected" };
 }
 
 export async function bootstrapAccount(

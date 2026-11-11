@@ -17,6 +17,7 @@
     guest = import ./guest-image.nix {
       inherit (guestChannel) nixpkgs;
       inherit librechat-code librechat-runtime;
+      diagnostics = true;
       pkgs = guestPkgs;
       servers = {};
       skills = guestPkgs.emptyDirectory;
@@ -60,6 +61,7 @@
       mkdir -p runtime/test/fixtures
       cp ${../../../pkgs/librechat-runtime/packages/runtime/test/vm/fixtures/workspace.ts} runtime/test/fixtures/workspace.ts
       cp ${../../../pkgs/librechat-runtime/packages/runtime/test/vm/fixtures/accelerator.ts} runtime/test/fixtures/accelerator.ts
+      cp ${../../../pkgs/librechat-runtime/packages/runtime/test/vm/fixtures/diagnostics.ts} runtime/test/fixtures/diagnostics.ts
       ln -s ${pkgs.librechat-runtime}/lib/librechat-runtime/node_modules runtime/node_modules
       cp ${pkgs.librechat-runtime}/lib/librechat-runtime/package.json runtime/package.json
       ${lib.getExe pkgs.nodejs_24} --disable-wasm-trap-handler runtime/test/fixtures/workspace.ts ${configuration}

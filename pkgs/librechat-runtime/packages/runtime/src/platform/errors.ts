@@ -1,4 +1,18 @@
 import { StatusCodes } from "http-status-codes";
+import type { Guest } from "#runtime/sessions/sessions";
+
+export class WorkspaceStartupCleanupError extends AggregateError {
+  readonly guest: Guest;
+
+  constructor(guest: Guest, startup: unknown, cleanup: unknown) {
+    super(
+      [startup, cleanup],
+      "Workspace startup failed and its process still needs cleanup",
+    );
+    this.name = "WorkspaceStartupCleanupError";
+    this.guest = guest;
+  }
+}
 
 export type CredentialLabel =
   | "OpenAI"

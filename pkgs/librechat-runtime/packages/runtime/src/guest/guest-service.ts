@@ -6,6 +6,13 @@ interface GuestServiceDependencies {
   stop(child: ManagedProcess): Promise<void>;
 }
 
+export class GuestStartupCleanupError extends AggregateError {
+  constructor(startup: unknown, cleanup: unknown) {
+    super([startup, cleanup], "Guest startup and cleanup both failed");
+    this.name = "GuestStartupCleanupError";
+  }
+}
+
 export class GuestServiceProcess {
   private readonly dependencies: GuestServiceDependencies;
   private child: ManagedProcess | undefined;
@@ -58,8 +65,11 @@ export class GuestServiceProcess {
 
       return this.child;
     } catch (error) {
-      await this.stop();
-
+      try {
+        await this.stop();
+      } catch (cleanup) {
+        throw new GuestStartupCleanupError(error, cleanup);
+      }
       throw error;
     }
   }

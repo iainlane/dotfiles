@@ -1,6 +1,9 @@
 import type { Readable, Writable } from "node:stream";
 import * as clack from "@clack/prompts";
-import { CancelledError, UsageError } from "#cli/application/errors";
+import {
+  CancelledError,
+  InteractiveInputUnavailableError,
+} from "#cli/application/errors";
 import type { Presentation, TextRequest } from "#cli/application/ports";
 
 export class TerminalPresentation implements Presentation {
@@ -20,9 +23,7 @@ export class TerminalPresentation implements Presentation {
 
   private requireInteractive(): void {
     if (!this.interactive) {
-      throw new UsageError(
-        "Interactive input is unavailable. Supply the required command options.",
-      );
+      throw new InteractiveInputUnavailableError();
     }
   }
 

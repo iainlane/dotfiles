@@ -30,12 +30,19 @@ interface Server {
   close(): Promise<void>;
 }
 
+class McpSdkFixtureRequiredError extends Error {
+  constructor() {
+    super(
+      "Run tests in nix develop .#librechat-runtime to provide the pinned MCP SDK",
+    );
+    this.name = "McpSdkFixtureRequiredError";
+  }
+}
+
 const root = process.env.LIBRECHAT_TEST_ROOT;
 
 if (root === undefined) {
-  throw new Error(
-    "Run tests in nix develop .#librechat-runtime to provide the pinned MCP SDK",
-  );
+  throw new McpSdkFixtureRequiredError();
 }
 
 const require = createRequire(`${root}/package.json`);

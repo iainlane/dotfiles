@@ -21,6 +21,11 @@ import { startFileServer } from "@dotfiles/librechat-runtime/file-server";
 import { httpReady } from "@dotfiles/librechat-runtime/startup";
 import type { Session } from "@dotfiles/librechat-runtime/sessions";
 import { workspaceAccelerator } from "./accelerator.ts";
+import {
+  WorkspaceBackgroundServiceError,
+  WorkspaceDiagnostics,
+  WorkspaceServiceTimeoutError,
+} from "./diagnostics.ts";
 
 const configuration = z
   .object({
@@ -93,7 +98,6 @@ const environment = z
       Object.entries(process.env).filter(([, value]) => value !== undefined),
     ),
   );
-const processes = new NodeProcessRunner({ ...environment, HOME: root });
 const children: ManagedProcess[] = [];
 const programs = configuration.manifest.programs;
 const [redisPort, objectPort, consolePort, gatewayPort, ironPort, archivePort] =
@@ -144,6 +148,14 @@ const runtime = {
   cpus: 2,
 };
 console.log(`workspace accelerator: ${runtime.accelerator}`);
+const diagnostics = new WorkspaceDiagnostics(runtime.accelerator);
+for (const value of [internal, secret, privateKey]) {
+  diagnostics.addSecret(value);
+}
+const processes = new NodeProcessRunner(
+  { ...environment, HOME: root },
+  (output) => diagnostics.capture(output),
+);
 const files = new FileVmStorage({
   directory: join(root, "sessions"),
   socketDirectory: join(root, "sockets"),
@@ -181,10 +193,10 @@ async function start(
 
 async function ready(url: string, attempts = 120): Promise<void> {
   if (failure !== undefined) {
-    throw new Error("Workspace fixture failed", { cause: failure });
+    throw new WorkspaceBackgroundServiceError(failure);
   }
   if (attempts === 0) {
-    throw new Error(`Timed out waiting for ${url}`);
+    throw new WorkspaceServiceTimeoutError(url);
   }
   if (await httpReady(url, { timeoutMs: 1000 })) {
     return;
@@ -265,6 +277,7 @@ async function execute(
       },
     }),
   );
+  diagnostics.addSecret(prepared.egressGrantToken);
   const body = {
     ...prepared.payload,
     execution_manifest: signing.signExecutionManifestWithPrivateKey(
@@ -290,8 +303,7 @@ async function execute(
       signal: AbortSignal.timeout(90000),
     }),
   );
-  const text = await response.text();
-  assert.equal(response.ok, true, text);
+  const text = await diagnostics.response(response);
   const result = executionSchema.parse(JSON.parse(text));
   assert.equal(result.run.code, 0, text);
   return result;
@@ -300,6 +312,9 @@ async function execute(
 function quote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
+
+let primaryError: unknown;
+let failed = false;
 
 try {
   await mkdir(join(root, "objects"));
@@ -380,19 +395,14 @@ try {
     processes,
     fetch: async (socket, request) => {
       const response = await fetchSocket(socket, request);
-      if (!response.ok) {
-        console.error(
-          new URL(request.url).pathname,
-          await response.clone().text(),
-        );
-      }
-      return response;
+      return await diagnostics.backendResponse(response, request);
     },
     delay: async (milliseconds, signal) => {
       await delay(milliseconds, undefined, { signal });
     },
     timeout: (milliseconds) => AbortSignal.timeout(milliseconds),
     newBootId: randomUUID,
+    now: Date.now,
     caCertificate: await readFile(join(root, "iron/ca.crt"), "utf8"),
     archiveToken: "fixture-archive-token-32-bytes-long",
     executionPublicKey: publicKey,
@@ -404,6 +414,7 @@ try {
     },
   });
   guest = await backend.start(session, false);
+  diagnostics.stage = "file-transfer";
   const upload = await fetch(
     `http://127.0.0.1:${filePort}/sessions/${"s".repeat(21)}/objects/${"i".repeat(21)}`,
     {
@@ -433,15 +444,19 @@ try {
   );
   console.log("input and artefact transfer passed");
   const expression = `derivation { name = "workspace-built"; system = "${configuration.system}"; builder = builtins.storePath "${configuration.bash}"; PATH = "\${builtins.storePath "${configuration.coreutils}"}/bin"; args = [ "-c" "mkdir -p $out/bin; printf '#!${configuration.bash}\\nprintf built-ok\\n' > $out/bin/workspace-built; chmod +x $out/bin/workspace-built" ]; }`;
+  diagnostics.stage = "workspace-execution";
   const work = await execute(
     `set -eu\ntest "$HOME" = /work\ntest -f /work/.pki/nssdb/cert9.db\ncp /usr/bin/true /work/true\nchmod +x /work/true\n/work/true\ncp /usr/bin/true /mnt/data/true\nchmod +x /mnt/data/true\nif /mnt/data/true; then exit 1; fi\nrm /mnt/data/true\ncat /proc/sys/kernel/random/boot_id > /work/boot-id\nnix build --offline --impure --expr ${quote(expression)} --out-link /work/built\nnix profile add --offline "$(readlink -f /work/built)"\nworkspace-built\n`,
   );
   assert.equal(work.run.stdout, "built-ok");
+  diagnostics.stage = "checkpoint";
   await backend.checkpoint(session, guest);
   await backend.stop(session, guest);
   guest = undefined;
   await delay(5000);
+  diagnostics.stage = "resume";
   guest = await backend.start(session, true);
+  diagnostics.stage = "resumed-execution";
   const restored = await execute(
     'set -eu\n/work/true\ntest "$(cat /work/boot-id)" = "$(cat /proc/sys/kernel/random/boot_id)"\nworkspace-built\ncat /mnt/data/result.txt\ndate +%s\n',
   );
@@ -455,15 +470,46 @@ try {
     { contents: "built-okinput bytes", clockClose: true },
   );
   if (failure !== undefined) {
-    throw new Error("Workspace fixture failed", { cause: failure });
+    throw new WorkspaceBackgroundServiceError(failure);
   }
   console.log(
     "workspace execution, Nix build/profile, input/output transfer and full VM resume passed",
   );
+} catch (error) {
+  primaryError = error;
+  failed = true;
 } finally {
+  const background = failure;
+  const cleanup: unknown[] = [];
   if (guest !== undefined && backend !== undefined) {
-    await backend.stop(session, guest);
+    try {
+      await backend.stop(session, guest);
+    } catch (error) {
+      cleanup.push(error);
+    }
   }
-  await Promise.all(children.map(async (child) => child.stop()));
-  await rm(root, { recursive: true, force: true });
+  const stopped = await Promise.allSettled(
+    children.map(async (child) => child.stop()),
+  );
+  for (const result of stopped) {
+    if (result.status === "rejected") {
+      const error: unknown = result.reason;
+      cleanup.push(error);
+    }
+  }
+  try {
+    await rm(root, { recursive: true, force: true });
+  } catch (error) {
+    cleanup.push(error);
+  }
+  if (failed || cleanup.length > 0) {
+    console.error(
+      diagnostics.report(
+        failed ? primaryError : cleanup[0],
+        background,
+        cleanup,
+      ),
+    );
+    process.exitCode = 1;
+  }
 }

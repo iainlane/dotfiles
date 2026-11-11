@@ -12,6 +12,12 @@ export interface Command {
   gid?: number;
 }
 
+export interface ProcessOutput {
+  executable: string;
+  stream: "stdout" | "stderr";
+  text: string;
+}
+
 export interface ManagedProcess {
   exited: Promise<void>;
 
@@ -78,6 +84,7 @@ const execute = promisify(execFile);
 
 class NodeManagedProcess implements ManagedProcess {
   private readonly outcome: Promise<Error | undefined>;
+  private readonly drained: Promise<void>;
   private readonly child: ChildProcess;
   private readonly command: Command;
   private stopped = false;
@@ -87,6 +94,9 @@ class NodeManagedProcess implements ManagedProcess {
 
     this.command = command;
 
+    this.drained = new Promise<void>((resolve) => {
+      child.once("close", () => resolve());
+    });
     this.outcome = new Promise<Error | undefined>((resolve) => {
       child.once("exit", (code) => {
         if (!this.stopped) {
@@ -110,10 +120,17 @@ class NodeManagedProcess implements ManagedProcess {
 
   private async waitForExit(): Promise<void> {
     const error = await this.outcome;
+    await this.drainOutput();
 
     if (error !== undefined) {
       throw error;
     }
+  }
+
+  private async drainOutput(): Promise<void> {
+    await Promise.race([this.drained, delay(200, undefined, { ref: false })]);
+    this.child.stdout?.destroy();
+    this.child.stderr?.destroy();
   }
 
   running(): boolean {
@@ -124,6 +141,7 @@ class NodeManagedProcess implements ManagedProcess {
     this.stopped = true;
 
     if (!this.running()) {
+      await this.drainOutput();
       return;
     }
 
@@ -141,9 +159,14 @@ class NodeManagedProcess implements ManagedProcess {
 
 export class NodeProcessRunner implements ProcessRunner {
   private readonly environment: Record<string, string>;
+  private readonly onOutput: ((output: ProcessOutput) => void) | undefined;
 
-  constructor(environment: Record<string, string>) {
+  constructor(
+    environment: Record<string, string>,
+    onOutput?: (output: ProcessOutput) => void,
+  ) {
     this.environment = environment;
+    this.onOutput = onOutput;
   }
 
   async run(command: Command): Promise<string> {
@@ -169,8 +192,24 @@ export class NodeProcessRunner implements ProcessRunner {
       cwd: command.directory,
       uid: command.uid,
       gid: command.gid,
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio:
+        this.onOutput === undefined
+          ? ["ignore", "inherit", "inherit"]
+          : ["ignore", "pipe", "pipe"],
     });
+
+    if (this.onOutput !== undefined) {
+      for (const stream of ["stdout", "stderr"] as const) {
+        child[stream]?.setEncoding("utf8");
+        child[stream]?.on("data", (chunk: string) => {
+          this.onOutput?.({
+            executable: command.executable,
+            stream,
+            text: chunk,
+          });
+        });
+      }
+    }
 
     const managed = new NodeManagedProcess(child, command);
 

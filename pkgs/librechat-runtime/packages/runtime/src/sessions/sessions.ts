@@ -3,6 +3,7 @@ import {
   SessionBusyError,
   SessionClosingError,
   WorkspaceRecoveryError,
+  WorkspaceStartupCleanupError,
   WorkspaceQuarantinedError,
   ConversationPrincipalError,
   ConversationIdError,
@@ -50,6 +51,7 @@ export interface GuestBackend {
 interface SessionEntry {
   session: Session;
   guest?: Guest;
+  pendingGuest?: Guest;
   leases: number;
   guestLastUsed: number;
 }
@@ -151,6 +153,14 @@ export class SessionManager {
     return entry;
   }
 
+  private async cleanupPending(entry: SessionEntry): Promise<void> {
+    if (entry.pendingGuest === undefined) {
+      return;
+    }
+    await this.options.backend.stop(entry.session, entry.pendingGuest);
+    delete entry.pendingGuest;
+  }
+
   private async ready(
     entry: SessionEntry,
     signal?: AbortSignal,
@@ -165,15 +175,28 @@ export class SessionManager {
       return entry.guest;
     }
 
-    const guest = await this.options.backend.start(
-      entry.session,
-      entry.session.checkpoint,
-      signal,
-    );
+    await this.cleanupPending(entry);
+    let guest: Guest;
+    try {
+      guest = await this.options.backend.start(
+        entry.session,
+        entry.session.checkpoint,
+        signal,
+      );
+    } catch (error) {
+      if (error instanceof WorkspaceStartupCleanupError) {
+        entry.pendingGuest = error.guest;
+      }
+      throw error;
+    }
 
     if (signal?.aborted === true) {
-      await this.options.backend.stop(entry.session, guest);
-
+      entry.pendingGuest = guest;
+      try {
+        await this.cleanupPending(entry);
+      } catch (cleanup) {
+        throw new WorkspaceStartupCleanupError(guest, signal.reason, cleanup);
+      }
       signal.throwIfAborted();
     }
 
@@ -427,6 +450,7 @@ export class SessionManager {
       delete entry.guest;
     }
 
+    await this.cleanupPending(entry);
     await this.options.backend.remove(entry.session);
     entry.session.generation += 1;
 
@@ -455,6 +479,7 @@ export class SessionManager {
               return;
             }
 
+            await this.cleanupPending(entry);
             await this.expire(entry);
 
             if (
@@ -471,6 +496,7 @@ export class SessionManager {
   }
 
   private async suspend(entry: SessionEntry): Promise<void> {
+    await this.cleanupPending(entry);
     if (entry.guest === undefined) {
       return;
     }
@@ -533,6 +559,7 @@ export class SessionManager {
         delete entry.guest;
       }
 
+      await this.cleanupPending(entry);
       await this.options.backend.remove(entry.session);
       entry.session.generation += 1;
 
@@ -558,6 +585,7 @@ export class SessionManager {
         throw new QuarantineTargetError();
       }
 
+      await this.cleanupPending(entry);
       entry.session.quarantine = reason;
 
       await this.save(entry.session);

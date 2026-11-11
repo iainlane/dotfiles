@@ -2,12 +2,19 @@ import { chmod, cp, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+class CodeBridgeSourceRequiredError extends Error {
+  constructor() {
+    super(
+      "LIBRECHAT_CODE_BRIDGE is required. Enter nix develop .#librechat-runtime before preparing the workspace.",
+    );
+    this.name = "CodeBridgeSourceRequiredError";
+  }
+}
+
 const source = process.env.LIBRECHAT_CODE_BRIDGE;
 
 if (source === undefined || source === "") {
-  throw new Error(
-    "LIBRECHAT_CODE_BRIDGE is required. Enter nix develop .#librechat-runtime before preparing the workspace.",
-  );
+  throw new CodeBridgeSourceRequiredError();
 }
 
 const destination = new URL(

@@ -21,7 +21,7 @@ function fixture(interactive = true) {
     passwordIssue: vi
       .fn<AccountAccess["passwordIssue"]>()
       .mockImplementation((password) =>
-        password.length < 8 ? "Use at least eight characters." : undefined,
+        password.length < 8 ? { kind: "minimum", minimum: 8 } : undefined,
       ),
     bootstrap: vi.fn<AccountAccess["bootstrap"]>(),
   };
@@ -222,7 +222,7 @@ it("does not expose password contents when validation fails", async () => {
       }),
       dependencies,
     ),
-  ).rejects.toThrow("Use at least eight characters.");
+  ).rejects.toThrow("Password must contain at least 8 characters.");
 });
 
 it("cancels bootstrap before provisioning", async () => {

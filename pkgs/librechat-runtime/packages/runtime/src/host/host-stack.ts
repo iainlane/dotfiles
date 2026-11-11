@@ -122,15 +122,17 @@ async function keyPair(file: string): Promise<z.infer<typeof keySchema>> {
   return keys;
 }
 
-function report(error: unknown): void {
-  process.stderr.write(
-    `${error instanceof Error ? error.name : "ServiceFailure"}\n`,
-  );
+export class NativeServiceFailureError extends Error {
+  constructor(cause: unknown) {
+    super("A native LibreChat service failed", { cause });
+    this.name = "NativeServiceFailureError";
+  }
 }
 
 export class NativeHostStack {
   private readonly manifest: HostManifest;
   private readonly processes: ProcessRunner;
+  private readonly report: (error: unknown) => void;
   private readonly children: ManagedProcess[] = [];
   private readonly failure = Promise.withResolvers<unknown>();
   private readonly monitors: Promise<void>[] = [];
@@ -146,6 +148,7 @@ export class NativeHostStack {
     manifest: HostManifest,
     signal: AbortSignal,
     processes: ProcessRunner,
+    report: (error: unknown) => void,
   ) {
     this.manifest = manifest;
 
@@ -159,6 +162,7 @@ export class NativeHostStack {
     });
 
     this.processes = processes;
+    this.report = report;
   }
 
   private async monitor(operation: Promise<void>): Promise<void> {
@@ -176,14 +180,14 @@ export class NativeHostStack {
       throw error;
     }
 
-    throw new Error("A native LibreChat service failed", { cause: error });
+    throw new NativeServiceFailureError(error);
   }
 
   private async sweep(sessions: SessionManager): Promise<void> {
     try {
       await sessions.sweep();
     } catch (error) {
-      report(error);
+      this.report(error);
     } finally {
       this.sweepTask = undefined;
     }
@@ -581,12 +585,13 @@ export class NativeHostStack {
       },
       timeout: (milliseconds) => AbortSignal.timeout(milliseconds),
       newBootId: randomUUID,
+      now: Date.now,
       caCertificate: await readFile(join(ironDirectory, "ca.crt"), "utf8"),
       archiveToken: secrets.archive,
       executionPublicKey: executionKey.publicKey,
       onError: (error) => this.failure.resolve(error),
       onFailure: async (session, error) => {
-        report(error);
+        this.report(error);
 
         await this.sessions?.quarantine(
           session.runtimeId,
@@ -640,7 +645,7 @@ export class NativeHostStack {
 
     const controlServer = httpService({
       handler: (request) => controller.route(request),
-      onError: report,
+      onError: this.report,
     });
 
     controlServer.listen(ports.controller, "127.0.0.1");
@@ -651,7 +656,7 @@ export class NativeHostStack {
 
     const archiveServer = httpService({
       handler: (request) => archive.route(request),
-      onError: report,
+      onError: this.report,
       maxBodyBytes: 16 * 1024,
     });
 
@@ -765,7 +770,7 @@ export class NativeHostStack {
         sandboxProfile: "nsjail",
         runtimes: ["bash", "python", "node", "bun-js", "bun-ts"],
       },
-      onError: report,
+      onError: this.report,
     });
 
     this.monitors.push(this.monitor(worker.run(this.signal)));
@@ -1003,7 +1008,7 @@ export class NativeHostStack {
     try {
       await this.sessions?.shutdown();
     } catch (error) {
-      report(error);
+      this.report(error);
 
       await delay(error instanceof SessionBusyError ? 1000 : 30_000);
 

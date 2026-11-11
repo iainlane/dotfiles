@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { runCommand } from "#cli/application/dispatch";
+import { RuntimeErrorPolicy } from "#cli/application/runtime";
 import type {
   AccountAccess,
   CommandDependencies,
@@ -56,6 +57,7 @@ function fixture() {
         resetWorkspace,
       }),
     writeOutput: vi.fn<CommandDependencies["writeOutput"]>(),
+    reportDiagnostics: vi.fn<CommandDependencies["reportDiagnostics"]>(),
   } satisfies CommandDependencies;
   return { dependencies, resetWorkspace, accounts };
 }
@@ -215,3 +217,64 @@ it("forwards archive response bytes without presentation", async () => {
     deployment: [],
   });
 });
+
+it("reports the original service failure through the injected diagnostic output", async () => {
+  const { dependencies } = fixture();
+  const cause = new TypeError("fetch failed");
+  dependencies.services.guest.mockRejectedValue(cause);
+  const result = await runCommand(
+    ["guest", "/fixture/guest.json"],
+    "runtime",
+    dependencies,
+  );
+  expect({
+    result,
+    diagnostics: dependencies.reportDiagnostics.mock.calls,
+    errors: dependencies.presentation.error.mock.calls,
+  }).toStrictEqual({
+    result: { status: 1, forceExit: false },
+    diagnostics: [[cause, true]],
+    errors: [["LibreChat command failed. Check the service logs."]],
+  });
+});
+
+it.each(["serve", "guest", "hook"] as const)(
+  "applies the composed diagnostic policy to escaping %s failures without an opt-in",
+  async (command) => {
+    const { dependencies } = fixture();
+    const output: string[] = [];
+    const errors = new RuntimeErrorPolicy({}, (text) => output.push(text));
+    const failure = Object.assign(new Error("startup failed"), {
+      stack: undefined,
+      cause: Object.assign(new Error("spawn failed"), {
+        stack: undefined,
+        code: "ENOENT",
+      }),
+    });
+    dependencies.services[command].mockRejectedValue(failure);
+    const result = await runCommand([command, "/spec.json"], "runtime", {
+      ...dependencies,
+      reportDiagnostics: (error, service) => errors.diagnose(error, service),
+    });
+    expect({ result, output }).toStrictEqual({
+      result: { status: 1, forceExit: false },
+      output:
+        command === "hook"
+          ? []
+          : [
+              JSON.stringify({
+                event: "librechat-service-error",
+                error: {
+                  name: "Error",
+                  message: "startup failed",
+                  cause: {
+                    name: "Error",
+                    message: "spawn failed",
+                    code: "ENOENT",
+                  },
+                },
+              }) + "\n",
+            ],
+    });
+  },
+);

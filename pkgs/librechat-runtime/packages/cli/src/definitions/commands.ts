@@ -12,14 +12,16 @@ import {
   schema,
   toggle,
   version,
-  type Issue,
 } from "@bomb.sh/router";
 import { z } from "zod";
 import {
   archiveArguments,
   ArchiveArgumentsError,
 } from "@dotfiles/librechat-runtime/archive";
-import { UsageError } from "#cli/application/errors";
+import {
+  ArchiveArgumentsUsageError,
+  CommandArgumentsError,
+} from "#cli/application/errors";
 
 export type EntryPoint = "public" | "runtime";
 
@@ -206,10 +208,7 @@ function archiveQuery(
     return archiveArguments(args);
   } catch (cause) {
     if (cause instanceof ArchiveArgumentsError) {
-      throw new UsageError(
-        "Invalid arguments. Run librechat-runtime archive session --help for bounded query options.",
-        { cause },
-      );
+      throw new ArchiveArgumentsUsageError(cause);
     }
     throw cause;
   }
@@ -244,29 +243,6 @@ function examples(entry: EntryPoint, routeName: string): string[] {
   return commands[routeName] ?? [];
 }
 
-function argumentDetail(issues: readonly Issue[]): string | undefined {
-  const messages: Readonly<Record<string, string>> = {
-    email: "Use a valid email address for --email.",
-    name: "Use --name with a display name of 3 to 80 characters.",
-    passwordFile: "Use --password-file with a non-empty file path.",
-    conversation: "Use --conversation with a valid UUID.",
-    manifest: "Provide the deployment manifest path.",
-    file: "Provide the service configuration file path.",
-    limit: "Use --limit with an integer from 1 to 500.",
-  };
-  for (const issue of issues) {
-    const key = issue.path?.[0];
-    if (typeof key !== "string") {
-      continue;
-    }
-    const message = messages[key];
-    if (message !== undefined) {
-      return message;
-    }
-  }
-  return undefined;
-}
-
 export function parseCommand(args: string[], entry: EntryPoint): CommandIntent {
   const argv = args.length === 0 ? ["--help"] : args;
   const result =
@@ -276,17 +252,15 @@ export function parseCommand(args: string[], entry: EntryPoint): CommandIntent {
   const program = entry === "public" ? "librechatctl" : "librechat-runtime";
 
   if (!result.ok) {
-    const detail =
+    throw new CommandArgumentsError(
+      entry,
+      result.path,
       result.code === "unprocessable-content"
-        ? argumentDetail(result.issues)
-        : undefined;
-    const help = [program, ...result.path, "--help"].join(" ");
-    throw new UsageError(
-      [
-        "Invalid arguments.",
-        ...(detail === undefined ? [] : [detail]),
-        `Run ${help} for usage.`,
-      ].join(" "),
+        ? result.issues.map((issue) => {
+            const field = issue.path?.[0];
+            return { path: typeof field === "string" ? [field] : [] };
+          })
+        : [],
     );
   }
 
@@ -353,5 +327,5 @@ export function parseCommand(args: string[], entry: EntryPoint): CommandIntent {
       };
   }
 
-  throw new UsageError(`Invalid arguments. Run ${program} --help for usage.`);
+  throw new CommandArgumentsError(entry, []);
 }

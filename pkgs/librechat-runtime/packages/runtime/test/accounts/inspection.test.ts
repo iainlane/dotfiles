@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { errorDiagnostic } from "#runtime/platform/diagnostics";
 import {
   inspectAccount,
   readAccountBinding,
@@ -119,12 +120,29 @@ it.each([null, { _id: "abcdef0123456789abcdef01", email: "you@example.com" }])(
 it("closes account-inspection connections and does not expose database errors", async () => {
   const { deployment, reader, connect } = await fixture();
   reader.findByEmail.mockRejectedValue(
-    new Error("mongodb://private:secret@example.com"),
+    Object.assign(new Error("mongodb://private:secret@example.com"), {
+      stack: undefined,
+    }),
   );
-  await expect(
-    inspectAccount(deployment, "you@example.com", connect),
-  ).rejects.toThrow(
-    "Could not read the LibreChat account database. Check that the LibreChat services are running.",
-  );
-  expect(reader.close.mock.calls).toStrictEqual([[]]);
+  let failure: unknown;
+  try {
+    await inspectAccount(deployment, "you@example.com", connect);
+  } catch (error) {
+    failure =
+      error instanceof Error
+        ? Object.assign(error, { stack: undefined })
+        : error;
+  }
+  expect({
+    closed: reader.close.mock.calls,
+    diagnostic: errorDiagnostic(failure),
+  }).toStrictEqual({
+    closed: [[]],
+    diagnostic: {
+      name: "AccountInspectionError",
+      message:
+        "Could not read the LibreChat account database. Check that the LibreChat services are running.",
+      cause: { name: "Error", message: "mongodb://example.com" },
+    },
+  });
 });

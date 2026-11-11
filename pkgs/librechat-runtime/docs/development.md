@@ -56,5 +56,37 @@ sources in `pkgs/librechat-code`. Its preparation script copies the supplied
 build output; it does not download sources or invoke Nix. Generated files and
 compiler caches are not committed.
 
-Nix deploys the CLI and its production dependencies with pnpm, then wraps the
-compiled executable with Node.
+Nix installs production dependencies offline with the frozen pnpm lockfile,
+preserves the workspace's relative dependency layout and wraps the compiled
+executable with Node.
+
+## Boundaries and errors
+
+Application logic uses injected ports for files, HTTP, processes, clocks and
+presentation. Native adapters and command entry points construct the platform
+defaults. Error constructors accept domain data and causes, not formatted
+messages. Concrete error types retain the failure category and cause chain.
+
+The maintained code uses the repository's type-aware Oxlint rules with zero
+warnings. The package rules also reject parent-relative imports, CommonJS
+modules and promise chains. Oxfmt runs through `nix fmt` and the repository
+checks.
+
+## Workspace failure diagnostics
+
+The workspace VM checks enable guest service diagnostics on the serial console.
+A failed check prints a compact `librechat-workspace-failure` report after
+cleanup. The report includes the current stage, accelerator, original exception
+and causes, background errors, cleanup errors and recent process output. Cleanup
+errors do not replace the original failure.
+
+Output is limited to 8192 characters per process stream and 16 streams. The
+reporter redacts fixture credentials and common credential representations; it
+does not serialise arbitrary properties attached to exceptions. Oversized output
+records and PEM sections are omitted before output retention. Failed backend
+responses have a 16 KiB diagnostic budget, after which the collector cancels the
+body. Backend callers receive the status and headers without a body.
+
+Service errors include structured cause diagnostics. Ordinary command errors
+remain concise. Set `LIBRECHAT_DIAGNOSTICS=1` to include structured diagnostics
+for command failures as well. HTTP error responses remain generic.

@@ -36,6 +36,11 @@ export interface StoredAgent {
   tenantId?: string;
 }
 
+export type PasswordPolicyIssue =
+  | { kind: "minimum"; minimum: number }
+  | { kind: "maximum"; maximum: number }
+  | { kind: "rejected" };
+
 export interface BootstrapInput {
   email: string;
   name: string;

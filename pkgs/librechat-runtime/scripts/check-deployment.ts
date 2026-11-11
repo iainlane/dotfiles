@@ -4,10 +4,17 @@ import { readdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 
+class DeploymentDirectoryRequiredError extends Error {
+  constructor() {
+    super("Provide the deployed LibreChat directory.");
+    this.name = "DeploymentDirectoryRequiredError";
+  }
+}
+
 const directory = process.argv[2];
 
 if (directory === undefined) {
-  throw new Error("Provide the deployed LibreChat directory.");
+  throw new DeploymentDirectoryRequiredError();
 }
 
 const root = await realpath(directory);
@@ -58,7 +65,7 @@ for (const [cwd, specifier] of [
 }
 
 for (const program of ["librechat-runtime", "librechatctl"]) {
-  for (const args of [[], ["bootstrap", "--help"], ["--version"]]) {
+  for (const args of [[], ["bootstrap", "--help"]]) {
     const result = spawnSync(
       process.execPath,
       [resolve(root, `dist/bin/${program}.js`), ...args],

@@ -686,3 +686,36 @@ it("renews retention without postponing VM suspension on text-only activity", as
     events: ["start", "checkpoint", "stop"],
   });
 });
+
+it("preserves cancellation and retries failed startup cancellation cleanup on shutdown", async () => {
+  const controller = new AbortController();
+  const reason = new DOMException("Assignment cancelled", "AbortError");
+  const cleanup = new Error("fixture stop failed");
+  let failures = 1;
+  const sessions = manager({
+    ...backend,
+    start: async (session, restore) => {
+      const guest = await backend.start(session, restore);
+      controller.abort(reason);
+      return guest;
+    },
+    stop: async (session, guest) => {
+      if (failures-- > 0) {
+        events.push("stop-failed");
+        throw cleanup;
+      }
+      await backend.stop(session, guest);
+    },
+  });
+  await expect(
+    sessions.acquireCodeRuntime(
+      runtimeIdentity(userId, conversationId),
+      controller.signal,
+    ),
+  ).rejects.toMatchObject({
+    name: "WorkspaceStartupCleanupError",
+    errors: [reason, cleanup],
+  });
+  await sessions.shutdown();
+  expect(events).toStrictEqual(["start", "stop-failed", "stop"]);
+});

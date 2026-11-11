@@ -1,9 +1,23 @@
 import { z } from "zod";
-import type { BootstrapInput } from "@dotfiles/librechat-runtime/bootstrap";
+import type {
+  BootstrapInput,
+  PasswordPolicyIssue,
+} from "@dotfiles/librechat-runtime/bootstrap";
 import {
+  BootstrapOptionsRequiredError,
   CancelledError,
-  OperationalError,
-  UsageError,
+  InvalidConversationError,
+  InvalidDisplayNameError,
+  InvalidEmailError,
+  PasswordConfirmationError,
+  PasswordFileReadError,
+  PasswordFileRequiredError,
+  PasswordRejectedError,
+  PasswordTooLongError,
+  PasswordTooShortError,
+  ResetOptionsRequiredError,
+  UnexpectedPasswordPolicyIssueError,
+  type UsageError,
 } from "#cli/application/errors";
 import type {
   AccountAccess,
@@ -16,6 +30,8 @@ import {
   emailSchema,
   type BootstrapOptions,
 } from "#cli/definitions/commands";
+
+type ValidationError = new (cause: unknown) => UsageError;
 
 export function interactiveMode(input: {
   stdinTTY: boolean | undefined;
@@ -36,22 +52,34 @@ function validation(
   return result.success ? undefined : result.error.issues[0]?.message;
 }
 
-function validated(schema: z.ZodType<string>, value: string): string {
+function validated(
+  schema: z.ZodType<string>,
+  value: string,
+  Failure: ValidationError,
+): string {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new UsageError(result.error.issues[0]?.message ?? "Invalid input.");
+    throw new Failure(result.error);
   }
   return result.data;
 }
 
-function missingOptions(options: string[]): string {
-  return options.join(" and ");
+function passwordError(issue: PasswordPolicyIssue): UsageError {
+  switch (issue.kind) {
+    case "minimum":
+      return new PasswordTooShortError(issue.minimum);
+    case "maximum":
+      return new PasswordTooLongError(issue.maximum);
+    case "rejected":
+      return new PasswordRejectedError();
+  }
+  throw new UnexpectedPasswordPolicyIssueError(issue);
 }
 
 function acceptedPassword(password: string, accounts: AccountAccess): string {
   const issue = accounts.passwordIssue(password);
   if (issue !== undefined) {
-    throw new UsageError(issue);
+    throw passwordError(issue);
   }
   return password;
 }
@@ -63,10 +91,7 @@ async function readPasswordFile(
   try {
     return (await files.readText(file)).replace(/\r?\n$/u, "");
   } catch (cause) {
-    throw new OperationalError(
-      "Could not read --password-file. Check that the file exists and is readable.",
-      { cause },
-    );
+    throw new PasswordFileReadError(file, cause);
   }
 }
 
@@ -84,17 +109,16 @@ async function passwordInput(
       accounts,
     );
   }
-
   if (!prompts.interactive) {
-    throw new UsageError(
-      "Non-interactive bootstrap of a new account requires --password-file. Run in a terminal to enter a password interactively.",
-    );
+    throw new PasswordFileRequiredError();
   }
-
   const password = acceptedPassword(
     await prompts.password({
       message: "Password",
-      validate: (value) => accounts.passwordIssue(value),
+      validate: (value) => {
+        const issue = accounts.passwordIssue(value);
+        return issue === undefined ? undefined : passwordError(issue).message;
+      },
     }),
     accounts,
   );
@@ -103,9 +127,8 @@ async function passwordInput(
     validate: (value) =>
       value === password ? undefined : "The passwords did not match.",
   });
-
   if (repeated !== password) {
-    throw new UsageError("The passwords did not match.");
+    throw new PasswordConfirmationError();
   }
   return password;
 }
@@ -114,15 +137,12 @@ export function requireBootstrapOptions(
   options: BootstrapOptions,
   prompts: Prompts,
 ): void {
-  const missing = [
-    ...(options.email === undefined ? ["--email"] : []),
-    ...(options.name === undefined ? ["--name"] : []),
+  const missing: ("--email" | "--name")[] = [
+    ...(options.email === undefined ? ["--email" as const] : []),
+    ...(options.name === undefined ? ["--name" as const] : []),
   ];
-
   if (!prompts.interactive && missing.length > 0) {
-    throw new UsageError(
-      `Non-interactive bootstrap requires ${missingOptions(missing)}.\nFor a new account, also provide --password-file. Run in a terminal to enter these values interactively.`,
-    );
+    throw new BootstrapOptionsRequiredError(missing);
   }
 }
 
@@ -145,6 +165,7 @@ export async function resolveBootstrapInputs(
         initialValue: binding?.email,
         validate: (value) => validation(emailSchema, value),
       })),
+    InvalidEmailError,
   );
   const summary = await accounts.inspect(email);
   const name = validated(
@@ -155,11 +176,11 @@ export async function resolveBootstrapInputs(
         initialValue: summary.name,
         validate: (value) => validation(displayNameSchema, value),
       })),
+    InvalidDisplayNameError,
   );
   const password = summary.exists
     ? undefined
     : await passwordInput(options, dependencies);
-
   return { input: { email, name, password }, existing: summary.exists };
 }
 
@@ -167,16 +188,13 @@ export async function resolveWorkspaceInput(
   options: { conversation: string | undefined; yes: boolean },
   prompts: Prompts,
 ): Promise<string> {
-  const missing = [
-    ...(options.conversation === undefined ? ["--conversation"] : []),
-    ...(options.yes ? [] : ["--yes"]),
+  const missing: ("--conversation" | "--yes")[] = [
+    ...(options.conversation === undefined ? ["--conversation" as const] : []),
+    ...(options.yes ? [] : ["--yes" as const]),
   ];
   if (!prompts.interactive && missing.length > 0) {
-    throw new UsageError(
-      `Non-interactive reset requires ${missingOptions(missing)}. Run in a terminal to enter the conversation UUID and confirm deletion.`,
-    );
+    throw new ResetOptionsRequiredError(missing);
   }
-
   const conversation = validated(
     conversationSchema,
     options.conversation ??
@@ -184,6 +202,7 @@ export async function resolveWorkspaceInput(
         message: "Conversation UUID",
         validate: (value) => validation(conversationSchema, value),
       })),
+    InvalidConversationError,
   );
   if (
     !options.yes &&

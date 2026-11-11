@@ -97,7 +97,10 @@ it("retries failed cleanup before starting another process", async () => {
     service.start(command, async () => {
       throw new FixtureStartupError();
     }),
-  ).rejects.toBeInstanceOf(FixtureCleanupError);
+  ).rejects.toMatchObject({
+    name: "GuestStartupCleanupError",
+    errors: [expect.any(FixtureStartupError), expect.any(FixtureCleanupError)],
+  });
 
   const readyAfterFailure = service.isReady();
 

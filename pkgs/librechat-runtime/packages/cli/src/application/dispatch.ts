@@ -1,5 +1,6 @@
 import {
   CancelledError,
+  DeploymentMissingError,
   OperationalError,
   UsageError,
 } from "#cli/application/errors";
@@ -26,9 +27,7 @@ function deploymentFile(
 ): string {
   const file = manifest ?? dependencies.manifest;
   if (file === undefined) {
-    throw new OperationalError(
-      "No LibreChat deployment is configured. Use the librechatctl installed by Home Manager.",
-    );
+    throw new DeploymentMissingError();
   }
   return file;
 }
@@ -119,10 +118,12 @@ export async function runCommand(
   dependencies: CommandDependencies,
 ): Promise<CommandResult> {
   let forceExit = false;
+  let service = false;
   let failure = "LibreChat command failed. Check the service logs.";
   try {
     const intent = parseCommand(args, entry);
     forceExit = intent.kind === "bootstrap";
+    service = intent.kind === "serve" || intent.kind === "guest";
     if (intent.kind === "bootstrap") {
       failure =
         "Could not bootstrap LibreChat. Check that the LibreChat services are running and consult their logs.";
@@ -134,6 +135,7 @@ export async function runCommand(
       dependencies.presentation.cancel(error.message);
       return { status: error.status, forceExit };
     }
+    dependencies.reportDiagnostics(error, service);
     if (error instanceof UsageError || error instanceof OperationalError) {
       dependencies.presentation.error(error.message);
       return { status: error.status, forceExit };

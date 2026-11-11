@@ -13,7 +13,7 @@ import type {
   ProcessRunner,
 } from "#runtime/platform/processes";
 import type { SocketFetch } from "#runtime/http/http-socket";
-import type { Session } from "#runtime/sessions/sessions";
+import { SessionManager, type Session } from "#runtime/sessions/sessions";
 
 const session: Session = {
   runtimeId: `rt_${"a".repeat(40)}`,
@@ -202,6 +202,7 @@ function backend(): QemuBackend {
     delay,
     timeout: (milliseconds) => deadlines.signal(milliseconds),
     newBootId: () => "boot",
+    now: () => 1700000000000,
     caCertificate: "public-ca",
     executionPublicKey: "public-execution-key",
     archiveToken: "read-only-broker-token",
@@ -660,5 +661,46 @@ it("keeps older guests on workspace checkpoints", async () => {
     "/control/quiesce",
     "/runner/api/v2/session/checkpoint",
     "save-workspace",
+  ]);
+});
+
+it("retains startup and cleanup failures and retries tracked VM cleanup", async () => {
+  const cleanup = new Error("fixture stop failure");
+  let failures = 1;
+  processes.start = async () => ({
+    exited: exit.promise,
+    running: () => true,
+    stop: async () => {
+      events.push("stop");
+      if (failures-- > 0) {
+        throw cleanup;
+      }
+      exit.resolve();
+    },
+  });
+  failedPath = "/runner/api/v2/session/restore";
+  const vm = backend();
+  const manager = new SessionManager({
+    backend: vm,
+    store: {
+      load: async () => ({ ...session, checkpoint: true }),
+      save: async () => {},
+      list: async () => [session.runtimeId],
+    },
+    userId: session.userId,
+    idleMs: 1000,
+    retentionMs: 10000,
+    now: () => 0,
+  });
+  await expect(
+    manager.acquireCodeRuntime(session.runtimeId),
+  ).rejects.toMatchObject({
+    name: "VmStartupCleanupError",
+    errors: [expect.any(VmRestoreError), cleanup],
+  });
+  await manager.shutdown();
+  expect(events.filter((event) => event === "stop")).toStrictEqual([
+    "stop",
+    "stop",
   ]);
 });
