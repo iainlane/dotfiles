@@ -19,6 +19,15 @@
     "dev-only/index.js" = ''
       throw new Error("A development dependency was installed.");
     '';
+    "external-prod/package.json" = builtins.toJSON {
+      name = "fixture-prod";
+      version = "1.0.0";
+      type = "module";
+      exports = "./index.js";
+    };
+    "external-prod/index.js" = ''
+      export const external = "production dependency";
+    '';
     "pnpm-workspace.yaml" = ''
       packages:
         - packages/*
@@ -30,11 +39,15 @@
       version = "0.1.0";
       type = "module";
       files = ["dist"];
-      dependencies."@dotfiles/librechat-runtime" = "workspace:*";
+      dependencies = {
+        "@dotfiles/librechat-runtime" = "workspace:*";
+        fixture-prod = "file:../../external-prod";
+      };
     };
     "packages/cli/dist/index.js" = ''
       import { value } from "@dotfiles/librechat-runtime";
-      console.log(value);
+      import { external } from "fixture-prod";
+      console.log(JSON.stringify({ value, external }));
     '';
     "packages/runtime/package.json" = builtins.toJSON {
       name = "@dotfiles/librechat-runtime";
@@ -84,7 +97,7 @@ in
       cd "$base"
       rm -rf "$workspace"
 
-      test "$(node "$deployment/dist/index.js")" = 42
+      test "$(node "$deployment/dist/index.js")" = '{"value":42,"external":"production dependency"}'
       test ! -e "$deployment/.workspace/node_modules/fixture-dev"
       test -z "$(find "$deployment" -name fixture-dev -print -quit)"
       while IFS= read -r -d $'\0' link; do

@@ -15,15 +15,48 @@ interface RedactionRange {
 
 function sanitizedUrl(value: string): string {
   try {
-    const url = new URL(value);
+    const url = new URL(value.replaceAll(/[)',.;}]+$/gu, ""));
     url.username = "";
     url.password = "";
+    url.pathname = "/";
     url.search = "";
     url.hash = "";
     return url.href;
   } catch {
     return "[redacted URL]";
   }
+}
+
+function arrayValueEnd(text: string, start: number): number {
+  let depth = 1;
+  let quote: string | undefined;
+  let escaped = false;
+  for (let index = start + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quote !== undefined) {
+      if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === "[") {
+      depth += 1;
+    } else if (character === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return index + 1;
+      }
+    }
+  }
+  return text.length;
 }
 
 export function redactDiagnostic(
@@ -59,6 +92,20 @@ export function redactDiagnostic(
     /\b(authorization["']?\s*[:=]\s*)(?:"(?:\\(?:[\s\S]|$)|[^"\\])*(?:"|$)|'(?:\\(?:[\s\S]|$)|[^'\\])*(?:'|$)|[^\r\n,;}]+)/giu,
     () => "[redacted]",
   );
+  for (const match of text.matchAll(
+    /\b((?:set-cookie|cookie)["']?\s*[:=]\s*)\[/giu,
+  )) {
+    const start = match.index + (match[1]?.length ?? 0);
+    ranges.push({
+      start,
+      end: arrayValueEnd(text, start),
+      replacement: "[redacted]",
+    });
+  }
+  collect(
+    /\b((?:set-cookie|cookie)["']?\s*[:=]\s*)(?:"(?:\\(?:[\s\S]|$)|[^"\\])*(?:"|$)|'(?:\\(?:[\s\S]|$)|[^'\\])*(?:'|$)|[^\s"'[\r\n][^\r\n]*)/giu,
+    () => "[redacted]",
+  );
   collect(
     /\b((?:Bearer|Basic|token)\s+)[A-Za-z0-9+/_=.-]+/giu,
     () => "[redacted]",
@@ -72,7 +119,7 @@ export function redactDiagnostic(
     () => "[redacted private key]",
   );
   collect(
-    /\b(?:https?|mongodb(?:\+srv)?|rediss?|postgres(?:ql)?):\/\/[^\s"'<>]+/giu,
+    /\b(?:https?|mongodb(?:\+srv)?|rediss?|postgres(?:ql)?):\/\/[^\s"<>]+/giu,
     sanitizedUrl,
   );
   collect(

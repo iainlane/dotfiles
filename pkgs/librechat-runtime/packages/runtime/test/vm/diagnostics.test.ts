@@ -367,3 +367,99 @@ it.each([
     output: { "qemu:stderr": "[redacted PEM record]\n[redacted PEM record]\n" },
   });
 });
+
+it.each([
+  { failed: false, cleanupFailed: true, stage: "cleanup" },
+  { failed: true, cleanupFailed: true, stage: "resumed-execution" },
+  { failed: true, cleanupFailed: false, stage: "resumed-execution" },
+  { failed: false, cleanupFailed: false, stage: undefined },
+])(
+  "classifies final reports after cleanup: $failed/$cleanupFailed",
+  ({ failed, cleanupFailed, stage }) => {
+    const diagnostics = new WorkspaceDiagnostics("hvf");
+    diagnostics.stage = "resumed-execution";
+    const error = Object.assign(new Error("execution failed"), {
+      stack: undefined,
+    });
+    const cleanup = Object.assign(new Error("cleanup failed"), {
+      stack: undefined,
+    });
+    const report = diagnostics.finish(
+      failed ? { error } : undefined,
+      undefined,
+      cleanupFailed ? [cleanup] : [],
+    );
+    const decoded: unknown =
+      report === undefined ? undefined : JSON.parse(report);
+    expect(decoded).toStrictEqual(
+      stage === undefined
+        ? undefined
+        : {
+            event: "librechat-workspace-failure",
+            stage,
+            accelerator: "hvf",
+            error: {
+              name: "Error",
+              message: failed ? "execution failed" : "cleanup failed",
+            },
+            cleanup: cleanupFailed
+              ? [{ name: "Error", message: "cleanup failed" }]
+              : [],
+            output: {},
+          },
+    );
+  },
+);
+
+it.each([
+  {
+    label: "single chunk",
+    chunks: [
+      '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=another-private-value"\n]}\nnormal\n',
+    ],
+  },
+  {
+    label: "split prefix and values",
+    chunks: [
+      '{"set-co',
+      'okie": ',
+      '[\n  "sid=fixture-',
+      'private-token",\n  "other=another-private-value"\n]}\nnormal\n',
+    ],
+  },
+  {
+    label: "oversized record prefix",
+    chunks: [
+      "x".repeat(8192) +
+        '{"set-cookie": [\n  "sid=fixture-private-token"\n]}\nnormal\n',
+    ],
+  },
+  {
+    label: "oversized whitespace across chunks",
+    chunks: [
+      '{"set-cookie": ' + " ".repeat(10000),
+      '[\n  "sid=fixture-private-token"\n]}\nnormal\n',
+    ],
+  },
+])(
+  "redacts multiline cookie arrays in captured output with $label",
+  ({ chunks }) => {
+    const diagnostics = new WorkspaceDiagnostics("hvf");
+    for (const text of chunks) {
+      diagnostics.capture({
+        executable: "/fixture/qemu",
+        stream: "stderr",
+        text,
+      });
+    }
+    const error = Object.assign(new Error("failed"), { stack: undefined });
+    expect(JSON.parse(diagnostics.report(error, undefined, []))).toStrictEqual({
+      event: "librechat-workspace-failure",
+      stage: "startup",
+      accelerator: "hvf",
+      error: { name: "Error", message: "failed" },
+      cleanup: [],
+      output: { "qemu:stderr": "[redacted cookie array]\nnormal\n" },
+    });
+  },
+);

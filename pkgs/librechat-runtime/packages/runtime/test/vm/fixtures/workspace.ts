@@ -502,14 +502,13 @@ try {
   } catch (error) {
     cleanup.push(error);
   }
-  if (failed || cleanup.length > 0) {
-    console.error(
-      diagnostics.report(
-        failed ? primaryError : cleanup[0],
-        background,
-        cleanup,
-      ),
-    );
+  const report = diagnostics.finish(
+    failed ? { error: primaryError } : undefined,
+    background,
+    cleanup,
+  );
+  if (report !== undefined) {
+    console.error(report);
     process.exitCode = 1;
   }
 }

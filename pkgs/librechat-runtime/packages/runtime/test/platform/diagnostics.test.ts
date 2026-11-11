@@ -8,24 +8,21 @@ it.each([
   ["Bearer private-value", "Bearer [redacted]"],
   ['{"password":"prefix\\"private-suffix"}', '{"password":[redacted]}'],
   ['password="first private-suffix', "password=[redacted]"],
-  [
-    "HTTPS://operator:private-value@example.test/path",
-    "https://example.test/path",
-  ],
+  ["HTTPS://operator:private-value@example.test/path", "https://example.test/"],
   [
     "MoNgOdB://operator:private-value@example.test/path",
-    "mongodb://example.test/path",
+    "mongodb://example.test/",
   ],
   ["Basic cHJpdmF0ZTp2YWx1ZQ==", "Basic [redacted]"],
   ["Authorization: token ghp_private_value", "Authorization: [redacted]"],
-  ["mongodb://private:secret@example.com", "mongodb://example.com"],
+  ["mongodb://private:secret@example.com", "mongodb://example.com/"],
   [
     "mongodb+srv://private:secret@example.com/db?auth=private",
-    "mongodb+srv://example.com/db",
+    "mongodb+srv://example.com/",
   ],
-  ["redis://private:secret@example.com", "redis://example.com"],
-  ["rediss://private:secret@example.com", "rediss://example.com"],
-  ["postgres://private:secret@example.com/db", "postgres://example.com/db"],
+  ["redis://private:secret@example.com", "redis://example.com/"],
+  ["rediss://private:secret@example.com", "rediss://example.com/"],
+  ["postgres://private:secret@example.com/db", "postgres://example.com/"],
   ['{"apiKey":"private-value"}', '{"apiKey":[redacted]}'],
   ["password='private value'", "password=[redacted]"],
   [
@@ -109,6 +106,68 @@ it.each(["password", "Authorization"])(
     expect(errorDiagnostic(error)).toStrictEqual({
       name: "Error",
       message: field + "=[redacted]",
+    });
+  },
+);
+
+it.each([
+  [
+    "Cookie: sid=fixture-private-token; other=another-private-value",
+    "Cookie: [redacted]",
+  ],
+  [
+    "Set-Cookie: sid=fixture-private-token; HttpOnly; Path=/",
+    "Set-Cookie: [redacted]",
+  ],
+  ['{"cookie":"sid=fixture-private-token"}', '{"cookie":[redacted]}'],
+  ["https://api.example.test/v1/sk_live_123", "https://api.example.test/"],
+])(
+  "redacts cookie values and URL path credentials in exception diagnostics: %s",
+  (message, expected) => {
+    const error = Object.assign(new Error(message), { stack: undefined });
+    expect(errorDiagnostic(error)).toStrictEqual({
+      name: "Error",
+      message: expected,
+    });
+  },
+);
+
+it.each([
+  [
+    '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=another-private-value"\n]}',
+    '{"set-cookie": [redacted]}',
+  ],
+  [
+    '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=unfinished',
+    '{"set-cookie": [redacted]',
+  ],
+  [
+    '{"set-cookie":["sid=bracket]and\\"quote", "second=private"],"status":500}',
+    '{"set-cookie":[redacted],"status":500}',
+  ],
+  ["https://api.example.test/keys('sk_live_123')", "https://api.example.test/"],
+])(
+  "redacts structured cookies and quoted URL paths: %s",
+  (message, expected) => {
+    const error = Object.assign(new Error(message), { stack: undefined });
+    expect(errorDiagnostic(error)).toStrictEqual({
+      name: "Error",
+      message: expected,
+    });
+  },
+);
+
+it.each([
+  ["http://[::1]", "http://[::1]/"],
+  ["http://[::1])", "http://[::1]/"],
+  ["https://[2001:db8::1],", "https://[2001:db8::1]/"],
+])(
+  "preserves IPv6 authority brackets in diagnostic URLs: %s",
+  (message, expected) => {
+    const error = Object.assign(new Error(message), { stack: undefined });
+    expect(errorDiagnostic(error)).toStrictEqual({
+      name: "Error",
+      message: expected,
     });
   },
 );

@@ -12,7 +12,8 @@ type WorkspaceStage =
   | "workspace-execution"
   | "checkpoint"
   | "resume"
-  | "resumed-execution";
+  | "resumed-execution"
+  | "cleanup";
 
 interface WorkspaceResponseFailure {
   status: number;
@@ -51,6 +52,62 @@ export class WorkspaceServiceTimeoutError extends Error {
   }
 }
 
+interface CookieScan {
+  sensitive: boolean;
+  started: boolean;
+}
+
+class CookieArrayRecords {
+  private depth = 0;
+  private quote: string | undefined;
+  private escaped = false;
+  private tail = "";
+
+  scan(text: string): CookieScan {
+    const source = this.depth === 0 ? this.tail + text : text;
+    this.tail = "";
+    const result = { sensitive: this.depth > 0, started: false };
+    let offset = 0;
+    while (offset < source.length) {
+      if (this.depth === 0) {
+        const rest = source.slice(offset);
+        const start = /\b(?:set-cookie|cookie)["']?\s*[:=]\s*\[/iu.exec(rest);
+        if (start === null) {
+          this.tail = rest.replaceAll(/\s+/gu, " ").slice(-64);
+          break;
+        }
+        offset += start.index + start[0].length;
+        this.depth = 1;
+        result.sensitive = true;
+        result.started = true;
+        continue;
+      }
+      const character = source[offset];
+      offset += 1;
+      if (this.escaped) {
+        this.escaped = false;
+        continue;
+      }
+      if (this.quote !== undefined) {
+        if (character === "\\") {
+          this.escaped = true;
+        } else if (character === this.quote) {
+          this.quote = undefined;
+        }
+        continue;
+      }
+      if (character === '"' || character === "'") {
+        this.quote = character;
+      } else if (character === "[") {
+        this.depth += 1;
+      } else if (character === "]") {
+        this.depth -= 1;
+      }
+    }
+    return result;
+  }
+}
+
 class DiagnosticOutput {
   private records = "";
   private pending = "";
@@ -59,6 +116,9 @@ class DiagnosticOutput {
   private markerTail = "";
   private begin = false;
   private sensitive = false;
+  private readonly cookieArrays = new CookieArrayRecords();
+  private cookieSensitive = false;
+  private cookieStarted = false;
 
   private append(record: string): void {
     this.records = (this.records + record).slice(-8192);
@@ -67,6 +127,11 @@ class DiagnosticOutput {
   capture(text: string, secrets: readonly string[]): void {
     const parts = text.split("\n");
     for (const [index, part] of parts.entries()) {
+      const cookie = this.cookieArrays.scan(
+        part + (index === parts.length - 1 ? "" : "\n"),
+      );
+      this.cookieSensitive ||= cookie.sensitive;
+      this.cookieStarted ||= cookie.started;
       const scanned = this.markerTail + part;
       this.sensitive ||= this.pem;
       for (const marker of scanned.matchAll(/-----BEGIN|-----END/gu)) {
@@ -88,7 +153,10 @@ class DiagnosticOutput {
       if (this.begin) {
         this.append("[redacted PEM record]\n");
       }
-      if (!this.sensitive) {
+      if (this.cookieStarted) {
+        this.append("[redacted cookie array]\n");
+      }
+      if (!this.sensitive && !this.cookieSensitive) {
         this.append(
           this.oversized
             ? "[diagnostic record omitted]\n"
@@ -100,6 +168,8 @@ class DiagnosticOutput {
       this.markerTail = "";
       this.begin = false;
       this.sensitive = false;
+      this.cookieSensitive = false;
+      this.cookieStarted = false;
     }
   }
 
@@ -111,7 +181,7 @@ class DiagnosticOutput {
 
   report(secrets: readonly string[]): string {
     const pending =
-      this.pem || this.sensitive
+      this.pem || this.sensitive || this.cookieSensitive
         ? ""
         : this.oversized
           ? "[diagnostic record omitted]"
@@ -196,14 +266,31 @@ export class WorkspaceDiagnostics {
     return body;
   }
 
+  finish(
+    failure: { error: unknown } | undefined,
+    background: unknown,
+    cleanup: readonly unknown[],
+  ): string | undefined {
+    if (failure === undefined && cleanup.length === 0) {
+      return undefined;
+    }
+    return this.report(
+      failure === undefined ? cleanup[0] : failure.error,
+      background,
+      cleanup,
+      failure === undefined ? "cleanup" : this.stage,
+    );
+  }
+
   report(
     error: unknown,
     background: unknown,
     cleanup: readonly unknown[],
+    stage: WorkspaceStage = this.stage,
   ): string {
     return JSON.stringify({
       event: "librechat-workspace-failure",
-      stage: this.stage,
+      stage,
       accelerator: this.accelerator,
       error: errorDiagnostic(error, this.secrets),
       ...(background === undefined
