@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.34.7",
   "scripts": {
     "test": "vitest run",
     "typecheck": "node ../../lib/typecheck.ts --noEmit",
     "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
     "http-status-codes": "2.3.0",

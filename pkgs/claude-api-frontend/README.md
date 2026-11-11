@@ -16,7 +16,7 @@ classification and can change independently of this package.
 
 Build with `nix build .#claude-api-frontend` from the repository root. The Nix
 package includes Node 24 and OpenSSL. To run from source, install those
-runtimes, run `npm ci`, and invoke `node src/cli.ts`.
+runtimes, run `pnpm install --frozen-lockfile`, and invoke `node src/cli.ts`.
 
 Create a configuration file:
 
@@ -71,7 +71,7 @@ headers.
 
 ## Development
 
-Run `npm run check` for type checking, lint and tests. Tests use local HTTP and
-TLS listeners and require OpenSSL on `PATH`. Format with the repository's Oxfmt
-configuration. The Nix build runs the same checks and verifies the installed CLI
-with an empty `PATH`.
+Run `pnpm check` for type checking, lint and tests. Tests use local HTTP and TLS
+listeners and require OpenSSL on `PATH`. Format with the repository's Oxfmt
+configuration. The Nix build runs the same checks and exercises the installed
+HTTPS proxy against a loopback TeamClaude fixture with an empty `PATH`.

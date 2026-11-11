@@ -13,7 +13,14 @@
   dotfiles.features.ai.claude-code.teamclaude = {
     checks = [
       ./teamclaude-check.nix
-      ({pkgs, ...}: {inherit (pkgs) claude-api-frontend;})
+      ({
+        pkgs,
+        pkgs-stable,
+        ...
+      }: {
+        inherit (pkgs) claude-api-frontend;
+        claude-api-frontend-stable = pkgs-stable.claude-api-frontend;
+      })
       (import ./frontend-check.nix {
         inherit featureResolver;
         inherit (config.dotfiles) features;
