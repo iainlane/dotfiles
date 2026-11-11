@@ -168,22 +168,27 @@ async function readBytes(
   });
 }
 
-it.each(["plain", "tls", "absolute"])(
+it.each(["plain", "tls", "absolute", "absolute-mismatched"])(
   "relays a WebSocket handshake and binary frames in both directions over %s HTTP",
   async (mode) => {
     const { upstream, proxy, chain, upstreamPort } = await fixture();
     const upgrades: object[] = [];
     const completed = Promise.withResolvers<void>();
-    const target =
-      mode === "absolute"
-        ? "http://example.org/socket?session=test"
-        : "/v1/code/test/ws?session=test";
-    const targetHost =
-      mode === "absolute" ? "example.org" : `127.0.0.1:${upstreamPort}`;
+    const target = mode.startsWith("absolute")
+      ? "http://example.org/socket?session=test"
+      : "/v1/code/test/ws?session=test";
+    const targetHost = mode.startsWith("absolute")
+      ? "example.org"
+      : `127.0.0.1:${upstreamPort}`;
     const clientFrame = Buffer.from([0x82, 0x83, 1, 2, 3, 4, 0x41, 0x52, 0x63]);
     const serverFrame = Buffer.from([0x82, 0x03, 0x10, 0x20, 0x30]);
     const headers = {
-      host: mode === "absolute" ? "example.org" : "api.anthropic.com",
+      host:
+        mode === "absolute-mismatched"
+          ? "other.example"
+          : mode === "absolute"
+            ? "example.org"
+            : "api.anthropic.com",
       connection: "Upgrade",
       upgrade: "websocket",
       "sec-websocket-version": "13",

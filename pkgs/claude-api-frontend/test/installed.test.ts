@@ -1,6 +1,7 @@
 import { spawn, execFile } from "node:child_process";
 import http from "node:http";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import tls from "node:tls";
@@ -15,12 +16,19 @@ import {
 
 const execute = promisify(execFile);
 
+type ProcessOutcome =
+  | { kind: "exited"; code: number | null }
+  | { kind: "spawn-failed"; error: Error };
+
 async function earlyExit(
-  exited: Promise<number | null>,
+  exited: Promise<ProcessOutcome>,
   stderr: () => string,
 ): Promise<never> {
-  const code = await exited;
-  throw new FrontendEarlyExitError(code, stderr());
+  const outcome = await exited;
+  if (outcome.kind === "spawn-failed") {
+    throw outcome.error;
+  }
+  throw new FrontendEarlyExitError(outcome.code, stderr());
 }
 
 async function startupDeadline(stderr: () => string): Promise<never> {
@@ -46,9 +54,23 @@ async function close(server: http.Server): Promise<void> {
   });
 }
 
-it("serves an inference request through the executable with its packaged dependencies", async () => {
+interface InstalledResources {
+  directory: string;
+  upstream: http.Server;
+}
+
+async function exerciseInstalledFrontend(
+  options: {
+    program?: string;
+    observe?: (resources: InstalledResources) => void;
+  } = {},
+): Promise<{
+  response: object;
+  diagnostics: { stderr: string; tokenLogged: boolean; bodyLogged: boolean };
+}> {
   const directory = await mkdtemp(join(tmpdir(), "frontend-installed-"));
   const upstream = http.createServer();
+  options.observe?.({ directory, upstream });
   const probe = http.createServer();
   const upstreamPort = await listen(upstream);
   const port = await listen(probe);
@@ -70,7 +92,7 @@ it("serves an inference request through the executable with its packaged depende
   );
 
   const installed = process.env.CLAUDE_API_FRONTEND_PROGRAM;
-  const program = installed ?? process.execPath;
+  const program = options.program ?? installed ?? process.execPath;
   const prefix =
     installed === undefined
       ? [resolve(import.meta.dirname, "../src/cli.ts")]
@@ -86,9 +108,9 @@ it("serves an inference request through the executable with its packaged depende
   });
   let stdout = "";
   let stderr = "";
-  const exited = new Promise<number | null>((done, reject) => {
-    child.once("exit", (code) => done(code));
-    child.once("error", reject);
+  const exited = new Promise<ProcessOutcome>((done) => {
+    child.once("exit", (code) => done({ kind: "exited", code }));
+    child.once("error", (error) => done({ kind: "spawn-failed", error }));
   });
   const listening = new Promise<void>((ready) => {
     child.stdout.on("data", (chunk: Buffer) => {
@@ -237,17 +259,14 @@ it("serves an inference request through the executable with its packaged depende
       captured.response.end("data: second\n\n");
     };
     const [response] = await Promise.all([result, verifyStream()]);
-    expect(response).toStrictEqual({
-      status: 200,
-      contentType: "text/event-stream",
-      marker: "preserved",
-      body: "data: first\n\ndata: second\n\n",
-    });
-    expect({
-      stderr,
-      tokenLogged: stdout.includes("fixture-private-token"),
-      bodyLogged: stdout.includes("billing-header"),
-    }).toStrictEqual({ stderr: "", tokenLogged: false, bodyLogged: false });
+    return {
+      response,
+      diagnostics: {
+        stderr,
+        tokenLogged: stdout.includes("fixture-private-token"),
+        bodyLogged: stdout.includes("billing-header"),
+      },
+    };
   } finally {
     socket?.destroy();
     child.kill("SIGTERM");
@@ -258,5 +277,42 @@ it("serves an inference request through the executable with its packaged depende
     await exited;
     await close(upstream);
     await rm(directory, { recursive: true, force: true });
+  }
+}
+
+it("serves an inference request through the executable with its packaged dependencies", async () => {
+  expect(await exerciseInstalledFrontend()).toStrictEqual({
+    response: {
+      status: 200,
+      contentType: "text/event-stream",
+      marker: "preserved",
+      body: "data: first\n\ndata: second\n\n",
+    },
+    diagnostics: { stderr: "", tokenLogged: false, bodyLogged: false },
+  });
+});
+
+it("cleans up the installed fixture and preserves the error when its executable cannot start", async () => {
+  let resources: InstalledResources | undefined;
+  const program = join(tmpdir(), "missing-frontend-executable", "frontend");
+  try {
+    await expect(
+      exerciseInstalledFrontend({
+        program,
+        observe: (opened) => {
+          resources = opened;
+        },
+      }),
+    ).rejects.toMatchObject({ code: "ENOENT", path: program });
+    assert.ok(resources !== undefined);
+    expect(resources.upstream.listening).toBe(false);
+    await expect(access(resources.directory)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  } finally {
+    if (resources !== undefined) {
+      await close(resources.upstream);
+      await rm(resources.directory, { recursive: true, force: true });
+    }
   }
 });

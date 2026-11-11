@@ -159,7 +159,7 @@ export class TeamClaudeRelay {
 
       const headers = headersWithoutHop(request.headers);
       headers.host = absolute
-        ? (request.headers.host ?? new URL(requestTarget).host)
+        ? new URL(requestTarget).host
         : `127.0.0.1:${this.options.upstreamPort}`;
       headers.connection = "Upgrade";
       headers.upgrade = request.headers.upgrade;
