@@ -1,13 +1,14 @@
-import { spawnSync } from "node:child_process";
+import { execFile, type ExecFileException } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { expect, it, onTestFinished } from "vitest";
 import { demoFixture } from "#demo/fixture.ts";
 import { DemoProvider } from "#demo/provider.ts";
 import { DemoWorkspace } from "#demo/workspace.ts";
 
-it.each([
+it.for([
   {
     args: ["--help"],
     status: 0,
@@ -27,19 +28,33 @@ it.each([
     stdout: "",
     error: "Error: Expected --theme dark or --theme light",
   },
-])("runs the plain Node CLI for $args", ({ args, ...expected }) => {
-  const result = spawnSync(process.execPath, ["demo/run.ts", ...args], {
-    cwd: fileURLToPath(new URL("../../", import.meta.url)),
-    env: { ...process.env, NODE_OPTIONS: "" },
-    encoding: "utf8",
-    timeout: 10_000,
-  });
-  expect({
-    status: result.status,
-    stdout: result.stdout.trimEnd(),
-    error: result.stderr.split("\n")[0],
-  }).toStrictEqual(expected);
-});
+])(
+  "runs the plain Node CLI for $args",
+  async ({ args, ...expected }, { signal }) => {
+    const result = await promisify(execFile)(
+      process.execPath,
+      ["demo/run.ts", ...args],
+      {
+        cwd: fileURLToPath(new URL("../../", import.meta.url)),
+        env: { ...process.env, NODE_OPTIONS: "" },
+        encoding: "utf8",
+        signal,
+      },
+    ).then(
+      ({ stdout, stderr }) => ({ status: 0, stdout, stderr }),
+      (error: ExecFileException & { stdout: string; stderr: string }) => ({
+        status: error.code,
+        stdout: error.stdout,
+        stderr: error.stderr,
+      }),
+    );
+    expect({
+      status: result.status,
+      stdout: result.stdout.trimEnd(),
+      error: result.stderr.split("\n")[0],
+    }).toStrictEqual(expected);
+  },
+);
 
 it("streams the selected fixture's response and usage", async () => {
   const fixture = {

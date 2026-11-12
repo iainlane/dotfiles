@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { isReply } from "#test/support/requests.ts";
 import { record } from "#footer/shared/text.ts";
 
@@ -7,6 +7,7 @@ export default function fixture(pi: ExtensionAPI): void {
   const quiet = process.env.PI_FOOTER_QUIET === "1";
   const resetBase = Date.now();
   let interval: ReturnType<typeof setInterval> | undefined;
+  let publish: (() => void) | undefined;
   let updates = 0;
   let planning:
     | { version: 1; source: string; sessionId: string; active: boolean }
@@ -114,6 +115,12 @@ export default function fixture(pi: ExtensionAPI): void {
       await ctx.switchSession(session);
     },
   });
+  pi.registerCommand("fixture-publish", {
+    description: "Publish the synthetic quota reading again",
+    handler: async () => {
+      publish?.();
+    },
+  });
   pi.registerCommand("fixture-theme", {
     description: "Switch the synthetic footer session's theme",
     handler: async (args, ctx) => {
@@ -136,13 +143,10 @@ export default function fixture(pi: ExtensionAPI): void {
     const startLog = process.env.PI_FOOTER_START_LOG;
 
     if (startLog !== undefined && startLog !== "") {
-      writeFileSync(
-        startLog,
-        `${Date.now()} ${ctx.sessionManager.getSessionId()}`,
-      );
+      appendFileSync(startLog, `${ctx.sessionManager.getSessionId()}\n`);
     }
 
-    const publish = () => {
+    publish = () => {
       ctx.ui.setStatus("fff", undefined);
       pi.events.emit("sub-core:update-current", quota());
       updates++;
@@ -156,6 +160,8 @@ export default function fixture(pi: ExtensionAPI): void {
     };
 
     publish();
+    // The footer marks a quota reading stale after 30 seconds, so republish
+    // it as sub-core does.
     interval = setInterval(publish, 1250);
     pi.events.emit("pilens:diagnostics", {
       v: 1,
@@ -214,6 +220,7 @@ export default function fixture(pi: ExtensionAPI): void {
   });
   pi.on("session_shutdown", () => {
     clearInterval(interval);
+    publish = undefined;
     stopPlanning();
     if (planning !== undefined) {
       pi.events.emit("dotfiles:status:v1", { ...planning, active: false });

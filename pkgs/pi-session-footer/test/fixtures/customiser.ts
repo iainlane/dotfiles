@@ -2,8 +2,8 @@ import {
   CustomEditor,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, watch, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 export default function customiserFixture(pi: ExtensionAPI): void {
   pi.registerCommand("fixture-customise", {
@@ -14,11 +14,23 @@ export default function customiserFixture(pi: ExtensionAPI): void {
         { expandPromptTemplates: true },
       );
       if (args.trim() === "replace") {
-        setTimeout(() => {
+        const trigger = process.env.PI_FOOTER_REPLACE_EDITOR;
+        if (trigger === undefined || trigger === "") {
+          throw new Error(
+            "The replace fixture requires PI_FOOTER_REPLACE_EDITOR.",
+          );
+        }
+        let replaced = false;
+        const watcher = watch(dirname(trigger), () => {
+          if (replaced || !existsSync(trigger)) {
+            return;
+          }
+          replaced = true;
+          watcher.close();
           ctx.ui.setEditorComponent(
             (tui, theme, keys) => new CustomEditor(tui, theme, keys),
           );
-        }, 100);
+        });
       }
     },
   });

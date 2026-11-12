@@ -1,6 +1,7 @@
 import { spawn, type IPty } from "@homebridge/node-pty-prebuilt-multiarch";
 import { watch } from "node:fs";
 import { dirname } from "node:path";
+import { onTestFinished } from "vitest";
 import xterm from "@xterm/headless";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { ProcessGroup } from "./process-group.ts";
@@ -28,6 +29,7 @@ export class PiTerminal {
   private output = "";
   private code: number | undefined;
   private readonly changes = new Set<() => void>();
+  private readonly waits = new Set<() => void>();
 
   constructor(configuration: Configuration) {
     const [file, ...args] = configuration.command;
@@ -65,6 +67,17 @@ export class PiTerminal {
           }),
       );
     });
+    onTestFinished(async ({ task }) => {
+      if (task.result?.state === "fail") {
+        console.error(await this.report());
+      }
+      await this.close();
+    });
+  }
+
+  private async report(): Promise<string> {
+    const screen = await this.screen().catch(() => []);
+    return `${screen.join("\n")}\n${this.diagnostics()}`;
   }
 
   private notify(): void {
@@ -76,8 +89,8 @@ export class PiTerminal {
   /**
    * Resolves once `check` passes. `check` runs against the screen now, after
    * each write of Pi's output to the terminal, and after each change in the
-   * directories of the `watched` files. When the PTY process exits
-   * first, the wait rejects with the exit and the last failure of `check`.
+   * directories of the `watched` files. When the PTY process exits or the
+   * terminal closes first, the wait rejects with the last failure of `check`.
    */
   until(
     check: (screen: string[]) => void | Promise<void>,
@@ -97,8 +110,8 @@ export class PiTerminal {
         }
 
         done = true;
-        clearTimeout(deadline);
         this.changes.delete(schedule);
+        this.waits.delete(cancel);
         for (const watcher of watchers) {
           watcher.close();
         }
@@ -145,12 +158,18 @@ export class PiTerminal {
         };
         attempt().then(after, after);
       };
-      const deadline = setTimeout(
-        () =>
-          finish(new Error("Terminal check timed out", { cause: lastFailure })),
-        30_000,
-      );
+      const cancel = () =>
+        finish(
+          new Error("The terminal closed before the check passed", {
+            cause: lastFailure,
+          }),
+        );
       this.changes.add(schedule);
+      this.waits.add(cancel);
+      if (this.closing) {
+        cancel();
+        return;
+      }
       schedule();
     });
   }
@@ -226,6 +245,9 @@ export class PiTerminal {
 
   close(): Promise<void> {
     this.closing = true;
+    for (const cancel of this.waits) {
+      cancel();
+    }
     this.stopping ??= this.stop();
     return this.stopping;
   }

@@ -1,3 +1,20 @@
+import { setInterval } from "node:timers/promises";
+
+/**
+ * Resolves once `alive` returns false. Node reports the exit of its own child
+ * processes only, so this polls.
+ */
+export async function untilGone(alive: () => boolean): Promise<void> {
+  if (!alive()) {
+    return;
+  }
+  for await (const probe of setInterval(25, alive)) {
+    if (!probe()) {
+      return;
+    }
+  }
+}
+
 export class ProcessGroup {
   private readonly pid: number;
 
@@ -25,36 +42,16 @@ export class ProcessGroup {
     }
   }
 
-  private exitedWithin(milliseconds: number): Promise<boolean> {
-    const deadline = performance.now() + milliseconds;
-    return new Promise((resolve, reject) => {
-      const timer = setInterval(() => {
-        try {
-          const alive = this.signal(0);
-          if (alive && performance.now() < deadline) {
-            return;
-          }
-          clearInterval(timer);
-          resolve(!alive);
-        } catch (error) {
-          clearInterval(timer);
-          reject(
-            new Error(`Cannot inspect process group ${this.pid}`, {
-              cause: error,
-            }),
-          );
-        }
-      }, 25);
-    });
-  }
-
   async close(): Promise<void> {
-    if (!this.signal("SIGTERM") || (await this.exitedWithin(3000))) {
+    if (!this.signal("SIGKILL")) {
       return;
     }
-    this.signal("SIGKILL");
-    if (!(await this.exitedWithin(3000))) {
-      throw new Error(`Process group ${this.pid} did not exit after SIGKILL`);
+    try {
+      await untilGone(() => this.signal(0));
+    } catch (error) {
+      throw new Error(`Cannot inspect process group ${this.pid}`, {
+        cause: error,
+      });
     }
   }
 }

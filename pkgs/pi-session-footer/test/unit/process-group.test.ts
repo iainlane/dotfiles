@@ -15,7 +15,7 @@ it("keeps waiting when an existence probe reports permission denied", async () =
   onTestFinished(() => kill.mockRestore());
   await new ProcessGroup(12345).close();
   expect(kill.mock.calls).toStrictEqual([
-    [-12345, "SIGTERM"],
+    [-12345, "SIGKILL"],
     [-12345, 0],
     [-12345, 0],
   ]);
@@ -28,5 +28,5 @@ it("does not ignore permission errors when signalling the group", async () => {
   });
   onTestFinished(() => kill.mockRestore());
   await expect(new ProcessGroup(12345).close()).rejects.toBe(error);
-  expect(kill.mock.calls).toStrictEqual([[-12345, "SIGTERM"]]);
+  expect(kill.mock.calls).toStrictEqual([[-12345, "SIGKILL"]]);
 });

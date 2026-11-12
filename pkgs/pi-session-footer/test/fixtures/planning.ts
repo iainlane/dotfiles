@@ -1,12 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { writeFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 
 export default function fixture(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     ctx.ui.setStatus("fff", undefined);
     const log = process.env.PI_FOOTER_START_LOG;
     if (log !== undefined && log !== "") {
-      writeFileSync(log, `${Date.now()} ${ctx.sessionManager.getSessionId()}`);
+      appendFileSync(log, `${ctx.sessionManager.getSessionId()}\n`);
     }
   });
   pi.on("agent_start", () => {
