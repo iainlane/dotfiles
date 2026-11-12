@@ -68,7 +68,7 @@ class LauncherTest(unittest.TestCase):
         (self.xdg / "helper").mkdir(parents=True)
         (self.xdg / "helper/config").write_text("existing helper configuration")
         (self.xdg / "rpiv-todo").mkdir()
-        (self.xdg / "rpiv-todo/config.json").write_text('{"widget": {"enabled": true}}')
+        (self.xdg / "rpiv-todo/config.json").write_text('{"maxWidgetLines": 12}')
         (self.agent / "settings.json").symlink_to(Path(NORMAL) / ".pi/agent/settings.json")
         for name in ["extensions", "packages", "prompts", "themes", "skills"]:
             (self.agent / name).symlink_to(Path(NORMAL) / ".pi/agent" / name)
@@ -135,7 +135,7 @@ class LauncherTest(unittest.TestCase):
                     "footer": {"preset": "rich", "persistence": "session"},
                     "pretty": str(runtime),
                     "lens": str(Path(PREVIEW) / ".pi-lens/config.json"),
-                    "todo": {"widget": {"enabled": False}},
+                    "todo": {"maxWidgetLines": 0},
                     "helper": "existing helper configuration",
                 })
                 self.assertEqual(result.returncode, 0)
