@@ -4,7 +4,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -27,6 +26,7 @@ def probe():
         "auth": json.loads((agent / "auth.json").read_text()),
         "models": json.loads((agent / "models.json").read_text()),
         "keys": json.loads((agent / "keybindings.json").read_text()),
+        "footer": json.loads((agent / "session-footer.json").read_text()),
         "pretty": os.environ["PRETTY_CONFIG_DIR"],
         "lens": os.environ["PI_LENS_CONFIG_PATH"],
         "todo": json.loads((Path(os.environ["XDG_CONFIG_HOME"]) / "rpiv-todo/config.json").read_text()),
@@ -41,9 +41,9 @@ def probe():
 
 if len(sys.argv) > 1 and sys.argv[1] == "--retained":
     agent, root = map(Path, sys.argv[2:])
-    deadline = time.monotonic() + 20
-    while not (root / "release-child").exists() and time.monotonic() < deadline:
-        time.sleep(0.025)
+    # Both paths are FIFOs. The read returns when the test closes its end
+    # after the launcher has exited, and the write blocks until the test reads.
+    (root / "release-child").read_bytes()
     (root / "retained-child").write_text((agent / "settings.json").read_text())
     sys.exit()
 
@@ -68,7 +68,7 @@ class LauncherTest(unittest.TestCase):
         (self.xdg / "helper").mkdir(parents=True)
         (self.xdg / "helper/config").write_text("existing helper configuration")
         (self.xdg / "rpiv-todo").mkdir()
-        (self.xdg / "rpiv-todo/config.json").write_text('{"widget": {"enabled": true}}')
+        (self.xdg / "rpiv-todo/config.json").write_text('{"maxWidgetLines": 12}')
         (self.agent / "settings.json").symlink_to(Path(NORMAL) / ".pi/agent/settings.json")
         for name in ["extensions", "packages", "prompts", "themes", "skills"]:
             (self.agent / name).symlink_to(Path(NORMAL) / ".pi/agent" / name)
@@ -132,9 +132,10 @@ class LauncherTest(unittest.TestCase):
                     "auth": {"static": {"type": "api_key", "key": "fixture-key", "env": {"TOKEN": "fixture"}}},
                     "models": {"providers": {}},
                     "keys": {"app.interrupt": "escape"},
+                    "footer": {"preset": "rich", "persistence": "session"},
                     "pretty": str(runtime),
                     "lens": str(Path(PREVIEW) / ".pi-lens/config.json"),
-                    "todo": {"widget": {"enabled": False}},
+                    "todo": {"maxWidgetLines": 0},
                     "helper": "existing helper configuration",
                 })
                 self.assertEqual(result.returncode, 0)
@@ -166,19 +167,27 @@ class LauncherTest(unittest.TestCase):
                     result[relative] = path.read_bytes()
             return result
 
-        self.assertEqual(contents(NORMAL), contents(PREVIEW))
+        normal_contents = contents(NORMAL)
+        preview_contents = contents(PREVIEW)
+        footer_path = ".pi/agent/session-footer.json"
+        self.assertEqual(
+            (json.loads(normal_contents[footer_path]), json.loads(preview_contents[footer_path])),
+            ({"preset": "rich"}, {"preset": "rich", "persistence": "session"}),
+        )
+        preview_contents[footer_path] = normal_contents[footer_path]
+        self.assertEqual(normal_contents, preview_contents)
         normal = json.loads((Path(NORMAL) / ".pi/agent/extensions/subagent/config.json").read_text())
         preview = json.loads((Path(PREVIEW) / ".pi/agent/extensions/subagent/config.json").read_text())
         self.assertEqual(normal, {**preview, "defaultSessionDir": "~/.pi/agent/sessions/subagent"})
 
     def test_detached_child_reads_after_parent_exit(self):
+        release = self.root / "release-child"
+        retained = self.root / "retained-child"
+        os.mkfifo(release)
+        os.mkfifo(retained)
         result, _ = self.run_launcher("--detach")
         self.assertEqual(result.returncode, 0)
-        (self.root / "release-child").touch()
-        retained = self.root / "retained-child"
-        deadline = time.monotonic() + 10
-        while not retained.exists() and time.monotonic() < deadline:
-            time.sleep(0.025)
+        release.write_bytes(b"")
         self.assertEqual(retained.read_bytes(), (Path(PREVIEW) / ".pi/agent/settings.json").read_bytes())
 
     def test_failure_and_repeated_launches(self):

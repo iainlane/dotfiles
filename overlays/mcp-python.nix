@@ -1,7 +1,10 @@
-{inputs}: final: _prev: {
+{
+  flakeContexts,
+  inputs,
+}: final: _prev: {
   mcpPythonPackages = let
     inherit (final) lib;
-    pythonPackages = inputs.nixpkgs.legacyPackages.${final.stdenv.hostPlatform.system}.python314Packages;
+    pythonPackages = flakeContexts.${final.stdenv.hostPlatform.system}.upstreamPackageSets.nixpkgs.python314Packages;
     version = "2.3.0";
     usePackagedSdk = lib.versionAtLeast pythonPackages.mcp.version version && lib.versionOlder pythonPackages.mcp.version "3";
     src = final.fetchFromGitHub {

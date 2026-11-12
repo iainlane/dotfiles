@@ -1,4 +1,12 @@
 {
+  "pin": {
+    "directory": "packages/rpiv-todo",
+    "hash": "sha256-tpo8zX8EaGmW64xb4ZJ1UwEv9x2qStHWW6OHeevwo3w=",
+    "owner": "juicesharp",
+    "repo": "rpiv-mono",
+    "rev": "1a4add9dbe61597059a93dd9200bf25d51238659",
+    "version": "2.15.0"
+  },
   "tarballHash": "sha256-A87cjp63bJfAqoAPs5Gfx3JCxyaSlAFyRxiuX7NzsPs=",
   "version": "2.15.0"
 }

@@ -232,7 +232,7 @@
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
   };
 in {
-  xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
+  xdg.configFile."rpiv-todo/config.json".text = toJson {maxWidgetLines = 0;};
   xdg.configFile."rpiv-btw/config.json".text = toJson {crossSessionHint = false;};
 
   home = {
@@ -240,7 +240,7 @@ in {
       {
         ".pi/agent/settings.json".text = toJson piSettings;
         ".pi/agent/planning.json".text = toJson planningConfig;
-        ".pi/agent/session-footer.json".text = toJson {preset = "rich";};
+        ".pi/agent/session-footer.json".text = toJson ({preset = "rich";} // lib.optionalAttrs temporary {persistence = "session";});
         ".pi/agent/ask-user.json".text = toJson {displayMode = "inline";};
         ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
         ".pi-lens/config.json".text = toJson {

@@ -42,6 +42,19 @@ in
   {pkgs, ...}:
     (
       let
+        command = name:
+          pkgs.writeShellApplication {
+            inherit name;
+            text = ''printf '${name}:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"'';
+          };
+        updaters = pkgs.callPackage ../../../pkgs/build-support/updaters.nix {nix-update = command "nix-update";};
+        updater = updaters.mkPnpmLockUpdater {
+          pname = "fixture";
+          directory = "fixture";
+          packages = [host linked];
+          pnpm = command "pnpm";
+          systems = ["aarch64-darwin" "aarch64-linux" "x86_64-linux"];
+        };
         assertions = [
           {
             name = "an npm purl percent-encodes the scope";
@@ -72,6 +85,41 @@ in
           {
             name = "attribute names are keyed by npm name";
             pass = npmPackages.attributesByName {inherit host github plain;} == {"@scope/host" = "host";};
+          }
+          {
+            name = "pnpm selects local providers from package keys, including transitive packages";
+            pass =
+              npmPackages.providePnpm {
+                packages = npmPackages.byName {
+                  inherit host linked;
+                  unscoped = producer "host" "2.0.0";
+                  unused = producer "unused" "1.0.0";
+                };
+                lockfile = ''
+                  lockfileVersion: '9.0'
+                  packages:
+                    '@scope/host@2.0.0':
+                      resolution: {integrity: sha512-registry}
+                    linked@1.0.0:
+                      resolution: {integrity: sha512-linked}
+                  snapshots:
+                    '@scope/host@2.0.0(linked@1.0.0)': {}
+                '';
+              }
+              == [host linked];
+          }
+          {
+            name = "pnpm selects providers from double-quoted package keys";
+            pass =
+              npmPackages.providePnpm {
+                packages = npmPackages.byName {inherit host linked;};
+                lockfile = ''
+                  packages:
+                    "@scope/host@2.0.0": {}
+                    "linked@1.0.0": {}
+                '';
+              }
+              == [host linked];
           }
           {
             name = "every lockfile entry for a local package, including an alias, installs its tarball";
@@ -107,9 +155,12 @@ in
         checks.npm-packages =
           pkgs.runCommandLocal "npm-packages" {
             inherit report;
+            nativeBuildInputs = [pkgs.nodejs_24 pkgs.gitMinimal pkgs.jq pkgs.diffutils];
             passthru.ci.runOnce = true;
           } ''
             if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
+            bash ${../../../pkgs/build-support/pnpm-local-packages.test.bash} ${../../../pkgs/build-support/pnpm-local-packages.cjs}
+            bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
             touch "$out"
           '';
       }

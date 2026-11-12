@@ -171,6 +171,7 @@ async function assertResources(
   const footerConfig = join(agent, "session-footer.json");
   assert.deepStrictEqual(parseRecord(readFileSync(footerConfig, "utf8")), {
     preset: "rich",
+    persistence: "session",
   });
   assert.ok(lstatSync(footerConfig).isSymbolicLink());
   assert.equal(statSync(footerConfig).mode & 0o222, 0);
@@ -180,7 +181,7 @@ async function assertResources(
   });
   assert.deepStrictEqual(
     parseRecord(readFileSync(join(xdg, "rpiv-todo/config.json"), "utf8")),
-    { widget: { enabled: false } },
+    { maxWidgetLines: 0 },
   );
   assert.deepStrictEqual(
     parseRecord(readFileSync(join(xdg, "rpiv-btw/config.json"), "utf8")),

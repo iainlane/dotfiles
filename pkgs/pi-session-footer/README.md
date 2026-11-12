@@ -1,212 +1,147 @@
 # Session footer
 
-A rounded native Pi composer with configurable top and bottom status borders.
-Pretty's transcript styling is unchanged. Editing, cursor movement, completion,
-history, undo, paste, images and shortcuts remain native. Working, retry and
-compaction indicators remain managed by Pi and the installed extensions.
+Keep model, context and session status beside your prompt. Preview and customise
+with `/footer config`, or see what each field means with `/footer explain`.
 
-## Configuration
+![Choose a profile, then tune its symbols and colours][walkthrough]
 
-The optional `session-footer.json` lives in Pi's selected agent directory
-(`getAgentDir()`), including the temporary app's private directory. Settings are
-read at TUI startup and native `/reload`. There are no project overrides,
-watchers, environment selectors or settings writes.
+[walkthrough]: demo/footer.webp
+
+## Choose a profile
+
+| Profile  | Use it for                                                       |
+| -------- | ---------------------------------------------------------------- |
+| Rich     | Model identity, work in progress and session usage. The default. |
+| Compact  | Model identity and context, with no bottom status row.           |
+| Minimal  | Directory, Git and context.                                      |
+| Workflow | Work and attention, with quota at the bottom right.              |
+
+The footer shortens routine detail before actionable warnings. Wider terminals
+restore the full values. Colours follow Pi's theme; symbols and labels also
+identify the state.
+
+![Rich profile with context, cache hit rate and session cost][usage]
+
+![Minimal profile in Pi's light theme][minimal]
+
+[usage]: demo/usage.png
+[minimal]: demo/minimal.png
+
+## Explain a field
+
+`/footer` and `/footer explain` open a scrollable legend of the displayed
+footer. Choose a field to explain its value and symbols. A direct command, such
+as `/footer explain cache`, opens the same page.
+
+![Scroll through the displayed fields][legend]
+
+![Explain the cache hit rate and cached prompt tokens][cache]
+
+Use the displayed bindings to navigate, page and go back. Selection and scroll
+position remain when you return from a detail page or change sections. The
+Sections menu includes Overview, Quota, Workflow, Diagnostics, Git, Usage and
+Help.
+
+Explain keeps the completed display fixed while you inspect it. Rendering
+details contains its timestamp, width budgets and fitting decisions. The Help
+widget catalogue also includes fields that are not currently visible.
+
+[legend]: demo/legend.png
+[cache]: demo/explain.png
+
+## Customise the live footer
+
+Open `/footer config`. Every page previews the same footer beneath the controls:
+profiles, widget order, symbols, colours, separators and extension symbols.
+
+- Choosing a field accepts that edit into the draft, without saving it.
+- Going back from a field cancels its pending choice.
+- Choosing Save & use on the main Customise screen saves the complete draft.
+- Cancelling the main screen discards the draft and restores the active
+  appearance.
+
+![Preview a profile before accepting it][profile]
+
+![Set a symbol colour independently from its text colour][appearance]
+
+Your prompt draft and native editing remain intact. The footer supports both
+Pretty load orders. See the [integration contracts] for ownership and extension
+status details.
+
+[profile]: demo/config.png
+[appearance]: demo/appearance.png
+[integration contracts]: docs/integrations.md
+
+### Saving
+
+Source & saving shows the active source and the destination. The customiser
+updates a writable regular settings file. For a symlinked or read-only base, it
+can create `session-footer.user.json` beside the base after confirmation. User
+settings replace the base appearance until you reset them.
+
+The temporary Pi app offers **Use for this session**. Those changes end on
+reload or session switch. A failed save keeps the draft available for retry;
+session application is a separate choice.
+
+### JSON settings
+
+The base file is `session-footer.json` in Pi's selected agent directory. A
+profile needs only:
+
+```json
+{ "preset": "compact" }
+```
+
+Use widget strings for default appearance. An omitted region inherits the
+profile; an array replaces that region, and `[]` disables it.
 
 ```json
 {
   "preset": "rich",
-  "symbols": { "planning": "≡", "default": "◇" },
-  "top-left": [
-    "model",
-    "thinking",
-    "tier",
-    "directory",
-    "git",
-    "git-operation",
-    "git-conflicts",
-    "pr"
-  ],
+  "top-left": ["model", "thinking", "directory", "git"],
   "top-right": ["context"],
-  "bottom-left": [
-    "activity",
-    "diagnostics",
-    "tasks",
-    "blocked",
-    "agents",
-    "pending",
-    "planning",
-    "ci",
-    "reviews",
-    "statuses"
-  ],
-  "bottom-right": ["quota", "cache", "cost", "auxiliary-cost", "age"]
+  "bottom-left": []
 }
 ```
 
-- `rich` is the default above.
-- `compact` keeps rich's top regions and disables both bottom regions.
-- `minimal` keeps directory, Git, operations/conflicts and context at the top.
-- `workflow` keeps rich's top and attention fields, with only quota at bottom
-  right.
+An object customises one placement. Symbol and text colours are independent:
 
-Omitted regions inherit the preset. An explicit array replaces the whole region;
-`[]` disables it. IDs are ordered. Repeated IDs within a region are invalid;
-intentional repetition across regions is allowed and explained per placement.
-Unknown keys, presets and IDs are rejected atomically. An unreadable or invalid
-file produces one actionable notification per load and falls back to built-in
-rich; `/footer config` retains the diagnostic without exposing file contents.
-
-`symbols` overrides merge with these defaults and are keyed by extension/source
-ID. Unknown IDs are supported; `default` is the generic fallback. Symbols must
-be nonempty inline strings of at most eight visible columns, without ANSI,
-control characters or line breaks. Unicode, Nerd Font glyphs and ASCII such as
-`"[P]"` are supported. Invalid symbols reject the entire configuration.
-`/footer config` shows effective symbols; `/footer explain` captures the
-selected symbols. Passive preset previews retain your symbol overrides.
-
-Optional measurements include `input`, `output`, `cache-read`, `cache-write`,
-`run-duration`, `active-duration` and `compaction-duration`. `/footer config`
-lists every supported ID and its meaning.
-
-The shared Nix configuration supplies `{ "preset": "rich" }` to normal and
-temporary profiles. Override the managed Home Manager asset through Nix, rather
-than editing its immutable symlink:
-
-```nix
-home.file.".pi/agent/session-footer.json".text = lib.mkForce (builtins.toJSON {
-  preset = "compact";
-  "top-left" = ["directory" "git" "git-conflicts"];
-});
+```json
+{
+  "top-left": [
+    "model",
+    {
+      "id": "git",
+      "colour": "text",
+      "symbol": { "alias": "git", "colour": "accent" }
+    }
+  ],
+  "separators": { "widgets": " · " }
+}
 ```
 
-## Read-only inspection
+Symbol strings are literal: `"git"` displays the text `git`. Use an explicit
+alias object for a built-in symbol. The [configuration reference] describes all
+widgets, individual parts, validation, persistence and measurement scopes.
 
-Only these command forms exist:
+[configuration reference]: docs/reference.md
 
-- `/footer` or `/footer explain [segment]`: explain the most recent completed
-  render, its timestamp, actual usable widths, ownership and each placement's
-  fitting decision. Direct segment explanations include hidden reasons.
-- `/footer config`: provenance, effective regions, supported IDs, repeated
-  placements and passive preset/JSON previews. Previews never change settings or
-  replace the recorded render.
-- `/footer help`: grammar, configuration and navigation.
+## Commands
 
-Use the displayed section shortcut (normally `s`) or Tab for the next section.
-The native selection, confirm, cancel and page bindings take precedence over
-inspector shortcuts. Conflicting `s` or `h` bindings use an advertised Alt
-alternative, or omit the shortcut if both are occupied. Confirm expands a field;
-cancel returns or closes. The hidden-field shortcut normally uses `h`. Wide
-terminals show list and details together; narrow terminals use stacked views.
-Paging follows visible list capacity or detail viewport height, with a position
-indicator.
+| Command                 | Purpose                                    |
+| ----------------------- | ------------------------------------------ |
+| `/footer explain`       | Explain the displayed footer.              |
+| `/footer explain cache` | Explain one widget.                        |
+| `/footer config`        | Preview and customise.                     |
+| `/footer help`          | Commands, widget catalogue and navigation. |
+| `/footer`               | Same as `/footer explain`.                 |
 
-The same inspector retains Overview, Quota, Workflow, Diagnostics, Git and Usage
-details. These are labelled live data, distinct from captured render readings.
-Entering Usage refreshes the existing read-only delegation-cost report; other
-views and previews use already observed data. Safe raw delegation JSON remains
-available with its truncation limits disclosed. No inspection starts model
-calls, quota fetches, diagnostic probes or PR watching. Native `/todos` and
-`/subagents` remain available for managing work.
+The demonstrations use synthetic responses and usage from a local provider, with
+sample Git changes. Recording instructions are in the [demo guide].
 
-## Display and ownership
+[demo guide]: demo/README.md
 
-Routine detail shortens before actionable warnings. Widening restores full
-values. Colours use the active Pi theme; semantic symbols and explicit labels do
-not rely on colour alone. The font needs Nerd Font and Powerline glyphs. Missing
-placeholders and unavailable readings are hidden; genuine zero measurements are
-retained. Initial idle zero cost and age do not create a bottom row. Reported
-Git and quota failures remain visible even when their normal readings are
-unavailable.
+For package commands and Nix development dependencies, see the [developer
+guide].
 
-| Symbol                                  | Meaning                                                                                        |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `` / `` / ``                         | Model / directory / branch                                                                     |
-| `⊘` / `○` / `◔` / `◑` / `◒` / `◕` / `◉` | Thinking off / minimal / low / medium / high / xhigh / max                                     |
-| `✚` / `✎` / `?` / `↑` / `↓`             | Staged / modified / untracked paths / ahead / behind commits                                   |
-| `↻` / `⚠ conflicts`                     | Git operation / conflicting paths                                                              |
-| `` / `` / ``                         | Pull request / failed CI checks / unresolved reviews                                           |
-| `◫`                                     | Context used percentage and capacity; spare space in its configured row forms a gauge          |
-| `☑` / `` / ``                         | Task progress / blocked tasks / active children and independently fitted failed or paused runs |
-| `` / `≡` / `◇`                         | Queued messages / planning / actual external source message                                    |
-| `⊗` / `⚠`                               | Received errors / warnings; `+` marks lower-bound findings or run counts                       |
-| `` / `󰁯` / `` / `✗` / `⊘` / `◷`       | Awaiting input / compaction / current tool / failed / cancelled / no content                   |
-| `◴` / `↻`                               | Quota percentage used / reset countdown                                                        |
-| `` / `` / ``                         | Latest-request cache hit rate / auxiliary cost / session age                                   |
-
-Thinking shows the actual level with its symbol; compact variants retain the
-level symbol. Off is `⊘` alone. Unknown levels retain their reported text.
-
-When neither fitted bottom region has content, the final input row shares the
-bottom border. Native hidden input below keeps a separate overflow border. A
-populated bottom region adds a dedicated status border without replacing the
-editor or losing the draft. Native overflow hints reserve space before fitting.
-
-The composer mounts after extension startup, supporting both Pretty load orders.
-It suppresses all standalone footer rows while owning the editor. If another
-extension installs an editor later, configured non-empty top and bottom rows
-appear below it. The footer never reclaims ownership. Reload, replacement and
-shutdown restore the previous editor only while this composer still owns it.
-Inspection preserves the draft and returns focus when closed.
-
-## Cooperative extension status
-
-The native `pi.events` protocol has no runtime dependency between extensions:
-
-Producers publish snapshots on `dotfiles:status:v1`:
-
-```typescript
-type StatusPublication = {
-  version: 1;
-  source: string;
-  sessionId: string;
-  active: boolean;
-  text?: string;
-};
-```
-
-Consumers request a replay on `dotfiles:status:request:v1` with
-`{ version: 1, sessionId: string }`.
-
-A producer publishes semantic state on changes and answers requests with its
-latest snapshot only when the native session ID matches. It clears publication
-and removes its request listener on shutdown. The footer requests snapshots at
-session start, accepts subsequent events only for that session, and discards
-state/listeners on shutdown. Invalid or wrong-version input is ignored; detail
-text is sanitised and bounded. No display labels are parsed for meaning.
-
-Planning publishes source `planning` with its real active flag and no detail by
-default: active planning shows only its configured symbol. Optional producer
-text follows the symbol; there is no invented implementation phase. Inactive
-snapshots hide the status and suppress stale native messages for that source.
-Cooperative native keys are excluded from generic duplicates, even when their
-dedicated segment is disabled. Other cooperative sources use their configured
-symbol or `default`. Older publishers retain readable sanitised native messages,
-including their original labels; no prefixes are stripped or guessed. Planning
-retains its native `planning` status when used without this footer.
-
-## Measurement scopes
-
-Quota percentages are **used**, not remaining. Readings become stale after 30
-seconds and expire after five minutes or reset. `↻` shows reset countdowns, not
-reading age. Captured expiry reasons, errors and account/source provenance
-remain inspectable even when all percentages are hidden.
-
-Session cost covers recorded branches, summaries, cache warming and reported
-tool usage. `$` is provider-billed; `≈$` is a recorded estimate, not a verified
-invoice. Auxiliary usage is separate as ``; delegation remains a separate
-report and is not summed into session cost. Inline cache rate is the latest
-active-branch request. Usage details also show the whole-session denominator;
-neither is a claim about invoice savings. Active-work time covers observed
-activity only.
-
-Git counts are paths and ahead/behind commits, not changed lines. Directory or
-worktree identity appears once. Diagnostics cover received Lens events, not a
-workspace-wide verdict. Active child counts are exact fleet totals; incomplete
-failed/paused run details can be lower bounds. Missing findings or publications
-never establish healthy integrations. Unknown extensions display their actual
-sanitised messages with source identity rather than generic counts.
-
-GitHub status comes from [pi-prs]; watching and automatic feedback remain off
-unless enabled through its native commands.
-
-[pi-prs]: https://github.com/mavam/pi-prs
+[developer guide]: docs/development.md

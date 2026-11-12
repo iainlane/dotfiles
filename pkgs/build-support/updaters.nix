@@ -201,13 +201,8 @@
         '';
     };
 
-  # Bump a Pi extension: rewrite `source.json` with the new version and source
-  # hash, and regenerate the build's lockfile under `npm-deps/`.
-  #
-  # The registry decides which version to move to either way, because Pi's own
-  # installer would resolve the same version. With `gitHub`, the source is that
-  # version's release tag. An unchanged GitHub source uses its committed lock;
-  # patched sources and registry tarballs are resolved with npm.
+  # Bump a Pi extension, or pin it to an unreleased upstream commit. See
+  # `pi-extension-updater.bash` for the behaviour of each mode.
   mkPiExtensionUpdater = {
     npmName,
     pname,
@@ -220,157 +215,24 @@
     npmDependencies ? {},
     patches ? [],
     metadataFiles ? {},
-  }:
+  }: let
+    config = writeText "update-${pname}.json" (builtins.toJSON {
+      inherit npmName pname gitHub tagPrefix npmDependencies patches metadataFiles;
+      prefetch = ./prefetch.bash;
+      promoteDependencies = ./promote-npm-dependencies.jq;
+    });
+  in
     writeShellApplication {
       name = "update-${pname}";
       passthru.maintenance = {
         source = "release";
         refresh = true;
       };
-      runtimeInputs = [coreutils git gnutar patch jq nix nodejs wget];
+      runtimeInputs = [bash coreutils git gnutar patch jq nix nodejs wget];
 
       text = ''
         cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
-
-        # shellcheck disable=SC1091
-        source "${./prefetch.bash}"
-
-        tmpdir="$(mktemp -d)"
-        sourceDir="$tmpdir/source"
-        mkdir "$sourceDir"
-        # Keep the temporary file beside `source.json` so the rename stays
-        # atomic.
-        staged="$(mktemp source.json.XXXXXX)"
-        stagedLock="$(mktemp npm-deps/package-lock.json.XXXXXX)"
-        metadataStages=()
-        trap 'rm -rf "''${tmpdir}" "''${staged}" "''${stagedLock}" "''${metadataStages[@]}"' EXIT
-
-        # Leave the caller's npm cache alone; this run only reads metadata.
-        export npm_config_cache="''${tmpdir}/npm-cache"
-
-        refresh=false
-        if [[ "$#" == 1 && "$1" == --refresh ]]; then
-          refresh=true
-        elif (($# > 1)) || [[ "$#" == 1 && "$1" != --force ]]; then
-          echo 'Usage: update-${pname} [--force | --refresh]' >&2
-          exit 1
-        fi
-        current="$(jq -r .version source.json)"
-        if $refresh; then version="$current"; else version="$(npm view "${npmName}" version)"; fi
-
-        # Some changes need the lockfile rebuilt without a version bump:
-        # moving a package to a GitHub source, or editing `npmDependencies`.
-        # `--force` asks for that.
-        if [[ "''${version}" == "''${current}" ]]; then
-          if [[ "''${1:-}" != "--force" ]] && ! $refresh; then
-            echo "${pname} is already on the latest version (''${version}); pass --force to resolve it again" >&2
-            exit 0
-          fi
-
-          echo "Resolving ${pname} ''${version} again" >&2
-        else
-          echo "Bumping ${pname}: ''${current} -> ''${version}" >&2
-        fi
-
-        ${
-          if gitHub != null
-          then ''
-            tag="${tagPrefix}''${version}"
-            if $refresh; then tag="$(jq -r '.rev // .tag // (.version | "${tagPrefix}" + .)' source.json)"; fi
-            url="https://github.com/${gitHub.owner}/${gitHub.repo}/archive/''${tag}.tar.gz"
-
-            # `fetchFromGitHub` records the hash of the unpacked tree, so
-            # `--unpack` produces the matching value. `nix-prefetch-url` prints
-            # base32, and `nix hash convert` turns it into the SRI form.
-            hash="$(nix hash convert --hash-algo sha256 --to sri \
-              "$(nix-prefetch-url --unpack --type sha256 "''${url}")")"
-
-            tarball="''${tmpdir}/${pname}.tar.gz"
-            download "''${url}" "''${tarball}"
-
-            tar -xzf "$tarball" -C "$sourceDir" --strip-components=1
-
-            jq -n --sort-keys \
-              --arg version "''${version}" \
-              --arg tag "''${tag}" \
-              --arg hash "''${hash}" \
-              '{version: $version, tag: $tag, hash: $hash}' >"''${staged}"
-          ''
-          else ''
-            tarball="''${tmpdir}/${pname}.tgz"
-            download "https://registry.npmjs.org/${npmName}/-/${pname}-''${version}.tgz" "''${tarball}"
-
-            tar -xzf "$tarball" -C "$sourceDir" --strip-components=1
-
-            # A failing `hash_file` inside the `jq` arguments would not
-            # change `jq`'s exit status, so `source.json` would be written
-            # with an empty `tarballHash`. Assign the hash first so errexit
-            # stops the script.
-            hash="$(hash_file "''${tarball}")"
-
-            jq -n --sort-keys \
-              --arg version "''${version}" \
-              --arg hash "''${hash}" \
-              '{version: $version, tarballHash: $hash}' >"''${staged}"
-          ''
-        }
-        if $refresh; then
-          if [[ "$(jq -r '.hash // .tarballHash' source.json)" != "$hash" ]]; then
-            echo 'The pinned source hash changed; refusing to repin during refresh.'
-            exit 1
-          fi
-          cp source.json "$staged"
-        fi
-        ${lib.concatMapStringsSep "\n" (sourcePatch: ''
-            (cd "$sourceDir" && patch --batch --forward -p1 --input ${lib.escapeShellArg (toString sourcePatch)}) >&2
-          '')
-          patches}
-        ${lib.optionalString (npmDependencies != {}) ''
-          jq --argjson deps ${lib.escapeShellArg (builtins.toJSON npmDependencies)} \
-            --from-file ${./promote-npm-dependencies.jq} \
-            "$sourceDir/package.json" >"$sourceDir/package.json.new"
-          mv "$sourceDir/package.json.new" "$sourceDir/package.json"
-        ''}
-        ${lib.optionalString (gitHub == null || patches != [] || npmDependencies != {}) ''
-          (cd "$sourceDir" && npm install --package-lock-only --ignore-scripts) >&2
-        ''}
-        lockfile="$sourceDir/package-lock.json"
-
-        jq --exit-status --arg version "''${version}" --arg name ${lib.escapeShellArg npmName} '
-          .packages[""].version == $version
-          and .packages[""].name == $name
-          and (.lockfileVersion == 2 or .lockfileVersion == 3)
-        ' "''${lockfile}" >/dev/null
-
-        # The build uses the lockfile's root record as its manifest, but npm
-        # leaves the manifest's `overrides` out of the lockfile. Without them,
-        # the build's npm finds the overridden edges invalid and tries to
-        # fetch the versions that the overrides replaced.
-        if jq --exit-status 'has("overrides")' "$sourceDir/package.json" >/dev/null; then
-          jq --slurpfile manifest "$sourceDir/package.json" \
-            '.packages[""].overrides = $manifest[0].overrides' \
-            "''${lockfile}" >"$tmpdir/package-lock.json"
-          lockfile="$tmpdir/package-lock.json"
-        fi
-
-        verify="$tmpdir/verify"
-        mkdir "$verify"
-        cp "''${lockfile}" "$verify/package-lock.json"
-        jq '.packages[""]' "''${lockfile}" >"$verify/package.json"
-        (cd "$verify" && npm ls --all --package-lock-only >/dev/null)
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (destination: sourcePath: ''
-            stagedFile="$(mktemp ${lib.escapeShellArg "${destination}.XXXXXX"})"
-            metadataStages+=("$stagedFile")
-            tar -xOzf "$tarball" --wildcards ${lib.escapeShellArg "*/${sourcePath}"} >"$stagedFile"
-            jq --exit-status 'type == "object"' "$stagedFile" >/dev/null
-          '')
-          metadataFiles)}
-        cp "''${lockfile}" "''${stagedLock}"
-        mv "''${stagedLock}" npm-deps/package-lock.json
-        mv "''${staged}" source.json
-        ${lib.concatStringsSep "\n" (lib.imap0 (index: destination: ''mv "''${metadataStages[${toString index}]}" ${lib.escapeShellArg destination}'') (lib.attrNames metadataFiles))}
-
-        echo "Updated ${pname} to ''${version}." >&2
+        bash ${./pi-extension-updater.bash} ${config} "$@"
       '';
     };
 
@@ -400,6 +262,36 @@
         cd "$(git rev-parse --show-toplevel)/${directory}"
 
         bash ${./npm-lock-updater.bash} ${provided} >&2
+      '';
+    };
+
+  # Pin local npm versions in a pnpm package, regenerate its portable lock,
+  # and refresh its dependency hashes on the configured systems.
+  mkPnpmLockUpdater = {
+    pname,
+    directory,
+    packages,
+    pnpm,
+    systems,
+  }: let
+    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map npmPackages.npmPackage packages));
+  in
+    writeShellApplication {
+      name = "update-${pname}";
+      passthru.maintenance = {
+        source = "repository";
+        refresh = true;
+      };
+      runtimeInputs = [bash coreutils git jq pnpm nix nix-update];
+      text = ''
+        root="$(git rev-parse --show-toplevel)"
+        cd "$root/${directory}"
+        bash ${./pnpm-lock-updater.bash} ${provided}
+        cd "$root"
+        for system in ${lib.escapeShellArgs systems}; do
+          nix-update --flake --system "$system" --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
+        done
       '';
     };
 
