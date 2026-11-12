@@ -19,6 +19,13 @@ export interface GitState {
   stale: boolean;
 }
 
+export class IncompleteGitPathsError extends Error {
+  constructor(readonly output: string) {
+    super("Git returned incomplete repository paths");
+    this.name = "IncompleteGitPathsError";
+  }
+}
+
 export function parseGitStatus(output: string, now: number): GitState {
   const state: GitState = {
     branch: "",
@@ -185,7 +192,7 @@ export async function readGit(
     root === undefined ||
     root === ""
   ) {
-    throw new Error("Git returned incomplete repository paths");
+    throw new IncompleteGitPathsError(paths);
   }
 
   const state = parseGitStatus(

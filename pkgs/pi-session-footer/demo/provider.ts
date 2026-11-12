@@ -29,6 +29,31 @@ interface CompletionFrame {
   };
 }
 
+const REQUEST_LIMIT = 1_048_576;
+
+class MissingDemoPortError extends Error {
+  constructor() {
+    super("Expected the demo server's loopback port");
+    this.name = "MissingDemoPortError";
+  }
+}
+
+class TextRequestChunkError extends Error {
+  constructor() {
+    super("Expected request bytes");
+    this.name = "TextRequestChunkError";
+  }
+}
+
+class DemoRequestTooLargeError extends Error {
+  readonly limit = REQUEST_LIMIT;
+
+  constructor() {
+    super(`Demo request exceeds ${REQUEST_LIMIT} bytes`);
+    this.name = "DemoRequestTooLargeError";
+  }
+}
+
 export class DemoProvider {
   private readonly server: Server;
   private readonly fixture: DemoFixture;
@@ -63,7 +88,7 @@ export class DemoProvider {
   get url(): string {
     const address = this.server.address();
     if (address === null || typeof address === "string") {
-      throw new Error("Expected the demo server's loopback port");
+      throw new MissingDemoPortError();
     }
     return `http://127.0.0.1:${address.port}/v1`;
   }
@@ -73,11 +98,11 @@ export class DemoProvider {
     let size = 0;
     for await (const chunk of request) {
       if (!Buffer.isBuffer(chunk)) {
-        throw new TypeError("Expected request bytes");
+        throw new TextRequestChunkError();
       }
       size += chunk.length;
-      if (size > 1_048_576) {
-        throw new Error("Demo request exceeds one MiB");
+      if (size > REQUEST_LIMIT) {
+        throw new DemoRequestTooLargeError();
       }
       chunks.push(chunk);
     }

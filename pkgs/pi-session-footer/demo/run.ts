@@ -5,10 +5,50 @@ import { demoFixture } from "./fixture.ts";
 import { DemoProvider } from "./provider.ts";
 import { DemoWorkspace } from "./workspace.ts";
 
+class MissingPiCommandError extends Error {
+  constructor() {
+    super("Expected a native Pi executable");
+    this.name = "MissingPiCommandError";
+  }
+}
+
+class PiStartError extends Error {
+  readonly host: string;
+
+  constructor(host: string, options: { cause: Error }) {
+    super(
+      "Cannot start Pi. Set PI_TEST_HOST to the native Pi executable.",
+      options,
+    );
+    this.name = "PiStartError";
+    this.host = host;
+  }
+}
+
+class InvalidPresetOptionError extends Error {
+  readonly value: string;
+
+  constructor(value: string) {
+    super("Expected --preset rich, compact, minimal or workflow");
+    this.name = "InvalidPresetOptionError";
+    this.value = value;
+  }
+}
+
+class InvalidThemeOptionError extends Error {
+  readonly value: string;
+
+  constructor(value: string) {
+    super("Expected --theme dark or --theme light");
+    this.name = "InvalidThemeOptionError";
+    this.value = value;
+  }
+}
+
 async function run(workspace: DemoWorkspace): Promise<number> {
   const [host, ...args] = workspace.command(process.env.PI_TEST_HOST ?? "pi");
   if (host === undefined) {
-    throw new Error("Expected a native Pi executable");
+    throw new MissingPiCommandError();
   }
   const child = spawn(host, args, {
     cwd: workspace.cwd,
@@ -40,10 +80,7 @@ async function run(workspace: DemoWorkspace): Promise<number> {
   try {
     const result = await ended.promise;
     if (result.error !== undefined) {
-      throw new Error(
-        "Cannot start Pi. Set PI_TEST_HOST to the native Pi executable.",
-        { cause: result.error },
-      );
+      throw new PiStartError(host, { cause: result.error });
     }
     return result.code;
   } finally {
@@ -74,11 +111,11 @@ async function main(): Promise<void> {
     preset !== "minimal" &&
     preset !== "workflow"
   ) {
-    throw new Error("Expected --preset rich, compact, minimal or workflow");
+    throw new InvalidPresetOptionError(preset);
   }
   const theme = values.theme;
   if (theme !== "dark" && theme !== "light") {
-    throw new Error("Expected --theme dark or --theme light");
+    throw new InvalidThemeOptionError(theme);
   }
   const workspace = DemoWorkspace.create(demoFixture);
   try {

@@ -103,6 +103,20 @@ class DockPanel extends Container implements Focusable {
   }
 }
 
+export class DockAlreadyOpenError extends Error {
+  constructor() {
+    super("This footer editor has already been opened");
+    this.name = "DockAlreadyOpenError";
+  }
+}
+
+export class DockedFocusUnsupportedError extends Error {
+  constructor() {
+    super("The terminal does not support docked focus");
+    this.name = "DockedFocusUnsupportedError";
+  }
+}
+
 export class DockHost {
   private readonly key = `session-footer:customise:${++nextId}`;
   private readonly completion = Promise.withResolvers<void>();
@@ -122,14 +136,14 @@ export class DockHost {
 
   open(factory: ViewFactory): Promise<void> {
     if (this.panel !== undefined || this.closing) {
-      throw new Error("This footer editor has already been opened");
+      throw new DockAlreadyOpenError();
     }
     try {
       this.ui.setWidget(
         this.key,
         (tui, theme) => {
           if (!supportsFocus(tui)) {
-            throw new Error("The terminal does not support docked focus");
+            throw new DockedFocusUnsupportedError();
           }
           this.tui = tui;
           this.previous = tui.getFocusedComponent();

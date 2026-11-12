@@ -14,6 +14,39 @@ interface Configuration {
   rows: number;
 }
 
+export class MissingPtyCommandError extends Error {
+  constructor() {
+    super("Expected a PTY command");
+    this.name = "MissingPtyCommandError";
+  }
+}
+
+export class PtyExitedError extends Error {
+  constructor(
+    readonly code: number,
+    readonly output: string,
+    options?: { cause: unknown },
+  ) {
+    super(`PTY process exited with ${code}:\n${output.slice(-12000)}`, options);
+    this.name = "PtyExitedError";
+  }
+}
+
+export class TerminalReadError extends Error {
+  constructor(options: { cause: unknown }) {
+    super("Cannot read the terminal screen", options);
+    this.name = "TerminalReadError";
+  }
+}
+
+/** The terminal closed while a check was still failing. */
+export class TerminalClosedError extends Error {
+  constructor(options: { cause: unknown }) {
+    super("The terminal closed before the check passed", options);
+    this.name = "TerminalClosedError";
+  }
+}
+
 export class PiTerminal {
   readonly terminal = new xterm.Terminal({
     cols: 220,
@@ -34,7 +67,7 @@ export class PiTerminal {
   constructor(configuration: Configuration) {
     const [file, ...args] = configuration.command;
     if (file === undefined) {
-      throw new Error("Expected a PTY command");
+      throw new MissingPtyCommandError();
     }
     try {
       this.process = spawn(file, args, {
@@ -90,7 +123,8 @@ export class PiTerminal {
    * Resolves once `check` passes. `check` runs against the screen now, after
    * each write of Pi's output to the terminal, and after each change in the
    * directories of the `watched` files. When the PTY process exits or the
-   * terminal closes first, the wait rejects with the last failure of `check`.
+   * terminal closes first, the wait rejects with PtyExitedError or
+   * TerminalClosedError, and the error's cause is the last failure of `check`.
    */
   until(
     check: (screen: string[]) => void | Promise<void>,
@@ -104,7 +138,7 @@ export class PiTerminal {
       const watchers = [...new Set(watched.map((path) => dirname(path)))].map(
         (directory) => watch(directory, () => schedule()),
       );
-      const finish = (error?: Error) => {
+      const finish = (error: Error | undefined) => {
         if (done) {
           return;
         }
@@ -127,15 +161,17 @@ export class PiTerminal {
           screen = await this.screen();
         } catch (error) {
           finish(
-            new Error(
-              `${String(error)}\nLast check failure: ${String(lastFailure)}`,
-            ),
+            error instanceof PtyExitedError
+              ? new PtyExitedError(error.code, error.output, {
+                  cause: lastFailure,
+                })
+              : new TerminalReadError({ cause: error }),
           );
           return;
         }
         try {
           await check(screen);
-          finish();
+          finish(undefined);
         } catch (error) {
           lastFailure = error;
         }
@@ -159,11 +195,7 @@ export class PiTerminal {
         attempt().then(after, after);
       };
       const cancel = () =>
-        finish(
-          new Error("The terminal closed before the check passed", {
-            cause: lastFailure,
-          }),
-        );
+        finish(new TerminalClosedError({ cause: lastFailure }));
       this.changes.add(schedule);
       this.waits.add(cancel);
       if (this.closing) {
@@ -191,9 +223,7 @@ export class PiTerminal {
     await this.writes;
 
     if (this.code !== undefined && !this.closing) {
-      throw new Error(
-        `PTY process exited with ${this.code}:\n${this.output.slice(-12000)}`,
-      );
+      throw new PtyExitedError(this.code, this.output);
     }
 
     const buffer = this.terminal.buffer.active;

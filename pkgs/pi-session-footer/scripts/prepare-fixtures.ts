@@ -11,6 +11,16 @@ import { execFileSync } from "node:child_process";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+class IdleProbeInsertionError extends Error {
+  readonly path: string;
+
+  constructor(path: string) {
+    super(`Cannot find the end of the quota fixture's extension in ${path}`);
+    this.name = "IdleProbeInsertionError";
+    this.path = path;
+  }
+}
+
 const root = fileURLToPath(new URL("../", import.meta.url));
 
 for (const [name, dependency] of [
@@ -48,7 +58,7 @@ for (const [name, dependency] of [
     const source = readFileSync(path, "utf8");
     const end = source.lastIndexOf("\n}");
     if (end < 0) {
-      throw new Error("Cannot add the quota fixture's idle probe.");
+      throw new IdleProbeInsertionError(path);
     }
     writeFileSync(
       path,

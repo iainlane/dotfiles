@@ -20,13 +20,14 @@ it.for([
     args: ["--preset", "unknown"],
     status: 1,
     stdout: "",
-    error: "Error: Expected --preset rich, compact, minimal or workflow",
+    error:
+      "InvalidPresetOptionError: Expected --preset rich, compact, minimal or workflow",
   },
   {
     args: ["--theme", "unknown"],
     status: 1,
     stdout: "",
-    error: "Error: Expected --theme dark or --theme light",
+    error: "InvalidThemeOptionError: Expected --theme dark or --theme light",
   },
 ])(
   "runs the plain Node CLI for $args",

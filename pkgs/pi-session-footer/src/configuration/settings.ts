@@ -3,12 +3,21 @@ import {
   parseInline,
   parseSymbol,
   settingsRecord,
-  SettingsError,
   symbolText,
   type SymbolSetting,
   type WidgetAppearance,
 } from "./appearance.ts";
 import { record, text } from "#footer/shared/text.ts";
+import {
+  DuplicateWidgetError,
+  ExpectedObjectError,
+  ExpectedWidgetArrayError,
+  InvalidPersistenceError,
+  InvalidPlacementError,
+  SettingsError,
+  UnknownPresetError,
+  UnknownWidgetError,
+} from "./settings-errors.ts";
 
 export const DEFAULT_SYMBOLS: ReadonlyMap<string, string> = new Map([
   ["planning", "≡"],
@@ -155,10 +164,10 @@ function parsePlacement(value: unknown, field: string): WidgetPlacement {
     return value;
   }
   if (!record(value)) {
-    throw new SettingsError(field, "Expected a built-in widget ID or object");
+    throw new InvalidPlacementError(field);
   }
   if (!isSegmentId(value.id)) {
-    throw new SettingsError(`${field}.id`, "Unknown widget");
+    throw new UnknownWidgetError(`${field}.id`);
   }
   const appearance = parseAppearance(
     Object.fromEntries(Object.entries(value).filter(([key]) => key !== "id")),
@@ -180,7 +189,7 @@ function parseDocument(
   if (object.preset !== undefined) {
     const preset = PRESET_IDS.find((id) => id === object.preset);
     if (preset === undefined) {
-      throw new SettingsError("preset", "Unknown preset");
+      throw new UnknownPresetError();
     }
     document.preset = preset;
   }
@@ -190,7 +199,7 @@ function parseDocument(
       continue;
     }
     if (!Array.isArray(input)) {
-      throw new SettingsError(region, "Expected an array of widgets");
+      throw new ExpectedWidgetArrayError(region);
     }
     const placements = input.map((item: unknown, index) =>
       parsePlacement(item, `${region}[${index}]`),
@@ -199,13 +208,13 @@ function parseDocument(
       new Set(placements.map((placement) => widgetId(placement))).size !==
       placements.length
     ) {
-      throw new SettingsError(region, "Expected distinct widget IDs");
+      throw new DuplicateWidgetError(region);
     }
     document[region] = placements;
   }
   if (object.symbols !== undefined) {
     if (!record(object.symbols)) {
-      throw new SettingsError("symbols", "Expected an object");
+      throw new ExpectedObjectError("symbols");
     }
     const symbols = Object.entries(object.symbols).flatMap(
       ([source, input]) => {
@@ -243,7 +252,7 @@ function parseDocument(
   }
   if (object.persistence !== undefined) {
     if (object.persistence !== "local" && object.persistence !== "session") {
-      throw new SettingsError("persistence", "Expected local or session");
+      throw new InvalidPersistenceError();
     }
     document.persistence = object.persistence;
   }

@@ -4,7 +4,6 @@ import {
   WIDGET_ROLES,
   isThemeColour,
   parseColour,
-  SettingsError,
   symbolText,
   type Colour,
   type SymbolAlias,
@@ -44,6 +43,13 @@ function colourLabel(colour: Colour | undefined): string {
   }
   return isThemeColour(colour) ? FOREGROUND_COLOURS[colour] : colour;
 }
+export class InvalidHexColourError extends Error {
+  constructor(readonly value: string) {
+    super("Use #RRGGBB");
+    this.name = "InvalidHexColourError";
+  }
+}
+
 export class AppearancePages {
   constructor(
     private readonly env: CustomiserEnvironment,
@@ -352,7 +358,7 @@ export class AppearancePages {
   ): CustomiserInput {
     const change = (value: string) => {
       if (!/^#[\da-f]{6}$/i.test(value)) {
-        throw new SettingsError("colour", "Use #RRGGBB");
+        throw new InvalidHexColourError(value);
       }
       this.env.transaction.preview(
         this.colourDocument(
