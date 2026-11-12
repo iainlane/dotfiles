@@ -4,7 +4,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -42,9 +41,9 @@ def probe():
 
 if len(sys.argv) > 1 and sys.argv[1] == "--retained":
     agent, root = map(Path, sys.argv[2:])
-    deadline = time.monotonic() + 20
-    while not (root / "release-child").exists() and time.monotonic() < deadline:
-        time.sleep(0.025)
+    # Both paths are FIFOs. The read returns when the test closes its end
+    # after the launcher has exited, and the write blocks until the test reads.
+    (root / "release-child").read_bytes()
     (root / "retained-child").write_text((agent / "settings.json").read_text())
     sys.exit()
 
@@ -182,13 +181,13 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(normal, {**preview, "defaultSessionDir": "~/.pi/agent/sessions/subagent"})
 
     def test_detached_child_reads_after_parent_exit(self):
+        release = self.root / "release-child"
+        retained = self.root / "retained-child"
+        os.mkfifo(release)
+        os.mkfifo(retained)
         result, _ = self.run_launcher("--detach")
         self.assertEqual(result.returncode, 0)
-        (self.root / "release-child").touch()
-        retained = self.root / "retained-child"
-        deadline = time.monotonic() + 10
-        while not retained.exists() and time.monotonic() < deadline:
-            time.sleep(0.025)
+        release.write_bytes(b"")
         self.assertEqual(retained.read_bytes(), (Path(PREVIEW) / ".pi/agent/settings.json").read_bytes())
 
     def test_failure_and_repeated_launches(self):
