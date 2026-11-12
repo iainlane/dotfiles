@@ -143,3 +143,91 @@ for program in "$invalid_registry" "$invalid_github"; do
 	unchanged
 	test ! -e "$PI_UPDATER_NPM_CALLS"
 done
+
+export PI_UPDATER_EXPECT_PATCH=0
+upstream="$fixture/upstream"
+git init -q -b main "$upstream"
+git -C "$upstream" config uploadpack.allowReachableSHA1InWant true
+git -C "$upstream" config uploadpack.allowFilter true
+
+commit() {
+	git -C "$upstream" -c user.name=Fixture -c user.email=fixture@example.invalid commit -q --allow-empty -m "$1"
+	git -C "$upstream" rev-parse HEAD
+}
+
+base="$(commit base)"
+pinned="$(commit pinned)"
+released="$(commit released)"
+git -C "$upstream" switch -q -c unrelated "$base"
+unrelated="$(commit unrelated)"
+
+export PI_UPDATER_GIT_REMOTE="$upstream"
+export PI_UPDATER_REPOSITORY='{"type":"git","url":"git+https://github.com/fixture/fixture.git","directory":"packages/fixture"}'
+export PI_UPDATER_GIT_HEAD="$unrelated"
+
+make_commit_archive() {
+	local root="$fixture/commit-archive/fixture-$pinned"
+
+	rm -rf "$fixture/commit-archive"
+	mkdir -p "$root/packages/fixture/scripts"
+	printf '%s\n' '{"name":"fixture","version":"2.0.0"}' >"$root/packages/fixture/package.json"
+	printf '%s\n' '{"commit":true}' >"$root/packages/fixture/scripts/metadata.json"
+	printf '%s\n' '{"name":"monorepo","workspaces":["packages/*"]}' >"$root/package.json"
+	tar -czf "$PI_UPDATER_ARCHIVE" -C "$fixture/commit-archive" "fixture-$pinned"
+}
+
+for program in "$registry" "$github"; do
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}}}' >"$PI_UPDATER_LOCK"
+	make_commit_archive
+	reset_outputs
+
+	if "$program" --pin "${pinned:0:7}"; then
+		echo 'An abbreviated commit must fail the updater' >&2
+		exit 1
+	fi
+	unchanged
+
+	"$program" --pin "$pinned"
+	grep -Fx "https://github.com/fixture/fixture/archive/$pinned.tar.gz" "$PI_UPDATER_URL"
+	jq --sort-keys --arg rev "$pinned" '.pin = {
+		owner: "fixture",
+		repo: "fixture",
+		directory: "packages/fixture",
+		rev: $rev,
+		hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		version: "2.0.0"
+	}' "$fixture/old-source.json" >"$fixture/expected-source.json"
+	jq --sort-keys . source.json | cmp "$fixture/expected-source.json" -
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	printf '%s\n' '{"commit":true}' | cmp - metadata.json
+	cp source.json "$fixture/pinned-source.json"
+	cp npm-deps/package-lock.json "$fixture/pinned-lock.json"
+
+	for arguments in '' --force; do
+		# shellcheck disable=SC2086
+		"$program" $arguments
+		cmp "$fixture/pinned-source.json" source.json
+		cmp "$fixture/pinned-lock.json" npm-deps/package-lock.json
+	done
+
+	PI_UPDATER_GIT_HEAD='' "$program"
+	cmp "$fixture/pinned-source.json" source.json
+
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"refreshed":true}' >"$PI_UPDATER_LOCK"
+	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --refresh
+	cmp "$fixture/pinned-source.json" source.json
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	grep -Fx "https://github.com/fixture/fixture/archive/$pinned.tar.gz" "$PI_UPDATER_URL"
+
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}}}' >"$PI_UPDATER_LOCK"
+	make_archive
+	PI_UPDATER_GIT_HEAD="$released" "$program"
+	if [[ "$program" == "$registry" ]]; then
+		printf '%s\n' '{"tarballHash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","version":"2.0.0"}' >"$fixture/expected-source.json"
+	else
+		printf '%s\n' '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","tag":"v2.0.0","version":"2.0.0"}' >"$fixture/expected-source.json"
+	fi
+	jq --sort-keys . source.json | cmp <(jq --sort-keys . "$fixture/expected-source.json") -
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	cmp "$fixture/archive/package/scripts/metadata.json" metadata.json
+done

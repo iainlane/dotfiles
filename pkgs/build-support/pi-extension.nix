@@ -12,7 +12,9 @@
   updaters,
   # The npm package name, scope included.
   npmName,
-  # JSON with a version and either a GitHub source hash or a tarball hash.
+  # JSON with a version and either a GitHub source hash or a tarball hash. An
+  # optional `pin` replaces the release with an unreleased upstream commit;
+  # `update-<pname> --pin` writes it.
   source,
   # The directory containing the lockfile.
   npmRoot,
@@ -28,6 +30,8 @@
   omitOptional ? true,
 }: let
   pin = lib.importJSON source;
+  commitPin = pin.pin or null;
+  inherit (pin.pin or pin) version;
 
   # `overlays/local-pkgs.nix` derives each package's attribute from its
   # directory, so a scoped extension is packaged under its basename alone.
@@ -54,8 +58,7 @@
 in
   buildNpmPackage (finalAttrs:
     {
-      inherit pname;
-      inherit (pin) version;
+      inherit pname version;
 
       nativeBuildInputs = lib.optional (npmDependencies != {}) jq;
 
@@ -68,7 +71,17 @@ in
       '';
 
       src =
-        if gitHub != null
+        if commitPin != null
+        then
+          fetchFromGitHub ({
+              inherit (commitPin) owner repo rev hash;
+            }
+            # Inside a workspace member, npm reads and writes the workspace
+            # root's lockfile. Fetch only the package's own directory.
+            // lib.optionalAttrs (commitPin ? directory) {
+              rootDir = commitPin.directory;
+            })
+        else if gitHub != null
         then
           fetchFromGitHub {
             inherit (gitHub) owner repo;
@@ -122,7 +135,7 @@ in
 
         npmTarball = callPackage ./npm-tarball.nix {} {
           name = npmName;
-          inherit (pin) version;
+          inherit version;
           directory = "${finalAttrs.finalPackage}/${packageRoot}";
         };
 
@@ -146,13 +159,13 @@ in
           platforms = lib.platforms.unix;
           identifiers.purlParts = npmPackages.purlParts {
             name = npmName;
-            inherit (pin) version;
+            inherit version;
           };
         }
         // lib.optionalAttrs (license != null) {
           inherit license;
         };
     }
-    // lib.optionalAttrs (gitHub == null) {
+    // lib.optionalAttrs (gitHub == null && commitPin == null) {
       sourceRoot = "package";
     })
