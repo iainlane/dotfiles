@@ -16,6 +16,11 @@ export default defineConfig({
   resolve: { alias: aliases },
   test: {
     fileParallelism: false,
+    // A test that never finishes never runs its onTestFinished hooks, which
+    // print the terminal screen and close Pi. The limits make a hung test
+    // fail and report what it was waiting for.
+    testTimeout: 600_000,
+    hookTimeout: 600_000,
     projects: [
       {
         extends: true,
@@ -29,8 +34,6 @@ export default defineConfig({
         test: {
           name: "integration",
           include: ["test/integration/**/*.test.ts"],
-          testTimeout: 0,
-          hookTimeout: 0,
         },
       },
     ],

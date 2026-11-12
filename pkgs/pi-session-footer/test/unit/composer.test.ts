@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { expect, it, vi } from "vitest";
 import {
   CURSOR_MARKER,
@@ -252,7 +253,10 @@ it.each([
     });
     editor.handleInput("/");
     editor.handleInput("a");
-    await vi.waitFor(() => expect(editor.isShowingAutocomplete()).toBe(true));
+    // The editor applies suggestions in promise callbacks, which all run
+    // before the next macrotask.
+    await setImmediate();
+    expect(editor.isShowingAutocomplete()).toBe(true);
     const lines = editor.render(40);
 
     expect(plain(lines).slice(0, 2)).toStrictEqual([

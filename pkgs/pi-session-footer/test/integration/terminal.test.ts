@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { expect, it } from "vitest";
+import { untilGone } from "#test/support/process-group.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
 
 const cwd = fileURLToPath(new URL("../../", import.meta.url));
@@ -38,21 +39,17 @@ function existingPids(ids: number[]): number[] {
 
 it("preserves real PTY dimensions, resize and Unicode input", async () => {
   const child = terminal("echo");
-  try {
-    await child.until((screen) =>
-      expect(screen.join("\n")).toContain("ready:80x24"),
-    );
-    child.resize(91, 17);
-    await child.until((screen) =>
-      expect(screen.join("\n")).toContain("size:91x17"),
-    );
-    child.input("fixture 界é");
-    await child.until((screen) =>
-      expect(screen.join("\n")).toContain("input:fixture 界é"),
-    );
-  } finally {
-    await child.close();
-  }
+  await child.until((screen) =>
+    expect(screen.join("\n")).toContain("ready:80x24"),
+  );
+  child.resize(91, 17);
+  await child.until((screen) =>
+    expect(screen.join("\n")).toContain("size:91x17"),
+  );
+  child.input("fixture 界é");
+  await child.until((screen) =>
+    expect(screen.join("\n")).toContain("input:fixture 界é"),
+  );
 });
 
 it.each(["descendants-stubborn", "all-stubborn", "leader-exited"])(
@@ -60,25 +57,6 @@ it.each(["descendants-stubborn", "all-stubborn", "leader-exited"])(
   async (mode) => {
     const child = terminal(mode);
     let ids: number[] = [];
-    onTestFinished(async () => {
-      const leader = ids[0];
-      if (leader !== undefined) {
-        try {
-          process.kill(-leader, "SIGKILL");
-        } catch (error) {
-          if (
-            !(
-              error instanceof Error &&
-              "code" in error &&
-              error.code === "ESRCH"
-            )
-          ) {
-            throw error;
-          }
-        }
-      }
-      await child.close();
-    });
     await child.until((screen) => {
       const matches = [
         ...screen.join("\n").matchAll(/process:(\d):(\d+)/g),
@@ -88,9 +66,7 @@ it.each(["descendants-stubborn", "all-stubborn", "leader-exited"])(
     });
     if (mode === "leader-exited") {
       child.input("exit\r");
-      await vi.waitUntil(() => existingPids(ids.slice(0, 1)).length === 0, {
-        timeout: 5000,
-      });
+      await untilGone(() => existingPids(ids.slice(0, 1)).length > 0);
     }
     expect(existingPids(ids.slice(0, 1))).toStrictEqual(
       mode === "leader-exited" ? [] : ids.slice(0, 1),

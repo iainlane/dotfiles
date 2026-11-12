@@ -16,42 +16,38 @@ it.each(["rich", "minimal"])(
       columns: 100,
       rows: 24,
     });
-    try {
-      await terminal.until((screen) => {
-        expect(screen.join("\n")).toContain(demoFixture.git.branch);
-        expect(screen.join("\n")).toContain("╭─");
+    await terminal.until((screen) => {
+      expect(screen.join("\n")).toContain(demoFixture.git.branch);
+      expect(screen.join("\n")).toContain("╭─");
+    });
+    terminal.input(`${demoFixture.prompt}\r`);
+    await terminal.until((screen) => {
+      const value = screen.join("\n");
+      expect({
+        response: value.includes(
+          demoFixture.response.map((chunk) => chunk.text).join(""),
+        ),
+        context: value.includes("◫"),
+        cache: value.includes(
+          ` ${((demoFixture.usage.cachedTokens / demoFixture.usage.promptTokens) * 100).toFixed(1)}%`,
+        ),
+      }).toStrictEqual({
+        response: true,
+        context: true,
+        cache: preset === "rich",
       });
-      terminal.input(`${demoFixture.prompt}\r`);
-      await terminal.until((screen) => {
-        const value = screen.join("\n");
-        expect({
-          response: value.includes(
-            demoFixture.response.map((chunk) => chunk.text).join(""),
-          ),
-          context: value.includes("◫"),
-          cache: value.includes(
-            ` ${((demoFixture.usage.cachedTokens / demoFixture.usage.promptTokens) * 100).toFixed(1)}%`,
-          ),
-        }).toStrictEqual({
-          response: true,
-          context: true,
-          cache: preset === "rich",
-        });
-      });
-      terminal.input("/footer help\r");
-      await terminal.until((screen) => {
-        expect(screen.join("\n")).toContain("/footer explain");
-        expect(screen.join("\n")).not.toContain("Extension errors");
-      });
-    } catch (error) {
-      throw new Error((await terminal.screen()).join("\n"), { cause: error });
-    } finally {
-      await terminal.close();
-    }
+    });
+    terminal.input("/footer help\r");
+    await terminal.until((screen) => {
+      expect(screen.join("\n")).toContain("/footer explain");
+      expect(screen.join("\n")).not.toContain("Extension errors");
+    });
   },
 );
 
-it("exits after closing a provider with a delayed response", async () => {
+it("exits after closing a provider with a delayed response", async ({
+  signal,
+}) => {
   const provider = new URL(import.meta.resolve("#demo/provider.ts")).href;
   const fixture = new URL(import.meta.resolve("#demo/fixture.ts")).href;
   const { stdout } = await promisify(execFile)(
@@ -74,7 +70,7 @@ it("exits after closing a provider with a delayed response", async () => {
     console.log("closed");
   `,
     ],
-    { encoding: "utf8", timeout: 30_000 },
+    { encoding: "utf8", signal },
   );
   expect(stdout).toBe("closed\n");
 });
