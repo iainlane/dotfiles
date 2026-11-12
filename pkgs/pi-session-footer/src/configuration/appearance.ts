@@ -2,6 +2,19 @@ import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import type { SegmentId } from "./settings.ts";
 import { record, text } from "#footer/shared/text.ts";
+import {
+  ExpectedObjectError,
+  InlineTextTooWideError,
+  InvalidColourError,
+  InvalidInlineTextError,
+  MultiColumnSymbolError,
+  SymbolNotAllowedError,
+  SymbolTextAndAliasError,
+  TextColourNotAllowedError,
+  UnknownSettingError,
+  UnknownSymbolAliasError,
+  UnknownWidgetPartError,
+} from "./settings-errors.ts";
 
 export const FOREGROUND_COLOURS = {
   accent: "Accent",
@@ -214,27 +227,17 @@ export const WIDGET_ROLES: Readonly<
   "compaction-duration": {},
 };
 
-export class SettingsError extends Error {
-  constructor(
-    readonly field: string,
-    readonly reason: string,
-  ) {
-    super(`${field}: ${reason}`);
-    this.name = "SettingsError";
-  }
-}
-
 export function settingsRecord(
   value: unknown,
   field: string,
   keys: readonly string[],
 ): Record<string, unknown> {
   if (!record(value)) {
-    throw new SettingsError(field, "Expected an object");
+    throw new ExpectedObjectError(field);
   }
   const extra = Object.keys(value).find((key) => !keys.includes(key));
   if (extra !== undefined) {
-    throw new SettingsError(`${field}.${text(extra, 80)}`, "Unknown setting");
+    throw new UnknownSettingError(`${field}.${text(extra, 80)}`);
   }
   return value;
 }
@@ -252,10 +255,7 @@ export function parseColour(value: unknown, field: string): Colour {
   ) {
     return value;
   }
-  throw new SettingsError(
-    field,
-    "Expected a foreground theme colour or #RRGGBB",
-  );
+  throw new InvalidColourError(field);
 }
 export function parseInline(
   value: unknown,
@@ -269,13 +269,10 @@ export function parseInline(
     (value !== "" && visibleWidth(value) < 1) ||
     (!allowEmpty && (!value.trim() || value !== value.trim()))
   ) {
-    throw new SettingsError(
-      field,
-      "Expected safe inline text of one to eight columns",
-    );
+    throw new InvalidInlineTextError(field);
   }
   if (visibleWidth(value) > 8) {
-    throw new SettingsError(field, "Expected at most 8 columns");
+    throw new InlineTextTooWideError(field);
   }
   return value;
 }
@@ -291,7 +288,7 @@ export function parseSymbol(
   }
   const object = settingsRecord(value, field, ["text", "alias", "colour"]);
   if (object.text !== undefined && object.alias !== undefined) {
-    throw new SettingsError(field, "Expected text or alias, not both");
+    throw new SymbolTextAndAliasError(field);
   }
   const result: SymbolAppearance = {};
   if (object.text !== undefined) {
@@ -299,7 +296,7 @@ export function parseSymbol(
   }
   if (object.alias !== undefined) {
     if (!isSymbolAlias(object.alias)) {
-      throw new SettingsError(`${field}.alias`, "Unknown symbol alias");
+      throw new UnknownSymbolAliasError(`${field}.alias`);
     }
     result.alias = object.alias;
   }
@@ -335,10 +332,7 @@ function parseDecoration(
   }
   if (value.symbol !== undefined) {
     if (!symbolAllowed) {
-      throw new SettingsError(
-        `${field}.symbol`,
-        "This part has no decorative symbol",
-      );
+      throw new SymbolNotAllowedError(`${field}.symbol`);
     }
     const symbol = parseSymbol(value.symbol, `${field}.symbol`);
     if (symbol !== undefined) {
@@ -358,7 +352,7 @@ export function parseAppearance(
     return result;
   }
   if (!record(object.roles)) {
-    throw new SettingsError(`${field}.roles`, "Expected an object");
+    throw new ExpectedObjectError(`${field}.roles`);
   }
   const definitions = WIDGET_ROLES[id];
   const roles = Object.entries(object.roles).flatMap(([key, role]) => {
@@ -367,7 +361,7 @@ export function parseAppearance(
       : undefined;
     const location = `${field}.roles.${text(key, 80)}`;
     if (!definition) {
-      throw new SettingsError(location, "Unknown widget part");
+      throw new UnknownWidgetPartError(location);
     }
     const appearance = parseDecoration(
       settingsRecord(role, location, ["colour", "symbol"]),
@@ -375,7 +369,7 @@ export function parseAppearance(
       definition.symbol,
     );
     if (!definition.text && appearance.colour !== undefined) {
-      throw new SettingsError(`${location}.colour`, "This part has no text");
+      throw new TextColourNotAllowedError(`${location}.colour`);
     }
     const symbol = symbolText(appearance.symbol, "");
     if (
@@ -383,10 +377,7 @@ export function parseAppearance(
       symbol !== "" &&
       visibleWidth(symbol) !== 1
     ) {
-      throw new SettingsError(
-        `${location}.symbol`,
-        "Expected a single-column symbol",
-      );
+      throw new MultiColumnSymbolError(`${location}.symbol`);
     }
     return Object.keys(appearance).length > 0
       ? [[key, appearance] as const]

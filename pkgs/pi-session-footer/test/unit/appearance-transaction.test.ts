@@ -4,11 +4,13 @@ import {
   type AppearanceEffects,
 } from "#footer/configuration/appearance-transaction.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
+import { ExpectedObjectError } from "#footer/configuration/settings-errors.ts";
 import {
-  SettingsStoreError,
+  SettingsWriteError,
   type SettingsSnapshot,
   type SettingsStore,
 } from "#footer/configuration/settings-store.ts";
+import { thrown } from "#test/support/thrown.ts";
 
 function fixture() {
   const loaded = loadSettings(
@@ -92,9 +94,9 @@ it("keeps field previews separate from accepted edits and persistent saving", ()
 it("preserves the last valid preview when a field is invalid", () => {
   const { transaction } = fixture();
   transaction.preview({ preset: "minimal" });
-  expect(() => transaction.preview({ separators: "invalid" })).toThrow(
-    "separators",
-  );
+  expect(
+    thrown(() => transaction.preview({ separators: "invalid" })),
+  ).toStrictEqual(new ExpectedObjectError("separators"));
   expect(transaction.presentation).toStrictEqual({ preset: "minimal" });
 });
 it("stages user-file removal and discards it on cancellation", () => {
@@ -144,11 +146,14 @@ it("converts a staged reset to a normal write when the base appearance is edited
 });
 it("keeps the draft open and unapplied after an I/O error", () => {
   const { transaction, effects, save } = fixture();
+  const error = new SettingsWriteError("/agent/session-footer.json", {
+    cause: Object.assign(new Error("Permission denied"), { code: "EACCES" }),
+  });
   save.mockImplementation(() => {
-    throw new SettingsStoreError("io", "Permission denied");
+    throw error;
   });
   transaction.replace({ preset: "compact" });
-  expect(() => transaction.save()).toThrow("Permission denied");
+  expect(thrown(() => transaction.save())).toBe(error);
   expect({
     draft: transaction.document,
     closed: transaction.closed,

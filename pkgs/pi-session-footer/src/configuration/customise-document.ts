@@ -18,6 +18,16 @@ import {
   type WidgetPlacement,
 } from "./settings.ts";
 
+export class WidgetNotInRegionError extends Error {
+  constructor(
+    readonly region: Region,
+    readonly id: SegmentId,
+  ) {
+    super("The widget is no longer in this row");
+    this.name = "WidgetNotInRegionError";
+  }
+}
+
 export type AppearanceTarget =
   | { kind: "placement"; region: Region; id: SegmentId; role?: string }
   | { kind: "source"; key: string };
@@ -73,7 +83,7 @@ function placement(
     (item) => widgetId(item) === target.id,
   );
   if (value === undefined) {
-    throw new Error("The widget is no longer in this row");
+    throw new WidgetNotInRegionError(target.region, target.id);
   }
   return value;
 }
@@ -113,7 +123,7 @@ export function decorationDocument(
     const index = items.findIndex((item) => widgetId(item) === target.id);
     const item = items[index];
     if (item === undefined) {
-      throw new Error("The widget is no longer in this row");
+      throw new WidgetNotInRegionError(target.region, target.id);
     }
     const appearance: WidgetAppearance =
       typeof item === "string" ? {} : { ...item };
@@ -193,7 +203,7 @@ export function resetAppearanceDocument(
   return regionDocument(input, target.region, (items) => {
     const index = items.findIndex((item) => widgetId(item) === target.id);
     if (index < 0) {
-      throw new Error("The widget is no longer in this row");
+      throw new WidgetNotInRegionError(target.region, target.id);
     }
     items[index] = target.id;
   });

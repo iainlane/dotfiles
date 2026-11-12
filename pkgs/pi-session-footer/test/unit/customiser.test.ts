@@ -8,7 +8,8 @@ import { createCustomiserRoot } from "#footer/ui/customiser/customiser-pages.ts"
 import type { CustomiserEnvironment } from "#footer/ui/customiser/customiser-page.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
 import {
-  SettingsStoreError,
+  ReadOnlySettingsDirectoryError,
+  SettingsWriteError,
   type SettingsSnapshot,
   type SettingsStore,
 } from "#footer/configuration/settings-store.ts";
@@ -248,7 +249,9 @@ it("keeps invalid custom text local and restores the accepted field on Escape", 
 it("retains the draft on save failure until session application is explicitly selected", () => {
   const h = fixture();
   h.save.mockImplementation(() => {
-    throw new SettingsStoreError("io", "Permission denied");
+    throw new SettingsWriteError(h.source.loaded.path, {
+      cause: Object.assign(new Error("Permission denied"), { code: "EACCES" }),
+    });
   });
   h.choose("Profile");
   h.choose("Compact");
@@ -269,13 +272,14 @@ it("retains the draft on save failure until session application is explicitly se
 });
 it("keeps an unavailable persistent destination distinct from session-only settings", () => {
   const h = fixture();
+  const problem = new ReadOnlySettingsDirectoryError("/agent");
   h.source.destination = {
     kind: "unavailable",
     path: h.source.loaded.path,
-    reason: "Directory is not writable",
+    problem,
   };
   h.save.mockImplementation(() => {
-    throw new SettingsStoreError("unavailable", "Directory is not writable");
+    throw problem;
   });
   h.choose("Profile");
   h.choose("Compact");

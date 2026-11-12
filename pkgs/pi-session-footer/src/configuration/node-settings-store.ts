@@ -24,9 +24,22 @@ import {
   resolveSettings,
   type PresentationDocument,
 } from "./settings.ts";
-import { SettingsError } from "./appearance.ts";
+import { SettingsError } from "./settings-errors.ts";
 import {
+  IrregularSettingsFileError,
+  ReadOnlySettingsDirectoryError,
+  ReadOnlySettingsFileError,
+  SessionOnlySettingsError,
+  SettingsConflictError,
+  SettingsDestinationChangedError,
+  SettingsReadError,
+  SettingsRemoveError,
   SettingsStoreError,
+  SettingsWriteError,
+  SymlinkSettingsFileError,
+  UnconfirmedCreateError,
+  UnconfirmedRemoveError,
+  UnconfirmedRepairError,
   type SaveDestination,
   type SettingsChange,
   type SettingsSnapshot,
@@ -47,10 +60,10 @@ type FileFingerprint = readonly [
   content: string | undefined,
   error: string | undefined,
 ];
-function readError(error: unknown): Error {
+function readError(path: string, error: unknown): Error {
   return error instanceof Error
     ? error
-    : new Error("Could not read settings", { cause: error });
+    : new SettingsReadError(path, { cause: error });
 }
 interface Inspection {
   snapshot: SettingsSnapshot;
@@ -74,7 +87,7 @@ function inspectFile(path: string): SettingsFile {
       kind: errorCode(error) === "ENOENT" ? "missing" : "other",
       stat: undefined,
       content: undefined,
-      error: errorCode(error) === "ENOENT" ? undefined : readError(error),
+      error: errorCode(error) === "ENOENT" ? undefined : readError(path, error),
     };
   }
   const kind = stat.isSymbolicLink()
@@ -84,10 +97,7 @@ function inspectFile(path: string): SettingsFile {
       : "other";
   try {
     if (kind === "other" || (kind === "symlink" && !statSync(path).isFile())) {
-      throw new SettingsStoreError(
-        "unavailable",
-        "Expected a regular settings file",
-      );
+      throw new IrregularSettingsFileError(path);
     }
     return {
       path,
@@ -97,7 +107,13 @@ function inspectFile(path: string): SettingsFile {
       error: undefined,
     };
   } catch (error) {
-    return { path, kind, stat, content: undefined, error: readError(error) };
+    return {
+      path,
+      kind,
+      stat,
+      content: undefined,
+      error: readError(path, error),
+    };
   }
 }
 function content(file: SettingsFile): string | undefined {
@@ -134,27 +150,29 @@ function fingerprint(file: SettingsFile): FileFingerprint {
     errorCode(file.error),
   ];
 }
+type FileDestination = Exclude<SaveDestination, { kind: "session" }>;
 function fileDestination(
   file: SettingsFile,
   newUserFile: boolean,
   repair: boolean,
-): SaveDestination {
-  const fail = (reason: string): SaveDestination => ({
+): FileDestination {
+  const fail = (problem: SettingsStoreError): FileDestination => ({
     kind: "unavailable",
     path: file.path,
-    reason,
+    problem,
   });
   if (file.kind === "symlink") {
-    return fail("Cannot save to a symbolic link");
+    return fail(new SymlinkSettingsFileError(file.path));
   }
   if (file.kind === "other") {
-    return fail("Expected a regular settings file");
+    return fail(new IrregularSettingsFileError(file.path));
   }
   if (file.kind === "file" && !accessible(file.path, constants.W_OK)) {
-    return fail("The settings file is not writable");
+    return fail(new ReadOnlySettingsFileError(file.path));
   }
-  if (!accessible(dirname(file.path), constants.W_OK | constants.X_OK)) {
-    return fail("The settings directory is not writable");
+  const directory = dirname(file.path);
+  if (!accessible(directory, constants.W_OK | constants.X_OK)) {
+    return fail(new ReadOnlySettingsDirectoryError(directory));
   }
   return { kind: "file", path: file.path, newUserFile, repair };
 }
@@ -253,16 +271,10 @@ export class NodeSettingsStore implements SettingsStore {
   private current(expected: SettingsSnapshot): Inspection {
     const current = this.inspect();
     if (current.snapshot.revision !== expected.revision) {
-      throw new SettingsStoreError(
-        "conflict",
-        "Settings changed on disk. Reopen the editor before saving",
-      );
+      throw new SettingsConflictError();
     }
     if (current.snapshot.destination.kind === "session") {
-      throw new SettingsStoreError(
-        "session",
-        "This profile uses session-only changes",
-      );
+      throw new SessionOnlySettingsError();
     }
     return current;
   }
@@ -273,13 +285,11 @@ export class NodeSettingsStore implements SettingsStore {
       return this.reset(current, change.confirmed === true);
     }
     const destination = current.snapshot.destination;
-    if (destination.kind !== "file") {
-      throw new SettingsStoreError(
-        "unavailable",
-        destination.kind === "unavailable"
-          ? destination.reason
-          : "This profile uses session-only changes",
-      );
+    if (destination.kind === "session") {
+      throw new SessionOnlySettingsError();
+    }
+    if (destination.kind === "unavailable") {
+      throw destination.problem;
     }
     const document = parsePresentationDocument(change.document);
     if (
@@ -292,16 +302,10 @@ export class NodeSettingsStore implements SettingsStore {
       return current.snapshot;
     }
     if (destination.newUserFile && change.confirmed !== true) {
-      throw new SettingsStoreError(
-        "confirmation",
-        "Confirm creating user settings",
-      );
+      throw new UnconfirmedCreateError(destination.path);
     }
     if (destination.repair && change.confirmed !== true) {
-      throw new SettingsStoreError(
-        "confirmation",
-        "Confirm replacing invalid settings",
-      );
+      throw new UnconfirmedRepairError(destination.path);
     }
     const saved =
       destination.path === current.base.path &&
@@ -347,24 +351,18 @@ export class NodeSettingsStore implements SettingsStore {
       descriptor = undefined;
       closeSync(descriptorToClose);
       const checked = this.current(expected).snapshot.destination;
+      if (checked.kind === "unavailable") {
+        throw checked.problem;
+      }
       if (checked.kind !== "file" || checked.path !== target.path) {
-        throw new SettingsStoreError(
-          "unavailable",
-          checked.kind === "unavailable"
-            ? checked.reason
-            : "The settings destination changed",
-        );
+        throw new SettingsDestinationChangedError(target.path);
       }
       renameSync(temporary, target.path);
     } catch (error) {
       if (error instanceof SettingsStoreError) {
         throw error;
       }
-      throw new SettingsStoreError(
-        "io",
-        `Could not save ${target.path}: ${errorCode(error) ?? "I/O error"}`,
-        { cause: error },
-      );
+      throw new SettingsWriteError(target.path, { cause: error });
     } finally {
       if (descriptor !== undefined) {
         closeSync(descriptor);
@@ -378,29 +376,17 @@ export class NodeSettingsStore implements SettingsStore {
       return current.snapshot;
     }
     const destination = fileDestination(current.user, false, false);
-    if (destination.kind !== "file") {
-      throw new SettingsStoreError(
-        "unavailable",
-        destination.kind === "unavailable"
-          ? destination.reason
-          : "Cannot remove user settings",
-      );
+    if (destination.kind === "unavailable") {
+      throw destination.problem;
     }
     if (!confirmed) {
-      throw new SettingsStoreError(
-        "confirmation",
-        "Confirm removing user settings",
-      );
+      throw new UnconfirmedRemoveError(current.user.path);
     }
     this.current(current.snapshot);
     try {
       rmSync(current.user.path);
     } catch (error) {
-      throw new SettingsStoreError(
-        "io",
-        `Could not remove ${current.user.path}: ${errorCode(error) ?? "I/O error"}`,
-        { cause: error },
-      );
+      throw new SettingsRemoveError(current.user.path, { cause: error });
     }
     return this.load();
   }

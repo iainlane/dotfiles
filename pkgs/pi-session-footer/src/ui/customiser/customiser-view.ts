@@ -7,10 +7,8 @@ import {
   truncateToWidth,
   type Focusable,
 } from "@earendil-works/pi-tui";
-import {
-  isThemeColour,
-  SettingsError,
-} from "#footer/configuration/appearance.ts";
+import { isThemeColour } from "#footer/configuration/appearance.ts";
+import { SettingsError } from "#footer/configuration/settings-errors.ts";
 import type { DockView } from "#footer/ui/dock/dock-host.ts";
 import type {
   CustomiserEnvironment,
@@ -34,9 +32,15 @@ interface PageState {
 }
 function localError(error: unknown): string {
   if (error instanceof SettingsError) {
-    return error.reason;
+    return error.problem;
   }
   return error instanceof Error ? error.message : "Cannot update this setting";
+}
+export class MenuPageExpectedError extends Error {
+  constructor(readonly kind: CustomiserPage["kind"]) {
+    super(`Expected a menu page, not ${kind}`);
+    this.name = "MenuPageExpectedError";
+  }
 }
 function pageState(page: CustomiserPage): PageState {
   const input = new Input();
@@ -118,7 +122,7 @@ export class CustomiserView
     const state = this.current;
     const page = state.page;
     if (page.kind !== "menu") {
-      throw new Error("Expected a menu page");
+      throw new MenuPageExpectedError(page.kind);
     }
     if (state.list && state.capacity === capacity) {
       return state.list;

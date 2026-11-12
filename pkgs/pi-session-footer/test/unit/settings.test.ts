@@ -5,6 +5,16 @@ import {
   PRESETS,
   resolveSettings,
 } from "#footer/configuration/settings.ts";
+import {
+  DuplicateWidgetError,
+  ExpectedObjectError,
+  ExpectedWidgetArrayError,
+  InvalidInlineTextError,
+  InvalidPlacementError,
+  UnknownPresetError,
+  UnknownSettingError,
+} from "#footer/configuration/settings-errors.ts";
+import { thrown } from "#test/support/thrown.ts";
 
 it.each(["rich", "compact", "minimal", "workflow"] as const)(
   "resolves %s without sharing mutable arrays",
@@ -32,15 +42,24 @@ it("replaces only explicit regions and permits cross-region repetition", () => {
   });
 });
 it.each([
-  null,
-  [],
-  { preset: "other" },
-  { extra: true },
-  { "top-left": "model" },
-  { "top-left": ["missing"] },
-  { "top-left": ["model", "model"] },
-])("rejects invalid configuration atomically: %j", (value) => {
-  expect(() => resolveSettings(value)).toThrow(/Expected|Unknown/);
+  { value: null, error: new ExpectedObjectError("settings") },
+  { value: [], error: new ExpectedObjectError("settings") },
+  { value: { preset: "other" }, error: new UnknownPresetError() },
+  { value: { extra: true }, error: new UnknownSettingError("settings.extra") },
+  {
+    value: { "top-left": "model" },
+    error: new ExpectedWidgetArrayError("top-left"),
+  },
+  {
+    value: { "top-left": ["missing"] },
+    error: new InvalidPlacementError("top-left[0]"),
+  },
+  {
+    value: { "top-left": ["model", "model"] },
+    error: new DuplicateWidgetError("top-left"),
+  },
+])("rejects invalid configuration atomically: $value", ({ value, error }) => {
+  expect(thrown(() => resolveSettings(value))).toStrictEqual(error);
 });
 it.each(["{", '{"preset":"bad"}'])(
   "retains a safe actionable diagnostic for %s",
@@ -117,19 +136,31 @@ it.each([
 ])("accepts optional expanded separators %j", (separators) => {
   expect(resolveSettings({ separators }).separators).toStrictEqual(separators);
 });
-it.each([" · ", null, { widgets: "\n" }, { extra: "x" }])(
-  "rejects invalid separators %j",
-  (separators) => {
-    expect(() => resolveSettings({ separators })).toThrow(/Expected|Unknown/);
+it.each([
+  { separators: " · ", error: new ExpectedObjectError("separators") },
+  { separators: null, error: new ExpectedObjectError("separators") },
+  {
+    separators: { widgets: "\n" },
+    error: new InvalidInlineTextError("separators.widgets"),
   },
-);
+  {
+    separators: { extra: "x" },
+    error: new UnknownSettingError("separators.extra"),
+  },
+])("rejects invalid separators $separators", ({ separators, error }) => {
+  expect(thrown(() => resolveSettings({ separators }))).toStrictEqual(error);
+});
 it.each(["local", "session"])("resolves persistence %s", (persistence) => {
   expect(resolveSettings({ persistence }).persistence).toBe(persistence);
 });
 it("rejects duplicate widget IDs across string and object forms", () => {
-  expect(() =>
-    resolveSettings({ "top-left": ["git", { id: "git", colour: "accent" }] }),
-  ).toThrow("top-left");
+  expect(
+    thrown(() =>
+      resolveSettings({
+        "top-left": ["git", { id: "git", colour: "accent" }],
+      }),
+    ),
+  ).toStrictEqual(new DuplicateWidgetError("top-left"));
 });
 it("retains only explicit document settings and normalises empty appearance", () => {
   const loaded = loadSettings(

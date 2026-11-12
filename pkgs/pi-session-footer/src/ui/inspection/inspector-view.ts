@@ -61,6 +61,13 @@ function pageState(page: InspectionPage): PageState {
     rows: [],
   };
 }
+export class EmptyInspectorError extends Error {
+  constructor() {
+    super("The inspector has no current page");
+    this.name = "EmptyInspectorError";
+  }
+}
+
 class InspectorView implements InspectionNavigation {
   private readonly pages: InspectionPages;
   private readonly saved = new Map<InspectorSection, PageState[]>();
@@ -102,7 +109,7 @@ class InspectorView implements InspectionNavigation {
   private get current(): PageState {
     const value = this.stack.at(-1);
     if (!value) {
-      throw new Error("The inspector has no current page");
+      throw new EmptyInspectorError();
     }
     return value;
   }

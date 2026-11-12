@@ -20,7 +20,19 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NodeSettingsStore } from "#footer/configuration/node-settings-store.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
-import { SettingsStoreError } from "#footer/configuration/settings-store.ts";
+import {
+  IrregularSettingsFileError,
+  ReadOnlySettingsDirectoryError,
+  ReadOnlySettingsFileError,
+  SessionOnlySettingsError,
+  SettingsConflictError,
+  SettingsWriteError,
+  SymlinkSettingsFileError,
+  UnconfirmedCreateError,
+  UnconfirmedRemoveError,
+  UnconfirmedRepairError,
+} from "#footer/configuration/settings-store.ts";
+import { thrown } from "#test/support/thrown.ts";
 
 vi.mock("node:fs", async (original) => {
   const fs = await original<typeof import("node:fs")>();
@@ -127,9 +139,14 @@ it("creates confirmed local preferences beside a symlink without changing its ta
     newUserFile: true,
     repair: false,
   });
-  expect(() =>
-    h.store.save(snapshot, { kind: "write", document: { preset: "compact" } }),
-  ).toThrow("Confirm creating user settings");
+  expect(
+    thrown(() =>
+      h.store.save(snapshot, {
+        kind: "write",
+        document: { preset: "compact" },
+      }),
+    ),
+  ).toStrictEqual(new UnconfirmedCreateError(h.user));
   h.store.save(snapshot, {
     kind: "write",
     document: { preset: "compact" },
@@ -175,12 +192,14 @@ it.each(["base", "user"] as const)(
     }
     const initial = h.store.load();
     json(h[file], { preset: "minimal" });
-    expect(() =>
-      h.store.save(initial, {
-        kind: "write",
-        document: { preset: "workflow" },
-      }),
-    ).toThrow("Settings changed on disk");
+    expect(
+      thrown(() =>
+        h.store.save(initial, {
+          kind: "write",
+          document: { preset: "workflow" },
+        }),
+      ),
+    ).toStrictEqual(new SettingsConflictError());
     expect(readJson(h[file])).toStrictEqual({ preset: "minimal" });
   },
 );
@@ -192,14 +211,20 @@ it("refuses an active user symlink even if its target is writable", () => {
   json(target, { preset: "compact" });
   symlinkSync(target, h.user);
   const snapshot = h.store.load();
+  const problem = new SymlinkSettingsFileError(h.user);
   expect(snapshot.destination).toStrictEqual({
     kind: "unavailable",
     path: h.user,
-    reason: "Cannot save to a symbolic link",
+    problem,
   });
-  expect(() =>
-    h.store.save(snapshot, { kind: "write", document: { preset: "minimal" } }),
-  ).toThrow("Cannot save to a symbolic link");
+  expect(
+    thrown(() =>
+      h.store.save(snapshot, {
+        kind: "write",
+        document: { preset: "minimal" },
+      }),
+    ),
+  ).toStrictEqual(problem);
   expect({
     link: lstatSync(h.user).isSymbolicLink(),
     target: readJson(target),
@@ -214,13 +239,15 @@ it("rejects a destination that becomes a link while editing", () => {
   json(target, { preset: "minimal" });
   rmSync(h.base);
   symlinkSync(target, h.base);
-  expect(() =>
-    h.store.save(initial, {
-      kind: "write",
-      document: { preset: "compact" },
-      confirmed: true,
-    }),
-  ).toThrow("Settings changed on disk");
+  expect(
+    thrown(() =>
+      h.store.save(initial, {
+        kind: "write",
+        document: { preset: "compact" },
+        confirmed: true,
+      }),
+    ),
+  ).toStrictEqual(new SettingsConflictError());
   expect({
     link: lstatSync(h.base).isSymbolicLink(),
     target: readJson(target),
@@ -238,23 +265,31 @@ it("offers a sibling file when the regular base is not writable", () => {
     repair: false,
   });
 });
-it.each(["user", "root"] as const)(
-  "refuses saving when %s is not writable",
-  (file) => {
-    const h = harness();
-    json(h.base, { preset: "rich" });
-    json(h.user, { preset: "compact" });
-    denied.add(h[file]);
-    const snapshot = h.store.load();
-    expect(() =>
+it.each([
+  {
+    file: "user",
+    error: (path: string) => new ReadOnlySettingsFileError(path),
+  },
+  {
+    file: "root",
+    error: (path: string) => new ReadOnlySettingsDirectoryError(path),
+  },
+] as const)("refuses saving when $file is not writable", ({ file, error }) => {
+  const h = harness();
+  json(h.base, { preset: "rich" });
+  json(h.user, { preset: "compact" });
+  denied.add(h[file]);
+  const snapshot = h.store.load();
+  expect(
+    thrown(() =>
       h.store.save(snapshot, {
         kind: "write",
         document: { preset: "minimal" },
       }),
-    ).toThrow(/not writable/);
-    expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
-  },
-);
+    ),
+  ).toStrictEqual(error(h[file]));
+  expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
+});
 it("rejects a non-regular preferences destination", () => {
   const h = harness();
   json(h.base, { preset: "rich" });
@@ -262,7 +297,7 @@ it("rejects a non-regular preferences destination", () => {
   expect(h.store.load().destination).toStrictEqual({
     kind: "unavailable",
     path: h.user,
-    reason: "Expected a regular settings file",
+    problem: new IrregularSettingsFileError(h.user),
   });
 });
 
@@ -282,9 +317,11 @@ it("uses the base on malformed user settings and requires confirmation to repair
     diagnostic: true,
     leaked: false,
   });
-  expect(() =>
-    h.store.save(initial, { kind: "write", document: { preset: "rich" } }),
-  ).toThrow("Confirm replacing invalid settings");
+  expect(
+    thrown(() =>
+      h.store.save(initial, { kind: "write", document: { preset: "rich" } }),
+    ),
+  ).toStrictEqual(new UnconfirmedRepairError(h.user));
   h.store.save(initial, {
     kind: "write",
     document: { preset: "rich" },
@@ -307,9 +344,14 @@ it("preserves session-only lifetime independently of local appearance", () => {
     persistence: "session",
     destination: { kind: "session" },
   });
-  expect(() =>
-    h.store.save(snapshot, { kind: "write", document: { preset: "minimal" } }),
-  ).toThrow("This profile uses session-only changes");
+  expect(
+    thrown(() =>
+      h.store.save(snapshot, {
+        kind: "write",
+        document: { preset: "minimal" },
+      }),
+    ),
+  ).toStrictEqual(new SessionOnlySettingsError());
   expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
 });
 
@@ -318,8 +360,8 @@ it("resets only on a confirmed commit and leaves the base unchanged", () => {
   json(h.base, { preset: "minimal" });
   json(h.user, { preset: "compact" });
   const snapshot = h.store.load();
-  expect(() => h.store.save(snapshot, { kind: "reset" })).toThrow(
-    "Confirm removing user settings",
+  expect(thrown(() => h.store.save(snapshot, { kind: "reset" }))).toStrictEqual(
+    new UnconfirmedRemoveError(h.user),
   );
   expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
   const saved = h.store.save(snapshot, { kind: "reset", confirmed: true });
@@ -367,9 +409,14 @@ it("checks the source again after preparing the temporary file", async () => {
     fs.fsyncSync(descriptor);
     json(h.base, { preset: "minimal" });
   });
-  expect(() =>
-    h.store.save(snapshot, { kind: "write", document: { preset: "compact" } }),
-  ).toThrow("Settings changed on disk");
+  expect(
+    thrown(() =>
+      h.store.save(snapshot, {
+        kind: "write",
+        document: { preset: "compact" },
+      }),
+    ),
+  ).toStrictEqual(new SettingsConflictError());
   expect({
     base: readJson(h.base),
     entries: readdirSync(h.root),
@@ -387,29 +434,32 @@ it.each(["flush", "close", "rename"] as const)(
     const h = harness();
     json(h.base, { preset: "rich" });
     const snapshot = h.store.load();
+    const failure = new Error(`${operation} failed`);
     if (operation === "flush") {
       vi.mocked(fsyncSync).mockImplementationOnce(() => {
-        throw new Error("Flush failed");
+        throw failure;
       });
     }
     if (operation === "close") {
       const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
       vi.mocked(closeSync).mockImplementationOnce((descriptor) => {
         fs.closeSync(descriptor);
-        throw new Error("Close failed");
+        throw failure;
       });
     }
     if (operation === "rename") {
       vi.mocked(renameSync).mockImplementationOnce(() => {
-        throw new Error("Rename failed");
+        throw failure;
       });
     }
-    expect(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "compact" },
-      }),
-    ).toThrow(SettingsStoreError);
+    expect(
+      thrown(() =>
+        h.store.save(snapshot, {
+          kind: "write",
+          document: { preset: "compact" },
+        }),
+      ),
+    ).toStrictEqual(new SettingsWriteError(h.base, { cause: failure }));
     expect({
       base: readJson(h.base),
       entries: readdirSync(h.root),

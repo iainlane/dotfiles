@@ -1,6 +1,6 @@
 import { LayoutPages, PROFILE_LABELS } from "./layout-pages.ts";
 import { REGIONS } from "#footer/configuration/settings.ts";
-import { SettingsStoreError } from "#footer/configuration/settings-store.ts";
+import { SettingsConflictError } from "#footer/configuration/settings-store.ts";
 import type {
   CustomiserEnvironment,
   CustomiserMenu,
@@ -62,7 +62,7 @@ class SavingPages {
           );
         }
         if (source.destination.kind === "unavailable") {
-          destination = source.destination.reason;
+          destination = source.destination.problem.message;
         }
         const fallback =
           source.base.source !== "file" &&
@@ -186,8 +186,7 @@ class SavingPages {
       error instanceof Error
         ? text(error.message, 500)
         : "Cannot save footer settings";
-    const conflict =
-      error instanceof SettingsStoreError && error.kind === "conflict";
+    const conflict = error instanceof SettingsConflictError;
     return {
       kind: "menu",
       title: "Couldn't save",

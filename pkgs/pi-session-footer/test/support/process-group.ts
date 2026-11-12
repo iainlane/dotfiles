@@ -15,12 +15,29 @@ export async function untilGone(alive: () => boolean): Promise<void> {
   }
 }
 
+export class InvalidProcessGroupError extends Error {
+  constructor(readonly pid: number) {
+    super(`Expected a positive process-group ID, not ${pid}`);
+    this.name = "InvalidProcessGroupError";
+  }
+}
+
+export class ProcessGroupProbeError extends Error {
+  constructor(
+    readonly pid: number,
+    options: { cause: unknown },
+  ) {
+    super(`Cannot inspect process group ${pid}`, options);
+    this.name = "ProcessGroupProbeError";
+  }
+}
+
 export class ProcessGroup {
   private readonly pid: number;
 
   constructor(pid: number) {
     if (!Number.isInteger(pid) || pid <= 0) {
-      throw new RangeError("Expected a positive process-group ID");
+      throw new InvalidProcessGroupError(pid);
     }
     this.pid = pid;
   }
@@ -49,9 +66,7 @@ export class ProcessGroup {
     try {
       await untilGone(() => this.signal(0));
     } catch (error) {
-      throw new Error(`Cannot inspect process group ${this.pid}`, {
-        cause: error,
-      });
+      throw new ProcessGroupProbeError(this.pid, { cause: error });
     }
   }
 }

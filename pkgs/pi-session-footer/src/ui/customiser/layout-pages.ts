@@ -2,8 +2,9 @@ import { AppearancePages } from "./appearance-pages.ts";
 import {
   profileDocument,
   regionDocument,
+  WidgetNotInRegionError,
 } from "#footer/configuration/customise-document.ts";
-import { symbolText, SettingsError } from "#footer/configuration/appearance.ts";
+import { symbolText } from "#footer/configuration/appearance.ts";
 import { SEGMENTS } from "#footer/rendering/segments.ts";
 import {
   PRESET_IDS,
@@ -55,6 +56,13 @@ function separatorDocument(
   document.separators = separators;
   return parsePresentationDocument(document);
 }
+export class MissingSourceIdError extends Error {
+  constructor() {
+    super("Enter a source ID");
+    this.name = "MissingSourceIdError";
+  }
+}
+
 export class LayoutPages {
   private readonly appearance: AppearancePages;
   constructor(
@@ -194,7 +202,7 @@ export class LayoutPages {
           const index = items.findIndex((item) => widgetId(item) === id);
           const item = items[index];
           if (item === undefined) {
-            throw new Error("The widget is no longer in this row");
+            throw new WidgetNotInRegionError(region, id);
           }
           items.splice(index, 1);
           items.splice(index + offset, 0, item);
@@ -442,7 +450,7 @@ export class LayoutPages {
       change() {},
       confirm: (key) => {
         if (key === "") {
-          throw new SettingsError("source", "Enter a source ID");
+          throw new MissingSourceIdError();
         }
         this.navigation.accept();
         this.navigation.open(
