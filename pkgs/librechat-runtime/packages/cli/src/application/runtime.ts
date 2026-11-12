@@ -39,8 +39,8 @@ export class RuntimeErrorPolicy {
     environment: Record<string, string | undefined>,
     write: (text: string) => void,
     logger: Logger,
+    secrets: readonly string[] = environmentSecrets(environment),
   ) {
-    const secrets = environmentSecrets(environment);
     this.commands = new ErrorReporter({
       diagnostics: environment.LIBRECHAT_DIAGNOSTICS === "1",
       write,
@@ -91,7 +91,12 @@ export async function main(
     ],
   });
   const logger = getLogger(["librechat"]).with({ entryPoint: entry });
-  const errors = new RuntimeErrorPolicy(process.env, writeError, logger);
+  const errors = new RuntimeErrorPolicy(
+    process.env,
+    writeError,
+    logger,
+    secrets,
+  );
   try {
     const files = {
       readText: async (file: string): Promise<string> =>

@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { GuestOperationError } from "#cli/application/errors";
+import { RuntimeErrorPolicy } from "#cli/application/runtime";
 import { ErrorReporter } from "#cli/presentation/errors";
 import { testLogger } from "./logging.ts";
 
@@ -16,6 +17,43 @@ it("keeps ordinary command errors concise without exposing their causes", () => 
   reporter.report(new GuestOperationError(new Error("private detail")));
   expect(output).toStrictEqual([
     "Error: The LibreChat guest operation failed. Check the guest service logs.\n",
+  ]);
+});
+
+it("redacts secrets registered after startup before projecting and truncating errors", () => {
+  const output: string[] = [];
+  const logger = testLogger((text) => output.push(text));
+  const secrets = ["fixture-environment-secret"];
+  const policy = new RuntimeErrorPolicy(
+    { FIXTURE_PASSWORD: secrets[0] },
+    (text) => output.push(text),
+    logger,
+    secrets,
+  );
+  secrets.push("fixture-file-secret");
+  const error = Object.assign(
+    new Error("x".repeat(8189) + "fixture-file-secret", {
+      cause: Object.assign(new Error("fixture-environment-secret"), {
+        stack: undefined,
+      }),
+    }),
+    { stack: undefined },
+  );
+  policy.diagnose(error, true, logger);
+  expect(output.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      "@timestamp": "1970-01-01T00:00:00.000Z",
+      level: "ERROR",
+      logger: "librechat",
+      message: "LibreChat operation failed",
+      entryPoint: "runtime",
+      event: "librechat-service-error",
+      error: {
+        name: "Error",
+        message: "x".repeat(8189) + "[re",
+        cause: { name: "Error", message: "[redacted]" },
+      },
+    },
   ]);
 });
 

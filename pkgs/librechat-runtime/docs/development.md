@@ -78,16 +78,18 @@ The CLI configures [LogTape] once and injects its logger into command dispatch,
 error reporting and native services. Child loggers add fixed command, service,
 component and VM runtime fields. Event properties contain variable details;
 messages describe the operation. Non-terminal output uses JSON Lines, and
-terminal output includes coloured headings and structured context.
+terminal output includes coloured headings and structured context. Host-loaded
+credentials are registered with the same secret list used by the CLI error
+reporters and logging sink.
 
 Redaction runs on structured values before formatting. It masks credential
 fields, configured secret values and conventional authentication text. Error
 projection includes selected names, messages, codes, stacks and causes, not
 attached request or configuration objects. A message or stack containing a
-printed cookie array is replaced in full. Separate error codes and causes remain
-available. This personal-use tool does not promise to identify unknown
-credentials in arbitrary URL paths or malformed prose. Do not log raw requests,
-headers or bodies.
+printed cookie or credential array is replaced in full. Separate error codes and
+causes remain available. This personal-use tool does not promise to identify
+unknown credentials in arbitrary URL paths or malformed prose. Do not log raw
+requests, headers or bodies.
 
 [LogTape]: https://logtape.org/manual/redaction
 

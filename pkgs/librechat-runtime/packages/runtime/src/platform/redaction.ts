@@ -46,6 +46,11 @@ export function diagnosticPatterns(
       replacement: "[redacted cookie array]",
     },
     {
+      pattern:
+        /[\s\S]*\b[a-z0-9_-]*(?:password|passphrase|secret|api[_-]?key|private[_-]?key|token|authorization)["']?\s*[:=]\s*\[(?!redacted\])[\s\S]*/giu,
+      replacement: "[redacted credential array]",
+    },
+    {
       pattern: /[\s\S]+/gu,
       replacement: (text: string) => maskKnownSecrets(text, secrets),
     },

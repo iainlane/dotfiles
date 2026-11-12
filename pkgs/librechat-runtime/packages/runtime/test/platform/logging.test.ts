@@ -82,9 +82,30 @@ it("redacts structured fields and text without losing error causes or child cont
   ]);
 });
 
-it.each([false, true])(
-  "omits printed cookie arrays before writing terminal=%s diagnostics",
-  (terminal) => {
+it.each([
+  {
+    terminal: false,
+    field: "set-cookie",
+    replacement: "[redacted cookie array]",
+  },
+  {
+    terminal: true,
+    field: "set-cookie",
+    replacement: "[redacted cookie array]",
+  },
+  {
+    terminal: false,
+    field: "token",
+    replacement: "[redacted credential array]",
+  },
+  {
+    terminal: true,
+    field: "token",
+    replacement: "[redacted credential array]",
+  },
+])(
+  "omits printed $field arrays before writing terminal=$terminal diagnostics",
+  ({ terminal, field, replacement }) => {
     const output: string[] = [];
     configureSync({
       sinks: {
@@ -102,8 +123,7 @@ it.each([false, true])(
         },
       ],
     });
-    const message =
-      '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=another-private-value"\n]}';
+    const message = `{${JSON.stringify(field)}: [\n  "fixture-private-token",\n  "another-private-value"\n]}`;
     const cause = Object.assign(new Error("socket closed"), {
       stack: undefined,
     });
@@ -122,9 +142,9 @@ it.each([false, true])(
       event: "request-failure",
       error: {
         name: "Error",
-        message: "[redacted cookie array]",
+        message: replacement,
         code: "UND_ERR_SOCKET",
-        stack: "[redacted cookie array]",
+        stack: replacement,
         cause: { name: "Error", message: "socket closed" },
       },
     };

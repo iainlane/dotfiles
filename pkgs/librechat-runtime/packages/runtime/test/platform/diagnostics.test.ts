@@ -16,6 +16,8 @@ it.each([
   ],
   ["Basic cHJpdmF0ZTp2YWx1ZQ==", "Basic [redacted]"],
   ["Authorization: token ghp_private_value", "Authorization: [redacted]"],
+  ["Authorization: [redacted]", "Authorization: [redacted]"],
+  ["password=[redacted]", "password=[redacted]"],
   ['{"password":"prefix\\"private-suffix"}', '{"password":[redacted]}'],
   ['password="first private-suffix', "password=[redacted]"],
   ["password='private value'", "password=[redacted]"],
@@ -88,6 +90,23 @@ it.each([
     message: "[redacted cookie array]",
     code: "UND_ERR_SOCKET",
     stack: "[redacted cookie array]",
+  });
+});
+
+it.each([
+  'token: [\n  "fixture-private-token"\n]',
+  'token: [redacted, "fixture-private-token"]',
+  '{"password": [\n  "fixture-private-value",\n  "unfinished',
+])("omits diagnostic text containing a printed credential array", (message) => {
+  const error = Object.assign(new Error(message), {
+    code: "UND_ERR_SOCKET",
+    stack: `Error: ${message}\n    at request (/fixture/main.ts:1:1)`,
+  });
+  expect(errorDiagnostic(error)).toStrictEqual({
+    name: "Error",
+    message: "[redacted credential array]",
+    code: "UND_ERR_SOCKET",
+    stack: "[redacted credential array]",
   });
 });
 

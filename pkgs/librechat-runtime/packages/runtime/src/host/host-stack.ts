@@ -32,6 +32,7 @@ import {
   readCredential,
   writePrivateFile,
   writePrivateJson,
+  type CredentialReader,
 } from "#runtime/host/config";
 import { ControllerRouter } from "#runtime/controller/controller";
 import { SessionBusyError } from "#runtime/platform/errors";
@@ -131,11 +132,15 @@ export class NativeServiceFailureError extends Error {
   }
 }
 
+interface HostDiagnostics {
+  logger: Logger;
+  secrets: string[];
+}
+
 export class NativeHostStack {
   private readonly manifest: HostManifest;
   private readonly processes: ProcessRunner;
-  private readonly logger: Logger;
-  private readonly secrets: string[] = [];
+  private readonly diagnostics: HostDiagnostics;
   private readonly children: ManagedProcess[] = [];
   private readonly failure = Promise.withResolvers<unknown>();
   private readonly monitors: Promise<void>[] = [];
@@ -151,7 +156,7 @@ export class NativeHostStack {
     manifest: HostManifest,
     signal: AbortSignal,
     processes: ProcessRunner,
-    logger: Logger,
+    diagnostics: HostDiagnostics,
   ) {
     this.manifest = manifest;
 
@@ -165,16 +170,22 @@ export class NativeHostStack {
     });
 
     this.processes = processes;
-    this.logger = logger;
+    this.diagnostics = diagnostics;
   }
+
+  private readonly readCredential: CredentialReader = async (file, label) => {
+    const value = await readCredential(file, label);
+    this.diagnostics.secrets.push(value);
+    return value;
+  };
 
   private readonly report = (
     error: unknown,
-    logger: Logger = this.logger,
+    logger: Logger = this.diagnostics.logger,
   ): void => {
     logger.error("Host service operation failed", {
       event: "librechat-service-error",
-      error: errorDiagnostic(error, this.secrets),
+      error: errorDiagnostic(error, this.diagnostics.secrets),
     });
   };
 
@@ -315,13 +326,14 @@ export class NativeHostStack {
     );
 
     const secrets = secretSchema.parse(Object.fromEntries(secretEntries));
-    this.secrets.push(...Object.values(secrets));
+    this.diagnostics.secrets.push(...Object.values(secrets));
 
     const authKey = await keyPair(join(state, "secrets", "code-auth.json"));
 
     const executionKey = await keyPair(
       join(state, "secrets", "execution.json"),
     );
+    this.diagnostics.secrets.push(authKey.privateKey, executionKey.privateKey);
 
     const mongoUri = `mongodb://librechat:${secrets.mongodb}@127.0.0.1:${ports.mongodb}/LibreChat?authSource=admin`;
 
@@ -477,7 +489,10 @@ export class NativeHostStack {
 
     const account = accountSchema.parse(accountRaw);
 
-    const providers = await configureProviders(manifest.providers);
+    const providers = await configureProviders(
+      manifest.providers,
+      this.readCredential,
+    );
 
     const credentialSocket = join(socketDirectory, "credentials.sock");
 
@@ -607,7 +622,10 @@ export class NativeHostStack {
       onFailure: async (session, error) => {
         this.report(
           error,
-          this.logger.with({ component: "vm", runtimeId: session.runtimeId }),
+          this.diagnostics.logger.with({
+            component: "vm",
+            runtimeId: session.runtimeId,
+          }),
         );
 
         await this.sessions?.quarantine(
@@ -660,7 +678,9 @@ export class NativeHostStack {
       mcp,
     });
 
-    const controllerLogger = this.logger.with({ component: "controller" });
+    const controllerLogger = this.diagnostics.logger.with({
+      component: "controller",
+    });
     const controlServer = httpService({
       handler: (request) => controller.route(request),
       onError: (error) => this.report(error, controllerLogger),
@@ -672,7 +692,9 @@ export class NativeHostStack {
       this.processes.run({ executable: programs.agentsview, args }),
     );
 
-    const archiveLogger = this.logger.with({ component: "archive" });
+    const archiveLogger = this.diagnostics.logger.with({
+      component: "archive",
+    });
     const archiveServer = httpService({
       handler: (request) => archive.route(request),
       onError: (error) => this.report(error, archiveLogger),
@@ -805,7 +827,7 @@ export class NativeHostStack {
         const resolved = await Promise.all(
           Object.entries(headers).map(async ([header, source]) => [
             header,
-            `${source.prefix}${await readCredential(source.file, "Generated service")}`,
+            `${source.prefix}${await this.readCredential(source.file, "Generated service")}`,
           ]),
         );
 

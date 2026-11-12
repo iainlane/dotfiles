@@ -30,7 +30,7 @@ interface RuntimeEffects {
   http: typeof globalThis.fetch;
   input: Readable;
   brokerToken: string | undefined;
-  secrets: readonly string[];
+  secrets: string[];
   writeOutput(text: string): void;
 }
 
@@ -89,12 +89,10 @@ export class NativeRuntimeServices implements RuntimeServices {
             pause: () => delay(100, undefined, { signal: abort.signal }),
           });
         }
-        await new NativeHostStack(
-          manifest,
-          abort.signal,
-          processes,
-          logger.with({ service: "host" }),
-        ).serve();
+        await new NativeHostStack(manifest, abort.signal, processes, {
+          logger: logger.with({ service: "host" }),
+          secrets: this.effects.secrets,
+        }).serve();
       } catch (error) {
         if (
           !abort.signal.aborted ||
