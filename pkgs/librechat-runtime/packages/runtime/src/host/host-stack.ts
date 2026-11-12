@@ -10,6 +10,8 @@ import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Server } from "node:http";
 import { MongoClient } from "mongodb";
+import type { Logger } from "@logtape/logtape";
+import { errorDiagnostic } from "#runtime/platform/diagnostics";
 import { z } from "zod";
 import { startFileServer } from "#runtime/host/file-server";
 import { configuredPersonalAgents } from "#runtime/accounts/bootstrap";
@@ -132,7 +134,8 @@ export class NativeServiceFailureError extends Error {
 export class NativeHostStack {
   private readonly manifest: HostManifest;
   private readonly processes: ProcessRunner;
-  private readonly report: (error: unknown) => void;
+  private readonly logger: Logger;
+  private readonly secrets: string[] = [];
   private readonly children: ManagedProcess[] = [];
   private readonly failure = Promise.withResolvers<unknown>();
   private readonly monitors: Promise<void>[] = [];
@@ -148,7 +151,7 @@ export class NativeHostStack {
     manifest: HostManifest,
     signal: AbortSignal,
     processes: ProcessRunner,
-    report: (error: unknown) => void,
+    logger: Logger,
   ) {
     this.manifest = manifest;
 
@@ -162,8 +165,18 @@ export class NativeHostStack {
     });
 
     this.processes = processes;
-    this.report = report;
+    this.logger = logger;
   }
+
+  private readonly report = (
+    error: unknown,
+    logger: Logger = this.logger,
+  ): void => {
+    logger.error("Host service operation failed", {
+      event: "librechat-service-error",
+      error: errorDiagnostic(error, this.secrets),
+    });
+  };
 
   private async monitor(operation: Promise<void>): Promise<void> {
     try {
@@ -302,6 +315,7 @@ export class NativeHostStack {
     );
 
     const secrets = secretSchema.parse(Object.fromEntries(secretEntries));
+    this.secrets.push(...Object.values(secrets));
 
     const authKey = await keyPair(join(state, "secrets", "code-auth.json"));
 
@@ -591,7 +605,10 @@ export class NativeHostStack {
       executionPublicKey: executionKey.publicKey,
       onError: (error) => this.failure.resolve(error),
       onFailure: async (session, error) => {
-        this.report(error);
+        this.report(
+          error,
+          this.logger.with({ component: "vm", runtimeId: session.runtimeId }),
+        );
 
         await this.sessions?.quarantine(
           session.runtimeId,
@@ -643,9 +660,10 @@ export class NativeHostStack {
       mcp,
     });
 
+    const controllerLogger = this.logger.with({ component: "controller" });
     const controlServer = httpService({
       handler: (request) => controller.route(request),
-      onError: this.report,
+      onError: (error) => this.report(error, controllerLogger),
     });
 
     controlServer.listen(ports.controller, "127.0.0.1");
@@ -654,9 +672,10 @@ export class NativeHostStack {
       this.processes.run({ executable: programs.agentsview, args }),
     );
 
+    const archiveLogger = this.logger.with({ component: "archive" });
     const archiveServer = httpService({
       handler: (request) => archive.route(request),
-      onError: this.report,
+      onError: (error) => this.report(error, archiveLogger),
       maxBodyBytes: 16 * 1024,
     });
 

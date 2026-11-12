@@ -99,10 +99,10 @@ async function execute(
       return;
     }
     case "serve":
-      await services.serve(intent.file);
+      await services.serve(intent.file, dependencies.logger);
       return;
     case "guest":
-      await services.guest(intent.file);
+      await services.guest(intent.file, dependencies.logger);
       return;
     case "hook":
       await services.hook(intent.file);
@@ -117,25 +117,27 @@ export async function runCommand(
   entry: EntryPoint,
   dependencies: CommandDependencies,
 ): Promise<CommandResult> {
+  let logger = dependencies.logger;
   let forceExit = false;
   let service = false;
   let failure = "LibreChat command failed. Check the service logs.";
   try {
     const intent = parseCommand(args, entry);
+    logger = logger.with({ command: intent.kind });
     forceExit = intent.kind === "bootstrap";
     service = intent.kind === "serve" || intent.kind === "guest";
     if (intent.kind === "bootstrap") {
       failure =
         "Could not bootstrap LibreChat. Check that the LibreChat services are running and consult their logs.";
     }
-    await execute(intent, entry, dependencies);
+    await execute(intent, entry, { ...dependencies, logger });
     return { status: 0, forceExit };
   } catch (error) {
     if (error instanceof CancelledError) {
       dependencies.presentation.cancel(error.message);
       return { status: error.status, forceExit };
     }
-    dependencies.reportDiagnostics(error, service);
+    dependencies.reportDiagnostics(error, service, logger);
     if (error instanceof UsageError || error instanceof OperationalError) {
       dependencies.presentation.error(error.message);
       return { status: error.status, forceExit };

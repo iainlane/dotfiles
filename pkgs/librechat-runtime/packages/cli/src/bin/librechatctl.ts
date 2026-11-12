@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-import { main, logError } from "#cli/application/runtime";
+import { main } from "#cli/application/runtime";
 
-try {
-  await main(process.argv.slice(2), "public");
-} catch (error) {
-  logError(error);
-  process.exitCode = 1;
-}
+await main(process.argv.slice(2), "public");

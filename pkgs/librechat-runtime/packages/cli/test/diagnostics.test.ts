@@ -1,11 +1,14 @@
 import { expect, it } from "vitest";
 import { GuestOperationError } from "#cli/application/errors";
 import { ErrorReporter } from "#cli/presentation/errors";
+import { testLogger } from "./logging.ts";
 
 it("keeps ordinary command errors concise without exposing their causes", () => {
   const output: string[] = [];
   const reporter = new ErrorReporter({
     diagnostics: false,
+    logger: testLogger((text) => output.push(text)),
+    secrets: [],
     write: (text) => {
       output.push(text);
     },
@@ -20,6 +23,8 @@ it("reports the underlying transport cause when service diagnostics are enabled"
   const output: string[] = [];
   const reporter = new ErrorReporter({
     diagnostics: true,
+    logger: testLogger((text) => output.push(text)),
+    secrets: [],
     write: (text) => {
       output.push(text);
     },
@@ -36,9 +41,18 @@ it("reports the underlying transport cause when service diagnostics are enabled"
     stack: undefined,
   });
   reporter.report(error);
-  expect(output).toStrictEqual([
+  expect(
+    output.map((line, index): unknown =>
+      index === 0 ? line : JSON.parse(line),
+    ),
+  ).toStrictEqual([
     "Error: The LibreChat guest operation failed. Check the guest service logs.\n",
-    JSON.stringify({
+    {
+      "@timestamp": "1970-01-01T00:00:00.000Z",
+      level: "ERROR",
+      logger: "librechat",
+      message: "LibreChat operation failed",
+      entryPoint: "runtime",
       event: "librechat-service-error",
       error: {
         name: "GuestOperationError",
@@ -54,6 +68,6 @@ it("reports the underlying transport cause when service diagnostics are enabled"
           },
         },
       },
-    }) + "\n",
+    },
   ]);
 });

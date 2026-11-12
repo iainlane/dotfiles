@@ -22,6 +22,10 @@
       "types": "./dist/archive/archive.d.ts",
       "import": "./dist/archive/archive.js"
     },
+    "./logging": {
+      "types": "./dist/platform/logging.d.ts",
+      "import": "./dist/platform/logging.js"
+    },
     "./diagnostics": {
       "types": "./dist/platform/diagnostics.d.ts",
       "import": "./dist/platform/diagnostics.js"
@@ -91,6 +95,8 @@
     "@dotfiles/librechat-code-bridge": "workspace:*",
     "@grpc/grpc-js": "1.14.6",
     "@grpc/proto-loader": "0.8.1",
+    "@logtape/logtape": "2.4.2",
+    "@logtape/redaction": "2.4.2",
     "http-status-codes": "2.3.0",
     "mongodb": "7.1.0",
     "zod": "catalog:"

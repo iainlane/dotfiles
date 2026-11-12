@@ -21,6 +21,7 @@
     "@bomb.sh/router": "^0.8.0",
     "@clack/prompts": "^1.8.1",
     "@dotfiles/librechat-runtime": "workspace:*",
+    "@logtape/logtape": "2.4.2",
     "zod": "catalog:"
   }
 }

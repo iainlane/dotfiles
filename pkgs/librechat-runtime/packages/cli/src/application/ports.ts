@@ -1,3 +1,4 @@
+import type { Logger } from "@logtape/logtape";
 import type {
   BootstrapInput,
   PasswordPolicyIssue,
@@ -49,18 +50,19 @@ export interface Deployment {
 }
 
 export interface RuntimeServices {
-  serve(file: string): Promise<void>;
-  guest(file: string): Promise<void>;
+  serve(file: string, logger: Logger): Promise<void>;
+  guest(file: string, logger: Logger): Promise<void>;
   hook(file: string): Promise<void>;
   archive(query: string[]): Promise<string>;
 }
 
 export interface CommandDependencies {
+  readonly logger: Logger;
   readonly manifest: string | undefined;
   readonly presentation: Presentation;
   readonly files: FileAccess;
   readonly services: RuntimeServices;
   openDeployment(file: string): Promise<Deployment>;
   writeOutput(text: string): void;
-  reportDiagnostics(error: unknown, service: boolean): void;
+  reportDiagnostics(error: unknown, service: boolean, logger: Logger): void;
 }

@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { runCommand } from "#cli/application/dispatch";
 import { RuntimeErrorPolicy } from "#cli/application/runtime";
+import { testLogger } from "./logging.ts";
 import type {
   AccountAccess,
   CommandDependencies,
@@ -44,7 +45,9 @@ function fixture() {
   const resetWorkspace = vi
     .fn<(conversation: string) => Promise<void>>()
     .mockResolvedValue(undefined);
+  const logs: string[] = [];
   const dependencies = {
+    logger: testLogger((text) => logs.push(text)),
     manifest: "/manifest.json",
     presentation,
     services,
@@ -59,7 +62,7 @@ function fixture() {
     writeOutput: vi.fn<CommandDependencies["writeOutput"]>(),
     reportDiagnostics: vi.fn<CommandDependencies["reportDiagnostics"]>(),
   } satisfies CommandDependencies;
-  return { dependencies, resetWorkspace, accounts };
+  return { dependencies, resetWorkspace, accounts, logs };
 }
 
 it.each([[], ["--help"], ["--version"], ["bootstrap", "--help"]])(
@@ -218,6 +221,45 @@ it("forwards archive response bytes without presentation", async () => {
   });
 });
 
+it("threads command child loggers into service operations without changing the parent context", async () => {
+  const { dependencies, logs } = fixture();
+  dependencies.services.guest.mockImplementation((_file, logger) => {
+    logger.info("Guest starting", { event: "guest-start" });
+    return Promise.resolve();
+  });
+  const result = await runCommand(
+    ["guest", "/spec.json"],
+    "runtime",
+    dependencies,
+  );
+  dependencies.logger.info("Command returned", { event: "command-returned" });
+  expect({
+    result,
+    logs: logs.map((line): unknown => JSON.parse(line)),
+  }).toStrictEqual({
+    result: { status: 0, forceExit: false },
+    logs: [
+      {
+        "@timestamp": "1970-01-01T00:00:00.000Z",
+        level: "INFO",
+        logger: "librechat",
+        message: "Guest starting",
+        entryPoint: "runtime",
+        command: "guest",
+        event: "guest-start",
+      },
+      {
+        "@timestamp": "1970-01-01T00:00:00.000Z",
+        level: "INFO",
+        logger: "librechat",
+        message: "Command returned",
+        entryPoint: "runtime",
+        event: "command-returned",
+      },
+    ],
+  });
+});
+
 it("reports the original service failure through the injected diagnostic output", async () => {
   const { dependencies } = fixture();
   const cause = new TypeError("fetch failed");
@@ -233,7 +275,7 @@ it("reports the original service failure through the injected diagnostic output"
     errors: dependencies.presentation.error.mock.calls,
   }).toStrictEqual({
     result: { status: 1, forceExit: false },
-    diagnostics: [[cause, true]],
+    diagnostics: [[cause, true, expect.any(Object)]],
     errors: [["LibreChat command failed. Check the service logs."]],
   });
 });
@@ -243,7 +285,12 @@ it.each(["serve", "guest", "hook"] as const)(
   async (command) => {
     const { dependencies } = fixture();
     const output: string[] = [];
-    const errors = new RuntimeErrorPolicy({}, (text) => output.push(text));
+    const logger = testLogger((text) => output.push(text));
+    const errors = new RuntimeErrorPolicy(
+      {},
+      (text) => output.push(text),
+      logger,
+    );
     const failure = Object.assign(new Error("startup failed"), {
       stack: undefined,
       cause: Object.assign(new Error("spawn failed"), {
@@ -254,15 +301,26 @@ it.each(["serve", "guest", "hook"] as const)(
     dependencies.services[command].mockRejectedValue(failure);
     const result = await runCommand([command, "/spec.json"], "runtime", {
       ...dependencies,
-      reportDiagnostics: (error, service) => errors.diagnose(error, service),
+      logger,
+      reportDiagnostics: (error, service, commandLogger) =>
+        errors.diagnose(error, service, commandLogger),
     });
-    expect({ result, output }).toStrictEqual({
+    expect({
+      result,
+      output: output.map((line): unknown => JSON.parse(line)),
+    }).toStrictEqual({
       result: { status: 1, forceExit: false },
       output:
         command === "hook"
           ? []
           : [
-              JSON.stringify({
+              {
+                "@timestamp": "1970-01-01T00:00:00.000Z",
+                level: "ERROR",
+                logger: "librechat",
+                message: "LibreChat operation failed",
+                entryPoint: "runtime",
+                command,
                 event: "librechat-service-error",
                 error: {
                   name: "Error",
@@ -273,7 +331,7 @@ it.each(["serve", "guest", "hook"] as const)(
                     code: "ENOENT",
                   },
                 },
-              }) + "\n",
+              },
             ],
     });
   },

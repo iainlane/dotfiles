@@ -142,7 +142,7 @@ it("closes account-inspection connections and does not expose database errors", 
       name: "AccountInspectionError",
       message:
         "Could not read the LibreChat account database. Check that the LibreChat services are running.",
-      cause: { name: "Error", message: "mongodb://example.com/" },
+      cause: { name: "Error", message: "mongodb://[redacted]@example.com" },
     },
   });
 });

@@ -1,4 +1,6 @@
 import { userInfo } from "node:os";
+import type { Logger } from "@logtape/logtape";
+import { errorDiagnostic } from "@dotfiles/librechat-runtime/diagnostics";
 import { Readable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -28,8 +30,8 @@ interface RuntimeEffects {
   http: typeof globalThis.fetch;
   input: Readable;
   brokerToken: string | undefined;
+  secrets: readonly string[];
   writeOutput(text: string): void;
-  reportError(error: unknown): void;
 }
 
 async function operational<T>(
@@ -53,7 +55,7 @@ export class NativeRuntimeServices implements RuntimeServices {
     this.effects = effects;
   }
 
-  async serve(file: string): Promise<void> {
+  async serve(file: string, logger: Logger): Promise<void> {
     await operational(HostStartupError, async () => {
       const manifest = await loadManifest(file, this.effects.files);
       const { NativeHostStack } =
@@ -87,8 +89,11 @@ export class NativeRuntimeServices implements RuntimeServices {
             pause: () => delay(100, undefined, { signal: abort.signal }),
           });
         }
-        await new NativeHostStack(manifest, abort.signal, processes, (error) =>
-          this.effects.reportError(error),
+        await new NativeHostStack(
+          manifest,
+          abort.signal,
+          processes,
+          logger.with({ service: "host" }),
         ).serve();
       } catch (error) {
         if (
@@ -105,7 +110,17 @@ export class NativeRuntimeServices implements RuntimeServices {
     });
   }
 
-  async guest(file: string): Promise<void> {
+  async guest(file: string, logger: Logger): Promise<void> {
+    const guestLogger = logger.with({ service: "guest" });
+    const onError = (cause: unknown): void => {
+      guestLogger.error("Guest operation failed", {
+        event: "librechat-service-error",
+        error: errorDiagnostic(
+          new GuestOperationError(cause),
+          this.effects.secrets,
+        ),
+      });
+    };
     await operational(GuestStartupError, async () => {
       const {
         guestHttpService,
@@ -119,8 +134,6 @@ export class NativeRuntimeServices implements RuntimeServices {
         PATH: "/run/current-system/sw/bin",
         HOME: "/root",
       });
-      const onError = (cause: unknown): void =>
-        this.effects.reportError(new GuestOperationError(cause));
       const operations = new NodeGuestOperations(specification, processes, {
         fetch: this.effects.http,
         onError,

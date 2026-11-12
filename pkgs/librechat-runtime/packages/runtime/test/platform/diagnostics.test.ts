@@ -6,39 +6,92 @@ import {
 
 it.each([
   ["Bearer private-value", "Bearer [redacted]"],
-  ['{"password":"prefix\\"private-suffix"}', '{"password":[redacted]}'],
-  ['password="first private-suffix', "password=[redacted]"],
-  ["HTTPS://operator:private-value@example.test/path", "https://example.test/"],
   [
-    "MoNgOdB://operator:private-value@example.test/path",
-    "mongodb://example.test/",
+    "mongodb://private:secret@example.com/db",
+    "mongodb://[redacted]@example.com/db",
+  ],
+  [
+    "HTTPS://operator:private@example.test/path",
+    "HTTPS://[redacted]@example.test/path",
   ],
   ["Basic cHJpdmF0ZTp2YWx1ZQ==", "Basic [redacted]"],
   ["Authorization: token ghp_private_value", "Authorization: [redacted]"],
-  ["mongodb://private:secret@example.com", "mongodb://example.com/"],
-  [
-    "mongodb+srv://private:secret@example.com/db?auth=private",
-    "mongodb+srv://example.com/",
-  ],
-  ["redis://private:secret@example.com", "redis://example.com/"],
-  ["rediss://private:secret@example.com", "rediss://example.com/"],
-  ["postgres://private:secret@example.com/db", "postgres://example.com/"],
-  ['{"apiKey":"private-value"}', '{"apiKey":[redacted]}'],
+  ['{"password":"prefix\\"private-suffix"}', '{"password":[redacted]}'],
+  ['password="first private-suffix', "password=[redacted]"],
   ["password='private value'", "password=[redacted]"],
-  [
-    "https://user:password@example.test/path?token=private#fragment",
-    "[redacted]",
-  ],
+  ['{"apiKey":"private-value"}', '{"apiKey":[redacted]}'],
+  ["Cookie: sid=private; other=private", "Cookie: [redacted]"],
+  ["Set-Cookie: sid=private; HttpOnly; Path=/", "Set-Cookie: [redacted]"],
   ["eyJhbGciOiJIUzI1NiJ9.eyJzZWNyZXQiOiJwcml2YXRlIn0.signature", "[redacted]"],
   [
     "-----BEGIN PRIVATE KEY-----\nprivate\n-----END PRIVATE KEY-----",
     "[redacted private key]",
   ],
-])("redacts credential text in %s", (input, expected) => {
+])("redacts conventional credential text in %s", (input, expected) => {
   expect(redactDiagnostic(input)).toBe(expected);
 });
 
-it("excludes arbitrary attached properties and redacts known secrets before truncation", () => {
+it.each([
+  [
+    'https://api.example.test/keys("sk_live_123")',
+    'https://api.example.test/keys("[redacted]")',
+  ],
+  [
+    "https://api.example.test/keys('sk_live_123')",
+    "https://api.example.test/keys('[redacted]')",
+  ],
+  [
+    "https://operator:sk_live_123@example.test/path",
+    "https://[redacted]@example.test/path",
+  ],
+  [
+    "mongodb+srv://operator:sk_live_123@example.test/db",
+    "mongodb+srv://[redacted]@example.test/db",
+  ],
+  [
+    "https://api.example.test/sk_live_123 failed: HTTP 500",
+    "https://api.example.test/[redacted] failed: HTTP 500",
+  ],
+])(
+  "masks a configured secret within a URL without parsing its surrounding prose: %s",
+  (message, expected) => {
+    const frame = "\n    at request (/fixture/main.ts:1:1)";
+    const error = Object.assign(new Error(message), {
+      stack: `Error: ${message}${frame}`,
+    });
+    expect(errorDiagnostic(error, ["sk_live_123"])).toStrictEqual({
+      name: "Error",
+      message: expected,
+      stack: `Error: ${expected}${frame}`,
+    });
+  },
+);
+
+it.each([
+  "request https://api.example.test/O'Reilly failed: HTTP 500",
+  "http://[::1])",
+  "https://[2001:db8::1],",
+])("preserves ordinary diagnostic URL text: %s", (message) => {
+  expect(redactDiagnostic(message)).toBe(message);
+});
+
+it.each([
+  '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=another-private-value"\n]}',
+  '{"cookie": [\n  "sid=fixture-private-token",\n  "other=unfinished',
+])("omits diagnostic text containing a printed cookie array", (message) => {
+  const error = Object.assign(new Error(message), {
+    code: "UND_ERR_SOCKET",
+    stack: `Error: ${message}\n    at request (/fixture/main.ts:1:1)`,
+  });
+  expect(errorDiagnostic(error)).toStrictEqual({
+    name: "Error",
+    message: "[redacted cookie array]",
+    code: "UND_ERR_SOCKET",
+    stack: "[redacted cookie array]",
+  });
+});
+
+it("excludes arbitrary attached properties and masks configured credentials", () => {
   const cause = Object.assign(new Error("private-fixture-value"), {
     stack: "Error: private-fixture-value\n    at forward (guest.ts:1:1)",
     request: { authorization: "do-not-log" },
@@ -50,14 +103,37 @@ it("excludes arbitrary attached properties and redacts known secrets before trun
   });
 });
 
-it("redacts overlapping registered credentials in either registration order", () => {
-  const first = "shared-key-value";
-  const second = `${first}-refreshed`;
-  expect([
-    redactDiagnostic(second, [first, second]),
-    redactDiagnostic(second, [second, first]),
-  ]).toStrictEqual(["[redacted]", "[redacted]"]);
+it("redacts known secrets before truncating selected error text", () => {
+  const error = Object.assign(
+    new Error("x".repeat(8189) + "fixture-private-value"),
+    { stack: undefined },
+  );
+  expect(errorDiagnostic(error, ["fixture-private-value"])).toStrictEqual({
+    name: "Error",
+    message: "x".repeat(8189) + "[re",
+  });
 });
+
+it.each([
+  [
+    "shared-key-value",
+    "shared-key-value-refreshed",
+    "shared-key-value-refreshed",
+  ],
+  [
+    "a".repeat(64) + "shared",
+    "shared-sensitive-suffix",
+    "a".repeat(64) + "shared-sensitive-suffix",
+  ],
+])(
+  "masks intersecting known credentials in either registration order",
+  (first, second, text) => {
+    expect([
+      redactDiagnostic(text, [first, second]),
+      redactDiagnostic(text, [second, first]),
+    ]).toStrictEqual(["[redacted]", "[redacted]"]);
+  },
+);
 
 it("bounds cyclic causes and ignores non-error values", () => {
   const error = Object.assign(new Error("cycle"), { stack: undefined });
@@ -78,14 +154,6 @@ it("bounds cyclic causes and ignores non-error values", () => {
   });
 });
 
-it("redacts the union of intersecting registered secrets", () => {
-  const first = "a".repeat(64) + "shared";
-  const second = "shared-sensitive-suffix";
-  expect(redactDiagnostic(first + "-sensitive-suffix", [first, second])).toBe(
-    "[redacted]",
-  );
-});
-
 it("redacts incomplete PEM key material in exception diagnostics", () => {
   const error = Object.assign(
     new Error("-----BEGIN PRIVATE KEY-----\nprivate-key-material"),
@@ -98,7 +166,7 @@ it("redacts incomplete PEM key material in exception diagnostics", () => {
 });
 
 it.each(["password", "Authorization"])(
-  "redacts an unfinished %s quote with a dangling escape in exception diagnostics",
+  "redacts an unfinished %s quote ending in an escape",
   (field) => {
     const error = Object.assign(new Error(field + '="first private-suffix\\'), {
       stack: undefined,
@@ -106,68 +174,6 @@ it.each(["password", "Authorization"])(
     expect(errorDiagnostic(error)).toStrictEqual({
       name: "Error",
       message: field + "=[redacted]",
-    });
-  },
-);
-
-it.each([
-  [
-    "Cookie: sid=fixture-private-token; other=another-private-value",
-    "Cookie: [redacted]",
-  ],
-  [
-    "Set-Cookie: sid=fixture-private-token; HttpOnly; Path=/",
-    "Set-Cookie: [redacted]",
-  ],
-  ['{"cookie":"sid=fixture-private-token"}', '{"cookie":[redacted]}'],
-  ["https://api.example.test/v1/sk_live_123", "https://api.example.test/"],
-])(
-  "redacts cookie values and URL path credentials in exception diagnostics: %s",
-  (message, expected) => {
-    const error = Object.assign(new Error(message), { stack: undefined });
-    expect(errorDiagnostic(error)).toStrictEqual({
-      name: "Error",
-      message: expected,
-    });
-  },
-);
-
-it.each([
-  [
-    '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=another-private-value"\n]}',
-    '{"set-cookie": [redacted]}',
-  ],
-  [
-    '{"set-cookie": [\n  "sid=fixture-private-token",\n  "other=unfinished',
-    '{"set-cookie": [redacted]',
-  ],
-  [
-    '{"set-cookie":["sid=bracket]and\\"quote", "second=private"],"status":500}',
-    '{"set-cookie":[redacted],"status":500}',
-  ],
-  ["https://api.example.test/keys('sk_live_123')", "https://api.example.test/"],
-])(
-  "redacts structured cookies and quoted URL paths: %s",
-  (message, expected) => {
-    const error = Object.assign(new Error(message), { stack: undefined });
-    expect(errorDiagnostic(error)).toStrictEqual({
-      name: "Error",
-      message: expected,
-    });
-  },
-);
-
-it.each([
-  ["http://[::1]", "http://[::1]/"],
-  ["http://[::1])", "http://[::1]/"],
-  ["https://[2001:db8::1],", "https://[2001:db8::1]/"],
-])(
-  "preserves IPv6 authority brackets in diagnostic URLs: %s",
-  (message, expected) => {
-    const error = Object.assign(new Error(message), { stack: undefined });
-    expect(errorDiagnostic(error)).toStrictEqual({
-      name: "Error",
-      message: expected,
     });
   },
 );

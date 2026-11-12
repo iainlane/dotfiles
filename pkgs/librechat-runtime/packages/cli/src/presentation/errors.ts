@@ -1,8 +1,11 @@
+import type { Logger } from "@logtape/logtape";
 import { OperationalError, UsageError } from "#cli/application/errors";
 import { errorDiagnostic } from "@dotfiles/librechat-runtime/diagnostics";
 
 interface ErrorOutput {
   diagnostics: boolean;
+  logger: Logger;
+  secrets: readonly string[];
   write(text: string): void;
 }
 
@@ -22,11 +25,12 @@ export class ErrorReporter {
     this.diagnose(error);
   }
 
-  diagnose(error: unknown): void {
+  diagnose(error: unknown, logger: Logger = this.output.logger): void {
     if (this.output.diagnostics) {
-      this.output.write(
-        `${JSON.stringify({ event: "librechat-service-error", error: errorDiagnostic(error) })}\n`,
-      );
+      logger.error("LibreChat operation failed", {
+        event: "librechat-service-error",
+        error: errorDiagnostic(error, this.output.secrets),
+      });
     }
   }
 }
