@@ -30,19 +30,19 @@ in
   '';
     buildNpmPackage (finalAttrs: {
       pname = "rea";
-      version = "6.8.0";
+      version = "6.9.0";
       __structuredAttrs = true;
 
       src = fetchFromGitHub {
         owner = "morluto";
         repo = "rea";
-        rev = "rea-agents-6.8.0";
-        hash = "sha256-2ADn3U3lvUoB4tCEpzO0rMfYE4sis+5uBiEazcp0gpI=";
+        rev = "rea-agents-6.9.0";
+        hash = "sha256-n96fXl7OKRIlQ/nKGBDjN8kT4RIr2atgrQAU379lsoQ=";
       };
 
       patches = [./external-tools.patch ./ghidra-version-policy.patch];
 
-      npmDepsHash = "sha256-3WPXD+qm5WVfrTEvepKwX5RZBfbLBcPB0uDmKIx4MR8=";
+      npmDepsHash = "sha256-xFNYn2vxfk8unZyJQ3YWOO3fFb3iJVU6Alav0A+TiSI=";
       npmDeps = fetchNpmDeps {
         name = "${finalAttrs.pname}-${finalAttrs.version}-npm-deps";
         inherit (finalAttrs) src;
