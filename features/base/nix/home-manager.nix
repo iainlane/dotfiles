@@ -1,5 +1,4 @@
 {
-  pkgs,
   lib,
   inputs,
   flakePath,
@@ -32,12 +31,7 @@
   # Give impure evaluations of nixpkgs (`nix-shell`, `nix-env`, `<nixpkgs>`
   # in a repl) the same configuration as this flake, so they can build
   # unfree packages too. Flake commands such as `nix shell nixpkgs#hello`
-  # never read this file. `pkgs.config` contains functions and their
-  # metadata, which cannot be serialised, so they are filtered out.
-  xdg.configFile."nixpkgs/config.nix".text = let
-    isPlainValue = v:
-      !builtins.isFunction v
-      && !(builtins.isAttrs v && v ? __functionArgs);
-  in
-    lib.generators.toPretty {} (lib.filterAttrsRecursive (_: isPlainValue) pkgs.config);
+  # never read this file. Both nixpkgs channels read it, and their option
+  # types differ, so it contains only the settings that this flake chooses.
+  xdg.configFile."nixpkgs/config.nix".text = lib.generators.toPretty {} (import ../../../lib/nixpkgs-config.nix);
 }

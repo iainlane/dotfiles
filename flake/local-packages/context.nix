@@ -9,9 +9,7 @@
   # shared `{inputs}` argument.
   overlays = importNixFiles ../../overlays {inherit inputs;};
 
-  nixpkgsConfig = {
-    allowUnfree = true;
-  };
+  nixpkgsConfig = import ../../lib/nixpkgs-config.nix;
 in {
   config = {
     perSystem = {system, ...}: let
