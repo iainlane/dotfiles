@@ -11,7 +11,6 @@
   modelCatalog,
   ...
 }: let
-  footerPackage = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.pi-session-footer;
   piExtensions =
     lib.getAttrs [
       "pi-anthropic-auth"
@@ -229,7 +228,7 @@
     piExtensions;
 
   localExtensionFiles = {
-    ".pi/agent/managed-extensions/session-footer".source = "${footerPackage}/${footerPackage.packageRoot}";
+    ".pi/agent/managed-extensions/session-footer".source = "${pkgs.pi-session-footer}/${pkgs.pi-session-footer.packageRoot}";
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
   };
 in {
