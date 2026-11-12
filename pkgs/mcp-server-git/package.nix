@@ -7,13 +7,13 @@
 }:
 pythonPackages.buildPythonApplication (finalAttrs: {
   pname = "mcp-server-git";
-  version = "2026.11.4";
+  version = "2026.11.11";
   pyproject = true;
 
   src = fetchPypi {
     pname = "mcp_server_git";
     inherit (finalAttrs) version;
-    hash = "sha256-I6HsxiHyqKqPI1zixC2N7DRfng2hgDOyyX0T5yp8Jds=";
+    hash = "sha256-gNsqaBgOrmjW7mKvSyC9kbWI3IQ7Spk7VJudJ5xxo20=";
   };
 
   build-system = [pythonPackages.hatchling];
