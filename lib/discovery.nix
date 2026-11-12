@@ -1,7 +1,6 @@
 # Filesystem discovery helpers: turn directory layouts into lists of paths and
-# imported values. These are the primitives the flake uses to auto-discover
-# hosts, features, packages, and overlays without hand-maintained import
-# lists.
+# imported values. The flake uses them to discover hosts, features, packages
+# and overlays without hand-maintained import lists.
 {lib}: rec {
   # Sorted names for one `builtins.readDir` entry type. Examples of entry types
   # are `"regular"` and `"directory"`. Pass `""` for `suffix` to disable suffix
@@ -50,14 +49,15 @@
     (directoryNames dir);
 
   # Import all `.nix` files from a directory as a list. Each file may either be
-  # a plain value or a function that accepts `args`.
+  # a plain value or a function, which receives the attributes of `args` that
+  # appear in its argument pattern.
   importNixFiles = dir: args:
     map
     (filename: let
       loaded = import (dir + "/${filename}");
     in
       if builtins.isFunction loaded
-      then loaded args
+      then loaded (builtins.intersectAttrs (builtins.functionArgs loaded) args)
       else loaded)
     (fileNames dir ".nix");
 }

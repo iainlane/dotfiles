@@ -1,8 +1,7 @@
 {
   prev,
-  inputs,
-  final,
+  upstreamPackageSets,
 }: {
   upstreamPackage = prev.passt;
-  stablePasst = inputs.nixpkgs-stable.legacyPackages.${final.stdenv.hostPlatform.system}.passt;
+  stablePasst = upstreamPackageSets.nixpkgs-stable.passt;
 }

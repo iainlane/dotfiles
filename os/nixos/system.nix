@@ -1,5 +1,6 @@
 {
   config,
+  flakeContext,
   inputs,
   lib,
   pkgs,
@@ -9,7 +10,7 @@
   ...
 }: let
   secretsFile = inputs.secrets + "/${hostConfig.name}/host-user-password.yaml";
-  stableEnvfs = inputs.nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.envfs;
+  stableEnvfs = flakeContext.upstreamPackageSets.nixpkgs-stable.envfs;
 
   # lib/sops.nix states the policy for a per-host secrets file that the secrets
   # input does not have. When the input has no such file, the account has no
