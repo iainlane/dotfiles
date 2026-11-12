@@ -181,7 +181,7 @@ async function assertResources(
   });
   assert.deepStrictEqual(
     parseRecord(readFileSync(join(xdg, "rpiv-todo/config.json"), "utf8")),
-    { widget: { enabled: false } },
+    { maxWidgetLines: 0 },
   );
   assert.deepStrictEqual(
     parseRecord(readFileSync(join(xdg, "rpiv-btw/config.json"), "utf8")),

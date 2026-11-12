@@ -15,7 +15,6 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 
 for (const [name, dependency] of [
   ["pi-sub-core", "@marckrenn/pi-sub-core"],
-  ["rpiv-todo", "@juicesharp/rpiv-todo"],
   ["rpiv-btw", "@juicesharp/rpiv-btw"],
 ] as const) {
   const target = join(root, ".fixtures", name);

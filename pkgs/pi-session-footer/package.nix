@@ -21,9 +21,9 @@
   pnpm = pnpm_10;
   packageRoot = "lib/node_modules/${manifest.name}";
   dependencyHashes = {
-    aarch64-darwin = "sha256-BXKbb1tA2dRZhUUwNiMeK29/mgjGLCGAw+dHuktypfc=";
-    aarch64-linux = "sha256-tWyYeC9AQmqxY5oIqHlyNsiIZCLGCRKI0dIZNX0rEA8=";
-    x86_64-linux = "sha256-AOhvbvIUqKRCw+pf0nt5wcgW0PlI/Lbr6Z3IfYOlYr0=";
+    aarch64-darwin = "sha256-ir1Dzd0+CfGaAztqS4Sxf5XQyG4C9tlrU7pLrf/7Tis=";
+    aarch64-linux = "sha256-AgrCZ+NkdBiKa8WWTQAN+AHxgwkrR3cQr6kk5Hpn970=";
+    x86_64-linux = "sha256-ZynVcwZBUgKftJ3Ib/tDm2nuAGOQWYNLlg3dfSOpNxE=";
   };
   updaters = callPackage ../build-support/updaters.nix {};
 in

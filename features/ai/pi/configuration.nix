@@ -232,7 +232,7 @@
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
   };
 in {
-  xdg.configFile."rpiv-todo/config.json".text = toJson {widget.enabled = false;};
+  xdg.configFile."rpiv-todo/config.json".text = toJson {maxWidgetLines = 0;};
   xdg.configFile."rpiv-btw/config.json".text = toJson {crossSessionHint = false;};
 
   home = {
