@@ -1,7 +1,10 @@
 # Local package overlay: any subdirectory of `pkgs/` containing a `package.nix`
 # is exposed as `pkgs.<name>`, so a module uses a package defined in this
 # repository just as it uses one from nixpkgs.
-{inputs}: let
+{
+  flakeContexts,
+  inputs,
+}: let
   discovery = import ../lib/discovery.nix {inherit (inputs.nixpkgs) lib;};
   inherit (inputs.nixpkgs) lib;
   npmPackages = import ../lib/npm-packages.nix {inherit lib;};
@@ -10,13 +13,15 @@
   names = discovery.discoverPackages pkgsDir;
 in
   final: prev: let
-    # Argument files can request inputs, final and prev. Explicit upstream
-    # arguments use prev to avoid resolving the local replacement.
+    # Argument files can request inputs, final, prev and upstreamPackageSets.
+    # Explicit upstream arguments use prev to avoid resolving the local
+    # replacement.
     extraArgs = name: let
       argsFile = pkgsDir + "/${name}/args.nix";
+      inherit (flakeContexts.${final.stdenv.hostPlatform.system}) upstreamPackageSets;
     in
       if builtins.pathExists argsFile
-      then let arguments = import argsFile; in arguments (builtins.intersectAttrs (builtins.functionArgs arguments) {inherit final inputs prev;})
+      then let arguments = import argsFile; in arguments (builtins.intersectAttrs (builtins.functionArgs arguments) {inherit final inputs prev upstreamPackageSets;})
       else {};
   in
     {

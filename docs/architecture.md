@@ -300,12 +300,18 @@ Overlays compose package sets, import external packages and expose scoped sets
 or aliases. Features configure applications and select package options. They do
 not define source pins or maintain patches.
 
-Optional `args.nix` functions can request `inputs`, `final` and `prev`. Pass an
-`upstreamPackage` argument explicitly from `prev` when replacing its attribute,
-so the recipe does not recursively resolve its own replacement. The loader
-preserves the resulting upstream `.override` API; complete local recipes use
-ordinary `callPackage` argument overrides. A different source channel or
-external package input must be selected explicitly.
+Optional `args.nix` functions can request `inputs`, `final`, `prev` and
+`upstreamPackageSets`. Pass an `upstreamPackage` argument explicitly from `prev`
+when replacing its attribute, so the recipe does not recursively resolve its own
+replacement. The loader preserves the resulting upstream `.override` API;
+complete local recipes use ordinary `callPackage` argument overrides. A
+different source channel or external package input must be selected explicitly.
+
+`upstreamPackageSets` contains the `nixpkgs` and `nixpkgs-stable` package sets
+for the package's system, without this repository's overlays. Overlays and
+modules read the same sets through `flakeContexts` and `flakeContext`. Take
+upstream packages from these sets. An input's `legacyPackages` reads Nixpkgs
+configuration and overlays from the user's environment during impure evaluation.
 
 `passthru.tests` exports checks as `<package>-<test>`. `passthru.slowTests`
 exports `legacyPackages.<system>.slowChecks`. The router filters availability

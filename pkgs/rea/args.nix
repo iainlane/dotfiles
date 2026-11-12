@@ -1,11 +1,9 @@
 {
   final,
-  inputs,
-}: let
-  system = final.stdenv.hostPlatform.system;
-in {
-  nodejs = inputs.nixpkgs-stable.legacyPackages.${system}.nodejs_26;
-  upstreamNodejs = inputs.nixpkgs.legacyPackages.${system}.nodejs_24;
-  upstreamRea = inputs.nixpkgs.legacyPackages.${system}.rea or null;
-  installAgentSkills = final.installAgentSkills or inputs.nixpkgs.legacyPackages.${system}.installAgentSkills;
+  upstreamPackageSets,
+}: {
+  nodejs = upstreamPackageSets.nixpkgs-stable.nodejs_26;
+  upstreamNodejs = upstreamPackageSets.nixpkgs.nodejs_24;
+  upstreamRea = upstreamPackageSets.nixpkgs.rea or null;
+  installAgentSkills = final.installAgentSkills or upstreamPackageSets.nixpkgs.installAgentSkills;
 }

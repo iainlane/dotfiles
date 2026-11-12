@@ -1,8 +1,4 @@
-{lib, ...}: {
-  pkgs,
-  system,
-  ...
-}:
+{lib, ...}: {pkgs, ...}:
 (
   let
     selectPhp = version:
@@ -15,11 +11,9 @@
               source = "host";
             };
           };
-        inputs = {
-          nixpkgs-stable.legacyPackages.${system}.php84 = {
-            version = "8.4.27";
-            source = "stable";
-          };
+        upstreamPackageSets.nixpkgs-stable.php84 = {
+          version = "8.4.27";
+          source = "stable";
         };
       }).php84;
 

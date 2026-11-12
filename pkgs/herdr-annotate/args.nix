@@ -1,7 +1,8 @@
 {
   final,
   inputs,
+  upstreamPackageSets,
 }: {
   inherit (inputs.llm-agents.packages.${final.stdenv.hostPlatform.system}) plannotator-tui;
-  inherit (inputs.nixpkgs.legacyPackages.${final.stdenv.hostPlatform.system}) rustPlatform;
+  inherit (upstreamPackageSets.nixpkgs) rustPlatform;
 }
