@@ -6,7 +6,17 @@
       case "$1" in
         view)
           if [[ "''${PI_UPDATER_FORBID_DISCOVERY:-0}" == 1 ]]; then exit 1; fi
-          printf '%s\n' "$PI_UPDATER_VERSION"
+          case "$3" in
+            repository)
+              printf '%s\n' "$PI_UPDATER_REPOSITORY"
+              ;;
+            gitHead)
+              printf '%s\n' "$PI_UPDATER_GIT_HEAD"
+              ;;
+            *)
+              printf '%s\n' "$PI_UPDATER_VERSION"
+              ;;
+          esac
           ;;
         install)
           if [[ "''${PI_UPDATER_EXPECT_PATCH:-0}" == 1 ]]; then
@@ -45,8 +55,22 @@
     ln -s ${lib.getExe hash} $out/bin/nix
     ln -s ${lib.getExe hash} $out/bin/nix-prefetch-url
   '';
+  git = pkgs.writeShellApplication {
+    name = "git";
+    text = ''
+      arguments=()
+      for argument in "$@"; do
+        if [[ "$argument" == https://github.com/fixture/fixture.git ]]; then
+          argument="$PI_UPDATER_GIT_REMOTE"
+        fi
+        arguments+=("$argument")
+      done
+
+      exec ${lib.getExe pkgs.gitMinimal} "''${arguments[@]}"
+    '';
+  };
   updaters = pkgs.callPackage ./updaters.nix {
-    inherit nix wget;
+    inherit git nix wget;
     nodejs = npm;
   };
   manifestPatch = pkgs.writeText "pi-updater-manifest.patch" ''
