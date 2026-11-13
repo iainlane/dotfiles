@@ -42,6 +42,31 @@ relock() {
 	pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
 }
 
+# Prints each direct dependency that a local package resolves to another
+# version, with the versions that the local packages resolve. pnpm would
+# install a second copy, and each copy would load with its own module state.
+misaligned() {
+	yq -o=json '.' pnpm-lock.yaml | jq -r '
+		def version: sub("\\(.*$"; "");
+		[
+			.snapshots // {} | to_entries[]
+			| select(.key | test("@file:\\.nix-providers/"))
+			| (.value.dependencies // {}) + (.value.optionalDependencies // {})
+			| to_entries[]
+			| select(.value | test("^[0-9]"))
+			| {name: .key, version: (.value | version)}
+		] as $provided
+		| (
+			.importers["."] // {}
+			| (.dependencies // {}) + (.devDependencies // {}) + (.optionalDependencies // {})
+			| with_entries(select(.value.version | test("^[0-9]")) | .value = (.value.version | version))
+		) as $direct
+		| $provided | group_by(.name)[]
+		| {name: .[0].name, versions: (map(.version) | unique)}
+		| select($direct[.name] != null and .versions != [$direct[.name]])
+		| [.name, (.versions | join(" "))] | @tsv'
+}
+
 # Prints each package that resolves the registry release of the given local
 # package.
 dependents() {
@@ -65,3 +90,31 @@ done < <(jq -r --argjson peers "$peers" '.[] | select(.name as $name | $peers | 
 if ((scoped)); then
 	relock
 fi
+
+mapfile -t mismatches < <(misaligned)
+if ((${#mismatches[@]} == 0)); then
+	exit 0
+fi
+
+for mismatch in "${mismatches[@]}"; do
+	IFS=$'\t' read -r name versions <<<"$mismatch"
+	if [[ "$versions" == *" "* ]]; then
+		printf 'Local packages need different versions of %s: %s\n' "$name" "$versions" >&2
+		exit 1
+	fi
+
+	jq --arg name "$name" --arg version "$versions" '
+		reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
+			if .[$field][$name] == null or (.[$field][$name] | startswith("npm:")) then .
+			else .[$field][$name] = $version end)
+	' package.json >"$staged"
+	mv "$staged" package.json
+done
+
+relock
+
+mapfile -t mismatches < <(misaligned)
+for mismatch in "${mismatches[@]}"; do
+	printf 'pnpm still installs a second copy of %s beside a local package.\n' "${mismatch%%$'\t'*}" >&2
+	exit 1
+done

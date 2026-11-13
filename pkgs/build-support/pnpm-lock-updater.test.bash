@@ -114,6 +114,83 @@ if (cd "$root/plain" && PNPM_LOCK_UPDATER_RERUN=1 NIX_EVAL="$added" UPDATE_LOG="
 fi
 printf '%s\n' 'Relocking plain changed its local npm packages again.' | diff -u - "$root/again.log"
 
+# A direct dependency moves to the version that a local package installs, so
+# pnpm installs one copy, with one set of module state.
+lock() {
+	local direct="$1"
+	shift
+
+	cat <<EOF
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@scope/tui':
+        specifier: $direct
+        version: $direct(peer@1.0.0)
+      other:
+        specifier: ^4
+        version: 4.1.0
+
+snapshots:
+EOF
+	while (($# > 0)); do
+		cat <<EOF
+
+  '$1@file:.nix-providers/$1.tgz(peer@1.0.0)':
+    dependencies:
+      '@scope/tui': $2(peer@1.0.0)
+      alias: other@4.1.0
+      other: 4.1.0
+EOF
+		shift 2
+	done
+}
+
+lock 1.0.0 host 1.1.0 >"$root/locks-moved-1.yaml"
+lock 1.1.0 host 1.1.0 >"$root/locks-moved-2.yaml"
+rm -f "$root/scenario-calls"
+(
+	set -e
+	rm -rf "$root/scenario" "$root/locks"
+	mkdir "$root/scenario" "$root/locks"
+	cp "$root/locks-moved-1.yaml" "$root/locks/1.yaml"
+	cp "$root/locks-moved-2.yaml" "$root/locks/2.yaml"
+	printf '%s\n' '{"name": "scenario", "devDependencies": {"@scope/tui": "1.0.0", "other": "^4"}}' >"$root/scenario/package.json"
+	printf '%s\n' 'packages:' '  - "."' >"$root/scenario/pnpm-workspace.yaml"
+	cd "$root/scenario"
+	PNPM_LOCKS="$root/locks" UPDATE_LOG="$root/scenario-calls" "$updater_with_lockfiles"
+)
+jq -c .devDependencies "$root/scenario/package.json" | diff -u <(printf '%s\n' '{"@scope/tui":"1.1.0","other":"^4"}') -
+diff -u <(printf '%s\n' install install) <(sed -nE 's/^pnpm:[^:]*:(install).*/\1/p' "$root/scenario-calls")
+
+# Local packages that need different versions of a direct dependency, and a
+# relock that still installs two copies, stop the update.
+for case in conflict persistent; do
+	rm -rf "$root/scenario" "$root/locks"
+	mkdir "$root/scenario" "$root/locks"
+	case "$case" in
+	conflict)
+		lock 1.0.0 host 1.1.0 linked 1.2.0 >"$root/locks/1.yaml"
+		expected='Local packages need different versions of @scope/tui: 1.1.0 1.2.0'
+		;;
+	persistent)
+		lock 1.0.0 host 1.1.0 >"$root/locks/1.yaml"
+		lock 1.0.0 host 1.1.0 >"$root/locks/2.yaml"
+		expected='pnpm still installs a second copy of @scope/tui beside a local package.'
+		;;
+	esac
+	printf '%s\n' '{"name": "scenario", "devDependencies": {"@scope/tui": "1.0.0", "other": "^4"}}' >"$root/scenario/package.json"
+	printf '%s\n' 'packages:' '  - "."' >"$root/scenario/pnpm-workspace.yaml"
+	if (cd "$root/scenario" && PNPM_LOCKS="$root/locks" UPDATE_LOG="$root/$case-calls" "$updater_with_lockfiles") 2>"$root/$case.log"; then
+		printf 'The %s case must stop the update.\n' "$case" >&2
+		exit 1
+	fi
+	printf '%s\n' "$expected" | diff -u - "$root/$case.log"
+done
+
 # A local package that the project declares as its own peer gets no global
 # override, which pnpm would turn into a production dependency. The project's
 # dependency points at the tarball, and an override scoped to each dependent
