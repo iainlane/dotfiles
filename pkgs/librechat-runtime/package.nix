@@ -1,110 +1,70 @@
 {
-  autoPatchelfHook,
   callPackage,
-  fetchPnpmDeps,
   lib,
   librechat,
   librechat-code,
   makeWrapper,
-  mkShell,
   nodejs_24,
   pnpm_10,
-  pnpmConfigHook,
-  stdenv,
-  updaters,
 }: let
   pnpm = pnpm_10;
-  manifest = lib.importJSON ./package.json;
-  bridge = "${librechat-code}/lib/librechat-code/.build/bridge";
-  librechatRoot = "${librechat}/lib/node_modules/LibreChat";
+  environment = {
+    LIBRECHAT_CODE_BRIDGE = "${librechat-code}/lib/librechat-code/.build/bridge";
+    LIBRECHAT_TEST_ROOT = "${librechat}/lib/node_modules/LibreChat";
+  };
 in
-  assert lib.assertMsg (manifest.packageManager == "pnpm@${pnpm.version}") "LibreChat's packageManager must match the Nix pnpm version.";
-    stdenv.mkDerivation (finalAttrs: {
-      pname = "librechat-runtime";
-      inherit (manifest) version;
-      src = lib.fileset.toSource {
-        root = ../..;
-        fileset = lib.fileset.unions [./. ../../.oxlintrc.json ../../.oxfmtrc.json];
-      };
-      sourceRoot = "source/pkgs/librechat-runtime";
+  (callPackage ../build-support/pnpm-package.nix {}) {
+    pname = "librechat-runtime";
+    directory = ./.;
+    inherit pnpm environment;
+    dependencyHashes = {
+      aarch64-darwin = "sha256-712SnaZPtg4jZ9e8NaA9Az/Y7XU2SQZA9kC0egRhuHo=";
+      aarch64-linux = "sha256-712SnaZPtg4jZ9e8NaA9Az/Y7XU2SQZA9kC0egRhuHo=";
+      x86_64-linux = "sha256-712SnaZPtg4jZ9e8NaA9Az/Y7XU2SQZA9kC0egRhuHo=";
+    };
+    packageRoot = "lib/librechat-runtime";
+    # The workspace root is not an npm package.
+    npmTarball = false;
 
-      pnpmDeps = fetchPnpmDeps {
-        inherit (finalAttrs) pname version src sourceRoot;
-        inherit pnpm;
-        fetcherVersion = 3;
-        hash = "sha256-4TvLFxRR20Xx9XAfBNy3KowysCWhrItL/VDFiQ/NS54=";
-      };
+    nativeBuildInputs = [makeWrapper];
+    doInstallCheck = true;
+    __darwinAllowLocalNetworking = true;
 
-      nativeBuildInputs = [nodejs_24 pnpm pnpmConfigHook makeWrapper] ++ lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook];
-      buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];
-      dontStrip = true;
-      doCheck = true;
-      doInstallCheck = true;
-      __darwinAllowLocalNetworking = true;
-      LIBRECHAT_CODE_BRIDGE = bridge;
-      LIBRECHAT_TEST_ROOT = librechatRoot;
+    postUnpack = ''
+      ${lib.getExe nodejs_24} source/pkgs/librechat-runtime/scripts/prepare-code-bridge.ts
+    '';
 
-      postUnpack = ''
-        ${lib.getExe nodejs_24} source/pkgs/librechat-runtime/scripts/prepare-code-bridge.ts
-      '';
+    checkPhase = ''
+      runHook preCheck
+      pnpm typecheck
+      pnpm lint
+      pnpm test --maxWorkers=1
+      runHook postCheck
+    '';
 
-      buildPhase = ''
-        runHook preBuild
-        pnpm build
-        runHook postBuild
-      '';
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out/lib" "$out/bin"
+      source ${./deploy.bash} "$out/$packageRoot"
+      makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
+        --add-flags "--disable-wasm-trap-handler $out/$packageRoot/dist/bin/librechat-runtime.js"
+      makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechatctl" \
+        --add-flags "--disable-wasm-trap-handler $out/$packageRoot/dist/bin/librechatctl.js"
+      runHook postInstall
+    '';
 
-      preBuild = lib.optionalString stdenv.hostPlatform.isLinux ''
-        autoPatchelf node_modules
-      '';
+    installCheckPhase = ''
+      runHook preInstallCheck
+      node scripts/check-deployment.ts "$out/$packageRoot"
+      runHook postInstallCheck
+    '';
 
-      checkPhase = ''
-        runHook preCheck
-        pnpm typecheck
-        pnpm lint
-        pnpm test --maxWorkers=1
-        runHook postCheck
-      '';
+    passthru.tests.deployment = callPackage ./deploy.test.nix {inherit pnpm;};
 
-      installPhase = ''
-        runHook preInstall
-        mkdir -p "$out/lib" "$out/bin"
-        source ${./deploy.bash} "$out/lib/librechat-runtime"
-        makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechat-runtime" \
-          --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/dist/bin/librechat-runtime.js"
-        makeWrapper ${lib.getExe nodejs_24} "$out/bin/librechatctl" \
-          --add-flags "--disable-wasm-trap-handler $out/lib/librechat-runtime/dist/bin/librechatctl.js"
-        runHook postInstall
-      '';
-
-      installCheckPhase = ''
-        runHook preInstallCheck
-        ${lib.getExe nodejs_24} scripts/check-deployment.ts "$out/lib/librechat-runtime"
-        runHook postInstallCheck
-      '';
-
-      passthru = {
-        tests.deployment = callPackage ./deploy.test.nix {inherit pnpm;};
-        updateScript = updaters.mkNixUpdateUpdater {
-          attr = "librechat-runtime";
-          refresh = true;
-          extraFlags = ["--version=skip" "--no-src"];
-        };
-        maintenance = {
-          source = "repository";
-          refresh = true;
-        };
-        devShell = mkShell {
-          packages = [nodejs_24 pnpm];
-          LIBRECHAT_CODE_BRIDGE = bridge;
-          LIBRECHAT_TEST_ROOT = librechatRoot;
-        };
-      };
-
-      meta = {
-        description = "Private LibreChat service and conversation VM controller";
-        license = lib.licenses.mit;
-        mainProgram = "librechat-runtime";
-        platforms = lib.platforms.unix;
-      };
-    })
+    meta = {
+      description = "Private LibreChat service and conversation VM controller";
+      license = lib.licenses.mit;
+      mainProgram = "librechat-runtime";
+      platforms = lib.platforms.unix;
+    };
+  }

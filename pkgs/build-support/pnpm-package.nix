@@ -17,6 +17,8 @@
   pnpm,
   dependencyHashes,
   packageRoot ? null,
+  # Whether the package is an npm package, with a tarball and an npm purl.
+  npmTarball ? true,
   environment ? {},
   shellPackages ? [],
   ...
@@ -31,9 +33,10 @@
     if packageRoot == null
     then "lib/node_modules/${manifest.name}"
     else packageRoot;
-  recipe = removeAttrs args ["directory" "pnpm" "dependencyHashes" "packageRoot" "environment" "shellPackages" "passthru" "meta"];
+  recipe = removeAttrs args ["directory" "pnpm" "dependencyHashes" "packageRoot" "npmTarball" "environment" "shellPackages" "passthru" "meta"];
 in
   assert lib.assertMsg (manifest.packageManager == "pnpm@${pnpm.version}") "${relative}: packageManager must match Nix's pnpm version.";
+  assert lib.assertMsg (npmTarball || args ? installPhase) "${relative}: the default installPhase installs the npm tarball, so a package without one needs its own installPhase.";
     stdenv.mkDerivation (finalAttrs: let
       deps = callPackage ./pnpm-deps.nix {} {
         npmRoot = directory;
@@ -92,8 +95,8 @@ in
       // recipe
       // {
         packageRoot = installRoot;
-        outputs = ["out" "tarball"];
-        nativeBuildInputs = [nodejs_24 pnpm pnpmConfigHook npmPackHook] ++ lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook] ++ (args.nativeBuildInputs or []);
+        outputs = ["out"] ++ lib.optional npmTarball "tarball";
+        nativeBuildInputs = [nodejs_24 pnpm pnpmConfigHook] ++ lib.optional npmTarball npmPackHook ++ lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook] ++ (args.nativeBuildInputs or []);
         buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib] ++ (args.buildInputs or []);
 
         passthru =
@@ -104,8 +107,6 @@ in
                 shellHook = deps.linkProviders ''"$(git rev-parse --show-toplevel)"/${relative}'';
               });
 
-            npmTarball = "${finalAttrs.finalPackage.tarball}/package.tgz";
-
             updateScript = updaters.mkPnpmLockUpdater {
               inherit (finalAttrs) pname;
               directory = relative;
@@ -114,10 +115,13 @@ in
               inherit pnpm;
             };
           }
+          // lib.optionalAttrs npmTarball {
+            npmTarball = "${finalAttrs.finalPackage.tarball}/package.tgz";
+          }
           // (args.passthru or {});
 
         meta =
-          {
+          lib.optionalAttrs npmTarball {
             identifiers.purlParts = npmPackages.purlParts {inherit (manifest) name version;};
           }
           // (args.meta or {});

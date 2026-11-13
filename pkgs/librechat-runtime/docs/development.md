@@ -1,18 +1,16 @@
 # Development
 
-From the repository root:
+Allow this directory's `.envrc` with direnv, then prepare, install and check:
 
 ```sh
-direnv exec . nix develop .#librechat-runtime
-cd pkgs/librechat-runtime
 pnpm prepare:code-bridge
-pnpm install --frozen-lockfile
+pnpm install
 pnpm check
 ```
 
-The shell supplies Node, pnpm, the pinned LibreChat package for native contract
-tests and the compiled CodeAPI bridge. Preparation copies the bridge and its
-generated declarations into `packages/codeapi-bridge/dist`.
+The shell supplies Node, the pinned pnpm, the pinned LibreChat package for
+native contract tests and the compiled CodeAPI bridge. Preparation copies the
+bridge and its generated declarations into `packages/codeapi-bridge/dist`.
 
 ## Packages
 
