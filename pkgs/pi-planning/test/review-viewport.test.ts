@@ -15,8 +15,11 @@ import {
   reviewPlan,
   type ReviewContext,
   type ReviewResult,
-} from "../src/review.ts";
-import { renderPlanDocument, renderPlanReview } from "../src/review-render.ts";
+} from "#planning/review.ts";
+import {
+  renderPlanDocument,
+  renderPlanReview,
+} from "#planning/review-render.ts";
 import { TestTerminal } from "./terminal.ts";
 
 beforeAll(() => initTheme("dark", false));

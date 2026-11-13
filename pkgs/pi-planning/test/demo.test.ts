@@ -11,7 +11,7 @@ import {
   implementation,
   researchMessage,
   reviewComment,
-} from "../demo/scenario.ts";
+} from "#demo/scenario.ts";
 
 const planPath = "/demo/plans/session.md";
 

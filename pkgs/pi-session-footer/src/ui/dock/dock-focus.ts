@@ -11,6 +11,9 @@ interface ReturnTarget {
   component: Component | null;
 }
 export class DockFocus {
+  private readonly tui: FocusScreen;
+  private readonly editor: () => EditorFactory;
+  private readonly active: () => boolean;
   private readonly panel: Component | null;
   private factory: EditorFactory;
   private target: ReturnTarget | undefined;
@@ -18,10 +21,13 @@ export class DockFocus {
   private closed = false;
 
   private constructor(
-    private readonly tui: FocusScreen,
-    private readonly editor: () => EditorFactory,
-    private readonly active: () => boolean,
+    tui: FocusScreen,
+    editor: () => EditorFactory,
+    active: () => boolean,
   ) {
+    this.tui = tui;
+    this.editor = editor;
+    this.active = active;
     this.panel = tui.getFocusedComponent();
     this.factory = editor();
     this.unsubscribe = tui.addInputListener(() => this.beforeInput());

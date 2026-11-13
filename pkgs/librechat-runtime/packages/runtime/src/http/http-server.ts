@@ -7,7 +7,6 @@ import {
 } from "node:http";
 import { Readable, Transform, type TransformCallback } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { callbackify } from "node:util";
 
 export class RequestBodyLimitError extends Error {
   constructor() {
@@ -58,69 +57,68 @@ export interface HttpServiceOptions {
 }
 
 export function httpService(options: HttpServiceOptions): Server {
-  const handle = callbackify(
-    async (
-      incoming: IncomingMessage,
-      outgoing: ServerResponse,
-    ): Promise<void> => {
-      const abort = new AbortController();
+  const serve = async (
+    incoming: IncomingMessage,
+    outgoing: ServerResponse,
+  ): Promise<void> => {
+    const abort = new AbortController();
 
-      incoming.once("aborted", () => abort.abort());
+    incoming.once("aborted", () => abort.abort());
 
-      outgoing.once("close", () => {
-        if (!outgoing.writableEnded) {
-          abort.abort();
-        }
-      });
-
-      const headers = new Headers();
-
-      for (const [name, value] of Object.entries(incoming.headers)) {
-        if (value !== undefined) {
-          headers.set(name, Array.isArray(value) ? value.join(", ") : value);
-        }
+    outgoing.once("close", () => {
+      if (!outgoing.writableEnded) {
+        abort.abort();
       }
+    });
 
-      const method = incoming.method ?? "GET";
+    const headers = new Headers();
 
-      const init: RequestInit & { duplex: "half" } = {
-        method,
-        headers,
-        signal: abort.signal,
-        duplex: "half",
-      };
-
-      if (!["GET", "HEAD"].includes(method)) {
-        const limited = incoming.pipe(
-          new BodyLimit(options.maxBodyBytes ?? 16 * 1024 * 1024),
-        );
-
-        incoming.once("error", (error: Error) => limited.destroy(error));
-
-        init.body = Readable.toWeb(limited);
+    for (const [name, value] of Object.entries(incoming.headers)) {
+      if (value !== undefined) {
+        headers.set(name, Array.isArray(value) ? value.join(", ") : value);
       }
+    }
 
-      const request = new Request(`http://service${incoming.url ?? "/"}`, init);
-      const response = await options.handler(request);
+    const method = incoming.method ?? "GET";
 
-      outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+    const init: RequestInit & { duplex: "half" } = {
+      method,
+      headers,
+      signal: abort.signal,
+      duplex: "half",
+    };
 
-      if (response.body === null) {
-        outgoing.end();
+    if (!["GET", "HEAD"].includes(method)) {
+      const limited = incoming.pipe(
+        new BodyLimit(options.maxBodyBytes ?? 16 * 1024 * 1024),
+      );
 
-        return;
-      }
+      incoming.once("error", (error: Error) => limited.destroy(error));
 
-      await pipeline(Readable.fromWeb(response.body), outgoing);
-    },
-  );
+      init.body = Readable.toWeb(limited);
+    }
 
-  return createServer((incoming, outgoing) => {
-    handle(incoming, outgoing, (error: unknown) => {
-      if (error === null) {
-        return;
-      }
+    const request = new Request(`http://service${incoming.url ?? "/"}`, init);
+    const response = await options.handler(request);
 
+    outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+
+    if (response.body === null) {
+      outgoing.end();
+
+      return;
+    }
+
+    await pipeline(Readable.fromWeb(response.body), outgoing);
+  };
+
+  const handle = async (
+    incoming: IncomingMessage,
+    outgoing: ServerResponse,
+  ): Promise<void> => {
+    try {
+      await serve(incoming, outgoing);
+    } catch (error) {
       options.onError(error);
 
       if (outgoing.headersSent) {
@@ -141,6 +139,10 @@ export function httpService(options: HttpServiceOptions): Server {
           error: error instanceof Error ? error.name : "InternalServiceError",
         }),
       );
-    });
+    }
+  };
+
+  return createServer((incoming, outgoing) => {
+    void handle(incoming, outgoing);
   });
 }

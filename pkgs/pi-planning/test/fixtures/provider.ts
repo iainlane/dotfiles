@@ -1,4 +1,4 @@
-import { nodeFiles } from "../../src/node-files.ts";
+import { nodeFiles } from "#planning/node-files.ts";
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -10,7 +10,7 @@ import {
   getAgentDir,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { PlanStore } from "../../src/store.ts";
+import { PlanStore } from "#planning/store.ts";
 import { boundaryText } from "./boundary.ts";
 
 export default function provider(pi: ExtensionAPI): void {

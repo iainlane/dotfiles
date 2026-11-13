@@ -8,6 +8,18 @@ import { demoFixture } from "#demo/fixture.ts";
 import { DemoProvider } from "#demo/provider.ts";
 import { DemoWorkspace } from "#demo/workspace.ts";
 
+function isExecFailure(
+  error: unknown,
+): error is ExecFileException & { stdout: string; stderr: string } {
+  return (
+    error instanceof Error &&
+    "stdout" in error &&
+    typeof error.stdout === "string" &&
+    "stderr" in error &&
+    typeof error.stderr === "string"
+  );
+}
+
 it.for([
   {
     args: ["--help"],
@@ -32,23 +44,33 @@ it.for([
 ])(
   "runs the plain Node CLI for $args",
   async ({ args, ...expected }, { signal }) => {
-    const result = await promisify(execFile)(
-      process.execPath,
-      ["demo/run.ts", ...args],
-      {
-        cwd: fileURLToPath(new URL("../../", import.meta.url)),
-        env: { ...process.env, NODE_OPTIONS: "" },
-        encoding: "utf8",
-        signal,
-      },
-    ).then(
-      ({ stdout, stderr }) => ({ status: 0, stdout, stderr }),
-      (error: ExecFileException & { stdout: string; stderr: string }) => ({
+    let result: {
+      status: ExecFileException["code"];
+      stdout: string;
+      stderr: string;
+    };
+    try {
+      const { stdout, stderr } = await promisify(execFile)(
+        process.execPath,
+        ["demo/run.ts", ...args],
+        {
+          cwd: fileURLToPath(new URL("../../", import.meta.url)),
+          env: { ...process.env, NODE_OPTIONS: "" },
+          encoding: "utf8",
+          signal,
+        },
+      );
+      result = { status: 0, stdout, stderr };
+    } catch (error) {
+      if (!isExecFailure(error)) {
+        throw error;
+      }
+      result = {
         status: error.code,
         stdout: error.stdout,
         stderr: error.stderr,
-      }),
-    );
+      };
+    }
     expect({
       status: result.status,
       stdout: result.stdout.trimEnd(),

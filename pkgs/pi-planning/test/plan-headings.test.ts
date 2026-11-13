@@ -5,7 +5,7 @@ import type {
   ToolRendererResolver,
 } from "@earendil-works/pi-coding-agent";
 import { expect, it, vi } from "vitest";
-import { registerPlanHeadings } from "../src/plan-headings.ts";
+import { registerPlanHeadings } from "#planning/plan-headings.ts";
 
 const cwd = join(homedir(), "heading-fixture");
 const directory = join(cwd, "agent", "plans");

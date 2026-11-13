@@ -8,7 +8,6 @@ import {
   InvalidApiKeyError,
   InvalidDataError,
   InvalidJsonError,
-  ProvisionError,
   ReloadHttpError,
   ReloadTransportError,
   SopsDecryptionError,
@@ -29,18 +28,6 @@ import {
 const sopsProgram = "/nix/store/current-sops-nix-user";
 const missingFile = Object.assign(new Error(), { code: "ENOENT" });
 const deniedFile = Object.assign(new Error(), { code: "EACCES" });
-
-function errorSnapshot(error: unknown): object {
-  if (!(error instanceof ProvisionError)) {
-    throw error;
-  }
-
-  return {
-    type: error.constructor,
-    fields: Object.fromEntries(Object.entries(error)),
-    cause: error.cause,
-  };
-}
 
 const oauth = {
   id: "personal-id",
@@ -196,10 +183,8 @@ describe("TeamClaude provisioning", () => {
       accountSettings: { personal: { allowExtraUsage: true } },
     };
 
-    await expect(
-      provision(policy, dependencies).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(new AmbiguousAccountPolicyError("personal")),
+    await expect(provision(policy, dependencies)).rejects.toStrictEqual(
+      new AmbiguousAccountPolicyError("personal"),
     );
 
     expect(state).toStrictEqual({ config, writes: 0 });
@@ -256,10 +241,8 @@ describe("TeamClaude provisioning", () => {
       const { state, dependencies } = fixture();
       dependencies.readKey = async () => key;
 
-      await expect(
-        provision(spec, dependencies).catch(errorSnapshot),
-      ).resolves.toStrictEqual(
-        errorSnapshot(new InvalidApiKeyError("/secrets/api-key")),
+      await expect(provision(spec, dependencies)).rejects.toStrictEqual(
+        new InvalidApiKeyError("/secrets/api-key"),
       );
 
       expect(state).toStrictEqual({ config: initial, writes: 0 });
@@ -291,10 +274,8 @@ describe("TeamClaude provisioning", () => {
       const config = { ...initial, accounts };
       const { state, dependencies } = fixture(config);
 
-      await expect(
-        provision(spec, dependencies).catch(errorSnapshot),
-      ).resolves.toStrictEqual(
-        errorSnapshot(new ApiKeyAccountConflictError("fallback")),
+      await expect(provision(spec, dependencies)).rejects.toStrictEqual(
+        new ApiKeyAccountConflictError("fallback"),
       );
 
       expect(state).toStrictEqual({ config, writes: 0 });
@@ -313,10 +294,8 @@ describe("TeamClaude provisioning", () => {
     const { state, dependencies } = fixture();
 
     await expect(
-      provision({ ...spec, settings: { accounts: [] } }, dependencies).catch(
-        errorSnapshot,
-      ),
-    ).resolves.toStrictEqual(errorSnapshot(new AccountsSettingError()));
+      provision({ ...spec, settings: { accounts: [] } }, dependencies),
+    ).rejects.toStrictEqual(new AccountsSettingError());
 
     expect(state).toStrictEqual({ config: initial, writes: 0 });
   });
@@ -327,10 +306,8 @@ describe("TeamClaude provisioning", () => {
       const { state, dependencies } = fixture();
 
       await expect(
-        provision({ ...spec, settings: { [field]: true } }, dependencies).catch(
-          errorSnapshot,
-        ),
-      ).resolves.toStrictEqual(errorSnapshot(new UnsupportedFieldError(field)));
+        provision({ ...spec, settings: { [field]: true } }, dependencies),
+      ).rejects.toStrictEqual(new UnsupportedFieldError(field));
 
       expect(state).toStrictEqual({ config: initial, writes: 0 });
     },
@@ -397,10 +374,8 @@ describe("sops-nix decryption", () => {
         status: async () =>
           `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 1\n`,
         pause: async () => {},
-      }).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(new SopsDecryptionError(sopsProgram)),
-    );
+      }),
+    ).rejects.toStrictEqual(new SopsDecryptionError(sopsProgram));
   });
 
   it("bounds the wait when the job never completes", async () => {
@@ -409,10 +384,8 @@ describe("sops-nix decryption", () => {
     );
 
     await expect(
-      waitForSops(sopsProgram, { status, pause: async () => {} }).catch(
-        errorSnapshot,
-      ),
-    ).resolves.toStrictEqual(errorSnapshot(new SopsTimeoutError(sopsProgram)));
+      waitForSops(sopsProgram, { status, pause: async () => {} }),
+    ).rejects.toStrictEqual(new SopsTimeoutError(sopsProgram));
 
     expect(status).toHaveBeenCalledTimes(50);
   });
@@ -548,9 +521,7 @@ describe("provisioning adapters", () => {
       const { files, dependencies } = runtimeFixture();
       files.set(paths.configFile, invalid);
 
-      await expect(
-        run(paths, dependencies).catch(errorSnapshot),
-      ).resolves.toStrictEqual(errorSnapshot(failure));
+      await expect(run(paths, dependencies)).rejects.toStrictEqual(failure);
 
       expect(files.get(paths.configFile)).toBe(invalid);
 
@@ -570,15 +541,11 @@ describe("provisioning adapters", () => {
       }),
     );
 
-    await expect(
-      run(paths, dependencies).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(
-        new InvalidDataError("specification", paths.specFile, [
-          ["apiKeyAccounts", "fallback", "apiKeyFile"],
-          ["apiKeyAccounts", "fallback", "priority"],
-        ]),
-      ),
+    await expect(run(paths, dependencies)).rejects.toStrictEqual(
+      new InvalidDataError("specification", paths.specFile, [
+        ["apiKeyAccounts", "fallback", "apiKeyFile"],
+        ["apiKeyAccounts", "fallback", "priority"],
+      ]),
     );
 
     expect(dependencies.readText).toHaveBeenCalledExactlyOnceWith(
@@ -637,12 +604,8 @@ describe("provisioning adapters", () => {
     const { files, dependencies } = runtimeFixture();
     files.delete("/secrets/api-key");
 
-    await expect(
-      run(paths, dependencies).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(
-        new FileReadError("/secrets/api-key", { cause: missingFile }),
-      ),
+    await expect(run(paths, dependencies)).rejects.toStrictEqual(
+      new FileReadError("/secrets/api-key", { cause: missingFile }),
     );
 
     expect(dependencies.clock.pause).toHaveBeenCalledTimes(50);
@@ -659,12 +622,8 @@ describe("provisioning adapters", () => {
       throw deniedFile;
     };
 
-    await expect(
-      run(paths, dependencies).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(
-        new FileReadError("/secrets/api-key", { cause: deniedFile }),
-      ),
+    await expect(run(paths, dependencies)).rejects.toStrictEqual(
+      new FileReadError("/secrets/api-key", { cause: deniedFile }),
     );
 
     expect(dependencies.clock.pause).not.toHaveBeenCalled();
@@ -677,12 +636,8 @@ describe("provisioning adapters", () => {
       throw deniedFile;
     };
 
-    await expect(
-      run(paths, dependencies).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(
-        new ConfigurationWriteError(paths.configFile, { cause: deniedFile }),
-      ),
+    await expect(run(paths, dependencies)).rejects.toStrictEqual(
+      new ConfigurationWriteError(paths.configFile, { cause: deniedFile }),
     );
 
     expect(files.get(paths.configFile)).toBe(original);
@@ -726,10 +681,8 @@ describe("proxy reload", () => {
 
   it("reports an unsuccessful HTTP response", async () => {
     await expect(
-      reload(initial, async () => ({ ok: false, status: 401 })).catch(
-        errorSnapshot,
-      ),
-    ).resolves.toStrictEqual(errorSnapshot(new ReloadHttpError(401)));
+      reload(initial, async () => ({ ok: false, status: 401 })),
+    ).rejects.toStrictEqual(new ReloadHttpError(401));
   });
 
   it("propagates other transport errors", async () => {
@@ -737,9 +690,7 @@ describe("proxy reload", () => {
     await expect(
       reload(initial, async () => {
         throw cause;
-      }).catch(errorSnapshot),
-    ).resolves.toStrictEqual(
-      errorSnapshot(new ReloadTransportError({ cause })),
-    );
+      }),
+    ).rejects.toStrictEqual(new ReloadTransportError({ cause }));
   });
 });

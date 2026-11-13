@@ -131,26 +131,30 @@ export default function dockFixture(pi: ExtensionAPI): void {
         let focused = false;
         let controls: readonly string[] = [];
         const popup = async () => {
-          await ctx.ui.custom(
-            (_tui, _theme, _keys, done) => ({
-              render: () => [
-                "Nested focus check",
-                "Esc returns; x closes the whole editor",
-              ],
-              invalidate() {},
-              handleInput(data) {
-                if (data === "x") {
-                  close();
-                  done(undefined);
-                  return;
-                }
-                if (keys.matches(data, "tui.select.cancel")) {
-                  done(undefined);
-                }
-              },
-            }),
-            { overlay: true },
-          );
+          try {
+            await ctx.ui.custom(
+              (_tui, _theme, _keys, done) => ({
+                render: () => [
+                  "Nested focus check",
+                  "Esc returns; x closes the whole editor",
+                ],
+                invalidate() {},
+                handleInput(data) {
+                  if (data === "x") {
+                    close();
+                    done(undefined);
+                    return;
+                  }
+                  if (keys.matches(data, "tui.select.cancel")) {
+                    done(undefined);
+                  }
+                },
+              }),
+              { overlay: true },
+            );
+          } catch (error) {
+            ctx.ui.notify(String(error), "error");
+          }
         };
         return {
           capturesViewportInput: true,
@@ -240,9 +244,7 @@ export default function dockFixture(pi: ExtensionAPI): void {
               );
             }
             if (data === "o") {
-              popup().catch((error: unknown) =>
-                ctx.ui.notify(String(error), "error"),
-              );
+              void popup();
             }
           },
           dispose() {

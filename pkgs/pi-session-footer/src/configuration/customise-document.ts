@@ -19,11 +19,13 @@ import {
 } from "./settings.ts";
 
 export class WidgetNotInRegionError extends Error {
-  constructor(
-    readonly region: Region,
-    readonly id: SegmentId,
-  ) {
+  readonly region: Region;
+  readonly id: SegmentId;
+
+  constructor(region: Region, id: SegmentId) {
     super("The widget is no longer in this row");
+    this.region = region;
+    this.id = id;
     this.name = "WidgetNotInRegionError";
   }
 }

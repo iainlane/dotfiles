@@ -1,6 +1,9 @@
 import { expect, it, vi } from "vitest";
 import { resizeImage, SettingsManager } from "@earendil-works/pi-coding-agent";
-import { ClipboardFeedbackError, readClipboardImage } from "../src/feedback.ts";
+import {
+  ClipboardFeedbackError,
+  readClipboardImage,
+} from "#planning/feedback.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
 it.each([
@@ -57,42 +60,42 @@ it("honours native image blocking before reading the clipboard", async () => {
   expect(getImage.mock.calls).toStrictEqual([]);
 });
 
-it.each([true, false])(
-  "uses native encoded-image limits and respects auto-resizing: %s",
-  async (autoResize) => {
-    const bytes = Buffer.concat([
-      Buffer.from(feedbackImage.data, "base64"),
-      Buffer.alloc(6_000_000),
-    ]);
-    const result = readClipboardImage(
-      { getImage: async () => bytes },
-      SettingsManager.inMemory({ images: { autoResize } }),
-    ).then(
-      (image) => ({ image }),
-      (error: unknown) => ({ error: String(error) }),
+const oversizedImage = Buffer.concat([
+  Buffer.from(feedbackImage.data, "base64"),
+  Buffer.alloc(6_000_000),
+]);
+
+it("uses native encoded-image limits with auto-resizing", async () => {
+  const prepared = await resizeImage(oversizedImage, "image/png");
+  if (prepared === null) {
+    throw new Error(
+      "Expected the native processor to prepare the valid image fixture",
     );
-    const prepared = await resizeImage(bytes, "image/png");
-    if (prepared === null) {
-      throw new Error(
-        "Expected the native processor to prepare the valid image fixture",
-      );
-    }
-    expect(await result).toStrictEqual(
-      autoResize
-        ? {
-            image: {
-              type: "image",
-              data: prepared.data,
-              mimeType: prepared.mimeType,
-            },
-          }
-        : {
-            error:
-              "ClipboardFeedbackError: The image exceeds Pi's native image limits. Enable image auto-resizing or use a smaller image.",
-          },
-    );
-  },
-);
+  }
+  await expect(
+    readClipboardImage(
+      { getImage: async () => oversizedImage },
+      SettingsManager.inMemory({ images: { autoResize: true } }),
+    ),
+  ).resolves.toStrictEqual({
+    type: "image",
+    data: prepared.data,
+    mimeType: prepared.mimeType,
+  });
+});
+
+it("refuses an image over native encoded-image limits without auto-resizing", async () => {
+  await expect(
+    readClipboardImage(
+      { getImage: async () => oversizedImage },
+      SettingsManager.inMemory({ images: { autoResize: false } }),
+    ),
+  ).rejects.toStrictEqual(
+    new ClipboardFeedbackError(
+      "The image exceeds Pi's native image limits. Enable image auto-resizing or use a smaller image.",
+    ),
+  );
+});
 
 it("reports unsupported native clipboard access", async () => {
   await expect(readClipboardImage(undefined)).rejects.toThrow(

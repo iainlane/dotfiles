@@ -19,8 +19,8 @@ import {
   type ReviewRequest,
   type ReviewResult,
   type ReviewTerminal,
-} from "../src/review.ts";
-import type { PlanRevision } from "../src/store.ts";
+} from "#planning/review.ts";
+import type { PlanRevision } from "#planning/store.ts";
 import { TestTerminal } from "./terminal.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
@@ -120,28 +120,34 @@ function fixture(editorKey: KeyId = "ctrl+g") {
       },
     },
   };
-  const pending = reviewPlan(
-    ctx,
-    {
-      plan: original,
-      signal: abort.signal,
-      present,
-      read: () => {
-        try {
-          return read();
-        } finally {
-          notify();
-        }
-      },
-      readImage,
-    },
-    { name: "nvim", open: edit },
-  );
   let finished = false;
-  const markFinished = () => {
-    finished = true;
-  };
-  pending.then(markFinished, markFinished);
+  const finishListeners = new Set<() => void>();
+  const pending = (async () => {
+    try {
+      return await reviewPlan(
+        ctx,
+        {
+          plan: original,
+          signal: abort.signal,
+          present,
+          read: () => {
+            try {
+              return read();
+            } finally {
+              notify();
+            }
+          },
+          readImage,
+        },
+        { name: "nvim", open: edit },
+      );
+    } finally {
+      finished = true;
+      for (const listener of finishListeners) {
+        listener();
+      }
+    }
+  })();
   // Resolves once `predicate` is true. If the review finishes while the wait is
   // pending, the wait rejects. A wait that starts after the review has
   // finished does not reject, because the editor can still restart the TUI.
@@ -156,12 +162,11 @@ function fixture(editorKey: KeyId = "ctrl+g") {
       waiters.add(check);
       check();
       if (!finished) {
-        const rejectIfWaiting = () => {
+        finishListeners.add(() => {
           if (waiters.delete(check)) {
             reject(new Error("The review finished before the awaited state."));
           }
-        };
-        pending.then(rejectIfWaiting, rejectIfWaiting);
+        });
       }
     });
   const question = () => {

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { PlanFiles } from "../src/files.ts";
+import type { PlanFiles } from "#planning/files.ts";
 
 export class MemoryFiles implements PlanFiles {
   readonly contents = new Map<string, string>();

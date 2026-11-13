@@ -259,7 +259,11 @@ export function truncateText(
 }
 
 export class SegmentPainter {
-  constructor(private readonly theme?: PaintTheme) {}
+  private readonly theme: PaintTheme | undefined;
+
+  constructor(theme?: PaintTheme) {
+    this.theme = theme;
+  }
 
   text(
     style: FooterStyle,

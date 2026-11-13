@@ -34,12 +34,14 @@ export class PlanningSession {
   private exitReminderPending = false;
   private reassessmentPending = false;
   readonly disposers: (() => void)[] = [];
+  private readonly record: (state: SavedState) => void;
 
   constructor(
     snapshot: SessionSnapshot,
     open: (sessionId: string) => PlanStore,
-    private readonly record: (state: SavedState) => void,
+    record: (state: SavedState) => void,
   ) {
+    this.record = record;
     this.id = snapshot.id;
     this.store = open(this.id);
     const entry = snapshot.branch.findLast((candidate) =>

@@ -49,7 +49,7 @@ in
         inherit (manifest) version;
         src = lib.fileset.toSource {
           inherit root;
-          fileset = lib.fileset.unions [directory ../../lib/typecheck.ts ../../.oxlintrc.json ../../.oxfmtrc.json];
+          fileset = lib.fileset.unions [directory ../../lib/typecheck.ts ../../.oxlintrc.json ../../.oxfmtrc.json ../../tsconfig.base.json];
         };
         sourceRoot = "source/${relative}";
         inherit (deps) pnpmDeps prePnpmInstall;

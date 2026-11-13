@@ -96,6 +96,9 @@ interface FittedFooterRow {
   placements: PlacementEvidence[];
 }
 class RowFitter {
+  private readonly observation: FooterObservation;
+  private readonly settings: ResolvedSettings;
+  private readonly options: RowOptions;
   private readonly regions: readonly [Region, Region];
   private readonly width: number;
   private readonly items: Occurrence[];
@@ -104,10 +107,13 @@ class RowFitter {
   private gauge: { owner: Occurrence; content: PaintedText } | undefined;
 
   constructor(
-    private readonly observation: FooterObservation,
-    private readonly settings: ResolvedSettings,
-    private readonly options: RowOptions,
+    observation: FooterObservation,
+    settings: ResolvedSettings,
+    options: RowOptions,
   ) {
+    this.observation = observation;
+    this.settings = settings;
+    this.options = options;
     this.regions =
       options.placement === "top"
         ? ["top-left", "top-right"]

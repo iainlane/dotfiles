@@ -62,14 +62,7 @@ export class DemoProvider {
   private constructor(fixture: DemoFixture) {
     this.fixture = fixture;
     this.server = createServer((request, response) => {
-      this.respond(request, response).catch(() => {
-        if (response.headersSent) {
-          response.destroy();
-          return;
-        }
-        response.writeHead(400);
-        response.end("Expected a bounded JSON request");
-      });
+      void this.handle(request, response);
     });
   }
 
@@ -124,6 +117,22 @@ export class DemoProvider {
   private event(response: ServerResponse, value: CompletionFrame): void {
     if (!response.destroyed) {
       response.write(`data: ${JSON.stringify(value)}\n\n`);
+    }
+  }
+
+  private async handle(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    try {
+      await this.respond(request, response);
+    } catch {
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
+      response.writeHead(400);
+      response.end("Expected a bounded JSON request");
     }
   }
 

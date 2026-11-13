@@ -37,6 +37,9 @@ export interface FooterContext {
 
 export class FooterSession {
   readonly state;
+  private context: FooterContext;
+  private readonly changed: () => void;
+  private readonly runtime: FooterRuntime;
   private readonly rpc: RpcClient;
   private readonly ledger = new UsageLedger();
   private readonly stopClock: () => void;
@@ -48,11 +51,15 @@ export class FooterSession {
   private readonly tracker: ActivityTracker;
 
   constructor(
-    private context: FooterContext,
+    context: FooterContext,
     bus: FooterBus,
-    private readonly changed: () => void,
-    private readonly runtime: FooterRuntime,
+    changed: () => void,
+    runtime: FooterRuntime,
   ) {
+    this.context = context;
+    this.changed = changed;
+    this.runtime = runtime;
+
     const now = this.runtime.clock.now();
 
     this.state = createSnapshot(now, context.cwd);
@@ -75,8 +82,8 @@ export class FooterSession {
       this.tick();
     });
 
-    this.refreshGit().catch(this.runtime.reportError);
-    this.refreshAgents().catch(this.runtime.reportError);
+    void this.refreshGit();
+    void this.refreshAgents();
   }
 
   dispose(): void {
@@ -184,7 +191,7 @@ export class FooterSession {
     const now = this.state.now;
 
     if (now - this.gitAt >= 5000) {
-      this.refreshGit().catch(this.runtime.reportError);
+      void this.refreshGit();
     }
 
     if (
@@ -192,7 +199,7 @@ export class FooterSession {
       this.state.agents?.active !== 0 &&
       now - this.agentsAt >= 2000
     ) {
-      this.refreshAgents().catch(this.runtime.reportError);
+      void this.refreshAgents();
     }
 
     if (
@@ -205,6 +212,30 @@ export class FooterSession {
   }
 
   async refreshGit(): Promise<void> {
+    try {
+      await this.updateGit();
+    } catch (error) {
+      this.runtime.reportError(error);
+    }
+  }
+
+  async refreshAgents(): Promise<void> {
+    try {
+      await this.updateAgents();
+    } catch (error) {
+      this.runtime.reportError(error);
+    }
+  }
+
+  async refreshCost(): Promise<void> {
+    try {
+      await this.updateCost();
+    } catch (error) {
+      this.runtime.reportError(error);
+    }
+  }
+
+  private async updateGit(): Promise<void> {
     if (this.disposed || this.gitPending) {
       return;
     }
@@ -259,7 +290,7 @@ export class FooterSession {
     }
   }
 
-  async refreshAgents(): Promise<void> {
+  private async updateAgents(): Promise<void> {
     if (this.disposed) {
       return;
     }
@@ -290,7 +321,7 @@ export class FooterSession {
     this.changed();
   }
 
-  async refreshCost(): Promise<void> {
+  private async updateCost(): Promise<void> {
     if (this.disposed) {
       return;
     }

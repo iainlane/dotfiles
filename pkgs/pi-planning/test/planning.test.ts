@@ -5,20 +5,20 @@ import {
   type PlanningContext,
   type PlanningDependencies,
   type PlanningResult,
-} from "../src/controller.ts";
-import { childPolicy } from "../src/child.ts";
-import type { PlanEditor } from "../src/editor.ts";
+} from "#planning/controller.ts";
+import { childPolicy } from "#planning/child.ts";
+import type { PlanEditor } from "#planning/editor.ts";
 import {
   attachedPlanContext,
   enterPlanDescription,
   implementationContext,
   planExitReminder,
   planningPrompt,
-} from "../src/prompt.ts";
-import { reviewPlan } from "../src/review.ts";
-import { stateEntry } from "../src/session.ts";
-import { outcomeEntryType } from "../src/outcomes.ts";
-import { PlanStore } from "../src/store.ts";
+} from "#planning/prompt.ts";
+import { reviewPlan } from "#planning/review.ts";
+import { stateEntry } from "#planning/session.ts";
+import { outcomeEntryType } from "#planning/outcomes.ts";
+import { PlanStore } from "#planning/store.ts";
 import { MemoryFiles } from "./memory-files.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
@@ -582,9 +582,10 @@ it.each(["input", "show", "review", "open"])(
     const submitted = f.execute("submit_plan");
     await Promise.race([
       secondCheck.promise,
-      submitted.then(() => {
+      (async () => {
+        await submitted;
         throw new Error("submit_plan finished before the second idle check.");
-      }),
+      })(),
     ]);
     if (action === "input") {
       f.controller.input();

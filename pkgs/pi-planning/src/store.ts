@@ -15,12 +15,10 @@ function digest(content: string): string {
 export class PlanStore {
   readonly path: string;
   private readonly directory: string;
+  private readonly files: PlanFiles;
 
-  constructor(
-    directory: string,
-    sessionId: string,
-    private readonly files: PlanFiles,
-  ) {
+  constructor(directory: string, sessionId: string, files: PlanFiles) {
+    this.files = files;
     this.directory = files.ensureDirectory(directory);
     this.path = join(this.directory, `${digest(sessionId)}.md`);
   }

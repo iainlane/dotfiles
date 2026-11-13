@@ -33,18 +33,26 @@ let nextId = 0;
 
 class DockPanel extends Container implements Focusable {
   readonly capturesViewportInput = true;
+  private readonly view: DockView;
+  private readonly onReturn: () => void;
+  private readonly onDispose: () => void;
+  private readonly onRendered: () => void;
   private hasFocus = false;
   closed = false;
   private locked = false;
   lastLines: readonly string[] = [];
 
   constructor(
-    private readonly view: DockView,
-    private readonly onReturn: () => void,
-    private readonly onDispose: () => void,
-    private readonly onRendered: () => void,
+    view: DockView,
+    onReturn: () => void,
+    onDispose: () => void,
+    onRendered: () => void,
   ) {
     super();
+    this.view = view;
+    this.onReturn = onReturn;
+    this.onDispose = onDispose;
+    this.onRendered = onRendered;
     this.addChild(view);
   }
 
@@ -118,6 +126,9 @@ export class DockedFocusUnsupportedError extends Error {
 }
 
 export class DockHost {
+  private readonly ui: Pick<ExtensionUIContext, "setWidget">;
+  private readonly canRestore: () => boolean;
+  private readonly visibility: DockVisibility | undefined;
   private readonly key = `session-footer:customise:${++nextId}`;
   private readonly completion = Promise.withResolvers<void>();
   private tui: FocusTUI | undefined;
@@ -129,10 +140,14 @@ export class DockHost {
   private removed = false;
 
   constructor(
-    private readonly ui: Pick<ExtensionUIContext, "setWidget">,
-    private readonly canRestore: () => boolean,
-    private readonly visibility?: DockVisibility,
-  ) {}
+    ui: Pick<ExtensionUIContext, "setWidget">,
+    canRestore: () => boolean,
+    visibility?: DockVisibility,
+  ) {
+    this.ui = ui;
+    this.canRestore = canRestore;
+    this.visibility = visibility;
+  }
 
   open(factory: ViewFactory): Promise<void> {
     if (this.panel !== undefined || this.closing) {

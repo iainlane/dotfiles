@@ -13,10 +13,12 @@ function shortPath(path: string, home: string): string {
   return path.startsWith(home + "/") ? "~" + path.slice(home.length) : path;
 }
 class SavingPages {
-  constructor(
-    private readonly env: CustomiserEnvironment,
-    private readonly navigation: CustomiserNavigation,
-  ) {}
+  private readonly env: CustomiserEnvironment;
+  private readonly navigation: CustomiserNavigation;
+  constructor(env: CustomiserEnvironment, navigation: CustomiserNavigation) {
+    this.env = env;
+    this.navigation = navigation;
+  }
   save(confirmed = false): void {
     const transaction = this.env.transaction;
     if (transaction.source.destination.kind === "session") {

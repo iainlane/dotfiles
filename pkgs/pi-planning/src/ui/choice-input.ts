@@ -38,12 +38,11 @@ interface EditorHandlers {
 }
 
 class ChoiceEditor extends Editor {
-  constructor(
-    tui: TUI,
-    theme: EditorTheme,
-    private readonly handlers: EditorHandlers,
-  ) {
+  private readonly handlers: EditorHandlers;
+
+  constructor(tui: TUI, theme: EditorTheme, handlers: EditorHandlers) {
     super(tui, theme);
+    this.handlers = handlers;
   }
 
   override handleInput(data: string): void {
@@ -70,12 +69,13 @@ class CursorScroll extends ScrollView {
   private followCaret = true;
   private width = 1;
   private maximumHeight = 5;
+  private readonly content: Component;
+  private readonly requestRender: () => void;
 
-  constructor(
-    private readonly content: Component,
-    private readonly requestRender: () => void,
-  ) {
+  constructor(content: Component, requestRender: () => void) {
     super(content, { overscroll: "contain", scrollbar: "auto" });
+    this.content = content;
+    this.requestRender = requestRender;
   }
 
   followCursor(): void {
@@ -149,12 +149,22 @@ class CursorScroll extends ScrollView {
 }
 
 class ChoiceLine implements Component {
+  private readonly list: SelectList;
+  private readonly index: number;
+  private readonly focus: () => void;
+  private readonly disabled: () => boolean;
+
   constructor(
-    private readonly list: SelectList,
-    private readonly index: number,
-    private readonly focus: () => void,
-    private readonly disabled: () => boolean,
-  ) {}
+    list: SelectList,
+    index: number,
+    focus: () => void,
+    disabled: () => boolean,
+  ) {
+    this.list = list;
+    this.index = index;
+    this.focus = focus;
+    this.disabled = disabled;
+  }
 
   render(width: number): string[] {
     return [this.list.render(width)[this.index] ?? ""];
@@ -178,9 +188,11 @@ class ChoiceLine implements Component {
 }
 
 class EditableChoice extends VStack {
+  private readonly body: CursorScroll;
+
   constructor(
     header: Component,
-    private readonly body: CursorScroll,
+    body: CursorScroll,
     notice: Component,
     visible: () => boolean,
   ) {
@@ -189,6 +201,7 @@ class EditableChoice extends VStack {
       { component: body, minSize: 1, maxSize: 5, visible },
       notice,
     ]);
+    this.body = body;
   }
 
   limit(height: number): void {
@@ -209,12 +222,13 @@ export class ChoiceInput<T extends string> extends VStack {
   private readonly notice = new Text("", 0, 0);
   private inputFocus = false;
   private hasFocus = false;
+  private readonly tui: TUI;
+  private readonly options: ChoiceInputOptions<T>;
 
-  constructor(
-    private readonly tui: TUI,
-    private readonly options: ChoiceInputOptions<T>,
-  ) {
+  constructor(tui: TUI, options: ChoiceInputOptions<T>) {
     super();
+    this.tui = tui;
+    this.options = options;
     const inputs = options.rows.filter((row) => row.kind === "input");
     if (
       inputs.length !== 1 ||

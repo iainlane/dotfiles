@@ -1,4 +1,4 @@
-import { nodeFiles } from "../src/node-files.ts";
+import { nodeFiles } from "#planning/node-files.ts";
 import {
   mkdtempSync,
   mkdirSync,
@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { PlanStore } from "../src/store.ts";
+import { PlanStore } from "#planning/store.ts";
 
 const directories: string[] = [];
 afterEach(() => {

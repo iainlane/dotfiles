@@ -22,6 +22,9 @@ interface DockTarget {
   cancel(): void;
 }
 export class DockGuard {
+  private readonly tui: TUI;
+  private readonly options: DockVisibility;
+  private readonly target: DockTarget;
   private queued = false;
   private closed = false;
   private retrying = false;
@@ -29,11 +32,11 @@ export class DockGuard {
   private overlay: OverlayHandle | undefined;
   private unsupported = false;
 
-  constructor(
-    private readonly tui: TUI,
-    private readonly options: DockVisibility,
-    private readonly target: DockTarget,
-  ) {}
+  constructor(tui: TUI, options: DockVisibility, target: DockTarget) {
+    this.tui = tui;
+    this.options = options;
+    this.target = target;
+  }
 
   rendered(): void {
     if (this.queued || this.closed) {

@@ -20,8 +20,11 @@ export interface GitState {
 }
 
 export class IncompleteGitPathsError extends Error {
-  constructor(readonly output: string) {
+  readonly output: string;
+
+  constructor(output: string) {
     super("Git returned incomplete repository paths");
+    this.output = output;
     this.name = "IncompleteGitPathsError";
   }
 }

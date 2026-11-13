@@ -30,6 +30,14 @@
     "eslint/prefer-promise-reject-errors": "error",
     "eslint/radix": "error",
     "eslint/symbol-description": "error",
+    "import/no-commonjs": "error",
+    "import/no-relative-parent-imports": "error",
+    "promise/prefer-await-to-then": [
+      "error",
+      {
+        "strict": true
+      }
+    ],
     "typescript/await-thenable": "error",
     "typescript/ban-ts-comment": "error",
     "typescript/ban-types": "error",
@@ -38,7 +46,7 @@
     "typescript/no-floating-promises": [
       "error",
       {
-        "ignoreVoid": false
+        "ignoreVoid": true
       }
     ],
     "typescript/no-misused-promises": "error",
@@ -101,6 +109,7 @@
     "unicorn/prefer-import-meta-properties": "error",
     "unicorn/prefer-math-min-max": "error",
     "unicorn/prefer-math-trunc": "error",
+    "unicorn/prefer-module": "error",
     "unicorn/prefer-native-coercion-functions": "error",
     "unicorn/prefer-number-coercion": "error",
     "unicorn/prefer-prototype-methods": "error",

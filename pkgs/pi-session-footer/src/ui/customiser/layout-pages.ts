@@ -64,11 +64,12 @@ export class MissingSourceIdError extends Error {
 }
 
 export class LayoutPages {
+  private readonly env: CustomiserEnvironment;
+  private readonly navigation: CustomiserNavigation;
   private readonly appearance: AppearancePages;
-  constructor(
-    private readonly env: CustomiserEnvironment,
-    private readonly navigation: CustomiserNavigation,
-  ) {
+  constructor(env: CustomiserEnvironment, navigation: CustomiserNavigation) {
+    this.env = env;
+    this.navigation = navigation;
     this.appearance = new AppearancePages(env, navigation);
   }
   profiles(): CustomiserMenu {

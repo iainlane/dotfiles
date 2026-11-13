@@ -111,17 +111,20 @@ export async function openPlanEditorInUi(
         } catch (cause) {
           error = cause instanceof Error ? cause : new Error(String(cause));
         }
-        if (live) {
-          done(error);
+        if (!live) {
+          return;
         }
-      };
-      queueMicrotask(() => {
-        edit().catch((cause: unknown) => {
+        try {
+          done(error);
+        } catch (cause) {
           ctx.ui.notify(
             `Cannot restore the plan editor UI: ${String(cause)}`,
             "error",
           );
-        });
+        }
+      };
+      queueMicrotask(() => {
+        void edit();
       });
       return {
         render: () => [],

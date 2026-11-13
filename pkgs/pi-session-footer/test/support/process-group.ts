@@ -16,18 +16,21 @@ export async function untilGone(alive: () => boolean): Promise<void> {
 }
 
 export class InvalidProcessGroupError extends Error {
-  constructor(readonly pid: number) {
+  readonly pid: number;
+
+  constructor(pid: number) {
     super(`Expected a positive process-group ID, not ${pid}`);
+    this.pid = pid;
     this.name = "InvalidProcessGroupError";
   }
 }
 
 export class ProcessGroupProbeError extends Error {
-  constructor(
-    readonly pid: number,
-    options: { cause: unknown },
-  ) {
+  readonly pid: number;
+
+  constructor(pid: number, options: { cause: unknown }) {
     super(`Cannot inspect process group ${pid}`, options);
+    this.pid = pid;
     this.name = "ProcessGroupProbeError";
   }
 }

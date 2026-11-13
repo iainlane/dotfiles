@@ -290,21 +290,31 @@ export async function reviewPlan(
         }
       }
     };
+    const handlePasteImage = async (): Promise<void> => {
+      try {
+        await attachImage();
+      } catch (error) {
+        if (!finished) {
+          notice = String(error);
+          tui.requestRender();
+        }
+      }
+    };
+    const handleExternalEditor = async (): Promise<void> => {
+      try {
+        await openEditor();
+      } catch (error) {
+        notice = String(error);
+        tui.requestRender();
+      }
+    };
     const handleGlobalInput = (input: string): boolean => {
       if (keys.matches(input, "app.clipboard.pasteImage")) {
-        attachImage().catch((error: unknown) => {
-          if (!finished) {
-            notice = String(error);
-            tui.requestRender();
-          }
-        });
+        void handlePasteImage();
         return true;
       }
       if (keys.matches(input, "app.editor.external")) {
-        openEditor().catch((error: unknown) => {
-          notice = String(error);
-          tui.requestRender();
-        });
+        void handleExternalEditor();
         return true;
       }
       if (getKeybindings().matches(input, "app.tools.expand")) {

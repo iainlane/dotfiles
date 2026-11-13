@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
-import { ensureSubagentsIdle, subagentPolicy } from "../src/subagents.ts";
+import { ensureSubagentsIdle, subagentPolicy } from "#planning/subagents.ts";
 
 it.each([undefined, 123, 2_000_000])(
   "preserves the native caller's timeout choice: %s",
@@ -54,15 +54,6 @@ function fixture() {
     },
     signal.signal,
   );
-  const result = pending.then(
-    () => ({ allowed: true }),
-    (error: unknown) => {
-      if (!(error instanceof Error)) {
-        throw error;
-      }
-      return { allowed: false, reason: error.message };
-    },
-  );
   const request = emit.mock.calls[0]?.[1];
   if (!Check(requestSchema, request)) {
     throw new Error("The planning status check did not send a request ID.");
@@ -76,7 +67,6 @@ function fixture() {
     });
   return {
     pending,
-    result,
     signal,
     emit,
     listeners,
@@ -85,47 +75,45 @@ function fixture() {
   };
 }
 
-it.each([
-  { totalActive: 0, expected: { allowed: true } },
-  {
-    totalActive: 1,
-    expected: {
-      allowed: false,
-      reason:
-        "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
+function statusRequest(requestId: string) {
+  return [
+    "subagents:rpc:v1:request",
+    {
+      version: 1,
+      requestId,
+      method: "status",
+      params: {},
+      source: { extension: "planning" },
     },
-  },
-  {
-    totalActive: 3,
-    expected: {
-      allowed: false,
-      reason:
-        "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
-    },
-  },
-])(
-  "checks the native fleet before approval with $totalActive active subagents",
-  async ({ totalActive, expected }) => {
+  ];
+}
+
+it("checks the native fleet before approval with no active subagents", async () => {
+  const f = fixture();
+  f.reply({ requestId: "foreign", data: { fleet: { totalActive: 0 } } });
+  f.reply({ data: { fleet: { totalActive: 0 } } });
+  await expect(f.pending).resolves.toBeUndefined();
+  expect({
+    request: f.emit.mock.calls[0],
+    listeners: f.listeners.size,
+  }).toStrictEqual({ request: statusRequest(f.requestId), listeners: 0 });
+});
+
+it.each([1, 3])(
+  "refuses approval with %i active subagents",
+  async (totalActive) => {
     const f = fixture();
     f.reply({ requestId: "foreign", data: { fleet: { totalActive: 0 } } });
     f.reply({ data: { fleet: { totalActive } } });
-    await expect(f.result).resolves.toStrictEqual(expected);
+    await expect(f.pending).rejects.toStrictEqual(
+      new Error(
+        "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
+      ),
+    );
     expect({
       request: f.emit.mock.calls[0],
       listeners: f.listeners.size,
-    }).toStrictEqual({
-      request: [
-        "subagents:rpc:v1:request",
-        {
-          version: 1,
-          requestId: f.requestId,
-          method: "status",
-          params: {},
-          source: { extension: "planning" },
-        },
-      ],
-      listeners: 0,
-    });
+    }).toStrictEqual({ request: statusRequest(f.requestId), listeners: 0 });
   },
 );
 
@@ -153,11 +141,13 @@ it("cancels an outstanding status check on human exit", async () => {
 it("times out when the native status service does not reply", async () => {
   vi.useFakeTimers();
   const f = fixture();
-  await vi.advanceTimersByTimeAsync(5000);
-  await expect(f.result).resolves.toStrictEqual({
-    allowed: false,
-    reason:
-      "Subagent status is unavailable. Retry before requesting implementation approval.",
-  });
+  await Promise.all([
+    expect(f.pending).rejects.toStrictEqual(
+      new Error(
+        "Subagent status is unavailable. Retry before requesting implementation approval.",
+      ),
+    ),
+    vi.advanceTimersByTimeAsync(5000),
+  ]);
   expect(f.listeners.size).toBe(0);
 });

@@ -17,10 +17,10 @@ import { Type } from "typebox";
 import subagents from "pi-subagents";
 import { resolveCurrentSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { expect, it, onTestFailed, vi } from "vitest";
-import planning from "../src/extension.ts";
-import { nodeFiles } from "../src/node-files.ts";
-import { PlanStore } from "../src/store.ts";
-import { ensureSubagentsIdle, planningAgents } from "../src/subagents.ts";
+import planning from "#planning/extension.ts";
+import { nodeFiles } from "#planning/node-files.ts";
+import { PlanStore } from "#planning/store.ts";
+import { ensureSubagentsIdle, planningAgents } from "#planning/subagents.ts";
 import backgroundFixture, { backgroundModel } from "./fixtures/background.ts";
 
 const asyncResultSchema = Type.Object({ asyncId: Type.String() });
@@ -177,11 +177,12 @@ it("runs planning roles in the background and preserves native child permissions
     running = session.prompt("Investigate with both planning roles.");
     await Promise.race([
       ready.promise,
-      running.then(() => {
+      (async () => {
+        await running;
         throw new Error(
           `The parent finished before its independent investigation: ${JSON.stringify(active.messages.filter((message) => (message.role === "assistant" && message.stopReason === "error") || (message.role === "toolResult" && message.toolName === "subagent") || (message.role === "custom" && message.customType === "subagent-notify")))}`,
         );
-      }),
+      })(),
     ]);
     await session.prompt("/plan exit");
     await writeFile(join(agentDir, "release"), "");

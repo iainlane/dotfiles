@@ -8,7 +8,6 @@ import {
   saveVmSnapshot,
   VmMonitorUnavailableError,
 } from "#runtime/vm/vm-monitor";
-import { callbackify } from "node:util";
 import type { SocketFetch } from "#runtime/http/http-socket";
 import {
   qemuArguments,
@@ -348,11 +347,7 @@ export class QemuBackend implements GuestBackend {
         throw new VmMcpStartupError();
       }
 
-      callbackify(() => this.watchProcess(session, process))((error) => {
-        if (error !== null) {
-          this.options.onError(error);
-        }
-      });
+      void this.watchProcess(session, process);
 
       return guest;
     } catch (error) {
@@ -379,7 +374,11 @@ export class QemuBackend implements GuestBackend {
     try {
       await process.exited;
     } catch (error) {
-      await this.options.onFailure(session, error);
+      try {
+        await this.options.onFailure(session, error);
+      } catch (failure) {
+        this.options.onError(failure);
+      }
     }
   }
 

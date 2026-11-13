@@ -37,8 +37,11 @@ function localError(error: unknown): string {
   return error instanceof Error ? error.message : "Cannot update this setting";
 }
 export class MenuPageExpectedError extends Error {
-  constructor(readonly kind: CustomiserPage["kind"]) {
+  readonly kind: CustomiserPage["kind"];
+
+  constructor(kind: CustomiserPage["kind"]) {
     super(`Expected a menu page, not ${kind}`);
+    this.kind = kind;
     this.name = "MenuPageExpectedError";
   }
 }
@@ -61,15 +64,17 @@ export class CustomiserView
   implements DockView, Focusable, CustomiserNavigation
 {
   readonly capturesViewportInput = true;
+  private readonly env: CustomiserEnvironment;
   private readonly stack: [PageState, ...PageState[]];
   private hasFocus = false;
   private tooSmall = false;
   private controls: readonly string[] = [];
 
   constructor(
-    private readonly env: CustomiserEnvironment,
+    env: CustomiserEnvironment,
     createRoot: (navigation: CustomiserNavigation) => CustomiserPage,
   ) {
+    this.env = env;
     this.stack = [pageState(createRoot(this))];
   }
   private get current(): PageState {

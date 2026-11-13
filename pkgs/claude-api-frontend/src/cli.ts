@@ -1,6 +1,6 @@
 import { errorText } from "./error-text.ts";
 import { FrontendError, InvalidArgumentsError } from "./errors.ts";
-import { callbackify, parseArgs } from "node:util";
+import { parseArgs } from "node:util";
 import { certificates } from "./certificates.ts";
 import { loadConfig, upstreamPort } from "./config.ts";
 import { checkHealth } from "./health.ts";
@@ -44,27 +44,34 @@ try {
           upstreamPort: port,
         }),
       );
-      const renew = callbackify(async () => {
-        proxy.reloadCertificates(await certificates(config.stateDirectory));
-      });
+      const renew = async (): Promise<void> => {
+        try {
+          proxy.reloadCertificates(await certificates(config.stateDirectory));
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              event: "certificate-renewal-failed",
+              code:
+                error instanceof FrontendError
+                  ? error.code
+                  : "certificate-state",
+            }),
+          );
+        }
+      };
       const renewal = setInterval(() => {
-        renew((error) => {
-          if (error !== null) {
-            console.error(
-              JSON.stringify({
-                event: "certificate-renewal-failed",
-                code:
-                  error instanceof FrontendError
-                    ? error.code
-                    : "certificate-state",
-              }),
-            );
-          }
-        });
+        void renew();
       }, 7 * 86400000);
 
       renewal.unref();
 
+      const close = async (): Promise<void> => {
+        try {
+          await proxy.close();
+        } catch {
+          process.exitCode = 1;
+        }
+      };
       let stopping = false;
       const stop = (): void => {
         if (stopping) {
@@ -72,13 +79,7 @@ try {
         }
         stopping = true;
         clearInterval(renewal);
-        callbackify(async () => {
-          await proxy.close();
-        })((error) => {
-          if (error !== null) {
-            process.exitCode = 1;
-          }
-        });
+        void close();
       };
       process.once("SIGINT", stop);
       process.once("SIGTERM", stop);

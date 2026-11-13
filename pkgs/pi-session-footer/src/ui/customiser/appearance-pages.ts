@@ -44,17 +44,23 @@ function colourLabel(colour: Colour | undefined): string {
   return isThemeColour(colour) ? FOREGROUND_COLOURS[colour] : colour;
 }
 export class InvalidHexColourError extends Error {
-  constructor(readonly value: string) {
+  readonly value: string;
+
+  constructor(value: string) {
     super("Use #RRGGBB");
+    this.value = value;
     this.name = "InvalidHexColourError";
   }
 }
 
 export class AppearancePages {
-  constructor(
-    private readonly env: CustomiserEnvironment,
-    private readonly navigation: CustomiserNavigation,
-  ) {}
+  private readonly env: CustomiserEnvironment;
+  private readonly navigation: CustomiserNavigation;
+
+  constructor(env: CustomiserEnvironment, navigation: CustomiserNavigation) {
+    this.env = env;
+    this.navigation = navigation;
+  }
 
   editor(target: AppearanceTarget, title: string): CustomiserMenu {
     return {

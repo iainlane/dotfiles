@@ -22,12 +22,13 @@ export class MissingPtyCommandError extends Error {
 }
 
 export class PtyExitedError extends Error {
-  constructor(
-    readonly code: number,
-    readonly output: string,
-    options?: { cause: unknown },
-  ) {
+  readonly code: number;
+  readonly output: string;
+
+  constructor(code: number, output: string, options?: { cause: unknown }) {
     super(`PTY process exited with ${code}:\n${output.slice(-12000)}`, options);
+    this.code = code;
+    this.output = output;
     this.name = "PtyExitedError";
   }
 }
@@ -90,15 +91,7 @@ export class PiTerminal {
     this.terminal.onData((data) => this.input(data));
     this.process.onData((data) => {
       this.output += data;
-      this.writes = this.writes.then(
-        () =>
-          new Promise<void>((resolve) => {
-            this.terminal.write(data, () => {
-              resolve();
-              this.notify();
-            });
-          }),
-      );
+      this.writes = this.write(this.writes, data);
     });
     onTestFinished(async ({ task }) => {
       if (task.result?.state === "fail") {
@@ -108,8 +101,23 @@ export class PiTerminal {
     });
   }
 
+  private async write(previous: Promise<void>, data: string): Promise<void> {
+    await previous;
+    await new Promise<void>((resolve) => {
+      this.terminal.write(data, () => {
+        resolve();
+        this.notify();
+      });
+    });
+  }
+
   private async report(): Promise<string> {
-    const screen = await this.screen().catch(() => []);
+    let screen: string[];
+    try {
+      screen = await this.screen();
+    } catch {
+      screen = [];
+    }
     return `${screen.join("\n")}\n${this.diagnostics()}`;
   }
 
@@ -176,6 +184,18 @@ export class PiTerminal {
           lastFailure = error;
         }
       };
+      const run = async () => {
+        try {
+          await attempt();
+        } catch {
+          // The wait has already settled when `attempt` rejects.
+        }
+        running = false;
+        if (again) {
+          again = false;
+          schedule();
+        }
+      };
       const schedule = (): void => {
         if (done) {
           return;
@@ -185,14 +205,7 @@ export class PiTerminal {
           return;
         }
         running = true;
-        const after = () => {
-          running = false;
-          if (again) {
-            again = false;
-            schedule();
-          }
-        };
-        attempt().then(after, after);
+        void run();
       };
       const cancel = () =>
         finish(new TerminalClosedError({ cause: lastFailure }));

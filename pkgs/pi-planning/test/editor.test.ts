@@ -6,7 +6,7 @@ import {
   editorName,
   openPlanEditor,
   openPlanEditorInTerminal,
-} from "../src/editor.ts";
+} from "#planning/editor.ts";
 
 it.each([
   { command: "nvim", name: "nvim" },

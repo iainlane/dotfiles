@@ -30,14 +30,16 @@ export class ComposerEditor extends CustomEditor {
   private compact = false;
   private bottomContent = false;
   private displayWidth = 0;
+  private readonly borders: ComposerBorders;
 
   constructor(
     tui: TUI,
     theme: EditorTheme,
     keybindings: KeybindingsManager,
-    private readonly borders: ComposerBorders,
+    borders: ComposerBorders,
   ) {
     super(tui, theme, keybindings, { paddingX: 3 });
+    this.borders = borders;
   }
 
   override getPaddingX(): number {

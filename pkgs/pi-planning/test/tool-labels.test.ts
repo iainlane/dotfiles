@@ -18,7 +18,7 @@ import {
 import { TuiAltScreen, type Component } from "@earendil-works/pi-tui";
 import { beforeAll, expect, it, vi } from "vitest";
 import { TestTerminal, untilRendered } from "./terminal.ts";
-import { registerPlanHeadings } from "../src/plan-headings.ts";
+import { registerPlanHeadings } from "#planning/plan-headings.ts";
 
 let session: AgentSession | undefined;
 let directory: string;

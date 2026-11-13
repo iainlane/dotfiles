@@ -44,8 +44,11 @@ interface Interaction {
   preview: PresentationDocument | undefined;
 }
 export class Customiser {
+  private readonly sources: CustomiserSources;
   private current: Interaction | undefined;
-  constructor(private readonly sources: CustomiserSources) {}
+  constructor(sources: CustomiserSources) {
+    this.sources = sources;
+  }
 
   dispose(): void {
     const current = this.current;

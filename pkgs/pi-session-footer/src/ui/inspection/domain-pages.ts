@@ -46,10 +46,15 @@ function taskStatus(state: FooterSnapshot, id: number): string {
   return labels[task.status];
 }
 export class DomainPages {
+  private readonly snapshot: () => FooterSnapshot | undefined;
+  private readonly navigation: InspectionNavigation;
   constructor(
-    private readonly snapshot: () => FooterSnapshot | undefined,
-    private readonly navigation: InspectionNavigation,
-  ) {}
+    snapshot: () => FooterSnapshot | undefined,
+    navigation: InspectionNavigation,
+  ) {
+    this.snapshot = snapshot;
+    this.navigation = navigation;
+  }
   page(section: Section): InspectionPage {
     return {
       kind: "menu",

@@ -34,12 +34,17 @@ export interface InspectorSources {
   enterUsage(): void;
 }
 export class Inspector {
+  private readonly snapshot: () => FooterSnapshot | undefined;
+  private readonly sources: InspectorSources;
   private close: (() => void) | undefined;
   private generation = 0;
   constructor(
-    private readonly snapshot: () => FooterSnapshot | undefined,
-    private readonly sources: InspectorSources,
-  ) {}
+    snapshot: () => FooterSnapshot | undefined,
+    sources: InspectorSources,
+  ) {
+    this.snapshot = snapshot;
+    this.sources = sources;
+  }
   dispose(): void {
     this.generation++;
     const close = this.close;

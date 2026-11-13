@@ -22,20 +22,20 @@ import { expect, it, vi } from "vitest";
 import {
   createPlanning,
   type PlanningDependencies,
-} from "../src/controller.ts";
-import { nodeFiles } from "../src/node-files.ts";
+} from "#planning/controller.ts";
+import { nodeFiles } from "#planning/node-files.ts";
 import {
   attachedPlanContext,
   clearContextType,
   reminderType,
   implementationContext,
   implementationMessageType,
-} from "../src/prompt.ts";
-import { stateEntry } from "../src/session.ts";
-import { PlanStore } from "../src/store.ts";
-import { ensureSubagentsIdle } from "../src/subagents.ts";
+} from "#planning/prompt.ts";
+import { stateEntry } from "#planning/session.ts";
+import { PlanStore } from "#planning/store.ts";
+import { ensureSubagentsIdle } from "#planning/subagents.ts";
 import { feedbackImage } from "./fixtures/image.ts";
-import { outcomeEntryType, outcomeSchema } from "../src/outcomes.ts";
+import { outcomeEntryType, outcomeSchema } from "#planning/outcomes.ts";
 
 const requestSchema = Type.Object({
   requestId: Type.String(),
@@ -47,6 +47,18 @@ const feedbackImageSchema = Type.Object({
   data: Type.Literal(feedbackImage.data),
   mimeType: Type.Literal(feedbackImage.mimeType),
 });
+
+async function readOptionalFile(path: string): Promise<string | undefined> {
+  let contents: string | undefined;
+  try {
+    contents = await readFile(path, "utf8");
+  } catch (error) {
+    if (!Check(Type.Object({ code: Type.Literal("ENOENT") }), error)) {
+      throw error;
+    }
+  }
+  return contents;
+}
 
 interface ApprovalScenario {
   decision: "current" | "clear";
@@ -198,7 +210,7 @@ it.each<ApprovalScenario>([
     let session:
       | Awaited<ReturnType<typeof createAgentSession>>["session"]
       | undefined;
-    let running: Promise<void> | undefined;
+    let running: Promise<unknown> | undefined;
     const model: Model<"planning-clear-fixture"> = {
       id: "fixture",
       name: "Fixture",
@@ -493,17 +505,16 @@ it.each<ApprovalScenario>([
           await nativeSend(message, options);
         },
       );
-      let launchError: string | undefined;
-      running = session
-        .prompt("private-research-marker")
-        .catch((error: unknown) => {
-          launchError = String(error);
-        });
+      const launch = Promise.allSettled([
+        session.prompt("private-research-marker"),
+      ]);
+      running = launch;
       await Promise.race([
         ready.promise,
-        running.then(() => {
+        (async () => {
+          await running;
           throw new Error("The run ended before status verification paused");
-        }),
+        })(),
       ]);
       if (!releaseStatus) {
         throw new Error("Expected a delayed status response");
@@ -549,7 +560,7 @@ it.each<ApprovalScenario>([
                 ? "Error: Fixture deferred launch failed"
                 : undefined;
       expect({
-        launchError,
+        launch: await launch,
         attempts: implementationAttempts,
         failures: manager
           .getBranch()
@@ -586,18 +597,16 @@ it.each<ApprovalScenario>([
         saved: saved?.type === "custom" ? saved.data : undefined,
         requests,
         starts,
-        implementation: await readFile(implementationPath, "utf8").catch(
-          (error: unknown) => {
-            if (Check(Type.Object({ code: Type.Literal("ENOENT") }), error)) {
-              return;
-            }
-            throw error;
-          },
-        ),
+        implementation: await readOptionalFile(implementationPath),
       }).toStrictEqual({
-        launchError: launchFailure
-          ? "Error: Fixture deferred launch failed"
-          : undefined,
+        launch: [
+          launchFailure
+            ? {
+                status: "rejected",
+                reason: new Error("Fixture deferred launch failed"),
+              }
+            : { status: "fulfilled", value: undefined },
+        ],
         attempts: settledApproval ? 2 : 0,
         failures:
           failureReason === undefined

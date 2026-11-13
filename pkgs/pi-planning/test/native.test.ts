@@ -26,10 +26,10 @@ import { resolveCurrentSubagentCapabilityCeiling } from "pi-subagents/capability
 import { resolvePiLaunchToolPlan } from "pi-subagents/child-tool-plan";
 import { expect, it, vi } from "vitest";
 import { Check } from "typebox/value";
-import planning from "../src/extension.ts";
-import { enterPlanDescription, planDisplayType } from "../src/prompt.ts";
-import { PlanStore } from "../src/store.ts";
-import { nodeFiles } from "../src/node-files.ts";
+import planning from "#planning/extension.ts";
+import { enterPlanDescription, planDisplayType } from "#planning/prompt.ts";
+import { PlanStore } from "#planning/store.ts";
+import { nodeFiles } from "#planning/node-files.ts";
 import researchFixture from "./fixtures/research.ts";
 import nativePermissionsFixture from "./fixtures/permissions.ts";
 
@@ -334,14 +334,11 @@ it.each([
             stream.push({ type: "done", reason: "stop", message: assistant });
             stream.end();
           };
-          queueMicrotask(() => {
-            stream.push({ type: "start", partial: assistant });
-            if (!first) {
+          const finishAfterRelease = async () => {
+            try {
+              await release.promise;
               finish();
-              return;
-            }
-            ready.resolve();
-            release.promise.then(finish).catch((error: unknown) => {
+            } catch (error) {
               stream.push({
                 type: "error",
                 reason: "error",
@@ -352,7 +349,16 @@ it.each([
                 },
               });
               stream.end();
-            });
+            }
+          };
+          queueMicrotask(() => {
+            stream.push({ type: "start", partial: assistant });
+            if (!first) {
+              finish();
+              return;
+            }
+            ready.resolve();
+            void finishAfterRelease();
           });
           return stream;
         },

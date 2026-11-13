@@ -205,8 +205,10 @@ export default function backgroundFixture(pi: ExtensionAPI): void {
         stream.push({ type: "done", reason, message });
         stream.end();
       };
-      queueMicrotask(() => {
-        finish().catch((error: unknown) => {
+      const respond = async () => {
+        try {
+          await finish();
+        } catch (error) {
           stream.push({
             type: "error",
             reason: "error",
@@ -217,7 +219,10 @@ export default function backgroundFixture(pi: ExtensionAPI): void {
             },
           });
           stream.end();
-        });
+        }
+      };
+      queueMicrotask(() => {
+        void respond();
       });
       return stream;
     },

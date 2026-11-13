@@ -128,7 +128,7 @@ export function createFooter({
   const inspector = new Inspector(snapshot, {
     frame: () => lastFrame,
     enterUsage: () => {
-      session?.refreshCost().catch(runtime.reportError);
+      void session?.refreshCost();
     },
   });
   const stops: (() => void)[] = [];
@@ -244,7 +244,7 @@ export function createFooter({
   };
 
   const refreshAgents = () => {
-    session?.refreshAgents().catch(runtime.reportError);
+    void session?.refreshAgents();
   };
 
   const connect = () => {
@@ -397,7 +397,7 @@ export function createFooter({
       };
 
       const unsubscribe = footerData.onBranchChange(() => {
-        owner.refreshGit().catch(runtime.reportError);
+        void owner.refreshGit();
       });
 
       return {
@@ -557,8 +557,8 @@ export function createFooter({
   const settleAgent = (ctx: FooterUIContext, aborted: boolean) => {
     update(ctx, true);
     session?.activity("settled", aborted ? "cancelled" : undefined);
-    session?.refreshGit().catch(runtime.reportError);
-    session?.refreshCost().catch(runtime.reportError);
+    void session?.refreshGit();
+    void session?.refreshCost();
   };
 
   const updateMessage = () => {
@@ -592,7 +592,7 @@ export function createFooter({
 
   const endTool = (id: string) => {
     session?.tool(id);
-    session?.refreshGit().catch(runtime.reportError);
+    void session?.refreshGit();
   };
   return {
     inspect,

@@ -178,7 +178,11 @@ function fileDestination(
 }
 
 export class NodeSettingsStore implements SettingsStore {
-  constructor(private readonly basePath: string | (() => string)) {}
+  private readonly basePath: string | (() => string);
+
+  constructor(basePath: string | (() => string)) {
+    this.basePath = basePath;
+  }
 
   load(): SettingsSnapshot {
     return this.inspect().snapshot;

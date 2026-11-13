@@ -34,9 +34,12 @@ const pathSchema = Type.String();
 
 export class Diagnostics {
   readonly files = new Map<string, FileDiagnostics>();
+  private readonly cwd: string;
   private sequence = -1;
 
-  constructor(private readonly cwd: string) {}
+  constructor(cwd: string) {
+    this.cwd = cwd;
+  }
 
   receive(raw: unknown): void {
     if (

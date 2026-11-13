@@ -1,4 +1,4 @@
-import { callbackify, isDeepStrictEqual } from "node:util";
+import { isDeepStrictEqual } from "node:util";
 import { StatusCodes } from "http-status-codes";
 import { readFile, stat, chmod } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
@@ -378,10 +378,14 @@ export class NodeGuestOperations implements GuestOperations {
     try {
       await child.exited;
     } catch {
-      await this.processes.run({
-        executable: this.specification.systemctl,
-        args: ["poweroff", "--no-block"],
-      });
+      try {
+        await this.processes.run({
+          executable: this.specification.systemctl,
+          args: ["poweroff", "--no-block"],
+        });
+      } catch (error) {
+        this.onError(error);
+      }
     }
   }
 
@@ -425,11 +429,7 @@ export class NodeGuestOperations implements GuestOperations {
         },
       },
       async (child) => {
-        callbackify(() => this.watchRunner(child))((error) => {
-          if (error !== null) {
-            this.onError(error);
-          }
-        });
+        void this.watchRunner(child);
 
         await this.waitForRunner(child);
 

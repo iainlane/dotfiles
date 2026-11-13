@@ -202,20 +202,15 @@ it.each([
     ).toStrictEqual(
       before.filter(([event]) => event === "sub-core:update-all"),
     );
-    const cached = await readFile(
-      join(directory, "cache/sub-core/cache.json"),
-      "utf8",
-    ).catch((error: unknown): string | undefined => {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
-        return undefined;
-      }
-      throw error;
-    });
-    expect(cached).toBe(replacementCache);
+    const [cached] = await Promise.allSettled([
+      readFile(join(directory, "cache/sub-core/cache.json"), "utf8"),
+    ]);
+    const missing: unknown = expect.objectContaining({ code: "ENOENT" });
+    expect(cached).toStrictEqual(
+      replacementCache === undefined
+        ? { status: "rejected", reason: missing }
+        : { status: "fulfilled", value: replacementCache },
+    );
   } finally {
     response.resolve(Response.json({}));
     replacement.resolve(Response.json({}));

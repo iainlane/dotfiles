@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, it } from "vitest";
-import { displayPath, displayText } from "../src/presentation.ts";
+import { displayPath, displayText } from "#planning/presentation.ts";
 
 it.each([
   { path: homedir(), expected: "~" },

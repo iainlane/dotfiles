@@ -1,4 +1,4 @@
-import { maxPlanCodeUnits } from "../../src/validation.ts";
+import { maxPlanCodeUnits } from "#planning/validation.ts";
 
 export function boundaryText(prefix: string, character: string): string {
   const available = maxPlanCodeUnits - prefix.length;

@@ -8,8 +8,8 @@ import {
   getAgentDir,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { nodeFiles } from "../src/node-files.ts";
-import { PlanStore } from "../src/store.ts";
+import { nodeFiles } from "#planning/node-files.ts";
+import { PlanStore } from "#planning/store.ts";
 import { DemoScenario } from "./scenario.ts";
 
 export default function demoProvider(pi: ExtensionAPI): void {

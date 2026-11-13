@@ -14,6 +14,7 @@ export interface AppearanceEffects {
   finished(): void;
 }
 export class AppearanceTransaction {
+  private readonly effects: AppearanceEffects;
   private draft: PresentationDocument;
   private pending: PresentationDocument | undefined;
   private ended = false;
@@ -24,8 +25,9 @@ export class AppearanceTransaction {
   constructor(
     source: SettingsSnapshot,
     initial: PresentationDocument,
-    private readonly effects: AppearanceEffects,
+    effects: AppearanceEffects,
   ) {
+    this.effects = effects;
     this.snapshot = source;
     this.draft = parsePresentationDocument(initial);
     this.initial = JSON.stringify(this.draft);

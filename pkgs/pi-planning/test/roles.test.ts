@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerAgentViaEvents } from "pi-subagents/agents";
 import { afterEach, expect, it, vi } from "vitest";
 import { Type } from "typebox";
-import { registerPlanningRoles } from "../src/roles.ts";
+import { registerPlanningRoles } from "#planning/roles.ts";
 
 vi.mock("pi-subagents/agents", () => ({
   registerAgentViaEvents: vi.fn<typeof registerAgentViaEvents>(() => ({

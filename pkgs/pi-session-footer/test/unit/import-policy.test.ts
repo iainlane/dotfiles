@@ -10,7 +10,9 @@ const lint = fileURLToPath(
   new URL("./bin/oxlint", import.meta.resolve("oxlint/package.json")),
 );
 
-const config = fileURLToPath(new URL("../../.oxlintrc.json", import.meta.url));
+const config = fileURLToPath(
+  new URL("../../../../.oxlintrc.json", import.meta.url),
+);
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 

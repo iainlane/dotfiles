@@ -5,7 +5,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StatusCodes } from "http-status-codes";
-import { callbackify } from "node:util";
 import { UnexpectedListenerError } from "#frontend/errors";
 import { afterEach, expect, it } from "vitest";
 import { certificates } from "#frontend/certificates";
@@ -231,7 +230,7 @@ it.each(["plain", "tls", "absolute", "absolute-mismatched"])(
         ]),
       );
 
-      callbackify(async () => {
+      const record = async (): Promise<void> => {
         const frame = await readBytes(socket, clientFrame.length, head);
         upgrades.push({
           method: request.method,
@@ -239,12 +238,9 @@ it.each(["plain", "tls", "absolute", "absolute-mismatched"])(
           headers: request.headers,
           frame,
         });
-        completed.resolve();
-      })((error) => {
-        if (error !== null) {
-          completed.reject(error);
-        }
-      });
+      };
+
+      completed.resolve(record());
     });
 
     let secure: tls.TLSSocket | undefined;
@@ -312,17 +308,15 @@ it.each(["plain", "tls", "absolute", "absolute-mismatched"])(
         socket.on("error", reject);
         socket.write(clientFrame);
 
-        callbackify(async () => {
+        const receive = async (): Promise<unknown> => {
           const [frame] = await Promise.all([
             readBytes(socket, serverFrame.length, head),
             completed.promise,
           ]);
-          resolve({ status: reply.statusCode, headers: reply.headers, frame });
-        })((error) => {
-          if (error !== null) {
-            reject(error);
-          }
-        });
+          return { status: reply.statusCode, headers: reply.headers, frame };
+        };
+
+        resolve(receive());
       });
       request.end();
     });

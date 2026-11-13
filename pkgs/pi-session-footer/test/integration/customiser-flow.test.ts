@@ -7,7 +7,10 @@ import { demoFixture } from "#demo/fixture.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
 
 class CustomiserDriver {
-  constructor(readonly terminal: PiTerminal) {}
+  readonly terminal: PiTerminal;
+  constructor(terminal: PiTerminal) {
+    this.terminal = terminal;
+  }
   private heading(screen: string[]): string {
     return screen.find((line) => line.startsWith("Footer › Customise")) ?? "";
   }

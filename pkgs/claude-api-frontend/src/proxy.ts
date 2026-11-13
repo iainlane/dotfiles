@@ -1,5 +1,4 @@
 import { X509Certificate } from "node:crypto";
-import { callbackify } from "node:util";
 import http from "node:http";
 import http2 from "node:http2";
 import { Readable, type Duplex } from "node:stream";
@@ -265,26 +264,34 @@ export async function startProxy(
     }
   };
 
-  const forwardRequest = callbackify(
-    async (request: Request, response: Response) => {
-      try {
-        await forward(request, response);
-      } catch (error) {
-        response.once("finish", () => request.destroy());
-        sendError(response, error);
-      }
-    },
-  );
+  const respond = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    try {
+      await forward(request, response);
+    } catch (error) {
+      response.once("finish", () => request.destroy());
+      sendError(response, error);
+    }
+  };
+
+  const forwardRequest = async (
+    request: Request,
+    response: Response,
+  ): Promise<void> => {
+    try {
+      await respond(request, response);
+    } catch {
+      response.destroy();
+    }
+  };
 
   const handle = (request: Request, response: Response): void => {
     request.on("error", () => response.destroy());
     response.on("error", () => request.destroy());
     request.setTimeout(config.timeoutMs, () => request.destroy());
-    forwardRequest(request, response, (error) => {
-      if (error !== null) {
-        response.destroy();
-      }
-    });
+    void forwardRequest(request, response);
   };
 
   const secure = http2.createSecureServer({

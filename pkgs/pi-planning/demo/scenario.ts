@@ -80,8 +80,11 @@ export const reviewComment = "Preserve the existing command-line interface.";
 
 export class DemoScenario {
   private phase = 0;
+  private readonly planPath: string;
 
-  constructor(private readonly planPath: string) {}
+  constructor(planPath: string) {
+    this.planPath = planPath;
+  }
 
   private result(
     messages: Context["messages"],

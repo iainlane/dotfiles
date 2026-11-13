@@ -31,35 +31,47 @@ export abstract class SettingsStoreError extends Error {
 }
 
 export class IrregularSettingsFileError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("Expected a regular settings file");
+    this.path = path;
   }
 }
 
 export class SymlinkSettingsFileError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("Cannot save to a symbolic link");
+    this.path = path;
   }
 }
 
 export class ReadOnlySettingsFileError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("The settings file is not writable");
+    this.path = path;
   }
 }
 
 export class ReadOnlySettingsDirectoryError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("The settings directory is not writable");
+    this.path = path;
   }
 }
 
 export class SettingsReadError extends SettingsStoreError {
-  constructor(
-    readonly path: string,
-    options: ErrorOptions,
-  ) {
+  readonly path: string;
+
+  constructor(path: string, options: ErrorOptions) {
     super(`Could not read ${path}`, options);
+    this.path = path;
   }
 }
 
@@ -77,26 +89,38 @@ export class SessionOnlySettingsError extends SettingsStoreError {
 }
 
 export class SettingsDestinationChangedError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("The settings destination changed");
+    this.path = path;
   }
 }
 
 export class UnconfirmedCreateError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("Confirm creating user settings");
+    this.path = path;
   }
 }
 
 export class UnconfirmedRepairError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("Confirm replacing invalid settings");
+    this.path = path;
   }
 }
 
 export class UnconfirmedRemoveError extends SettingsStoreError {
-  constructor(readonly path: string) {
+  readonly path: string;
+
+  constructor(path: string) {
     super("Confirm removing user settings");
+    this.path = path;
   }
 }
 
@@ -109,19 +133,19 @@ function failure(error: unknown): string {
 }
 
 export class SettingsWriteError extends SettingsStoreError {
-  constructor(
-    readonly path: string,
-    options: { cause: unknown },
-  ) {
+  readonly path: string;
+
+  constructor(path: string, options: { cause: unknown }) {
     super(`Could not save ${path}: ${failure(options.cause)}`, options);
+    this.path = path;
   }
 }
 
 export class SettingsRemoveError extends SettingsStoreError {
-  constructor(
-    readonly path: string,
-    options: { cause: unknown },
-  ) {
+  readonly path: string;
+
+  constructor(path: string, options: { cause: unknown }) {
     super(`Could not remove ${path}: ${failure(options.cause)}`, options);
+    this.path = path;
   }
 }

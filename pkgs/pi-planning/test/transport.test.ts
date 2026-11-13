@@ -21,16 +21,16 @@ import { expect, it, vi } from "vitest";
 import {
   createPlanning,
   type PlanningDependencies,
-} from "../src/controller.ts";
+} from "#planning/controller.ts";
 import {
   emptyPlanInputSchema,
   submitPlanOutputSchema,
-} from "../src/contracts.ts";
-import { nodeFiles } from "../src/node-files.ts";
-import { outcomeEntryType } from "../src/outcomes.ts";
-import { stateEntry } from "../src/session.ts";
-import { PlanStore } from "../src/store.ts";
-import { maxPlanCodeUnits } from "../src/validation.ts";
+} from "#planning/contracts.ts";
+import { nodeFiles } from "#planning/node-files.ts";
+import { outcomeEntryType } from "#planning/outcomes.ts";
+import { stateEntry } from "#planning/session.ts";
+import { PlanStore } from "#planning/store.ts";
+import { maxPlanCodeUnits } from "#planning/validation.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
 const stringSchema = Type.String();

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createStatusPublisher } from "../src/status.ts";
+import { createStatusPublisher } from "#planning/status.ts";
 
 function bus() {
   const listeners = new Map<string, Set<(raw: unknown) => void>>();

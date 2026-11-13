@@ -27,9 +27,12 @@ export type ActivityEvent =
   | "content";
 
 export class ActivityTracker {
+  private readonly state: Activity;
   private readonly tools = new Map<string, string>();
 
-  constructor(private readonly state: Activity) {}
+  constructor(state: Activity) {
+    this.state = state;
+  }
 
   private pause(now: number): void {
     if (this.state.activeSince !== undefined) {

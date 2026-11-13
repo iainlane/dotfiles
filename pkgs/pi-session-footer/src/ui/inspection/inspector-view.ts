@@ -30,6 +30,10 @@ type ViewEnvironment = {
   theme: Parameters<ViewFactory>[1];
   keys: Parameters<ViewFactory>[2];
 };
+type ViewData = {
+  snapshot(): FooterSnapshot | undefined;
+  sources: InspectorSources;
+};
 const ACTIONS = [
   "tui.select.up",
   "tui.select.down",
@@ -69,6 +73,9 @@ export class EmptyInspectorError extends Error {
 }
 
 class InspectorView implements InspectionNavigation {
+  private readonly environment: ViewEnvironment;
+  private readonly data: ViewData;
+  private readonly done: (next?: "customise") => void;
   private readonly pages: InspectionPages;
   private readonly saved = new Map<InspectorSection, PageState[]>();
   private stack: PageState[] = [];
@@ -79,14 +86,14 @@ class InspectorView implements InspectionNavigation {
   private height = 0;
   private readonly sectionsKey: KeyId | undefined;
   constructor(
-    private readonly environment: ViewEnvironment,
+    environment: ViewEnvironment,
     route: FooterRoute,
-    private readonly data: {
-      snapshot(): FooterSnapshot | undefined;
-      sources: InspectorSources;
-    },
-    private readonly done: (next?: "customise") => void,
+    data: ViewData,
+    done: (next?: "customise") => void,
   ) {
+    this.environment = environment;
+    this.data = data;
+    this.done = done;
     this.sectionsKey = (["s", "alt+s"] as const).find(
       (binding) =>
         !ACTIONS.some((action) =>

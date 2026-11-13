@@ -4,11 +4,13 @@
  * the failure without that path.
  */
 export abstract class SettingsError extends Error {
-  protected constructor(
-    readonly field: string,
-    readonly problem: string,
-  ) {
+  readonly field: string;
+  readonly problem: string;
+
+  protected constructor(field: string, problem: string) {
     super(`${field}: ${problem}`);
+    this.field = field;
+    this.problem = problem;
     this.name = new.target.name;
   }
 }

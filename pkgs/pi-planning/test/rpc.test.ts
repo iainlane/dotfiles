@@ -16,14 +16,14 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { expect, it } from "vitest";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
-import { submitPlanOutputSchema } from "../src/contracts.ts";
-import { displayText } from "../src/presentation.ts";
-import { maxPlanCodeUnits } from "../src/validation.ts";
+import { submitPlanOutputSchema } from "#planning/contracts.ts";
+import { displayText } from "#planning/presentation.ts";
+import { maxPlanCodeUnits } from "#planning/validation.ts";
 import { boundaryText } from "./fixtures/boundary.ts";
-import { attachedPlanContext } from "../src/prompt.ts";
-import { stateEntry } from "../src/session.ts";
-import { PlanStore } from "../src/store.ts";
-import { nodeFiles } from "../src/node-files.ts";
+import { attachedPlanContext } from "#planning/prompt.ts";
+import { stateEntry } from "#planning/session.ts";
+import { PlanStore } from "#planning/store.ts";
+import { nodeFiles } from "#planning/node-files.ts";
 
 interface RecordLine {
   type: string;

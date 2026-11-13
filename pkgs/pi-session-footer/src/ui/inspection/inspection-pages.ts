@@ -43,12 +43,16 @@ const SECTION_DESCRIPTIONS = {
   help: "Commands and navigation",
 } satisfies Record<InspectorSection, string>;
 export class InspectionPages {
+  private readonly capture: () => CapturedFooter;
+  private readonly navigation: InspectionNavigation;
   private readonly domains: DomainPages;
   constructor(
-    private readonly capture: () => CapturedFooter,
+    capture: () => CapturedFooter,
     snapshot: () => FooterSnapshot | undefined,
-    private readonly navigation: InspectionNavigation,
+    navigation: InspectionNavigation,
   ) {
+    this.capture = capture;
+    this.navigation = navigation;
     this.domains = new DomainPages(snapshot, navigation);
   }
   section(section: InspectorSection): InspectionPage {

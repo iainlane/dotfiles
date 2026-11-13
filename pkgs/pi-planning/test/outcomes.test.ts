@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import { expect, it } from "vitest";
-import { renderPlanningOutcome } from "../src/outcomes.ts";
+import { renderPlanningOutcome } from "#planning/outcomes.ts";
 
 const theme = { fg: (_colour: string, text: string) => text };
 const options = { expanded: false };

@@ -58,6 +58,8 @@ function decodeReply(raw: unknown, requestId: string): RpcResult | undefined {
 }
 
 export class RpcClient {
+  private readonly bus: FooterBus;
+  private readonly runtime: Pick<FooterRuntime, "clock" | "requestId">;
   private pending:
     | { method: "status" | "cost"; promise: Promise<RpcResult> }
     | undefined;
@@ -65,9 +67,12 @@ export class RpcClient {
   private disposed = false;
 
   constructor(
-    private readonly bus: FooterBus,
-    private readonly runtime: Pick<FooterRuntime, "clock" | "requestId">,
-  ) {}
+    bus: FooterBus,
+    runtime: Pick<FooterRuntime, "clock" | "requestId">,
+  ) {
+    this.bus = bus;
+    this.runtime = runtime;
+  }
 
   request(method: "status" | "cost"): Promise<RpcResult> {
     if (this.disposed) {
@@ -77,7 +82,7 @@ export class RpcClient {
     if (this.pending) {
       return this.pending.method === method
         ? this.pending.promise
-        : this.pending.promise.then(() => this.request(method));
+        : this.requestAfter(this.pending.promise, method);
     }
 
     const requestId = this.runtime.requestId();
@@ -136,15 +141,29 @@ export class RpcClient {
       }
     });
 
-    const tracked = promise.finally(() => {
-      if (this.pending?.promise === tracked) {
-        this.pending = undefined;
+    const settle = async (): Promise<RpcResult> => {
+      try {
+        return await promise;
+      } finally {
+        if (this.pending?.promise === tracked) {
+          this.pending = undefined;
+        }
       }
-    });
+    };
+    const tracked = settle();
 
     this.pending = { method, promise: tracked };
 
     return tracked;
+  }
+
+  private async requestAfter(
+    previous: Promise<RpcResult>,
+    method: "status" | "cost",
+  ): Promise<RpcResult> {
+    await previous;
+
+    return this.request(method);
   }
 
   dispose(): void {
