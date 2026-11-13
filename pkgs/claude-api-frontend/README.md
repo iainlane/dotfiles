@@ -15,8 +15,8 @@ classification and can change independently of this package.
 ## Run
 
 Build with `nix build .#claude-api-frontend` from the repository root. The Nix
-package includes Node 24 and OpenSSL. To run from source, install those
-runtimes, run `pnpm install --frozen-lockfile`, and invoke `node src/cli.ts`.
+package includes Node 24 and OpenSSL. To run from source, allow this directory's
+`.envrc` with direnv, run `pnpm install`, and invoke `node src/cli.ts`.
 
 Create a configuration file:
 

@@ -1,1 +1,6 @@
+packages:
+  - "."
+injectWorkspacePackages: true
+autoInstallPeers: false
+ignoreScripts: true
 managePackageManagerVersions: false
