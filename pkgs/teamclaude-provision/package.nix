@@ -7,7 +7,7 @@
   nodejs_24,
   teamclaude,
 }:
-(callPackage ../../../../../lib/build-typescript-package.nix {}) {
+(callPackage ../../lib/build-typescript-package.nix {}) {
   pname = "teamclaude-provision";
   version = "0.1.0";
   directory = ./.;

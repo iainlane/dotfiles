@@ -3,7 +3,7 @@
 
   teamclaudeDir = ./.;
   packages = pkgs.callPackage (teamclaudeDir + "/packages.nix") {};
-  provisioner = pkgs.callPackage ./provisioner/package.nix {};
+  provisioner = pkgs.teamclaude-provision;
 
   # The test sets `TEAMCLAUDE_CONFIG`, so the scripts never read this path.
   configFile = "/nonexistent/teamclaude.json";

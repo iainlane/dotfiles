@@ -1,19 +1,17 @@
 # The programs that run Claude Code through TeamClaude. Their dependencies are
-# function arguments, so the check in `features/ai/claude-code/teamclaude/checks.nix` can
-# replace them with stand-ins.
+# function arguments, so the check in `teamclaude-check.nix` can replace them
+# with stand-ins.
 {
-  callPackage,
   jq,
   lib,
   makeWrapper,
   symlinkJoin,
+  teamclaude-provision,
   writeShellApplication,
 }: let
   # The scripts read the config file that the CLI uses: `TEAMCLAUDE_CONFIG`
   # when it is set, and `configFile` otherwise.
   setConfig = configFile: ''config=''${TEAMCLAUDE_CONFIG:-${lib.escapeShellArg configFile}}'';
-
-  provisionProgram = callPackage ./provisioner/package.nix {};
 in {
   provision = {
     teamclaude,
@@ -30,7 +28,7 @@ in {
   in
     writeShellApplication {
       name = "teamclaude-provision";
-      runtimeInputs = [provisionProgram];
+      runtimeInputs = [teamclaude-provision];
       text = ''
         export TEAMCLAUDE_CONFIG=''${TEAMCLAUDE_CONFIG:-${lib.escapeShellArg configFile}}
         exec teamclaude-provision \

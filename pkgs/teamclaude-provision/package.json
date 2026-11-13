@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "node ../../../../../lib/typecheck.ts --noEmit",
+    "typecheck": "node ../../lib/typecheck.ts --noEmit",
     "lint": "oxlint .",
     "check": "npm run typecheck && npm run lint && npm test"
   },
