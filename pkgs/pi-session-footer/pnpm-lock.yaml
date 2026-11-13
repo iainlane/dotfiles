@@ -8,14 +8,19 @@ settings:
 overrides:
   pi-prs>@earendil-works/pi-coding-agent: '-'
   pi-prs>@earendil-works/pi-tui: '-'
+  '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+  '@mariozechner/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+  '@juicesharp/rpiv-btw': file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
+  '@marckrenn/pi-sub-core': file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
+  pi-prs: file:.nix-providers/pi-prs-0.6.0.tgz
 
 importers:
 
   .:
     dependencies:
       pi-prs:
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: file:.nix-providers/pi-prs-0.6.0.tgz
+        version: file:.nix-providers/pi-prs-0.6.0.tgz
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: 1.5.2
@@ -24,8 +29,8 @@ importers:
         specifier: 1.5.2
         version: 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)
       '@earendil-works/pi-coding-agent':
-        specifier: 1.5.2
-        version: 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
+        specifier: file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+        version: file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
       '@earendil-works/pi-tui':
         specifier: 1.5.2
         version: 1.5.2
@@ -33,14 +38,14 @@ importers:
         specifier: 0.15.0
         version: 0.15.0
       '@juicesharp/rpiv-btw':
-        specifier: 2.15.0
-        version: 2.15.0(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))(@earendil-works/pi-tui@1.5.2)
+        specifier: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
+        version: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)
       '@marckrenn/pi-sub-core':
-        specifier: 1.5.0
-        version: 1.5.0(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))
+        specifier: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
+        version: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))
       '@mariozechner/pi-coding-agent':
-        specifier: npm:@earendil-works/pi-coding-agent@1.5.2
-        version: '@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)'
+        specifier: file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+        version: '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)'
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
@@ -174,8 +179,9 @@ packages:
     resolution: {integrity: sha512-HoZQ40a9RgdZ1VgmrX6x8887cNXedaRJT1l+Ie5YRIMK4gY7v0EpsiNqf6dmixrKylZlTgUSyR+vE8xhjfkr+w==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-coding-agent@1.5.2':
-    resolution: {integrity: sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA==}
+  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz':
+    resolution: {integrity: sha512-mmWqORXcbwQQVUqrEkzwijw3bM3hExI4zxqPtkELtJAGaNtwLB4jcP9amy9i9o9ALh9hcXvHD97IHMo1LzBYsQ==, tarball: file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz}
+    version: 1.5.2
     engines: {node: '>=22.19.0'}
     hasBin: true
 
@@ -249,15 +255,22 @@ packages:
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
 
-  '@juicesharp/rpiv-btw@2.15.0':
-    resolution: {integrity: sha512-lJ1uelu5id+aQctYdpi6Plk7JQu5QkwNDqkTPgzmnxZAktgyI8JlNvDnRiGOUUnLHjLxvqHZzPmugYyJmUG/4Q==}
+  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz':
+    resolution: {integrity: sha512-ta738gkuNZRtB8l3o9VLSfb8NTRo5vPIoP9gtiTm1/NIyyh1T8VWJK8pilpLHerWQQYyBtBYQFSfnmqrElnX/g==, tarball: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz}
+    version: 2.15.0
     peerDependencies:
-      '@earendil-works/pi-ai': '*'
-      '@earendil-works/pi-coding-agent': '*'
-      '@earendil-works/pi-tui': '*'
+      '@earendil-works/pi-ai': ^1.4.0
+      '@earendil-works/pi-coding-agent': ^1.4.0
+      '@earendil-works/pi-tui': ^1.4.0
 
-  '@marckrenn/pi-sub-core@1.5.0':
-    resolution: {integrity: sha512-MHOYjPsZFEg/iQP1dMjLtUIQZtn8PUQNhnPaMsQZonkbw9H6Tzib54GlBDToKDtkSiEvDgnFniG2ge2TtLnpyg==}
+  '@juicesharp/rpiv-config@2.15.0':
+    resolution: {integrity: sha512-S2BAGX4dJjQ2AyNYOEjC6ha04p9f6CdEfmtxpdxzSKrfDMwqIvOjjO9HiHc1IPY7jDY1q2Q8cGCtpIZWV6Y8NQ==}
+    peerDependencies:
+      typebox: '*'
+
+  '@marckrenn/pi-sub-core@file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz':
+    resolution: {integrity: sha512-aMJAuqsHjkza35d8OywMSOqJgoDkHXR+3jhM1iFFr3OdVN5HMcz1xZ1D3UxJlHNc7z6E5rowmWQWteX+7FjTmQ==, tarball: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz}
+    version: 1.5.0
     peerDependencies:
       '@mariozechner/pi-coding-agent': '*'
 
@@ -1213,8 +1226,9 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
-  pi-prs@0.6.0:
-    resolution: {integrity: sha512-nS637Pw4Y843x5rbpxhl0rwqAa/cG4Ha2VAfvFC9iEH+sdXTdQgaqxj+SJXBqOnK4mXjHajrCuXKEpwWPoMaXw==}
+  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
+    resolution: {integrity: sha512-SF5Qac1Yd54YBgkRVFcxc+LqcWvJcd/BL7WlmT3tNQdlpEmmiCbDDdSsOt90CWZrQIUCSU9A6m92YgcgixK1Vg==, tarball: file:.nix-providers/pi-prs-0.6.0.tgz}
+    version: 0.6.0
     engines: {node: '>=24.0.0'}
 
   picocolors@1.1.1:
@@ -1756,7 +1770,7 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)':
+  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)':
     dependencies:
       '@earendil-works/pi-agent-core': 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)
@@ -1852,16 +1866,23 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
-  '@juicesharp/rpiv-btw@2.15.0(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1))(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))(@earendil-works/pi-tui@1.5.2)':
+  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz(@earendil-works/pi-ai@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))(@earendil-works/pi-tui@1.5.2)(typebox@1.3.27)':
     dependencies:
       '@earendil-works/pi-ai': 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(undici@8.12.3)(ws@8.22.1)
-      '@earendil-works/pi-coding-agent': 1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
+      '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
       '@earendil-works/pi-tui': 1.5.2
+      '@juicesharp/rpiv-config': 2.15.0(typebox@1.3.27)
+    transitivePeerDependencies:
+      - typebox
 
-  '@marckrenn/pi-sub-core@1.5.0(@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))':
+  '@juicesharp/rpiv-config@2.15.0(typebox@1.3.27)':
+    dependencies:
+      typebox: 1.3.27
+
+  '@marckrenn/pi-sub-core@file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1))':
     dependencies:
       '@marckrenn/pi-sub-shared': 1.5.0
-      '@mariozechner/pi-coding-agent': '@earendil-works/pi-coding-agent@1.5.2(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)'
+      '@mariozechner/pi-coding-agent': '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)'
 
   '@marckrenn/pi-sub-shared@1.5.0': {}
 
@@ -2581,7 +2602,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pi-prs@0.6.0:
+  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
     dependencies:
       turndown: 7.2.4
       turndown-plugin-gfm: 1.0.2

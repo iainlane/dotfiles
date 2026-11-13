@@ -1,25 +1,23 @@
 # Development
 
-## Dependency shell
+## Development shell
 
-From the repository root:
+Allow this directory's `.envrc` with direnv, then install and check:
 
 ```sh
-nix develop .#pi-session-footer
-cd pkgs/pi-session-footer
+pnpm install
 pnpm check
 ```
 
-The shell supplies Node 24, pnpm 10.34.7, Git and the pinned Pi, Pretty and
-Planning paths for native tests. It links the same patched development
-dependencies as the Nix package. An existing regular `node_modules` directory
-must be moved aside before entering the shell.
+The shell supplies Node, the pinned pnpm, Git and the Pi, Pretty and Planning
+paths for native tests. It links the tarballs of this repository's npm packages
+into `.nix-providers`. The overrides in `pnpm-workspace.yaml` install those
+tarballs in place of the registry releases, and pnpm otherwise works as usual.
 
-The dependency output is read-only. Change dependencies with
-`pnpm add --lockfile-only <package>` or
-`pnpm add --save-dev --lockfile-only <package>`, then refresh the Nix dependency
-hash and re-enter the shell. Do not replace the patched dependency link with a
-registry installation.
+The lockfile records each tarball's integrity. After changing dependencies, or
+when one of the local packages changes, run `nix run .#update-pi-session-footer`
+from the repository root. It refreshes the overrides, the lockfile and the Nix
+dependency hashes.
 
 ## Commands and test groups
 
@@ -36,7 +34,7 @@ Integration files run sequentially for PTY isolation. Fixture preparation copies
 selected third-party packages into ignored `.fixtures` directories and preserves
 each package's dependency context. Owned fixture extensions are in
 `test/fixtures`; shared test code is in `test/support`. Vitest writes its cache
-to `.cache`, outside the read-only dependency tree.
+to `.cache`.
 
 The [demo guide] describes isolated native demonstrations and recordings.
 
@@ -65,16 +63,13 @@ nix build .#pi-session-footer
 nix run .#update-pi-session-footer
 ```
 
-The shared local-package adapter selects existing purl identities and
-`npmTarball` outputs. Native pnpm generates the patched graph during the
-fixed-output fetch, then installs it offline with a frozen lock. Changes to
-local dependency patches require new dependency hashes. The updater pins local
-package versions, regenerates the portable pnpm lock and refreshes the hash for
-each configured system.
+The build links the local packages' tarballs as the development shell does and
+installs offline with the frozen lockfile. When a local package changes, its
+tarball no longer matches the recorded integrity, and the build fails until the
+updater has refreshed the lockfile.
 
-Production uses native pnpm deployment with host peers excluded. Deployment does
-not rerun the substitution hook because its generated lock already includes the
-local resolutions. The installed package retains the portable manifest and
-contains no test dependencies, fixtures or recording assets. Its installation
-check verifies internal dependency links and loads the extension through native
-Pi from an unrelated working directory.
+The installed package consists of the files in its own npm tarball and a
+production install of its dependencies, with host peers excluded. It contains no
+test dependencies, fixtures or recording assets. Its installation check verifies
+internal dependency links and loads the extension through native Pi from an
+unrelated working directory.

@@ -50,6 +50,7 @@
   packageRoot = "lib/node_modules/${npmName}";
 
   npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
+  npmPackHook = callPackage ./npm-pack-hook.nix {};
 
   projected = import ./project-pi-npm-package.nix {inherit lib;} {
     package = manifest;
@@ -60,7 +61,8 @@ in
     {
       inherit pname version;
 
-      nativeBuildInputs = lib.optional (npmDependencies != {}) jq;
+      outputs = ["out" "tarball"];
+      nativeBuildInputs = [npmPackHook] ++ lib.optional (npmDependencies != {}) jq;
 
       # The source manifest must match the overrides in the committed lockfile.
       postPatch = lib.optionalString (npmDependencies != {}) ''
@@ -133,11 +135,7 @@ in
       passthru = {
         inherit packageRoot;
 
-        npmTarball = callPackage ./npm-tarball.nix {} {
-          name = npmName;
-          inherit version;
-          directory = "${finalAttrs.finalPackage}/${packageRoot}";
-        };
+        npmTarball = "${finalAttrs.finalPackage.tarball}/package.tgz";
 
         maintenance = {
           source = "release";

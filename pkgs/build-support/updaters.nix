@@ -7,6 +7,7 @@
   bash,
   coreutils,
   diffutils,
+  findutils,
   gh,
   git,
   gnutar,
@@ -23,6 +24,7 @@
   wget,
   writeShellApplication,
   writeText,
+  yq-go,
 }: {
   # Run a package's own update script from its directory in the working tree.
   # Use it when the upstream's release metadata needs more than a version
@@ -265,30 +267,48 @@
       '';
     };
 
-  # Pin local npm versions in a pnpm package, regenerate its portable lock,
-  # and refresh its dependency hashes on the configured systems.
+  # Point a pnpm package's overrides at the local npm packages, regenerate its
+  # lockfile against their tarballs, and refresh its dependency hashes on the
+  # configured systems.
   mkPnpmLockUpdater = {
     pname,
     directory,
-    packages,
+    overrides,
     pnpm,
     systems,
   }: let
-    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
-    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map npmPackages.npmPackage packages));
+    providers = map (override: removeAttrs override ["npmTarball"]) overrides;
+    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON providers);
   in
     writeShellApplication {
       name = "update-${pname}";
-      passthru.maintenance = {
-        source = "repository";
-        refresh = true;
+      passthru = {
+        maintenance = {
+          source = "repository";
+          refresh = true;
+        };
+        inherit providers;
       };
-      runtimeInputs = [bash coreutils git jq pnpm nix nix-update];
+      runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update yq-go];
       text = ''
         root="$(git rev-parse --show-toplevel)"
         cd "$root/${directory}"
+        ${(import ./pnpm-providers.nix {inherit lib;} overrides).link "."}
         bash ${./pnpm-lock-updater.bash} ${provided}
         cd "$root"
+
+        # This script links the tarballs of the local packages in the old
+        # lockfile. If the relock added one, run the script built from the new
+        # lockfile.
+        if [[ "$(nix eval --json ${lib.escapeShellArg ".#${pname}.passthru.updateScript.providers"})" != "$(cat ${provided})" ]]; then
+          if [[ -n "''${PNPM_LOCK_UPDATER_RERUN:-}" ]]; then
+            echo ${lib.escapeShellArg "Relocking ${pname} changed its local npm packages again."} >&2
+            exit 1
+          fi
+
+          PNPM_LOCK_UPDATER_RERUN=1 exec "$(nix build --no-link --print-out-paths ${lib.escapeShellArg ".#${pname}.passthru.updateScript"})/bin/update-${pname}" "$@"
+        fi
+
         for system in ${lib.escapeShellArgs systems}; do
           nix-update --flake --system "$system" --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
         done

@@ -14,3 +14,6 @@ result-*
 
 # Scratch output of prompt conformance tests
 prompt-results/
+
+# Local npm package tarballs that pnpm development shells and builds link
+.nix-providers/

@@ -20,7 +20,13 @@
           }))
           {
             check-added-large-files.enable = true;
-            check-yaml.enable = true;
+            check-yaml = {
+              enable = true;
+              # pnpm writes YAML 1.2 plain scalars such as
+              # `{tarball: file:.nix-providers/x.tgz}`, which this hook's
+              # YAML 1.1 parser rejects.
+              excludes = ["(^|/)pnpm-lock\\.yaml$"];
+            };
             end-of-file-fixer.enable = true;
             trim-trailing-whitespace = {
               enable = true;

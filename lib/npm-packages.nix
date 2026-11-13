@@ -1,8 +1,9 @@
 # A local package that builds an npm package records the npm name and version
 # in `meta.identifiers.purlParts`, nixpkgs' field for Package URLs, and exposes
-# the package as `passthru.npmTarball`. A build that uses
-# `pkgs/build-support/npm-deps.nix` installs that tarball for every lockfile
-# entry with the same name, in place of the registry release.
+# the package as `passthru.npmTarball`. Builds that use
+# `pkgs/build-support/npm-deps.nix` or `pkgs/build-support/pnpm-deps.nix`
+# install that tarball for every lockfile entry with the same name, in place of
+# the registry release.
 {lib}: rec {
   # The purl spec percent-encodes the `@` of an npm scope.
   purlParts = {
@@ -64,6 +65,23 @@
     provided = lib.unique (map providing (lib.attrNames matches));
   };
 
+  # The file name that `npm pack` gives a package's tarball.
+  tarballName = {
+    name,
+    version,
+  }: "${lib.replaceStrings ["@" "/"] ["" "-"] name}-${version}.tgz";
+
+  # A local package as a pnpm override target: its npm name and version, the
+  # tarball's name in `.nix-providers` and the tarball itself.
+  pnpmProvider = package: let
+    npm = npmPackage package;
+  in
+    npm
+    // {
+      file = tarballName npm;
+      inherit (package) npmTarball;
+    };
+
   # Nix has no built-in YAML parser. Match pnpm's package-key prefixes
   # here so evaluation does not need IFD.
   providePnpm = {
@@ -74,4 +92,35 @@
     matches = name: lib.any (line: lib.any (quote: lib.hasPrefix "  ${quote}${name}@" line) ["" "'" "\""]) lines;
   in
     lib.attrValues (lib.filterAttrs (name: _: matches name) packages);
+
+  # The pnpm overrides that install the local packages in a lockfile. An
+  # override of a package's name does not reach an npm alias of it, such as
+  # `"old-name": "npm:new-name@1.0.0"`, so each alias gets its own override.
+  # A snapshot records an alias as `old-name: 'new-name@...'`. An importer
+  # records it as an `old-name:` key whose `version` two lines later starts
+  # with `new-name@`.
+  pnpmOverrides = {
+    packages,
+    lockfile,
+  }: let
+    lines = lib.splitString "\n" lockfile;
+    aliases = name: let
+      package = "['\"]?${lib.escapeRegex name}@.*";
+      alias = index: line: let
+        snapshot = builtins.match "      ['\"]?([^'\": ]+)['\"]?: ${package}" line;
+        importer = builtins.match "      ['\"]?([^'\": ]+)['\"]?:" (builtins.elemAt lines (index - 2));
+      in
+        if snapshot != null
+        then snapshot
+        else if index >= 2 && builtins.match "        version: ${package}" line != null
+        then importer
+        else null;
+    in
+      lib.filter (alias: alias != name) (lib.unique (lib.concatMap (match: lib.optional (match != null) (builtins.head match)) (lib.imap0 alias lines)));
+  in
+    lib.concatMap (package: let
+      provider = pnpmProvider package;
+    in
+      [provider] ++ map (alias: provider // {name = alias;}) (aliases provider.name))
+    (providePnpm {inherit packages lockfile;});
 }
