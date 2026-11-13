@@ -1,5 +1,5 @@
 import type { Activity } from "./state.ts";
-import { duration } from "#footer/shared/text.ts";
+import { duration, text } from "#footer/shared/text.ts";
 
 export function inactivity(state: Activity, now: number): string | undefined {
   if (
@@ -102,10 +102,11 @@ export class ActivityTracker {
   }
 
   tool(id: string, name: string | undefined, now: number): void {
-    if (name !== undefined && name !== "") {
-      this.tools.set(id, name);
-    } else {
+    const clean = text(name);
+    if (clean === "") {
       this.tools.delete(id);
+    } else {
+      this.tools.set(id, clean);
     }
 
     this.state.tool = [...this.tools.values()].join(", ") || undefined;

@@ -55,3 +55,24 @@ it.each<{
     });
   },
 );
+
+it("removes terminal sequences and control characters from tool names", () => {
+  const state = createSnapshot(0, "/fixture").activity;
+  const tracker = new ActivityTracker(state);
+
+  tracker.tool("call-1", "read\u001B]0;title\u0007", 5);
+  tracker.tool("call-2", "bash\u001B[2J\r\n", 6);
+
+  expect(state).toStrictEqual({
+    runningSince: undefined,
+    activeSince: undefined,
+    activeMs: 0,
+    observedSince: 0,
+    lastContentAt: 6,
+    waiting: false,
+    compacting: false,
+    compactingSince: undefined,
+    tool: "read, bash",
+    outcome: undefined,
+  });
+});
