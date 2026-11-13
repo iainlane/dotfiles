@@ -5,7 +5,7 @@
     "test": "vitest run",
     "typecheck": "node ../../lib/typecheck.ts --noEmit",
     "lint": "oxlint .",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "type": "module",
   "private": true,
@@ -14,9 +14,15 @@
     "oxlint": "1.89.0",
     "oxlint-tsgolint": "7.0.2004",
     "typescript": "7.0.2",
+    "vite": "8.3.5",
     "vitest": "5.0.5"
   },
   "dependencies": {
     "zod": "4.6.7"
-  }
+  },
+  "packageManager": "pnpm@10.34.7",
+  "files": [
+    "provision.ts",
+    "errors.ts"
+  ]
 }

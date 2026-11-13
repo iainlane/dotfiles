@@ -40,16 +40,6 @@ in
             touch $out
           '';
 
-        npm-lock-updater =
-          pkgs.runCommandLocal "npm-lock-updater-test" {
-            nativeBuildInputs = [pkgs.bash pkgs.diffutils pkgs.jq];
-            passthru.ci.runOnce = true;
-          } ''
-            bash ${../../pkgs/build-support/npm-lock-updater.test.bash} \
-              ${../../pkgs/build-support/npm-lock-updater.bash}
-            touch $out
-          '';
-
         package-updater-coverage = assert import ../../lib/package-maintenance.test.nix {inherit lib;};
         assert lib.assertMsg (errors == []) "Invalid package maintenance policies:\n${lib.concatStringsSep "\n" errors}";
           pkgs.runCommandLocal "package-updater-coverage" {} ''

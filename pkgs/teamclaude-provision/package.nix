@@ -5,36 +5,31 @@
   lib,
   makeWrapper,
   nodejs_24,
+  pnpm_10,
   teamclaude,
 }:
-(callPackage ../../lib/build-typescript-package.nix {}) {
+(callPackage ../build-support/pnpm-package.nix {}) {
   pname = "teamclaude-provision";
-  version = "0.1.0";
   directory = ./.;
-  nodejs = nodejs_24;
-  npmFlags = ["--ignore-scripts"];
+  pnpm = pnpm_10;
+  dependencyHashes = {
+    aarch64-darwin = "sha256-el+DFXV+sGZJSS4wtUpvAf1ofA8OJZZHwQVp0bKk/Og=";
+    aarch64-linux = "sha256-el+DFXV+sGZJSS4wtUpvAf1ofA8OJZZHwQVp0bKk/Og=";
+    x86_64-linux = "sha256-el+DFXV+sGZJSS4wtUpvAf1ofA8OJZZHwQVp0bKk/Og=";
+  };
+
+  # Node does not strip types from TypeScript files under node_modules.
+  packageRoot = "lib/teamclaude-provision";
+
   nativeBuildInputs = [makeWrapper];
   nativeInstallCheckInputs = [jq coreutils];
-  dontNpmBuild = true;
-  dontNpmInstall = true;
-  dontNpmPrune = true;
-  doCheck = true;
-
-  checkPhase = ''
-    runHook preCheck
+  preCheck = ''
     export HOME="$TMPDIR/home"
     mkdir -p "$HOME"
-    npm run check
-    runHook postCheck
   '';
-  installPhase = ''
-    runHook preInstall
-    npm prune --omit=dev --ignore-scripts --offline
-    mkdir -p "$out/lib/teamclaude-provision"
-    cp -r provision.ts errors.ts package.json node_modules "$out/lib/teamclaude-provision/"
+  postInstall = ''
     makeWrapper ${lib.getExe nodejs_24} "$out/bin/teamclaude-provision" \
-      --add-flags "$out/lib/teamclaude-provision/provision.ts"
-    runHook postInstall
+      --add-flags "$out/$packageRoot/provision.ts"
   '';
   doInstallCheck = true;
   installCheckPhase = ''

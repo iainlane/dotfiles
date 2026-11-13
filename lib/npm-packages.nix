@@ -43,7 +43,6 @@
   # registry releases. An alias entry records the package that it installs as
   # its `name`. npm checks a tarball against the lockfile's `integrity`, which
   # belongs to the registry release, so the matching entries lose it.
-  # `provided` lists the packages that the lockfile uses.
   provide = {
     packages,
     packageLock,
@@ -54,15 +53,13 @@
         path: entry: path != "" && !(entry.link or false) && packages ? ${packageName path}
       )
       packageLock.packages;
-    providing = path: packages.${packageName path};
   in {
     packageLock =
       packageLock
       // {
         packages = packageLock.packages // lib.mapAttrs (_: entry: removeAttrs entry ["integrity"]) matches;
       };
-    packageSourceOverrides = lib.mapAttrs (path: _: (providing path).npmTarball) matches;
-    provided = lib.unique (map providing (lib.attrNames matches));
+    packageSourceOverrides = lib.mapAttrs (path: _: packages.${packageName path}.npmTarball) matches;
   };
 
   # The file name that `npm pack` gives a package's tarball.

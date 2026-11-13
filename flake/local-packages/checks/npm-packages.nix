@@ -191,7 +191,6 @@ in
                     "node_modules/other/node_modules/@scope/host" = host.npmTarball;
                     "node_modules/alias" = host.npmTarball;
                   };
-                  provided = [host];
                 };
             }
           ]

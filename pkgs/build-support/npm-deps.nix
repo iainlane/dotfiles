@@ -19,7 +19,6 @@ in {
     inherit npmRoot package;
     inherit (local) packageLock packageSourceOverrides;
   };
-  inherit (local) provided;
 
   # npm reads versions from its hidden lockfile, which copies them from
   # package-lock.json. Without it, `npm ls` compares the installed packages,

@@ -238,35 +238,6 @@
       '';
     };
 
-  # Pin a Node package's package.json and lockfile to the local npm packages
-  # that its build installs in place of the registry releases (see
-  # `lib/npm-packages.nix`). When npm nests a different version of one of the
-  # Node package's direct dependencies under a local package, the updater moves
-  # the direct dependency to the nested version so npm installs a single copy.
-  mkNpmLockUpdater = {
-    pname,
-    directory,
-    packages,
-  }: let
-    npmPackages = import ../../lib/npm-packages.nix {inherit lib;};
-    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON (map npmPackages.npmPackage packages));
-  in
-    writeShellApplication {
-      name = "update-${pname}";
-      passthru.maintenance = {
-        source = "repository";
-        refresh = true;
-      };
-      runtimeInputs = [coreutils git jq nodejs];
-
-      text = ''
-        if (($# > 1)) || [[ "$#" == 1 && "$1" != --refresh ]]; then echo 'Unsupported updater arguments.'; exit 1; fi
-        cd "$(git rev-parse --show-toplevel)/${directory}"
-
-        bash ${./npm-lock-updater.bash} ${provided} >&2
-      '';
-    };
-
   # Point a pnpm package's overrides at the local npm packages, regenerate its
   # lockfile against their tarballs, and refresh its dependency hashes on the
   # configured systems.

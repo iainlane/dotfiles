@@ -1,23 +1,9 @@
 {pkgs}: let
   inherit (pkgs) lib;
-  shared =
-    (pkgs.callPackage ../../../lib/build-typescript-package.nix {
-      buildNpmPackage = attrs: attrs {finalPackage = null;};
-    }) {
-      pname = "cleanup-fixture";
-      version = "1";
-      directory = ../../../pkgs/pi-planning;
-      postCheck = ''touch post-check'';
-    };
   piDiff = pkgs.callPackage ../../../pkgs/pi-diff/package.nix {
     buildNpmPackage = lib.id;
   };
   cases = [
-    {
-      name = "shared";
-      hook = shared.postCheck or "";
-      expected = "node_modules/runtime/index.js\npost-check\n";
-    }
     {
       name = "pi-diff";
       hook = piDiff.postCheck or "";

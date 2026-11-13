@@ -320,26 +320,20 @@ checks. Setting `PI_TEST_HOST` alone does not change Node imports or TypeScript
 resolution. Restart Pi after deploying the profile. Reloading extensions does
 not replace a compiled host that is already running.
 
-From the repository root, build the matching packages, then run the checks in
-the package's development shell. Entering the shell links the build's
-`node_modules` into the working tree:
+Allow this directory's `.envrc` with direnv, then install and check:
 
 ```sh
-native=$(direnv exec . nix build .#pi --no-link --print-out-paths --option allow-import-from-derivation false)
-pretty=$(direnv exec . nix build .#pi-pretty --no-link --print-out-paths --option allow-import-from-derivation false)
-diff=$(direnv exec . nix build .#pi-diff --no-link --print-out-paths --option allow-import-from-derivation false)
-subagents=$(direnv exec . nix build .#pi-subagents --no-link --print-out-paths --option allow-import-from-derivation false)
-cd pkgs/pi-planning
-direnv exec ../.. nix develop ../..#pi-planning.devShell --option allow-import-from-derivation false --command env \
-  PI_TEST_HOST="$native/bin/pi" \
-  PI_TEST_PRETTY="$pretty/lib/node_modules/@heyhuynhgiabuu/pi-pretty" \
-  PI_TEST_DIFF="$diff/lib/node_modules/@heyhuynhgiabuu/pi-diff" \
-  PI_TEST_SUBAGENTS="$subagents/lib/node_modules/pi-subagents" npm run check
+pnpm install
+pnpm check
 ```
 
-The development shell manages `node_modules`, so change dependencies with
-`npm install --package-lock-only` and enter the shell again. Deployed extensions
-do not include host SDK modules; startup checks reject bundled copies.
+The development shell sets `PI_TEST_HOST`, `PI_TEST_PRETTY`, `PI_TEST_DIFF` and
+`PI_TEST_SUBAGENTS` to the matching builds. It links this repository's builds of
+the SDK and `pi-subagents` into `.nix-providers`, and pnpm installs them from
+there in place of the npm releases. After changing dependencies, run
+`nix run .#update-pi-planning` from the repository root. It refreshes the
+overrides, the lockfile and the Nix dependency hashes. Deployed extensions do
+not include host SDK modules; startup checks reject bundled copies.
 
 The subagent package includes the child-runtime registration patch required for
 nested planning roles. Native tests exercise web and Lens activation, unfiltered

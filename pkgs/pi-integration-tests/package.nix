@@ -1,17 +1,14 @@
-{callPackage}:
-(callPackage ../../lib/build-typescript-package.nix {}) {
+{
+  callPackage,
+  pnpm_10,
+}:
+(callPackage ../build-support/pnpm-package.nix {}) {
   pname = "pi-integration-tests";
-  version = "0.1.0";
   directory = ./.;
-
-  npmFlags = ["--ignore-scripts"];
-  npmPackFlags = ["--ignore-scripts"];
-  npmPruneFlags = ["--omit=peer"];
-  doCheck = true;
-  passthru.packageRoot = "lib/node_modules/@dotfiles/pi-integration-tests";
-  checkPhase = ''
-    runHook preCheck
-    npm run check
-    runHook postCheck
-  '';
+  pnpm = pnpm_10;
+  dependencyHashes = {
+    aarch64-darwin = "sha256-E83FpJq7vXIENKDIQsNBT6RTmc0KiJ+IBaleUy0sOE4=";
+    aarch64-linux = "sha256-E83FpJq7vXIENKDIQsNBT6RTmc0KiJ+IBaleUy0sOE4=";
+    x86_64-linux = "sha256-E83FpJq7vXIENKDIQsNBT6RTmc0KiJ+IBaleUy0sOE4=";
+  };
 }
