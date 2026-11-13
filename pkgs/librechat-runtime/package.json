@@ -16,6 +16,7 @@
     "@types/node": "^24.19.2",
     "oxlint": "^1.89.0",
     "oxlint-tsgolint": "^7.0.2004",
+    "recheck": "^4.6.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

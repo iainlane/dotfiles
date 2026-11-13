@@ -4,5 +4,15 @@ catalog:
   zod: 4.6.7
 injectWorkspacePackages: true
 managePackageManagerVersions: false
+# recheck's native backends would need patching to run in the Linux build,
+# and its Java backend needs a JVM. Without them, recheck uses its
+# JavaScript implementation.
+ignoredOptionalDependencies:
+  - recheck-jar
+  - recheck-linux-arm64
+  - recheck-linux-x64
+  - recheck-macos-arm64
+  - recheck-macos-x64
+  - recheck-windows-x64
 syncInjectedDepsAfterScripts:
   - build

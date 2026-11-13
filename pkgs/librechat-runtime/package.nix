@@ -32,7 +32,7 @@ in
         inherit (finalAttrs) pname version src sourceRoot;
         inherit pnpm;
         fetcherVersion = 3;
-        hash = "sha256-Xaa8XpeMsgTNjEfAjQ27nOvArICDjMpev4WI5CJjQTQ=";
+        hash = "sha256-4TvLFxRR20Xx9XAfBNy3KowysCWhrItL/VDFiQ/NS54=";
       };
 
       nativeBuildInputs = [nodejs_24 pnpm pnpmConfigHook makeWrapper] ++ lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook];
