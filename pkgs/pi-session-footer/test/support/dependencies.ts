@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { vi } from "vitest";
 import type { Clock, FooterRuntime } from "#footer/application/runtime.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
@@ -48,6 +49,7 @@ export class ManualClock implements Clock {
       .toSorted((a, b) => a.at - b.at)[0];
     if (!next) {
       this.time = end;
+      await setImmediate();
       return;
     }
     this.time = next.at;
@@ -57,7 +59,7 @@ export class ManualClock implements Clock {
       next.at += next.interval;
     }
     next.callback();
-    await Promise.resolve();
+    await setImmediate();
     await this.advance(end - this.time);
   }
 }

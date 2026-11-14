@@ -45,6 +45,7 @@ export class FooterSession {
   private readonly stopClock: () => void;
   private disposed = false;
   private gitPending = false;
+  private gitRerun = false;
   private gitAt = -Infinity;
   private agentsAt = -Infinity;
   private leaf: string | null | undefined;
@@ -190,7 +191,7 @@ export class FooterSession {
 
     const now = this.state.now;
 
-    if (now - this.gitAt >= 5000) {
+    if (!this.gitPending && now - this.gitAt >= 5000) {
       void this.refreshGit();
     }
 
@@ -236,18 +237,39 @@ export class FooterSession {
   }
 
   private async updateGit(): Promise<void> {
-    if (this.disposed || this.gitPending) {
+    if (this.disposed) {
+      return;
+    }
+
+    if (this.gitPending) {
+      this.gitRerun = true;
       return;
     }
 
     this.gitPending = true;
     this.gitAt = this.runtime.clock.now();
 
+    try {
+      await this.probeGit();
+    } finally {
+      this.gitPending = false;
+    }
+
+    if (this.gitRerun) {
+      this.gitRerun = false;
+      await this.updateGit();
+    }
+  }
+
+  private async probeGit(): Promise<void> {
     const previous = this.state.git;
     const previousError = this.state.gitError;
 
     try {
-      const git = await this.runtime.readGit(this.context.cwd, this.gitAt);
+      const git = await this.runtime.readGit(
+        this.context.cwd,
+        this.runtime.clock.now(),
+      );
 
       if (this.disposed) {
         return;
@@ -285,8 +307,6 @@ export class FooterSession {
       ) {
         this.changed();
       }
-    } finally {
-      this.gitPending = false;
     }
   }
 

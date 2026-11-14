@@ -178,6 +178,34 @@ it("invalidates session age relative to the header timestamp", async () => {
   session.dispose();
 });
 
+it("reads Git again when a refresh is requested during a pending read", async () => {
+  const { bus, context, runtime } = harness();
+  const first = Promise.withResolvers<ReturnType<typeof parseGitStatus>>();
+  const readGit = vi
+    .fn<() => Promise<ReturnType<typeof parseGitStatus>>>()
+    .mockReturnValueOnce(first.promise)
+    .mockResolvedValue(parseGitStatus("# branch.head feature", 2));
+  const session = new FooterSession(context, bus, () => {}, {
+    ...runtime,
+    readGit,
+  });
+
+  const requested = session.refreshGit();
+  first.resolve(parseGitStatus("# branch.head main", 1));
+  await requested;
+  await runtime.clock.advance(0);
+
+  expect({
+    reads: readGit.mock.calls.length,
+    git: session.state.git,
+  }).toStrictEqual({
+    reads: 2,
+    git: parseGitStatus("# branch.head feature", 2),
+  });
+
+  session.dispose();
+});
+
 it("does not invalidate for routine content but clears a displayed inactivity warning", async () => {
   const { bus, context, runtime } = harness();
   const change = vi.fn<() => void>();
