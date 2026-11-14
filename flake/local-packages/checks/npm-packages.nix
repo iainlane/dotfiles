@@ -7,6 +7,14 @@
   };
   host = producer "@scope/host" "2.0.0";
   linked = producer "linked" "1.0.0";
+  consumer =
+    producer "@dotfiles/consumer" "1.0.0"
+    // {
+      npmRuntimeDependencies = {
+        "@dotfiles/private" = "^0.1.0";
+        other = "^4";
+      };
+    };
   github.meta.identifiers.purlParts = {
     type = "github";
     spec = "owner/repo@v1.0.0";
@@ -87,7 +95,7 @@ in
           pname = "scenario";
           directory = "scenario";
           catalogue = npmPackages.pnpmCatalogue {
-            inherit host linked;
+            inherit consumer host linked;
             private = producer "@dotfiles/private" "0.1.0";
           };
           inherit pnpm;
@@ -125,15 +133,26 @@ in
               pass = npmPackages.attributesByName {inherit host github plain;} == {"@scope/host" = "host";};
             }
             {
-              name = "the pnpm catalogue lists each npm package with its tarball name and the installable that builds the tarball";
+              name = "the pnpm catalogue lists each npm package with its tarball name, the installable that builds the tarball and its runtime dependencies";
               pass =
-                npmPackages.pnpmCatalogue {inherit host github plain;}
+                npmPackages.pnpmCatalogue {inherit consumer host github plain;}
                 == [
+                  {
+                    name = "@dotfiles/consumer";
+                    version = "1.0.0";
+                    file = "dotfiles-consumer-1.0.0.tgz";
+                    installable = ".#consumer.tarball";
+                    dependencies = {
+                      "@dotfiles/private" = "^0.1.0";
+                      other = "^4";
+                    };
+                  }
                   {
                     name = "@scope/host";
                     version = "2.0.0";
                     file = "scope-host-2.0.0.tgz";
                     installable = ".#host.tarball";
+                    dependencies = {};
                   }
                 ];
             }

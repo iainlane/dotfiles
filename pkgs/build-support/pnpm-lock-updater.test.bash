@@ -60,9 +60,9 @@ jq --sort-keys . "$root/scenario/package.json" >"$root/actual.json"
 jq --sort-keys . >"$root/expected.json" <<'JSON'
 {
   "name": "fixture",
-  "dependencies": { "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "alias": "npm:@scope/host@2.0.0", "other": "^4" },
-  "devDependencies": { "linked": "1.0.0", "plain": "npm:linked@1.0.0" },
-  "optionalDependencies": { "scoped": "npm:@scope/host@2.0.0" },
+  "dependencies": { "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "alias": "npm:@scope/host@^2.0.0", "other": "^4" },
+  "devDependencies": { "linked": "^1.0.0", "plain": "npm:linked@^1.0.0" },
+  "optionalDependencies": { "scoped": "npm:@scope/host@^2.0.0" },
   "peerDependencies": { "@scope/host": "^1" }
 }
 JSON
@@ -115,10 +115,20 @@ project '{"name": "plain", "dependencies": {"other": "^4"}}' '  gone: file:.nix-
 update
 yq -o=json '.' "$root/scenario/pnpm-workspace.yaml" | jq --sort-keys . | diff -u <(printf '%s\n' '{"packages": ["."]}' | jq --sort-keys .) -
 
+# Prints every package.json in the project as one object keyed by path.
+manifests() {
+	(cd "$root/scenario" && find . -name package.json -not -path './.nix-providers/*' | sed 's|^\./||' | LC_ALL=C sort | xargs jq -n --sort-keys '[inputs | {(input_filename): .}] | add')
+}
+
 # Each case lists the project's package.json and overrides, the lockfiles that
 # successive relocks write, the package.json that the update leaves, the
-# overrides and links that each relock sees, and the calls.
-for case in private discovered direct-alias transitive-alias peer unchanged; do
+# overrides and links that each relock sees, and the calls. A case with
+# workspace members also lists the workspace's patterns and the members'
+# manifests before and after the update.
+for case in private discovered direct-alias transitive-alias peer unchanged workspace followed; do
+	packages='["."]'
+	members='{}'
+	updated_members='{}'
 	case "$case" in
 	private)
 		# A private local package has no registry release, so it is linked
@@ -129,7 +139,7 @@ for case in private discovered direct-alias transitive-alias peer unchanged; do
 packages:
   '@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz':
     resolution: {integrity: sha512-private, tarball: file:.nix-providers/dotfiles-private-0.1.0.tgz}")
-		updated='{"devDependencies": {"@dotfiles/private": "0.1.0"}}'
+		updated='{"devDependencies": {"@dotfiles/private": "^0.1.0"}}'
 		states='[
 			{"overrides": {"@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"},
 			 "links": {"dotfiles-private-0.1.0.tgz": "/nix/store/private-tarball/package.tgz"}}
@@ -181,7 +191,7 @@ importers:
 packages:
   linked@file:.nix-providers/linked-1.0.0.tgz:
     resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/linked-1.0.0.tgz}")
-		updated='{"devDependencies": {"old": "npm:linked@1.0.0"}}'
+		updated='{"devDependencies": {"old": "npm:linked@^1.0.0"}}'
 		states='[
 			{"overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz", "old": "file:.nix-providers/linked-1.0.0.tgz"},
 			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz"}}
@@ -251,7 +261,7 @@ snapshots:
 	unchanged)
 		# The repository's formatter writes double quotes, which the
 		# update keeps.
-		manifest='{"devDependencies": {"@scope/host": "2.0.0", "linked": "1.0.0"}}'
+		manifest='{"devDependencies": {"@scope/host": "^2.0.0", "linked": "^1.0.0"}}'
 		overrides='  "@scope/host": file:.nix-providers/scope-host-2.0.0.tgz
   linked: file:.nix-providers/linked-1.0.0.tgz'
 		locks=("lockfileVersion: '9.0'
@@ -267,13 +277,55 @@ packages:
 		]'
 		expected_calls=("build host" "build linked" install nix-update)
 		;;
+	workspace)
+		# pnpm-workspace.yaml lists the members. A negated pattern excludes
+		# a member.
+		manifest='{"name": "workspace"}'
+		packages='["packages/*", "!packages/ignored"]'
+		members='{
+			"packages/app/package.json": {"dependencies": {"linked": "^0"}},
+			"packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host"}},
+			"packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
+		}'
+		overrides=''
+		locks=("$empty_lock")
+		updated="$manifest"
+		updated_members='{
+			"packages/app/package.json": {"dependencies": {"linked": "^1.0.0"}},
+			"packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host@^2.0.0"}},
+			"packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
+		}'
+		states='[
+			{"overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "renamed": "file:.nix-providers/scope-host-2.0.0.tgz", "linked": "file:.nix-providers/linked-1.0.0.tgz"},
+			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
+		]'
+		expected_calls=("build host" "build linked" install nix-update)
+		;;
+	followed)
+		# A local package from this repository depends on a private local
+		# package, which has no registry release for the relock to find.
+		manifest='{"dependencies": {"@dotfiles/consumer": "^1.0.0"}}'
+		overrides=''
+		locks=("$empty_lock")
+		updated="$manifest"
+		states='[
+			{"overrides": {"@dotfiles/consumer": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz", "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"},
+			 "links": {"dotfiles-consumer-1.0.0.tgz": "/nix/store/consumer-tarball/package.tgz", "dotfiles-private-0.1.0.tgz": "/nix/store/private-tarball/package.tgz"}}
+		]'
+		expected_calls=("build consumer" "build private" install nix-update)
+		;;
 	esac
 
 	project "$manifest" "$overrides" "${locks[@]}"
+	packages="$packages" yq -i '.packages = env(packages)' "$root/scenario/pnpm-workspace.yaml"
+	while IFS=$'\t' read -r path member; do
+		mkdir -p "$root/scenario/${path%/*}"
+		printf '%s\n' "$member" >"$root/scenario/$path"
+	done < <(jq -r 'to_entries[] | [.key, (.value | tojson)] | @tsv' <<<"$members")
 	cp "$root/scenario/pnpm-workspace.yaml" "$root/workspace-before.yaml"
 	update
 
-	jq --sort-keys . <<<"$updated" | diff -u - <(jq --sort-keys . "$root/scenario/package.json")
+	jq -n --sort-keys --argjson root "$updated" --argjson members "$updated_members" '{"package.json": $root} + $members' | diff -u - <(manifests)
 	jq --sort-keys . <<<"$states" | diff -u - <(jq -s --sort-keys . "$root/states")
 	printf '%s\n' "${expected_calls[@]}" | diff -u - <(calls)
 	if [[ "$case" == unchanged ]]; then
@@ -298,8 +350,8 @@ if update 2>"$root/unstable.log"; then
 fi
 printf '%s\n' 'Relocking still added local npm packages after 10 rounds.' | diff -u - "$root/unstable.log"
 
-# A direct dependency moves to the version that a local package installs, so
-# pnpm installs one copy, with one set of module state.
+# A direct dependency moves to the exact version that a local package installs,
+# so pnpm installs one copy, with one set of module state.
 lock() {
 	local direct="$1"
 	shift
@@ -333,11 +385,40 @@ EOF
 	done
 }
 
-tui='{"name": "scenario", "devDependencies": {"@scope/tui": "1.0.0", "other": "^4"}}'
+tui='{"name": "scenario", "devDependencies": {"@scope/tui": "^1.0.0", "other": "^4"}}'
 project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.1.0 host 1.1.0)"
 update
 jq -c .devDependencies "$root/scenario/package.json" | diff -u <(printf '%s\n' '{"@scope/tui":"1.1.0","other":"^4"}') -
 printf '%s\n' install install nix-update | diff -u - <(calls)
+
+# The guard also moves a workspace member's direct dependency.
+member_lock() {
+	cat <<EOF
+lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/app:
+    dependencies:
+      '@scope/tui':
+        specifier: $1
+        version: $1
+
+snapshots:
+
+  'host@file:.nix-providers/host.tgz':
+    dependencies:
+      '@scope/tui': 1.1.0
+EOF
+}
+project '{"name": "workspace"}' '' "$(member_lock 1.0.0)" "$(member_lock 1.1.0)"
+yq -i '.packages = ["packages/*"]' "$root/scenario/pnpm-workspace.yaml"
+mkdir -p "$root/scenario/packages/app"
+printf '%s\n' '{"dependencies": {"@scope/tui": "^1.0.0"}}' >"$root/scenario/packages/app/package.json"
+update
+jq -n --sort-keys '{"package.json": {"name": "workspace"}, "packages/app/package.json": {"dependencies": {"@scope/tui": "1.1.0"}}}' | diff -u - <(manifests)
 
 # Local packages that need different versions of a direct dependency, and a
 # relock that still installs two copies, stop the update.

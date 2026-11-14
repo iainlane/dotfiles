@@ -4,8 +4,36 @@ catalogue="$1"
 providers="$2"
 root="$3"
 
-staged="$(mktemp package.json.XXXXXX)"
+staged=''
 trap 'rm -f "$staged"' EXIT
+
+# The manifests of the root and of each workspace member. pnpm-workspace.yaml
+# lists the members as glob patterns, and a pattern that starts with `!`
+# excludes the members that it matches.
+manifests=(package.json)
+declare -A skipped=(["package.json"]=1)
+mapfile -t patterns < <(yq '.packages // [] | .[]' pnpm-workspace.yaml)
+
+shopt -s globstar
+for pattern in "${patterns[@]}"; do
+	if [[ "$pattern" == '!'* ]]; then
+		while IFS= read -r manifest; do
+			skipped["${manifest#./}"]=1
+		done < <(compgen -G "${pattern#!}/package.json")
+	fi
+done
+for pattern in "${patterns[@]}"; do
+	if [[ "$pattern" == '!'* ]]; then
+		continue
+	fi
+	while IFS= read -r manifest; do
+		manifest="${manifest#./}"
+		if [[ -z "${skipped[$manifest]-}" ]]; then
+			skipped["$manifest"]=1
+			manifests+=("$manifest")
+		fi
+	done < <(compgen -G "$pattern/package.json")
+done
 
 declare -A files=() installables=() tarballs=()
 while IFS=$'\t' read -r name file installable; do
@@ -19,36 +47,54 @@ done < <(jq -r '.[] | [.name, .file, .installable] | @tsv' "$catalogue")
 declare -A needed=()
 
 # pnpm turns a global override of the project's own peer into a production
-# dependency. For a local package that the project declares as a peer, the
-# project's dependency points at the tarball instead. After each relock, the
+# dependency. For a local package that a manifest declares as a peer, the
+# manifests' dependencies point at the tarball instead. After each relock, the
 # updater adds an override scoped to each package that depends on it.
-peers="$(jq -c '.peerDependencies // {} | keys' package.json)"
+peers="$(jq -s -c 'map(.peerDependencies // {} | keys[]) | unique' "${manifests[@]}")"
 
 peer() {
 	jq -e --arg name "$1" 'index($name) != null' <<<"$peers" >/dev/null
 }
 
-package_name='def package_name: if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end;'
+# `installs` turns a dependency entry into the override's name and the name of
+# the package that the entry installs. The two differ for an npm alias.
+definitions='
+	def package_name: if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end;
+	def installs:
+		if .value | startswith("npm:")
+		then [.key, (.value[4:] | package_name)]
+		else [.key, .key] end;
+'
 
-# Prints each direct dependency on a local package or on an npm alias of one,
-# as the override's name and the local package's name.
+# Prints each direct dependency of the root or of a workspace member on a local
+# package or on an npm alias of one, as the override's name and the local
+# package's name.
 direct() {
-	jq -r --slurpfile catalogue "$catalogue" "$package_name"'
+	jq -r --slurpfile catalogue "$catalogue" "$definitions"'
 		INDEX($catalogue[0][]; .name) as $local
 		| .dependencies, .devDependencies, .optionalDependencies, .peerDependencies
 		| select(. != null)
-		| to_entries[]
-		| if .value | startswith("npm:")
-			then [.key, (.value[4:] | package_name)]
-			else [.key, .key] end
+		| to_entries[] | installs
 		| select($local[.[1]] != null)
-		| @tsv' package.json
+		| @tsv' "${manifests[@]}"
+}
+
+# Prints, in the same form, each runtime dependency of the given local package
+# on another local package. The catalogue includes these dependencies for the
+# packages in this repository.
+follow() {
+	jq -r --arg name "$1" "$definitions"'
+		INDEX(.[]; .name) as $local
+		| $local[$name].dependencies
+		| to_entries[] | installs
+		| select($local[.[1]] != null)
+		| @tsv' "$catalogue"
 }
 
 # Prints, in the same form, each local package that the lockfile resolves from
 # the registry and each npm alias of a local package.
 resolved() {
-	yq -o=json '.' pnpm-lock.yaml | jq -r --slurpfile catalogue "$catalogue" "$package_name"'
+	yq -o=json '.' pnpm-lock.yaml | jq -r --slurpfile catalogue "$catalogue" "$definitions"'
 		INDEX($catalogue[0][]; .name) as $local
 		| (
 			.packages // {} | keys[]
@@ -74,15 +120,23 @@ resolved() {
 }
 
 # Adds the overrides that are not needed yet. Each alias also adds its local
-# package, whose entry links the tarball and pins the alias in package.json.
+# package, so the tarball is linked and the alias in the manifests gets a range
+# of the local package's version. A local package that was not needed yet also
+# adds its own dependencies on local packages. pnpm cannot resolve a private one
+# from the registry, so the relock would fail before the lockfile could show it.
 add() {
-	local name target
+	local name target known dependencies
 	while IFS=$'\t' read -r name target; do
 		if [[ -z "$name" ]]; then
 			continue
 		fi
+		known="${needed[$target]-}"
 		needed["$name"]="${needed[$name]-$target}"
 		needed["$target"]="${needed[$target]-$target}"
+		if [[ -z "$known" ]]; then
+			dependencies="$(follow "$target")"
+			add "$dependencies"
+		fi
 	done <<<"$1"
 }
 
@@ -112,28 +166,31 @@ link() {
 	bash "$providers" link . "${arguments[@]}"
 }
 
-# Points the project's dependencies on the needed local packages at their
-# versions, or at their tarballs for the project's own peers.
-pin() {
-	local selected
+# Points the manifests' dependencies on the needed local packages at caret
+# ranges of their versions, or at their tarballs for the workspace's peers.
+retarget() {
+	local manifest selected
 	selected="$(overrides | cut -f 2 | jq -R . | jq -s --slurpfile catalogue "$catalogue" '. as $names | $catalogue[0] | map(select(.name as $name | $names | index($name)))')"
 
-	jq --argjson providers "$selected" --argjson peers "$peers" '
-		reduce $providers[] as $package (.;
-			reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
-				if .[$field] == null then .
-				else .[$field] |= with_entries(
-					if .value == ("npm:" + $package.name) or
-						 (.value | startswith("npm:" + $package.name + "@"))
-					then .value = "npm:" + $package.name + "@" + $package.version
-					elif .key == $package.name and ($peers | index($package.name))
-					then .value = "file:.nix-providers/" + $package.file
-					elif .key == $package.name and (.value | startswith("npm:") | not)
-					then .value = $package.version
-					else . end)
-				end))
-	' package.json >"$staged"
-	mv "$staged" package.json
+	for manifest in "${manifests[@]}"; do
+		staged="$(mktemp "$manifest.XXXXXX")"
+		jq --argjson providers "$selected" --argjson peers "$peers" '
+			reduce $providers[] as $package (.;
+				reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
+					if .[$field] == null then .
+					else .[$field] |= with_entries(
+						if .value == ("npm:" + $package.name) or
+							 (.value | startswith("npm:" + $package.name + "@"))
+						then .value = "npm:" + $package.name + "@^" + $package.version
+						elif .key == $package.name and ($peers | index($package.name))
+						then .value = "file:.nix-providers/" + $package.file
+						elif .key == $package.name and (.value | startswith("npm:") | not)
+						then .value = "^" + $package.version
+						else . end)
+					end))
+		' "$manifest" >"$staged"
+		mv "$staged" "$manifest"
+	done
 }
 
 override() {
@@ -158,9 +215,10 @@ dependents() {
 		LC_ALL=C sort -u
 }
 
-# Prints each direct dependency that a local package resolves to another
-# version, with the versions that the local packages resolve. pnpm would
-# install a second copy, and each copy would load with its own module state.
+# Prints each direct dependency of the root or of a workspace member that a
+# local package resolves to another version, with the versions that the local
+# packages resolve. pnpm would install a second copy, and each copy would load
+# with its own module state.
 misaligned() {
 	yq -o=json '.' pnpm-lock.yaml | jq -r '
 		def version: sub("\\(.*$"; "");
@@ -172,14 +230,18 @@ misaligned() {
 			| select(.value | test("^[0-9]"))
 			| {name: .key, version: (.value | version)}
 		] as $provided
-		| (
-			.importers["."] // {}
+		| [
+			.importers // {} | .[]
 			| (.dependencies // {}) + (.devDependencies // {}) + (.optionalDependencies // {})
-			| with_entries(select(.value.version | test("^[0-9]")) | .value = (.value.version | version))
-		) as $direct
+			| to_entries[]
+			| select(.value.version | test("^[0-9]"))
+			| {name: .key, version: (.value.version | version)}
+		] as $direct
 		| $provided | group_by(.name)[]
 		| {name: .[0].name, versions: (map(.version) | unique)}
-		| select($direct[.name] != null and .versions != [$direct[.name]])
+		| .name as $name
+		| ($direct | map(select(.name == $name) | .version) | unique) as $installed
+		| select($installed != [] and $installed != .versions)
 		| [.name, (.versions | join(" "))] | @tsv'
 }
 
@@ -187,10 +249,10 @@ misaligned() {
 # each local package that the project still uses.
 yq -i '.overrides = ((.overrides // {}) | with_entries(select(.value | tostring | test("^file:\.nix-providers/") | not)))' pnpm-workspace.yaml
 
-# A local package that package.json does not mention can reach the lockfile
-# through a registry package that depends on it. Each round overrides the local
-# packages and aliases that the previous relock resolved from the registry, and
-# relocks again.
+# A local package that no manifest mentions can reach the lockfile through a
+# registry package that depends on it. Each round overrides the local packages
+# and aliases that the previous relock resolved from the registry, and relocks
+# again.
 add "$(direct)"
 rounds=0
 while true; do
@@ -200,7 +262,7 @@ while true; do
 	fi
 
 	link
-	pin
+	retarget
 	while IFS=$'\t' read -r name target; do
 		if ! peer "$name"; then
 			override "$name" "${files[$target]}"
@@ -242,12 +304,17 @@ for mismatch in "${mismatches[@]}"; do
 		exit 1
 	fi
 
-	jq --arg name "$name" --arg version "$versions" '
-		reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
-			if .[$field][$name] == null or (.[$field][$name] | startswith("npm:")) then .
-			else .[$field][$name] = $version end)
-	' package.json >"$staged"
-	mv "$staged" package.json
+	# pnpm resolves a caret range to the newest matching release even when a
+	# local package installs an older one, so the pin stays exact.
+	for manifest in "${manifests[@]}"; do
+		staged="$(mktemp "$manifest.XXXXXX")"
+		jq --arg name "$name" --arg version "$versions" '
+			reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
+				if .[$field][$name] == null or (.[$field][$name] | startswith("npm:")) then .
+				else .[$field][$name] = $version end)
+		' "$manifest" >"$staged"
+		mv "$staged" "$manifest"
+	done
 done
 
 relock

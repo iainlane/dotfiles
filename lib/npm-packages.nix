@@ -69,17 +69,25 @@
   }: "${lib.replaceStrings ["@" "/"] ["" "-"] name}-${version}.tgz";
 
   # The local packages for a pnpm lock updater: npm name and version, the
-  # tarball's name in `.nix-providers` and a flake installable that builds the
-  # tarball. The entries contain no store paths, so the updater does not depend
-  # on building any of the tarballs. `packages` is keyed by attribute name.
+  # tarball's name in `.nix-providers`, a flake installable that builds the
+  # tarball, and the runtime dependencies from the package's manifest. The
+  # entries contain no store paths, so the updater does not depend on building
+  # any of the tarballs. `packages` is keyed by attribute name.
+  #
+  # The packages built from this repository's sources list their runtime
+  # dependencies in `npmRuntimeDependencies`, read from the manifest in the
+  # repository. Reading the manifest of a fetched source would be
+  # import-from-derivation.
   pnpmCatalogue = packages:
     lib.mapAttrsToList (_: attribute: let
-      npm = npmPackage packages.${attribute};
+      package = packages.${attribute};
+      npm = npmPackage package;
     in
       npm
       // {
         file = tarballName npm;
         installable = ".#${attribute}.tarball";
+        dependencies = package.npmRuntimeDependencies or {};
       })
     (attributesByName packages);
 

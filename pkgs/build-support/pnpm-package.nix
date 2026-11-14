@@ -117,6 +117,7 @@ in
           }
           // lib.optionalAttrs npmTarball {
             npmTarball = "${finalAttrs.finalPackage.tarball}/package.tgz";
+            npmRuntimeDependencies = (manifest.dependencies or {}) // (manifest.optionalDependencies or {});
           }
           // (args.passthru or {});
 
