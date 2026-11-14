@@ -23,6 +23,7 @@
   "packageManager": "pnpm@10.34.7",
   "files": [
     "provision.ts",
+    "provisioner.ts",
     "errors.ts"
   ]
 }

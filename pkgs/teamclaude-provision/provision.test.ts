@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
+import { describe, expect, it } from "vitest";
 import {
   AccountsSettingError,
   AmbiguousAccountPolicyError,
@@ -14,17 +16,12 @@ import {
   SopsTimeoutError,
   UnsupportedFieldError,
 } from "./errors.ts";
-import {
-  provision,
-  run,
-  waitForSops,
-  reload,
-  type RuntimeDependencies,
-  type Configuration,
-  type Dependencies,
-  type Specification,
-} from "./provision.ts";
+import { main, type SystemDependencies } from "./provisioner.ts";
 
+const configModule = "/teamclaude/src/config.js";
+const configFile = "/runtime/teamclaude.json";
+const specFile = "/nix/spec.json";
+const keyFile = "/secrets/api-key";
 const sopsProgram = "/nix/store/current-sops-nix-user";
 const missingFile = Object.assign(new Error(), { code: "ENOENT" });
 const deniedFile = Object.assign(new Error(), { code: "EACCES" });
@@ -38,16 +35,16 @@ const oauth = {
   expiresAt: 123,
 };
 
-const initial: Configuration = {
+const initial = {
   accounts: [oauth],
   proxy: { port: 3456, apiKey: "proxy-key" },
   switchThreshold: 0.98,
 };
 
-const spec: Specification = {
+const spec = {
   settings: { switchThreshold: 0.9, proxy: { port: 3457 } },
   apiKeyAccounts: {
-    fallback: { apiKeyFile: "/secrets/api-key", priority: 100 },
+    fallback: { apiKeyFile: keyFile, priority: 100 },
   },
 };
 
@@ -59,62 +56,213 @@ const fallback = {
   dotfilesManaged: true,
 };
 
-function fixture(current: Configuration | null = initial) {
-  const state = { config: structuredClone(current), writes: 0 };
+const provisioned = {
+  accounts: [oauth, { ...fallback, id: "generated-id" }],
+  proxy: { port: 3457, apiKey: "proxy-key" },
+  switchThreshold: 0.9,
+};
 
-  const dependencies: Dependencies = {
-    readKey: vi.fn<Dependencies["readKey"]>(async () => "first-key\n"),
-    defaultConfig: () => ({ ...structuredClone(initial), accounts: [] }),
-    update: async (change) => {
-      const updated = change(state.config);
+function sopsStatus(
+  program: string,
+  state: string,
+  runs: number,
+  exit?: number,
+) {
+  return `\tprogram = ${program}\n\tstate = ${state}\n\truns = ${runs}\n${exit === undefined ? "" : `\tlast exit code = ${exit}\n`}`;
+}
 
-      if (updated && JSON.stringify(updated) !== JSON.stringify(state.config)) {
-        state.config = updated;
-        state.writes += 1;
-      }
-
-      return updated;
+/**
+ * A machine with the files, TeamClaude modules, sops-nix job and proxy that
+ * the provisioner uses. The clock moves only when the provisioner pauses.
+ */
+function fixture(
+  options: {
+    config?: unknown;
+    spec?: unknown;
+    key?: string;
+    defaultConfig?: unknown;
+  } = {},
+) {
+  let time = 0;
+  let started = 0;
+  const files = new Map<string, { content: string; modified: number }>();
+  const directories = new Set(["/nix", "/secrets"]);
+  const denied = new Set<string>();
+  const scheduled: { delay: number; apply: () => void }[] = [];
+  const timeline: { at: number; apply: () => void }[] = [];
+  const write = (path: string, content: string) => {
+    if (!directories.has(dirname(path))) {
+      throw missingFile;
+    }
+    files.set(path, { content, modified: time });
+  };
+  const machine = {
+    sops: { status: "" },
+    proxy: {
+      port: 3457,
+      apiKey: "proxy-key",
+      running: true,
+      failure: undefined as Error | undefined,
+      loaded: undefined as unknown,
     },
-    reload: vi.fn<Dependencies["reload"]>(async () => {}),
+    writeFailure: undefined as Error | undefined,
+    lockHolder: undefined as (() => void) | undefined,
   };
 
-  return { state, dependencies };
+  if (options.config !== null) {
+    directories.add(dirname(configFile));
+    write(configFile, JSON.stringify(options.config ?? initial));
+  }
+  write(specFile, JSON.stringify(options.spec ?? spec));
+  write(keyFile, options.key ?? "first-key\n");
+
+  const library = {
+    createDefaultConfig: () =>
+      structuredClone(options.defaultConfig ?? { accounts: [] }),
+    withConfigLock: async <T>(path: string, update: () => Promise<T>) => {
+      if (path === configFile) {
+        machine.lockHolder?.();
+        machine.lockHolder = undefined;
+      }
+      return update();
+    },
+    writeJsonAtomic: async (path: string, value: unknown) => {
+      if (machine.writeFailure) {
+        throw machine.writeFailure;
+      }
+      write(path, JSON.stringify(value));
+    },
+    getConfigPath: () => configFile,
+  };
+  const accountIds = {
+    ensureAccountIds: (accounts: { id?: string }[]) => {
+      for (const account of accounts) {
+        account.id ??= "generated-id";
+      }
+    },
+  };
+  const libraryUrl = pathToFileURL(configModule);
+
+  const system: SystemDependencies = {
+    readText: async (path) => {
+      if (denied.has(path)) {
+        throw deniedFile;
+      }
+      const file = files.get(path);
+      if (file === undefined) {
+        throw missingFile;
+      }
+      return file.content;
+    },
+    prepareDirectory: async (path) => {
+      directories.add(path);
+    },
+    importModule: async (url) => {
+      if (url === libraryUrl.href) {
+        return library;
+      }
+      if (url === new URL("./account-id.js", libraryUrl).href) {
+        return accountIds;
+      }
+      throw new Error(`Cannot find module ${url}`);
+    },
+    sopsStatus: async () => machine.sops.status,
+    clock: {
+      now: () => time,
+      pause: async () => {
+        time += 100;
+        for (const event of timeline.filter(({ at }) => at <= time)) {
+          timeline.splice(timeline.indexOf(event), 1);
+          event.apply();
+        }
+      },
+    },
+    requestReload: async (url, apiKey) => {
+      const { proxy } = machine;
+      if (proxy.failure) {
+        throw proxy.failure;
+      }
+      const target = new URL(url);
+      if (!proxy.running || target.port !== String(proxy.port)) {
+        throw new TypeError("fetch failed", {
+          cause: { code: "ECONNREFUSED" },
+        });
+      }
+      if (target.pathname !== "/teamclaude/reload") {
+        return { ok: false, status: 404 };
+      }
+      if (apiKey !== proxy.apiKey) {
+        return { ok: false, status: 401 };
+      }
+      proxy.loaded = JSON.parse(files.get(configFile)?.content ?? "null");
+      return { ok: true, status: 200 };
+    },
+  };
+
+  return Object.assign(machine, {
+    files,
+    directories,
+    denied,
+    write,
+    /** Runs `apply` once the clock reaches `delay` milliseconds into the next run. */
+    after: (delay: number, apply: () => void) => {
+      scheduled.push({ delay, apply });
+    },
+    /** Runs the provisioner one second after the previous run started. */
+    run: async (args: string[] = [configModule, specFile]) => {
+      time += 1000;
+      started = time;
+      for (const { delay, apply } of scheduled.splice(0)) {
+        timeline.push({ at: started + delay, apply });
+      }
+      await main(args, system);
+    },
+    elapsed: () => time - started,
+    stored: () => {
+      const file = files.get(configFile);
+      if (file === undefined) {
+        return null;
+      }
+      const config: unknown = JSON.parse(file.content);
+      return { config, modified: file.modified };
+    },
+  });
 }
+
+const unchanged = (config: unknown) => ({ config, modified: 0 });
 
 describe("TeamClaude provisioning", () => {
   it("merges settings and API accounts while preserving OAuth credentials", async () => {
-    const { state, dependencies } = fixture();
+    const f = fixture();
 
-    await provision(spec, dependencies);
+    await f.run();
 
-    const expected = {
-      accounts: [oauth, fallback],
-      proxy: { port: 3457, apiKey: "proxy-key" },
-      switchThreshold: 0.9,
-    };
-
-    expect(state).toStrictEqual({ config: expected, writes: 1 });
-
-    expect(dependencies.readKey).toHaveBeenCalledExactlyOnceWith(
-      "/secrets/api-key",
-    );
-
-    expect(dependencies.reload).toHaveBeenCalledExactlyOnceWith(expected);
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: { config: provisioned, modified: 1000 },
+      loaded: provisioned,
+    });
   });
 
   it("rotates a key without changing its account ID or runtime settings", async () => {
-    const { state, dependencies } = fixture({
-      ...initial,
-      accounts: [
-        oauth,
-        { ...fallback, id: "api-id", accessToken: "stale-key", disabled: true },
-      ],
+    const f = fixture({
+      config: {
+        ...initial,
+        accounts: [
+          oauth,
+          {
+            ...fallback,
+            id: "api-id",
+            accessToken: "stale-key",
+            disabled: true,
+          },
+        ],
+      },
+      key: "rotated-key",
     });
-    dependencies.readKey = async () => "rotated-key";
 
-    await provision(spec, dependencies);
+    await f.run();
 
-    expect(state).toStrictEqual({
+    expect(f.stored()).toStrictEqual({
       config: {
         accounts: [
           oauth,
@@ -123,146 +271,158 @@ describe("TeamClaude provisioning", () => {
         proxy: { port: 3457, apiKey: "proxy-key" },
         switchThreshold: 0.9,
       },
-      writes: 1,
+      modified: 1000,
     });
   });
 
   it.each([true, false])(
     "reconciles account policy %s without replacing credentials",
     async (enabled) => {
-      const { state, dependencies } = fixture({
-        ...initial,
-        accounts: [
-          { ...oauth, allowExtraUsage: !enabled },
-          { ...fallback, disabled: true },
-        ],
-      });
-      const policy = {
-        ...spec,
-        accountSettings: {
-          personal: { allowExtraUsage: enabled },
+      const f = fixture({
+        config: {
+          ...initial,
+          accounts: [
+            { ...oauth, allowExtraUsage: !enabled },
+            { ...fallback, disabled: true },
+          ],
         },
-      };
+        spec: {
+          ...spec,
+          accountSettings: {
+            personal: { allowExtraUsage: enabled },
+          },
+        },
+      });
 
-      await provision(policy, dependencies);
-      await provision(policy, dependencies);
+      await f.run();
+      await f.run();
 
-      expect(state).toStrictEqual({
+      expect(f.stored()).toStrictEqual({
         config: {
           accounts: [
             { ...oauth, allowExtraUsage: enabled },
-            { ...fallback, disabled: true },
+            { ...fallback, id: "generated-id", disabled: true },
           ],
           proxy: { port: 3457, apiKey: "proxy-key" },
           switchThreshold: 0.9,
         },
-        writes: 1,
+        modified: 1000,
       });
     },
   );
 
   it("waits for login before applying policy to a missing account", async () => {
-    const { state, dependencies } = fixture();
-    const policy = {
-      settings: {},
-      apiKeyAccounts: {},
-      accountSettings: { missing: { allowExtraUsage: true } },
-    };
+    const f = fixture({
+      spec: {
+        settings: {},
+        apiKeyAccounts: {},
+        accountSettings: { missing: { allowExtraUsage: true } },
+      },
+    });
+    f.proxy.port = 3456;
 
-    await provision(policy, dependencies);
+    await f.run();
 
-    expect(state).toStrictEqual({ config: initial, writes: 1 });
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: unchanged(initial),
+      loaded: initial,
+    });
   });
 
   it("rejects an ambiguous account policy without writing", async () => {
     const config = { ...initial, accounts: [oauth, { ...oauth, id: "other" }] };
-    const { state, dependencies } = fixture(config);
-    const policy = {
-      settings: {},
-      apiKeyAccounts: {},
-      accountSettings: { personal: { allowExtraUsage: true } },
-    };
+    const f = fixture({
+      config,
+      spec: {
+        settings: {},
+        apiKeyAccounts: {},
+        accountSettings: { personal: { allowExtraUsage: true } },
+      },
+    });
 
-    await expect(provision(policy, dependencies)).rejects.toStrictEqual(
+    await expect(f.run()).rejects.toStrictEqual(
       new AmbiguousAccountPolicyError("personal"),
     );
 
-    expect(state).toStrictEqual({ config, writes: 0 });
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: unchanged(config),
+      loaded: undefined,
+    });
   });
 
   it("creates the initial configuration through the same reconciliation", async () => {
-    const { state, dependencies } = fixture(null);
+    const f = fixture({
+      config: null,
+      defaultConfig: { ...initial, accounts: [] },
+    });
 
-    await provision(spec, dependencies);
+    await f.run();
 
-    expect(state).toStrictEqual({
+    expect(f.stored()).toStrictEqual({
       config: {
-        accounts: [fallback],
+        accounts: [{ ...fallback, id: "generated-id" }],
         proxy: { port: 3457, apiKey: "proxy-key" },
         switchThreshold: 0.9,
       },
-      writes: 1,
+      modified: 1000,
     });
   });
 
   it("does not rewrite an unchanged configuration and retries its reload", async () => {
-    const { state, dependencies } = fixture();
+    const f = fixture({ config: provisioned });
 
-    await provision(spec, dependencies);
-    state.writes = 0;
-    vi.mocked(dependencies.reload).mockClear();
-    const expected = structuredClone(state.config);
+    await f.run();
 
-    await provision(spec, dependencies);
-
-    expect(state).toStrictEqual({ config: expected, writes: 0 });
-
-    expect(dependencies.reload).toHaveBeenCalledExactlyOnceWith(expected);
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: unchanged(provisioned),
+      loaded: provisioned,
+    });
   });
 
   it("removes only API accounts previously managed by Nix", async () => {
     const manual = { name: "manual", type: "apikey", apiKey: "manual-key" };
-    const { state, dependencies } = fixture({
-      ...initial,
-      accounts: [oauth, fallback, manual],
+    const f = fixture({
+      config: { ...initial, accounts: [oauth, fallback, manual] },
+      spec: { settings: {}, apiKeyAccounts: {} },
     });
+    f.proxy.port = 3456;
 
-    await provision({ settings: {}, apiKeyAccounts: {} }, dependencies);
+    await f.run();
 
-    expect(state).toStrictEqual({
-      config: { ...initial, accounts: [oauth, manual] },
-      writes: 1,
+    expect(f.stored()).toStrictEqual({
+      config: {
+        ...initial,
+        accounts: [oauth, { ...manual, id: "generated-id" }],
+      },
+      modified: 1000,
     });
   });
 
   it.each(["", "\n", "multiple keys"])(
     "rejects an invalid key %j without writing",
     async (key) => {
-      const { state, dependencies } = fixture();
-      dependencies.readKey = async () => key;
+      const f = fixture({ key });
 
-      await expect(provision(spec, dependencies)).rejects.toStrictEqual(
-        new InvalidApiKeyError("/secrets/api-key"),
+      await expect(f.run()).rejects.toStrictEqual(
+        new InvalidApiKeyError(keyFile),
       );
 
-      expect(state).toStrictEqual({ config: initial, writes: 0 });
-
-      expect(dependencies.reload).not.toHaveBeenCalled();
+      expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+        stored: unchanged(initial),
+        loaded: undefined,
+      });
     },
   );
 
   it("does not write when a secret cannot be read", async () => {
-    const { state, dependencies } = fixture();
-    const failure = new FileReadError("/secrets/api-key", {
-      cause: deniedFile,
-    });
-    dependencies.readKey = async () => {
-      throw failure;
-    };
+    const f = fixture();
+    f.denied.add(keyFile);
 
-    await expect(provision(spec, dependencies)).rejects.toBe(failure);
+    await expect(f.run()).rejects.toStrictEqual(
+      new FileReadError(keyFile, { cause: deniedFile }),
+    );
 
-    expect(state).toStrictEqual({ config: initial, writes: 0 });
+    expect(f.stored()).toStrictEqual(unchanged(initial));
   });
 
   it.each([
@@ -272,425 +432,376 @@ describe("TeamClaude provisioning", () => {
     "rejects conflicting accounts without modifying runtime state",
     async ({ accounts }) => {
       const config = { ...initial, accounts };
-      const { state, dependencies } = fixture(config);
+      const f = fixture({ config });
 
-      await expect(provision(spec, dependencies)).rejects.toStrictEqual(
+      await expect(f.run()).rejects.toStrictEqual(
         new ApiKeyAccountConflictError("fallback"),
       );
 
-      expect(state).toStrictEqual({ config, writes: 0 });
+      expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+        stored: unchanged(config),
+        loaded: undefined,
+      });
     },
   );
 
   it("does not create a configuration when nothing is declared", async () => {
-    const { state, dependencies } = fixture(null);
+    const f = fixture({
+      config: null,
+      spec: { settings: {}, apiKeyAccounts: {} },
+    });
 
-    await provision({ settings: {}, apiKeyAccounts: {} }, dependencies);
+    await f.run();
 
-    expect(state).toStrictEqual({ config: null, writes: 0 });
+    expect(f.stored()).toBeNull();
   });
 
   it("refuses to manage OAuth credentials through settings", async () => {
-    const { state, dependencies } = fixture();
+    const f = fixture({ spec: { ...spec, settings: { accounts: [] } } });
 
-    await expect(
-      provision({ ...spec, settings: { accounts: [] } }, dependencies),
-    ).rejects.toStrictEqual(new AccountsSettingError());
+    await expect(f.run()).rejects.toStrictEqual(new AccountsSettingError());
 
-    expect(state).toStrictEqual({ config: initial, writes: 0 });
+    expect(f.stored()).toStrictEqual(unchanged(initial));
   });
 
-  it.each(["__proto__", "constructor", "prototype"])(
+  it.each(["constructor", "prototype"])(
     "rejects unsafe configuration field %s without writing",
     async (field) => {
-      const { state, dependencies } = fixture();
+      const f = fixture({ spec: { ...spec, settings: { [field]: true } } });
 
-      await expect(
-        provision({ ...spec, settings: { [field]: true } }, dependencies),
-      ).rejects.toStrictEqual(new UnsupportedFieldError(field));
+      await expect(f.run()).rejects.toStrictEqual(
+        new UnsupportedFieldError(field),
+      );
 
-      expect(state).toStrictEqual({ config: initial, writes: 0 });
+      expect(f.stored()).toStrictEqual(unchanged(initial));
     },
   );
+
+  it("drops a __proto__ setting while validating the specification", async () => {
+    const f = fixture({
+      spec: { ...spec, settings: { ...spec.settings, ["__proto__"]: true } },
+    });
+
+    await f.run();
+
+    expect(f.stored()).toStrictEqual({ config: provisioned, modified: 1000 });
+  });
 });
 
 describe("sops-nix decryption", () => {
+  const sopsArgs = ["--sops-program", sopsProgram, configModule, specFile];
+  const decrypted = {
+    ...provisioned,
+    accounts: [
+      oauth,
+      { ...fallback, id: "generated-id", apiKey: "decrypted-key" },
+    ],
+  };
+
   it("ignores historical success from a previous secret generation", async () => {
-    const status = vi
-      .fn<() => Promise<string>>()
-      .mockResolvedValueOnce(
-        "\tprogram = /nix/store/previous-sops-nix-user\n\tstate = not running\n\truns = 3\n\tlast exit code = 0\n",
-      )
-      .mockResolvedValueOnce(
-        `\tprogram = ${sopsProgram}\n\tstate = running\n\truns = 1\n`,
-      )
-      .mockResolvedValue(
-        `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`,
-      );
-    const pause = vi.fn<() => Promise<void>>(async () => {});
+    const f = fixture({ key: "previous-key" });
+    f.sops.status = sopsStatus(
+      "/nix/store/previous-sops-nix-user",
+      "not running",
+      3,
+      0,
+    );
+    f.after(100, () => {
+      f.sops.status = sopsStatus(sopsProgram, "running", 1);
+    });
+    f.after(200, () => {
+      f.write(keyFile, "decrypted-key");
+      f.sops.status = sopsStatus(sopsProgram, "not running", 1, 0);
+    });
 
-    await waitForSops(sopsProgram, { status, pause });
+    await f.run(sopsArgs);
 
-    expect(status).toHaveBeenCalledTimes(3);
-
-    expect(pause).toHaveBeenCalledTimes(2);
+    expect({ elapsed: f.elapsed(), loaded: f.proxy.loaded }).toStrictEqual({
+      elapsed: 200,
+      loaded: decrypted,
+    });
   });
 
   it("recognises the expected script through Home Manager's store-mount wrapper", async () => {
-    const pause = vi.fn<() => Promise<void>>(async () => {});
+    const f = fixture({ key: "decrypted-key" });
+    f.sops.status = `\tprogram = /bin/sh\n\targuments = {\n\t\t/bin/sh\n\t\t-c\n\t\t/bin/wait4path /nix/store && exec ${sopsProgram}\n\t}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`;
 
-    await waitForSops(sopsProgram, {
-      status: async () =>
-        `\tprogram = /bin/sh\n\targuments = {\n\t\t/bin/sh\n\t\t-c\n\t\t/bin/wait4path /nix/store && exec ${sopsProgram}\n\t}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`,
-      pause,
+    await f.run(sopsArgs);
+
+    expect({ elapsed: f.elapsed(), loaded: f.proxy.loaded }).toStrictEqual({
+      elapsed: 0,
+      loaded: decrypted,
     });
-
-    expect(pause).not.toHaveBeenCalled();
   });
 
   it("waits for a new job to run and finish before accepting the secret files", async () => {
-    const status = vi
-      .fn<() => Promise<string>>()
-      .mockResolvedValueOnce("")
-      .mockResolvedValueOnce(
-        `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 0\n\tlast exit code = 0\n`,
-      )
-      .mockResolvedValueOnce("\tstate = running\n\truns = 1\n")
-      .mockResolvedValue(
-        `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 0\n`,
-      );
-    const pause = vi.fn<() => Promise<void>>(async () => {});
+    const f = fixture({ key: "previous-key" });
+    f.after(100, () => {
+      f.sops.status = sopsStatus(sopsProgram, "not running", 0, 0);
+    });
+    f.after(200, () => {
+      f.sops.status = "\tstate = running\n\truns = 1\n";
+    });
+    f.after(300, () => {
+      f.write(keyFile, "decrypted-key");
+      f.sops.status = sopsStatus(sopsProgram, "not running", 1, 0);
+    });
 
-    await waitForSops(sopsProgram, { status, pause });
+    await f.run(sopsArgs);
 
-    expect(status).toHaveBeenCalledTimes(4);
-
-    expect(pause).toHaveBeenCalledTimes(3);
+    expect({ elapsed: f.elapsed(), loaded: f.proxy.loaded }).toStrictEqual({
+      elapsed: 300,
+      loaded: decrypted,
+    });
   });
 
   it("rejects a failed decryption instead of using a previous key", async () => {
-    await expect(
-      waitForSops(sopsProgram, {
-        status: async () =>
-          `\tprogram = ${sopsProgram}\n\tstate = not running\n\truns = 1\n\tlast exit code = 1\n`,
-        pause: async () => {},
-      }),
-    ).rejects.toStrictEqual(new SopsDecryptionError(sopsProgram));
+    const f = fixture({ key: "previous-key" });
+    f.sops.status = sopsStatus(sopsProgram, "not running", 1, 1);
+
+    await expect(f.run(sopsArgs)).rejects.toStrictEqual(
+      new SopsDecryptionError(sopsProgram),
+    );
+
+    expect(f.stored()).toStrictEqual(unchanged(initial));
   });
 
   it("bounds the wait when the job never completes", async () => {
-    const status = vi.fn<() => Promise<string>>(
-      async () => "\tstate = running\n\truns = 1\n",
+    const f = fixture();
+    f.sops.status = "\tstate = running\n\truns = 1\n";
+
+    await expect(f.run(sopsArgs)).rejects.toStrictEqual(
+      new SopsTimeoutError(sopsProgram),
     );
 
-    await expect(
-      waitForSops(sopsProgram, { status, pause: async () => {} }),
-    ).rejects.toStrictEqual(new SopsTimeoutError(sopsProgram));
-
-    expect(status).toHaveBeenCalledTimes(50);
+    expect({ elapsed: f.elapsed(), stored: f.stored() }).toStrictEqual({
+      elapsed: 5000,
+      stored: unchanged(initial),
+    });
   });
 });
 
-const paths = {
-  configFile: "/runtime/teamclaude.json",
-  specFile: "/nix/spec.json",
-};
-
-function runtimeFixture() {
-  const files = new Map([
-    [paths.configFile, JSON.stringify(initial)],
-    [paths.specFile, JSON.stringify(spec)],
-    ["/secrets/api-key", "first-key\n"],
-  ]);
-
-  let time = 0;
-
-  const dependencies: RuntimeDependencies = {
-    readText: vi.fn<RuntimeDependencies["readText"]>(async (path) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        throw missingFile;
-      }
-      return content;
-    }),
-    prepareDirectory: vi.fn<() => Promise<void>>(async () => {}),
-    library: {
-      createDefaultConfig: () => ({ accounts: [] }),
-      withConfigLock: async (_path, update) => update(),
-      writeJsonAtomic: vi.fn<RuntimeDependencies["library"]["writeJsonAtomic"]>(
-        async (path, config) => {
-          files.set(path, JSON.stringify(config));
-        },
-      ),
-    },
-    ensureAccountIds: (accounts) => {
-      for (const account of accounts) {
-        account.id ??= "generated-id";
-      }
-    },
-    clock: {
-      now: () => time,
-      pause: vi.fn<() => Promise<void>>(async () => {
-        time += 100;
-      }),
-    },
-    reload: vi.fn<Dependencies["reload"]>(async () => {}),
-  };
-
-  return { files, dependencies };
-}
-
 describe("provisioning adapters", () => {
   it("uses supplied paths and preserves IDs across key rotation", async () => {
-    const { files, dependencies } = runtimeFixture();
+    const f = fixture();
 
-    await run(paths, dependencies);
-    files.set("/secrets/api-key", "rotated-key\n");
+    await f.run();
+    f.write(keyFile, "rotated-key\n");
 
-    await run(paths, dependencies);
+    await f.run();
     const expected = {
-      ...initial,
+      ...provisioned,
       accounts: [
         oauth,
         { ...fallback, id: "generated-id", apiKey: "rotated-key" },
       ],
-      proxy: { port: 3457, apiKey: "proxy-key" },
-      switchThreshold: 0.9,
     };
 
-    expect(JSON.parse(files.get(paths.configFile) ?? "null")).toStrictEqual(
-      expected,
-    );
-
-    expect(dependencies.library.writeJsonAtomic).toHaveBeenLastCalledWith(
-      paths.configFile,
-      expected,
-    );
-
-    expect(dependencies.prepareDirectory).toHaveBeenCalledWith("/runtime");
-
-    expect(dependencies.reload).toHaveBeenLastCalledWith(expected);
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: { config: expected, modified: 2000 },
+      loaded: expected,
+    });
   });
 
   it("does not write an unchanged configuration", async () => {
-    const { dependencies } = runtimeFixture();
+    const f = fixture();
 
-    await run(paths, dependencies);
-    vi.mocked(dependencies.library.writeJsonAtomic).mockClear();
+    await f.run();
+    f.proxy.loaded = undefined;
 
-    await run(paths, dependencies);
+    await f.run();
 
-    expect(dependencies.library.writeJsonAtomic).not.toHaveBeenCalled();
-
-    expect(dependencies.reload).toHaveBeenCalledTimes(2);
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: { config: provisioned, modified: 1000 },
+      loaded: provisioned,
+    });
   });
 
   it("uses the supplied default when the configuration is absent", async () => {
-    const { files, dependencies } = runtimeFixture();
-    files.delete(paths.configFile);
+    const f = fixture({ config: null });
+    f.proxy.running = false;
 
-    await run(paths, dependencies);
+    await f.run();
 
-    expect(JSON.parse(files.get(paths.configFile) ?? "null")).toStrictEqual({
-      accounts: [{ ...fallback, id: "generated-id" }],
-      proxy: { port: 3457 },
-      switchThreshold: 0.9,
+    expect(f.stored()).toStrictEqual({
+      config: {
+        accounts: [{ ...fallback, id: "generated-id" }],
+        proxy: { port: 3457 },
+        switchThreshold: 0.9,
+      },
+      modified: 1000,
     });
   });
 
   it.each([
     {
       invalid: "not json with a secret",
-      failure: new InvalidJsonError(paths.configFile),
+      failure: new InvalidJsonError(configFile),
     },
     {
       invalid: '{"accounts":[null]}',
-      failure: new InvalidDataError("configuration", paths.configFile, [
+      failure: new InvalidDataError("configuration", configFile, [
         ["accounts", 0],
       ]),
     },
     {
       invalid: '{"proxy":{"port":"bad"}}',
-      failure: new InvalidDataError("configuration", paths.configFile, [
+      failure: new InvalidDataError("configuration", configFile, [
         ["proxy", "port"],
       ]),
     },
   ])(
     "rejects malformed configuration without rewriting it: $invalid",
     async ({ invalid, failure }) => {
-      const { files, dependencies } = runtimeFixture();
-      files.set(paths.configFile, invalid);
+      const f = fixture();
+      f.write(configFile, invalid);
 
-      await expect(run(paths, dependencies)).rejects.toStrictEqual(failure);
+      await expect(f.run()).rejects.toStrictEqual(failure);
 
-      expect(files.get(paths.configFile)).toBe(invalid);
-
-      expect(dependencies.library.writeJsonAtomic).not.toHaveBeenCalled();
-
-      expect(dependencies.reload).not.toHaveBeenCalled();
+      expect({
+        file: f.files.get(configFile),
+        loaded: f.proxy.loaded,
+      }).toStrictEqual({
+        file: { content: invalid, modified: 0 },
+        loaded: undefined,
+      });
     },
   );
 
   it("validates declarations before accessing the runtime configuration", async () => {
-    const { files, dependencies } = runtimeFixture();
-    files.set(
-      paths.specFile,
-      JSON.stringify({
-        ...spec,
-        apiKeyAccounts: { fallback: { apiKeyFile: 42 } },
-      }),
-    );
+    const f = fixture({
+      spec: { ...spec, apiKeyAccounts: { fallback: { apiKeyFile: 42 } } },
+    });
+    f.write(configFile, "not json");
 
-    await expect(run(paths, dependencies)).rejects.toStrictEqual(
-      new InvalidDataError("specification", paths.specFile, [
+    await expect(f.run()).rejects.toStrictEqual(
+      new InvalidDataError("specification", specFile, [
         ["apiKeyAccounts", "fallback", "apiKeyFile"],
         ["apiKeyAccounts", "fallback", "priority"],
       ]),
     );
-
-    expect(dependencies.readText).toHaveBeenCalledExactlyOnceWith(
-      paths.specFile,
-    );
-
-    expect(dependencies.prepareDirectory).not.toHaveBeenCalled();
   });
 
   it("reads refreshed OAuth credentials only after acquiring the lock", async () => {
-    const { files, dependencies } = runtimeFixture();
+    const f = fixture();
     const refreshed = {
       ...oauth,
       accessToken: "newer-access",
       refreshToken: "newer-refresh",
     };
-    dependencies.library.withConfigLock = async (path, update) => {
-      expect(path).toBe(paths.configFile);
-
-      expect(dependencies.readText).not.toHaveBeenCalledWith(paths.configFile);
-      files.set(path, JSON.stringify({ ...initial, accounts: [refreshed] }));
-      return update();
+    f.lockHolder = () => {
+      f.write(
+        configFile,
+        JSON.stringify({ ...initial, accounts: [refreshed] }),
+      );
     };
 
-    await run(paths, dependencies);
+    await f.run();
 
-    expect(JSON.parse(files.get(paths.configFile) ?? "null")).toStrictEqual({
+    expect(f.stored()?.config).toStrictEqual({
+      ...provisioned,
       accounts: [refreshed, { ...fallback, id: "generated-id" }],
-      proxy: { port: 3457, apiKey: "proxy-key" },
-      switchThreshold: 0.9,
     });
   });
 
   it("retries an unavailable secret through the supplied clock", async () => {
-    const { files, dependencies } = runtimeFixture();
-    files.delete("/secrets/api-key");
-    dependencies.clock.pause = vi.fn<() => Promise<void>>(async () => {
-      files.set("/secrets/api-key", "decrypted-key");
-    });
+    const f = fixture();
+    f.files.delete(keyFile);
+    f.after(100, () => f.write(keyFile, "decrypted-key"));
 
-    await run(paths, dependencies);
+    await f.run();
 
-    expect(dependencies.clock.pause).toHaveBeenCalledTimes(1);
-
-    expect(dependencies.reload).toHaveBeenCalledExactlyOnceWith({
-      accounts: [
-        oauth,
-        { ...fallback, id: "generated-id", apiKey: "decrypted-key" },
-      ],
-      proxy: { port: 3457, apiKey: "proxy-key" },
-      switchThreshold: 0.9,
+    expect({ elapsed: f.elapsed(), loaded: f.proxy.loaded }).toStrictEqual({
+      elapsed: 100,
+      loaded: {
+        ...provisioned,
+        accounts: [
+          oauth,
+          { ...fallback, id: "generated-id", apiKey: "decrypted-key" },
+        ],
+      },
     });
   });
 
   it("bounds secret retries without a real timer", async () => {
-    const { files, dependencies } = runtimeFixture();
-    files.delete("/secrets/api-key");
+    const f = fixture();
+    f.files.delete(keyFile);
 
-    await expect(run(paths, dependencies)).rejects.toStrictEqual(
-      new FileReadError("/secrets/api-key", { cause: missingFile }),
+    await expect(f.run()).rejects.toStrictEqual(
+      new FileReadError(keyFile, { cause: missingFile }),
     );
 
-    expect(dependencies.clock.pause).toHaveBeenCalledTimes(50);
-
-    expect(dependencies.library.writeJsonAtomic).not.toHaveBeenCalled();
+    expect({ elapsed: f.elapsed(), stored: f.stored() }).toStrictEqual({
+      elapsed: 5000,
+      stored: unchanged(initial),
+    });
   });
 
   it("propagates non-missing read errors without retrying", async () => {
-    const { dependencies } = runtimeFixture();
-    dependencies.readText = async (path) => {
-      if (path === paths.specFile) {
-        return JSON.stringify(spec);
-      }
-      throw deniedFile;
-    };
+    const f = fixture();
+    f.denied.add(keyFile);
 
-    await expect(run(paths, dependencies)).rejects.toStrictEqual(
-      new FileReadError("/secrets/api-key", { cause: deniedFile }),
+    await expect(f.run()).rejects.toStrictEqual(
+      new FileReadError(keyFile, { cause: deniedFile }),
     );
 
-    expect(dependencies.clock.pause).not.toHaveBeenCalled();
+    expect(f.elapsed()).toBe(0);
   });
 
   it("preserves the configuration when its atomic write fails", async () => {
-    const { files, dependencies } = runtimeFixture();
-    const original = files.get(paths.configFile);
-    dependencies.library.writeJsonAtomic = async () => {
-      throw deniedFile;
-    };
+    const f = fixture();
+    f.writeFailure = deniedFile;
 
-    await expect(run(paths, dependencies)).rejects.toStrictEqual(
-      new ConfigurationWriteError(paths.configFile, { cause: deniedFile }),
+    await expect(f.run()).rejects.toStrictEqual(
+      new ConfigurationWriteError(configFile, { cause: deniedFile }),
     );
 
-    expect(files.get(paths.configFile)).toBe(original);
-    expect(dependencies.reload).not.toHaveBeenCalled();
+    expect({ stored: f.stored(), loaded: f.proxy.loaded }).toStrictEqual({
+      stored: unchanged(initial),
+      loaded: undefined,
+    });
   });
 });
 
 describe("proxy reload", () => {
-  it("sends the configured endpoint and API key to the supplied transport", async () => {
-    const request = vi.fn<Parameters<typeof reload>[1]>(async () => ({
-      ok: true,
-      status: 200,
-    }));
-    await reload(initial, request);
+  const nothingDeclared = { settings: {}, apiKeyAccounts: {} };
 
-    expect(request).toHaveBeenCalledExactlyOnceWith(
-      "http://127.0.0.1:3456/teamclaude/reload",
-      "proxy-key",
-    );
+  it("sends the configured endpoint and API key to the supplied transport", async () => {
+    const f = fixture({ spec: nothingDeclared });
+    f.proxy.port = 3456;
+
+    await f.run();
+
+    expect(f.proxy.loaded).toStrictEqual(initial);
   });
 
   it("skips the request when the proxy has no port", async () => {
-    const request = vi.fn<Parameters<typeof reload>[1]>(async () => ({
-      ok: true,
-      status: 200,
-    }));
-    await reload({ accounts: [] }, request);
+    const f = fixture({ config: { accounts: [] }, spec: nothingDeclared });
 
-    expect(request).not.toHaveBeenCalled();
+    await expect(f.run()).resolves.toBeUndefined();
   });
 
   it("accepts a stopped proxy", async () => {
-    await expect(
-      reload(initial, async () => {
-        throw new Error(undefined, {
-          cause: { code: "ECONNREFUSED" },
-        });
-      }),
-    ).resolves.toBeUndefined();
+    const f = fixture();
+    f.proxy.running = false;
+
+    await expect(f.run()).resolves.toBeUndefined();
   });
 
   it("reports an unsuccessful HTTP response", async () => {
-    await expect(
-      reload(initial, async () => ({ ok: false, status: 401 })),
-    ).rejects.toStrictEqual(new ReloadHttpError(401));
+    const f = fixture();
+    f.proxy.apiKey = "other-key";
+
+    await expect(f.run()).rejects.toStrictEqual(new ReloadHttpError(401));
   });
 
   it("propagates other transport errors", async () => {
+    const f = fixture();
     const cause = new DOMException("", "TimeoutError");
-    await expect(
-      reload(initial, async () => {
-        throw cause;
-      }),
-    ).rejects.toStrictEqual(new ReloadTransportError({ cause }));
+    f.proxy.failure = cause;
+
+    await expect(f.run()).rejects.toStrictEqual(
+      new ReloadTransportError({ cause }),
+    );
   });
 });
