@@ -4,7 +4,7 @@ import type {
   ToolCall,
 } from "@earendil-works/pi-ai/compat";
 
-export const researchMessage =
+const researchMessage =
   "This is a scripted offline provider. I will inspect the cleanup command first.";
 
 export const initialProgram = `import { readdir, unlink } from "node:fs/promises";
@@ -20,7 +20,7 @@ for (const path of candidates) {
 console.log("Removed: " + candidates.join(", "));
 `;
 
-export const implementation = `import { readdir, unlink } from "node:fs/promises";
+const implementation = `import { readdir, unlink } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 const { values } = parseArgs({
@@ -41,7 +41,7 @@ for (const path of candidates) {
 }
 `;
 
-export const draftPlan = `# Preview cleanup before deleting files
+const draftPlan = `# Preview cleanup before deleting files
 
 ## Goal
 
@@ -75,8 +75,8 @@ Preview the same files that normal cleanup would remove.
 - Check that scratch/cache.tmp still exists.
 `;
 
-export const editorAddition = "- Verify dry-run never removes a file.\n";
-export const reviewComment = "Preserve the existing command-line interface.";
+const editorAddition = "- Verify dry-run never removes a file.\n";
+const reviewComment = "Preserve the existing command-line interface.";
 
 export class DemoScenario {
   private phase = 0;

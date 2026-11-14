@@ -24,7 +24,7 @@ export function readPlanningSettings(): PlanningSettings {
   }
 }
 
-export function parsePlanningSettings(value: unknown): PlanningSettings {
+function parsePlanningSettings(value: unknown): PlanningSettings {
   if (!Check(settingsSchema, value)) {
     throw new Error(
       "planning.json must be an object with an optional researchExtensions array of extension paths.",

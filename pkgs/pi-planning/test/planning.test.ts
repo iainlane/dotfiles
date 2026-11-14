@@ -6,7 +6,7 @@ import {
   type PlanningDependencies,
   type PlanningResult,
 } from "#planning/controller.ts";
-import { childPolicy } from "#planning/child.ts";
+import { researchPolicy } from "#planning/policy.ts";
 import type { PlanEditor } from "#planning/editor.ts";
 import {
   attachedPlanContext,
@@ -1407,7 +1407,7 @@ it.each([
   const input = { command, timeout: 7 };
   expect({
     parent: await f.call("bash", input),
-    child: childPolicy({ toolName: "bash", input }),
+    child: researchPolicy({ toolName: "bash", input }),
     input,
     confirmations: f.confirm.mock.calls,
   }).toStrictEqual({
@@ -1433,7 +1433,7 @@ it.each([
     const input = { server: "unlisted", arguments: { action: "inspect" } };
     expect({
       parent: await f.call(toolName, input),
-      child: childPolicy({ toolName, input }),
+      child: researchPolicy({ toolName, input }),
       input,
     }).toStrictEqual({
       parent: undefined,
@@ -2139,7 +2139,7 @@ it.each([
     await f.command("");
     expect({
       parent: await f.call(toolName, input),
-      child: childPolicy({ toolName, input }),
+      child: researchPolicy({ toolName, input }),
     }).toStrictEqual({ parent: undefined, child: undefined });
   },
 );
@@ -2157,7 +2157,7 @@ it.each([
     await f.command("");
     expect({
       parent: (await f.call(toolName, input))?.block,
-      child: childPolicy({ toolName, input })?.block,
+      child: researchPolicy({ toolName, input })?.block,
     }).toStrictEqual({ parent: true, child: true });
   },
 );
@@ -2174,7 +2174,7 @@ it.each([undefined, true, false])(
     };
     expect({
       parent: await f.call("subagent", input),
-      child: childPolicy({ toolName: "subagent", input }),
+      child: researchPolicy({ toolName: "subagent", input }),
       input,
     }).toStrictEqual({
       parent: undefined,
@@ -2208,14 +2208,14 @@ it.each([
   await f.command("");
   expect({
     parent: (await f.call("subagent", input))?.block,
-    child: childPolicy({ toolName: "subagent", input })?.block,
+    child: researchPolicy({ toolName: "subagent", input })?.block,
   }).toStrictEqual({ parent: true, child: true });
 });
 
 it.each(["ask_user", "submit_plan", "enter_plan_mode", "write", "edit"])(
   "blocks %s in a research child",
   (toolName) => {
-    expect(childPolicy({ toolName, input: {} })).toStrictEqual({
+    expect(researchPolicy({ toolName, input: {} })).toStrictEqual({
       block: true,
       reason:
         "Research agents cannot edit files, ask the user or approve implementation.",

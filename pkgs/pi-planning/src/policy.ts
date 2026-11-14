@@ -64,6 +64,14 @@ const navigationOperations = Type.Union(
   ].map((operation) => Type.Literal(operation)),
 );
 
+const parentOnlyTools = new Set([
+  "write",
+  "edit",
+  "ask_user",
+  "submit_plan",
+  "enter_plan_mode",
+]);
+
 export interface PlanningToolCall {
   toolName: string;
   input: Record<string, unknown>;
@@ -80,6 +88,11 @@ function usesNativePolicy(toolName: string): boolean {
 export function researchPolicy(
   event: PlanningToolCall,
 ): { block: true; reason: string } | undefined {
+  if (parentOnlyTools.has(event.toolName)) {
+    return block(
+      "Research agents cannot edit files, ask the user or approve implementation.",
+    );
+  }
   if (usesNativePolicy(event.toolName)) {
     return undefined;
   }

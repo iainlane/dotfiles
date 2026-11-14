@@ -27,7 +27,7 @@ const imageSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const outcomeSchema = Type.Union([
+const outcomeSchema = Type.Union([
   Type.Object(
     {
       version: Type.Literal(1),

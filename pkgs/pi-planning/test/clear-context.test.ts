@@ -35,7 +35,9 @@ import { stateEntry } from "#planning/session.ts";
 import { PlanStore } from "#planning/store.ts";
 import { ensureSubagentsIdle } from "#planning/subagents.ts";
 import { feedbackImage } from "./fixtures/image.ts";
-import { outcomeEntryType, outcomeSchema } from "#planning/outcomes.ts";
+import { outcomeEntryType } from "#planning/outcomes.ts";
+
+const outcomeEventSchema = Type.Object({ event: Type.String() });
 
 const requestSchema = Type.Object({
   requestId: Type.String(),
@@ -567,7 +569,7 @@ it.each<ApprovalScenario>([
           .flatMap((entry) =>
             entry.type === "custom" &&
             entry.customType === outcomeEntryType &&
-            Check(outcomeSchema, entry.data) &&
+            Check(outcomeEventSchema, entry.data) &&
             entry.data.event === "implementation-failed"
               ? [entry.data]
               : [],
@@ -579,7 +581,7 @@ it.each<ApprovalScenario>([
           .flatMap((entry) =>
             entry.type === "custom" &&
             entry.customType === outcomeEntryType &&
-            Check(outcomeSchema, entry.data) &&
+            Check(outcomeEventSchema, entry.data) &&
             entry.data.event === "review"
               ? [entry.data]
               : [],

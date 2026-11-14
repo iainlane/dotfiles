@@ -1,11 +1,12 @@
+import { writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it, vi } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import {
   editorName,
   openPlanEditor,
-  openPlanEditorInTerminal,
+  openPlanEditorInUi,
 } from "#planning/editor.ts";
 
 it.each([
@@ -18,58 +19,101 @@ it.each([
   expect(editorName(command)).toBe(name);
 });
 
-it.each([false, true])(
-  "restores native terminal state after editing (failure: %s)",
-  async (failure) => {
-    const directory = await mkdtemp(join(tmpdir(), "pi-plan-terminal-"));
-    try {
-      const path = join(directory, "plan.md");
-      await writeFile(path, "before");
-      const calls: string[] = [];
-      const tui = {
-        stop: vi.fn<() => void>(() => {
-          calls.push("stop");
-        }),
-        start: vi.fn<() => void>(() => {
-          calls.push("start");
-        }),
-        requestRender: vi.fn<(force?: boolean) => void>(() => {
-          calls.push("render");
-        }),
-      };
-      const script = `require("node:fs").writeFileSync(process.argv[1], "after"); process.exit(${failure ? 7 : 0});`;
-      const opening = openPlanEditorInTerminal(
-        tui,
-        path,
-        `"${process.execPath}" -e '${script}'`,
-      );
-      let error: Error | undefined;
-      try {
-        await opening;
-      } catch (cause) {
-        if (!(cause instanceof Error)) {
-          throw cause;
-        }
-        error = cause;
-      }
-      expect({
-        calls,
-        content: await readFile(path, "utf8"),
-        render: tui.requestRender.mock.calls,
-        error: error?.message,
-      }).toStrictEqual({
-        calls: ["stop", "start", "render"],
-        content: "after",
-        render: [[true]],
-        error: failure
-          ? "The editor exited with status 7. Use a wait-capable editor command."
-          : undefined,
-      });
-    } finally {
-      await rm(directory, { recursive: true, force: true });
+/**
+ * A terminal that Pi shares with the editor. The editor runs in another
+ * process, so the terminal's owner and the screen contents are files. Like
+ * Pi's TUI, an ordinary render rewrites the screen only when Pi's frame has
+ * changed, and a forced render rewrites the whole screen. After the editor
+ * draws over the screen, only a forced render restores Pi's frame.
+ */
+class SharedTerminal {
+  static readonly frame = "Pi's session";
+  private drawn: string | undefined;
+  private readonly owner: string;
+  private readonly screen: string;
+
+  constructor(owner: string, screen: string) {
+    this.owner = owner;
+    this.screen = screen;
+    this.start();
+    this.requestRender();
+  }
+
+  stop(): void {
+    writeFileSync(this.owner, "editor");
+  }
+
+  start(): void {
+    writeFileSync(this.owner, "pi");
+  }
+
+  requestRender(force = false): void {
+    if (!force && this.drawn === SharedTerminal.frame) {
+      return;
     }
-  },
-);
+    writeFileSync(this.screen, SharedTerminal.frame);
+    this.drawn = SharedTerminal.frame;
+  }
+}
+
+async function editInSharedTerminal(status: number) {
+  const directory = await mkdtemp(join(tmpdir(), "pi-plan-terminal-"));
+  onTestFinished(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "plan.md");
+  await writeFile(path, "before");
+  const owner = join(directory, "terminal-owner");
+  const screen = join(directory, "terminal-screen");
+  const terminal = new SharedTerminal(owner, screen);
+  const notifications: string[] = [];
+  const script = `const fs = require("node:fs"); fs.writeFileSync(process.argv[1], "edited while the terminal belonged to " + fs.readFileSync(${JSON.stringify(owner)}, "utf8")); fs.writeFileSync(${JSON.stringify(screen)}, "the editor screen"); process.exit(${String(status)});`;
+  const opening = openPlanEditorInUi(
+    {
+      hasUI: true,
+      mode: "tui",
+      ui: {
+        notify: (message) => notifications.push(message),
+        custom: (factory) =>
+          new Promise((resolve) => {
+            factory(terminal, undefined, undefined, resolve);
+          }),
+      },
+    },
+    path,
+    `"${process.execPath}" -e '${script}'`,
+  );
+  return {
+    opening,
+    state: async () => ({
+      content: await readFile(path, "utf8"),
+      owner: await readFile(owner, "utf8"),
+      screen: await readFile(screen, "utf8"),
+      notifications,
+    }),
+  };
+}
+
+const restored = {
+  content: "edited while the terminal belonged to editor",
+  owner: "pi",
+  screen: SharedTerminal.frame,
+  notifications: [],
+};
+
+it("hands the terminal to the editor and restores it afterwards", async () => {
+  const edit = await editInSharedTerminal(0);
+  await expect(edit.opening).resolves.toBeUndefined();
+  expect(await edit.state()).toStrictEqual(restored);
+});
+
+it("restores the terminal when the editor fails", async () => {
+  const edit = await editInSharedTerminal(7);
+  await expect(edit.opening).rejects.toStrictEqual(
+    new Error(
+      "The editor exited with status 7. Use a wait-capable editor command.",
+    ),
+  );
+  expect(await edit.state()).toStrictEqual(restored);
+});
 
 it("passes the actual plan path to a quoted editor command without using a shell", async () => {
   const directory = await mkdtemp(join(tmpdir(), "pi-plan-editor-"));
