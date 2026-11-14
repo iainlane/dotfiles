@@ -1,6 +1,14 @@
 import { expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile, realpath } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { readGit } from "#footer/integrations/git.ts";
@@ -57,3 +65,32 @@ it.each<{ files: Record<string, string>; operation: string }>([
     }
   },
 );
+
+it("reads status without rewriting the index of a stale checkout", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-footer-git-"));
+
+  try {
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+    git("init", "--quiet", "--initial-branch=fixture");
+    await writeFile(join(cwd, "tracked"), "content\n");
+    git("add", "tracked");
+    git(
+      "-c",
+      "user.name=Fixture",
+      "-c",
+      "user.email=fixture@example.test",
+      "commit",
+      "--quiet",
+      "--message=fixture",
+    );
+    await utimes(join(cwd, "tracked"), 1, 1);
+    const index = join(cwd, ".git", "index");
+    const before = await readFile(index);
+    await readGit(cwd, 100);
+
+    expect(await readFile(index)).toStrictEqual(before);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});

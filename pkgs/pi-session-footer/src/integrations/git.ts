@@ -200,6 +200,7 @@ export async function readGit(
 
   const state = parseGitStatus(
     await git(cwd, [
+      "--no-optional-locks",
       "status",
       "--porcelain=v2",
       "--branch",
