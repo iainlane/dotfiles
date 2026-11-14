@@ -239,14 +239,12 @@
     };
 
   # Point a pnpm package's overrides at the local npm packages, regenerate its
-  # lockfile against their tarballs, and refresh its dependency hashes on the
-  # configured systems.
+  # lockfile against their tarballs, and refresh its dependency hash.
   mkPnpmLockUpdater = {
     pname,
     directory,
     overrides,
     pnpm,
-    systems,
   }: let
     providers = map (override: removeAttrs override ["npmTarball"]) overrides;
     provided = writeText "${pname}-npm-packages.json" (builtins.toJSON providers);
@@ -280,9 +278,7 @@
           PNPM_LOCK_UPDATER_RERUN=1 exec "$(nix build --no-link --print-out-paths ${lib.escapeShellArg ".#${pname}.passthru.updateScript"})/bin/update-${pname}" "$@"
         fi
 
-        for system in ${lib.escapeShellArgs systems}; do
-          nix-update --flake --system "$system" --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
-        done
+        nix-update --flake --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
       '';
     };
 

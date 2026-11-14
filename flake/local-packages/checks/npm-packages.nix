@@ -84,21 +84,18 @@ in
           directory = "fixture";
           overrides = map npmPackages.pnpmProvider [host linked];
           inherit pnpm;
-          systems = ["aarch64-darwin" "aarch64-linux" "x86_64-linux"];
         };
         updaterWithLockfiles = updaters.mkPnpmLockUpdater {
           pname = "scenario";
           directory = "scenario";
           overrides = map npmPackages.pnpmProvider [host linked];
           inherit pnpm;
-          systems = ["aarch64-darwin" "x86_64-linux"];
         };
         updaterWithoutProviders = updaters.mkPnpmLockUpdater {
           pname = "plain";
           directory = "plain";
           overrides = [];
           inherit pnpm;
-          systems = ["aarch64-darwin" "x86_64-linux"];
         };
         assertions =
           [

@@ -15,7 +15,7 @@
 }: {
   directory,
   pnpm,
-  dependencyHashes,
+  dependencyHash,
   packageRoot ? null,
   # Whether the package is an npm package, with a tarball and an npm purl.
   npmTarball ? true,
@@ -33,7 +33,7 @@
     if packageRoot == null
     then "lib/node_modules/${manifest.name}"
     else packageRoot;
-  recipe = removeAttrs args ["directory" "pnpm" "dependencyHashes" "packageRoot" "npmTarball" "environment" "shellPackages" "passthru" "meta"];
+  recipe = removeAttrs args ["directory" "pnpm" "dependencyHash" "packageRoot" "npmTarball" "environment" "shellPackages" "passthru" "meta"];
 in
   assert lib.assertMsg (manifest.packageManager == "pnpm@${pnpm.version}") "${relative}: packageManager must match Nix's pnpm version.";
   assert lib.assertMsg (npmTarball || args ? installPhase) "${relative}: the default installPhase installs the npm tarball, so a package without one needs its own installPhase.";
@@ -42,7 +42,7 @@ in
         npmRoot = directory;
         inherit (finalAttrs) pname src sourceRoot;
         inherit pnpm;
-        hash = dependencyHashes.${stdenv.hostPlatform.system};
+        hash = dependencyHash;
       };
     in
       {
@@ -111,7 +111,6 @@ in
               inherit (finalAttrs) pname;
               directory = relative;
               inherit (deps) overrides;
-              systems = builtins.attrNames dependencyHashes;
               inherit pnpm;
             };
           }

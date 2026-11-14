@@ -62,9 +62,7 @@ printf '%s\n' \
 printf '%s\n' \
 	"pnpm:$root/fixture:install --lockfile-only --no-frozen-lockfile --ignore-scripts" \
 	"nix:$root:eval --json .#fixture.passthru.updateScript.providers" \
-	"nix-update:$root:--flake --system aarch64-darwin --override-filename fixture/package.nix --version=skip fixture" \
-	"nix-update:$root:--flake --system aarch64-linux --override-filename fixture/package.nix --version=skip fixture" \
-	"nix-update:$root:--flake --system x86_64-linux --override-filename fixture/package.nix --version=skip fixture" >"$root/expected-calls"
+	"nix-update:$root:--flake --override-filename fixture/package.nix --version=skip fixture" >"$root/expected-calls"
 diff -u "$root/expected-calls" "$UPDATE_LOG"
 
 plain() {

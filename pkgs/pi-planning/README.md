@@ -332,8 +332,8 @@ The development shell sets `PI_TEST_HOST`, `PI_TEST_PRETTY`, `PI_TEST_DIFF` and
 the SDK and `pi-subagents` into `.nix-providers`, and pnpm installs them from
 there in place of the npm releases. After changing dependencies, run
 `nix run .#update-pi-planning` from the repository root. It refreshes the
-overrides, the lockfile and the Nix dependency hashes. Deployed extensions do
-not include host SDK modules; startup checks reject bundled copies.
+overrides, the lockfile and the Nix dependency hash. Deployed extensions do not
+include host SDK modules; startup checks reject bundled copies.
 
 The subagent package includes the child-runtime registration patch required for
 nested planning roles. Native tests exercise web and Lens activation, unfiltered

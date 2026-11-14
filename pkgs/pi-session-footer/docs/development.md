@@ -17,7 +17,7 @@ tarballs in place of the registry releases, and pnpm otherwise works as usual.
 The lockfile records each tarball's integrity. After changing dependencies, or
 when one of the local packages changes, run `nix run .#update-pi-session-footer`
 from the repository root. It refreshes the overrides, the lockfile and the Nix
-dependency hashes.
+dependency hash.
 
 ## Commands and test groups
 
