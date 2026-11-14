@@ -379,6 +379,33 @@ but does not create a PR without repository changes.
 Dependency updates exercise package tests and explicitly included shared feature
 checks, even without a selecting host.
 
+### Renovate
+
+`.github/renovate.json5` configures the self-hosted Renovate that runs from the
+workflow in the [underwhelmingperformance/.github][renovate-workflow]
+repository. Here it uses the GitHub Actions, PEP 621, npm and regex managers.
+The nix manager is disabled because flake.lock needs the private `secrets`
+input, and bundler is disabled because Renovate cannot regenerate
+`pkgs/trmnl-liquid-cli/gemset.nix`.
+
+Renovate's own pnpm relock cannot install the local npm packages from
+`.nix-providers` or refresh the Nix dependency hashes. For npm updates, Renovate
+skips that relock and runs `.github/renovate-post-upgrade.bash`, which runs the
+updater of each package whose package.json or pnpm-workspace.yaml changed.
+Self-hosted Renovate runs the script only when its global `allowedCommands`
+allows it.
+
+Renovate bumps registry dependencies. The scheduled package-update workflow runs
+the package updaters, which relock a package after a local provider changes, and
+once a week it also maintains the pnpm lockfiles. The two open separate
+branches, so a Renovate branch and the package-update branch can both relock the
+same package. Both change its pnpm-lock.yaml and its dependency hash, and the
+branch that merges second then conflicts. Renovate rebases its branch and runs
+the updater again. The workflow recreates its branch from main on its next run.
+
+[renovate-workflow]:
+  https://github.com/underwhelmingperformance/.github/blob/main/.github/workflows/renovate.yml
+
 ## Validation and public interfaces
 
 `just check` runs the evaluation gate with import from derivation disabled,
