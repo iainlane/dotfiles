@@ -282,16 +282,9 @@ export function createFooter({
 
         pr = next ?? (pr && { ...pr, health: "error" });
 
-        if (
-          session?.alive !== true ||
-          (session.state.git && pr?.branch !== session.state.git.branch)
-        ) {
-          return;
+        if (session?.receivePr(pr) === true) {
+          requestRender();
         }
-
-        session.state.pr = pr;
-
-        requestRender();
       }),
       events.on("pilens:diagnostics", (raw) => {
         session?.state.diagnostics.receive(raw);
@@ -374,7 +367,7 @@ export function createFooter({
     }
     session = new FooterSession(ctx, events, requestRender, runtime);
     session.state.serviceTier = tier;
-    session.state.pr = pr;
+    session.receivePr(pr);
 
     if (matchesProvider(session.state.provider, quota)) {
       session.state.quota = quota;

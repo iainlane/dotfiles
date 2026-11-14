@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { FooterRuntime } from "./runtime.ts";
 import { RpcClient, type FooterBus } from "#footer/integrations/rpc.ts";
-import { createSnapshot } from "#footer/domain/state.ts";
+import { createSnapshot, type FooterSnapshot } from "#footer/domain/state.ts";
 import { UsageLedger } from "#footer/domain/usage.ts";
 import { readAgents, readTasks } from "#footer/domain/workflow.ts";
 import {
@@ -51,6 +51,7 @@ export class FooterSession {
   private gitRerun = false;
   private gitFailures = 0;
   private gitAt = -Infinity;
+  private pr: FooterSnapshot["pr"];
   private agentsAt = -Infinity;
   private leaf: string | null | undefined;
   private readonly tracker: ActivityTracker;
@@ -108,6 +109,18 @@ export class FooterSession {
       ...this.state.cooperativeStatuses,
       [status.source, status],
     ]);
+    return true;
+  }
+
+  receivePr(pr: FooterSnapshot["pr"]): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    this.pr = pr;
+    if (this.state.git && pr?.branch !== this.state.git.branch) {
+      return false;
+    }
+    this.state.pr = pr;
     return true;
   }
 
@@ -287,8 +300,8 @@ export class FooterSession {
       this.state.git = git;
       this.state.gitError = undefined;
 
-      if (this.state.pr && this.state.pr.branch !== git?.branch) {
-        this.state.pr = undefined;
+      if (this.state.pr?.branch !== git?.branch) {
+        this.state.pr = this.pr?.branch === git?.branch ? this.pr : undefined;
       }
 
       if (

@@ -13,6 +13,7 @@ import { record } from "#footer/shared/text.ts";
 import { editorFixture } from "#test/support/editor.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
+import { parseGitStatus } from "#footer/integrations/git.ts";
 import type { Component } from "@earendil-works/pi-tui";
 
 type EditorFactory = NonNullable<
@@ -431,6 +432,64 @@ it("captures one clock/status observation for both composer borders and its expl
     oldAge: explanation.join(" ").includes(" 0m"),
     newAge: explanation.join(" ").includes(" 1m"),
   }).toStrictEqual({ capturedTime: true, oldAge: true, newAge: false });
+  h.footer.shutdown();
+});
+
+function fallbackView(
+  h: ReturnType<typeof harness>,
+  statuses = new Map<string, string>(),
+) {
+  const factory = h.setFooter.mock.lastCall?.[0];
+  if (!factory) {
+    throw new Error("Expected the footer factory");
+  }
+  return () =>
+    factory({ requestRender() {} }, h.context.ui.theme, {
+      getExtensionStatuses: () => statuses,
+      onBranchChange: () => () => {},
+    });
+}
+
+it("restores a known PR when Git returns to its branch", async () => {
+  const h = harness();
+  const branch = (name: string) => ({
+    ...parseGitStatus(`# branch.head ${name}`, h.runtime.clock.now()),
+    root: h.context.cwd,
+  });
+  h.runtime.readGit.mockResolvedValue(branch("main"));
+  h.footer.start(h.context);
+  const view = fallbackView(h)();
+  await h.runtime.clock.advance(0);
+  h.events.emit("pr:state", {
+    protocol: 1,
+    source: "pi-prs",
+    repository: "a/b",
+    branch: "main",
+    health: "ok",
+    updatedAt: 10,
+    pullRequest: {
+      target: { number: 7 },
+      lifecycle: "open",
+      mergeState: "mergeable",
+      unresolvedThreadCount: 0,
+    },
+  });
+  const shown = () => view.render(200).join("\n").includes("#7");
+  const checkout = async (name: string) => {
+    h.runtime.readGit.mockResolvedValue(branch(name));
+    h.footer.endTool("tool");
+    await h.runtime.clock.advance(0);
+    return shown();
+  };
+  const initial = shown();
+  const away = await checkout("feature");
+  const back = await checkout("main");
+
+  expect({ initial, away, back }).toStrictEqual({
+    initial: true,
+    away: false,
+    back: true,
+  });
   h.footer.shutdown();
 });
 
