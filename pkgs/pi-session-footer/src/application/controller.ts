@@ -15,16 +15,20 @@ import {
   resolveSettings,
   presentationDocument,
   type PresentationDocument,
+  type ResolvedSettings,
 } from "#footer/configuration/settings.ts";
 import { readPr, readServiceTier } from "#footer/integrations/integrations.ts";
 import { readQuota, type QuotaState } from "#footer/domain/quota.ts";
 import {
-  fitFooterRow,
-  completeFooterFrame,
-  layoutFooter,
+  observeFooter,
   renderFooter,
+  type FooterPresentation,
   type RenderFrame,
 } from "#footer/rendering/render.ts";
+import {
+  FooterLayoutCache,
+  type FooterLayout,
+} from "#footer/rendering/layout-cache.ts";
 import { FooterSession, type FooterContext } from "./session.ts";
 import type { FooterRuntime } from "./runtime.ts";
 import type { FooterBus } from "#footer/integrations/rpc.ts";
@@ -100,7 +104,7 @@ export function createFooter({
     composer !== undefined &&
     composer.ui.getEditorComponent() === composer.factory;
 
-  let invalidate = noop;
+  let redraw = noop;
 
   let quota: QuotaState | undefined;
   let tier: string | undefined;
@@ -113,9 +117,18 @@ export function createFooter({
   let geometry: ComposerGeometry | undefined;
   let nativeKeys: KeybindingsManager | undefined;
   let fallbackLines: string[] = [];
+  let resolved:
+    | { document: PresentationDocument; settings: ResolvedSettings }
+    | undefined;
   const presentation = () => {
     const document = preview ?? applied;
-    return document === undefined ? settings : resolveSettings(document);
+    if (document === undefined) {
+      return settings;
+    }
+    if (resolved?.document !== document) {
+      resolved = { document, settings: resolveSettings(document) };
+    }
+    return resolved.settings;
   };
   let nativeStatuses = emptyStatuses;
   const snapshot = (): FooterSnapshot | undefined => {
@@ -132,16 +145,42 @@ export function createFooter({
     },
   });
   const stops: (() => void)[] = [];
+  let revision = 0;
 
   const requestRender = () => {
     if (session?.alive !== true) {
       return;
     }
 
+    revision++;
     session.state.now = runtime.clock.now();
 
-    invalidate();
+    redraw();
   };
+
+  const layoutCache = (
+    owner: FooterSession,
+    ctx: FooterUIContext,
+    mode: "composer" | "fallback",
+  ) =>
+    new FooterLayoutCache({
+      revision: () => revision,
+      statuses: () => nativeStatuses(),
+      observe: (statuses) => {
+        owner.state.statuses = new Map(statuses);
+        owner.state.now = runtime.clock.now();
+        const current: FooterPresentation = {
+          settings: presentation(),
+          theme: ctx.ui.theme,
+          home: runtime.homeDirectory,
+          mode: preview === undefined ? mode : "preview",
+        };
+        return {
+          observation: observeFooter(owner.state, current),
+          presentation: current,
+        };
+      },
+    });
 
   const customiser = new Customiser({
     store: runtime.settingsStore,
@@ -224,9 +263,10 @@ export function createFooter({
     session?.dispose();
 
     session = undefined;
-    invalidate = noop;
+    redraw = noop;
     nativeStatuses = emptyStatuses;
     lastFrame = undefined;
+    resolved = undefined;
   };
 
   const updateQuota = (raw: unknown) => {
@@ -382,8 +422,9 @@ export function createFooter({
     }
 
     ctx.ui.setFooter((tui, _theme, footerData) => {
+      const layout = layoutCache(owner, ctx, "fallback");
       nativeStatuses = () => footerData.getExtensionStatuses();
-      invalidate = () => {
+      redraw = () => {
         if (owner.alive) {
           tui.requestRender();
         }
@@ -399,18 +440,7 @@ export function createFooter({
             fallbackLines = [];
             return [];
           }
-          owner.state.statuses = new Map(nativeStatuses());
-          owner.state.now = runtime.clock.now();
-          const frame = layoutFooter(
-            owner.state,
-            { top: width, bottom: width },
-            {
-              settings: presentation(),
-              theme: ctx.ui.theme,
-              home: runtime.homeDirectory,
-              mode: preview === undefined ? "fallback" : "preview",
-            },
-          );
+          const frame = layout.current().frame({ top: width, bottom: width });
           if (frame.mode !== "preview") {
             lastFrame = frame;
           }
@@ -419,7 +449,9 @@ export function createFooter({
           );
           return fallbackLines;
         },
-        invalidate() {},
+        invalidate() {
+          layout.invalidate();
+        },
         dispose() {
           unsubscribe();
         },
@@ -455,52 +487,41 @@ export function createFooter({
     const owner = session;
     const factory: EditorFactory = (tui, theme, keybindings) => {
       nativeKeys = keybindings;
-      let pending: RenderFrame | undefined;
-      const render = (width: number, border: "top" | "bottom") => {
-        if (!owner.alive) {
-          return "";
-        }
-        if (border === "top") {
-          owner.state.now = runtime.clock.now();
-          owner.state.statuses = new Map(nativeStatuses());
-          pending = layoutFooter(
-            owner.state,
-            { top: width, bottom: 0 },
-            {
-              settings: presentation(),
-              theme: ctx.ui.theme,
-              home: runtime.homeDirectory,
-              mode: preview === undefined ? "composer" : "preview",
-            },
-          );
-          return pending.top.text;
-        }
-        if (!pending) {
-          return "";
-        }
-        const bottom = fitFooterRow(pending, presentation(), {
-          placement: "bottom",
-          width,
-          theme: ctx.ui.theme,
-        });
-        pending = completeFooterFrame(pending, bottom);
-        return pending.bottom.text;
-      };
+      const cache = layoutCache(owner, ctx, "composer");
+      const widths = { top: 0, bottom: 0 };
+      let layout: FooterLayout | undefined;
       return new ComposerEditor(tui, theme, keybindings, {
-        top: (width) => render(width, "top"),
-        bottom: (width) => render(width, "bottom"),
+        top: (width) => {
+          if (!owner.alive) {
+            return "";
+          }
+          layout = cache.current();
+          widths.top = width;
+          widths.bottom = 0;
+          return layout.row("top", width).row.text;
+        },
+        bottom: (width) => {
+          if (!owner.alive || !layout) {
+            return "";
+          }
+          widths.bottom = width;
+          return layout.row("bottom", width).row.text;
+        },
         completed: (completed) => {
-          if (!owner.alive || !ownsComposer() || !pending) {
+          if (!owner.alive || !ownsComposer() || !layout) {
             return;
           }
           const changed = geometry?.height !== completed.height;
           geometry = completed;
-          if (pending.mode !== "preview") {
-            lastFrame = pending;
+          if (layout.presentation.mode !== "preview") {
+            lastFrame = layout.frame(widths);
           }
           if (changed) {
-            requestRender();
+            redraw();
           }
+        },
+        invalidate: () => {
+          cache.invalidate();
         },
       });
     };

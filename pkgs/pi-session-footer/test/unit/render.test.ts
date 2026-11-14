@@ -518,3 +518,42 @@ it("retains zero measurements but suppresses initial idle cost and age", () => {
   state.usage.costFromProvider = true;
   expect(readSegments(state).cost.parts[0]?.variants[0]).toBe("$0.00");
 });
+it.each([
+  { preset: "rich" },
+  { preset: "compact" },
+  { preset: "minimal" },
+  { preset: "workflow" },
+  { preset: "rich", separators: { widgets: " · ", regions: " │ " } },
+])("fits every row of %j to its modelled width", (document) => {
+  const state = fixture();
+  state.cwd = "/work/界界/é-feature-with-a-long-name";
+  state.git = { ...parseGitStatus("# branch.head main", now), staged: 2 };
+  state.activity.outcome = "failed";
+  state.statuses = new Map([["source", "a long extension message 👩‍💻"]]);
+  state.usage.input = 1;
+  const settings = resolveSettings(document);
+  const theme = {
+    fg: (_role: string, value: string) => `\u001B[31m${value}\u001B[39m`,
+    bold: (value: string) => value,
+    style: (value: string) => value,
+  };
+  const mismatches = Array.from({ length: 241 }, (_, width) => {
+    const frame = layoutFooter(
+      state,
+      { top: width, bottom: width },
+      { settings, theme, home: "/Users/test" },
+    );
+    return [frame.top, frame.bottom].map((row) => ({
+      width,
+      visible: visibleWidth(row.text),
+      modelled:
+        row.right === "" && row.text === row.left
+          ? Math.min(width, visibleWidth(row.left))
+          : width,
+    }));
+  })
+    .flat()
+    .filter(({ visible, modelled }) => visible !== modelled);
+
+  expect(mismatches).toStrictEqual([]);
+});

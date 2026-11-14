@@ -178,6 +178,58 @@ it("invalidates session age relative to the header timestamp", async () => {
   session.dispose();
 });
 
+it.each<{ field: string; change: (context: FooterContext) => void }>([
+  { field: "nothing", change: () => {} },
+  {
+    field: "model",
+    change: (context) => {
+      context.model = {
+        id: "replacement",
+        provider: "openai",
+        contextWindow: 200_000,
+      };
+    },
+  },
+  {
+    field: "thinking",
+    change: (context) => {
+      context.thinkingLevel = "low";
+    },
+  },
+  {
+    field: "context",
+    change: (context) => {
+      context.getContextUsage = () => ({
+        tokens: 1000,
+        contextWindow: 200_000,
+        percent: 0.5,
+      });
+    },
+  },
+  {
+    field: "pending",
+    change: (context) => {
+      context.hasPendingMessages = () => true;
+    },
+  },
+])(
+  "invalidates when a tick changes the displayed $field",
+  async ({ field, change }) => {
+    const { bus, context, runtime } = harness();
+    const changed = vi.fn<() => void>();
+    const session = new FooterSession(context, bus, changed, runtime);
+
+    await runtime.clock.advance(0);
+    changed.mockClear();
+    change(context);
+    await runtime.clock.advance(1000);
+
+    expect(changed.mock.calls).toStrictEqual(field === "nothing" ? [] : [[]]);
+
+    session.dispose();
+  },
+);
+
 it("reads Git again when a refresh is requested during a pending read", async () => {
   const { bus, context, runtime } = harness();
   const first = Promise.withResolvers<ReturnType<typeof parseGitStatus>>();

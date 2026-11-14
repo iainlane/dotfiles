@@ -22,6 +22,7 @@ function harness(bottom: () => string = () => "") {
     top: (width) => truncateToWidth("model · high", width, ""),
     bottom: (width) => truncateToWidth(bottom(), width, ""),
     completed() {},
+    invalidate() {},
   });
   editor.focused = true;
 
@@ -45,6 +46,7 @@ it.each([
       top: () => "top",
       bottom: () => bottom,
       completed,
+      invalidate() {},
     });
     editor.setText("one\ntwo");
     const lines = editor.render(40);
@@ -93,6 +95,7 @@ it.each([1, 2, 7, 8])(
       completed: () => {
         completed = true;
       },
+      invalidate() {},
     });
     const output = plain(editor.render(width));
     if (!frame) {

@@ -82,6 +82,7 @@ interface Occurrence {
   part: SegmentPart;
   appearance: WidgetAppearance;
   variants: PaintedText[];
+  widths: number[];
   level: number;
   truncated?: PaintedText;
 }
@@ -90,10 +91,25 @@ interface RowOptions {
   width: number;
   theme?: PaintTheme;
 }
-interface FittedFooterRow {
+export interface FittedFooterRow {
   row: FittedRow;
   decisions: FitDecision[];
   placements: PlacementEvidence[];
+}
+interface Separator {
+  value: string;
+  width: number;
+}
+interface SideWidth {
+  width: number;
+  empty: boolean;
+}
+const EMPTY_TEXT: PaintedText = { value: "", runs: [], symbols: [] };
+function groupKey(id: SegmentId, region: Region): string {
+  return `${region}/${id}`;
+}
+function gaugeUsed(track: number, percent: number): number {
+  return Math.round((track * Math.max(0, Math.min(100, percent))) / 100);
 }
 class RowFitter {
   private readonly observation: FooterObservation;
@@ -102,7 +118,17 @@ class RowFitter {
   private readonly regions: readonly [Region, Region];
   private readonly width: number;
   private readonly items: Occurrence[];
+  private readonly groups = new Map<string, Occurrence[]>();
   private readonly custom: boolean;
+  private readonly childSeparators: readonly [string, string];
+  private readonly sideSeparators: readonly [Separator, Separator];
+  private readonly compressedSeparator: Separator;
+  private readonly rightPrefix: Separator;
+  private readonly marker: Separator;
+  private readonly gaugeUnits = new Map<
+    Occurrence,
+    { used: number; free: number }
+  >();
   private compressed = false;
   private gauge: { owner: Occurrence; content: PaintedText } | undefined;
 
@@ -126,138 +152,247 @@ class RowFitter {
       settings.regions[region].flatMap((placement) => {
         const id = widgetId(placement);
         const appearance = typeof placement === "string" ? {} : placement;
-        return observation.readings[id].parts.map((part) => ({
-          id,
-          region,
-          part,
-          appearance,
-          level: 0,
-          variants: part.tokens.map((runs) =>
+        return observation.readings[id].parts.map((part) => {
+          const variants = part.tokens.map((runs) =>
             paintText(runs, appearance, options.theme),
-          ),
-        }));
+          );
+          return {
+            id,
+            region,
+            part,
+            appearance,
+            level: 0,
+            variants,
+            widths: variants.map((variant) => visibleWidth(variant.value)),
+          };
+        });
       }),
     );
+    for (const item of this.items) {
+      const key = groupKey(item.id, item.region);
+      const group = this.groups.get(key);
+      if (group === undefined) {
+        this.groups.set(key, [item]);
+      } else {
+        group.push(item);
+      }
+    }
+
+    const paint = createPaint(options.theme);
+    const separator = (value: string): Separator => {
+      const painted = paint(styles.separator, value);
+      return { value: painted, width: visibleWidth(painted) };
+    };
+    const defaults = ["  ", "  "] as const;
+    const widgets = settings.separators.widgets;
+    this.childSeparators = this.custom
+      ? [" ", " "]
+      : [separator(defaults[0]).value, separator(defaults[1]).value];
+    this.sideSeparators = [
+      separator(widgets ?? defaults[0]),
+      separator(widgets ?? defaults[1]),
+    ];
+    this.compressedSeparator = separator(" ");
+    this.rightPrefix = separator(" ");
+    this.marker = separator(settings.separators.regions ?? " ");
   }
 
   private current(item: Occurrence): PaintedText {
-    return (
-      item.truncated ??
-      item.variants[item.level] ?? { value: "", runs: [], symbols: [] }
-    );
+    return item.truncated ?? item.variants[item.level] ?? EMPTY_TEXT;
+  }
+
+  private currentWidth(item: Occurrence): number {
+    if (item.truncated !== undefined) {
+      return visibleWidth(item.truncated.value);
+    }
+    return item.widths[item.level] ?? 0;
   }
 
   private children(id: SegmentId, region: Region): Occurrence[] {
-    return this.items.filter(
-      (item) => item.id === id && item.region === region,
-    );
-  }
-
-  private childSeparator(region: Region): string {
-    if (this.custom) {
-      return " ";
-    }
-    return createPaint(this.options.theme)(
-      styles.separator,
-      region === this.regions[0] ? "  " : "  ",
-    );
+    return this.groups.get(groupKey(id, region)) ?? [];
   }
 
   private group(id: SegmentId, region: Region): string {
     return this.children(id, region)
       .map((item) => this.current(item).value)
       .filter((value) => value !== "")
-      .join(this.childSeparator(region));
+      .join(
+        region === this.regions[0]
+          ? this.childSeparators[0]
+          : this.childSeparators[1],
+      );
   }
 
-  private side(region: Region): string {
-    const paint = createPaint(this.options.theme);
+  private widgetSeparator(side: 0 | 1): Separator {
+    return this.compressed
+      ? this.compressedSeparator
+      : this.sideSeparators[side];
+  }
+
+  private side(side: 0 | 1): string {
+    const region = this.regions[side];
     if (!this.custom) {
       const values = this.items
         .filter((item) => item.region === region)
         .map((item) => this.current(item).value)
         .filter((value) => value !== "");
-      return region === this.regions[0]
-        ? values.join(paint(styles.separator, "  "))
-        : values
-            .map((value) => paint(styles.separator, " ") + value)
-            .join(" ");
-    }
-    let separator =
-      this.settings.separators.widgets ??
-      (region === this.regions[0] ? "  " : "  ");
-    if (this.compressed) {
-      separator = " ";
+      return side === 0
+        ? values.join(this.sideSeparators[0].value)
+        : values.map((value) => this.rightPrefix.value + value).join(" ");
     }
     return this.settings.regions[region]
       .map((placement) => this.group(widgetId(placement), region))
       .filter((value) => value !== "")
-      .join(paint(styles.separator, separator));
+      .join(this.widgetSeparator(side).value);
+  }
+
+  private sideWidth(side: 0 | 1): SideWidth {
+    const region = this.regions[side];
+    if (!this.custom) {
+      let count = 0;
+      let width = 0;
+      for (const item of this.items) {
+        if (item.region === region && this.current(item).value !== "") {
+          count++;
+          width += this.currentWidth(item);
+        }
+      }
+      if (count === 0) {
+        return { width: 0, empty: true };
+      }
+      const separators =
+        side === 0
+          ? (count - 1) * this.sideSeparators[0].width
+          : count * this.rightPrefix.width + count - 1;
+      return { width: width + separators, empty: false };
+    }
+
+    let groups = 0;
+    let width = 0;
+    for (const placement of this.settings.regions[region]) {
+      let count = 0;
+      for (const item of this.children(widgetId(placement), region)) {
+        if (this.current(item).value !== "") {
+          count++;
+          width += this.currentWidth(item);
+        }
+      }
+      if (count > 0) {
+        groups++;
+        width += count - 1;
+      }
+    }
+    if (groups === 0) {
+      return { width: 0, empty: true };
+    }
+    return {
+      width: width + (groups - 1) * this.widgetSeparator(side).width,
+      empty: false,
+    };
+  }
+
+  private gaugeOwner(): Occurrence | undefined {
+    if (this.observation.contextPercent === null) {
+      return undefined;
+    }
+    return this.items.find(
+      (item) => item.id === "context" && this.current(item).value !== "",
+    );
+  }
+
+  private gaugeRuns(percent: number) {
+    const p = new SegmentPainter();
+    return {
+      used: p.symbol(contextStyle(percent), "━", "", {
+        role: "gauge-used",
+        attention: percent >= 75,
+      }).runs,
+      free: p.symbol(styles.separator, "─", "", {
+        role: "gauge-free",
+      }).runs,
+    };
+  }
+
+  private gaugeWidth(owner: Occurrence, percent: number, gap: number): number {
+    let units = this.gaugeUnits.get(owner);
+    if (units === undefined) {
+      const runs = this.gaugeRuns(percent);
+      const roles = { roles: owner.appearance.roles };
+      units = {
+        used: visibleWidth(paintText(runs.used, roles).value),
+        free: visibleWidth(paintText(runs.free, roles).value),
+      };
+      this.gaugeUnits.set(owner, units);
+    }
+    const track = gap - 2;
+    const used = gaugeUsed(track, percent);
+    return 2 + used * units.used + (track - used) * units.free;
+  }
+
+  private gapWidth(left: SideWidth, right: SideWidth, marker: number): number {
+    let minimum = 0;
+    if (!left.empty && !right.empty) {
+      minimum = this.compressed ? 1 : 2;
+    }
+    return Math.max(minimum, this.width - left.width - right.width - marker);
+  }
+
+  private markerShown(left: SideWidth, right: SideWidth): boolean {
+    return this.custom && !left.empty && !right.empty && !this.compressed;
+  }
+
+  private measure(): number {
+    const left = this.sideWidth(0);
+    const right = this.sideWidth(1);
+    const marker = this.markerShown(left, right) ? this.marker.width : 0;
+    const gap = this.gapWidth(left, right, marker);
+    const owner = this.gaugeOwner();
+    const percent = this.observation.contextPercent;
+    let middle = right.empty ? 0 : gap;
+    if (owner && percent !== null && gap >= 5) {
+      middle = this.gaugeWidth(owner, percent, gap);
+    }
+    return left.width + middle + marker + right.width;
   }
 
   private render(): FittedRow {
     this.gauge = undefined;
-    const left = this.side(this.regions[0]);
-    const right = this.side(this.regions[1]);
-    const both = left !== "" && right !== "";
-    const marker =
-      this.custom && both && !this.compressed
-        ? createPaint(this.options.theme)(
-            styles.separator,
-            this.settings.separators.regions ?? " ",
-          )
-        : "";
-    let minimum = 0;
-    if (both) {
-      minimum = this.compressed ? 1 : 2;
-    }
-    const gapWidth = Math.max(
-      minimum,
-      this.width -
-        visibleWidth(left) -
-        visibleWidth(right) -
-        visibleWidth(marker),
-    );
-    const context = this.items.find(
-      (item) => item.id === "context" && this.current(item).value !== "",
-    );
+    const leftWidth = this.sideWidth(0);
+    const rightWidth = this.sideWidth(1);
+    const left = this.side(0);
+    const right = this.side(1);
+    const marker = this.markerShown(leftWidth, rightWidth)
+      ? this.marker
+      : { value: "", width: 0 };
+    const gapWidth = this.gapWidth(leftWidth, rightWidth, marker.width);
+    const owner = this.gaugeOwner();
+    const percent = this.observation.contextPercent;
     let gap = right === "" ? "" : " ".repeat(gapWidth);
-    if (context && this.observation.contextPercent !== null && gapWidth >= 5) {
+    if (owner && percent !== null && gapWidth >= 5) {
       const track = gapWidth - 2;
-      const percent = this.observation.contextPercent;
-      const used = Math.round(
-        (track * Math.max(0, Math.min(100, percent))) / 100,
-      );
-      const p = new SegmentPainter();
-      const usedRuns = p.symbol(contextStyle(percent), "━", "", {
-        role: "gauge-used",
-        attention: percent >= 75,
-      }).runs;
-      const freeRuns = p.symbol(styles.separator, "─", "", {
-        role: "gauge-free",
-      }).runs;
-      const runs = [
-        ...Array.from({ length: used }, () => usedRuns).flat(),
-        ...Array.from({ length: track - used }, () => freeRuns).flat(),
-      ];
+      const used = gaugeUsed(track, percent);
+      const runs = this.gaugeRuns(percent);
       const content = paintText(
-        runs,
-        { roles: context.appearance.roles },
+        [
+          ...Array.from({ length: used }, () => runs.used).flat(),
+          ...Array.from({ length: track - used }, () => runs.free).flat(),
+        ],
+        { roles: owner.appearance.roles },
         this.options.theme,
       );
-      this.gauge = { owner: context, content };
+      this.gauge = { owner, content };
       gap = " " + content.value + " ";
     }
     return {
       left,
       right,
-      text: left + gap + marker + right,
+      text: left + gap + marker.value + right,
       width: this.width,
     };
   }
 
   private fitItems(): void {
-    while (visibleWidth(this.render().text) > this.width) {
+    while (this.measure() > this.width) {
       if (this.custom && !this.compressed) {
         this.compressed = true;
         continue;
@@ -385,27 +520,24 @@ export function fitFooterRow(
 ): FittedFooterRow {
   return new RowFitter(observation, settings, options).fit();
 }
-export function layoutFooter(
+export function observeFooter(
   state: FooterSnapshot,
-  widths: { top: number; bottom: number },
   presentation: FooterPresentation,
-): RenderFrame {
-  const { settings, theme, home, mode = "composer" } = presentation;
-  const observation: FooterObservation = {
+): FooterObservation {
+  const { settings, theme, home } = presentation;
+  return {
     at: state.now,
     readings: readSegments(state, { theme, home, symbols: settings.symbols }),
     contextPercent: state.context.percent,
   };
-  const top = fitFooterRow(observation, settings, {
-    placement: "top",
-    width: widths.top,
-    theme,
-  });
-  const bottom = fitFooterRow(observation, settings, {
-    placement: "bottom",
-    width: widths.bottom,
-    theme,
-  });
+}
+export function composeFooterFrame(
+  observation: FooterObservation,
+  presentation: FooterPresentation,
+  rows: { top: FittedFooterRow; bottom: FittedFooterRow },
+): RenderFrame {
+  const { settings, mode = "composer" } = presentation;
+  const { top, bottom } = rows;
   return {
     ...observation,
     mode,
@@ -422,6 +554,26 @@ export function layoutFooter(
         ),
     ),
   };
+}
+export function layoutFooter(
+  state: FooterSnapshot,
+  widths: { top: number; bottom: number },
+  presentation: FooterPresentation,
+): RenderFrame {
+  const { settings, theme } = presentation;
+  const observation = observeFooter(state, presentation);
+  return composeFooterFrame(observation, presentation, {
+    top: fitFooterRow(observation, settings, {
+      placement: "top",
+      width: widths.top,
+      theme,
+    }),
+    bottom: fitFooterRow(observation, settings, {
+      placement: "bottom",
+      width: widths.bottom,
+      theme,
+    }),
+  });
 }
 export function completeFooterFrame(
   frame: RenderFrame,

@@ -21,6 +21,7 @@ export interface ComposerBorders {
   top(width: number): string;
   bottom(width: number): string;
   completed(geometry: ComposerGeometry): void;
+  invalidate(): void;
 }
 export class ComposerEditor extends CustomEditor {
   private userPadding = 0;
@@ -40,6 +41,11 @@ export class ComposerEditor extends CustomEditor {
   ) {
     super(tui, theme, keybindings, { paddingX: 3 });
     this.borders = borders;
+  }
+
+  override invalidate(): void {
+    this.borders.invalidate();
+    super.invalidate();
   }
 
   override getPaddingX(): number {

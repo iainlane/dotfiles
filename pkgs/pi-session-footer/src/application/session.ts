@@ -128,11 +128,12 @@ export class FooterSession {
     return !this.disposed;
   }
 
-  sync(context: FooterContext, force = false): void {
+  sync(context: FooterContext, force = false): boolean {
     if (this.disposed) {
-      return;
+      return false;
     }
 
+    const displayed = this.displayed();
     this.context = context;
     this.state.now = this.runtime.clock.now();
 
@@ -169,7 +170,25 @@ export class FooterSession {
       this.state.cachePrompt = this.ledger.latestPrompt;
       this.state.auxiliaryUsage = { ...this.ledger.auxiliary };
       this.state.tasks = readTasks(branch);
+
+      return true;
     }
+
+    return displayed !== this.displayed();
+  }
+
+  private displayed(): string {
+    const { model, provider, thinking, reasoning, context, pending } =
+      this.state;
+
+    return JSON.stringify([
+      model,
+      provider,
+      thinking,
+      reasoning,
+      context,
+      pending,
+    ]);
   }
 
   private clockKey(): string {
@@ -201,11 +220,8 @@ export class FooterSession {
       return;
     }
 
-    const previous = this.leaf;
     const clock = this.clockKey();
-
-    this.sync(this.context);
-
+    const displayed = this.sync(this.context);
     const now = this.state.now;
 
     if (!this.gitPending && now - this.gitAt >= this.gitInterval()) {
@@ -221,8 +237,8 @@ export class FooterSession {
     }
 
     if (
+      displayed ||
       clock !== this.clockKey() ||
-      previous !== this.leaf ||
       this.state.activity.runningSince !== undefined
     ) {
       this.changed();

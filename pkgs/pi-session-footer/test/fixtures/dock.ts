@@ -72,6 +72,7 @@ export default function dockFixture(pi: ExtensionAPI): void {
             tui.requestRender();
           }
         },
+        invalidate() {},
       });
       return editor;
     });

@@ -435,6 +435,18 @@ it("captures one clock/status observation for both composer borders and its expl
   h.footer.shutdown();
 });
 
+function countPaints(h: ReturnType<typeof harness>) {
+  const paints = {
+    count: 0,
+    paint: (_role: string, value: string) => value,
+  };
+  h.context.ui.theme.fg = (role, value) => {
+    paints.count++;
+    return paints.paint(role, value);
+  };
+  return paints;
+}
+
 function fallbackView(
   h: ReturnType<typeof harness>,
   statuses = new Map<string, string>(),
@@ -449,6 +461,155 @@ function fallbackView(
       onBranchChange: () => () => {},
     });
 }
+
+it("reuses the fallback layout while nothing displayed changes", async () => {
+  const h = harness();
+  const paints = countPaints(h);
+  h.footer.start(h.context);
+  const view = fallbackView(h)();
+  await h.runtime.clock.advance(0);
+  const first = view.render(120);
+  paints.count = 0;
+
+  expect({ lines: view.render(120), paints: paints.count }).toStrictEqual({
+    lines: first,
+    paints: 0,
+  });
+  h.footer.shutdown();
+});
+
+it("reuses the composer borders while nothing displayed changes", async () => {
+  const h = harness();
+  const paints = countPaints(h);
+  h.footer.start(h.context);
+  fallbackView(h)();
+  h.footer.mountComposer(h.context);
+  const factory = h.context.ui.getEditorComponent();
+  if (!factory) {
+    throw new Error("Expected editor factory");
+  }
+  const { tui, theme, keys } = editorFixture();
+  const editor = factory(tui, theme, keys);
+  await h.runtime.clock.advance(0);
+  const first = editor.render(100);
+  paints.count = 0;
+  const second = editor.render(100);
+  const unchanged = paints.count;
+  paints.paint = (_role, value) => `[${value}]`;
+  editor.invalidate();
+
+  expect({
+    second,
+    unchanged,
+    themed: editor.render(100)[0]?.includes("[") ?? false,
+  }).toStrictEqual({ second: first, unchanged: 0, themed: true });
+  h.footer.shutdown();
+});
+
+it.each<{
+  trigger: string;
+  width?: number;
+  repaint: boolean;
+  change: (
+    h: ReturnType<typeof harness>,
+    view: FooterView,
+    statuses: Map<string, string>,
+    paints: ReturnType<typeof countPaints>,
+  ) => Promise<void> | void;
+}>([
+  { trigger: "a width change", width: 100, repaint: true, change: () => {} },
+  {
+    trigger: "a quota update",
+    repaint: true,
+    change: (h) => {
+      h.events.emit("sub-core:update-current", {
+        state: {
+          provider: "codex",
+          usage: {
+            lastSuccessAt: h.runtime.clock.now(),
+            windows: [{ label: "Week", usedPercent: 42 }],
+          },
+        },
+      });
+    },
+  },
+  {
+    trigger: "an extension status change",
+    repaint: true,
+    change: (_h, _view, statuses) => {
+      statuses.set("source", "changed");
+    },
+  },
+  {
+    trigger: "a theme change",
+    repaint: true,
+    change: (_h, view, _statuses, paints) => {
+      paints.paint = (_role, value) => `[${value}]`;
+      view.invalidate();
+    },
+  },
+  {
+    trigger: "a model selection",
+    repaint: true,
+    change: (h) => {
+      h.context.model = {
+        id: "replacement",
+        provider: "openai",
+        contextWindow: 200_000,
+      };
+      h.footer.selectModel(h.context);
+    },
+  },
+  {
+    trigger: "a minute boundary while idle",
+    repaint: true,
+    change: async (h) => {
+      await h.runtime.clock.advance(60_000);
+    },
+  },
+  {
+    trigger: "a minute boundary while running",
+    repaint: true,
+    change: async (h) => {
+      h.footer.startAgent(h.context);
+      await h.runtime.clock.advance(60_000);
+    },
+  },
+  {
+    trigger: "a second within the same idle minute",
+    repaint: false,
+    change: async (h) => {
+      await h.runtime.clock.advance(1000);
+    },
+  },
+])(
+  "repaints the fallback footer after $trigger",
+  async ({ width = 120, repaint, change }) => {
+    const h = harness();
+    const paints = countPaints(h);
+    const statuses = new Map([["source", "initial"]]);
+    h.footer.start(h.context);
+    const create = fallbackView(h, statuses);
+    const view = create();
+    await h.runtime.clock.advance(0);
+    const before = view.render(120);
+    paints.count = 0;
+    await change(h, view, statuses, paints);
+    const after = view.render(width);
+    const painted = paints.count > 0;
+
+    expect({
+      painted,
+      changed: JSON.stringify(after) !== JSON.stringify(before),
+      after,
+    }).toStrictEqual({
+      painted: repaint,
+      changed: repaint,
+      after: create().render(width),
+    });
+    h.footer.shutdown();
+  },
+);
 
 it("restores a known PR when Git returns to its branch", async () => {
   const h = harness();
