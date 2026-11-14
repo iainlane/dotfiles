@@ -1,13 +1,10 @@
-import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import { afterEach, expect, it } from "vitest";
-import { z } from "zod";
+import { runProcess, type ProcessResult } from "./processes.ts";
 
-const execute = promisify(execFile);
 const directories: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -31,10 +28,10 @@ async function run(
     ci?: string;
     input?: string;
   } = {},
-): Promise<{ status: number; stdout: string; stderr: string }> {
+): Promise<ProcessResult> {
   const entry =
     options.entry === "runtime" ? "librechat-runtime" : "librechatctl";
-  const child = execute(
+  return await runProcess(
     process.execPath,
     [
       ...(options.preload === undefined
@@ -45,27 +42,14 @@ async function run(
     ],
     {
       cwd: tmpdir(),
-      timeout: 10_000,
       env: {
         ...process.env,
         CI: options.ci,
         LIBRECHAT_INTERNAL_MANIFEST: "/nonexistent/librechat-deployment.json",
       },
+      input: options.input,
     },
   );
-  child.child.stdin?.end(options.input ?? "");
-  try {
-    return { status: 0, ...(await child) };
-  } catch (error) {
-    const result = z
-      .object({ code: z.number(), stdout: z.string(), stderr: z.string() })
-      .parse(error);
-    return {
-      status: result.code,
-      stdout: result.stdout,
-      stderr: result.stderr,
-    };
-  }
 }
 
 it.each([[], ["--help"], ["bootstrap", "--help"]])(

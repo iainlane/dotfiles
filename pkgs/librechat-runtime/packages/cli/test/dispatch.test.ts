@@ -1,115 +1,131 @@
-import { expect, it, vi } from "vitest";
+import type { Logger } from "@logtape/logtape";
+import { expect, it } from "vitest";
 import { runCommand } from "#cli/application/dispatch";
-import { RuntimeErrorPolicy } from "#cli/application/runtime";
-import { testLogger } from "./logging.ts";
 import type {
-  AccountAccess,
   CommandDependencies,
-  Presentation,
+  Deployment,
   RuntimeServices,
 } from "#cli/application/ports";
+import { ErrorReporter } from "#cli/presentation/errors";
+import { testLogger } from "./logging.ts";
+import { FakeAccounts, FakeFiles, FakeTerminal } from "./fakes.ts";
 
-function fixture() {
-  const accounts = {
-    binding: vi.fn<AccountAccess["binding"]>().mockResolvedValue(null),
-    inspect: vi
-      .fn<AccountAccess["inspect"]>()
-      .mockResolvedValue({ exists: true, name: "Your Name" }),
-    passwordIssue: vi.fn<AccountAccess["passwordIssue"]>(),
-    bootstrap: vi.fn<AccountAccess["bootstrap"]>().mockResolvedValue(undefined),
+class DeploymentFileMissingError extends Error {
+  constructor(file: string) {
+    super(`No deployment manifest at ${file}`);
+    this.name = "DeploymentFileMissingError";
+  }
+}
+
+class FakeDeployment implements Deployment {
+  readonly accounts: FakeAccounts;
+  readonly url = "http://127.0.0.1:3080";
+  readonly workspaces: Set<string>;
+
+  constructor(accounts: FakeAccounts, workspaces: string[] = []) {
+    this.accounts = accounts;
+    this.workspaces = new Set(workspaces);
+  }
+
+  async resetWorkspace(conversation: string): Promise<void> {
+    this.workspaces.delete(conversation);
+  }
+}
+
+const services: RuntimeServices = {
+  serve: async () => {},
+  guest: async () => {},
+  hook: async () => {},
+  archive: async () => '{"archive":true}\n\n',
+};
+
+/**
+ * Reports diagnostics as the CLI does: service failures always include
+ * structured diagnostics, and command failures include them only on request.
+ */
+function diagnostics(logger: Logger): CommandDependencies["reportDiagnostics"] {
+  const output = { logger, secrets: [], write: () => {} };
+  const reporters = {
+    service: new ErrorReporter({ ...output, diagnostics: true }),
+    command: new ErrorReporter({ ...output, diagnostics: false }),
   };
-  const presentation = {
-    interactive: false,
-    text: vi.fn<Presentation["text"]>(),
-    password: vi.fn<Presentation["password"]>(),
-    confirm: vi.fn<Presentation["confirm"]>(),
-    intro: vi.fn<Presentation["intro"]>(),
-    info: vi.fn<Presentation["info"]>(),
-    success: vi.fn<Presentation["success"]>(),
-    outro: vi.fn<Presentation["outro"]>(),
-    error: vi.fn<Presentation["error"]>(),
-    cancel: vi.fn<Presentation["cancel"]>(),
-    progress: async <T>(
-      _message: string,
-      operation: () => Promise<T>,
-    ): Promise<T> => await operation(),
+  return (error, service, commandLogger) => {
+    reporters[service ? "service" : "command"].diagnose(error, commandLogger);
   };
-  const services = {
-    serve: vi.fn<RuntimeServices["serve"]>(),
-    guest: vi.fn<RuntimeServices["guest"]>(),
-    hook: vi.fn<RuntimeServices["hook"]>(),
-    archive: vi
-      .fn<RuntimeServices["archive"]>()
-      .mockResolvedValue('{"archive":true}\n\n'),
-  };
-  const resetWorkspace = vi
-    .fn<(conversation: string) => Promise<void>>()
-    .mockResolvedValue(undefined);
+}
+
+function fixture(
+  options: {
+    deployment?: FakeDeployment;
+    terminal?: FakeTerminal;
+    services?: Partial<RuntimeServices>;
+  } = {},
+) {
+  const presentation =
+    options.terminal ?? new FakeTerminal({ interactive: false });
+  const stdout: string[] = [];
   const logs: string[] = [];
+  const logger = testLogger((text) => logs.push(text));
   const dependencies = {
-    logger: testLogger((text) => logs.push(text)),
+    logger,
     manifest: "/manifest.json",
     presentation,
-    services,
-    files: { readText: vi.fn<CommandDependencies["files"]["readText"]>() },
-    openDeployment: vi
-      .fn<CommandDependencies["openDeployment"]>()
-      .mockResolvedValue({
-        accounts,
-        url: "http://127.0.0.1:3080",
-        resetWorkspace,
-      }),
-    writeOutput: vi.fn<CommandDependencies["writeOutput"]>(),
-    reportDiagnostics: vi.fn<CommandDependencies["reportDiagnostics"]>(),
+    services: { ...services, ...options.services },
+    files: new FakeFiles(),
+    openDeployment: async (file: string): Promise<Deployment> => {
+      if (options.deployment === undefined || file !== "/manifest.json") {
+        throw new DeploymentFileMissingError(file);
+      }
+      return options.deployment;
+    },
+    writeOutput: (text: string) => {
+      stdout.push(text);
+    },
+    reportDiagnostics: diagnostics(logger),
   } satisfies CommandDependencies;
-  return { dependencies, resetWorkspace, accounts, logs };
+  return {
+    dependencies,
+    screen: presentation.screen,
+    output: () => stdout.join(""),
+    logs: () => logs.map((line): unknown => JSON.parse(line)),
+  };
 }
 
 it.each([[], ["--help"], ["--version"], ["bootstrap", "--help"]])(
   "does not open the deployment for informational commands: %j",
   async (...args) => {
-    const { dependencies, accounts } = fixture();
+    const { dependencies, screen } = fixture({ terminal: new FakeTerminal() });
     const result = await runCommand(args, "public", dependencies);
-    expect({
-      result,
-      deployment: dependencies.openDeployment.mock.calls,
-      bootstrap: accounts.bootstrap.mock.calls,
-      intro: dependencies.presentation.intro.mock.calls,
-    }).toStrictEqual({
+    expect({ result, screen }).toStrictEqual({
       result: { status: 0, forceExit: false },
-      deployment: [],
-      bootstrap: [],
-      intro: [],
+      screen: [],
     });
   },
 );
 
 it("rejects invalid supplied values before deployment access", async () => {
-  const { dependencies } = fixture();
+  const { dependencies, screen, output } = fixture();
   const result = await runCommand(
     ["bootstrap", "--email", "invalid"],
     "public",
     dependencies,
   );
-  expect({
-    result,
-    deployment: dependencies.openDeployment.mock.calls,
-    output: dependencies.writeOutput.mock.calls,
-    errors: dependencies.presentation.error.mock.calls,
-  }).toStrictEqual({
+  expect({ result, output: output(), screen }).toStrictEqual({
     result: { status: 2, forceExit: false },
-    deployment: [],
-    output: [],
-    errors: [
-      [
-        "Invalid arguments. Use a valid email address for --email. Run librechatctl bootstrap --help for usage.",
-      ],
+    output: "",
+    screen: [
+      "Error: Invalid arguments. Use a valid email address for --email. Run librechatctl bootstrap --help for usage.",
     ],
   });
 });
 
 it("preserves the exact plain bootstrap completion line", async () => {
-  const { dependencies, accounts } = fixture();
+  const accounts = new FakeAccounts({
+    accounts: { "you@example.com": { name: "Old Name" } },
+  });
+  const { dependencies, output } = fixture({
+    deployment: new FakeDeployment(accounts),
+  });
   const result = await runCommand(
     ["bootstrap", "--email", "you@example.com", "--name", "Your Name"],
     "public",
@@ -117,38 +133,33 @@ it("preserves the exact plain bootstrap completion line", async () => {
   );
   expect({
     result,
-    bootstrap: accounts.bootstrap.mock.calls,
-    output: dependencies.writeOutput.mock.calls,
+    accounts: [...accounts.accounts],
+    output: output(),
   }).toStrictEqual({
     result: { status: 0, forceExit: true },
-    bootstrap: [
-      [{ email: "you@example.com", name: "Your Name", password: undefined }],
-    ],
-    output: [["LibreChat account bootstrap completed.\n"]],
+    accounts: [["you@example.com", { name: "Your Name" }]],
+    output: "LibreChat account bootstrap completed.\n",
   });
 });
 
 it("does not expose native error messages or claim success on failure", async () => {
-  const { dependencies, accounts } = fixture();
-  accounts.bootstrap.mockRejectedValue(
-    new Error("mongodb://private:password@example.com"),
-  );
+  const { dependencies, screen, output } = fixture({
+    deployment: new FakeDeployment(
+      new FakeAccounts({
+        failure: new Error("mongodb://private:password@example.com"),
+      }),
+    ),
+  });
   const result = await runCommand(
     ["bootstrap", "--email", "you@example.com", "--name", "Your Name"],
     "public",
     dependencies,
   );
-  expect({
-    result,
-    output: dependencies.writeOutput.mock.calls,
-    errors: dependencies.presentation.error.mock.calls,
-  }).toStrictEqual({
+  expect({ result, output: output(), screen }).toStrictEqual({
     result: { status: 1, forceExit: true },
-    output: [],
-    errors: [
-      [
-        "Could not bootstrap LibreChat. Check that the LibreChat services are running and consult their logs.",
-      ],
+    output: "",
+    screen: [
+      "Error: Could not bootstrap LibreChat. Check that the LibreChat services are running and consult their logs.",
     ],
   });
 });
@@ -156,31 +167,27 @@ it("does not expose native error messages or claim success on failure", async ()
 const conversation = "00000000-0000-4000-8000-000000000001";
 
 it("does not contact the deployment after workspace deletion is declined", async () => {
-  const { dependencies, resetWorkspace } = fixture();
-  dependencies.presentation.interactive = true;
-  dependencies.presentation.confirm.mockResolvedValue(false);
+  const { dependencies, screen } = fixture({ terminal: new FakeTerminal() });
   const result = await runCommand(
     ["reset", "--conversation", conversation],
     "public",
     dependencies,
   );
-  expect({
-    result,
-    deployment: dependencies.openDeployment.mock.calls,
-    reset: resetWorkspace.mock.calls,
-    cancellation: dependencies.presentation.cancel.mock.calls,
-  }).toStrictEqual({
+  expect({ result, screen }).toStrictEqual({
     result: { status: 130, forceExit: false },
-    deployment: [],
-    reset: [],
-    cancellation: [["Cancelled. No changes were made."]],
+    screen: [
+      "┌ Reset conversation workspace",
+      "? Delete this workspace, including unpushed work? (y/N)",
+      "Cancelled. No changes were made.",
+    ],
   });
 });
 
 it.each(["public", "runtime"] as const)(
   "preserves the %s workspace-reset output contract",
   async (entry) => {
-    const { dependencies, resetWorkspace } = fixture();
+    const deployment = new FakeDeployment(new FakeAccounts(), [conversation]);
+    const { dependencies, screen, output } = fixture({ deployment });
     const args = entry === "public" ? ["reset"] : ["reset", "/manifest.json"];
     const result = await runCommand(
       [...args, "--conversation", conversation, "--yes"],
@@ -189,43 +196,41 @@ it.each(["public", "runtime"] as const)(
     );
     expect({
       result,
-      reset: resetWorkspace.mock.calls,
-      output: dependencies.writeOutput.mock.calls,
-      prompts: dependencies.presentation.confirm.mock.calls,
+      workspaces: [...deployment.workspaces],
+      output: output(),
+      screen,
     }).toStrictEqual({
       result: { status: 0, forceExit: false },
-      reset: [[conversation]],
-      output: entry === "public" ? [["Workspace deleted.\n"]] : [],
-      prompts: [],
+      workspaces: [],
+      output: entry === "public" ? "Workspace deleted.\n" : "",
+      screen: [],
     });
   },
 );
 
 it("forwards archive response bytes without presentation", async () => {
-  const { dependencies } = fixture();
+  const { dependencies, screen, output } = fixture({
+    terminal: new FakeTerminal(),
+  });
   const result = await runCommand(
     ["archive", "session", "search", "concept"],
     "runtime",
     dependencies,
   );
-  expect({
-    result,
-    output: dependencies.writeOutput.mock.calls,
-    intro: dependencies.presentation.intro.mock.calls,
-    deployment: dependencies.openDeployment.mock.calls,
-  }).toStrictEqual({
+  expect({ result, output: output(), screen }).toStrictEqual({
     result: { status: 0, forceExit: false },
-    output: [['{"archive":true}\n\n']],
-    intro: [],
-    deployment: [],
+    output: '{"archive":true}\n\n',
+    screen: [],
   });
 });
 
 it("threads command child loggers into service operations without changing the parent context", async () => {
-  const { dependencies, logs } = fixture();
-  dependencies.services.guest.mockImplementation((_file, logger) => {
-    logger.info("Guest starting", { event: "guest-start" });
-    return Promise.resolve();
+  const { dependencies, logs } = fixture({
+    services: {
+      guest: async (_file, logger) => {
+        logger.info("Guest starting", { event: "guest-start" });
+      },
+    },
   });
   const result = await runCommand(
     ["guest", "/spec.json"],
@@ -233,10 +238,7 @@ it("threads command child loggers into service operations without changing the p
     dependencies,
   );
   dependencies.logger.info("Command returned", { event: "command-returned" });
-  expect({
-    result,
-    logs: logs.map((line): unknown => JSON.parse(line)),
-  }).toStrictEqual({
+  expect({ result, logs: logs() }).toStrictEqual({
     result: { status: 0, forceExit: false },
     logs: [
       {
@@ -260,37 +262,9 @@ it("threads command child loggers into service operations without changing the p
   });
 });
 
-it("reports the original service failure through the injected diagnostic output", async () => {
-  const { dependencies } = fixture();
-  const cause = new TypeError("fetch failed");
-  dependencies.services.guest.mockRejectedValue(cause);
-  const result = await runCommand(
-    ["guest", "/fixture/guest.json"],
-    "runtime",
-    dependencies,
-  );
-  expect({
-    result,
-    diagnostics: dependencies.reportDiagnostics.mock.calls,
-    errors: dependencies.presentation.error.mock.calls,
-  }).toStrictEqual({
-    result: { status: 1, forceExit: false },
-    diagnostics: [[cause, true, expect.any(Object)]],
-    errors: [["LibreChat command failed. Check the service logs."]],
-  });
-});
-
 it.each(["serve", "guest", "hook"] as const)(
-  "applies the composed diagnostic policy to escaping %s failures without an opt-in",
+  "reports the original %s failure as a service or command diagnostic",
   async (command) => {
-    const { dependencies } = fixture();
-    const output: string[] = [];
-    const logger = testLogger((text) => output.push(text));
-    const errors = new RuntimeErrorPolicy(
-      {},
-      (text) => output.push(text),
-      logger,
-    );
     const failure = Object.assign(new Error("startup failed"), {
       stack: undefined,
       cause: Object.assign(new Error("spawn failed"), {
@@ -298,19 +272,22 @@ it.each(["serve", "guest", "hook"] as const)(
         code: "ENOENT",
       }),
     });
-    dependencies.services[command].mockRejectedValue(failure);
-    const result = await runCommand([command, "/spec.json"], "runtime", {
-      ...dependencies,
-      logger,
-      reportDiagnostics: (error, service, commandLogger) =>
-        errors.diagnose(error, service, commandLogger),
+    const { dependencies, screen, logs } = fixture({
+      services: {
+        [command]: async () => {
+          throw failure;
+        },
+      },
     });
-    expect({
-      result,
-      output: output.map((line): unknown => JSON.parse(line)),
-    }).toStrictEqual({
+    const result = await runCommand(
+      [command, "/spec.json"],
+      "runtime",
+      dependencies,
+    );
+    expect({ result, screen, logs: logs() }).toStrictEqual({
       result: { status: 1, forceExit: false },
-      output:
+      screen: ["Error: LibreChat command failed. Check the service logs."],
+      logs:
         command === "hook"
           ? []
           : [

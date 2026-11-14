@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
-import { z } from "zod";
 import { hostManifestSchema } from "@dotfiles/librechat-runtime/manifest";
+import { runProcess } from "./processes.ts";
 
 const execute = promisify(execFile);
 const stringMatcher: unknown = expect.any(String);
@@ -53,28 +53,10 @@ it.each([
     );
 
     try {
-      let status: number | null = 0;
-      let output: { stdout: string; stderr: string };
-
-      try {
-        output = await execute(process.execPath, [entry], {
-          timeout: 10_000,
-          maxBuffer: 8 * 1024 * 1024,
-        });
-      } catch (error) {
-        const failure = z
-          .object({
-            code: z.number().nullable(),
-            stdout: z.string(),
-            stderr: z.string(),
-          })
-          .parse(error);
-        status = failure.code;
-        output = failure;
-      }
+      const output = await runProcess(process.execPath, [entry]);
 
       expect({
-        status,
+        status: output.status,
         stdout: digest(output.stdout),
         stderr: digest(output.stderr),
       }).toStrictEqual({
@@ -185,27 +167,19 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
   const file = join(directory, "manifest.json");
   await writeFile(file, JSON.stringify(manifest));
   try {
-    let failure: unknown;
-    try {
-      await execute(
-        process.execPath,
-        [
-          fileURLToPath(import.meta.resolve("#cli/bin/librechat-runtime")),
-          "serve",
-          file,
-        ],
-        { env: {}, timeout: 10_000 },
-      );
-    } catch (error) {
-      failure = error;
-    }
-    const output = z
-      .object({ code: z.number(), stdout: z.string(), stderr: z.string() })
-      .parse(failure);
+    const output = await runProcess(
+      process.execPath,
+      [
+        fileURLToPath(import.meta.resolve("#cli/bin/librechat-runtime")),
+        "serve",
+        file,
+      ],
+      { env: {} },
+    );
     const [first, ...messages] = output.stderr.trimEnd().split("\n");
     const diagnostic: unknown = JSON.parse(first ?? "");
     expect({
-      status: output.code,
+      status: output.status,
       stdout: output.stdout,
       containsSecret: output.stderr.includes(secret),
       diagnostics: [diagnostic, ...messages],
@@ -292,3 +266,86 @@ it("runs archive queries without host deployment dependencies", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+const guestFailure = {
+  name: "GuestStartupError",
+  message:
+    "Could not start the LibreChat guest service. Check its configuration and logs.",
+};
+
+const hookFailure = {
+  name: "WorkspaceReminderError",
+  message:
+    "The conversation controller could not prepare the workspace reminder. Check the LibreChat services.",
+};
+
+it.each([
+  {
+    command: "guest",
+    diagnostics: undefined,
+    error: guestFailure,
+    logged: true,
+  },
+  {
+    command: "hook",
+    diagnostics: undefined,
+    error: hookFailure,
+    logged: false,
+  },
+  { command: "hook", diagnostics: "1", error: hookFailure, logged: true },
+])(
+  "logs $command failure diagnostics with LIBRECHAT_DIAGNOSTICS=$diagnostics: $logged",
+  async ({ command, diagnostics, error, logged }) => {
+    const output = await runProcess(
+      process.execPath,
+      [
+        fileURLToPath(import.meta.resolve("#cli/bin/librechat-runtime")),
+        command,
+        "/nonexistent/spec.json",
+      ],
+      {
+        env:
+          diagnostics === undefined
+            ? {}
+            : { LIBRECHAT_DIAGNOSTICS: diagnostics },
+      },
+    );
+    const [first = "", ...messages] = output.stderr.trimEnd().split("\n");
+    const diagnostic: unknown = logged ? JSON.parse(first) : first;
+    expect({
+      status: output.status,
+      stdout: output.stdout,
+      stderr: [diagnostic, ...messages],
+    }).toStrictEqual({
+      status: 1,
+      stdout: "",
+      stderr: [
+        ...(logged
+          ? [
+              {
+                "@timestamp": stringMatcher,
+                level: "ERROR",
+                logger: "librechat",
+                message: "LibreChat operation failed",
+                entryPoint: "runtime",
+                command,
+                event: "librechat-service-error",
+                error: {
+                  ...error,
+                  stack: stringMatcher,
+                  cause: {
+                    name: "Error",
+                    message:
+                      "ENOENT: no such file or directory, open '/nonexistent/spec.json'",
+                    code: "ENOENT",
+                    stack: stringMatcher,
+                  },
+                },
+              },
+            ]
+          : []),
+        `Error: ${error.message}`,
+      ],
+    });
+  },
+);
