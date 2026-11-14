@@ -7,7 +7,7 @@ import {
 import { X509Certificate } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { certificates } from "#frontend/certificates";
 import { configSchema, loadConfig, upstreamPort } from "#frontend/config";
 import { checkHealth } from "#frontend/health";
@@ -25,6 +25,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -159,6 +160,37 @@ it("checks the running certificate, account and upstream through an injected tra
       issues: [{ code: "invalid_value", path: ["account"] }],
     },
     cause: undefined,
+  });
+});
+
+it("issues SHA-256 certificates whatever the host's OPENSSL_CONF contains", async () => {
+  const configuration = join(directory, "openssl.cnf");
+
+  await writeFile(
+    configuration,
+    [
+      "openssl_conf = init",
+      "[init]",
+      "providers = providers",
+      "[providers]",
+      "null = null_provider",
+      "[null_provider]",
+      "activate = 1",
+      "[req]",
+      "default_md = sha1",
+      "",
+    ].join("\n"),
+  );
+  vi.stubEnv("OPENSSL_CONF", configuration);
+
+  const chain = await certificates(join(directory, "state"));
+
+  expect({
+    ca: new X509Certificate(chain.ca).signatureAlgorithm,
+    leaf: new X509Certificate(chain.cert).signatureAlgorithm,
+  }).toStrictEqual({
+    ca: "ecdsa-with-SHA256",
+    leaf: "ecdsa-with-SHA256",
   });
 });
 

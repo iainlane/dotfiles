@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
+const openSslConfiguration = join(import.meta.dirname, "openssl.cnf");
 
 export interface CertificateCommand {
   run(arguments_: readonly string[]): Promise<void>;
@@ -28,7 +29,10 @@ export interface CertificateCommand {
 export class OpenSslCommand implements CertificateCommand {
   async run(arguments_: readonly string[]): Promise<void> {
     try {
-      await execute("openssl", arguments_, { timeout: 15000 });
+      await execute("openssl", arguments_, {
+        env: { ...process.env, OPENSSL_CONF: openSslConfiguration },
+        timeout: 15000,
+      });
     } catch (cause) {
       throw new CertificateCommandError({ cause });
     }
@@ -79,13 +83,18 @@ async function createCertificates(
       }
       const pending = join(temporary, "authority");
       await mkdir(pending, { mode: 0o700 });
+      // Without `ec_param_enc:named_curve`, LibreSSL 3.3 writes explicit
+      // curve parameters, which Node's TLS client rejects.
       await command.run([
         "req",
         "-x509",
+        "-sha256",
         "-newkey",
         "ec",
         "-pkeyopt",
         "ec_paramgen_curve:P-256",
+        "-pkeyopt",
+        "ec_param_enc:named_curve",
         "-nodes",
         "-days",
         "3650",
@@ -133,10 +142,13 @@ async function createCertificates(
     await command.run([
       "req",
       "-new",
+      "-sha256",
       "-newkey",
       "ec",
       "-pkeyopt",
       "ec_paramgen_curve:P-256",
+      "-pkeyopt",
+      "ec_param_enc:named_curve",
       "-nodes",
       "-subj",
       "/CN=api.anthropic.com",
@@ -145,9 +157,12 @@ async function createCertificates(
       "-out",
       requestFile,
     ]);
+    // Without `-sha256`, LibreSSL 3.3 signs with SHA-1, which Node's TLS
+    // client rejects.
     await command.run([
       "x509",
       "-req",
+      "-sha256",
       "-in",
       requestFile,
       "-CA",

@@ -1,0 +1,5 @@
+# LibreSSL's `req` fails without a `distinguished_name` section, even with -subj.
+[req]
+distinguished_name = subject
+
+[subject]
