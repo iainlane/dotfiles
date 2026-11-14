@@ -11,6 +11,9 @@ import {
   fauxText,
   fauxToolCall,
   getCurrentTools,
+  type AssistantMessage,
+  type FauxProviderHandle,
+  type FauxResponseFactory,
 } from "@earendil-works/pi-ai";
 import {
   createAgentSession,
@@ -21,6 +24,21 @@ import {
   SettingsManager,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
+
+// The faux provider replays a queue of responses. Re-queueing the factory makes
+// the provider answer every request from its transcript instead.
+function answerEveryRequest(
+  provider: FauxProviderHandle,
+  respond: (
+    messages: Parameters<FauxResponseFactory>[0]["messages"],
+  ) => AssistantMessage,
+): void {
+  const step: FauxResponseFactory = (context) => {
+    provider.appendResponses([step]);
+    return respond(context.messages);
+  };
+  provider.setResponses([step]);
+}
 
 export default function permissionContracts(pi: ExtensionAPI): void {
   pi.registerCommand("dotfiles-permission-contracts", {
@@ -61,39 +79,47 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         }),
       );
       const outcomes = ["allow", "deny"] as const;
-      main.setResponses(
-        outcomes.flatMap((outcome) => [
-          fauxAssistantMessage(
-            [
-              fauxToolCall(
-                "bash",
-                { command: `printf reviewed > shell-${outcome}.txt` },
-                { id: `shell-${outcome}` },
-              ),
-              fauxToolCall(
-                "write",
-                { path: `direct-${outcome}.txt`, content: "direct" },
-                { id: `direct-${outcome}` },
-              ),
-            ],
-            { stopReason: "toolUse" },
-          ),
-          fauxAssistantMessage(fauxText("Done.")),
-        ]),
-      );
-      const investigationTools: string[][] = [];
-      reviewer.setResponses(
-        outcomes.map((outcome) => (context) => {
-          investigationTools.push(
-            getCurrentTools(context.messages).map((tool) => tool.name),
-          );
-          return fauxAssistantMessage(
-            fauxText(
-              JSON.stringify({ outcome, rationale: "Fixture verdict." }),
+      answerEveryRequest(main, (messages) => {
+        const last = messages.at(-1);
+        if (last?.role !== "user") {
+          return fauxAssistantMessage(fauxText("Done."));
+        }
+        const outcome = JSON.stringify(last.content).includes("denied")
+          ? "deny"
+          : "allow";
+        return fauxAssistantMessage(
+          [
+            fauxToolCall(
+              "bash",
+              { command: `printf reviewed > shell-${outcome}.txt` },
+              { id: `shell-${outcome}` },
             ),
-          );
-        }),
-      );
+            fauxToolCall(
+              "write",
+              { path: `direct-${outcome}.txt`, content: "direct" },
+              { id: `direct-${outcome}` },
+            ),
+          ],
+          { stopReason: "toolUse" },
+        );
+      });
+      const investigationTools = new Set<string>();
+      answerEveryRequest(reviewer, (messages) => {
+        for (const tool of getCurrentTools(messages)) {
+          investigationTools.add(tool.name);
+        }
+        const request = JSON.stringify(
+          messages.findLast((message) => message.role === "user")?.content,
+        );
+        const outcome =
+          request.includes("shell-allow.txt") &&
+          !request.includes("shell-deny.txt")
+            ? "allow"
+            : "deny";
+        return fauxAssistantMessage(
+          fauxText(JSON.stringify({ outcome, rationale: "Fixture verdict." })),
+        );
+      });
       const settingsManager = SettingsManager.inMemory({
         compaction: { enabled: false },
         retry: { enabled: false },
@@ -141,6 +167,10 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         });
       const initial = await createSession();
       let session = initial.session;
+      const toolResults = () =>
+        session.messages
+          .filter((message) => message.role === "toolResult")
+          .map(({ toolCallId, isError }) => ({ toolCallId, isError }));
       const errors: unknown[] = [];
       const notices: string[] = [];
       try {
@@ -158,13 +188,13 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         await session.prompt("Perform the denied fixture actions.", {
           source: "rpc",
         });
+        await session.prompt("/auto-stats", { source: "rpc" });
         await session.waitForIdle();
         assert.deepStrictEqual(
           {
             errors,
             loadErrors: initial.extensionsResult.errors,
-            reviewCalls: reviewer.state.callCount,
-            investigationTools,
+            investigationTools: [...investigationTools],
             files: {
               allowed: readFileSync(join(cwd, "shell-allow.txt"), "utf8"),
               denied: existsSync(join(cwd, "shell-deny.txt")),
@@ -172,15 +202,12 @@ export default function permissionContracts(pi: ExtensionAPI): void {
                 readFileSync(join(cwd, `direct-${outcome}.txt`), "utf8"),
               ),
             },
-            results: session.messages
-              .filter((message) => message.role === "toolResult")
-              .map(({ toolCallId, isError }) => ({ toolCallId, isError })),
+            results: toolResults(),
           },
           {
             errors: [],
             loadErrors: [],
-            reviewCalls: 2,
-            investigationTools: [[], []],
+            investigationTools: [],
             files: {
               allowed: "reviewed",
               denied: false,
@@ -194,7 +221,6 @@ export default function permissionContracts(pi: ExtensionAPI): void {
             ],
           },
         );
-        await session.prompt("/auto-stats", { source: "rpc" });
         assert.match(notices[0] ?? "", /^Investigation: unavailable,/m);
 
         await session.extensionRunner.emit({
@@ -218,8 +244,7 @@ export default function permissionContracts(pi: ExtensionAPI): void {
           {
             errors,
             loadErrors: reopened.extensionsResult.errors,
-            mainCalls: main.state.callCount,
-            reviewCalls: reviewer.state.callCount,
+            results: toolResults(),
             reports: notices.map((message) =>
               message
                 .split("\n")
@@ -234,8 +259,7 @@ export default function permissionContracts(pi: ExtensionAPI): void {
           {
             errors: [],
             loadErrors: [],
-            mainCalls: 4,
-            reviewCalls: 2,
+            results: [],
             reports: [
               [
                 "Auto-review",
