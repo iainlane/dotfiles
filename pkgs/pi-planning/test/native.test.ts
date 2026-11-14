@@ -297,15 +297,17 @@ it.each([
       contextWindow: 128000,
       maxTokens: 4096,
     };
-    let calls = 0;
     const provider: ExtensionFactory = (pi) => {
       pi.registerProvider(model.provider, {
         apiKey: "fixture",
         api: model.api,
         baseUrl: model.baseUrl,
         models: [model],
-        streamSimple: () => {
-          const first = calls++ === 0;
+        streamSimple: (_model, context) => {
+          const slow = JSON.stringify(
+            context.messages.findLast((entry) => entry.role === "user")
+              ?.content,
+          ).includes("Investigate slowly");
           const assistant: AssistantMessage = {
             role: "assistant",
             content: [{ type: "text", text: "Fixture finished" }],
@@ -353,7 +355,7 @@ it.each([
           };
           queueMicrotask(() => {
             stream.push({ type: "start", partial: assistant });
-            if (!first) {
+            if (!slow) {
               finish();
               return;
             }
@@ -443,12 +445,10 @@ it.each([
         session.sessionManager.getSessionId(),
         nodeFiles,
       ).write("# Displayed plan\n");
-      const callsBefore = calls;
       const messagesBefore = [...session.messages];
       await session.prompt("/plan");
       await session.prompt("/plan");
       expect({
-        calls: calls - callsBefore,
         messages: session.messages,
         displays: session.sessionManager
           .getBranch()
@@ -458,7 +458,6 @@ it.each([
               : [],
           ),
       }).toStrictEqual({
-        calls: 0,
         messages: messagesBefore,
         displays: [plan, plan],
       });
@@ -606,8 +605,8 @@ it.each([
     let parentApi: ExtensionAPI | undefined;
     // The MCP extension registers the fixture server's tools after it connects
     // to the fixture server, and pi announces no event for that registration.
-    const mcpToolsRegistered = Promise.withResolvers<void>();
-    const mcpResourcesRegistered = Promise.withResolvers<void>();
+    // The test checks the registered tools again after each registration.
+    const registrationChecks = new Set<() => void>();
     const mcp: ExtensionFactory = (pi) =>
       createMcpExtension()(
         new Proxy(pi, {
@@ -615,11 +614,8 @@ it.each([
             if (property === "registerTool") {
               return (tool: Parameters<ExtensionAPI["registerTool"]>[0]) => {
                 target.registerTool(tool);
-                if (tool.name === "mcp__fixture__inspect_tool") {
-                  mcpToolsRegistered.resolve();
-                }
-                if (tool.name === "read_mcp_resource") {
-                  mcpResourcesRegistered.resolve();
+                for (const check of registrationChecks) {
+                  check();
                 }
               };
             }
@@ -997,19 +993,25 @@ it.each([
         ...(hasMcp ? ["mcp__fixture__inspect_tool", "read_mcp_resource"] : []),
         ...(mode === "mcp" ? ["tool_search"] : []),
       ];
-      if (hasMcp) {
-        await Promise.all([
-          mcpToolsRegistered.promise,
-          mcpResourcesRegistered.promise,
-        ]);
-      }
-      expect(
+      const missingTools = () =>
         requiredTools.filter(
           (name) =>
             parentApi?.getAllTools().some((tool) => tool.name === name) !==
             true,
-        ),
-      ).toStrictEqual([]);
+        );
+      if (hasMcp) {
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            if (missingTools().length === 0) {
+              registrationChecks.delete(check);
+              resolve();
+            }
+          };
+          registrationChecks.add(check);
+          check();
+        });
+      }
+      expect(missingTools()).toStrictEqual([]);
       const running = session.prompt("Exercise the fixed planning fixture.");
       if (mode === "research-cancel") {
         await childStarted.promise;

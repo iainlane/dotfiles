@@ -10,7 +10,7 @@ import {
   TuiAltScreen,
   VStack,
 } from "@earendil-works/pi-tui";
-import { beforeAll, expect, it, vi } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 import {
   reviewPlan,
   type ReviewContext,
@@ -20,7 +20,7 @@ import {
   renderPlanDocument,
   renderPlanReview,
 } from "#planning/review-render.ts";
-import { TestTerminal } from "./terminal.ts";
+import { TestTerminal, untilRendered } from "./terminal.ts";
 
 beforeAll(() => initTheme("dark", false));
 
@@ -176,8 +176,12 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
     mode: "tui",
     hasUI: true,
     ui: {
-      select: vi.fn<ReviewContext["ui"]["select"]>(),
-      input: vi.fn<ReviewContext["ui"]["input"]>(),
+      select: async () => {
+        throw new Error("The terminal review must not open a dialog.");
+      },
+      input: async () => {
+        throw new Error("The terminal review must not open a dialog.");
+      },
       getToolsExpanded: () => false,
       setToolsExpanded: () => {},
       custom: (factory) =>
@@ -195,21 +199,27 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
         }),
     },
   };
-  const edit = vi.fn<(path: string) => Promise<void>>(async () => {});
-  const startTui = tui.start.bind(tui);
-  const restarted = Promise.withResolvers<void>();
-  const start = vi.spyOn(tui, "start").mockImplementation(() => {
-    startTui();
-    if (start.mock.calls.length === 2) {
-      restarted.resolve();
-    }
-  });
+  const edited = {
+    ...plan,
+    revision: "edited",
+    content: `${plan.content}\n\nEdited in the external editor.`,
+  };
+  let saved = plan;
+  const editor = {
+    name: "nvim",
+    open: async (path: string) => {
+      if (path !== plan.path) {
+        throw new Error(`The fixture editor cannot find ${path}.`);
+      }
+      saved = edited;
+    },
+  };
   const pending = reviewPlan(
     ctx,
     {
       plan,
       signal: abort.signal,
-      read: () => plan,
+      read: () => saved,
       present: (presentedPlan) => {
         document = new ToolExecutionComponent(
           "submit_plan",
@@ -230,7 +240,7 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
         );
       },
     },
-    { name: "nvim", open: edit },
+    editor,
   );
   if (!question || !document) {
     throw new Error("Expected both a plan transcript and a question.");
@@ -280,19 +290,19 @@ it("routes fullscreen page keys and wheel events to the plan while its question 
     terminal.send(`\u001B[<0;3;${inputRow}m`);
     terminal.send("Keep interfaces.");
     terminal.send("\u0007");
-    await restarted.promise;
-    expect({ edits: edit.mock.calls, starts: start.mock.calls }).toStrictEqual({
-      edits: [[plan.path]],
-      starts: [[], []],
-    });
+    const released = !terminal.started;
+    await untilRendered(tui, () => terminal.started);
     for (const key of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
       terminal.send(key);
     }
     tui.renderNow();
-    expect(await pending).toStrictEqual({
-      decision: "current",
-      presentedPlan: plan,
-      feedback: "Keep interfaces.",
+    expect({ released, result: await pending }).toStrictEqual({
+      released: true,
+      result: {
+        decision: "current",
+        presentedPlan: edited,
+        feedback: "Keep interfaces.",
+      },
     });
   } finally {
     abort.abort();

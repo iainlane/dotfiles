@@ -38,28 +38,29 @@ afterEach(() => vi.useRealTimers());
 
 function fixture() {
   const listeners = new Map<string, (value: unknown) => void>();
-  const emit = vi.fn<(event: string, value: unknown) => void>((event, value) =>
-    listeners.get(event)?.(value),
-  );
-  const signal = new AbortController();
-  const pending = ensureSubagentsIdle(
-    {
-      emit,
-      on(event, callback) {
-        listeners.set(event, callback);
-        return () => {
-          listeners.delete(event);
-        };
-      },
+  // The native subagent service receives the status requests and leaves them
+  // for the test to answer.
+  const requests: unknown[] = [];
+  listeners.set("subagents:rpc:v1:request", (value) => {
+    requests.push(value);
+  });
+  const events = {
+    emit: (event: string, value: unknown) => listeners.get(event)?.(value),
+    on(event: string, callback: (value: unknown) => void) {
+      listeners.set(event, callback);
+      return () => {
+        listeners.delete(event);
+      };
     },
-    signal.signal,
-  );
-  const request = emit.mock.calls[0]?.[1];
+  };
+  const signal = new AbortController();
+  const pending = ensureSubagentsIdle(events, signal.signal);
+  const request = requests[0];
   if (!Check(requestSchema, request)) {
     throw new Error("The planning status check did not send a request ID.");
   }
   const reply = (value: Record<string, unknown>) =>
-    emit(`subagents:rpc:v1:reply:${request.requestId}`, {
+    events.emit(`subagents:rpc:v1:reply:${request.requestId}`, {
       version: 1,
       requestId: request.requestId,
       success: true,
@@ -68,24 +69,21 @@ function fixture() {
   return {
     pending,
     signal,
-    emit,
-    listeners,
+    requests,
+    listeners: () => [...listeners.keys()],
     reply,
     requestId: request.requestId,
   };
 }
 
 function statusRequest(requestId: string) {
-  return [
-    "subagents:rpc:v1:request",
-    {
-      version: 1,
-      requestId,
-      method: "status",
-      params: {},
-      source: { extension: "planning" },
-    },
-  ];
+  return {
+    version: 1,
+    requestId,
+    method: "status",
+    params: {},
+    source: { extension: "planning" },
+  };
 }
 
 it("checks the native fleet before approval with no active subagents", async () => {
@@ -94,9 +92,12 @@ it("checks the native fleet before approval with no active subagents", async () 
   f.reply({ data: { fleet: { totalActive: 0 } } });
   await expect(f.pending).resolves.toBeUndefined();
   expect({
-    request: f.emit.mock.calls[0],
-    listeners: f.listeners.size,
-  }).toStrictEqual({ request: statusRequest(f.requestId), listeners: 0 });
+    requests: f.requests,
+    listeners: f.listeners(),
+  }).toStrictEqual({
+    requests: [statusRequest(f.requestId)],
+    listeners: ["subagents:rpc:v1:request"],
+  });
 });
 
 it.each([1, 3])(
@@ -111,9 +112,12 @@ it.each([1, 3])(
       ),
     );
     expect({
-      request: f.emit.mock.calls[0],
-      listeners: f.listeners.size,
-    }).toStrictEqual({ request: statusRequest(f.requestId), listeners: 0 });
+      requests: f.requests,
+      listeners: f.listeners(),
+    }).toStrictEqual({
+      requests: [statusRequest(f.requestId)],
+      listeners: ["subagents:rpc:v1:request"],
+    });
   },
 );
 
@@ -128,14 +132,14 @@ it.each([
   const f = fixture();
   f.reply(reply);
   await expect(f.pending).rejects.toThrow("Cannot verify subagent status");
-  expect(f.listeners.size).toBe(0);
+  expect(f.listeners()).toStrictEqual(["subagents:rpc:v1:request"]);
 });
 
 it("cancels an outstanding status check on human exit", async () => {
   const f = fixture();
   f.signal.abort();
   await expect(f.pending).rejects.toThrow("status check was cancelled");
-  expect(f.listeners.size).toBe(0);
+  expect(f.listeners()).toStrictEqual(["subagents:rpc:v1:request"]);
 });
 
 it("times out when the native status service does not reply", async () => {
@@ -149,5 +153,5 @@ it("times out when the native status service does not reply", async () => {
     ),
     vi.advanceTimersByTimeAsync(5000),
   ]);
-  expect(f.listeners.size).toBe(0);
+  expect(f.listeners()).toStrictEqual(["subagents:rpc:v1:request"]);
 });

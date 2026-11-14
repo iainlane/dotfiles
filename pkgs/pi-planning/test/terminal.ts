@@ -31,6 +31,10 @@ export class TestTerminal implements Terminal {
   kittyProtocolActive = false;
   private input: ((data: string) => void) | undefined;
 
+  get started(): boolean {
+    return this.input !== undefined;
+  }
+
   start(input: (data: string) => void): void {
     this.input = input;
   }

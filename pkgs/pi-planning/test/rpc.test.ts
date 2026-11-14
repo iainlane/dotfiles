@@ -185,7 +185,6 @@ it.each(["controls", "unicode"])(
     );
     const records: RecordLine[] = [];
     const waits = new RecordWaits();
-    let selections = 0;
     let errors = "";
     const send = (value: unknown) =>
       child.stdin.write(JSON.stringify(value) + "\n");
@@ -207,7 +206,11 @@ it.each(["controls", "unicode"])(
         send({
           type: "extension_ui_response",
           id: record.id,
-          value: selections++ === 0 ? "Add a comment" : "No, keep planning",
+          value:
+            Array.isArray(record.options) &&
+            record.options.includes("Add a comment")
+              ? "Add a comment"
+              : "No, keep planning",
         });
       }
       if (record.method === "input") {

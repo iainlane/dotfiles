@@ -19,10 +19,7 @@ import {
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { expect, it, vi } from "vitest";
-import {
-  createPlanning,
-  type PlanningDependencies,
-} from "#planning/controller.ts";
+import { createPlanning } from "#planning/controller.ts";
 import { nodeFiles } from "#planning/node-files.ts";
 import {
   attachedPlanContext,
@@ -180,14 +177,6 @@ it.each<ApprovalScenario>([
     const cwd = await mkdtemp(join(tmpdir(), "pi-clear-cancellation-"));
     vi.stubEnv("PI_CODING_AGENT_DIR", join(cwd, "agent"));
     const ready = Promise.withResolvers<void>();
-    const sends =
-      vi.fn<
-        (
-          content: Parameters<
-            PlanningDependencies["sendImplementationMessage"]
-          >[0],
-        ) => void
-      >();
     const starts: string[] = [];
     const errors: unknown[] = [];
     const ordinary: { reason: string; context: string | undefined }[] = [];
@@ -204,9 +193,9 @@ it.each<ApprovalScenario>([
     }[] = [];
     const implementationPath = join(cwd, "implementation.txt");
     let releaseStatus: (() => void) | undefined;
-    let checks = 0;
+    let verifying = false;
+    let settling = false;
     let continued = false;
-    let calls = 0;
     let runSignal: AbortSignal | undefined;
     let controller: ReturnType<typeof createPlanning> | undefined;
     let session:
@@ -238,14 +227,11 @@ it.each<ApprovalScenario>([
         requestId: () => "approval-fixture",
         sendUserMessage: (message, options) =>
           pi.sendUserMessage(message, options),
-        sendImplementationMessage: (content, onError) => {
-          sends(content);
-          const options = { triggerTurn: true, onError };
+        sendImplementationMessage: (content, onError) =>
           pi.sendMessage(
             { customType: implementationMessageType, content, display: false },
-            options,
-          );
-        },
+            { triggerTurn: true, onError },
+          ),
         review: async (_ctx, request) => ({
           decision,
           presentedPlan: request.plan,
@@ -268,7 +254,7 @@ it.each<ApprovalScenario>([
               },
             },
           });
-        if (++checks === 3) {
+        if (verifying && releaseStatus === undefined) {
           releaseStatus = reply;
           ready.resolve();
           return;
@@ -304,40 +290,47 @@ it.each<ApprovalScenario>([
           const lastUser = context.messages.findLastIndex(
             (message) => message.role === "user",
           );
-          const written = context.messages
-            .slice(lastUser + 1)
-            .some(
+          const since = context.messages.slice(lastUser + 1);
+          const written = since.some(
+            (message) =>
+              message.role === "toolResult" && message.toolName === "write",
+          );
+          const researchRequest =
+            JSON.stringify(context.messages[lastUser]?.content).includes(
+              "private-research-marker",
+            ) &&
+            !since.some(
               (message) =>
-                message.role === "toolResult" && message.toolName === "write",
+                message.role === "toolResult" &&
+                message.toolName === "fixture_approval",
             );
-          const content: AssistantMessage["content"] =
-            calls++ === 0
-              ? [
-                  {
-                    type: "toolCall",
-                    id: "approve",
-                    name: "fixture_approval",
-                    arguments: {},
-                  },
-                ]
-              : planningActive
-                ? [{ type: "text", text: "No implementation changes made." }]
-                : written
-                  ? [{ type: "text", text: "Implementation complete." }]
-                  : [
-                      {
-                        type: "toolCall",
-                        id: "implement",
-                        name: "write",
-                        arguments: {
-                          path: implementationPath,
-                          content:
-                            ordinary.length > 0
-                              ? "Continued approved implementation\n"
-                              : "Approved implementation\n",
-                        },
+          const content: AssistantMessage["content"] = researchRequest
+            ? [
+                {
+                  type: "toolCall",
+                  id: "approve",
+                  name: "fixture_approval",
+                  arguments: {},
+                },
+              ]
+            : planningActive
+              ? [{ type: "text", text: "No implementation changes made." }]
+              : written
+                ? [{ type: "text", text: "Implementation complete." }]
+                : [
+                    {
+                      type: "toolCall",
+                      id: "implement",
+                      name: "write",
+                      arguments: {
+                        path: implementationPath,
+                        content:
+                          ordinary.length > 0
+                            ? "Continued approved implementation\n"
+                            : "Approved implementation\n",
                       },
-                    ];
+                    },
+                  ];
           const failedContinuation =
             continued && planningActive && continuation === "error";
           const reason = failedContinuation
@@ -410,9 +403,14 @@ it.each<ApprovalScenario>([
       });
       pi.on("input", () => planning.input());
       pi.on("turn_end", (event, ctx) => planning.turnEnd(event, ctx));
-      pi.on("agent_end", (_event, ctx) => {
+      pi.on("agent_end", async (_event, ctx) => {
         runSignal = ctx.signal;
-        return planning.verifyClear(ctx);
+        verifying = true;
+        try {
+          await planning.verifyClear(ctx);
+        } finally {
+          verifying = false;
+        }
       });
       pi.on("agent_before_settle", (event, ctx) =>
         planning.beforeSettle(event, ctx),
@@ -435,7 +433,14 @@ it.each<ApprovalScenario>([
           continue: true,
         };
       });
-      pi.on("agent_settled", (event, ctx) => planning.settled(event, ctx));
+      pi.on("agent_settled", (event, ctx) => {
+        settling = true;
+        try {
+          planning.settled(event, ctx);
+        } finally {
+          settling = false;
+        }
+      });
       if (ordinaryCompaction) {
         pi.on("session_before_compact", (event) => ({
           compaction: {
@@ -493,20 +498,19 @@ it.each<ApprovalScenario>([
         },
         onError: (error) => errors.push(error),
       });
-      const nativeSend = session.sendCustomMessage.bind(session);
-      let implementationAttempts = 0;
-      vi.spyOn(session, "sendCustomMessage").mockImplementation(
-        async (message, options) => {
-          if (
-            message.customType === implementationMessageType &&
-            ++implementationAttempts === 2 &&
-            launchFailure
-          ) {
+      if (launchFailure) {
+        // Planning requests the implementation run while Pi emits
+        // agent_settled for the previous run. Pi defers that request and
+        // starts the run afterwards, so the fault goes into the deferred
+        // start, which Pi reports through onError.
+        const nativeSend = session.sendCustomMessage.bind(session);
+        session.sendCustomMessage = async (message, options) => {
+          if (message.customType === implementationMessageType && !settling) {
             throw new Error("Fixture deferred launch failed");
           }
           await nativeSend(message, options);
-        },
-      );
+        };
+      }
       const launch = Promise.allSettled([
         session.prompt("private-research-marker"),
       ]);
@@ -563,7 +567,6 @@ it.each<ApprovalScenario>([
                 : undefined;
       expect({
         launch: await launch,
-        attempts: implementationAttempts,
         failures: manager
           .getBranch()
           .flatMap((entry) =>
@@ -574,7 +577,6 @@ it.each<ApprovalScenario>([
               ? [entry.data]
               : [],
           ),
-        idleChecks: checks,
         ordinary,
         reviewOutcomes: manager
           .getBranch()
@@ -591,7 +593,14 @@ it.each<ApprovalScenario>([
         ).includes(outcomeEntryType),
         errors,
         compactions,
-        sends: sends.mock.calls,
+        implementationMessages: manager
+          .getBranch()
+          .flatMap((entry) =>
+            entry.type === "custom_message" &&
+            entry.customType === implementationMessageType
+              ? [entry.content]
+              : [],
+          ),
         runAborted: runSignal?.aborted,
         retainedResearch: JSON.stringify(
           manager.buildSessionContext().messages,
@@ -609,7 +618,6 @@ it.each<ApprovalScenario>([
               }
             : { status: "fulfilled", value: undefined },
         ],
-        attempts: settledApproval ? 2 : 0,
         failures:
           failureReason === undefined
             ? []
@@ -622,7 +630,6 @@ it.each<ApprovalScenario>([
                   reason: failureReason,
                 },
               ],
-        idleChecks: continuation === undefined ? 3 : 4,
         ordinary: ordinaryCompaction
           ? [{ reason: "threshold", context: attachedPlanContext(plan) }]
           : [],
@@ -656,23 +663,18 @@ it.each<ApprovalScenario>([
                   token: "approval-fixture",
                 },
               })),
-        sends: settledApproval
+        implementationMessages: implementsPlan
           ? [
-              [
-                imageFeedback
-                  ? [
-                      {
-                        type: "text",
-                        text: implementationContext(
-                          plan,
-                          manager.getSessionId(),
-                        ),
-                      },
-                      { type: "text", text: "User image feedback:" },
-                      feedbackImage,
-                    ]
-                  : implementationContext(plan, manager.getSessionId()),
-              ],
+              imageFeedback
+                ? [
+                    {
+                      type: "text",
+                      text: implementationContext(plan, manager.getSessionId()),
+                    },
+                    { type: "text", text: "User image feedback:" },
+                    feedbackImage,
+                  ]
+                : implementationContext(plan, manager.getSessionId()),
             ]
           : [],
         runAborted: outcome === "aborted",

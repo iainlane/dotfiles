@@ -4,7 +4,7 @@ import type {
   ToolCallLabelContext,
   ToolRendererResolver,
 } from "@earendil-works/pi-coding-agent";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { registerPlanHeadings } from "#planning/plan-headings.ts";
 
 const cwd = join(homedir(), "heading-fixture");
@@ -83,23 +83,21 @@ it.each([
     if (!resolver) {
       throw new Error("Expected a planning heading resolver");
     }
-    const previous = vi.fn<
-      (args: unknown, context: ToolCallLabelContext) => string
-    >(() => "Delegated heading");
     const renderers = {
       renderShell: "self",
-      resolveCallLabel: previous,
+      resolveCallLabel: (input: unknown, context: ToolCallLabelContext) =>
+        `Delegated heading for ${context.toolName} in ${context.cwd} with ${JSON.stringify(input)}`,
     } as const;
     const resolved = resolver(tool, () => renderers);
     expect({
       label: resolved?.resolveCallLabel?.(args, { toolName: tool, cwd }),
       shell: resolved?.renderShell,
-      delegated: previous.mock.calls,
     }).toStrictEqual({
-      label,
+      label:
+        label === "Updated plan"
+          ? label
+          : `Delegated heading for ${tool} in ${cwd} with ${JSON.stringify(args)}`,
       shell: "self",
-      delegated:
-        label === "Updated plan" ? [] : [[args, { toolName: tool, cwd }]],
     });
   },
 );

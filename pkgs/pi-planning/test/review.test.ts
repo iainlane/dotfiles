@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
-import { initTheme } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import { initTheme, type ContextUsage } from "@earendil-works/pi-coding-agent";
 import {
   getKeybindings,
   KeybindingsManager,
@@ -11,14 +12,12 @@ import {
   type KeyId,
   type TuiMouseEvent,
 } from "@earendil-works/pi-tui";
-import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import {
   reviewPlan,
   type ReviewContext,
   type ReviewDecision,
-  type ReviewRequest,
   type ReviewResult,
-  type ReviewTerminal,
 } from "#planning/review.ts";
 import type { PlanRevision } from "#planning/store.ts";
 import { TestTerminal } from "./terminal.ts";
@@ -64,37 +63,76 @@ function fixture(editorKey: KeyId = "ctrl+g") {
       check();
     }
   };
-  const present = vi.fn<ReviewRequest["present"]>(notify);
-  const read = vi.fn<ReviewRequest["read"]>(() => original);
-  const readImage = vi.fn<NonNullable<ReviewRequest["readImage"]>>(
-    async () => feedbackImage,
-  );
-  const getContextUsage =
-    vi.fn<NonNullable<ReviewContext["getContextUsage"]>>();
-  const edit = vi.fn<(path: string) => Promise<void>>(async () => {});
-  const done = vi.fn<(result: ReviewResult) => void>();
-  const expanded = vi.fn<ReviewContext["ui"]["getToolsExpanded"]>(() => false);
-  const setExpanded = vi.fn<ReviewContext["ui"]["setToolsExpanded"]>();
+  const plan = { document: original as PlanRevision | Error };
+  const transcript: PlanRevision[] = [];
+  const clipboard = {
+    read: async (): Promise<ImageContent> => feedbackImage,
+  };
+  const ui = {
+    contextUsage: undefined as ContextUsage | undefined,
+    toolsExpanded: false,
+    blocked: undefined as unknown,
+    result: undefined as ReviewResult | undefined,
+  };
+  const editor = {
+    name: "nvim",
+    openPath: undefined as string | undefined,
+    saves: undefined as PlanRevision | Error | undefined,
+    failure: undefined as Error | undefined,
+    closed: Promise.resolve(),
+    async open(path: string) {
+      if (editor.openPath !== undefined) {
+        throw new Error("The fixture editor is already open.");
+      }
+      if (path !== original.path) {
+        throw new Error(`The fixture editor cannot find ${path}.`);
+      }
+      editor.openPath = path;
+      try {
+        await editor.closed;
+        if (editor.saves !== undefined) {
+          plan.document = editor.saves;
+        }
+        if (editor.failure) {
+          throw editor.failure;
+        }
+      } finally {
+        editor.openPath = undefined;
+      }
+    },
+  };
   const terminal = new TestTerminal();
+  const screen = { running: true };
   const tui = Object.assign(new TuiAltScreen(terminal), {
-    requestRender: vi.fn<ReviewTerminal["requestRender"]>(notify),
-    stop: vi.fn<ReviewTerminal["stop"]>(notify),
-    start: vi.fn<ReviewTerminal["start"]>(notify),
+    requestRender: notify,
+    stop: () => {
+      screen.running = false;
+      notify();
+    },
+    start: () => {
+      screen.running = true;
+      notify();
+    },
   });
   let component: ReviewComponent | undefined;
-  const customOptions: Parameters<ReviewContext["ui"]["custom"]>[1][] = [];
   const ctx: ReviewContext = {
     mode: "tui",
     hasUI: true,
     model: { input: ["text", "image"] },
-    getContextUsage,
+    getContextUsage: () => ui.contextUsage,
     ui: {
-      select: vi.fn<ReviewContext["ui"]["select"]>(),
-      input: vi.fn<ReviewContext["ui"]["input"]>(),
-      getToolsExpanded: expanded,
-      setToolsExpanded: setExpanded,
+      select: async () => {
+        throw new Error("The terminal review must not open a dialog.");
+      },
+      input: async () => {
+        throw new Error("The terminal review must not open a dialog.");
+      },
+      getToolsExpanded: () => ui.toolsExpanded,
+      setToolsExpanded: (expanded) => {
+        ui.toolsExpanded = expanded;
+      },
       custom: (factory, options) => {
-        customOptions.push(options);
+        ui.blocked = options?.blocked;
         return new Promise((resolve) => {
           component = factory(
             tui,
@@ -111,7 +149,11 @@ function fixture(editorKey: KeyId = "ctrl+g") {
                   : [editorKey],
             },
             (result) => {
-              done(result);
+              if (ui.result !== undefined) {
+                throw new Error("The plan question closed twice.");
+              }
+              ui.result = result;
+              ui.blocked = undefined;
               component?.dispose();
               resolve(result);
             },
@@ -129,17 +171,23 @@ function fixture(editorKey: KeyId = "ctrl+g") {
         {
           plan: original,
           signal: abort.signal,
-          present,
+          present: (presented) => {
+            transcript.push(presented);
+            notify();
+          },
           read: () => {
             try {
-              return read();
+              if (plan.document instanceof Error) {
+                throw plan.document;
+              }
+              return plan.document;
             } finally {
               notify();
             }
           },
-          readImage,
+          readImage: () => clipboard.read(),
         },
-        { name: "nvim", open: edit },
+        editor,
       );
     } finally {
       finished = true;
@@ -182,20 +230,17 @@ function fixture(editorKey: KeyId = "ctrl+g") {
   return {
     abort,
     ctx,
-    present,
-    read,
-    readImage,
-    getContextUsage,
-    edit,
-    done,
-    setExpanded,
-    tui,
+    plan,
+    transcript,
+    clipboard,
+    ui,
+    editor,
+    screen,
     terminal,
     pending,
     question,
     lines,
     until,
-    customOptions,
   };
 }
 
@@ -223,12 +268,10 @@ it.each([
     };
     expect({
       result: await f.pending,
-      decisions: f.done.mock.calls,
-      presented: f.present.mock.calls,
+      transcript: f.transcript,
     }).toStrictEqual({
       result: expected,
-      decisions: [[expected]],
-      presented: [[original]],
+      transcript: [original],
     });
   },
 );
@@ -267,23 +310,17 @@ it("keeps text feedback available when the model cannot receive images", async (
   for (const input of ["\t", "Text feedback", "\r"]) {
     f.question().handleInput?.(input);
   }
-  expect({
-    reads: f.readImage.mock.calls,
-    result: await f.pending,
-  }).toStrictEqual({
-    reads: [],
-    result: {
-      decision: "revise",
-      presentedPlan: original,
-      feedback: "Text feedback",
-    },
+  expect(await f.pending).toStrictEqual({
+    decision: "revise",
+    presentedPlan: original,
+    feedback: "Text feedback",
   });
 });
 
 it("drops late clipboard images after review cancellation", async () => {
   const f = fixture();
   const image = Promise.withResolvers<typeof feedbackImage>();
-  f.readImage.mockReturnValueOnce(image.promise);
+  f.clipboard.read = () => image.promise;
   f.question().handleInput?.("\u0016");
   f.abort.abort();
   const expected = { decision: "cancel", presentedPlan: original };
@@ -291,22 +328,21 @@ it("drops late clipboard images after review cancellation", async () => {
   image.resolve(feedbackImage);
   await image.promise;
   expect({
-    reads: f.readImage.mock.calls,
-    decisions: f.done.mock.calls,
+    result: f.ui.result,
     attached: f.lines().some((line) => line.includes("Attached image")),
-  }).toStrictEqual({ reads: [[]], decisions: [[expected]], attached: false });
+  }).toStrictEqual({ result: expected, attached: false });
 });
 
 it("waits for pending clipboard acquisition before accepting approval", async () => {
   const f = fixture();
   const image = Promise.withResolvers<typeof feedbackImage>();
-  f.readImage.mockReturnValueOnce(image.promise);
+  f.clipboard.read = () => image.promise;
   f.question().handleInput?.("\u0016");
   f.question().handleInput?.("\r");
   expect({
-    decisions: f.done.mock.calls,
+    result: f.ui.result,
     waiting: f.lines().some((line) => line.includes("Wait for the clipboard")),
-  }).toStrictEqual({ decisions: [], waiting: true });
+  }).toStrictEqual({ result: undefined, waiting: true });
   image.resolve(feedbackImage);
   await image.promise;
   for (const input of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
@@ -321,7 +357,9 @@ it("waits for pending clipboard acquisition before accepting approval", async ()
 
 it("keeps text feedback available after a clipboard transfer failure", async () => {
   const f = fixture();
-  f.readImage.mockRejectedValueOnce(new Error("Clipboard transfer failed"));
+  f.clipboard.read = async () => {
+    throw new Error("Clipboard transfer failed");
+  };
   f.question().handleInput?.("\u0016");
   await f.until(() =>
     f.lines().some((line) => line.includes("Clipboard transfer failed")),
@@ -343,11 +381,11 @@ it("retains native images and text through external-editor failure and saved rea
     f.lines().some((line) => line.includes("Attached image")),
   );
   f.question().handleInput?.("Keep this interface.");
-  f.read.mockReturnValueOnce(edited);
-  f.edit.mockRejectedValueOnce(new Error("Editor failed"));
+  f.editor.saves = edited;
+  f.editor.failure = new Error("Editor failed");
   f.question().handleInput?.("\u0007");
-  await f.until(() => f.present.mock.calls.length === 2);
-  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
+  await f.until(() => f.transcript.length === 2);
+  expect(f.transcript).toStrictEqual([original, edited]);
   for (const input of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -415,16 +453,13 @@ it.each([
 ])(
   "discards $invalid RPC feedback when cancelling with $choice",
   async ({ choice, invalid }) => {
-    const select = vi
-      .fn<ReviewContext["ui"]["select"]>()
-      .mockResolvedValueOnce("Add a comment")
-      .mockResolvedValueOnce(choice);
+    const choices = ["Add a comment", choice];
     const result = await reviewPlan(
       {
         mode: "rpc",
         hasUI: true,
         ui: {
-          select,
+          select: async () => choices.shift(),
           input: async () =>
             invalid === "oversized" ? "a".repeat(200001) : "\uD800",
           getToolsExpanded: () => false,
@@ -453,11 +488,11 @@ it.each([null, 0, 42])(
   "uses Pi's native context usage without estimating unknown values: %s",
   (percent) => {
     const f = fixture();
-    f.getContextUsage.mockReturnValue({
+    f.ui.contextUsage = {
       tokens: percent === null ? null : percent * 10,
       contextWindow: 1000,
       percent,
-    });
+    };
     expect(
       f
         .lines()
@@ -487,7 +522,7 @@ it("embeds multiline feedback between the other action rows", () => {
     secondLine: output.includes("Second line"),
     before: output.indexOf("Yes, clear context") < output.indexOf("First line"),
     after: output.indexOf("Continue planning") > output.indexOf("Second line"),
-    decisions: f.done.mock.calls,
+    result: f.ui.result,
   }).toStrictEqual({
     keep: true,
     clear: true,
@@ -495,7 +530,7 @@ it("embeds multiline feedback between the other action rows", () => {
     secondLine: true,
     before: true,
     after: true,
-    decisions: [],
+    result: undefined,
   });
 });
 
@@ -505,9 +540,9 @@ it("keeps oversized feedback editable without accepting a decision", async () =>
     f.question().handleInput?.(input);
   }
   expect({
-    decisions: f.done.mock.calls,
+    result: f.ui.result,
     guidance: f.lines().some((line) => line.includes("200,000 UTF-16")),
-  }).toStrictEqual({ decisions: [], guidance: true });
+  }).toStrictEqual({ result: undefined, guidance: true });
   f.abort.abort();
   expect(await f.pending).toStrictEqual({
     decision: "cancel",
@@ -521,9 +556,9 @@ it("requires nonempty feedback before submitting revisions", async () => {
     f.question().handleInput?.(input);
   }
   expect({
-    decisions: f.done.mock.calls,
+    result: f.ui.result,
     guidance: f.lines().some((line) => line.includes("Write feedback")),
-  }).toStrictEqual({ decisions: [], guidance: true });
+  }).toStrictEqual({ result: undefined, guidance: true });
   f.question().handleInput?.("Change the approach.");
   f.question().handleInput?.("\r");
   expect(await f.pending).toStrictEqual({
@@ -692,7 +727,7 @@ it.each(["current", "clear"] as const)(
     for (const input of ["\t", "Keep the public API.", "\u001B", "\u001B[A"]) {
       f.question().handleInput?.(input);
     }
-    expect(f.done.mock.calls).toStrictEqual([]);
+    expect(f.ui.result).toBeUndefined();
     if (decision === "current") {
       f.question().handleInput?.("\u001B[A");
     }
@@ -728,7 +763,7 @@ it("does not approve or submit a comment when its editor is cancelled", async ()
   for (const input of ["\t", "Unsubmitted comment", "\u001B"]) {
     f.question().handleInput?.(input);
   }
-  expect(f.done.mock.calls).toStrictEqual([]);
+  expect(f.ui.result).toBeUndefined();
   f.question().handleInput?.("\u001B");
   expect(await f.pending).toStrictEqual({
     decision: "cancel",
@@ -741,10 +776,10 @@ it("preserves the comment while the actual plan is edited", async () => {
   for (const input of ["\t", "Keep the public API."]) {
     f.question().handleInput?.(input);
   }
-  f.read.mockReturnValueOnce(edited);
+  f.editor.saves = edited;
   f.question().handleInput?.("\u0007");
-  await f.until(() => f.present.mock.calls.length === 2);
-  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
+  await f.until(() => f.transcript.length === 2);
+  expect(f.transcript).toStrictEqual([original, edited]);
   for (const input of ["\u001B", "\u001B[A", "\u001B[A", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -779,25 +814,27 @@ it("does not add letter accelerators to the choice list", () => {
   for (const key of ["a", "c", "r"]) {
     f.question().handleInput?.(key);
   }
-  expect(f.done.mock.calls).toStrictEqual([]);
+  expect(f.ui.result).toBeUndefined();
 });
 
 it("reports pi as waiting for the plan decision", async () => {
   const f = fixture();
-  expect(f.customOptions).toStrictEqual([
-    { blocked: { kind: "question", message: "Plan ready for review" } },
-  ]);
+  const waiting = f.ui.blocked;
   f.abort.abort();
   await f.pending;
+  expect({ waiting, afterwards: f.ui.blocked }).toStrictEqual({
+    waiting: { kind: "question", message: "Plan ready for review" },
+    afterwards: undefined,
+  });
 });
 
 it("retains the native tool-expansion shortcut", () => {
   const f = fixture();
   f.question().handleInput?.("\u000F");
   expect({
-    expanded: f.setExpanded.mock.calls,
-    decisions: f.done.mock.calls,
-  }).toStrictEqual({ expanded: [[true]], decisions: [] });
+    expanded: f.ui.toolsExpanded,
+    result: f.ui.result,
+  }).toStrictEqual({ expanded: true, result: undefined });
 });
 
 it("keeps the plan in the transcript rather than a private question viewport", async () => {
@@ -849,30 +886,37 @@ it.each([
   async ({ key, input }) => {
     const f = fixture(key);
     const editor = Promise.withResolvers<void>();
-    f.edit.mockReturnValueOnce(editor.promise);
-    f.read.mockReturnValueOnce(edited);
+    f.editor.closed = editor.promise;
+    f.editor.saves = edited;
     f.question().handleInput?.(input);
     f.question().handleInput?.(input);
     f.question().handleInput?.("\r");
     expect({
-      edits: f.edit.mock.calls,
-      decisions: f.done.mock.calls,
-    }).toStrictEqual({ edits: [[original.path]], decisions: [] });
-    editor.resolve();
-    await f.until(() => f.present.mock.calls.length === 2);
-    expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
-    expect({
-      stopped: f.tui.stop.mock.calls,
-      started: f.tui.start.mock.calls,
-      decisions: f.done.mock.calls,
-      editorHint: f
-        .lines()
-        .some((line) => line.includes(`${key} edit in nvim · ${edited.path}`)),
+      editing: f.editor.openPath,
+      terminalRunning: f.screen.running,
+      result: f.ui.result,
     }).toStrictEqual({
-      stopped: [[]],
-      started: [[]],
-      decisions: [],
+      editing: original.path,
+      terminalRunning: false,
+      result: undefined,
+    });
+    editor.resolve();
+    await f.until(() => f.screen.running);
+    const lines = f.lines();
+    expect({
+      transcript: f.transcript,
+      editing: f.editor.openPath,
+      result: f.ui.result,
+      editorHint: lines.some((line) =>
+        line.includes(`${key} edit in nvim · ${edited.path}`),
+      ),
+      editorError: lines.some((line) => line.includes("already open")),
+    }).toStrictEqual({
+      transcript: [original, edited],
+      editing: undefined,
+      result: undefined,
       editorHint: true,
+      editorError: false,
     });
     f.question().handleInput?.("\r");
     expect(await f.pending).toStrictEqual({
@@ -884,32 +928,34 @@ it.each([
 
 it("keeps the presented revision when the editor leaves the contents unchanged", async () => {
   const f = fixture();
-  f.read.mockReturnValue({ ...original });
+  f.editor.saves = { ...original };
   f.question().handleInput?.("\u0007");
-  await f.until(() => f.read.mock.calls.length === 1);
-  expect(f.read.mock.calls).toStrictEqual([[]]);
+  await f.until(() => f.screen.running);
   f.question().handleInput?.("\r");
   expect({
-    presented: f.present.mock.calls,
+    transcript: f.transcript,
     result: await f.pending,
   }).toStrictEqual({
-    presented: [[original]],
+    transcript: [original],
     result: { decision: "current", presentedPlan: original },
   });
 });
 
 it("restores the terminal and rereads saved edits after editor failure", async () => {
   const f = fixture();
-  f.edit.mockRejectedValueOnce(new Error("Editor failed"));
-  f.read.mockReturnValueOnce(edited);
+  f.editor.saves = edited;
+  f.editor.failure = new Error("Editor failed");
   f.question().handleInput?.("\u0007");
-  await f.until(() => f.present.mock.calls.length === 2);
-  expect(f.present.mock.calls).toStrictEqual([[original], [edited]]);
+  await f.until(() => f.screen.running);
   expect({
-    started: f.tui.start.mock.calls,
+    transcript: f.transcript,
     warning: f.lines().some((line) => line.includes("Editor failed")),
-    decisions: f.done.mock.calls,
-  }).toStrictEqual({ started: [[]], warning: true, decisions: [] });
+    result: f.ui.result,
+  }).toStrictEqual({
+    transcript: [original, edited],
+    warning: true,
+    result: undefined,
+  });
   for (const input of ["\t", "Revise the saved plan.", "\r"]) {
     f.question().handleInput?.(input);
   }
@@ -920,35 +966,27 @@ it("restores the terminal and rereads saved edits after editor failure", async (
   });
 });
 
-it.each(["missing", "empty", "template", "oversized"])(
+it.each(["missing", "empty", "template", "oversized"] as const)(
   "refuses approval of a %s plan after editing",
   async (state) => {
     const f = fixture();
-    if (state === "missing") {
-      f.read.mockImplementationOnce(() => {
-        throw new Error("Plan is missing");
-      });
-    }
-    if (state === "empty") {
-      f.read.mockReturnValueOnce({ ...edited, content: "" });
-    }
-    if (state === "oversized") {
-      f.read.mockReturnValueOnce({ ...edited, content: "x".repeat(200_001) });
-    }
-    if (state === "template") {
-      f.read.mockReturnValueOnce({
+    const saved = {
+      missing: new Error("Plan is missing"),
+      empty: { ...edited, content: "" },
+      oversized: { ...edited, content: "x".repeat(200_001) },
+      template: {
         ...edited,
         content:
           "# Implementation plan\n\nDraft the recommended approach here.\n",
-      });
-    }
+      },
+    };
+    f.editor.saves = saved[state];
     f.question().handleInput?.("\u0007");
-    await f.until(() => f.read.mock.calls.length === 1);
-    expect(f.read.mock.calls).toStrictEqual([[]]);
+    await f.until(() => f.screen.running);
     f.question().handleInput?.("\r");
     f.question().handleInput?.("\u001B[B");
     f.question().handleInput?.("\r");
-    expect(f.done.mock.calls).toStrictEqual([]);
+    expect(f.ui.result).toBeUndefined();
     f.question().handleInput?.("\u001B");
     expect((await f.pending).decision).toBe("cancel");
   },
@@ -957,16 +995,16 @@ it.each(["missing", "empty", "template", "oversized"])(
 it("does not revive an aborted question after the editor returns", async () => {
   const f = fixture();
   const editor = Promise.withResolvers<void>();
-  f.edit.mockReturnValueOnce(editor.promise);
+  f.editor.closed = editor.promise;
+  f.editor.saves = edited;
   f.question().handleInput?.("\u0007");
   f.abort.abort();
   const expected = { decision: "cancel", presentedPlan: original };
   expect(await f.pending).toStrictEqual(expected);
   editor.resolve();
-  await f.until(() => f.tui.start.mock.calls.length === 1);
-  expect(f.tui.start.mock.calls).toStrictEqual([[]]);
+  await f.until(() => f.screen.running);
   expect({
-    presented: f.present.mock.calls,
-    decisions: f.done.mock.calls,
-  }).toStrictEqual({ presented: [[original]], decisions: [[expected]] });
+    transcript: f.transcript,
+    result: f.ui.result,
+  }).toStrictEqual({ transcript: [original], result: expected });
 });

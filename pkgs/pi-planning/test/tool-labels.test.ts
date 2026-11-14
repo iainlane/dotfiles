@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import {
   createAgentSession,
@@ -16,9 +17,19 @@ import {
   type ToolRendererResolver,
 } from "@earendil-works/pi-coding-agent";
 import { TuiAltScreen, type Component } from "@earendil-works/pi-tui";
-import { beforeAll, expect, it, vi } from "vitest";
+import { Type } from "typebox";
+import { Check } from "typebox/value";
+import { beforeAll, expect, it } from "vitest";
 import { TestTerminal, untilRendered } from "./terminal.ts";
 import { registerPlanHeadings } from "#planning/plan-headings.ts";
+
+const pathSchema = Type.Object({ path: Type.String() });
+
+function capturedLabel(input: unknown, context: ToolCallLabelContext): string {
+  return Check(pathSchema, input)
+    ? `${context.toolName} ${basename(input.path, ".md")} in ${basename(context.cwd)}`
+    : "Missing path";
+}
 
 let session: AgentSession | undefined;
 let directory: string;
@@ -74,43 +85,33 @@ function visible(component: ToolExecutionComponent): string {
 it.each(["write", "edit"] as const)(
   "resolves a display-only %s call label with captured arguments and cwd",
   (toolName) => {
-    const cwd = "/fixture/captured";
+    const cwd = join(directory, "captured");
     const args = {
       path: "plans/draft.md",
       ...(toolName === "write" ? { content: "Preserved preview" } : {}),
     };
-    const resolveCallLabel = vi.fn<
-      (args: unknown, context: ToolCallLabelContext) => string
-    >(() => "Updated plan");
-    const base = definition(toolName);
-    const execute = vi.spyOn(base, "execute");
-    try {
-      const component = new ToolExecutionComponent(
-        toolName,
-        "identity",
-        args,
-        {},
-        { ...base, resolveCallLabel },
-        new TuiAltScreen(new TestTerminal()),
-        cwd,
-      );
-      const output = visible(component);
-      expect({
-        title: output.includes("Updated plan"),
-        path: output.includes("plans/draft.md"),
-        label: component.getCallLabel(),
-        resolution: resolveCallLabel.mock.calls,
-        execution: execute.mock.calls,
-      }).toStrictEqual({
-        title: true,
-        path: true,
-        label: "Updated plan",
-        resolution: [[args, { toolName, cwd }]],
-        execution: [],
-      });
-    } finally {
-      execute.mockRestore();
-    }
+    const component = new ToolExecutionComponent(
+      toolName,
+      "identity",
+      args,
+      {},
+      { ...definition(toolName), resolveCallLabel: capturedLabel },
+      new TuiAltScreen(new TestTerminal()),
+      cwd,
+    );
+    const output = visible(component);
+    const label = `${toolName} draft in captured`;
+    expect({
+      title: output.includes(label),
+      path: output.includes("plans/draft.md"),
+      label: component.getCallLabel(),
+      written: existsSync(join(cwd, "plans", "draft.md")),
+    }).toStrictEqual({
+      title: true,
+      path: true,
+      label,
+      written: false,
+    });
   },
 );
 

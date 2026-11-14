@@ -18,16 +18,14 @@ import {
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { expect, it, vi } from "vitest";
-import {
-  createPlanning,
-  type PlanningDependencies,
-} from "#planning/controller.ts";
+import { createPlanning } from "#planning/controller.ts";
 import {
   emptyPlanInputSchema,
   submitPlanOutputSchema,
 } from "#planning/contracts.ts";
 import { nodeFiles } from "#planning/node-files.ts";
 import { outcomeEntryType } from "#planning/outcomes.ts";
+import { implementationMessageType } from "#planning/prompt.ts";
 import { stateEntry } from "#planning/session.ts";
 import { PlanStore } from "#planning/store.ts";
 import { maxPlanCodeUnits } from "#planning/validation.ts";
@@ -93,14 +91,6 @@ it.each(
     vi.stubGlobal("fetch", capture);
     const feedback = atLimit("Keep this interface.\n", character);
     const content = atLimit("# Context\n\nRequested work.\n", character);
-    const sends =
-      vi.fn<
-        (
-          content: Parameters<
-            PlanningDependencies["sendImplementationMessage"]
-          >[0],
-        ) => void
-      >();
     const model: Model<"planning-transport-fixture"> = {
       id: "fixture",
       name: "Fixture",
@@ -113,7 +103,6 @@ it.each(
       contextWindow: 1_000_000,
       maxTokens: 16,
     };
-    let calls = 0;
     const extension: ExtensionFactory = (pi) => {
       const controller = createPlanning({
         openPlan: (id) => new PlanStore(join(cwd, "plans"), id, nodeFiles),
@@ -125,7 +114,15 @@ it.each(
         startInPlan: () => true,
         setReviewAvailable: () => {},
         sendUserMessage: () => {},
-        sendImplementationMessage: (message) => sends(message),
+        sendImplementationMessage: (implementation, onError) =>
+          pi.sendMessage(
+            {
+              customType: implementationMessageType,
+              content: implementation,
+              display: false,
+            },
+            { triggerTurn: true, onError },
+          ),
         requestId: () => "transport-fixture",
         review: async (_ctx, request) => ({
           decision: "current",
@@ -159,7 +156,9 @@ it.each(
         baseUrl: model.baseUrl,
         models: [model],
         streamSimple: (_model, context, options) => {
-          if (calls++ > 0) {
+          if (
+            context.messages.some((message) => message.role === "toolResult")
+          ) {
             return streamNative(
               {
                 ...model,
@@ -282,7 +281,11 @@ it.each(
       expect({
         codeUnits: [content.length, feedback.length],
         requests,
-        implementation: sends.mock.calls,
+        implementation: session.messages.filter(
+          (message) =>
+            message.role === "custom" &&
+            message.customType === implementationMessageType,
+        ),
       }).toStrictEqual({
         codeUnits: [maxPlanCodeUnits, maxPlanCodeUnits],
         requests: [

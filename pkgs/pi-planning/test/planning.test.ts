@@ -1,5 +1,5 @@
 import type { BoundaryResult } from "@earendil-works/pi-coding-agent";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import {
   createPlanning,
   type PlanningContext,
@@ -7,7 +7,7 @@ import {
   type PlanningResult,
 } from "#planning/controller.ts";
 import { researchPolicy } from "#planning/policy.ts";
-import type { PlanEditor } from "#planning/editor.ts";
+import { displayPath } from "#planning/presentation.ts";
 import {
   attachedPlanContext,
   enterPlanDescription,
@@ -15,10 +15,15 @@ import {
   planExitReminder,
   planningPrompt,
 } from "#planning/prompt.ts";
-import { reviewPlan } from "#planning/review.ts";
+import {
+  reviewPlan,
+  type ReviewRequest,
+  type ReviewResult,
+} from "#planning/review.ts";
 import { stateEntry } from "#planning/session.ts";
-import { outcomeEntryType } from "#planning/outcomes.ts";
-import { PlanStore } from "#planning/store.ts";
+import { outcomeEntryType, type PlanningOutcome } from "#planning/outcomes.ts";
+import type { PlanningStatus } from "#planning/status.ts";
+import { PlanStore, type PlanRevision } from "#planning/store.ts";
 import { MemoryFiles } from "./memory-files.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
@@ -29,6 +34,39 @@ afterEach(() => {
   }
 });
 
+const activeSubagent =
+  "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.";
+
+type Answer<T> = () => T | Promise<T>;
+
+type Dialog = { state: "open" | "answered" | "dismissed" } & (
+  | { kind: "confirm"; title: string; message: string }
+  | { kind: "select"; title: string; options: string[] }
+  | { kind: "input"; title: string; placeholder: string | undefined }
+);
+
+type ConversationMessage =
+  | {
+      kind: "user";
+      text: string;
+      options: Parameters<PlanningDependencies["sendUserMessage"]>[1];
+    }
+  | {
+      kind: "implementation";
+      content: Parameters<PlanningDependencies["sendImplementationMessage"]>[0];
+    };
+
+function review(
+  context: Parameters<PlanningDependencies["review"]>[0],
+  request: ReviewRequest,
+) {
+  return reviewPlan(context, request, { name: "nvim", open: async () => {} });
+}
+
+type ScriptedReview =
+  | ReviewResult
+  | ((request: ReviewRequest) => Promise<ReviewResult>);
+
 function fixture(
   branch: unknown[] = [],
   initialId = "session-one",
@@ -38,25 +76,74 @@ function fixture(
   const files = new MemoryFiles();
   const openPlan = (id: string) =>
     new PlanStore(`${directory}/plans`, id, files);
-  const disposed = vi.fn<() => void>();
-  const configure = vi.fn<PlanningDependencies["configure"]>(() => [disposed]);
-  const sendUserMessage = vi.fn<PlanningDependencies["sendUserMessage"]>();
-  const presentPlan = vi.fn<PlanningDependencies["presentPlan"]>();
-  const outcomes = vi.fn<PlanningDependencies["recordOutcome"]>();
+  const session = { id: initialId };
+  const pi = {
+    conversation: [] as ConversationMessage[],
+    outcomes: [] as PlanningOutcome[],
+    transcript: [] as PlanRevision[],
+    notifications: [] as { message: string; level: string | undefined }[],
+    statuses: new Map<string, string>(),
+    published: undefined as PlanningStatus | undefined,
+    reviewAvailable: false,
+    dialogs: [] as Dialog[],
+    planFlag: false,
+    research: [] as string[],
+    activeSubagents: 0,
+    journalFailure: undefined as Error | undefined,
+    launchFailure: undefined as Error | undefined,
+    researchFailure: undefined as Error | undefined,
+  };
+  const answers = {
+    confirm: [] as Answer<boolean>[],
+    select: [] as Answer<string | undefined>[],
+    input: [] as Answer<string | undefined>[],
+  };
+  const reviews: ScriptedReview[] = [];
+  let heldStatus:
+    | {
+        reached: PromiseWithResolvers<void>;
+        release: PromiseWithResolvers<void>;
+      }
+    | undefined;
+  const ask = async <T>(
+    dialog: Dialog,
+    script: Answer<T>[],
+    fallback: T,
+    signal: AbortSignal | undefined,
+  ): Promise<T> => {
+    pi.dialogs.push(dialog);
+    const dismiss = () => {
+      if (dialog.state === "open") {
+        dialog.state = "dismissed";
+      }
+    };
+    signal?.addEventListener("abort", dismiss, { once: true });
+    try {
+      const answer = script.shift();
+      const value = answer === undefined ? fallback : await answer();
+      if (dialog.state === "open") {
+        dialog.state = "answered";
+      }
+      return value;
+    } finally {
+      signal?.removeEventListener("abort", dismiss);
+    }
+  };
   const editor = {
     name: "fixture-editor",
-    open: vi.fn<PlanEditor["open"]>(async () => {}),
-  } satisfies PlanEditor;
-  const sendImplementationMessage =
-    vi.fn<
-      (
-        content: Parameters<
-          PlanningDependencies["sendImplementationMessage"]
-        >[0],
-      ) => void
-    >();
-  const select = vi.fn<PlanningContext["ui"]["select"]>();
-  const confirm = vi.fn<PlanningContext["ui"]["confirm"]>();
+    saves: undefined as string | undefined,
+    failure: undefined as Error | undefined,
+    closed: Promise.resolve(),
+    async open(path: string) {
+      await editor.closed;
+      if (editor.saves !== undefined) {
+        files.replace(path, editor.saves);
+      }
+      if (editor.failure) {
+        throw editor.failure;
+      }
+    },
+  };
   const run = new AbortController();
   const ctx: PlanningContext = {
     signal: run.signal,
@@ -65,16 +152,42 @@ function fixture(
     hasUI: true,
     model: { input: ["text", "image"] },
     sessionManager: {
-      getSessionId: () => initialId,
+      getSessionId: () => session.id,
       getBranch: () => branch,
       getSessionFile: () => "/fixture/session.jsonl",
     },
     ui: {
-      notify: vi.fn<PlanningContext["ui"]["notify"]>(),
-      setStatus: vi.fn<PlanningContext["ui"]["setStatus"]>(),
-      select,
-      input: vi.fn<PlanningContext["ui"]["input"]>(),
-      confirm,
+      notify: (message, level) => {
+        pi.notifications.push({ message, level });
+      },
+      setStatus: (key, text) => {
+        if (text === undefined) {
+          pi.statuses.delete(key);
+          return;
+        }
+        pi.statuses.set(key, text);
+      },
+      select: (title, options, opts) =>
+        ask(
+          { kind: "select", title, options, state: "open" },
+          answers.select,
+          undefined,
+          opts?.signal,
+        ),
+      input: (title, placeholder, opts) =>
+        ask(
+          { kind: "input", title, placeholder, state: "open" },
+          answers.input,
+          undefined,
+          opts?.signal,
+        ),
+      confirm: (title, message, opts) =>
+        ask(
+          { kind: "confirm", title, message, state: "open" },
+          answers.confirm,
+          false,
+          opts?.signal,
+        ),
       getToolsExpanded: () => false,
       setToolsExpanded: () => {},
       custom: async () => ({
@@ -83,34 +196,82 @@ function fixture(
       }),
     },
   };
+  const ensureSubagentsIdle = async (signal: AbortSignal) => {
+    signal.throwIfAborted();
+    const held = heldStatus;
+    if (held) {
+      held.reached.resolve();
+      const cancelled = Promise.withResolvers<void>();
+      const cancel = () =>
+        cancelled.reject(new Error("The subagent status check was cancelled."));
+      signal.addEventListener("abort", cancel, { once: true });
+      void (async () => {
+        await held.release.promise;
+        cancelled.resolve();
+      })();
+      try {
+        await cancelled.promise;
+      } finally {
+        signal.removeEventListener("abort", cancel);
+      }
+    }
+    if (pi.activeSubagents > 0) {
+      throw new Error(activeSubagent);
+    }
+  };
   let identity = 0;
-  const ensureSubagentsIdle = vi.fn<(signal: AbortSignal) => Promise<void>>(
-    async () => {},
-  );
-  const review = vi.fn<PlanningDependencies["review"]>((context, request) =>
-    reviewPlan(context, request, { name: "nvim", open: async () => {} }),
-  );
-  const startInPlan = vi.fn<PlanningDependencies["startInPlan"]>(() => false);
-  const setReviewAvailable =
-    vi.fn<PlanningDependencies["setReviewAvailable"]>();
-  const publishStatus =
-    vi.fn<NonNullable<PlanningDependencies["publishStatus"]>>();
   const controller = createPlanning({
     openPlan,
-    configure,
-    publishStatus,
-    presentPlan,
-    sendUserMessage,
-    sendImplementationMessage: (content) => sendImplementationMessage(content),
-    recordOutcome: outcomes,
+    configure: (sessionId) => {
+      if (pi.researchFailure) {
+        throw pi.researchFailure;
+      }
+      pi.research.push(sessionId);
+      return [
+        () => {
+          pi.research.splice(pi.research.indexOf(sessionId), 1);
+        },
+      ];
+    },
+    publishStatus: (status) => {
+      pi.published = status;
+    },
+    presentPlan: (plan) => {
+      pi.transcript.push(plan);
+    },
+    sendUserMessage: (text, options) => {
+      pi.conversation.push({ kind: "user", text, options });
+    },
+    sendImplementationMessage: (content) => {
+      if (pi.launchFailure) {
+        throw pi.launchFailure;
+      }
+      pi.conversation.push({ kind: "implementation", content });
+    },
+    recordOutcome: (outcome) => {
+      if (pi.journalFailure) {
+        throw pi.journalFailure;
+      }
+      pi.outcomes.push(outcome);
+    },
     recordSavedState: (data) => {
       branch.push({ type: "custom", customType: stateEntry, data });
     },
     ensureSubagentsIdle,
-    startInPlan,
-    setReviewAvailable,
+    startInPlan: () => pi.planFlag,
+    setReviewAvailable: (available) => {
+      pi.reviewAvailable = available;
+    },
     requestId: () => `ticket-${++identity}`,
-    review,
+    review: (context, request) => {
+      const scripted = reviews.shift();
+      if (scripted === undefined) {
+        return review(context, request);
+      }
+      return typeof scripted === "function"
+        ? scripted(request)
+        : Promise.resolve(scripted);
+    },
   });
   seed?.(openPlan);
   controller.start({ reason: "startup" }, ctx);
@@ -139,9 +300,25 @@ function fixture(
     }
   };
   return {
-    publishStatus,
-    select,
-    confirm,
+    pi,
+    session,
+    answers,
+    reviews,
+    review,
+    holdStatus: () => {
+      const held = {
+        reached: Promise.withResolvers<void>(),
+        release: Promise.withResolvers<void>(),
+      };
+      heldStatus = held;
+      return {
+        reached: held.reached.promise,
+        release: () => {
+          heldStatus = undefined;
+          held.release.resolve();
+        },
+      };
+    },
     directory,
     branch,
     controller,
@@ -152,19 +329,9 @@ function fixture(
     execute,
     call,
     path,
-    presentPlan,
-    outcomes,
     editor,
-    disposed,
-    configure,
-    sendUserMessage,
-    sendImplementationMessage,
     files,
     openPlan,
-    ensureSubagentsIdle,
-    startInPlan,
-    setReviewAvailable,
-    review,
     commit,
     completeApproval: async () => {
       commit(await prepareClear({ outcome: "completed" }, ctx));
@@ -175,25 +342,15 @@ function fixture(
 
 it("publishes semantic active state alongside the standalone native fallback", async () => {
   const h = fixture();
-  expect(h.publishStatus).toHaveBeenLastCalledWith({
-    sessionId: "session-one",
-    active: false,
+  const status = () => ({
+    published: h.pi.published,
+    native: h.pi.statuses.get("planning"),
   });
+  const initial = status();
   await h.command("");
-  expect(h.publishStatus).toHaveBeenLastCalledWith({
-    sessionId: "session-one",
-    active: true,
-  });
-  expect(h.ctx.ui.setStatus).toHaveBeenLastCalledWith(
-    "planning",
-    "plan mode on",
-  );
+  const entered = status();
   await h.command("exit");
-  expect(h.publishStatus).toHaveBeenLastCalledWith({
-    sessionId: "session-one",
-    active: false,
-  });
-  expect(h.ctx.ui.setStatus).toHaveBeenLastCalledWith("planning", undefined);
+  const exited = status();
   h.controller.restore({
     ...h.ctx,
     sessionManager: {
@@ -202,9 +359,23 @@ it("publishes semantic active state alongside the standalone native fallback", a
       getBranch: () => [],
     },
   });
-  expect(h.publishStatus).toHaveBeenLastCalledWith({
-    sessionId: "session-two",
-    active: false,
+  expect({ initial, entered, exited, restored: status() }).toStrictEqual({
+    initial: {
+      published: { sessionId: "session-one", active: false },
+      native: undefined,
+    },
+    entered: {
+      published: { sessionId: "session-one", active: true },
+      native: "plan mode on",
+    },
+    exited: {
+      published: { sessionId: "session-one", active: false },
+      native: undefined,
+    },
+    restored: {
+      published: { sessionId: "session-two", active: false },
+      native: undefined,
+    },
   });
 });
 
@@ -256,8 +427,24 @@ it.each(["a", "🦉"])(
     const result = await f.execute("submit_plan");
     expect({
       decision: result.details.decision,
-      reviewed: f.review.mock.calls.map(([, request]) => request.plan.content),
-    }).toStrictEqual({ decision: "cancel", reviewed: [content] });
+      dialogs: f.pi.dialogs,
+    }).toStrictEqual({
+      decision: "cancel",
+      dialogs: [
+        {
+          kind: "select",
+          title: `Review plan ${displayPath(f.path())}\n\n${content}`,
+          options: [
+            "Yes, keep context",
+            "Yes, clear context",
+            "No, keep planning",
+            "Continue planning",
+            "Add a comment",
+          ],
+          state: "answered",
+        },
+      ],
+    });
   },
 );
 
@@ -269,9 +456,9 @@ it.each(["a", "🦉"])(
     f.files.replace(f.path(), character.repeat(200_000 / character.length + 1));
     await expect(f.execute("submit_plan")).rejects.toThrow("200,000 UTF-16");
     expect({
-      reviews: f.review.mock.calls,
-      implementation: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ reviews: [], implementation: [] });
+      dialogs: f.pi.dialogs,
+      conversation: f.pi.conversation,
+    }).toStrictEqual({ dialogs: [], conversation: [] });
   },
 );
 
@@ -282,7 +469,7 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Context\nImplement the requested change.\n");
     const plan = f.openPlan("session-one").read();
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: plan,
       feedback: "Keep the API.",
@@ -306,26 +493,24 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: plan,
       feedback: "Keep the API.",
       images: [feedbackImage],
     });
     await f.execute("submit_plan");
-    expect(f.outcomes.mock.calls).toStrictEqual([
-      [
-        {
-          version: 1,
-          event: "review",
-          decision,
-          path: plan.path,
-          revision: plan.revision,
-          ...(decision === "cancel"
-            ? {}
-            : { feedback: "Keep the API.", images: [feedbackImage] }),
-        },
-      ],
+    expect(f.pi.outcomes).toStrictEqual([
+      {
+        version: 1,
+        event: "review",
+        decision,
+        path: plan.path,
+        revision: plan.revision,
+        ...(decision === "cancel"
+          ? {}
+          : { feedback: "Keep the API.", images: [feedbackImage] }),
+      },
     ]);
   },
 );
@@ -338,7 +523,7 @@ it.each([undefined, { input: ["text"] }] satisfies PlanningContext["model"][])(
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     f.ctx.model = model;
     const plan = f.openPlan("session-one").read();
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision: "current",
       presentedPlan: plan,
       images: [feedbackImage],
@@ -348,9 +533,9 @@ it.each([undefined, { input: ["text"] }] satisfies PlanningContext["model"][])(
     );
     await f.completeApproval();
     expect({
-      outcomes: f.outcomes.mock.calls,
-      implementation: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ outcomes: [], implementation: [] });
+      outcomes: f.pi.outcomes,
+      conversation: f.pi.conversation,
+    }).toStrictEqual({ outcomes: [], conversation: [] });
   },
 );
 
@@ -363,7 +548,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision: "current",
       presentedPlan: f.openPlan("session-one").read(),
       feedback,
@@ -371,9 +556,9 @@ it.each([
     await expect(f.execute("submit_plan")).rejects.toThrow(message);
     await f.completeApproval();
     expect({
-      outcomes: f.outcomes.mock.calls,
-      sends: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ outcomes: [], sends: [] });
+      outcomes: f.pi.outcomes,
+      conversation: f.pi.conversation,
+    }).toStrictEqual({ outcomes: [], conversation: [] });
   },
 );
 
@@ -406,16 +591,16 @@ it("does not restore implementation authority from persisted approval outcomes",
   f.controller.restore(f.ctx);
   await f.completeApproval();
   expect({
-    sends: f.sendImplementationMessage.mock.calls,
+    conversation: f.pi.conversation,
     guarded: (await f.call("write", { path: "project.ts" }))?.block,
-  }).toStrictEqual({ sends: [], guarded: true });
+  }).toStrictEqual({ conversation: [], guarded: true });
 });
 
 it("does not start image-based implementation after the model loses image support", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
-  f.review.mockResolvedValueOnce({
+  f.reviews.push({
     decision: "current",
     presentedPlan: f.openPlan("session-one").read(),
     images: [feedbackImage],
@@ -425,9 +610,9 @@ it("does not start image-based implementation after the model loses image suppor
   await expect(f.completeApproval()).rejects.toThrow("image-capable model");
   f.controller.settled({ aborted: false }, f.ctx);
   expect({
-    sends: f.sendImplementationMessage.mock.calls,
+    conversation: f.pi.conversation,
     guarded: (await f.call("write", { path: "project.ts" }))?.block,
-  }).toStrictEqual({ sends: [], guarded: true });
+  }).toStrictEqual({ conversation: [], guarded: true });
 });
 
 it("does not grant implementation when the outcome cannot be persisted", async () => {
@@ -435,20 +620,22 @@ it("does not grant implementation when the outcome cannot be persisted", async (
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.review.mockResolvedValueOnce({ decision: "current", presentedPlan: plan });
-  f.outcomes.mockImplementationOnce(() => {
-    throw new Error("Journal unavailable");
-  });
+  f.reviews.push({ decision: "current", presentedPlan: plan });
+  f.pi.journalFailure = new Error("Journal unavailable");
   await expect(f.execute("submit_plan")).rejects.toThrow("Journal unavailable");
+  f.pi.journalFailure = undefined;
   await f.completeApproval();
-  expect(f.sendImplementationMessage.mock.calls).toStrictEqual([]);
+  expect({
+    outcomes: f.pi.outcomes,
+    conversation: f.pi.conversation,
+  }).toStrictEqual({ outcomes: [], conversation: [] });
 });
 
 it.each([
   {
     stage: "verification",
     decision: "current",
-    reason: "Error: Research restarted",
+    reason: `Error: ${activeSubagent}`,
   },
   {
     stage: "boundary",
@@ -473,12 +660,10 @@ it.each([
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
-    f.review.mockResolvedValueOnce({ decision, presentedPlan: plan });
+    f.reviews.push({ decision, presentedPlan: plan });
     await f.execute("submit_plan");
     if (stage === "verification") {
-      f.ensureSubagentsIdle.mockRejectedValueOnce(
-        new Error("Research restarted"),
-      );
+      f.pi.activeSubagents = 1;
       await f.controller.verifyClear(f.ctx);
     }
     if (stage === "boundary") {
@@ -494,30 +679,26 @@ it.each([
     }
     f.controller.settled({ aborted: stage === "aborted" }, f.ctx);
     expect({
-      outcomes: f.outcomes.mock.calls,
-      sends: f.sendImplementationMessage.mock.calls,
+      outcomes: f.pi.outcomes,
+      conversation: f.pi.conversation,
     }).toStrictEqual({
       outcomes: [
-        [
-          {
-            version: 1,
-            event: "review",
-            decision,
-            path: plan.path,
-            revision: plan.revision,
-          },
-        ],
-        [
-          {
-            version: 1,
-            event: "implementation-failed",
-            path: plan.path,
-            revision: plan.revision,
-            reason,
-          },
-        ],
+        {
+          version: 1,
+          event: "review",
+          decision,
+          path: plan.path,
+          revision: plan.revision,
+        },
+        {
+          version: 1,
+          event: "implementation-failed",
+          path: plan.path,
+          revision: plan.revision,
+          reason,
+        },
       ],
-      sends: [],
+      conversation: [],
     });
   },
 );
@@ -527,61 +708,52 @@ it("records a failed implementation launch and never retries the consumed approv
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.review.mockResolvedValueOnce({ decision: "current", presentedPlan: plan });
-  f.sendImplementationMessage.mockImplementationOnce(() => {
-    throw new Error("Launch failed");
-  });
+  f.reviews.push({ decision: "current", presentedPlan: plan });
+  f.pi.launchFailure = new Error("Launch failed");
   await f.execute("submit_plan");
   await expect(f.completeApproval()).rejects.toThrow("Launch failed");
+  f.pi.launchFailure = undefined;
   f.controller.settled({ aborted: false }, f.ctx);
   expect({
-    outcomes: f.outcomes.mock.calls,
-    sends: f.sendImplementationMessage.mock.calls,
+    outcomes: f.pi.outcomes,
+    conversation: f.pi.conversation,
   }).toStrictEqual({
     outcomes: [
-      [
-        {
-          version: 1,
-          event: "review",
-          decision: "current",
-          path: plan.path,
-          revision: plan.revision,
-        },
-      ],
-      [
-        {
-          version: 1,
-          event: "implementation-failed",
-          path: plan.path,
-          revision: plan.revision,
-          reason: "Error: Launch failed",
-        },
-      ],
+      {
+        version: 1,
+        event: "review",
+        decision: "current",
+        path: plan.path,
+        revision: plan.revision,
+      },
+      {
+        version: 1,
+        event: "implementation-failed",
+        path: plan.path,
+        revision: plan.revision,
+        reason: "Error: Launch failed",
+      },
     ],
-    sends: [[implementationContext(plan, "/fixture/session.jsonl")]],
+    conversation: [],
   });
 });
 
-it.each(["input", "show", "review", "open"])(
+it.each(["input", "show", "review", "open", "exit"])(
   "does not revive approval after %s during the post-review idle check",
   async (action) => {
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
-    const checking = Promise.withResolvers<void>();
-    const secondCheck = Promise.withResolvers<void>();
-    f.review.mockResolvedValueOnce({
-      decision: "current",
-      presentedPlan: plan,
-    });
-    f.ensureSubagentsIdle.mockResolvedValueOnce().mockImplementationOnce(() => {
-      secondCheck.resolve();
-      return checking.promise;
+    const held = Promise.withResolvers<ReturnType<typeof f.holdStatus>>();
+    f.reviews.push(async () => {
+      held.resolve(f.holdStatus());
+      return { decision: "current", presentedPlan: plan };
     });
     const submitted = f.execute("submit_plan");
+    const status = await held.promise;
     await Promise.race([
-      secondCheck.promise,
+      status.reached,
       (async () => {
         await submitted;
         throw new Error("submit_plan finished before the second idle check.");
@@ -592,13 +764,15 @@ it.each(["input", "show", "review", "open"])(
     } else {
       await f.command(action === "show" ? "" : action);
     }
-    checking.resolve();
+    status.release();
     const result = await submitted;
     await f.completeApproval();
     expect({
       decision: result.details.decision,
-      sends: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ decision: "cancel", sends: [] });
+      implementation: f.pi.conversation.filter(
+        ({ kind }) => kind === "implementation",
+      ),
+    }).toStrictEqual({ decision: "cancel", implementation: [] });
   },
 );
 
@@ -607,16 +781,16 @@ it("rechecks idle research after the approval choice before accepting it", async
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.review.mockResolvedValueOnce({ decision: "current", presentedPlan: plan });
-  f.ensureSubagentsIdle
-    .mockResolvedValueOnce()
-    .mockRejectedValueOnce(new Error("Research is active"));
-  await expect(f.execute("submit_plan")).rejects.toThrow("Research is active");
+  f.reviews.push(async () => {
+    f.pi.activeSubagents = 1;
+    return { decision: "current", presentedPlan: plan };
+  });
+  await expect(f.execute("submit_plan")).rejects.toThrow(activeSubagent);
   await f.completeApproval();
   expect({
-    outcomes: f.outcomes.mock.calls,
-    sends: f.sendImplementationMessage.mock.calls,
-  }).toStrictEqual({ outcomes: [], sends: [] });
+    outcomes: f.pi.outcomes,
+    conversation: f.pi.conversation,
+  }).toStrictEqual({ outcomes: [], conversation: [] });
 });
 
 it.each([
@@ -634,19 +808,17 @@ it.each([
     }
     await f.command("");
     expect({
-      notifications: vi.mocked(f.ctx.ui.notify).mock.calls,
+      notifications: f.pi.notifications,
       exists: f.openPlan("session-one").exists(),
-      displayed: f.presentPlan.mock.calls,
+      transcript: f.pi.transcript,
       active: (await f.call("write", { path: "project.ts" }))?.block,
-      modelTurns: f.sendUserMessage.mock.calls,
-      implementation: f.sendImplementationMessage.mock.calls,
+      conversation: f.pi.conversation,
     }).toStrictEqual({
-      notifications: [[message, "info"]],
+      notifications: [{ message, level: "info" }],
       exists: false,
-      displayed: [],
+      transcript: [],
       active: true,
-      modelTurns: [],
-      implementation: [],
+      conversation: [],
     });
   },
 );
@@ -662,18 +834,16 @@ it("enters lazily and shows the saved plan without toggling off or starting a tu
 
   expect({
     initiallyMissing,
-    displays: f.presentPlan.mock.calls,
+    transcript: f.pi.transcript,
     active: (await f.call("write", { path: "project.ts" }))?.block,
-    configured: f.configure.mock.calls,
-    disposed: f.disposed.mock.calls,
-    modelTurns: f.sendUserMessage.mock.calls,
+    research: f.pi.research,
+    conversation: f.pi.conversation,
   }).toStrictEqual({
     initiallyMissing: true,
-    displays: [[plan], [plan]],
+    transcript: [plan, plan],
     active: true,
-    configured: [["session-one"]],
-    disposed: [],
-    modelTurns: [],
+    research: ["session-one"],
+    conversation: [],
   });
 });
 
@@ -682,25 +852,19 @@ it.each([false, true])(
   async (failure) => {
     const f = fixture();
     f.files.replace(f.path(), "# Earlier plan\n");
-    vi.mocked(f.editor.open).mockImplementationOnce(async (path) => {
-      f.files.replace(path, "# Saved editor changes\n");
-      if (failure) {
-        throw new Error("Fixture editor failed");
-      }
-    });
+    f.editor.saves = "# Saved editor changes\n";
+    f.editor.failure = failure ? new Error("Fixture editor failed") : undefined;
     await f.command("open");
     expect({
-      files: vi.mocked(f.editor.open).mock.calls,
-      displayed: f.presentPlan.mock.calls,
+      saved: f.files.read(f.path()),
+      transcript: f.pi.transcript,
       active: (await f.call("write", { path: "project.ts" }))?.block,
-      modelTurns: f.sendUserMessage.mock.calls,
-      implementation: f.sendImplementationMessage.mock.calls,
+      conversation: f.pi.conversation,
     }).toStrictEqual({
-      files: [[f.path()]],
-      displayed: [[f.openPlan("session-one").read()]],
+      saved: "# Saved editor changes\n",
+      transcript: [f.openPlan("session-one").read()],
       active: true,
-      modelTurns: [],
-      implementation: [],
+      conversation: [],
     });
   },
 );
@@ -708,22 +872,25 @@ it.each([false, true])(
 it("escapes untrusted editor errors before native notifications", async () => {
   const f = fixture();
   f.files.replace(f.path(), "# Context\nRequested work.\n");
-  f.editor.open.mockRejectedValueOnce(new Error("\u001B[8mconcealed\u001B[0m"));
+  f.editor.failure = new Error("\u001B[8mconcealed\u001B[0m");
   await f.command("open");
-  expect(vi.mocked(f.ctx.ui.notify).mock.calls).toStrictEqual([
-    ["Enabled plan mode", "info"],
-    ["Cannot edit the plan: Error: \\u001b[8mconcealed\\u001b[0m", "error"],
+  expect(f.pi.notifications).toStrictEqual([
+    { message: "Enabled plan mode", level: "info" },
+    {
+      message: "Cannot edit the plan: Error: \\u001b[8mconcealed\\u001b[0m",
+      level: "error",
+    },
   ]);
 });
 
 it("does not manufacture a plan when open is requested before the first write", async () => {
   const f = fixture();
+  f.editor.saves = "# Editor contents\n";
   await f.command("open");
   expect({
     exists: f.openPlan("session-one").exists(),
-    editor: vi.mocked(f.editor.open).mock.calls,
-    modelTurns: f.sendUserMessage.mock.calls,
-  }).toStrictEqual({ exists: false, editor: [], modelTurns: [] });
+    conversation: f.pi.conversation,
+  }).toStrictEqual({ exists: false, conversation: [] });
 });
 
 it("delivers reassessment once across restoration and later runs", async () => {
@@ -747,7 +914,7 @@ it.each(["exit", "restore", "shutdown"] as const)(
     const f = fixture();
     f.files.replace(f.path(), "# Saved plan\n");
     const finished = Promise.withResolvers<void>();
-    f.editor.open.mockReturnValueOnce(finished.promise);
+    f.editor.closed = finished.promise;
     const opening = f.command("open");
     await expect(f.execute("submit_plan")).rejects.toThrow("Finish editing");
     if (action === "exit") {
@@ -762,9 +929,9 @@ it.each(["exit", "restore", "shutdown"] as const)(
     finished.resolve();
     await opening;
     expect({
-      displayed: f.presentPlan.mock.calls,
-      implementation: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ displayed: [], implementation: [] });
+      transcript: f.pi.transcript,
+      conversation: f.pi.conversation,
+    }).toStrictEqual({ transcript: [], conversation: [] });
   },
 );
 
@@ -781,7 +948,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Ready plan\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
@@ -794,8 +961,8 @@ it.each([
 
     expect({
       boundary,
-      implementation: f.sendImplementationMessage.mock.calls,
-    }).toStrictEqual({ boundary: undefined, implementation: [] });
+      conversation: f.pi.conversation,
+    }).toStrictEqual({ boundary: undefined, conversation: [] });
   },
 );
 
@@ -803,9 +970,7 @@ it("delivers a pathless exit notice when plan metadata is unreadable", async () 
   const f = fixture();
   await f.command("");
   await f.command("exit");
-  vi.spyOn(f.files, "kind").mockImplementationOnce(() => {
-    throw new Error("Metadata failure");
-  });
+  f.files.failures.set(f.path(), new Error("Metadata failure"));
   expect({
     first: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
     next: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
@@ -828,7 +993,7 @@ it.each(["current", "clear"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
     const plan = f.openPlan("session-one").read();
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: plan,
       images: [feedbackImage],
@@ -839,9 +1004,7 @@ it.each(["current", "clear"] as const)(
     f.controller.settled({ aborted: false }, f.ctx);
     expect({
       images: result.content.filter((entry) => entry.type === "image"),
-      continuations: f.sendImplementationMessage.mock.calls.map(
-        ([content]) => content,
-      ),
+      conversation: f.pi.conversation,
       imageInSummary:
         boundary?.entries?.some(
           (entry) =>
@@ -850,15 +1013,18 @@ it.each(["current", "clear"] as const)(
         ) ?? false,
     }).toStrictEqual({
       images: [feedbackImage],
-      continuations: [
-        [
-          {
-            type: "text",
-            text: implementationContext(plan, "/fixture/session.jsonl"),
-          },
-          { type: "text", text: "User image feedback:" },
-          feedbackImage,
-        ],
+      conversation: [
+        {
+          kind: "implementation",
+          content: [
+            {
+              type: "text",
+              text: implementationContext(plan, "/fixture/session.jsonl"),
+            },
+            { type: "text", text: "User image feedback:" },
+            feedbackImage,
+          ],
+        },
       ],
       imageInSummary: false,
     });
@@ -868,28 +1034,27 @@ it.each(["current", "clear"] as const)(
 it("waits for entry consent before creating a plan or restricting tools", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.confirm.mockReturnValueOnce(answer.promise);
+  f.answers.confirm.push(() => answer.promise);
   const entering = f.controller.enterTool(f.ctx);
 
   expect({
-    question: f.confirm.mock.calls.map(([title, message]) => ({
-      title,
-      message,
-    })),
+    dialogs: f.pi.dialogs,
     planExists: f.openPlan("session-one").exists(),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
     saved: f.branch,
     projectWrite: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
-    question: [
+    dialogs: [
       {
+        kind: "confirm",
         title: "Enter Plan mode?",
         message:
           "Pi will investigate and draft an implementation plan for your approval. Only the plan file may be edited in Plan mode. Entering does not approve implementation.",
+        state: "open",
       },
     ],
     planExists: false,
-    configure: [],
+    research: [],
     saved: [],
     projectWrite: undefined,
   });
@@ -900,7 +1065,7 @@ it("waits for entry consent before creating a plan or restricting tools", async 
   expect({
     result,
     planExists: f.openPlan("session-one").exists(),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
     projectWrite: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
     result: {
@@ -909,7 +1074,7 @@ it("waits for entry consent before creating a plan or restricting tools", async 
       structuredContent: { status: "active", path: f.path(), instructions },
     },
     planExists: false,
-    configure: [["session-one"]],
+    research: ["session-one"],
     projectWrite: {
       block: true,
       reason: `Only the active plan may be edited: ${f.path()}`,
@@ -919,13 +1084,13 @@ it("waits for entry consent before creating a plan or restricting tools", async 
 
 it("keeps ordinary mode when entry consent is declined or cancelled", async () => {
   const f = fixture();
-  f.confirm.mockResolvedValueOnce(false);
+  f.answers.confirm.push(() => false);
   const instructions =
     "Plan mode was not entered. Continue in the current mode and follow the user's request.";
   expect({
     result: await f.controller.enterTool(f.ctx),
     planExists: f.openPlan("session-one").exists(),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
     saved: f.branch,
     projectWrite: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
@@ -935,7 +1100,7 @@ it("keeps ordinary mode when entry consent is declined or cancelled", async () =
       structuredContent: { status: "declined", instructions },
     },
     planExists: false,
-    configure: [],
+    research: [],
     saved: [],
     projectWrite: undefined,
   });
@@ -948,14 +1113,14 @@ it("refuses model-requested entry without a consent UI", async () => {
     "Plan mode entry requires user consent",
   );
   expect({
-    prompts: f.confirm.mock.calls,
+    dialogs: f.pi.dialogs,
     planExists: f.openPlan("session-one").exists(),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
     saved: f.branch,
   }).toStrictEqual({
-    prompts: [],
+    dialogs: [],
     planExists: false,
-    configure: [],
+    research: [],
     saved: [],
   });
 });
@@ -966,7 +1131,7 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
     const f = fixture();
     const answer = Promise.withResolvers<boolean>();
     const tool = new AbortController();
-    f.confirm.mockReturnValueOnce(answer.promise);
+    f.answers.confirm.push(() => answer.promise);
     const entering = f.controller.enterTool(f.ctx, tool.signal);
     if (cause === "tool") {
       tool.abort();
@@ -987,11 +1152,11 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
     answer.resolve(true);
     await expect(entering).rejects.toThrow("aborted");
     expect({
-      dialogAborted: f.confirm.mock.calls[0]?.[2]?.signal?.aborted,
+      dialogs: f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
       projectWrite: await f.call("write", { path: "project.ts" }),
       savedActive: f.branch.at(-1),
     }).toStrictEqual({
-      dialogAborted: true,
+      dialogs: [{ kind: "confirm", state: "dismissed" }],
       projectWrite: undefined,
       savedActive:
         cause === "human exit"
@@ -1013,25 +1178,27 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
 it("rejects consent for a different session identity", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.confirm.mockReturnValueOnce(answer.promise);
+  f.answers.confirm.push(() => answer.promise);
   const entering = f.controller.enterTool(f.ctx);
-  vi.spyOn(f.ctx.sessionManager, "getSessionId").mockReturnValue("replacement");
+  f.session.id = "replacement";
   answer.resolve(true);
   await expect(entering).rejects.toThrow("session changed");
-  expect(f.configure.mock.calls).toStrictEqual([]);
+  expect(f.pi.research).toStrictEqual([]);
 });
 
 it("does not open overlapping entry requests", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.confirm.mockReturnValueOnce(answer.promise);
+  f.answers.confirm.push(() => answer.promise);
   const entering = f.controller.enterTool(f.ctx);
   await expect(f.controller.enterTool(f.ctx)).rejects.toThrow(
     "entry request is already open",
   );
   answer.resolve(false);
   await entering;
-  expect(f.confirm).toHaveBeenCalledTimes(1);
+  expect(
+    f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
+  ).toStrictEqual([{ kind: "confirm", state: "answered" }]);
 });
 
 it("does not request entry consent again while Plan mode is active", async () => {
@@ -1040,13 +1207,13 @@ it("does not request entry consent again while Plan mode is active", async () =>
   f.files.replace(f.path(), "# Existing draft\n");
   await f.controller.enterTool(f.ctx);
   expect({
-    prompts: f.confirm.mock.calls,
+    dialogs: f.pi.dialogs,
     draft: f.files.read(f.path()),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
   }).toStrictEqual({
-    prompts: [],
+    dialogs: [],
     draft: "# Existing draft\n",
-    configure: [["session-one"]],
+    research: ["session-one"],
   });
 });
 
@@ -1054,29 +1221,32 @@ it("can request consent again after leaving Plan mode", async () => {
   const f = fixture();
   await f.command("");
   await f.command("exit");
-  f.confirm.mockResolvedValueOnce(true);
+  f.answers.confirm.push(() => true);
   await f.controller.enterTool(f.ctx);
-  expect(f.confirm).toHaveBeenCalledTimes(1);
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
+  expect({
+    dialogs: f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
+    projectWrite: (await f.call("write", { path: "project.ts" }))?.block,
+  }).toStrictEqual({
+    dialogs: [{ kind: "confirm", state: "answered" }],
+    projectWrite: true,
   });
 });
 
 it("honours the explicit startup flag without a consent UI", () => {
   const f = fixture();
   f.ctx.hasUI = false;
-  f.startInPlan.mockReturnValueOnce(true);
+  f.pi.planFlag = true;
   f.controller.start({ reason: "startup" }, f.ctx);
   expect({
-    reviewAvailability: f.setReviewAvailable.mock.calls,
-    prompts: f.confirm.mock.calls,
+    reviewAvailable: f.pi.reviewAvailable,
+    dialogs: f.pi.dialogs,
     planExists: f.openPlan("session-one").exists(),
-    configure: f.configure.mock.calls,
+    research: f.pi.research,
   }).toStrictEqual({
-    prompts: [],
+    reviewAvailable: true,
+    dialogs: [],
     planExists: false,
-    configure: [["session-one"]],
-    reviewAvailability: [[false], [false], [true]],
+    research: ["session-one"],
   });
 });
 
@@ -1085,15 +1255,23 @@ it("enters without a model call, preserves drafts, and releases child capabiliti
   await f.command("");
   const path = f.path();
   f.files.replace(path, "# Existing draft\n");
-  expect(f.configure.mock.calls).toStrictEqual([["session-one"]]);
+  const entered = [...f.pi.research];
   await f.command("exit");
-  expect(f.disposed.mock.calls).toStrictEqual([[]]);
+  const exited = [...f.pi.research];
   await f.command("");
-  expect(f.files.read(f.path())).toBe("# Existing draft\n");
-  expect([
-    ...f.sendUserMessage.mock.calls,
-    ...f.sendImplementationMessage.mock.calls,
-  ]).toStrictEqual([]);
+  expect({
+    entered,
+    exited,
+    reentered: f.pi.research,
+    draft: f.files.read(f.path()),
+    conversation: f.pi.conversation,
+  }).toStrictEqual({
+    entered: ["session-one"],
+    exited: [],
+    reentered: ["session-one"],
+    draft: "# Existing draft\n",
+    conversation: [],
+  });
 });
 
 it("refreshes planning guidance across turns, compaction and re-entry", async () => {
@@ -1207,18 +1385,21 @@ it.each([
     if (missing) {
       f.files.contents.delete(f.path());
     }
-    vi.mocked(f.ctx.ui.notify).mockClear();
+    f.pi.notifications.splice(0);
     if (exit === "command") {
       await f.command("exit");
     } else {
       f.controller.toggle(f.ctx);
     }
     expect({
-      notifications: vi.mocked(f.ctx.ui.notify).mock.calls,
+      notifications: f.pi.notifications,
       reminder: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
       planExists: f.openPlan("session-one").exists(),
     }).toStrictEqual({
-      notifications: exit === "command" ? [["Exited plan mode", "info"]] : [],
+      notifications:
+        exit === "command"
+          ? [{ message: "Exited plan mode", level: "info" }]
+          : [],
       reminder: {
         message: {
           customType: "dotfiles:planning-exit:v1",
@@ -1263,7 +1444,7 @@ it("reassesses an existing plan on re-entry and after restoration", async () => 
   f.files.replace(f.path(), "# Plan for an earlier task\n");
   const plan = f.openPlan("session-one").read();
   await f.command("exit");
-  f.confirm.mockResolvedValueOnce(true);
+  f.answers.confirm.push(() => true);
   const result = await f.controller.enterTool(f.ctx);
   f.controller.restore(f.ctx);
   const instructions = `${planningPrompt(f.path())}\n\nExisting plan:\nA plan file already exists at ${f.path()}. Read it and compare it with the user's current request.\n- If this is a different task, overwrite the old plan with a new one.\n- If this continues the same task, update the plan and remove obsolete details.\nDo not assume the old plan still applies. Update the plan file before requesting approval.`;
@@ -1317,35 +1498,31 @@ it.each(["missing", "empty", "unreadable"] as const)(
     f.files.replace(f.path(), "# Plan\n");
     await f.command("exit");
     f.controller.prompt({ systemPrompt: "Base" }, f.ctx);
-    vi.mocked(f.ctx.ui.notify).mockClear();
+    f.pi.notifications.splice(0);
     if (condition === "missing") {
       f.files.contents.delete(f.path());
     } else if (condition === "empty") {
       f.files.replace(f.path(), "  \n");
     } else {
-      vi.spyOn(f.files, "read").mockImplementationOnce(() => {
-        throw new Error("Fixture read failure");
-      });
+      f.files.failures.set(f.path(), new Error("Fixture read failure"));
     }
     expect({
       context: f.controller.compact(f.ctx),
-      notifications: vi.mocked(f.ctx.ui.notify).mock.calls,
-      sends: [
-        ...f.sendUserMessage.mock.calls,
-        ...f.sendImplementationMessage.mock.calls,
-      ],
+      notifications: f.pi.notifications,
+      conversation: f.pi.conversation,
     }).toStrictEqual({
       context: undefined,
       notifications:
         condition === "unreadable"
           ? [
-              [
-                "Cannot restore plan context: Error: Fixture read failure",
-                "warning",
-              ],
+              {
+                message:
+                  "Cannot restore plan context: Error: Fixture read failure",
+                level: "warning",
+              },
             ]
           : [],
-      sends: [],
+      conversation: [],
     });
   },
 );
@@ -1376,13 +1553,13 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
-    vi.mocked(f.ctx.ui.notify).mockClear();
-    f.review.mockResolvedValueOnce({
+    f.pi.notifications.splice(0);
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
     await f.execute("submit_plan");
-    expect(vi.mocked(f.ctx.ui.notify).mock.calls).toStrictEqual([]);
+    expect(f.pi.notifications).toStrictEqual([]);
   },
 );
 
@@ -1390,7 +1567,7 @@ it("offers same-session context clearing during approval", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Approved plan\n");
-  f.select.mockResolvedValueOnce("Yes, clear context");
+  f.answers.select.push(() => "Yes, clear context");
   expect((await f.execute("submit_plan")).details).toMatchObject({
     decision: "clear",
   });
@@ -1409,12 +1586,12 @@ it.each([
     parent: await f.call("bash", input),
     child: researchPolicy({ toolName: "bash", input }),
     input,
-    confirmations: f.confirm.mock.calls,
+    dialogs: f.pi.dialogs,
   }).toStrictEqual({
     parent: undefined,
     child: undefined,
     input: { command, timeout: 7 },
-    confirmations: [],
+    dialogs: [],
   });
 });
 
@@ -1475,7 +1652,7 @@ it.each([undefined, "No, keep planning"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Real plan\nImplement a change.\n");
-    f.select.mockResolvedValueOnce(choice);
+    f.answers.select.push(() => choice);
     await f.execute("submit_plan");
     expect(await f.call("write", { path: "implementation.ts" })).toMatchObject({
       block: true,
@@ -1488,7 +1665,7 @@ it("rejects approval when the file changes during review, then accepts the revie
   await f.command("");
   const path = f.path();
   f.files.replace(path, "# First plan\n");
-  f.select.mockImplementationOnce(async () => {
+  f.answers.select.push(async () => {
     f.files.replace(path, "# Changed plan\n");
     return "Yes, keep context";
   });
@@ -1498,7 +1675,7 @@ it("rejects approval when the file changes during review, then accepts the revie
   expect(await f.call("write", { path: "project.ts" })).toMatchObject({
     block: true,
   });
-  f.select.mockResolvedValueOnce("Yes, keep context");
+  f.answers.select.push(() => "Yes, keep context");
   await f.execute("submit_plan");
   expect(await f.call("write", { path: "project.ts" })).toMatchObject({
     block: true,
@@ -1513,7 +1690,7 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Initial plan\n");
-    f.review.mockImplementationOnce(async (_ctx, request) => {
+    f.reviews.push(async (request) => {
       f.files.replace(
         f.path(),
         "# Edited plan\n\nImplement the updated approach.\n",
@@ -1522,12 +1699,14 @@ it.each(["current", "clear"] as const)(
       request.present(presentedPlan);
       return { decision, presentedPlan };
     });
-    const updates = vi.fn<(update: PlanningResult) => void>();
-    const result = await f.controller.submit(f.ctx, undefined, updates);
+    const partialResults: PlanningResult[] = [];
+    const result = await f.controller.submit(f.ctx, undefined, (update) => {
+      partialResults.push(update);
+    });
     const presentedPlan = f.openPlan("session-one").read();
     expect({
       details: result.details,
-      updates: updates.mock.calls,
+      partialResults,
     }).toStrictEqual({
       details: {
         formatVersion: 1,
@@ -1540,13 +1719,11 @@ it.each(["current", "clear"] as const)(
             ? "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet."
             : "Plan approved. Wait for context clearing; keep this conversation in planning until the transition finishes.",
       },
-      updates: [
-        [
-          {
-            content: [{ type: "text", text: "Review the presented plan." }],
-            details: { decision: "pending", presentedPlan },
-          },
-        ],
+      partialResults: [
+        {
+          content: [{ type: "text", text: "Review the presented plan." }],
+          details: { decision: "pending", presentedPlan },
+        },
       ],
     });
   },
@@ -1558,7 +1735,7 @@ it.each(["current", "revise", "cancel"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Initial plan\n");
-    f.review.mockImplementationOnce(async (_ctx, request) => {
+    f.reviews.push(async (request) => {
       f.files.replace(f.path(), "# Edited plan\n\nKeep the user changes.\n");
       const presentedPlan = request.read();
       request.present(presentedPlan);
@@ -1594,7 +1771,7 @@ it.each(["# Unchanged plan\n", "# Externally revised plan\n"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), content);
-    f.select.mockResolvedValueOnce("Yes, keep context");
+    f.answers.select.push(() => "Yes, keep context");
     const result = await f.execute("submit_plan");
     const plan = f.openPlan("session-one").read();
     expect(result.content).toStrictEqual([
@@ -1618,7 +1795,7 @@ it.each(["current", "clear", "revise"] as const)(
     f.files.replace(f.path(), "# Approved plan\n");
     const plan = f.openPlan("session-one").read();
     const feedback = "Preserve the existing command-line interface.";
-    f.review.mockResolvedValueOnce({ decision, presentedPlan: plan, feedback });
+    f.reviews.push({ decision, presentedPlan: plan, feedback });
     const messages = {
       current:
         "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet.",
@@ -1691,10 +1868,11 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
-    f.select
-      .mockResolvedValueOnce("Add a comment")
-      .mockResolvedValueOnce(label);
-    vi.mocked(f.ctx.ui.input).mockResolvedValueOnce("Keep compatibility.");
+    f.answers.select.push(
+      () => "Add a comment",
+      () => label,
+    );
+    f.answers.input.push(() => "Keep compatibility.");
     const plan = f.openPlan("session-one").read();
     const result = await f.review(f.ctx, {
       plan,
@@ -1714,7 +1892,7 @@ it("uses the refreshed snapshot when clearing context", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Initial plan\n");
-  f.review.mockImplementationOnce(async (_ctx, request) => {
+  f.reviews.push(async (request) => {
     f.files.replace(f.path(), "# Edited plan\n");
     const presentedPlan = request.read();
     request.present(presentedPlan);
@@ -1741,7 +1919,7 @@ it("rejects another file change after the edited snapshot was presented", async 
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Initial plan\n");
-  f.review.mockImplementationOnce(async (_ctx, request) => {
+  f.reviews.push(async (request) => {
     f.files.replace(f.path(), "# Edited plan\n");
     const presentedPlan = request.read();
     request.present(presentedPlan);
@@ -1761,7 +1939,7 @@ it("cancels review without granting implementation authority", async () => {
   await f.command("");
   f.files.replace(f.path(), "# Plan\n");
   const answer = Promise.withResolvers<string | undefined>();
-  f.select.mockReturnValueOnce(answer.promise);
+  f.answers.select.push(() => answer.promise);
   const abort = new AbortController();
   const pending = f.execute("submit_plan", {}, abort.signal);
   abort.abort();
@@ -1778,31 +1956,36 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
     await f.execute("submit_plan");
     const boundary = await f.prepareClear({ outcome: "completed" }, f.ctx);
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
-    });
+    const beforeSettlement = {
+      projectWrite: (await f.call("write", { path: "project.ts" }))?.block,
+      reviewAvailable: f.pi.reviewAvailable,
+    };
     f.commit(boundary);
     f.controller.settled({ aborted: false }, f.ctx);
     f.controller.settled({ aborted: false }, f.ctx);
     const plan = f.openPlan("session-one").read();
     expect({
-      sends: [
-        ...f.sendUserMessage.mock.calls,
-        ...f.sendImplementationMessage.mock.calls,
-      ],
+      beforeSettlement,
+      conversation: f.pi.conversation,
       sessionId: f.ctx.sessionManager.getSessionId(),
       plan,
       projectWrite: await f.call("write", { path: "project.ts" }),
       prompt: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
-      reviewAvailability: f.setReviewAvailable.mock.calls,
+      reviewAvailable: f.pi.reviewAvailable,
     }).toStrictEqual({
-      sends: [[implementationContext(plan, "/fixture/session.jsonl")]],
+      beforeSettlement: { projectWrite: true, reviewAvailable: true },
+      conversation: [
+        {
+          kind: "implementation",
+          content: implementationContext(plan, "/fixture/session.jsonl"),
+        },
+      ],
       sessionId: "session-one",
       plan: {
         path: f.path(),
@@ -1811,7 +1994,7 @@ it.each(["current", "clear"] as const)(
       },
       projectWrite: undefined,
       prompt: undefined,
-      reviewAvailability: [[false], [true], [false]],
+      reviewAvailable: false,
     });
   },
 );
@@ -1829,7 +2012,7 @@ it.each(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
@@ -1837,7 +2020,7 @@ it.each(
     f.commit(await f.prepareClear({ outcome: "completed" }, f.ctx));
     f.controller.beforeSettle({ outcome }, f.ctx);
     f.controller.settled({ aborted: false }, f.ctx);
-    expect(f.sendImplementationMessage.mock.calls).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
   },
 );
 
@@ -1852,7 +2035,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
@@ -1866,10 +2049,7 @@ it.each([
       f.files.replace(f.path(), "# External change\n");
     }
     f.controller.settled({ aborted: false }, f.ctx);
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
     expect(await f.call("write", { path: "project.ts" })).toMatchObject({
       block: true,
     });
@@ -1882,14 +2062,11 @@ it.each(["aborted", "error"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.select.mockResolvedValueOnce("Yes, clear context");
+    f.answers.select.push(() => "Yes, clear context");
     await f.execute("submit_plan");
     expect(await f.prepareClear({ outcome }, f.ctx)).toBeUndefined();
     f.controller.settled({ aborted: outcome === "aborted" }, f.ctx);
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
     expect(await f.call("write", { path: "project.ts" })).toMatchObject({
       block: true,
     });
@@ -1902,7 +2079,7 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.review.mockResolvedValueOnce({
+    f.reviews.push({
       decision,
       presentedPlan: f.openPlan("session-one").read(),
     });
@@ -1914,11 +2091,11 @@ it.each(["current", "clear"] as const)(
     f.controller.settled({ aborted: false }, f.ctx);
     expect({
       boundary,
-      continuations: f.sendImplementationMessage.mock.calls,
+      conversation: f.pi.conversation,
       projectWrite: await f.call("write", { path: "project.ts" }),
     }).toStrictEqual({
       boundary: undefined,
-      continuations: [],
+      conversation: [],
       projectWrite: {
         block: true,
         reason: `Only the active plan may be edited: ${f.path()}`,
@@ -1933,22 +2110,18 @@ it("restores planning through reload and compaction without replaying a model pr
   const path = f.path();
   f.files.replace(path, "# Durable plan\n");
   f.controller.start({ reason: "reload" }, f.ctx);
+  const reloaded = f.pi.reviewAvailable;
   f.controller.compact(f.ctx);
-  expect(f.setReviewAvailable.mock.calls).toStrictEqual([
-    [false],
-    [true],
-    [true],
-    [true],
-  ]);
+  expect({ reloaded, compacted: f.pi.reviewAvailable }).toStrictEqual({
+    reloaded: true,
+    compacted: true,
+  });
   expect(f.path()).toBe(path);
   expect(f.files.read(path)).toBe("# Durable plan\n");
   expect(await f.call("write", { path: "project.ts" })).toMatchObject({
     block: true,
   });
-  expect([
-    ...f.sendUserMessage.mock.calls,
-    ...f.sendImplementationMessage.mock.calls,
-  ]).toStrictEqual([]);
+  expect(f.pi.conversation).toStrictEqual([]);
 });
 
 it.each([false, true])(
@@ -1959,8 +2132,7 @@ it.each([false, true])(
     const original = f.path();
     f.files.replace(original, "# Original plan\n");
 
-    const sessionId = vi.spyOn(f.ctx.sessionManager, "getSessionId");
-    sessionId.mockReturnValue("first-fork");
+    f.session.id = "first-fork";
     f.controller.start({ reason: "fork" }, f.ctx);
     const first = f.openPlan("first-fork");
     f.files.replace(first.path, "# Edited fork plan\n");
@@ -1969,7 +2141,7 @@ it.each([false, true])(
       f.controller.start({ reason: "reload" }, f.ctx);
     }
 
-    sessionId.mockReturnValue("nested-fork");
+    f.session.id = "nested-fork";
     f.controller.start({ reason: "fork" }, f.ctx);
     const nested = f.openPlan("nested-fork");
     expect({
@@ -1981,10 +2153,7 @@ it.each([false, true])(
       first: "# Edited fork plan\n",
       nested: "# Edited fork plan\n",
     });
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
   },
 );
 
@@ -2013,8 +2182,7 @@ it.each([false, true])(
     );
     f.files.replace(first.path, "# Edited inactive plan\n");
 
-    const sessionId = vi.spyOn(f.ctx.sessionManager, "getSessionId");
-    sessionId.mockReturnValue("nested-fork");
+    f.session.id = "nested-fork";
     f.controller.start({ reason: "fork" }, f.ctx);
     const nested = f.openPlan("nested-fork");
 
@@ -2022,13 +2190,13 @@ it.each([false, true])(
       original: original.exists() ? original.read().content : null,
       first: first.read().content,
       nested: nested.read().content,
-      configured: f.configure.mock.calls,
+      research: f.pi.research,
       projectWrite: await f.call("write", { path: "project.ts" }),
     }).toStrictEqual({
       original: hasDraft ? "# Inactive plan\n" : null,
       first: "# Edited inactive plan\n",
       nested: "# Edited inactive plan\n",
-      configured: [],
+      research: [],
       projectWrite: undefined,
     });
   },
@@ -2040,9 +2208,7 @@ it("announces an inactive fork's own plan path even when the source exit was alr
   f.files.replace(f.path(), "# Shared history\n");
   await f.command("exit");
   f.controller.prompt({ systemPrompt: "Base" }, f.ctx);
-  vi.spyOn(f.ctx.sessionManager, "getSessionId").mockReturnValue(
-    "inactive-fork",
-  );
+  f.session.id = "inactive-fork";
   f.controller.start({ reason: "fork" }, f.ctx);
   expect(f.controller.prompt({ systemPrompt: "Base" }, f.ctx)).toStrictEqual({
     message: {
@@ -2052,10 +2218,7 @@ it("announces an inactive fork's own plan path even when the source exit was alr
     },
   });
   expect(f.controller.prompt({ systemPrompt: "Base" }, f.ctx)).toBeUndefined();
-  expect([
-    ...f.sendUserMessage.mock.calls,
-    ...f.sendImplementationMessage.mock.calls,
-  ]).toStrictEqual([]);
+  expect(f.pi.conversation).toStrictEqual([]);
 });
 
 it.each(["resume", "reload", "fork"])(
@@ -2078,7 +2241,7 @@ it.each(["resume", "reload", "fork"])(
     await expect(f.execute("submit_plan")).rejects.toThrow(
       `Write a new implementation plan to ${path} before requesting approval.`,
     );
-    expect(f.ctx.ui.select).not.toHaveBeenCalled();
+    const missingPlanDialogs = [...f.pi.dialogs];
     expect(await f.call("write", { path: "project.ts" })).toMatchObject({
       block: true,
     });
@@ -2087,9 +2250,18 @@ it.each(["resume", "reload", "fork"])(
     ).toBeUndefined();
 
     f.files.replace(path, "# Replacement plan\n");
-    f.select.mockResolvedValueOnce("Yes, keep context");
+    f.answers.select.push(() => "Yes, keep context");
     await f.execute("submit_plan");
-    expect(f.ctx.ui.select).toHaveBeenCalledOnce();
+    expect({
+      missingPlanDialogs,
+      replacementDialogs: f.pi.dialogs.map(({ kind, state }) => ({
+        kind,
+        state,
+      })),
+    }).toStrictEqual({
+      missingPlanDialogs: [],
+      replacementDialogs: [{ kind: "select", state: "answered" }],
+    });
     await f.completeApproval();
     expect(await f.call("write", { path: "project.ts" })).toBeUndefined();
   },
@@ -2099,22 +2271,16 @@ it("blocks model approval while subagents are active but permits human exit", as
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Plan\n\nImplement the requested change.\n");
-  f.ensureSubagentsIdle.mockRejectedValueOnce(
-    new Error("A subagent is still active. Wait or cancel it."),
-  );
-  await expect(f.execute("submit_plan")).rejects.toThrow(
-    "subagent is still active",
-  );
+  f.pi.activeSubagents = 1;
+  await expect(f.execute("submit_plan")).rejects.toThrow(activeSubagent);
   const beforeExit = (await f.call("write", { path: "project.ts" }))?.block;
   await f.command("exit");
   expect({
-    checks: f.ensureSubagentsIdle.mock.calls.map(([signal]) => signal.aborted),
-    reviews: f.select.mock.calls,
+    dialogs: f.pi.dialogs,
     beforeExit,
     afterExit: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
-    checks: [true],
-    reviews: [],
+    dialogs: [],
     beforeExit: true,
     afterExit: undefined,
   });
@@ -2228,20 +2394,17 @@ it.each(["revise", "exit"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
-    f.select.mockResolvedValueOnce("Yes, clear context");
+    f.answers.select.push(() => "Yes, clear context");
     await f.execute("submit_plan");
     if (action === "revise") {
-      f.select.mockResolvedValueOnce("No, keep planning");
+      f.answers.select.push(() => "No, keep planning");
       await f.execute("submit_plan");
     } else {
       await f.command("exit");
       await f.command("");
     }
     f.controller.settled({ aborted: false }, f.ctx);
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
   },
 );
 
@@ -2257,7 +2420,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.select.mockResolvedValueOnce("Yes, clear context");
+    f.answers.select.push(() => "Yes, clear context");
     await f.execute("submit_plan");
     const boundary = await f.prepareClear({ outcome: "completed" }, f.ctx);
     if (failure !== "not committed") {
@@ -2287,10 +2450,7 @@ it.each([
       }
     }
     f.controller.settled({ aborted: failure === "aborted" }, f.ctx);
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
     expect(await f.call("write", { path: "project.ts" })).toMatchObject({
       block: true,
     });
@@ -2301,15 +2461,12 @@ it("rechecks native jobs before clearing the approved context", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Approved plan\n");
-  f.select.mockResolvedValueOnce("Yes, clear context");
+  f.answers.select.push(() => "Yes, clear context");
   await f.execute("submit_plan");
-  f.ensureSubagentsIdle.mockRejectedValueOnce(new Error("A job is active"));
+  f.pi.activeSubagents = 1;
   expect(await f.prepareClear({ outcome: "completed" }, f.ctx)).toBeUndefined();
   f.controller.settled({ aborted: false }, f.ctx);
-  expect([
-    ...f.sendUserMessage.mock.calls,
-    ...f.sendImplementationMessage.mock.calls,
-  ]).toStrictEqual([]);
+  expect(f.pi.conversation).toStrictEqual([]);
   expect(await f.call("write", { path: "project.ts" })).toMatchObject({
     block: true,
   });
@@ -2326,7 +2483,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.select.mockResolvedValueOnce("Yes, clear context");
+    f.answers.select.push(() => "Yes, clear context");
     await f.execute("submit_plan");
     if (failure === "missing signal") {
       delete f.ctx.signal;
@@ -2338,17 +2495,14 @@ it.each([
       f.run.abort();
     }
     if (failure === "failed recheck") {
-      f.ensureSubagentsIdle.mockRejectedValueOnce(new Error("A job is active"));
+      f.pi.activeSubagents = 1;
       await f.controller.verifyClear(f.ctx);
     }
     expect(
       f.controller.beforeSettle({ outcome: "completed" }, f.ctx),
     ).toBeUndefined();
     f.controller.settled({ aborted: false }, f.ctx);
-    expect([
-      ...f.sendUserMessage.mock.calls,
-      ...f.sendImplementationMessage.mock.calls,
-    ]).toStrictEqual([]);
+    expect(f.pi.conversation).toStrictEqual([]);
     expect(await f.call("write", { path: "project.ts" })).toMatchObject({
       block: true,
     });
@@ -2358,12 +2512,11 @@ it.each([
 it("keeps the live session usable when restoring its replacement fails", async () => {
   const f = fixture();
   await f.command("");
-  vi.spyOn(f.files, "ensureDirectory").mockImplementationOnce(() => {
-    throw new Error("fixture restore failure");
-  });
+  f.files.directoryFailure = new Error("fixture restore failure");
 
   expect(() => f.controller.restore(f.ctx)).toThrow("fixture restore failure");
-  expect(f.disposed.mock.calls).toStrictEqual([]);
+  f.files.directoryFailure = undefined;
+  expect(f.pi.research).toStrictEqual(["session-one"]);
   await expect(
     f.call("write", { path: f.path(), content: "draft" }),
   ).resolves.toBeUndefined();
@@ -2371,9 +2524,7 @@ it("keeps the live session usable when restoring its replacement fails", async (
 
 it("rejects entry when research configuration cannot be loaded", async () => {
   const f = fixture();
-  f.configure.mockImplementationOnce(() => {
-    throw new Error("Invalid planning.json");
-  });
+  f.pi.researchFailure = new Error("Invalid planning.json");
 
   await expect(f.command("")).rejects.toThrow("Invalid planning.json");
   expect({
@@ -2394,9 +2545,7 @@ it.each([true, false])(
     }
     f.branch.splice(0);
     f.controller.compact(f.ctx);
-    vi.spyOn(f.ctx.sessionManager, "getSessionId").mockReturnValue(
-      "compacted-fork",
-    );
+    f.session.id = "compacted-fork";
     f.controller.start({ reason: "fork" }, f.ctx);
 
     expect({
@@ -2426,6 +2575,6 @@ it("restores branch policy after tree navigation within the same conversation", 
 
   expect({
     projectWrite: await f.call("write", { path: "project.ts" }),
-    disposed: f.disposed.mock.calls,
-  }).toStrictEqual({ projectWrite: undefined, disposed: [[]] });
+    research: f.pi.research,
+  }).toStrictEqual({ projectWrite: undefined, research: [] });
 });

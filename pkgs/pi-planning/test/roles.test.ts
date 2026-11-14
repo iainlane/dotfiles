@@ -1,16 +1,57 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerAgentViaEvents } from "pi-subagents/agents";
-import { afterEach, expect, it, vi } from "vitest";
+import { RUNTIME_AGENT_REGISTER_EVENT } from "pi-subagents/agents";
+import { expect, it } from "vitest";
 import { Type } from "typebox";
+import { Check } from "typebox/value";
 import { registerPlanningRoles } from "#planning/roles.ts";
 
-vi.mock("pi-subagents/agents", () => ({
-  registerAgentViaEvents: vi.fn<typeof registerAgentViaEvents>(() => ({
-    dispose: vi.fn<() => void>(),
-  })),
-}));
+const registrationSchema = Type.Object({
+  name: Type.String(),
+  definition: Type.Record(Type.String(), Type.Unknown()),
+  result: Type.Optional(Type.Unknown()),
+});
 
-afterEach(() => vi.clearAllMocks());
+// Answers runtime agent registrations as the installed pi-subagents runtime
+// does, and keeps the registered agents.
+function subagentRuntime(tools: string[] = []) {
+  const agents = new Map<string, Record<string, unknown>>();
+  const pi: Pick<ExtensionAPI, "getAllTools" | "events"> = {
+    getAllTools: () =>
+      tools.map((name) => ({
+        name,
+        description: "Offline parent tool fixture.",
+        parameters: Type.Object({}),
+        exposure: "direct",
+        sourceInfo: {
+          path: "fixture",
+          source: "extension",
+          scope: "temporary",
+          origin: "top-level",
+        },
+      })),
+    events: {
+      emit(channel, data) {
+        if (
+          channel !== RUNTIME_AGENT_REGISTER_EVENT ||
+          !Check(registrationSchema, data)
+        ) {
+          return;
+        }
+        agents.set(data.name, data.definition);
+        data.result = {
+          ok: true,
+          registration: {
+            dispose: () => {
+              agents.delete(data.name);
+            },
+          },
+        };
+      },
+      on: () => () => {},
+    },
+  };
+  return { pi, agents };
+}
 
 it.each([
   {
@@ -24,19 +65,14 @@ it.each([
       /software architect and planning specialist.*Understand Requirements.*Explore Thoroughly.*Design Solution.*Detail the Plan.*Critical Files for Implementation/s,
   },
 ])("describes the research process for $role", ({ role, pattern }) => {
-  registerPlanningRoles(
-    { getAllTools: () => [], events: { emit() {}, on: () => () => {} } },
-    {},
-  );
-  const request = vi
-    .mocked(registerAgentViaEvents)
-    .mock.calls.find(([input]) => input.name === role)?.[0];
+  const runtime = subagentRuntime();
+  registerPlanningRoles(runtime.pi, {});
 
-  expect(request?.definition.systemPrompt).toMatch(pattern);
+  expect(runtime.agents.get(role)?.systemPrompt).toMatch(pattern);
 });
 
 it("requires stable research tools without copying dynamic MCP resources or parent-only tools", () => {
-  const names = [
+  const runtime = subagentRuntime([
     "read",
     "codemode",
     "tool_search",
@@ -49,29 +85,13 @@ it("requires stable research tools without copying dynamic MCP resources or pare
     "submit_plan",
     "enter_plan_mode",
     "unrelated_extension_tool",
-  ];
-  const pi: Pick<ExtensionAPI, "getAllTools" | "events"> = {
-    getAllTools: () =>
-      names.map((name) => ({
-        name,
-        description: "Offline parent tool fixture.",
-        parameters: Type.Object({}),
-        exposure: "direct",
-        sourceInfo: {
-          path: "fixture",
-          source: "extension",
-          scope: "temporary",
-          origin: "top-level",
-        },
-      })),
-    events: { emit() {}, on: () => () => {} },
-  };
-  registerPlanningRoles(pi, {});
+  ]);
+  registerPlanningRoles(runtime.pi, {});
 
   expect(
-    vi.mocked(registerAgentViaEvents).mock.calls.map(([request]) => ({
-      name: request.name,
-      tools: request.definition.tools,
+    [...runtime.agents].map(([name, definition]) => ({
+      name,
+      tools: definition.tools,
     })),
   ).toStrictEqual(
     ["planning-explore", "planning-plan"].map((name) => ({
@@ -82,18 +102,15 @@ it("requires stable research tools without copying dynamic MCP resources or pare
 });
 
 it("leaves research deadlines to native pi-subagents defaults", () => {
-  const pi: Pick<ExtensionAPI, "getAllTools" | "events"> = {
-    getAllTools: () => [],
-    events: { emit() {}, on: () => () => {} },
-  };
-  registerPlanningRoles(pi, {});
+  const runtime = subagentRuntime();
+  registerPlanningRoles(runtime.pi, {});
 
   expect(
-    vi.mocked(registerAgentViaEvents).mock.calls.map(([request]) => ({
-      name: request.name,
-      timeout: request.definition.defaultTimeoutMs,
-      async: request.definition.defaultAsync,
-      model: request.definition.model,
+    [...runtime.agents].map(([name, definition]) => ({
+      name,
+      timeout: definition.defaultTimeoutMs,
+      async: definition.defaultAsync,
+      model: definition.model,
     })),
   ).toStrictEqual([
     {

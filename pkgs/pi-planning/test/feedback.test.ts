@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { resizeImage, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   ClipboardFeedbackError,
@@ -48,16 +48,18 @@ it("rejects encoded images that have valid headers but cannot be decoded", async
 });
 
 it("honours native image blocking before reading the clipboard", async () => {
-  const getImage = vi.fn<() => Promise<Uint8Array>>(async () =>
-    Buffer.from(feedbackImage.data, "base64"),
-  );
   await expect(
     readClipboardImage(
-      { getImage },
+      {
+        getImage: async () => {
+          throw new Error("The clipboard must not be read.");
+        },
+      },
       SettingsManager.inMemory({ images: { blockImages: true } }),
     ),
-  ).rejects.toThrow("Image input is disabled");
-  expect(getImage.mock.calls).toStrictEqual([]);
+  ).rejects.toStrictEqual(
+    new ClipboardFeedbackError("Image input is disabled in Pi's settings."),
+  );
 });
 
 const oversizedImage = Buffer.concat([
