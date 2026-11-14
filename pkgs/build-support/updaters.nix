@@ -241,7 +241,9 @@
   # Point a pnpm package's overrides at the local npm packages that it uses,
   # regenerate its lockfile against their tarballs, and refresh its dependency
   # hash. `catalogue` lists the local npm packages that the package can use, as
-  # `pnpmCatalogue` in `lib/npm-packages.nix` returns them.
+  # `pnpmCatalogue` in `lib/npm-packages.nix` returns them. With
+  # `--maintain-lockfile`, the updater also moves every locked dependency,
+  # direct and transitive, to the newest version that its range allows.
   mkPnpmLockUpdater = {
     pname,
     directory,
@@ -255,12 +257,26 @@
       passthru.maintenance = {
         source = "repository";
         refresh = true;
+        lockfileMaintenance = true;
       };
       runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update yq-go];
       text = ''
+        arguments=()
+        case "$*" in
+        "" | --refresh)
+          ;;
+        --maintain-lockfile)
+          arguments=(--maintain-lockfile)
+          ;;
+        *)
+          echo ${lib.escapeShellArg "Usage: update-${pname} [--refresh | --maintain-lockfile]"} >&2
+          exit 1
+          ;;
+        esac
+
         root="$(git rev-parse --show-toplevel)"
         cd "$root/${directory}"
-        bash ${./pnpm-lock-updater.bash} ${packages} ${./pnpm-providers.bash} "$root"
+        bash ${./pnpm-lock-updater.bash} ${packages} ${./pnpm-providers.bash} "$root" "''${arguments[@]}"
         cd "$root"
         nix-update --flake --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
       '';

@@ -3,6 +3,7 @@ set -euo pipefail
 catalogue="$1"
 providers="$2"
 root="$3"
+mode="${4:-}"
 
 staged=''
 trap 'rm -f "$staged"' EXIT
@@ -197,10 +198,14 @@ override() {
 	name="$1" value="file:.nix-providers/$2" yq -i '.overrides[strenv(name)] = strenv(value)' pnpm-workspace.yaml
 }
 
-# yq and pnpm write a key such as `@scope/name` with single quotes, and the
-# repository's formatter rewrites them as double quotes.
+# yq and pnpm quote a key such as `@scope/name` with single quotes, and the
+# repository's formatter rewrites them as double quotes. Writing double quotes
+# here leaves the working tree clean after an update that changes nothing.
 relock() {
-	pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+	if (($# == 0)); then
+		set -- install --lockfile-only --no-frozen-lockfile --ignore-scripts
+	fi
+	pnpm "$@"
 	yq -i '(... | select(style == "single")) style = "double"' pnpm-workspace.yaml
 }
 
@@ -269,7 +274,16 @@ while true; do
 		fi
 	done < <(overrides)
 	yq -i 'del(.overrides | select(length == 0))' pnpm-workspace.yaml
-	relock
+	if [[ "$mode" == --maintain-lockfile ]] && ((rounds == 1)); then
+		# `pnpm install` keeps every locked version that still satisfies its
+		# range, and without a lockfile it prefers the versions installed in
+		# node_modules. `pnpm update` ignores both. Without `--no-save` it would
+		# write the resolved versions and the overrides into package.json, and
+		# without `--recursive` it would skip the workspace members.
+		relock update --recursive --lockfile-only --no-save --ignore-scripts
+	else
+		relock
+	fi
 
 	scoped=0
 	while IFS=$'\t' read -r name target; do

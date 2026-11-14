@@ -14,6 +14,7 @@ class Operation(TypedDict):
     paths: list[str]
     program: str
     input: str | None
+    lockfileMaintenance: bool
 
 
 @dataclass(frozen=True)
@@ -333,16 +334,21 @@ class Runner:
             snapshot.restore()
             return Outcome(name, 1, str(error))
 
-    def packages(self, refresh: bool) -> None:
+    def packages(self, refresh: bool, maintain_lockfiles: bool = False) -> None:
         plan = self.plan()
+        metadata = self.metadata()
         failed: set[str] = set()
         for name in plan["refreshOrder" if refresh else "order"]:
+            if refresh:
+                args = ["--refresh"]
+            elif maintain_lockfiles and metadata[name]["lockfileMaintenance"]:
+                args = ["--maintain-lockfile"]
+            else:
+                args = []
             if failed.intersection(plan["dependencies"][name]):
                 result = Outcome(name, 1, "Skipped because a required provider failed.")
             else:
-                result = self.package_transaction(
-                    name, ["--refresh"] if refresh else []
-                )
+                result = self.package_transaction(name, args)
             if result.status:
                 failed.add(name)
             self.outcomes.append(result)
@@ -359,7 +365,9 @@ def main() -> int:
             subparser.add_argument("name")
             subparser.add_argument("arguments", nargs=argparse.REMAINDER)
         if command == "packages":
-            subparser.add_argument("--refresh", action="store_true")
+            modes = subparser.add_mutually_exclusive_group()
+            modes.add_argument("--refresh", action="store_true")
+            modes.add_argument("--maintain-lockfiles", action="store_true")
         if command == "inputs":
             subparser.add_argument("names", nargs="*")
     arguments = parser.parse_args()
@@ -401,7 +409,7 @@ def main() -> int:
             for group in input_groups(lock, arguments.names):
                 runner.outcomes.append(runner.input_transaction(group))
         else:
-            runner.packages(arguments.refresh)
+            runner.packages(arguments.refresh, arguments.maintain_lockfiles)
         sys.stdout.write(render(runner.outcomes))
         return int(any(result.status for result in runner.outcomes))
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:

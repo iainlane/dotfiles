@@ -226,10 +226,14 @@ function branches(
 // repository with a bare `origin`, and the repository's first commit contains
 // the given files. `git` then runs the real command, and the result includes
 // the files of each branch that the job pushed to `origin`.
+//
+// The steps' `env` entries are GitHub expressions, which the test cannot
+// evaluate. `environment` sets their values instead.
 function runUpdateWorkflow(
   filename: string,
   nix: string,
   repository: Readonly<Record<string, string>> | null = null,
+  environment: Readonly<Record<string, string>> = {},
 ): UpdateRun {
   const directory = mkdtempSync(join(tmpdir(), "update-workflow-"));
   const bin = join(directory, "bin");
@@ -359,6 +363,7 @@ fi
       encoding: "utf8",
       env: {
         ...env,
+        ...environment,
         PATH: `${bin}:${process.env.PATH}`,
         RUNNER_TEMP: runnerTemp,
         GITHUB_RUN_ID: "123",
@@ -492,6 +497,29 @@ printf '%s\\n' 'Review the newer upstream release.'
       nixCalls: [
         "build .#update-runner --out-link $RUNNER_TEMP/update-runner",
         "runner packages --stage",
+        "",
+      ].join("\n"),
+      gitCalls: "diff --cached --quiet\n",
+      body: null,
+      pushed: {},
+    });
+  });
+
+  it("runs lock-file maintenance when the step asks for it", () => {
+    const run = runUpdateWorkflow(
+      "package-update.yml",
+      `
+test "$*" = 'packages --stage --maintain-lockfiles'
+`,
+      { "flake.lock": "before\n" },
+      { MAINTAIN_LOCKFILES: "true" },
+    );
+    assert.deepEqual(run, {
+      status: 0,
+      stderr: "",
+      nixCalls: [
+        "build .#update-runner --out-link $RUNNER_TEMP/update-runner",
+        "runner packages --stage --maintain-lockfiles",
         "",
       ].join("\n"),
       gitCalls: "diff --cached --quiet\n",

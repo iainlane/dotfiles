@@ -28,13 +28,15 @@ project() {
 }
 
 update() {
-	(cd "$root/scenario" && UPDATE_LOG="$root/calls" PNPM_LOCKS="$root/locks" PNPM_STATES="$root/states" "$updater")
+	(cd "$root/scenario" && UPDATE_LOG="$root/calls" PNPM_LOCKS="$root/locks" PNPM_STATES="$root/states" "$updater" "$@")
 }
 
-# Prints the calls as `install`, `build <attribute>` and `nix-update`.
+# Prints the calls as `install`, `update`, `build <attribute>` and
+# `nix-update`.
 calls() {
 	sed -E \
-		-e 's/^pnpm:[^:]*:install .*/install/' \
+		-e 's/^pnpm:[^:]*:install --lockfile-only --no-frozen-lockfile --ignore-scripts$/install/' \
+		-e 's/^pnpm:[^:]*:update --recursive --lockfile-only --no-save --ignore-scripts$/update/' \
 		-e 's/^nix:[^:]*:build --no-link --print-out-paths \.#(.*)\.tarball$/build \1/' \
 		-e 's/^nix-update:.*/nix-update/' \
 		"$root/calls"
@@ -125,11 +127,13 @@ manifests() {
 # successive relocks write, the package.json that the update leaves, the
 # overrides and links that each relock sees, and the calls. A case with
 # workspace members also lists the workspace's patterns and the members'
-# manifests before and after the update.
-for case in private discovered direct-alias transitive-alias peer unchanged workspace followed; do
+# manifests before and after the update. A case that passes arguments to the
+# updater lists them.
+for case in private discovered direct-alias transitive-alias peer unchanged workspace followed maintain; do
 	packages='["."]'
 	members='{}'
 	updated_members='{}'
+	arguments=()
 	case "$case" in
 	private)
 		# A private local package has no registry release, so it is linked
@@ -315,6 +319,30 @@ packages:
 		]'
 		expected_calls=("build consumer" "build private" install nix-update)
 		;;
+	maintain)
+		# Lockfile maintenance resolves the first relock with `pnpm update`.
+		# The other overrides, the provider overrides and the scoped override
+		# for the project's peer remain as in a normal update.
+		arguments=(--maintain-lockfile)
+		manifest='{"devDependencies": {"@scope/host": "^1", "linked": "^1"}, "peerDependencies": {"@scope/host": "^1"}}'
+		overrides='  other>dependency: "-"'
+		locks=()
+		for host in 2.0.0 file:.nix-providers/scope-host-2.0.0.tgz; do
+			locks+=("lockfileVersion: '9.0'
+snapshots:
+  consumer@1.0.0(peer@1.0.0):
+    dependencies:
+      '@scope/host': $host")
+		done
+		updated='{"devDependencies": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "linked": "^1.0.0"}, "peerDependencies": {"@scope/host": "^1"}}'
+		states='[
+			{"overrides": {"other>dependency": "-", "linked": "file:.nix-providers/linked-1.0.0.tgz"},
+			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}},
+			{"overrides": {"other>dependency": "-", "linked": "file:.nix-providers/linked-1.0.0.tgz", "consumer>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
+		]'
+		expected_calls=("build host" "build linked" update install nix-update)
+		;;
 	esac
 
 	project "$manifest" "$overrides" "${locks[@]}"
@@ -324,7 +352,7 @@ packages:
 		printf '%s\n' "$member" >"$root/scenario/$path"
 	done < <(jq -r 'to_entries[] | [.key, (.value | tojson)] | @tsv' <<<"$members")
 	cp "$root/scenario/pnpm-workspace.yaml" "$root/workspace-before.yaml"
-	update
+	update "${arguments[@]}"
 
 	jq -n --sort-keys --argjson root "$updated" --argjson members "$updated_members" '{"package.json": $root} + $members' | diff -u - <(manifests)
 	jq --sort-keys . <<<"$states" | diff -u - <(jq -s --sort-keys . "$root/states")
@@ -386,11 +414,41 @@ EOF
 	done
 }
 
+# `--refresh` updates as no argument does, and lockfile maintenance starts with
+# `pnpm update`.
 tui='{"name": "scenario", "devDependencies": {"@scope/tui": "^1.0.0", "other": "^4"}}'
-project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.1.0 host 1.1.0)"
-update
-jq -c .devDependencies "$root/scenario/package.json" | diff -u <(printf '%s\n' '{"@scope/tui":"1.1.0","other":"^4"}') -
-printf '%s\n' install install nix-update | diff -u - <(calls)
+for mode in default --refresh --maintain-lockfile; do
+	arguments=()
+	first=install
+	case "$mode" in
+	default)
+		;;
+	--refresh)
+		arguments=(--refresh)
+		;;
+	--maintain-lockfile)
+		arguments=(--maintain-lockfile)
+		first=update
+		;;
+	esac
+
+	project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.1.0 host 1.1.0)"
+	update "${arguments[@]}"
+	jq -c .devDependencies "$root/scenario/package.json" | diff -u <(printf '%s\n' '{"@scope/tui":"1.1.0","other":"^4"}') -
+	printf '%s\n' "$first" install nix-update | diff -u - <(calls)
+done
+
+# Any other argument stops the updater before it changes anything.
+project "$tui" '' "$(lock 1.0.0 host 1.1.0)"
+if update --unknown 2>"$root/usage.log"; then
+	echo 'An unknown argument must stop the update.' >&2
+	exit 1
+fi
+printf '%s\n' 'Usage: update-scenario [--refresh | --maintain-lockfile]' | diff -u - "$root/usage.log"
+if [[ -e "$root/calls" ]]; then
+	echo 'An unknown argument must stop the update before it runs any command.' >&2
+	exit 1
+fi
 
 # The guard also moves a workspace member's direct dependency.
 member_lock() {

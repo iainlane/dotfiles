@@ -335,7 +335,13 @@ regenerate the associated derived files. Packages with
 `maintenance.refresh = true` also accept `--refresh`: the operation keeps
 locally controlled source pins and regenerates their derived files. Caddy uses
 this mode to regenerate its plugin-source hashes for both selected package
-channels. Its plugin pins advance only during a normal update.
+channels. Its plugin pins advance only during a normal update. The updaters of
+pnpm packages also accept `--maintain-lockfile` for lock-file maintenance. A
+normal relock keeps every locked version that still satisfies its range. In this
+mode, every dependency, direct and transitive, moves to the newest version that
+its range allows. `update-all --maintain-lockfiles` passes the flag to each
+updater whose `maintenance.lockfileMaintenance` is true and runs the other
+updaters as usual. The scheduled package-update workflow uses it once a week.
 
 Generic Nix updaters use the same explicit `system` selector in both modes. A
 Linux-only package can therefore refresh its hashes from a Darwin host through

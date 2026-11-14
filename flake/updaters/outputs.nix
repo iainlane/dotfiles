@@ -41,6 +41,7 @@ in {
         isInput = builtins.elem name flakeInputs;
       in {
         refresh = !isInput && (policy.refresh or false);
+        lockfileMaintenance = !isInput && (policy.lockfileMaintenance or false);
         paths =
           if isInput
           then ["flake.nix" "flake.lock"]

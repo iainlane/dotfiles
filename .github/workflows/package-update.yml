@@ -2,7 +2,9 @@
 # every bump from one run into a single pull request. Each updater is
 # `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
 # exported by `flake/updaters/outputs.nix`. The updaters run in the order that
-# `update-plan order` prints.
+# `update-plan order` prints. The Tuesday run also passes `--maintain-lockfiles`,
+# so each pnpm package's updater moves every locked dependency to the newest
+# version that its range allows.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
 # on its own; this workflow updates the `pkgs/` packages, release-tag inputs
@@ -15,8 +17,14 @@ name: package update
 
 on:
   schedule:
-    - cron: "20 4 * * 2,4" # Tuesdays and Thursdays, 04:20 UTC
+    - cron: "20 4 * * 2" # Tuesdays, 04:20 UTC
+    - cron: "20 4 * * 4" # Thursdays, 04:20 UTC
   workflow_dispatch:
+    inputs:
+      maintain-lockfiles:
+        description: Also run lock-file maintenance for the pnpm packages
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -68,12 +76,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
+          MAINTAIN_LOCKFILES:
+            ${{ github.event.schedule == '20 4 * * 2' ||
+            inputs.maintain-lockfiles }}
         run: |
           set -euo pipefail
           nix build .#update-runner --out-link "${RUNNER_TEMP}/update-runner"
           runner="${RUNNER_TEMP}/update-runner/bin/update-runner"
           report="${RUNNER_TEMP}/update-report.md"
-          if ! "${runner}" packages --stage > "${report}"; then
+          arguments=(packages --stage)
+          if [[ "${MAINTAIN_LOCKFILES:-}" == true ]]; then
+            arguments+=(--maintain-lockfiles)
+          fi
+          if ! "${runner}" "${arguments[@]}" > "${report}"; then
             echo "::warning::Some updates were skipped; see the update report."
           fi
           cat "${report}" >> "${GITHUB_STEP_SUMMARY}"

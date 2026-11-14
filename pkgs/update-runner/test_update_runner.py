@@ -135,6 +135,7 @@ class TransactionTest(unittest.TestCase):
                 "paths": [f"pkgs/{name}"],
                 "program": name,
                 "input": None,
+                "lockfileMaintenance": name == "pi",
             }
             for name in ["caddy", "pi"]
         }
@@ -347,6 +348,49 @@ class TransactionTest(unittest.TestCase):
                     Outcome("independent"),
                 ],
             ),
+        )
+
+    def test_lockfile_maintenance_reaches_only_the_updaters_that_support_it(
+        self,
+    ) -> None:
+        def execute(name: str, args: list[str]) -> Outcome:
+            supported = [["--maintain-lockfile"]] if name == "pi" else []
+            if args and args not in supported:
+                return Outcome(name, 1, "Unsupported updater arguments.")
+            source = "maintained" if args else "updated"
+            (self.root / f"pkgs/{name}/source").write_text(source)
+            return Outcome(name)
+
+        plan = {
+            "order": ["caddy", "pi"],
+            "refreshOrder": ["caddy", "pi"],
+            "dependencies": {"caddy": [], "pi": []},
+        }
+        with (
+            patch.object(self.runner, "plan", return_value=plan),
+            patch.object(self.runner, "execute", side_effect=execute),
+            patch.object(
+                self.runner,
+                "command",
+                return_value=subprocess.CompletedProcess([], 0, ""),
+            ),
+        ):
+            self.runner.packages(False, maintain_lockfiles=True)
+        self.assertEqual(
+            {
+                "outcomes": self.runner.outcomes,
+                "sources": {
+                    name: (self.root / f"pkgs/{name}/source").read_text()
+                    for name in ["caddy", "pi"]
+                },
+            },
+            {
+                "outcomes": [
+                    Outcome("caddy", changed=True),
+                    Outcome("pi", changed=True),
+                ],
+                "sources": {"caddy": "updated", "pi": "maintained"},
+            },
         )
 
 
