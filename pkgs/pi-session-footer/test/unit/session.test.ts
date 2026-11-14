@@ -206,6 +206,27 @@ it("reads Git again when a refresh is requested during a pending read", async ()
   session.dispose();
 });
 
+it("polls Git a fixed interval after the previous read finishes", async () => {
+  const { bus, context, runtime } = harness();
+  const reads: number[] = [];
+  const session = new FooterSession(context, bus, () => {}, {
+    ...runtime,
+    readGit: async (_cwd, now) => {
+      reads.push(now);
+      const finished = Promise.withResolvers<undefined>();
+      runtime.clock.after(3000, () => finished.resolve(undefined));
+      return finished.promise;
+    },
+  });
+
+  await runtime.clock.advance(20_000);
+
+  const start = Date.UTC(2026, 9, 20, 12);
+  expect(reads.map((at) => at - start)).toStrictEqual([0, 8000, 16_000]);
+
+  session.dispose();
+});
+
 it("does not invalidate for routine content but clears a displayed inactivity warning", async () => {
   const { bus, context, runtime } = harness();
   const change = vi.fn<() => void>();

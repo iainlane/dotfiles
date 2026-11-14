@@ -247,12 +247,12 @@ export class FooterSession {
     }
 
     this.gitPending = true;
-    this.gitAt = this.runtime.clock.now();
 
     try {
       await this.probeGit();
     } finally {
       this.gitPending = false;
+      this.gitAt = this.runtime.clock.now();
     }
 
     if (this.gitRerun) {
