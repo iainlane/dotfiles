@@ -23,6 +23,9 @@ in
       if builtins.pathExists argsFile
       then let arguments = import argsFile; in arguments (builtins.intersectAttrs (builtins.functionArgs arguments) {inherit final inputs prev upstreamPackageSets;})
       else {};
+
+    flakePackages = inputs.self.packages.${final.stdenv.hostPlatform.system} or {};
+    flakeLocalPackages = lib.getAttrs (lib.intersectLists names (lib.attrNames flakePackages)) flakePackages;
   in
     {
       # Update-script generators the package definitions pull in via
@@ -37,10 +40,9 @@ in
       # dependency fetch also archives the tarballs' store paths, so its
       # fixed-output hash matches only when every channel uses the same
       # tarball derivations.
-      localNpmPackages = let
-        flakePackages = inputs.self.packages.${final.stdenv.hostPlatform.system} or {};
-      in
-        npmPackages.byName (lib.getAttrs (lib.intersectLists names (lib.attrNames flakePackages)) flakePackages);
+      localNpmPackages = npmPackages.byName flakeLocalPackages;
+
+      localNpmCatalogue = npmPackages.pnpmCatalogue flakeLocalPackages;
     }
     // lib.genAttrs names (
       name: let

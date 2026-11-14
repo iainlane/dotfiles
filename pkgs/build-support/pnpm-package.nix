@@ -8,6 +8,7 @@
   callPackage,
   gitMinimal,
   lib,
+  localNpmCatalogue,
   mkShell,
   nodejs_24,
   pnpmConfigHook,
@@ -110,7 +111,7 @@ in
             updateScript = updaters.mkPnpmLockUpdater {
               inherit (finalAttrs) pname;
               directory = relative;
-              inherit (deps) overrides;
+              catalogue = lib.filter (package: package.name != manifest.name) localNpmCatalogue;
               inherit pnpm;
             };
           }

@@ -1,45 +1,161 @@
 set -euo pipefail
 
+catalogue="$1"
+providers="$2"
+root="$3"
+
 staged="$(mktemp package.json.XXXXXX)"
 trap 'rm -f "$staged"' EXIT
 
+declare -A files=() installables=() tarballs=()
+while IFS=$'\t' read -r name file installable; do
+	files["$name"]="$file"
+	installables["$name"]="$installable"
+done < <(jq -r '.[] | [.name, .file, .installable] | @tsv' "$catalogue")
+
+# The local package that each override installs, keyed by the override's name.
+# An override of a package's name does not reach an npm alias of it, such as
+# `"old-name": "npm:new-name@1.0.0"`, so each alias needs its own override.
+declare -A needed=()
+
 # pnpm turns a global override of the project's own peer into a production
 # dependency. For a local package that the project declares as a peer, the
-# project's dependency points at the tarball instead. After the first relock,
-# the updater adds an override scoped to each package that depends on it.
+# project's dependency points at the tarball instead. After each relock, the
+# updater adds an override scoped to each package that depends on it.
 peers="$(jq -c '.peerDependencies // {} | keys' package.json)"
 
-jq --slurpfile providers "$1" --argjson peers "$peers" '
-  reduce $providers[0][] as $package (.;
-    reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
-      if .[$field] == null then .
-      else .[$field] |= with_entries(
-        if .value == ("npm:" + $package.name) or
-           (.value | startswith("npm:" + $package.name + "@"))
-        then .value = "npm:" + $package.name + "@" + $package.version
-        elif .key == $package.name and ($peers | index($package.name))
-        then .value = "file:.nix-providers/" + $package.file
-        elif .key == $package.name and (.value | startswith("npm:") | not)
-        then .value = $package.version
-        else . end)
-      end))
-' package.json >"$staged"
-mv "$staged" package.json
+peer() {
+	jq -e --arg name "$1" 'index($name) != null' <<<"$peers" >/dev/null
+}
 
-# Point each local package's override at its tarball in .nix-providers and drop
-# overrides for packages that the lockfile no longer uses.
+package_name='def package_name: if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end;'
+
+# Prints each direct dependency on a local package or on an npm alias of one,
+# as the override's name and the local package's name.
+direct() {
+	jq -r --slurpfile catalogue "$catalogue" "$package_name"'
+		INDEX($catalogue[0][]; .name) as $local
+		| .dependencies, .devDependencies, .optionalDependencies, .peerDependencies
+		| select(. != null)
+		| to_entries[]
+		| if .value | startswith("npm:")
+			then [.key, (.value[4:] | package_name)]
+			else [.key, .key] end
+		| select($local[.[1]] != null)
+		| @tsv' package.json
+}
+
+# Prints, in the same form, each local package that the lockfile resolves from
+# the registry and each npm alias of a local package.
+resolved() {
+	yq -o=json '.' pnpm-lock.yaml | jq -r --slurpfile catalogue "$catalogue" "$package_name"'
+		INDEX($catalogue[0][]; .name) as $local
+		| (
+			.packages // {} | keys[]
+			| package_name as $name
+			| select($local[$name] != null)
+			| select(.[($name | length) + 1:] | startswith("file:.nix-providers/") | not)
+			| [$name, $name]
+		), (
+			(
+				.importers // {} | .[]
+				| .dependencies, .devDependencies, .optionalDependencies
+				| select(. != null) | to_entries[] | .value |= .version
+			), (
+				.snapshots // {} | .[]
+				| .dependencies, .optionalDependencies
+				| select(. != null) | to_entries[]
+			)
+			| select(.value | test("^([0-9]|file:|link:)") | not)
+			| [.key, (.value | package_name)]
+			| select(.[0] != .[1] and $local[.[1]] != null)
+		)
+		| @tsv'
+}
+
+# Adds the overrides that are not needed yet. Each alias also adds its local
+# package, whose entry links the tarball and pins the alias in package.json.
+add() {
+	local name target
+	while IFS=$'\t' read -r name target; do
+		if [[ -z "$name" ]]; then
+			continue
+		fi
+		needed["$name"]="${needed[$name]-$target}"
+		needed["$target"]="${needed[$target]-$target}"
+	done <<<"$1"
+}
+
+# Prints the needed overrides, each local package followed by its aliases.
+overrides() {
+	local name rank
+	for name in "${!needed[@]}"; do
+		rank=1
+		if [[ "$name" == "${needed[$name]}" ]]; then
+			rank=0
+		fi
+		printf '%s\t%s\t%s\n' "$name" "${needed[$name]}" "$rank"
+	done | LC_ALL=C sort -t $'\t' -k2,2 -k3,3 -k1,1 | cut -f 1,2
+}
+
+link() {
+	local arguments=() name target
+	while IFS=$'\t' read -r name target; do
+		if [[ "$name" != "$target" ]]; then
+			continue
+		fi
+		if [[ -z "${tarballs[$target]-}" ]]; then
+			tarballs["$target"]="$(cd "$root" && nix build --no-link --print-out-paths "${installables[$target]}")/package.tgz"
+		fi
+		arguments+=("${files[$target]}" "${tarballs[$target]}")
+	done < <(overrides)
+	bash "$providers" link . "${arguments[@]}"
+}
+
+# Points the project's dependencies on the needed local packages at their
+# versions, or at their tarballs for the project's own peers.
+pin() {
+	local selected
+	selected="$(overrides | cut -f 2 | jq -R . | jq -s --slurpfile catalogue "$catalogue" '. as $names | $catalogue[0] | map(select(.name as $name | $names | index($name)))')"
+
+	jq --argjson providers "$selected" --argjson peers "$peers" '
+		reduce $providers[] as $package (.;
+			reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
+				if .[$field] == null then .
+				else .[$field] |= with_entries(
+					if .value == ("npm:" + $package.name) or
+						 (.value | startswith("npm:" + $package.name + "@"))
+					then .value = "npm:" + $package.name + "@" + $package.version
+					elif .key == $package.name and ($peers | index($package.name))
+					then .value = "file:.nix-providers/" + $package.file
+					elif .key == $package.name and (.value | startswith("npm:") | not)
+					then .value = $package.version
+					else . end)
+				end))
+	' package.json >"$staged"
+	mv "$staged" package.json
+}
+
 override() {
 	name="$1" value="file:.nix-providers/$2" yq -i '.overrides[strenv(name)] = strenv(value)' pnpm-workspace.yaml
 }
 
-yq -i '.overrides = ((.overrides // {}) | with_entries(select(.value | tostring | test("^file:\.nix-providers/") | not)))' pnpm-workspace.yaml
-while IFS=$'\t' read -r name file; do
-	override "$name" "$file"
-done < <(jq -r --argjson peers "$peers" '.[] | select(.name as $name | $peers | index($name) | not) | [.name, .file] | @tsv' "$1")
-yq -i 'del(.overrides | select(length == 0))' pnpm-workspace.yaml
-
+# yq and pnpm write a key such as `@scope/name` with single quotes, and the
+# repository's formatter rewrites them as double quotes.
 relock() {
 	pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+	yq -i '(... | select(style == "single")) style = "double"' pnpm-workspace.yaml
+}
+
+# Prints each package that resolves the registry release of the given local
+# package.
+dependents() {
+	yq -o=json '.snapshots // {}' pnpm-lock.yaml | jq -r --arg name "$1" '
+		to_entries[]
+		| select(((.value.dependencies // {}) + (.value.optionalDependencies // {}))[$name] // "" | test("^[0-9]"))
+		| .key | sub("\\(.*$"; "")
+		| if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end' |
+		LC_ALL=C sort -u
 }
 
 # Prints each direct dependency that a local package resolves to another
@@ -67,29 +183,52 @@ misaligned() {
 		| [.name, (.versions | join(" "))] | @tsv'
 }
 
-# Prints each package that resolves the registry release of the given local
-# package.
-dependents() {
-	yq -o=json '.snapshots // {}' pnpm-lock.yaml | jq -r --arg name "$1" '
-		to_entries[]
-		| select(((.value.dependencies // {}) + (.value.optionalDependencies // {}))[$name] // "" | test("^[0-9]"))
-		| .key | sub("\\(.*$"; "")
-		| if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end' |
-		LC_ALL=C sort -u
-}
+# Remove the overrides that earlier runs wrote. The rounds below write one for
+# each local package that the project still uses.
+yq -i '.overrides = ((.overrides // {}) | with_entries(select(.value | tostring | test("^file:\.nix-providers/") | not)))' pnpm-workspace.yaml
 
-relock
+# A local package that package.json does not mention can reach the lockfile
+# through a registry package that depends on it. Each round overrides the local
+# packages and aliases that the previous relock resolved from the registry, and
+# relocks again.
+add "$(direct)"
+rounds=0
+while true; do
+	if ((++rounds > 10)); then
+		echo 'Relocking still added local npm packages after 10 rounds.' >&2
+		exit 1
+	fi
 
-scoped=0
-while IFS=$'\t' read -r name file; do
-	while IFS= read -r parent; do
-		override "$parent>$name" "$file"
-		scoped=1
-	done < <(dependents "$name")
-done < <(jq -r --argjson peers "$peers" '.[] | select(.name as $name | $peers | index($name)) | [.name, .file] | @tsv' "$1")
-if ((scoped)); then
+	link
+	pin
+	while IFS=$'\t' read -r name target; do
+		if ! peer "$name"; then
+			override "$name" "${files[$target]}"
+		fi
+	done < <(overrides)
+	yq -i 'del(.overrides | select(length == 0))' pnpm-workspace.yaml
 	relock
-fi
+
+	scoped=0
+	while IFS=$'\t' read -r name target; do
+		if ! peer "$name"; then
+			continue
+		fi
+		while IFS= read -r parent; do
+			override "$parent>$name" "${files[$target]}"
+			scoped=1
+		done < <(dependents "$name")
+	done < <(overrides)
+	if ((scoped)); then
+		relock
+	fi
+
+	count="${#needed[@]}"
+	add "$(resolved)"
+	if ((${#needed[@]} == count)); then
+		break
+	fi
+done
 
 mapfile -t mismatches < <(misaligned)
 if ((${#mismatches[@]} == 0)); then

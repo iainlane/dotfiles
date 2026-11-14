@@ -238,46 +238,30 @@
       '';
     };
 
-  # Point a pnpm package's overrides at the local npm packages, regenerate its
-  # lockfile against their tarballs, and refresh its dependency hash.
+  # Point a pnpm package's overrides at the local npm packages that it uses,
+  # regenerate its lockfile against their tarballs, and refresh its dependency
+  # hash. `catalogue` lists the local npm packages that the package can use, as
+  # `pnpmCatalogue` in `lib/npm-packages.nix` returns them.
   mkPnpmLockUpdater = {
     pname,
     directory,
-    overrides,
+    catalogue,
     pnpm,
   }: let
-    providers = map (override: removeAttrs override ["npmTarball"]) overrides;
-    provided = writeText "${pname}-npm-packages.json" (builtins.toJSON providers);
+    packages = writeText "${pname}-npm-packages.json" (builtins.toJSON catalogue);
   in
     writeShellApplication {
       name = "update-${pname}";
-      passthru = {
-        maintenance = {
-          source = "repository";
-          refresh = true;
-        };
-        inherit providers;
+      passthru.maintenance = {
+        source = "repository";
+        refresh = true;
       };
       runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update yq-go];
       text = ''
         root="$(git rev-parse --show-toplevel)"
         cd "$root/${directory}"
-        ${(import ./pnpm-providers.nix {inherit lib;} overrides).link "."}
-        bash ${./pnpm-lock-updater.bash} ${provided}
+        bash ${./pnpm-lock-updater.bash} ${packages} ${./pnpm-providers.bash} "$root"
         cd "$root"
-
-        # This script links the tarballs of the local packages in the old
-        # lockfile. If the relock added one, run the script built from the new
-        # lockfile.
-        if [[ "$(nix eval --json ${lib.escapeShellArg ".#${pname}.passthru.updateScript.providers"})" != "$(cat ${provided})" ]]; then
-          if [[ -n "''${PNPM_LOCK_UPDATER_RERUN:-}" ]]; then
-            echo ${lib.escapeShellArg "Relocking ${pname} changed its local npm packages again."} >&2
-            exit 1
-          fi
-
-          PNPM_LOCK_UPDATER_RERUN=1 exec "$(nix build --no-link --print-out-paths ${lib.escapeShellArg ".#${pname}.passthru.updateScript"})/bin/update-${pname}" "$@"
-        fi
-
         nix-update --flake --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
       '';
     };

@@ -47,54 +47,49 @@ in
             inherit name;
             text = ''printf '${name}:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"'';
           };
-        # `nix eval` prints `$NIX_EVAL`, and `nix build` prints `$NIX_BUILD`.
+        # `nix build .#<attribute>.tarball` prints `/nix/store/<attribute>-tarball`.
         nix = pkgs.writeShellApplication {
           name = "nix";
           text = ''
             printf 'nix:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"
 
-            case "$1" in
-            eval)
-              printf '%s\n' "$NIX_EVAL"
-              ;;
-            build)
-              printf '%s\n' "$NIX_BUILD"
-              ;;
-            esac
+            installable="''${!#}"
+            attribute="''${installable#.#}"
+            printf '/nix/store/%s-tarball\n' "''${attribute%.tarball}"
           '';
         };
         updaters = pkgs.callPackage ../../../pkgs/build-support/updaters.nix {
           nix-update = command "nix-update";
           inherit nix;
         };
-        # Each call copies the next lockfile from `$PNPM_LOCKS` when it is set.
+        # Each call records the overrides and the links in `.nix-providers` as a
+        # line in `$PNPM_STATES`, and copies the next lockfile from
+        # `$PNPM_LOCKS`.
         pnpm = pkgs.writeShellApplication {
           name = "pnpm";
+          runtimeInputs = [pkgs.jq pkgs.yq-go];
           text = ''
             printf 'pnpm:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"
-            if [[ -n "''${PNPM_LOCKS:-}" ]]; then
-              count=$(($(cat "$PNPM_LOCKS/count" 2>/dev/null || echo 0) + 1))
-              echo "$count" >"$PNPM_LOCKS/count"
-              cp "$PNPM_LOCKS/$count.yaml" pnpm-lock.yaml
-            fi
+
+            shopt -s nullglob
+            links='{}'
+            for link in .nix-providers/*; do
+              links="$(jq -c --arg file "''${link##*/}" --arg target "$(readlink "$link")" '. + {($file): $target}' <<<"$links")"
+            done
+            yq -o=json '.overrides // {}' pnpm-workspace.yaml | jq -c --argjson links "$links" '{overrides: ., links: $links}' >>"$PNPM_STATES"
+
+            count=$(($(cat "$PNPM_LOCKS/count" 2>/dev/null || echo 0) + 1))
+            echo "$count" >"$PNPM_LOCKS/count"
+            cp "$PNPM_LOCKS/$count.yaml" pnpm-lock.yaml
           '';
         };
         updater = updaters.mkPnpmLockUpdater {
-          pname = "fixture";
-          directory = "fixture";
-          overrides = map npmPackages.pnpmProvider [host linked];
-          inherit pnpm;
-        };
-        updaterWithLockfiles = updaters.mkPnpmLockUpdater {
           pname = "scenario";
           directory = "scenario";
-          overrides = map npmPackages.pnpmProvider [host linked];
-          inherit pnpm;
-        };
-        updaterWithoutProviders = updaters.mkPnpmLockUpdater {
-          pname = "plain";
-          directory = "plain";
-          overrides = [];
+          catalogue = npmPackages.pnpmCatalogue {
+            inherit host linked;
+            private = producer "@dotfiles/private" "0.1.0";
+          };
           inherit pnpm;
         };
         assertions =
@@ -128,6 +123,19 @@ in
             {
               name = "attribute names are keyed by npm name";
               pass = npmPackages.attributesByName {inherit host github plain;} == {"@scope/host" = "host";};
+            }
+            {
+              name = "the pnpm catalogue lists each npm package with its tarball name and the installable that builds the tarball";
+              pass =
+                npmPackages.pnpmCatalogue {inherit host github plain;}
+                == [
+                  {
+                    name = "@scope/host";
+                    version = "2.0.0";
+                    file = "scope-host-2.0.0.tgz";
+                    installable = ".#host.tarball";
+                  }
+                ];
             }
             {
               name = "pnpm selects local providers from package keys, including transitive packages";
@@ -270,7 +278,7 @@ in
           } ''
             if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
             bash ${../../../pkgs/build-support/pnpm-providers.test.bash} ${../../../pkgs/build-support/pnpm-providers.bash}
-            bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater} ${lib.getExe updaterWithoutProviders} ${lib.getExe updaterWithLockfiles}
+            bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
             touch "$out"
           '';
 

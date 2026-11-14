@@ -36,5 +36,5 @@
     fetcherVersion = 5;
   };
 in {
-  inherit pnpmDeps overrides linkProviders prePnpmInstall;
+  inherit pnpmDeps linkProviders prePnpmInstall;
 }
