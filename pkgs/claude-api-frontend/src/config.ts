@@ -12,7 +12,7 @@ import { z } from "zod";
 const port = z.number().int().min(1).max(65535);
 const absolutePath = z.string().refine(isAbsolute, "Expected an absolute path");
 
-export const configSchema = z.strictObject({
+const configSchema = z.strictObject({
   port: port.default(3457),
   teamclaudeConfigFile: absolutePath,
   stateDirectory: absolutePath,

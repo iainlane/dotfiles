@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { FetchTransport } from "#frontend/transport";
-import { captureError } from "./fakes.ts";
+import { UpstreamError } from "#frontend/errors";
 
 it("uses the injected HTTP client without following upstream redirects", async () => {
   const requests: {
@@ -45,14 +45,9 @@ it("uses the injected HTTP client without following upstream redirects", async (
 it("preserves a failed HTTP client's cause in the typed upstream error", async () => {
   const cause = new TypeError("fetch failed");
   const http: typeof globalThis.fetch = () => Promise.reject(cause);
-  const result = await captureError(
-    async () =>
-      await new FetchTransport(http).send(
-        new Request("http://127.0.0.1:3456/v1/messages"),
-      ),
-  );
-  expect(result).toStrictEqual({
-    data: { code: "upstream", status: 502 },
-    cause,
-  });
+  await expect(
+    new FetchTransport(http).send(
+      new Request("http://127.0.0.1:3456/v1/messages"),
+    ),
+  ).rejects.toStrictEqual(new UpstreamError({ cause }));
 });

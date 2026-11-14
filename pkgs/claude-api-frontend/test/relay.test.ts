@@ -8,9 +8,8 @@ import { StatusCodes } from "http-status-codes";
 import { UnexpectedListenerError } from "#frontend/errors";
 import { afterEach, expect, it } from "vitest";
 import { certificates } from "#frontend/certificates";
-import { configSchema } from "#frontend/config";
 import { startProxy } from "#frontend/proxy";
-import { IncompleteSocketFrameError } from "./fakes.ts";
+import { IncompleteSocketFrameError, frontendConfig } from "./fakes.ts";
 
 const cleanup: (() => Promise<unknown>)[] = [];
 const date = "Thu, 01 Jan 1970 00:00:00 GMT";
@@ -38,7 +37,7 @@ async function fixture() {
     throw new UnexpectedListenerError();
   }
 
-  const config = configSchema.parse({
+  const config = await frontendConfig({
     teamclaudeConfigFile: "/unused",
     stateDirectory: directory,
   });

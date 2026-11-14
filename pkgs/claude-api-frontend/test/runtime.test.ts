@@ -1,21 +1,25 @@
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
-import assert from "node:assert/strict";
 import {
   CertificateCleanupError,
   CertificateCommandError,
+  CertificateExpiringError,
+  ConfigurationReadError,
+  InvalidConfigurationError,
+  LoopbackDisabledError,
+  PortConflictError,
 } from "#frontend/errors";
 import { X509Certificate } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { certificates } from "#frontend/certificates";
-import { configSchema, loadConfig, upstreamPort } from "#frontend/config";
+import { loadConfig, upstreamPort } from "#frontend/config";
 import { checkHealth } from "#frontend/health";
 import { NodeFrontendFiles } from "#frontend/files";
 import {
   FakeTransport,
   FailingCertificateCommand,
-  captureError,
+  frontendConfig,
 } from "./fakes.ts";
 
 let directory: string;
@@ -61,14 +65,8 @@ it("loads defaults and the runtime TeamClaude port without copying credentials",
 });
 
 it.each([
-  {
-    proxy: { trustLoopback: false },
-    error: { data: { code: "loopback-disabled" }, cause: undefined },
-  },
-  {
-    proxy: { port: 3457 },
-    error: { data: { code: "port-conflict", port: 3457 }, cause: undefined },
-  },
+  { proxy: { trustLoopback: false }, error: new LoopbackDisabledError() },
+  { proxy: { port: 3457 }, error: new PortConflictError(3457) },
 ])(
   "rejects incompatible TeamClaude configuration: $proxy",
   async ({ proxy, error }) => {
@@ -76,31 +74,22 @@ it.each([
 
     await writeFile(teamclaudeConfigFile, JSON.stringify({ proxy }));
 
-    const config = configSchema.parse({
+    const config = await frontendConfig({
       teamclaudeConfigFile,
       stateDirectory: directory,
     });
 
-    await expect(
-      captureError(async () => await upstreamPort(config)),
-    ).resolves.toStrictEqual(error);
+    await expect(upstreamPort(config)).rejects.toStrictEqual(error);
   },
 );
 
 it("cleans up certificate staging after an injected command fails", async () => {
   const command = new FailingCertificateCommand();
 
-  const result = await captureError(
-    async () => await certificates(directory, command),
+  await expect(certificates(directory, command)).rejects.toStrictEqual(
+    new CertificateCommandError({ cause: { code: "FAKE_OPENSSL_FAILURE" } }),
   );
-
-  expect({ error: result, files: await readdir(directory) }).toStrictEqual({
-    error: {
-      data: { code: "certificate-command" },
-      cause: { code: "FAKE_OPENSSL_FAILURE" },
-    },
-    files: [],
-  });
+  expect(await readdir(directory)).toStrictEqual([]);
 });
 
 it("checks the running certificate, account and upstream through an injected transport", async () => {
@@ -112,7 +101,7 @@ it("checks the running certificate, account and upstream through an injected tra
     JSON.stringify({ proxy: { port: 3456 } }),
   );
 
-  const config = configSchema.parse({
+  const config = await frontendConfig({
     teamclaudeConfigFile,
     stateDirectory: directory,
     account: "anthropic",
@@ -146,21 +135,12 @@ it("checks the running certificate, account and upstream through an injected tra
   );
 
   await expect(
-    captureError(
-      async () =>
-        await checkHealth(config, {
-          transport: stale,
-          files: new NodeFrontendFiles(),
-        }),
-    ),
-  ).resolves.toStrictEqual({
-    data: {
-      code: "invalid-config",
-      source: "health",
-      issues: [{ code: "invalid_value", path: ["account"] }],
-    },
-    cause: undefined,
-  });
+    checkHealth(config, { transport: stale, files: new NodeFrontendFiles() }),
+  ).rejects.toStrictEqual(
+    new InvalidConfigurationError("health", [
+      { code: "invalid_value", path: ["account"] },
+    ]),
+  );
 });
 
 it("issues SHA-256 certificates whatever the host's OPENSSL_CONF contains", async () => {
@@ -197,17 +177,12 @@ it("issues SHA-256 certificates whatever the host's OPENSSL_CONF contains", asyn
 it("checks CA expiry using an injected clock before issuing a leaf certificate", async () => {
   const chain = await certificates(directory);
   const validTo = new X509Certificate(chain.ca).validTo;
-  const result = await captureError(
-    async () =>
-      await certificates(directory, new FailingCertificateCommand(), {
-        now: () => Date.parse(validTo) - 365 * 86400000,
-        newSerial: () => "unused",
-      }),
-  );
-  expect(result).toStrictEqual({
-    data: { code: "certificate-expiring", validTo },
-    cause: undefined,
-  });
+  await expect(
+    certificates(directory, new FailingCertificateCommand(), {
+      now: () => Date.parse(validTo) - 365 * 86400000,
+      newSerial: () => "unused",
+    }),
+  ).rejects.toStrictEqual(new CertificateExpiringError(validTo));
 });
 
 it("preserves configuration read failures through an injected file adapter", async () => {
@@ -217,13 +192,11 @@ it("preserves configuration read failures through an injected file adapter", asy
       throw cause;
     },
   };
-  const result = await captureError(
-    async () => await loadConfig("/fixture/frontend.json", files),
+  await expect(
+    loadConfig("/fixture/frontend.json", files),
+  ).rejects.toStrictEqual(
+    new ConfigurationReadError("/fixture/frontend.json", { cause }),
   );
-  expect(result).toStrictEqual({
-    data: { code: "config-read", path: "/fixture/frontend.json" },
-    cause,
-  });
 });
 
 it("retains certificate generation and cleanup failures together", async () => {
@@ -238,22 +211,14 @@ it("retains certificate generation and cleanup failures together", async () => {
       throw primary;
     },
   };
-  let failure: unknown;
-  try {
-    await certificates(directory, command, {
+
+  await expect(
+    certificates(directory, command, {
       now: Date.now,
       newSerial: () => "unused",
       removeTemporary: async (_directory): Promise<void> => {
         throw cleanup;
       },
-    });
-  } catch (error) {
-    failure = error;
-  }
-  assert.ok(failure instanceof CertificateCleanupError);
-  assert.ok(failure.cause instanceof AggregateError);
-  expect({ code: failure.code, failures: failure.cause.errors }).toStrictEqual({
-    code: "certificate-cleanup",
-    failures: [primary, cleanup],
-  });
+    }),
+  ).rejects.toStrictEqual(new CertificateCleanupError(primary, cleanup));
 });

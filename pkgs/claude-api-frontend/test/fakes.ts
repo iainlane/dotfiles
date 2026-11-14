@@ -1,6 +1,13 @@
 import type { CertificateCommand } from "#frontend/certificates";
-import { CertificateCommandError, FrontendError } from "#frontend/errors";
+import { loadConfig, type Config } from "#frontend/config";
+import { CertificateCommandError } from "#frontend/errors";
 import type { Transport } from "#frontend/transport";
+
+export async function frontendConfig(fields: object): Promise<Config> {
+  return await loadConfig("/fixture/frontend.json", {
+    readText: async (_path: string): Promise<string> => JSON.stringify(fields),
+  });
+}
 
 export class FakeTransport implements Transport {
   readonly requests: Request[] = [];
@@ -63,22 +70,4 @@ export class FrontendStartupTimeoutError extends Error {
     super(`Frontend did not start listening: ${stderr}`);
     this.name = "FrontendStartupTimeoutError";
   }
-}
-
-export async function captureError(
-  operation: () => Promise<unknown>,
-): Promise<unknown> {
-  try {
-    return await operation();
-  } catch (error) {
-    return errorSnapshot(error);
-  }
-}
-
-export function errorSnapshot(error: unknown): object {
-  if (!(error instanceof FrontendError)) {
-    throw error;
-  }
-
-  return { data: error.toJSON(), cause: error.cause };
 }

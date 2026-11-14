@@ -29,12 +29,6 @@ export function httpFailure(cause: unknown): HttpFailure {
   };
 }
 
-export function errorResponse(cause: unknown): Response {
-  const { body, ...init } = httpFailure(cause);
-
-  return Response.json(body, init);
-}
-
 export function sendError(
   response: http.ServerResponse | http2.Http2ServerResponse,
   error: unknown,

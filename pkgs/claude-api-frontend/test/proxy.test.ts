@@ -8,10 +8,9 @@ import { afterEach, expect, it } from "vitest";
 import { certificates } from "#frontend/certificates";
 import { startProxy } from "#frontend/proxy";
 import { StatusCodes } from "http-status-codes";
-import { FakeTransport } from "./fakes.ts";
+import { FakeTransport, frontendConfig } from "./fakes.ts";
 import { UnexpectedListenerError, UpstreamError } from "#frontend/errors";
 import type { Transport } from "#frontend/transport";
-import { configSchema } from "#frontend/config";
 
 const anyString: unknown = expect.any(String);
 const anyBuffer: unknown = expect.any(Buffer);
@@ -43,7 +42,7 @@ async function fixture(transport?: Transport) {
   if (address === null || typeof address === "string") {
     throw new UnexpectedListenerError();
   }
-  const config = configSchema.parse({
+  const config = await frontendConfig({
     stateDirectory: directory,
     teamclaudeConfigFile: "/unused",
     account: "api account",
