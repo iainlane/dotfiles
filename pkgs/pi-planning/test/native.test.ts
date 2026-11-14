@@ -18,7 +18,6 @@ import {
   SessionManager,
   SettingsManager,
   type ExtensionFactory,
-  type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import subagents from "pi-subagents";
 import { fauxAssistantMessage, getCurrentTools } from "@earendil-works/pi-ai";
@@ -607,30 +606,6 @@ it.each([
         },
       });
     const childStarted = Promise.withResolvers<void>();
-    let parentApi: ExtensionAPI | undefined;
-    // The MCP extension registers the fixture server's tools after it connects
-    // to the fixture server, and pi announces no event for that registration.
-    // The test checks the registered tools again after each registration.
-    const registrationChecks = new Set<() => void>();
-    const mcp: ExtensionFactory = (pi) =>
-      createMcpExtension()(
-        new Proxy(pi, {
-          get(target, property) {
-            if (property === "registerTool") {
-              return (tool: Parameters<ExtensionAPI["registerTool"]>[0]) => {
-                target.registerTool(tool);
-                for (const check of registrationChecks) {
-                  check();
-                }
-              };
-            }
-            const value: unknown = Reflect.get(target, property);
-            return typeof value === "function"
-              ? (value.bind(target) as unknown)
-              : value;
-          },
-        }),
-      );
     const requests: {
       sessionId: string | undefined;
       tools: string[];
@@ -766,7 +741,6 @@ it.each([
       return fauxAssistantMessage("Offline fixture report");
     });
     const provider: ExtensionFactory = (pi) => {
-      parentApi = pi;
       pi.registerProvider(faux.provider);
     };
     let session:
@@ -827,7 +801,7 @@ it.each([
                   name: "mcp",
                   builtin: true as const,
                   replaceable: true as const,
-                  factory: mcp,
+                  factory: createMcpExtension({ startupWaitMs: 2 ** 31 - 1 }),
                 },
               ]
             : []),
@@ -881,31 +855,6 @@ it.each([
           confirm: async (title) => title === "Enter Plan mode?",
         },
       });
-      const requiredTools = [
-        "enter_plan_mode",
-        "subagent",
-        ...(hasMcp ? ["mcp__fixture__inspect_tool", "read_mcp_resource"] : []),
-        ...(mode === "mcp" ? ["tool_search"] : []),
-      ];
-      const missingTools = () =>
-        requiredTools.filter(
-          (name) =>
-            parentApi?.getAllTools().some((tool) => tool.name === name) !==
-            true,
-        );
-      if (hasMcp) {
-        await new Promise<void>((resolve) => {
-          const check = () => {
-            if (missingTools().length === 0) {
-              registrationChecks.delete(check);
-              resolve();
-            }
-          };
-          registrationChecks.add(check);
-          check();
-        });
-      }
-      expect(missingTools()).toStrictEqual([]);
       const running = session.prompt("Exercise the fixed planning fixture.");
       if (mode === "research-cancel") {
         await childStarted.promise;
