@@ -227,6 +227,30 @@ it("polls Git a fixed interval after the previous read finishes", async () => {
   session.dispose();
 });
 
+it("backs off Git polling after failures and resets after a success", async () => {
+  const { bus, context, runtime } = harness();
+  const reads: number[] = [];
+  const session = new FooterSession(context, bus, () => {}, {
+    ...runtime,
+    readGit: async (_cwd, now): Promise<undefined> => {
+      reads.push(now);
+      if (reads.length <= 4) {
+        throw new Error("Git timed out");
+      }
+    },
+  });
+
+  await runtime.clock.advance(0);
+  await runtime.clock.advance(145_000);
+
+  const start = Date.UTC(2026, 9, 20, 12);
+  expect(reads.map((at) => at - start)).toStrictEqual([
+    0, 10_000, 30_000, 70_000, 130_000, 135_000, 140_000, 145_000,
+  ]);
+
+  session.dispose();
+});
+
 it("does not invalidate for routine content but clears a displayed inactivity warning", async () => {
   const { bus, context, runtime } = harness();
   const change = vi.fn<() => void>();

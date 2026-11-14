@@ -35,6 +35,9 @@ export interface FooterContext {
   };
 }
 
+const GIT_INTERVAL = 5000;
+const GIT_MAX_INTERVAL = 60_000;
+
 export class FooterSession {
   readonly state;
   private context: FooterContext;
@@ -46,6 +49,7 @@ export class FooterSession {
   private disposed = false;
   private gitPending = false;
   private gitRerun = false;
+  private gitFailures = 0;
   private gitAt = -Infinity;
   private agentsAt = -Infinity;
   private leaf: string | null | undefined;
@@ -191,7 +195,7 @@ export class FooterSession {
 
     const now = this.state.now;
 
-    if (!this.gitPending && now - this.gitAt >= 5000) {
+    if (!this.gitPending && now - this.gitAt >= this.gitInterval()) {
       void this.refreshGit();
     }
 
@@ -236,6 +240,10 @@ export class FooterSession {
     }
   }
 
+  private gitInterval(): number {
+    return Math.min(GIT_INTERVAL * 2 ** this.gitFailures, GIT_MAX_INTERVAL);
+  }
+
   private async updateGit(): Promise<void> {
     if (this.disposed) {
       return;
@@ -275,6 +283,7 @@ export class FooterSession {
         return;
       }
 
+      this.gitFailures = 0;
       this.state.git = git;
       this.state.gitError = undefined;
 
@@ -293,6 +302,7 @@ export class FooterSession {
         return;
       }
 
+      this.gitFailures++;
       this.state.gitError =
         text(error instanceof Error ? error.message : error) ||
         "Git probe failed";
