@@ -1,0 +1,37 @@
+{
+  "customTypes": {
+    "optional": {
+      "path": "optionalDependencies",
+      "strategy": "versionsByName"
+    }
+  },
+  "versionGroups": [
+    {
+      "label": "Peer dependencies describe what the host provides and are left as written.",
+      "dependencyTypes": ["peer"],
+      "isIgnored": true
+    },
+    {
+      "label": "The package's updater writes the overrides that install local npm packages.",
+      "dependencyTypes": ["pnpmOverrides"],
+      "isIgnored": true
+    }
+  ],
+  "semverGroups": [
+    {
+      "label": "The local Pi SDK packages depend on these exact versions. pnpm resolves a caret range to the newest release, so a range would install a second copy with its own module state.",
+      "dependencies": [
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-ai",
+        "@earendil-works/pi-tui",
+        "typebox"
+      ],
+      "dependencyTypes": ["prod", "dev", "optional"],
+      "range": ""
+    },
+    {
+      "label": "Dependencies use caret ranges.",
+      "range": "^"
+    }
+  ]
+}

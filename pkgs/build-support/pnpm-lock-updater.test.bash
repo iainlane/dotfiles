@@ -4,6 +4,7 @@ updater="$1"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 git -C "$root" init --quiet
+printf '%s\n' '{"semverGroups": [{"dependencies": ["@scope/tui"], "range": ""}, {"range": "^"}]}' >"$root/.syncpackrc.json"
 
 # Starts the project from a package.json and the overrides in its
 # pnpm-workspace.yaml. Each later argument is the lockfile that the next relock
@@ -420,13 +421,20 @@ printf '%s\n' '{"dependencies": {"@scope/tui": "^1.0.0"}}' >"$root/scenario/pack
 update
 jq -n --sort-keys '{"package.json": {"name": "workspace"}, "packages/app/package.json": {"dependencies": {"@scope/tui": "1.1.0"}}}' | diff -u - <(manifests)
 
-# Local packages that need different versions of a direct dependency, and a
-# relock that still installs two copies, stop the update.
-for case in conflict persistent; do
+# Local packages that need different versions of a direct dependency, an exact
+# version that syncpack would reject, and a relock that still installs two
+# copies stop the update.
+for case in conflict syncpack persistent; do
+	cp "$root/.syncpackrc.json" "$root/syncpackrc.json"
 	case "$case" in
 	conflict)
 		project "$tui" '' "$(lock 1.0.0 host 1.1.0 linked 1.2.0)"
 		expected='Local packages need different versions of @scope/tui: 1.1.0 1.2.0'
+		;;
+	syncpack)
+		printf '%s\n' '{"semverGroups": [{"range": "^"}]}' >"$root/.syncpackrc.json"
+		project "$tui" '' "$(lock 1.0.0 host 1.1.0)"
+		expected='@scope/tui needs the exact version 1.1.0, which a local package installs, but .syncpackrc.json allows exact versions only for the dependencies in its semver group with "range": "". Add @scope/tui to that group.'
 		;;
 	persistent)
 		project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.0.0 host 1.1.0)"
@@ -438,4 +446,5 @@ for case in conflict persistent; do
 		exit 1
 	fi
 	printf '%s\n' "$expected" | diff -u - "$root/$case.log"
+	mv "$root/syncpackrc.json" "$root/.syncpackrc.json"
 done

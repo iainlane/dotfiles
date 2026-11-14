@@ -297,10 +297,15 @@ if ((${#mismatches[@]} == 0)); then
 	exit 0
 fi
 
+exact="$(jq -c '[.semverGroups[]? | select(.range == "") | .dependencies[]?]' "$root/.syncpackrc.json")"
 for mismatch in "${mismatches[@]}"; do
 	IFS=$'\t' read -r name versions <<<"$mismatch"
 	if [[ "$versions" == *" "* ]]; then
 		printf 'Local packages need different versions of %s: %s\n' "$name" "$versions" >&2
+		exit 1
+	fi
+	if ! jq -e --arg name "$name" 'index($name) != null' <<<"$exact" >/dev/null; then
+		printf '%s needs the exact version %s, which a local package installs, but .syncpackrc.json allows exact versions only for the dependencies in its semver group with "range": "". Add %s to that group.\n' "$name" "$versions" "$name" >&2
 		exit 1
 	fi
 

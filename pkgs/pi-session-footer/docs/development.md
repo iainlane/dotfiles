@@ -21,14 +21,14 @@ dependency hash.
 
 ## Commands and test groups
 
-| Command                 | Checks                                                   |
-| ----------------------- | -------------------------------------------------------- |
-| `pnpm typecheck`        | Strict source and test checking, without emitted files.  |
-| `pnpm lint`             | Inherited type-aware Oxlint rules and the import policy. |
-| `pnpm test:unit`        | Unit regressions under `test/unit`.                      |
-| `pnpm test:integration` | Native Pi, PTY, provider and integration regressions.    |
-| `pnpm test`             | Both test groups.                                        |
-| `pnpm check`            | Typechecking, lint and both test groups.                 |
+| Command                 | Checks                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`        | Strict source and test checking, without emitted files.                                                                |
+| `pnpm lint`             | Inherited type-aware Oxlint rules, the import policy and the dependency ranges in the repository's `.syncpackrc.json`. |
+| `pnpm test:unit`        | Unit regressions under `test/unit`.                                                                                    |
+| `pnpm test:integration` | Native Pi, PTY, provider and integration regressions.                                                                  |
+| `pnpm test`             | Both test groups.                                                                                                      |
+| `pnpm check`            | Typechecking, lint and both test groups.                                                                               |
 
 Integration files run sequentially for PTY isolation. Fixture preparation copies
 selected third-party packages into ignored `.fixtures` directories and preserves

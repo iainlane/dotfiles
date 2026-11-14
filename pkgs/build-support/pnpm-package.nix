@@ -50,19 +50,23 @@ in
         inherit (manifest) version;
         src = lib.fileset.toSource {
           inherit root;
-          fileset = lib.fileset.unions [directory ../../lib/typecheck.ts ../../.oxlintrc.json ../../.oxfmtrc.json ../../tsconfig.base.json];
+          fileset = lib.fileset.unions [directory ../../lib/typecheck.ts ../../.oxlintrc.json ../../.oxfmtrc.json ../../.syncpackrc.json ../../tsconfig.base.json];
         };
         sourceRoot = "source/${relative}";
         inherit (deps) pnpmDeps prePnpmInstall;
         dontStrip = true;
         doCheck = true;
 
-        # The checks run one native program, the type-aware linter. Other
-        # prebuilt modules, such as PTY binaries for musl and X11 bindings,
-        # need libraries that autoPatchelf cannot satisfy.
+        # The checks run two native programs, the type-aware linter and
+        # syncpack. Other prebuilt modules, such as PTY binaries for musl and
+        # X11 bindings, need libraries that autoPatchelf cannot satisfy.
+        # syncpack's launcher exits successfully when it cannot start the
+        # binary, so an unpatched syncpack would pass the checks without
+        # running.
         preBuild = lib.optionalString stdenv.hostPlatform.isLinux ''
           tsgolint="$(node --print 'require("node:module").createRequire(require.resolve("oxlint-tsgolint/package.json")).resolve("@oxlint-tsgolint/linux-${stdenv.hostPlatform.node.arch}/tsgolint")')"
-          autoPatchelf "$tsgolint"
+          syncpack="$(node --print 'require("node:module").createRequire(require.resolve("syncpack/package.json")).resolve("syncpack-linux-${stdenv.hostPlatform.node.arch}/bin/syncpack")')"
+          autoPatchelf "$tsgolint" "$syncpack"
         '';
         buildPhase = ''
           runHook preBuild

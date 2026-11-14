@@ -27,8 +27,10 @@ declares its production dependencies. Shared versions use the workspace's
 ## Checks
 
 `pnpm build` compiles the runtime and CLI in dependency order. `pnpm typecheck`
-checks source, tests and a consumer of the emitted declarations. `pnpm lint` and
-`pnpm test` run Oxlint and Vitest. `pnpm check` runs all these commands.
+checks source, tests and a consumer of the emitted declarations. `pnpm lint`
+runs Oxlint and then syncpack, which compares the dependency ranges in every
+manifest with the policy in the repository's `.syncpackrc.json`. `pnpm test`
+runs Vitest. `pnpm check` runs all these commands.
 
 Nix also checks the installed dependency links and runs the executable outside
 the workspace:

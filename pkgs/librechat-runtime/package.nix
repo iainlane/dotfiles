@@ -17,7 +17,7 @@ in
     pname = "librechat-runtime";
     directory = ./.;
     inherit pnpm environment;
-    dependencyHash = "sha256-712SnaZPtg4jZ9e8NaA9Az/Y7XU2SQZA9kC0egRhuHo=";
+    dependencyHash = "sha256-et6xrPEy4hwvSCdCPxIQQY8MZEbwMECQEIj6rVtJUKw=";
     packageRoot = "lib/librechat-runtime";
     # The workspace root is not an npm package.
     npmTarball = false;
