@@ -1,6 +1,12 @@
 import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
-import { duration, finite, record, text } from "#footer/shared/text.ts";
+import {
+  duration,
+  finite,
+  record,
+  text,
+  timestamp,
+} from "#footer/shared/text.ts";
 
 export type Freshness = "fresh" | "cached" | "stale" | "unavailable";
 
@@ -179,7 +185,7 @@ export function readQuota(
   return {
     provider: raw.state.provider,
     windows,
-    lastSuccessAt: finite(usage.lastSuccessAt),
+    lastSuccessAt: timestamp(usage.lastSuccessAt),
     error,
     account: text(usage.accountId, 96) || undefined,
     source: text(usage.credentialSource, 48) || undefined,

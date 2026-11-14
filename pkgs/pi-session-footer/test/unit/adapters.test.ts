@@ -343,3 +343,40 @@ it.each(["threads", "checks"])("rejects fractional PR %s counts", (field) => {
     }),
   ).toBeUndefined();
 });
+
+it.each([8.64e15, 8.64e15 + 1])(
+  "accepts PR timestamps only within the date range: %d",
+  (updatedAt) => {
+    const event = {
+      protocol: 1,
+      source: "pi-prs",
+      repository: "a/b",
+      branch: "main",
+      health: "ok",
+      updatedAt,
+    } as const;
+
+    expect(readPr(event)).toStrictEqual(
+      updatedAt === 8.64e15 ? { ...event, pullRequest: undefined } : undefined,
+    );
+  },
+);
+
+it.each([
+  { label: "a BigInt", report: { total: 1n } },
+  {
+    label: "a circular object",
+    report: (() => {
+      const report: Record<string, unknown> = {};
+      report.self = report;
+      return report;
+    })(),
+  },
+])("describes $label delegation report it cannot serialise", ({ report }) => {
+  const state = createSnapshot(100, "/work");
+  state.delegationCost = report;
+
+  expect(detailsLines(state, "usage").at(-1)).toBe(
+    "unavailable: the report cannot be serialised as JSON",
+  );
+});

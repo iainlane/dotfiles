@@ -2,7 +2,7 @@ import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 import { isPullRequestStateEvent } from "pi-prs/api";
 import type { PullRequestSnapshot, PullRequestStateEvent } from "pi-prs/api";
-import { text } from "#footer/shared/text.ts";
+import { MAX_TIMESTAMP, text } from "#footer/shared/text.ts";
 
 const countSchema = Type.Integer({
   minimum: 0,
@@ -54,7 +54,7 @@ const prStateSchema = Type.Object({
     Type.Literal("unauthenticated"),
     Type.Literal("error"),
   ]),
-  updatedAt: Type.Number({ minimum: 0 }),
+  updatedAt: Type.Number({ minimum: 0, maximum: MAX_TIMESTAMP }),
   pullRequest: Type.Optional(pullRequestSchema),
 });
 

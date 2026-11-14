@@ -6,7 +6,7 @@ import {
   type InspectionNavigation,
 } from "./inspection-page.ts";
 import type { FooterSnapshot, UsageTotals } from "#footer/domain/state.ts";
-import { duration, text, tokens } from "#footer/shared/text.ts";
+import { duration, reportText, text, tokens } from "#footer/shared/text.ts";
 
 function cost(value: UsageTotals): string {
   return `${value.costFromProvider ? "" : "≈"}$${value.cost.toFixed(2)}`;
@@ -111,7 +111,7 @@ export function usageContent(
                     "Safe JSON · at most 2,000 columns and 4,096 source characters; an ellipsis marks truncation.",
                     state.delegationCost === undefined
                       ? "No delegation report yet."
-                      : text(JSON.stringify(state.delegationCost), 2000),
+                      : reportText(state.delegationCost, 2000),
                   ],
                 ),
               ],

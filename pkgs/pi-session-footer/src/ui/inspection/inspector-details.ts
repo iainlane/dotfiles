@@ -1,5 +1,5 @@
 import type { FooterSnapshot } from "#footer/domain/state.ts";
-import { duration, text } from "#footer/shared/text.ts";
+import { duration, reportText, text } from "#footer/shared/text.ts";
 import { quotaWindows, type QuotaView } from "#footer/domain/quota.ts";
 import { taskSummary } from "#footer/domain/workflow.ts";
 import type { StatusSnapshot } from "#footer/domain/status.ts";
@@ -167,7 +167,7 @@ export function detailsLines(
       "Delegation report (separate scope; not added to session cost; safe raw JSON, capped at 2000 columns and 4096 source characters; ellipsis indicates truncation):",
       state.delegationCost === undefined
         ? "unavailable"
-        : text(JSON.stringify(state.delegationCost), 2000),
+        : reportText(state.delegationCost, 2000),
     ];
   }
   return [

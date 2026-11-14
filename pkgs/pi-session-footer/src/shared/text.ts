@@ -6,8 +6,11 @@ import {
   visibleWidth,
 } from "@earendil-works/pi-tui";
 
+export const MAX_TIMESTAMP = 8.64e15;
+
 const recordSchema = Type.Record(Type.String(), Type.Unknown());
 const nonnegativeNumberSchema = Type.Number({ minimum: 0 });
+const timestampSchema = Type.Number({ minimum: 0, maximum: MAX_TIMESTAMP });
 
 export function record(value: unknown): value is Record<string, unknown> {
   return Check(recordSchema, value);
@@ -15,6 +18,10 @@ export function record(value: unknown): value is Record<string, unknown> {
 
 export function finite(value: unknown): number | undefined {
   return Check(nonnegativeNumberSchema, value) ? value : undefined;
+}
+
+export function timestamp(value: unknown): number | undefined {
+  return Check(timestampSchema, value) ? value : undefined;
 }
 
 export function text(value: unknown, width = 160): string {
@@ -33,6 +40,14 @@ export function text(value: unknown, width = 160): string {
     return clean;
   }
   return sliceByColumn(clean, 0, width - 1, true) + "…";
+}
+
+export function reportText(report: unknown, width: number): string {
+  try {
+    return text(JSON.stringify(report), width);
+  } catch {
+    return "unavailable: the report cannot be serialised as JSON";
+  }
 }
 
 export function duration(ms: number): string {

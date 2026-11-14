@@ -36,6 +36,31 @@ describe("quota readings", () => {
     },
   );
 
+  it.each([8.64e15, 8.64e15 + 1])(
+    "keeps a success timestamp only within the date range: %d",
+    (lastSuccessAt) => {
+      expect(
+        readQuota(
+          event([{ label: "Week", usedPercent: 2 }], { lastSuccessAt }),
+        ),
+      ).toStrictEqual({
+        provider: "codex",
+        windows: [
+          {
+            label: "Week",
+            used: 2,
+            resetAt: undefined,
+            windowSeconds: undefined,
+          },
+        ],
+        lastSuccessAt: lastSuccessAt === 8.64e15 ? lastSuccessAt : undefined,
+        error: undefined,
+        account: undefined,
+        source: undefined,
+      });
+    },
+  );
+
   it("does not infer durations or missing windows from labels", () => {
     const reading = readQuota(event([{ label: "Week", usedPercent: 2 }]));
 
