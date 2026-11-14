@@ -154,3 +154,20 @@ it("materialises default text and keeps typed runs for later placement styling",
     unthemed: " main",
   });
 });
+it.each([
+  ["👩‍💻 dev", "👩‍💻 dev"],
+  ["🏴󠁧󠁢󠁳󠁣󠁴󠁿 flag", "🏴󠁧󠁢󠁳󠁣󠁴󠁿 flag"],
+  ["bell\u0007ring", "bell ring"],
+  ["safe‮evil", "safe evil"],
+  ["outer⁦inner⁩end", "outer inner end"],
+  ["left‎right", "left right"],
+  ["arabic؜mark", "arabic mark"],
+  ["zero​width", "zero width"],
+  ["﻿marked", "marked"],
+  ["shown\u{E0068}\u{E0069}\u{E0064}\u{E0065} end", "shown end"],
+] as const)(
+  "keeps emoji sequences and removes other format characters: %j",
+  (value, expected) => {
+    expect(text(value)).toBe(expected);
+  },
+);

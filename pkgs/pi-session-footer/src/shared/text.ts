@@ -30,7 +30,10 @@ export function text(value: unknown, width = 160): string {
   }
 
   const clean = stripTerminalSequences(value.slice(0, 4096))
-    .replaceAll(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replaceAll(
+      /(\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F})|(?!\u200D)[\p{Cc}\p{Cf}]/gu,
+      (_character: string, flag: string | undefined) => flag ?? " ",
+    )
     .replaceAll(/\s+/g, " ")
     .trim();
   if (width <= 0) {
