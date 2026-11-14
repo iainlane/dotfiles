@@ -1,24 +1,41 @@
 import { nodeFiles } from "#planning/node-files.ts";
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  createAssistantMessageEventStream,
-  type AssistantMessage,
-  type Model,
-} from "@earendil-works/pi-ai/compat";
+import { fauxAssistantMessage, type Model } from "@earendil-works/pi-ai";
 import {
   getAgentDir,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { PlanStore } from "#planning/store.ts";
 import { boundaryText } from "./boundary.ts";
+import {
+  currentRun,
+  lastToolResult,
+  toolCallReply,
+  transcriptProvider,
+} from "./faux.ts";
+
+const planningRequest =
+  /Plan the fixed fixture|Review the boundary fixture|Exercise entry consent/;
+
+const model: Model<"planning-rpc-fixture"> = {
+  id: "fixture",
+  name: "Fixture",
+  api: "planning-rpc-fixture",
+  provider: "planning-rpc-fixture",
+  baseUrl: "http://127.0.0.1:1",
+  reasoning: false,
+  input: ["text"],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  // The faux provider reports estimated token usage. Boundary-size plans
+  // would otherwise fill the window and start an automatic compaction.
+  contextWindow: 10_000_000,
+  maxTokens: 4096,
+};
 
 export default function provider(pi: ExtensionAPI): void {
-  let calls = 0;
-  let reason = "startup";
   let path = "";
   pi.on("session_start", (event, ctx) => {
-    reason = event.reason;
     path = new PlanStore(
       join(getAgentDir(), "plans"),
       ctx.sessionManager.getSessionId(),
@@ -31,7 +48,7 @@ export default function provider(pi: ExtensionAPI): void {
       appendFileSync(
         process.env.PI_PLANNING_TRACE,
         JSON.stringify({
-          reason,
+          reason: event.reason,
           path,
           id: ctx.sessionManager.getSessionId(),
           file: ctx.sessionManager.getSessionFile(),
@@ -46,117 +63,53 @@ export default function provider(pi: ExtensionAPI): void {
       tokensBefore: event.preparation.tokensBefore,
     },
   }));
-  const model: Model<"planning-rpc-fixture"> = {
-    id: "fixture",
-    name: "Fixture",
-    api: "planning-rpc-fixture",
-    provider: "planning-rpc-fixture",
-    baseUrl: "http://127.0.0.1:1",
-    reasoning: false,
-    input: ["text"],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 128000,
-    maxTokens: 4096,
-  };
-  pi.registerProvider(model.provider, {
-    apiKey: "fixture",
-    api: model.api,
-    baseUrl: model.baseUrl,
-    models: [model],
-    streamSimple: (_model, context) => {
-      const step = calls++;
-      const trace = process.env.PI_PLANNING_REQUEST_TRACE;
-      if (trace !== undefined && trace !== "") {
-        appendFileSync(trace, JSON.stringify({ step, context }) + "\n");
-      }
-      const workflow =
-        process.env.PI_PLANNING_ENTRY_PROBE === "1"
-          ? "entry"
-          : process.env.PI_PLANNING_RESUME_PROBE === "1"
-            ? "resume"
-            : reason;
-      const content: AssistantMessage["content"] =
-        (workflow === "startup" || workflow === "entry") && step === 0
-          ? [
-              {
-                type: "toolCall",
-                id: "enter",
-                name: "enter_plan_mode",
-                arguments: {},
-              },
-            ]
-          : workflow === "startup" && step === 1
-            ? [
-                {
-                  type: "toolCall",
-                  id: "draft",
-                  name: "write",
-                  arguments: {
-                    path,
-                    content:
-                      process.env.PI_PLANNING_BOUNDARY_KIND === undefined
-                        ? "# RPC plan\n\nImplement the reviewed fixture.\n"
-                        : boundaryText(
-                            "# Context\n\n",
-                            process.env.PI_PLANNING_BOUNDARY_KIND === "unicode"
-                              ? "🦉"
-                              : "\u0000",
-                          ),
-                  },
-                },
-              ]
-            : workflow === "startup" && step === 2
-              ? [
-                  {
-                    type: "toolCall",
-                    id: "submit",
-                    name: "submit_plan",
-                    arguments: {},
-                  },
-                ]
-              : workflow === "resume" && step === 0
-                ? [
-                    {
-                      type: "toolCall",
-                      id: "mutation",
-                      name: "write",
-                      arguments: { path: "project.ts", content: "unapproved" },
-                    },
-                  ]
-                : [
-                    {
-                      type: "text",
-                      text:
-                        workflow === "startup" && step >= 4
-                          ? "Implementation fixture ready"
-                          : "Fixture finished",
-                    },
-                  ];
-      const stopReason = content[0]?.type === "toolCall" ? "toolUse" : "stop";
-      const message: AssistantMessage = {
-        role: "assistant",
-        content,
-        api: model.api,
-        provider: model.provider,
-        model: model.id,
-        stopReason,
-        timestamp: 1,
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-      };
-      const stream = createAssistantMessageEventStream();
-      queueMicrotask(() => {
-        stream.push({ type: "start", partial: message });
-        stream.push({ type: "done", reason: stopReason, message });
-        stream.end();
+  const faux = transcriptProvider(model, (context) => {
+    const { prompt, progress } = currentRun(context.messages);
+    const trace = process.env.PI_PLANNING_REQUEST_TRACE;
+    if (trace !== undefined && trace !== "") {
+      appendFileSync(trace, JSON.stringify({ prompt, context }) + "\n");
+    }
+    const last = lastToolResult(progress);
+    if (prompt.includes("Implement this approved plan.")) {
+      return fauxAssistantMessage("Implementation fixture ready");
+    }
+    if (prompt.includes("Probe restored") && last === undefined) {
+      return toolCallReply("mutation", "write", {
+        path: "project.ts",
+        content: "unapproved",
       });
-      return stream;
-    },
+    }
+    if (!planningRequest.test(prompt)) {
+      return fauxAssistantMessage("Fixture finished");
+    }
+    const entry = progress.findLast(
+      (message) =>
+        message.role === "toolResult" && message.toolCallId === "enter",
+    );
+    if (last === undefined) {
+      return toolCallReply("enter", "enter_plan_mode", {});
+    }
+    if (
+      last === "enter" &&
+      !JSON.stringify(entry?.content).includes("Plan mode was not entered")
+    ) {
+      return toolCallReply("draft", "write", {
+        path,
+        content:
+          process.env.PI_PLANNING_BOUNDARY_KIND === undefined
+            ? "# RPC plan\n\nImplement the reviewed fixture.\n"
+            : boundaryText(
+                "# Context\n\n",
+                process.env.PI_PLANNING_BOUNDARY_KIND === "unicode"
+                  ? "🦉"
+                  : "\u0000",
+              ),
+      });
+    }
+    if (last === "draft") {
+      return toolCallReply("submit", "submit_plan", {});
+    }
+    return fauxAssistantMessage("Fixture finished");
   });
+  pi.registerProvider(faux.provider);
 }

@@ -21,7 +21,7 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import subagents from "pi-subagents";
-import { getCurrentTools } from "@earendil-works/pi-ai";
+import { fauxAssistantMessage, getCurrentTools } from "@earendil-works/pi-ai";
 import { resolveCurrentSubagentCapabilityCeiling } from "pi-subagents/capability-ceiling";
 import { resolvePiLaunchToolPlan } from "pi-subagents/child-tool-plan";
 import { expect, it, vi } from "vitest";
@@ -32,6 +32,12 @@ import { PlanStore } from "#planning/store.ts";
 import { nodeFiles } from "#planning/node-files.ts";
 import researchFixture from "./fixtures/research.ts";
 import nativePermissionsFixture from "./fixtures/permissions.ts";
+import {
+  lastToolResult,
+  toolCallReply,
+  transcriptProvider,
+  userText,
+} from "./fixtures/faux.ts";
 
 const nativeResearchTools = [
   "bash",
@@ -569,7 +575,7 @@ it.each([
   async ({ mode, expected }) => {
     const cwd = await mkdtemp(join(tmpdir(), "pi-planning-native-"));
     vi.stubEnv("PI_CODING_AGENT_DIR", join(cwd, "agent"));
-    const model: Model<"planning-fixture"> = {
+    const fixtureModel: Model<"planning-fixture"> = {
       id: "fixture",
       name: "Fixture",
       api: "planning-fixture",
@@ -581,7 +587,6 @@ it.each([
       contextWindow: 128000,
       maxTokens: 4096,
     };
-    let calls = 0;
     let planPath = "";
     let childCancelled = false;
     const delegationErrors: string[] = [];
@@ -632,248 +637,137 @@ it.each([
       entryDescription: string | undefined;
       guardBlocked: boolean;
     }[] = [];
-    const provider: ExtensionFactory = (pi) => {
-      parentApi = pi;
-      pi.registerProvider(model.provider, {
-        apiKey: "fixture",
-        api: model.api,
-        baseUrl: model.baseUrl,
-        models: [model],
-        streamSimple: (_model, context, options) => {
-          for (const message of context.messages) {
-            if (
-              message.role === "toolResult" &&
-              message.toolCallId === "mcp-script"
-            ) {
-              const text = message.content
-                .flatMap((block) => (block.type === "text" ? [block.text] : []))
-                .join("\n");
-              const result = /MCP_RESULT=(\{.*\})/.exec(text)?.[1];
-              const parsed: unknown =
-                result === undefined ? message.content : JSON.parse(result);
-              mcpResults.push({ isError: message.isError, result: parsed });
-            }
-            if (
-              message.role === "toolResult" &&
-              ["research-fixture", "nested-research"].includes(
-                message.toolCallId,
-              ) &&
-              message.isError
-            ) {
-              delegationErrors.push(JSON.stringify(message.content));
-            }
-            if (
-              message.role === "toolResult" &&
-              message.toolCallId === "depth-limit" &&
-              message.isError
-            ) {
-              depthErrors.push(JSON.stringify(message.content));
-            }
-          }
-          const availableTools = getCurrentTools(context.messages);
-          requests.push({
-            sessionId: options?.sessionId,
-            tools: availableTools.map((tool) => tool.name).toSorted(),
-            entryDescription: availableTools.find(
-              (tool) => tool.name === "enter_plan_mode",
-            )?.description,
-            guardBlocked: context.messages.some(
-              (message) =>
-                (message.role === "toolResult" &&
-                  message.toolCallId === "child-mutation" &&
-                  message.isError &&
-                  JSON.stringify(message.content).includes(
-                    "Native permission fixture refused",
-                  )) ||
-                (message.role === "toolResult" &&
-                  message.toolCallId === "research-script" &&
-                  JSON.stringify(message.content).includes(
-                    "Only previews are available",
-                  )),
-            ),
+    const faux = transcriptProvider(fixtureModel, async (context, options) => {
+      for (const message of context.messages) {
+        if (
+          message.role === "toolResult" &&
+          message.toolCallId === "mcp-script"
+        ) {
+          const text = message.content
+            .flatMap((block) => (block.type === "text" ? [block.text] : []))
+            .join("\n");
+          const result = /MCP_RESULT=(\{.*\})/.exec(text)?.[1];
+          const parsed: unknown =
+            result === undefined ? message.content : JSON.parse(result);
+          mcpResults.push({ isError: message.isError, result: parsed });
+        }
+        if (
+          message.role === "toolResult" &&
+          ["research-fixture", "nested-research"].includes(
+            message.toolCallId,
+          ) &&
+          message.isError
+        ) {
+          delegationErrors.push(JSON.stringify(message.content));
+        }
+        if (
+          message.role === "toolResult" &&
+          message.toolCallId === "depth-limit" &&
+          message.isError
+        ) {
+          depthErrors.push(JSON.stringify(message.content));
+        }
+      }
+      const availableTools = getCurrentTools(context.messages);
+      requests.push({
+        sessionId: options?.sessionId,
+        tools: availableTools.map((tool) => tool.name).toSorted(),
+        entryDescription: availableTools.find(
+          (tool) => tool.name === "enter_plan_mode",
+        )?.description,
+        guardBlocked: context.messages.some(
+          (message) =>
+            (message.role === "toolResult" &&
+              message.toolCallId === "child-mutation" &&
+              message.isError &&
+              JSON.stringify(message.content).includes(
+                "Native permission fixture refused",
+              )) ||
+            (message.role === "toolResult" &&
+              message.toolCallId === "research-script" &&
+              JSON.stringify(message.content).includes(
+                "Only previews are available",
+              )),
+        ),
+      });
+      const task = userText(context.messages);
+      const last = lastToolResult(context.messages);
+      if (task.includes("Exercise the fixed planning fixture.")) {
+        if (last === undefined) {
+          return toolCallReply("enter-fixture", "enter_plan_mode", {});
+        }
+        if (last === "enter-fixture" && mode === "codemode") {
+          return toolCallReply("native-fixture", "codemode", {
+            code: `try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:${JSON.stringify(planPath)},content:'# Native plan\\n'}));`,
           });
-          const step = calls++;
-          if (mode === "mcp" && step === 1) {
+        }
+        if (last === "enter-fixture") {
+          if (mode === "mcp") {
             writeFileSync(join(cwd, "agent", "mcp.json"), mcpConfig(true));
           }
-          if (mode === "mcp" && step === 2) {
-            writeFileSync(gate, "");
-          }
-          if (mode === "settings-error" && step === 2) {
-            writeFileSync(join(cwd, "agent", "planning.json"), "{invalid");
-          }
-          const nestedCalls: Record<number, AssistantMessage["content"]> = {
-            2: [
-              {
-                type: "toolCall",
-                id: "research-script",
-                name: "codemode",
-                arguments: { code: researchScript },
-              },
-            ],
-            3: [
-              {
-                type: "toolCall",
-                id: "nested-research",
-                name: "subagent",
-                arguments: {
-                  agent: "planning-plan",
-                  task: "Inspect the nested research fixture.",
-                  async: false,
-                },
-              },
-            ],
-            4: [
-              {
-                type: "toolCall",
-                id: "research-script",
-                name: "codemode",
-                arguments: { code: researchScript },
-              },
-            ],
-            5: [
-              {
-                type: "toolCall",
-                id: "depth-limit",
-                name: "subagent",
-                arguments: {
-                  agent: "planning-explore",
-                  task: "This exceeds the configured depth.",
-                  async: false,
-                },
-              },
-            ],
-          };
-          const content: AssistantMessage["content"] =
-            mode === "nested" && step >= 2
-              ? (nestedCalls[step] ?? [
-                  { type: "text", text: "Offline fixture report" },
-                ])
-              : mode === "mcp" && step === 2
-                ? [
-                    {
-                      type: "toolCall",
-                      id: "mcp-search",
-                      name: "tool_search",
-                      arguments: {
-                        query: "mcp__fixture__inspect_tool",
-                        limit: 1,
-                      },
-                    },
-                  ]
-                : mode === "mcp" && step === 3
-                  ? [
-                      {
-                        type: "toolCall",
-                        id: "mcp-script",
-                        name: "codemode",
-                        arguments: { code: mcpScript },
-                      },
-                    ]
-                  : step === 1 && mode === "codemode"
-                    ? [
-                        {
-                          type: "toolCall",
-                          id: "native-fixture",
-                          name: "codemode",
-                          arguments: {
-                            code: `try { await tools.write({path:'project.ts',content:'changed'}); } catch(error) { text(String(error)); } text(await tools.write({path:${JSON.stringify(planPath)},content:'# Native plan\\n'}));`,
-                          },
-                        },
-                      ]
-                    : calls === 1
-                      ? [
-                          {
-                            type: "toolCall",
-                            id: "enter-fixture",
-                            name: "enter_plan_mode",
-                            arguments: {},
-                          },
-                        ]
-                      : mode !== "codemode" && calls === 2
-                        ? [
-                            {
-                              type: "toolCall",
-                              id: "research-fixture",
-                              name: "subagent",
-                              arguments: {
-                                agent: "planning-explore",
-                                task: "Return the offline fixture report.",
-                                async: false,
-                              },
-                            },
-                          ]
-                        : ["research", "settings-error"].includes(mode) &&
-                            calls === 3
-                          ? [
-                              {
-                                type: "toolCall",
-                                id: "child-mutation",
-                                name: "bash",
-                                arguments: {
-                                  command: "printf changed > project.ts",
-                                },
-                              },
-                            ]
-                          : [{ type: "text", text: "Offline fixture report" }];
-          const waitForCancel = mode === "research-cancel" && calls === 3;
-          const reason = content[0]?.type === "toolCall" ? "toolUse" : "stop";
-          const message: AssistantMessage = {
-            role: "assistant",
-            content,
-            api: model.api,
-            provider: model.provider,
-            model: model.id,
-            stopReason: reason,
-            timestamp: 1,
-            usage: {
-              input: 0,
-              output: 0,
-              cacheRead: 0,
-              cacheWrite: 0,
-              totalTokens: 0,
-              cost: {
-                input: 0,
-                output: 0,
-                cacheRead: 0,
-                cacheWrite: 0,
-                total: 0,
-              },
-            },
-          };
-          const stream = createAssistantMessageEventStream();
-          queueMicrotask(() => {
-            stream.push({ type: "start", partial: message });
-            if (waitForCancel) {
-              const abort = () => {
-                childCancelled = true;
-                stream.push({
-                  type: "error",
-                  reason: "aborted",
-                  error: {
-                    ...message,
-                    stopReason: "aborted",
-                    errorMessage: "Fixture child cancelled",
-                  },
-                });
-                stream.end();
-              };
-              if (options?.signal?.aborted === true) {
-                abort();
-              } else {
-                options?.signal?.addEventListener("abort", abort, {
-                  once: true,
-                });
-              }
-              childStarted.resolve();
-              return;
-            }
-            stream.push({ type: "done", reason, message });
-            stream.end();
+          return toolCallReply("research-fixture", "subagent", {
+            agent: "planning-explore",
+            task: "Return the offline fixture report.",
+            async: false,
           });
-          return stream;
-        },
-      });
+        }
+        return fauxAssistantMessage("Offline fixture report");
+      }
+      if (mode === "research-cancel") {
+        const signal = options?.signal;
+        childStarted.resolve();
+        if (signal !== undefined && !signal.aborted) {
+          await new Promise((resolve) => {
+            signal.addEventListener("abort", resolve, { once: true });
+          });
+        }
+        childCancelled = true;
+        return fauxAssistantMessage([], {
+          stopReason: "aborted",
+          errorMessage: "Fixture child cancelled",
+        });
+      }
+      if (last === undefined && mode === "mcp") {
+        writeFileSync(gate, "");
+        return toolCallReply("mcp-search", "tool_search", {
+          query: "mcp__fixture__inspect_tool",
+          limit: 1,
+        });
+      }
+      if (last === undefined && mode === "nested") {
+        return toolCallReply("research-script", "codemode", {
+          code: researchScript,
+        });
+      }
+      if (last === undefined) {
+        if (mode === "settings-error") {
+          writeFileSync(join(cwd, "agent", "planning.json"), "{invalid");
+        }
+        return toolCallReply("child-mutation", "bash", {
+          command: "printf changed > project.ts",
+        });
+      }
+      if (last === "mcp-search") {
+        return toolCallReply("mcp-script", "codemode", { code: mcpScript });
+      }
+      if (last === "research-script") {
+        return task.includes("Inspect the nested research fixture.")
+          ? toolCallReply("depth-limit", "subagent", {
+              agent: "planning-explore",
+              task: "This exceeds the configured depth.",
+              async: false,
+            })
+          : toolCallReply("nested-research", "subagent", {
+              agent: "planning-plan",
+              task: "Inspect the nested research fixture.",
+              async: false,
+            });
+      }
+      return fauxAssistantMessage("Offline fixture report");
+    });
+    const provider: ExtensionFactory = (pi) => {
+      parentApi = pi;
+      pi.registerProvider(faux.provider);
     };
     let session:
       | Awaited<ReturnType<typeof createAgentSession>>["session"]
@@ -958,7 +852,7 @@ it.each([
         agentDir: join(cwd, "agent"),
         resourceLoader: loader,
         modelRuntime: runtime,
-        model,
+        model: faux.getModel(),
         thinkingLevel: "off",
         sessionManager: manager,
         settingsManager: settings,

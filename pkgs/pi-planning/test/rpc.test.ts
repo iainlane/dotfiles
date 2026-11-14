@@ -115,12 +115,13 @@ function startLine(value: unknown): Start {
     file: value.file,
   };
 }
-function requestContext(value: unknown, step: number): string[] {
+function requestContext(value: unknown, prompt: string): string[] {
   if (
     typeof value !== "object" ||
     value === null ||
-    !("step" in value) ||
-    value.step !== step ||
+    !("prompt" in value) ||
+    typeof value.prompt !== "string" ||
+    !value.prompt.includes(prompt) ||
     !("context" in value)
   ) {
     return [];
@@ -314,7 +315,7 @@ it("clears context in the same native session and preserves the plan through com
     fileURLToPath(new URL("./fixtures/provider.ts", import.meta.url)),
   ];
   const command = process.env.PI_TEST_HOST ?? process.execPath;
-  const launch = (extraArgs: string[] = [], probe = false) =>
+  const launch = (extraArgs: string[] = []) =>
     spawn(
       command,
       process.env.PI_TEST_HOST !== undefined && process.env.PI_TEST_HOST !== ""
@@ -328,7 +329,6 @@ it("clears context in the same native session and preserves the plan through com
           PI_CODING_AGENT_DIR: join(cwd, "agent"),
           PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
           PI_PLANNING_REQUEST_TRACE: join(cwd, "requests.jsonl"),
-          PI_PLANNING_RESUME_PROBE: probe ? "1" : "0",
           PI_OFFLINE: "1",
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -406,14 +406,14 @@ it("clears context in the same native session and preserves the plan through com
       .trim()
       .split("\n")
       .map((line) => startLine(JSON.parse(line)));
-  const request = async (step: number) => {
+  const request = async (prompt: string) => {
     const matches = (await readFile(join(cwd, "requests.jsonl"), "utf8"))
       .trim()
       .split("\n")
-      .flatMap((line) => requestContext(JSON.parse(line), step));
+      .flatMap((line) => requestContext(JSON.parse(line), prompt));
     const result = matches.at(-1);
     if (result === undefined) {
-      throw new Error(`Expected provider request ${step}`);
+      throw new Error(`Expected a provider request for ${prompt}`);
     }
     return result;
   };
@@ -458,7 +458,7 @@ it("clears context in the same native session and preserves the plan through com
           (entry) => entry.type === "custom" && entry.customType === stateEntry,
         ),
     ).toMatchObject({ data: { active: false, sourceSessionId: source.id } });
-    const implementation = await request(4);
+    const implementation = await request("Implement this approved plan.");
     expect(implementation).toContain("Implement the reviewed fixture.");
     expect(implementation).toContain(source.path);
     expect(implementation).not.toContain("private-exploration-marker");
@@ -485,10 +485,12 @@ it("clears context in the same native session and preserves the plan through com
       () =>
         records.filter((entry) => entry.type === "agent_settled").length >= 3,
     );
-    expect(await request(5)).toContain(
+    expect(await request("Continue with the attached plan.")).toContain(
       "Continue the remaining implementation.",
     );
-    expect(await request(5)).not.toContain("private-exploration-marker");
+    expect(await request("Continue with the attached plan.")).not.toContain(
+      "private-exploration-marker",
+    );
 
     await commandResult({ type: "prompt", message: "/plan" }, "reenter");
     await commandResult(
@@ -529,7 +531,7 @@ it("clears context in the same native session and preserves the plan through com
       records.length = 0;
       output = "";
       errors = "";
-      child = launch(["--session", source.file], true);
+      child = launch(["--session", source.file]);
       attachOutput();
     };
     await restart();
@@ -652,7 +654,6 @@ it.each([
           HOME: cwd,
           PI_CODING_AGENT_DIR: join(cwd, "agent"),
           PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
-          PI_PLANNING_ENTRY_PROBE: "1",
           PI_OFFLINE: "1",
         },
         stdio: ["pipe", "pipe", "pipe"],
