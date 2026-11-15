@@ -3,8 +3,8 @@
 # `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
 # exported by `flake/updaters/outputs.nix`. The updaters run in the order that
 # `update-plan order` prints. The Tuesday run also passes `--maintain-lockfiles`,
-# so each pnpm package's updater moves every locked dependency to the newest
-# version that its range allows.
+# so the updaters of the pnpm packages and the Pi extensions move every locked
+# dependency to the newest version that its range allows.
 #
 # `flake-update.yml` handles the mutable inputs that `nix flake update` can move
 # on its own; this workflow updates the `pkgs/` packages, release-tag inputs
@@ -22,7 +22,8 @@ on:
   workflow_dispatch:
     inputs:
       maintain-lockfiles:
-        description: Also run lock-file maintenance for the pnpm packages
+        description:
+          Also run lock-file maintenance for the pnpm packages and Pi extensions
         type: boolean
         default: false
 

@@ -229,6 +229,7 @@
       passthru.maintenance = {
         source = "release";
         refresh = true;
+        lockfileMaintenance = true;
       };
       runtimeInputs = [bash coreutils git gnutar patch jq nix nodejs wget];
 

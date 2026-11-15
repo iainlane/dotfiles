@@ -140,6 +140,7 @@ in
         maintenance = {
           source = "release";
           refresh = true;
+          lockfileMaintenance = true;
         };
         updateScript = updaters.mkPiExtensionUpdater {
           inherit npmName pname npmDependencies metadataFiles gitHub tagPrefix;

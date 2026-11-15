@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-# Usage: pi-extension-updater.bash CONFIG [--force | --refresh | --pin COMMIT]
+# Usage: pi-extension-updater.bash CONFIG [--force | --refresh | --maintain-lockfile | --pin COMMIT]
 #
 # Bump a Pi extension: rewrite `source.json` with the new version and source
 # hash, and regenerate the build's lockfile under `npm-deps/`. Run from the
@@ -11,6 +11,10 @@
 # would resolve the same version. With `gitHub`, the source is that version's
 # release tag. An unchanged GitHub source uses its committed lock. npm resolves
 # patched sources, pinned commits and registry tarballs.
+#
+# `--maintain-lockfile` keeps the source like `--refresh`, but discards any
+# lockfile in the source so npm moves every dependency, direct and transitive,
+# to the newest version that its range allows.
 #
 # `--pin COMMIT` replaces the release with an upstream commit from the
 # repository that npm records for the package. Updates keep the pin until npm
@@ -197,7 +201,7 @@ keep_unreleased_pin() {
 fetch_release_tag() {
 	local tag="${tagPrefix}${version}" url
 
-	if [[ "${mode}" == refresh ]]; then
+	if ${keepSource}; then
 		tag="$(jq -r --arg prefix "${tagPrefix}" '.rev // .tag // ($prefix + .version)' source.json)"
 	fi
 	url="https://github.com/${gitHubOwner}/${gitHubRepo}/archive/${tag}.tar.gz"
@@ -244,7 +248,7 @@ update_release() {
 		force=true
 	fi
 
-	if [[ "${mode}" == refresh ]]; then
+	if ${keepSource}; then
 		version="${current}"
 	else
 		version="$(npm view "${npmName}" version)"
@@ -259,7 +263,7 @@ update_release() {
 	# package to a GitHub source, or editing `npmDependencies`. `--force` asks
 	# for that.
 	if [[ "${version}" == "${current}" ]]; then
-		if ! ${force} && [[ "${mode}" != refresh ]]; then
+		if ! ${force} && ! ${keepSource}; then
 			echo "${pname} is already on the latest version (${version}); pass --force to resolve it again" >&2
 			exit 0
 		fi
@@ -275,7 +279,7 @@ update_release() {
 		fetch_registry_tarball
 	fi
 
-	if [[ "${mode}" == refresh ]]; then
+	if ${keepSource}; then
 		if [[ "$(jq -r '.hash // .tarballHash' source.json)" != "${hash}" ]]; then
 			echo 'The pinned source hash changed; refusing to repin during refresh.' >&2
 			exit 1
@@ -286,14 +290,14 @@ update_release() {
 }
 
 usage() {
-	echo "Usage: update-${pname} [--force | --refresh | --pin <commit>]" >&2
+	echo "Usage: update-${pname} [--force | --refresh | --maintain-lockfile | --pin <commit>]" >&2
 	exit 1
 }
 
 mode=release
 case "$#:${1:-}" in
 0:) ;;
-1:--force | 1:--refresh)
+1:--force | 1:--refresh | 1:--maintain-lockfile)
 	mode="${1#--}"
 	;;
 2:--pin)
@@ -304,6 +308,11 @@ case "$#:${1:-}" in
 	;;
 esac
 
+keepSource=false
+if [[ "${mode}" == refresh || "${mode}" == maintain-lockfile ]]; then
+	keepSource=true
+fi
+
 current="$(jq -r .version source.json)"
 pinnedRev="$(jq -r '.pin.rev // empty' source.json)"
 commitSource=false
@@ -311,7 +320,7 @@ metadataPrefix=""
 
 if [[ "${mode}" == pin ]]; then
 	pin_commit "$2"
-elif [[ -n "${pinnedRev}" && "${mode}" == refresh ]]; then
+elif [[ -n "${pinnedRev}" ]] && ${keepSource}; then
 	refresh_pin
 else
 	update_release
@@ -328,7 +337,11 @@ if [[ "$(setting '.npmDependencies | length')" != 0 ]]; then
 	mv "${sourceDir}/package.json.new" "${sourceDir}/package.json"
 fi
 
-if ${commitSource} || [[ -z "${gitHubOwner}" || "$(setting '(.patches | length) + (.npmDependencies | length)')" != 0 ]]; then
+if [[ "${mode}" == maintain-lockfile ]]; then
+	rm -f "${sourceDir}/package-lock.json"
+fi
+
+if [[ "${mode}" == maintain-lockfile ]] || ${commitSource} || [[ -z "${gitHubOwner}" || "$(setting '(.patches | length) + (.npmDependencies | length)')" != 0 ]]; then
 	(cd "${sourceDir}" && npm install --package-lock-only --ignore-scripts) >&2
 fi
 lockfile="${sourceDir}/package-lock.json"

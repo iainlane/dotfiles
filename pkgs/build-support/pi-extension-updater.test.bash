@@ -121,6 +121,23 @@ for program in "$registry" "$github"; do
 	jq '.packages[""]' "$fixture/expected-lock.json" | cmp - "$PI_UPDATER_LISTED_MANIFEST"
 done
 
+for program in "$registry" "$github"; do
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"release"}' >"$PI_UPDATER_LOCK"
+	make_archive
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"newest"}' >"$PI_UPDATER_LOCK"
+	reset_outputs
+	if [[ "$program" == "$registry" ]]; then
+		printf '%s\n' '{"tarballHash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","version":"2.0.0"}' >source.json
+	else
+		printf '%s\n' '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","tag":"v2.0.0","version":"2.0.0"}' >source.json
+	fi
+	cp source.json "$fixture/maintained-source.json"
+
+	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --maintain-lockfile
+	cmp "$fixture/maintained-source.json" source.json
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+done
+
 export PI_UPDATER_EXPECT_PATCH=1
 printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0","dependencies":{"runtime":"1.0.0"},"peerDependencies":{"host":"^1.4.0"}}}}' >"$PI_UPDATER_LOCK"
 make_archive
@@ -218,6 +235,11 @@ for program in "$registry" "$github"; do
 	cmp "$fixture/pinned-source.json" source.json
 	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
 	grep -Fx "https://github.com/fixture/fixture/archive/$pinned.tar.gz" "$PI_UPDATER_URL"
+
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"maintained":true}' >"$PI_UPDATER_LOCK"
+	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --maintain-lockfile
+	cmp "$fixture/pinned-source.json" source.json
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
 
 	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}}}' >"$PI_UPDATER_LOCK"
 	make_archive
