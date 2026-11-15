@@ -27,6 +27,10 @@ export function displayText(
   }).join("");
 }
 
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function displayPath(value: string): string {
   if (!isAbsolute(value)) {
     return displayText(value, "inline");

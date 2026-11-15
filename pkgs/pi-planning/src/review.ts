@@ -27,7 +27,7 @@ import {
   validateImageInput,
   validatePlanDocument,
 } from "./validation.ts";
-import { displayPath, displayText } from "./presentation.ts";
+import { displayPath, displayText, errorText } from "./presentation.ts";
 
 export type ReviewDecision = "current" | "clear" | "revise" | "cancel";
 export interface ReviewResult {
@@ -193,7 +193,7 @@ export async function reviewPlan(
       try {
         validateFeedbackText(decision === "cancel" ? undefined : feedback);
       } catch (error) {
-        notice = String(error);
+        notice = errorText(error);
         tui.requestRender();
         return;
       }
@@ -228,7 +228,7 @@ export async function reviewPlan(
         }
       } catch (error) {
         valid = false;
-        notice = `Cannot reload the active plan: ${String(error)}`;
+        notice = `Cannot reload the active plan: ${errorText(error)}`;
       }
     };
     const openEditor = async () => {
@@ -241,7 +241,7 @@ export async function reviewPlan(
         tui.stop();
         await editor.open(presented.path);
       } catch (error) {
-        notice = String(error);
+        notice = errorText(error);
       } finally {
         editing = false;
         if (!finished) {
@@ -281,7 +281,7 @@ export async function reviewPlan(
         choices.focusInput();
       } catch (error) {
         if (!finished && !signal.aborted) {
-          notice = String(error);
+          notice = errorText(error);
         }
       } finally {
         acquiringImage = false;
@@ -295,7 +295,7 @@ export async function reviewPlan(
         await attachImage();
       } catch (error) {
         if (!finished) {
-          notice = String(error);
+          notice = errorText(error);
           tui.requestRender();
         }
       }
@@ -304,7 +304,7 @@ export async function reviewPlan(
       try {
         await openEditor();
       } catch (error) {
-        notice = String(error);
+        notice = errorText(error);
         tui.requestRender();
       }
     };

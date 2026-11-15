@@ -6,6 +6,7 @@ import type {
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
 import { forEachChild, parse, type SyntaxNode } from "unbash";
+import { errorText } from "./presentation.ts";
 
 export interface PlanEditor {
   name: string;
@@ -128,7 +129,7 @@ export async function openPlanEditorInUi(
         done(error);
       } catch (cause) {
         ctx.ui.notify(
-          `Cannot restore the plan editor UI: ${String(cause)}`,
+          `Cannot restore the plan editor UI: ${errorText(cause)}`,
           "error",
         );
       }

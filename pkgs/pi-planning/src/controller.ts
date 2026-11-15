@@ -35,7 +35,7 @@ import {
 } from "./validation.ts";
 import type { EnterPlanOutput, SubmitPlanOutput } from "./contracts.ts";
 import type { PlanningOutcome } from "./outcomes.ts";
-import { displayText } from "./presentation.ts";
+import { displayText, errorText } from "./presentation.ts";
 import type { PlanningStatus } from "./status.ts";
 
 const clearedContextSchema = Type.Object({
@@ -228,7 +228,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
       } catch (error) {
         notify(
           ctx,
-          `Planning research is unavailable: ${String(error)}`,
+          `Planning research is unavailable: ${errorText(error)}`,
           "error",
         );
       }
@@ -262,7 +262,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
       dependencies.presentPlan(plan);
       return plan;
     } catch (error) {
-      notify(ctx, `Cannot display the plan: ${String(error)}`, "error");
+      notify(ctx, `Cannot display the plan: ${errorText(error)}`, "error");
       return undefined;
     }
   }
@@ -299,7 +299,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
     try {
       await editor.open(plan.path);
     } catch (error) {
-      failure = String(error);
+      failure = errorText(error);
     } finally {
       editing = false;
     }
@@ -715,12 +715,12 @@ export function createPlanning(dependencies: PlanningDependencies) {
         approval.plan,
         signal.aborted
           ? "Implementation approval was cancelled during research verification."
-          : String(error),
+          : errorText(error),
       );
       if (!signal.aborted) {
         notify(
           ctx,
-          `Cannot start approved implementation: ${String(error)}`,
+          `Cannot start approved implementation: ${errorText(error)}`,
           "error",
         );
       }
@@ -854,7 +854,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
         return;
       }
       failureRecorded = true;
-      const reason = String(error);
+      const reason = errorText(error);
       recordImplementationFailure(approval.plan, reason);
       notify(ctx, reason, "error");
     };
@@ -907,7 +907,11 @@ export function createPlanning(dependencies: PlanningDependencies) {
         }
       }
     } catch (error) {
-      notify(ctx, `Cannot restore plan context: ${String(error)}`, "warning");
+      notify(
+        ctx,
+        `Cannot restore plan context: ${errorText(error)}`,
+        "warning",
+      );
     }
     return parts.length > 0 ? parts.join("\n\n") : undefined;
   };

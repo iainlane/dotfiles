@@ -559,11 +559,11 @@ it.each<ApprovalScenario>([
         outcome === "aborted"
           ? "Implementation approval was cancelled during research verification."
           : continuation === "busy"
-            ? "Error: A subagent is still active. Wait for completion or cancel it before requesting implementation approval."
+            ? "A subagent is still active. Wait for completion or cancel it before requesting implementation approval."
             : continuation === "error"
               ? "The planning run ended (error) before implementation started."
               : launchFailure
-                ? "Error: Fixture deferred launch failed"
+                ? "Fixture deferred launch failed"
                 : undefined;
       expect({
         launch: await launch,

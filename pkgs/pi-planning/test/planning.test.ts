@@ -600,19 +600,36 @@ it("does not start image-based implementation after the model loses image suppor
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
+  const plan = f.openPlan("session-one").read();
   f.reviews.push({
     decision: "current",
-    presentedPlan: f.openPlan("session-one").read(),
+    presentedPlan: plan,
     images: [feedbackImage],
   });
   await f.execute("submit_plan");
+  f.pi.notifications.splice(0);
   f.ctx.model = { input: ["text"] };
   await expect(f.completeApproval()).rejects.toThrow("image-capable model");
   f.controller.settled({ aborted: false }, f.ctx);
+  const reason =
+    "Use an image-capable model or continue with text feedback. The current model cannot receive image feedback.";
   expect({
     conversation: f.pi.conversation,
+    notifications: f.pi.notifications,
+    failure: f.pi.outcomes.at(-1),
     guarded: (await f.call("write", { path: "project.ts" }))?.block,
-  }).toStrictEqual({ conversation: [], guarded: true });
+  }).toStrictEqual({
+    conversation: [],
+    notifications: [{ message: reason, level: "error" }],
+    failure: {
+      version: 1,
+      event: "implementation-failed",
+      path: plan.path,
+      revision: plan.revision,
+      reason,
+    },
+    guarded: true,
+  });
 });
 
 it("does not grant implementation when the outcome cannot be persisted", async () => {
@@ -635,7 +652,7 @@ it.each([
   {
     stage: "verification",
     decision: "current",
-    reason: `Error: ${activeSubagent}`,
+    reason: activeSubagent,
   },
   {
     stage: "boundary",
@@ -731,7 +748,7 @@ it("records a failed implementation launch and never retries the consumed approv
         event: "implementation-failed",
         path: plan.path,
         revision: plan.revision,
-        reason: "Error: Launch failed",
+        reason: "Launch failed",
       },
     ],
     conversation: [],
@@ -877,7 +894,7 @@ it("escapes untrusted editor errors before native notifications", async () => {
   expect(f.pi.notifications).toStrictEqual([
     { message: "Enabled plan mode", level: "info" },
     {
-      message: "Cannot edit the plan: Error: \\u001b[8mconcealed\\u001b[0m",
+      message: "Cannot edit the plan: \\u001b[8mconcealed\\u001b[0m",
       level: "error",
     },
   ]);
@@ -1516,8 +1533,7 @@ it.each(["missing", "empty", "unreadable"] as const)(
         condition === "unreadable"
           ? [
               {
-                message:
-                  "Cannot restore plan context: Error: Fixture read failure",
+                message: "Cannot restore plan context: Fixture read failure",
                 level: "warning",
               },
             ]

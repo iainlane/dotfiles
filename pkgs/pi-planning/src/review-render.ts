@@ -16,6 +16,7 @@ import {
   displayPath,
   displayStoredMetadata,
   displayText,
+  errorText,
 } from "./presentation.ts";
 import { validateInlinePlanText } from "./validation.ts";
 
@@ -89,7 +90,7 @@ export function renderPlanDocument(value: unknown): Component {
   try {
     validateInlinePlanText(value.content);
   } catch (error) {
-    return new Text(displayText(String(error)), 1, 0);
+    return new Text(displayText(errorText(error)), 1, 0);
   }
   const document = new Container();
   document.addChild(new Text("Here is Pi's plan:", 1, 0));
