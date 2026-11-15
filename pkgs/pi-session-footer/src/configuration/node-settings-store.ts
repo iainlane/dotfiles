@@ -46,6 +46,36 @@ import {
   type SettingsStore,
 } from "./settings-store.ts";
 
+export interface SettingsFileSystem {
+  accessSync: (path: string, mode: number) => void;
+  closeSync: (descriptor: number) => void;
+  fchmodSync: (descriptor: number, mode: number) => void;
+  fsyncSync: (descriptor: number) => void;
+  lstatSync: (path: string) => Stats;
+  openSync: (path: string, flags: number, mode: number) => number;
+  readFileSync: (path: string, encoding: "utf8") => string;
+  realpathSync: (path: string) => string;
+  renameSync: (oldPath: string, newPath: string) => void;
+  rmSync: (path: string, options?: { force: boolean }) => void;
+  statSync: (path: string) => Stats;
+  writeFileSync: (descriptor: number, data: string, encoding: "utf8") => void;
+}
+
+export const nodeSettingsFileSystem: SettingsFileSystem = {
+  accessSync,
+  closeSync,
+  fchmodSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+};
+
 interface SettingsFile {
   path: string;
   kind: "missing" | "file" | "symlink" | "other";
@@ -77,66 +107,11 @@ function errorCode(error: unknown): string | undefined {
     ? error.code
     : undefined;
 }
-function inspectFile(path: string): SettingsFile {
-  let stat: Stats;
-  try {
-    stat = lstatSync(path);
-  } catch (error) {
-    return {
-      path,
-      kind: errorCode(error) === "ENOENT" ? "missing" : "other",
-      stat: undefined,
-      content: undefined,
-      error: errorCode(error) === "ENOENT" ? undefined : readError(path, error),
-    };
-  }
-  const kind = stat.isSymbolicLink()
-    ? "symlink"
-    : stat.isFile()
-      ? "file"
-      : "other";
-  try {
-    if (kind === "other" || (kind === "symlink" && !statSync(path).isFile())) {
-      throw new IrregularSettingsFileError(path);
-    }
-    return {
-      path,
-      kind,
-      stat,
-      content: readFileSync(path, "utf8"),
-      error: undefined,
-    };
-  } catch (error) {
-    return {
-      path,
-      kind,
-      stat,
-      content: undefined,
-      error: readError(path, error),
-    };
-  }
-}
 function content(file: SettingsFile): string | undefined {
   if (file.error !== undefined) {
     throw file.error;
   }
   return file.content;
-}
-function accessible(path: string, mode: number): boolean {
-  try {
-    accessSync(path, mode);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function parentIdentity(path: string): string {
-  try {
-    const stat = statSync(dirname(path));
-    return `${stat.dev}:${stat.ino}`;
-  } catch {
-    return "missing";
-  }
 }
 function fingerprint(file: SettingsFile): FileFingerprint {
   const stat = file.stat;
@@ -151,37 +126,14 @@ function fingerprint(file: SettingsFile): FileFingerprint {
   ];
 }
 type FileDestination = Exclude<SaveDestination, { kind: "session" }>;
-function fileDestination(
-  file: SettingsFile,
-  newUserFile: boolean,
-  repair: boolean,
-): FileDestination {
-  const fail = (problem: SettingsStoreError): FileDestination => ({
-    kind: "unavailable",
-    path: file.path,
-    problem,
-  });
-  if (file.kind === "symlink") {
-    return fail(new SymlinkSettingsFileError(file.path));
-  }
-  if (file.kind === "other") {
-    return fail(new IrregularSettingsFileError(file.path));
-  }
-  if (file.kind === "file" && !accessible(file.path, constants.W_OK)) {
-    return fail(new ReadOnlySettingsFileError(file.path));
-  }
-  const directory = dirname(file.path);
-  if (!accessible(directory, constants.W_OK | constants.X_OK)) {
-    return fail(new ReadOnlySettingsDirectoryError(directory));
-  }
-  return { kind: "file", path: file.path, newUserFile, repair };
-}
 
 export class NodeSettingsStore implements SettingsStore {
   private readonly basePath: string | (() => string);
+  private readonly files: SettingsFileSystem;
 
-  constructor(basePath: string | (() => string)) {
+  constructor(basePath: string | (() => string), files: SettingsFileSystem) {
     this.basePath = basePath;
+    this.files = files;
   }
 
   load(): SettingsSnapshot {
@@ -193,16 +145,106 @@ export class NodeSettingsStore implements SettingsStore {
       typeof this.basePath === "string" ? this.basePath : this.basePath();
     const path = resolve(selected);
     try {
-      return join(realpathSync(dirname(path)), basename(path));
+      return join(this.files.realpathSync(dirname(path)), basename(path));
     } catch {
       return path;
     }
   }
 
+  private inspectFile(path: string): SettingsFile {
+    let stat: Stats;
+    try {
+      stat = this.files.lstatSync(path);
+    } catch (error) {
+      return {
+        path,
+        kind: errorCode(error) === "ENOENT" ? "missing" : "other",
+        stat: undefined,
+        content: undefined,
+        error:
+          errorCode(error) === "ENOENT" ? undefined : readError(path, error),
+      };
+    }
+    const kind = stat.isSymbolicLink()
+      ? "symlink"
+      : stat.isFile()
+        ? "file"
+        : "other";
+    try {
+      if (
+        kind === "other" ||
+        (kind === "symlink" && !this.files.statSync(path).isFile())
+      ) {
+        throw new IrregularSettingsFileError(path);
+      }
+      return {
+        path,
+        kind,
+        stat,
+        content: this.files.readFileSync(path, "utf8"),
+        error: undefined,
+      };
+    } catch (error) {
+      return {
+        path,
+        kind,
+        stat,
+        content: undefined,
+        error: readError(path, error),
+      };
+    }
+  }
+
+  private accessible(path: string, mode: number): boolean {
+    try {
+      this.files.accessSync(path, mode);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private parentIdentity(path: string): string {
+    try {
+      const stat = this.files.statSync(dirname(path));
+      return `${stat.dev}:${stat.ino}`;
+    } catch {
+      return "missing";
+    }
+  }
+
+  private fileDestination(
+    file: SettingsFile,
+    newUserFile: boolean,
+    repair: boolean,
+  ): FileDestination {
+    const fail = (problem: SettingsStoreError): FileDestination => ({
+      kind: "unavailable",
+      path: file.path,
+      problem,
+    });
+    if (file.kind === "symlink") {
+      return fail(new SymlinkSettingsFileError(file.path));
+    }
+    if (file.kind === "other") {
+      return fail(new IrregularSettingsFileError(file.path));
+    }
+    if (file.kind === "file" && !this.accessible(file.path, constants.W_OK)) {
+      return fail(new ReadOnlySettingsFileError(file.path));
+    }
+    const directory = dirname(file.path);
+    if (!this.accessible(directory, constants.W_OK | constants.X_OK)) {
+      return fail(new ReadOnlySettingsDirectoryError(directory));
+    }
+    return { kind: "file", path: file.path, newUserFile, repair };
+  }
+
   private inspect(): Inspection {
     const path = this.selectedPath();
-    const base = inspectFile(path);
-    const user = inspectFile(join(dirname(path), "session-footer.user.json"));
+    const base = this.inspectFile(path);
+    const user = this.inspectFile(
+      join(dirname(path), "session-footer.user.json"),
+    );
     const baseSettings = loadSettings(() => content(base), path);
     let loaded = baseSettings;
     let invalidUser = false;
@@ -236,14 +278,14 @@ export class NodeSettingsStore implements SettingsStore {
     if (baseSettings.persistence === "session") {
       destination = { kind: "session" };
     } else if (user.kind !== "missing") {
-      destination = fileDestination(user, false, invalidUser);
+      destination = this.fileDestination(user, false, invalidUser);
     } else if (
       base.kind === "symlink" ||
-      (base.kind === "file" && !accessible(base.path, constants.W_OK))
+      (base.kind === "file" && !this.accessible(base.path, constants.W_OK))
     ) {
-      destination = fileDestination(user, true, false);
+      destination = this.fileDestination(user, true, false);
     } else {
-      destination = fileDestination(
+      destination = this.fileDestination(
         base,
         false,
         baseSettings.source === "fallback",
@@ -252,7 +294,7 @@ export class NodeSettingsStore implements SettingsStore {
     const revision = createHash("sha256")
       .update(
         JSON.stringify([
-          parentIdentity(path),
+          this.parentIdentity(path),
           fingerprint(base),
           fingerprint(user),
         ]),
@@ -336,24 +378,24 @@ export class NodeSettingsStore implements SettingsStore {
     );
     let descriptor: number | undefined;
     try {
-      descriptor = openSync(
+      descriptor = this.files.openSync(
         temporary,
         constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
         0o600,
       );
       if (target.stat !== undefined) {
-        fchmodSync(descriptor, target.stat.mode & 0o777);
+        this.files.fchmodSync(descriptor, target.stat.mode & 0o777);
       }
-      writeFileSync(
+      this.files.writeFileSync(
         descriptor,
         `${JSON.stringify(document, null, 2)}\n`,
         "utf8",
       );
-      fsyncSync(descriptor);
+      this.files.fsyncSync(descriptor);
       const descriptorToClose = descriptor;
       // A failed close may already have released the descriptor.
       descriptor = undefined;
-      closeSync(descriptorToClose);
+      this.files.closeSync(descriptorToClose);
       const checked = this.current(expected).snapshot.destination;
       if (checked.kind === "unavailable") {
         throw checked.problem;
@@ -361,7 +403,7 @@ export class NodeSettingsStore implements SettingsStore {
       if (checked.kind !== "file" || checked.path !== target.path) {
         throw new SettingsDestinationChangedError(target.path);
       }
-      renameSync(temporary, target.path);
+      this.files.renameSync(temporary, target.path);
     } catch (error) {
       if (error instanceof SettingsStoreError) {
         throw error;
@@ -369,9 +411,9 @@ export class NodeSettingsStore implements SettingsStore {
       throw new SettingsWriteError(target.path, { cause: error });
     } finally {
       if (descriptor !== undefined) {
-        closeSync(descriptor);
+        this.files.closeSync(descriptor);
       }
-      rmSync(temporary, { force: true });
+      this.files.rmSync(temporary, { force: true });
     }
   }
 
@@ -379,7 +421,7 @@ export class NodeSettingsStore implements SettingsStore {
     if (current.user.kind === "missing") {
       return current.snapshot;
     }
-    const destination = fileDestination(current.user, false, false);
+    const destination = this.fileDestination(current.user, false, false);
     if (destination.kind === "unavailable") {
       throw destination.problem;
     }
@@ -388,7 +430,7 @@ export class NodeSettingsStore implements SettingsStore {
     }
     this.current(current.snapshot);
     try {
-      rmSync(current.user.path);
+      this.files.rmSync(current.user.path);
     } catch (error) {
       throw new SettingsRemoveError(current.user.path, { cause: error });
     }

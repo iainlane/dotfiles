@@ -1,24 +1,24 @@
 import {
-  accessSync,
   chmodSync,
-  closeSync,
   existsSync,
-  fsyncSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   readdirSync,
-  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { NodeSettingsStore } from "#footer/configuration/node-settings-store.ts";
+import { afterEach, expect, it } from "vitest";
+import {
+  NodeSettingsStore,
+  nodeSettingsFileSystem,
+  type SettingsFileSystem,
+} from "#footer/configuration/node-settings-store.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
 import {
   IrregularSettingsFileError,
@@ -33,45 +33,76 @@ import {
   UnconfirmedRepairError,
 } from "#footer/configuration/settings-store.ts";
 
-vi.mock("node:fs", async (original) => {
-  const fs = await original<typeof import("node:fs")>();
-  return {
-    ...fs,
-    accessSync: vi.fn<typeof accessSync>(fs.accessSync),
-    renameSync: vi.fn<typeof renameSync>(fs.renameSync),
-    fsyncSync: vi.fn<typeof fsyncSync>(fs.fsyncSync),
-    closeSync: vi.fn<typeof closeSync>(fs.closeSync),
+interface Failure {
+  operation: "flush" | "close" | "rename";
+  error: Error;
+}
+
+class FaultyFileSystem implements SettingsFileSystem {
+  readonly denied = new Set<string>();
+  failure: Failure | undefined;
+  afterFlush: (() => void) | undefined;
+
+  readonly fchmodSync = nodeSettingsFileSystem.fchmodSync;
+  readonly lstatSync = nodeSettingsFileSystem.lstatSync;
+  readonly openSync = nodeSettingsFileSystem.openSync;
+  readonly readFileSync = nodeSettingsFileSystem.readFileSync;
+  readonly realpathSync = nodeSettingsFileSystem.realpathSync;
+  readonly rmSync = nodeSettingsFileSystem.rmSync;
+  readonly statSync = nodeSettingsFileSystem.statSync;
+  readonly writeFileSync = nodeSettingsFileSystem.writeFileSync;
+
+  readonly accessSync = (path: string, mode: number): void => {
+    if (this.denied.has(path)) {
+      throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+    }
+    nodeSettingsFileSystem.accessSync(path, mode);
   };
-});
+
+  readonly fsyncSync = (descriptor: number): void => {
+    this.fail("flush");
+    nodeSettingsFileSystem.fsyncSync(descriptor);
+    const afterFlush = this.afterFlush;
+    this.afterFlush = undefined;
+    afterFlush?.();
+  };
+
+  // Close releases the descriptor even when it reports an error, and the store
+  // does not close it again.
+  readonly closeSync = (descriptor: number): void => {
+    nodeSettingsFileSystem.closeSync(descriptor);
+    this.fail("close");
+  };
+
+  readonly renameSync = (oldPath: string, newPath: string): void => {
+    this.fail("rename");
+    nodeSettingsFileSystem.renameSync(oldPath, newPath);
+  };
+
+  private fail(operation: Failure["operation"]): void {
+    if (this.failure?.operation !== operation) {
+      return;
+    }
+    const { error } = this.failure;
+    this.failure = undefined;
+    throw error;
+  }
+}
 
 const revisionPattern: unknown = expect.stringMatching(/^[0-9a-f]{64}$/);
 const roots: string[] = [];
-const denied = new Set<string>();
-beforeEach(async () => {
-  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
-  denied.clear();
-  vi.mocked(accessSync).mockImplementation((path, mode) => {
-    if (denied.has(String(path))) {
-      throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
-    }
-    fs.accessSync(path, mode);
-  });
-  vi.mocked(renameSync).mockImplementation(fs.renameSync);
-  vi.mocked(fsyncSync).mockImplementation(fs.fsyncSync);
-  vi.mocked(closeSync).mockImplementation(fs.closeSync);
-});
 afterEach(() => {
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
-  vi.clearAllMocks();
 });
 function harness() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-footer-settings-")));
   roots.push(root);
   const base = join(root, "session-footer.json");
   const user = join(root, "session-footer.user.json");
-  return { root, base, user, store: new NodeSettingsStore(base) };
+  const files = new FaultyFileSystem();
+  return { root, base, user, files, store: new NodeSettingsStore(base, files) };
 }
 function json(path: string, document: unknown): void {
   writeFileSync(path, JSON.stringify(document));
@@ -248,7 +279,7 @@ it("rejects a destination that becomes a link while editing", () => {
 it("offers a sibling file when the regular base is not writable", () => {
   const h = harness();
   json(h.base, { preset: "rich" });
-  denied.add(h.base);
+  h.files.denied.add(h.base);
   expect(h.store.load().destination).toStrictEqual({
     kind: "file",
     path: h.user,
@@ -269,7 +300,7 @@ it.each([
   const h = harness();
   json(h.base, { preset: "rich" });
   json(h.user, { preset: "compact" });
-  denied.add(h[file]);
+  h.files.denied.add(h[file]);
   const snapshot = h.store.load();
   expect(() =>
     h.store.save(snapshot, {
@@ -363,12 +394,14 @@ it("keeps an unchanged document untouched", () => {
   const h = harness();
   const raw = '{ "preset": "compact" }\n';
   writeFileSync(h.base, raw);
+  const inode = lstatSync(h.base).ino;
   const snapshot = h.store.load();
   h.store.save(snapshot, { kind: "write", document: { preset: "compact" } });
   expect({
     raw: readFileSync(h.base, "utf8"),
-    renames: vi.mocked(renameSync).mock.calls,
-  }).toStrictEqual({ raw, renames: [] });
+    inode: lstatSync(h.base).ino,
+    entries: readdirSync(h.root),
+  }).toStrictEqual({ raw, inode, entries: ["session-footer.json"] });
 });
 
 it("preserves existing permissions during atomic replacement", () => {
@@ -385,15 +418,11 @@ it("preserves existing permissions during atomic replacement", () => {
   }).toStrictEqual({ mode: 0o640, document: { preset: "compact" } });
 });
 
-it("checks the source again after preparing the temporary file", async () => {
+it("checks the source again after preparing the temporary file", () => {
   const h = harness();
-  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
   json(h.base, { preset: "rich" });
   const snapshot = h.store.load();
-  vi.mocked(fsyncSync).mockImplementationOnce((descriptor) => {
-    fs.fsyncSync(descriptor);
-    json(h.base, { preset: "minimal" });
-  });
+  h.files.afterFlush = () => json(h.base, { preset: "minimal" });
   expect(() =>
     h.store.save(snapshot, {
       kind: "write",
@@ -403,44 +432,26 @@ it("checks the source again after preparing the temporary file", async () => {
   expect({
     base: readJson(h.base),
     entries: readdirSync(h.root),
-    renames: vi.mocked(renameSync).mock.calls,
   }).toStrictEqual({
     base: { preset: "minimal" },
     entries: ["session-footer.json"],
-    renames: [],
   });
 });
 
 it.each(["flush", "close", "rename"] as const)(
   "keeps the old file and cleans up after %s fails",
-  async (operation) => {
+  (operation) => {
     const h = harness();
     json(h.base, { preset: "rich" });
     const snapshot = h.store.load();
-    const failure = new Error(`${operation} failed`);
-    if (operation === "flush") {
-      vi.mocked(fsyncSync).mockImplementationOnce(() => {
-        throw failure;
-      });
-    }
-    if (operation === "close") {
-      const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
-      vi.mocked(closeSync).mockImplementationOnce((descriptor) => {
-        fs.closeSync(descriptor);
-        throw failure;
-      });
-    }
-    if (operation === "rename") {
-      vi.mocked(renameSync).mockImplementationOnce(() => {
-        throw failure;
-      });
-    }
+    const error = new Error(`${operation} failed`);
+    h.files.failure = { operation, error };
     expect(() =>
       h.store.save(snapshot, {
         kind: "write",
         document: { preset: "compact" },
       }),
-    ).toThrow(new SettingsWriteError(h.base, { cause: failure }));
+    ).toThrow(new SettingsWriteError(h.base, { cause: error }));
     expect({
       base: readJson(h.base),
       entries: readdirSync(h.root),
