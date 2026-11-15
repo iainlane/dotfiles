@@ -1,9 +1,13 @@
 import { StatusCodes } from "http-status-codes";
-import type { BridgeAssignment } from "@dotfiles/librechat-code-bridge";
+import {
+  ExecutionManifestError,
+  type BridgeAssignment,
+} from "@dotfiles/librechat-code-bridge";
 import { beforeEach, expect, it } from "vitest";
 import {
   ConversationRuntimeSupervisor,
   BridgeBodyDigestError,
+  BridgeManifestError,
   BridgeOwnerError,
   type ManifestClaims,
 } from "#runtime/codeapi/bridge";
@@ -109,6 +113,11 @@ class FixtureRuntimes {
 
 let claims: ManifestClaims;
 
+const manifestError = new ExecutionManifestError(
+  "invalid_signature",
+  'The fixture verifier accepts only the manifest "signed"',
+);
+
 let runtimes: FixtureRuntimes;
 
 let supervisor: ConversationRuntimeSupervisor;
@@ -126,7 +135,13 @@ beforeEach(() => {
     userId,
     sessions: runtimes,
     fetch: async (socket, request) => await runtimes.fetch(socket, request),
-    verifyManifest: () => claims,
+    verifyManifest: (token) => {
+      if (token !== "signed") {
+        throw manifestError;
+      }
+
+      return claims;
+    },
     bodyDigest: () => "body-digest",
   });
 });
@@ -187,6 +202,17 @@ it.each([
     expect(runtimes.state()).toStrictEqual({ vms: [], leases: [] });
   },
 );
+
+it("rejects a manifest that fails verification before creating a VM", async () => {
+  await expect(
+    supervisor.acquire({
+      ...assignment,
+      request: { headers: {}, body: { execution_manifest: "tampered" } },
+    }),
+  ).rejects.toStrictEqual(new BridgeManifestError(manifestError));
+
+  expect(runtimes.state()).toStrictEqual({ vms: [], leases: [] });
+});
 
 it("rejects a body digest mismatch before creating a VM", async () => {
   claims.execute_body_sha256 = "different";
