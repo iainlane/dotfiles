@@ -553,6 +553,52 @@ it.each<{
   },
 );
 
+it("updates the inspector's quota age on screen while no agent is running", async () => {
+  const h = harness();
+  const screen = new FakeScreen();
+  h.footer.start(h.context);
+  const factory = h.installedFooter();
+  screen.show(
+    factory(screen, h.context.ui.theme, {
+      getExtensionStatuses: () => new Map(),
+      onBranchChange: () => () => {},
+    }),
+  );
+  const { keys } = editorFixture();
+  let view: ReturnType<Parameters<typeof h.context.ui.custom>[0]> | undefined;
+  h.context.ui.custom = async (create) => {
+    await new Promise<void>((resolve) => {
+      const component = create(screen, h.context.ui.theme, keys, () => {
+        screen.hide(component);
+        resolve();
+      });
+      view = component;
+      screen.show(component);
+    });
+  };
+  const opened = h.footer.inspect("explain", h.context);
+  const inspector = view;
+  if (!inspector) {
+    throw new Error("Expected the inspector");
+  }
+  inspector.handleInput("\t");
+  inspector.handleInput("\t");
+  await h.runtime.clock.advance(0);
+  const age = () =>
+    screen.lines.find((line) => line.startsWith("Updated "))?.trim();
+  const before = age();
+  await h.runtime.clock.advance(1000);
+  const after = age();
+  inspector.handleInput("\u001B");
+  await opened;
+
+  expect({ before, after }).toStrictEqual({
+    before: "Updated 0s ago",
+    after: "Updated 1s ago",
+  });
+  h.footer.shutdown();
+});
+
 it("restores a known PR when Git returns to its branch", async () => {
   const h = harness();
   const branch = (name: string) => ({

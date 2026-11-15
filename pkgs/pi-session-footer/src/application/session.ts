@@ -35,6 +35,11 @@ export interface FooterContext {
   };
 }
 
+interface TimedView {
+  shown(): string;
+  redraw(): void;
+}
+
 const GIT_INTERVAL = 5000;
 const GIT_MAX_INTERVAL = 60_000;
 
@@ -43,6 +48,7 @@ export class FooterSession {
   private context: FooterContext;
   private readonly changed: () => void;
   private readonly runtime: FooterRuntime;
+  private readonly view: TimedView | undefined;
   private readonly rpc: RpcClient;
   private readonly ledger = new UsageLedger();
   private readonly stopClock: () => void;
@@ -61,10 +67,12 @@ export class FooterSession {
     bus: FooterBus,
     changed: () => void,
     runtime: FooterRuntime,
+    view?: TimedView,
   ) {
     this.context = context;
     this.changed = changed;
     this.runtime = runtime;
+    this.view = view;
 
     const now = this.runtime.clock.now();
 
@@ -221,6 +229,7 @@ export class FooterSession {
     }
 
     const clock = this.clockKey();
+    const shown = this.view?.shown();
     const displayed = this.sync(this.context);
     const now = this.state.now;
 
@@ -242,6 +251,11 @@ export class FooterSession {
       this.state.activity.runningSince !== undefined
     ) {
       this.changed();
+      return;
+    }
+
+    if (shown !== this.view?.shown()) {
+      this.view?.redraw();
     }
   }
 

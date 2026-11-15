@@ -405,7 +405,10 @@ export function createFooter({
     if (settings.diagnostic !== undefined) {
       ctx.ui.notify(settings.diagnostic, "warning");
     }
-    session = new FooterSession(ctx, events, requestRender, runtime);
+    session = new FooterSession(ctx, events, requestRender, runtime, {
+      shown: () => inspector.shown(),
+      redraw: () => redraw(),
+    });
     session.state.serviceTier = tier;
     session.receivePr(pr);
 

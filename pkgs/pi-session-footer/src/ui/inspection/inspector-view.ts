@@ -333,21 +333,45 @@ class InspectorView implements InspectionNavigation {
     );
     this.environment.tui.requestRender();
   }
+  shown(): string {
+    if (this.closed) {
+      return "";
+    }
+    const page = this.current.page;
+    if (page.kind === "detail") {
+      return JSON.stringify([page.title, page.lines()]);
+    }
+    const { summary, rows } = page.content();
+    return JSON.stringify([
+      page.title,
+      summary,
+      rows.map(({ key, value, description, colour }) => [
+        key,
+        value,
+        description,
+        colour,
+      ]),
+    ]);
+  }
   dispose(): void {
     this.closed = true;
   }
 }
+type InspectorComponent = ReturnType<ViewFactory> & {
+  shown(): string;
+};
 export function createInspectorView(
   environment: ViewEnvironment,
   route: FooterRoute,
   data: { snapshot(): FooterSnapshot | undefined; sources: InspectorSources },
   done: (next?: "customise") => void,
-): ReturnType<ViewFactory> {
+): InspectorComponent {
   const view = new InspectorView(environment, route, data, done);
   return {
     render: (width) => view.render(width),
     handleInput: (input) => view.handleInput(input),
     invalidate() {},
     dispose: () => view.dispose(),
+    shown: () => view.shown(),
   };
 }

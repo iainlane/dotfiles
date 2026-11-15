@@ -37,6 +37,7 @@ export class Inspector {
   private readonly snapshot: () => FooterSnapshot | undefined;
   private readonly sources: InspectorSources;
   private close: (() => void) | undefined;
+  private view: ReturnType<typeof createInspectorView> | undefined;
   private generation = 0;
   constructor(
     snapshot: () => FooterSnapshot | undefined,
@@ -50,6 +51,9 @@ export class Inspector {
     const close = this.close;
     this.close = undefined;
     close?.();
+  }
+  shown(): string {
+    return this.view?.shown() ?? "";
   }
   async open(
     ctx: InspectorContext,
@@ -80,6 +84,9 @@ export class Inspector {
           settled = true;
           destination = next;
           view?.dispose();
+          if (this.view === view) {
+            this.view = undefined;
+          }
           done();
         };
         ownedClose = () => close();
@@ -92,7 +99,9 @@ export class Inspector {
           { snapshot: this.snapshot, sources: this.sources },
           close,
         );
-        if (generation !== this.generation) {
+        if (generation === this.generation) {
+          this.view = view;
+        } else {
           close();
         }
         return {
