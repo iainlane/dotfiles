@@ -304,26 +304,47 @@ it.each([
   {
     stored: "../../outside",
     output: "meilisearch 1.56.0\n",
+    backup: undefined,
     error: new MeilisearchVersionError("database", "../../outside"),
+    entries: ["meili"],
   },
   {
     stored: "1.55.0",
     output: "unexpected output",
+    backup: undefined,
     error: new MeilisearchVersionError("executable", "unexpected output"),
+    entries: ["meili"],
+  },
+  {
+    stored: "1.55.0",
+    output: "meilisearch 1.56.0\n",
+    backup: "../../outside",
+    error: new MeilisearchVersionError("backup", "../../outside"),
+    entries: ["meili", "meili-backups"],
   },
 ])(
-  "rejects invalid versions before copying the database: $stored",
-  async ({ stored, output, error }) => {
+  "rejects an invalid $error.origin version before copying the database",
+  async ({ stored, output, backup, error, entries }) => {
     await seed(stored);
+
+    if (backup !== undefined) {
+      const directory = join(state, "meili-backups", "1.55.0-to-1.56.0");
+      await mkdir(directory, { recursive: true });
+      await writeFile(join(directory, "VERSION"), backup);
+    }
+
     const failure = await rejection(
       new MeilisearchDatabase(state).prepareUpgrade(
         "meilisearch",
         meilisearch(output),
       ),
     );
-    expect({ failure, entries: await readdir(state) }).toStrictEqual({
+    expect({
+      failure,
+      entries: (await readdir(state)).toSorted(),
+    }).toStrictEqual({
       failure: error,
-      entries: ["meili"],
+      entries,
     });
   },
 );
