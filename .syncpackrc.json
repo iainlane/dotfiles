@@ -30,6 +30,12 @@
       "range": ""
     },
     {
+      "label": "LogTape keeps its configuration in module state, so every workspace member has to load the same copy. With a caret range, pnpm can lock a newer release for one member while another keeps the old one.",
+      "dependencies": ["@logtape/logtape", "@logtape/redaction"],
+      "dependencyTypes": ["prod", "dev", "optional"],
+      "range": ""
+    },
+    {
       "label": "Dependencies use caret ranges.",
       "range": "^"
     }
