@@ -2,7 +2,6 @@ import { expect, it } from "vitest";
 import {
   DEFAULT_SYMBOLS,
   loadSettings,
-  PRESETS,
   resolveSettings,
 } from "#footer/configuration/settings.ts";
 import {
@@ -16,12 +15,53 @@ import {
 } from "#footer/configuration/settings-errors.ts";
 import { thrown } from "#test/support/thrown.ts";
 
+const top = {
+  "top-left": [
+    "model",
+    "thinking",
+    "tier",
+    "directory",
+    "git",
+    "git-operation",
+    "git-conflicts",
+    "pr",
+  ],
+  "top-right": ["context"],
+};
+const workflow = [
+  "activity",
+  "diagnostics",
+  "tasks",
+  "blocked",
+  "agents",
+  "pending",
+  "planning",
+  "ci",
+  "reviews",
+  "statuses",
+];
+const PRESET_REGIONS = {
+  rich: {
+    ...top,
+    "bottom-left": workflow,
+    "bottom-right": ["quota", "cache", "cost", "auxiliary-cost", "age"],
+  },
+  compact: { ...top, "bottom-left": [], "bottom-right": [] },
+  minimal: {
+    "top-left": ["directory", "git", "git-operation", "git-conflicts"],
+    "top-right": ["context"],
+    "bottom-left": [],
+    "bottom-right": [],
+  },
+  workflow: { ...top, "bottom-left": workflow, "bottom-right": ["quota"] },
+};
+
 it.each(["rich", "compact", "minimal", "workflow"] as const)(
   "resolves %s without sharing mutable arrays",
   (preset) => {
     expect(resolveSettings({ preset })).toStrictEqual({
       preset,
-      regions: PRESETS[preset],
+      regions: PRESET_REGIONS[preset],
       overridden: [],
       symbols: DEFAULT_SYMBOLS,
       separators: {},
@@ -34,7 +74,11 @@ it("replaces only explicit regions and permits cross-region repetition", () => {
     resolveSettings({ "top-left": [], "bottom-left": ["context"] }),
   ).toStrictEqual({
     preset: "rich",
-    regions: { ...PRESETS.rich, "top-left": [], "bottom-left": ["context"] },
+    regions: {
+      ...PRESET_REGIONS.rich,
+      "top-left": [],
+      "bottom-left": ["context"],
+    },
     overridden: ["top-left", "bottom-left"],
     symbols: DEFAULT_SYMBOLS,
     separators: {},
@@ -122,7 +166,7 @@ it("accepts independently styled placements without expanding default widgets", 
     "bottom-right": ["git"],
   });
   expect(settings.regions).toStrictEqual({
-    ...PRESETS.rich,
+    ...PRESET_REGIONS.rich,
     "top-left": ["model", placement],
     "bottom-right": ["git"],
   });

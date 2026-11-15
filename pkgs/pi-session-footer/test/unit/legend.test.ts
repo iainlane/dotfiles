@@ -1,16 +1,13 @@
 import { expect, it } from "vitest";
 import { CapturedFooter } from "#footer/ui/inspection/explanation.ts";
-import { layoutFooter } from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import { gitState } from "#test/support/git.ts";
 
 it("freezes composite and repeated placements in rendered order without refitting", () => {
   const state = createSnapshot(1000, "/demo");
-  state.git = parseGitStatus(
-    "# branch.head main\n1 M. N... 100644 100644 100644 a a staged.txt\n? new.txt",
-    1000,
-  );
+  state.git = gitState("main", 1000, { staged: 1, untracked: 1 });
   const frame = layoutFooter(
     state,
     { top: 100, bottom: 100 },
@@ -47,7 +44,7 @@ it("freezes composite and repeated placements in rendered order without refittin
 });
 it("explains individual Git symbols from typed captured roles", () => {
   const state = createSnapshot(1000, "/demo");
-  state.git = parseGitStatus("# branch.head main\n? new.txt", 1000);
+  state.git = gitState("main", 1000, { untracked: 1 });
   const frame = layoutFooter(
     state,
     { top: 100, bottom: 0 },

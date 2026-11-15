@@ -17,7 +17,6 @@ import type { WidgetAppearance } from "#footer/configuration/appearance.ts";
 import {
   REGIONS,
   SEGMENT_IDS,
-  resolveSettings,
   widgetId,
   type Region,
   type ResolvedSettings,
@@ -554,61 +553,4 @@ export function composeFooterFrame(
         ),
     ),
   };
-}
-export function layoutFooter(
-  state: FooterSnapshot,
-  widths: { top: number; bottom: number },
-  presentation: FooterPresentation,
-): RenderFrame {
-  const { settings, theme } = presentation;
-  const observation = observeFooter(state, presentation);
-  return composeFooterFrame(observation, presentation, {
-    top: fitFooterRow(observation, settings, {
-      placement: "top",
-      width: widths.top,
-      theme,
-    }),
-    bottom: fitFooterRow(observation, settings, {
-      placement: "bottom",
-      width: widths.bottom,
-      theme,
-    }),
-  });
-}
-export function completeFooterFrame(
-  frame: RenderFrame,
-  bottom: FittedFooterRow,
-): RenderFrame {
-  return {
-    ...frame,
-    bottom: bottom.row,
-    decisions: [
-      ...frame.decisions.filter((decision) =>
-        decision.region.startsWith("top-"),
-      ),
-      ...bottom.decisions,
-    ],
-    placements: [
-      ...frame.placements.filter((placement) =>
-        placement.region.startsWith("top-"),
-      ),
-      ...bottom.placements,
-    ],
-  };
-}
-export function renderFooter(
-  state: FooterSnapshot,
-  width: number,
-  theme?: PaintTheme,
-  home?: string,
-): string[] {
-  if (width <= 0) {
-    return [];
-  }
-  const frame = layoutFooter(
-    state,
-    { top: width, bottom: width },
-    { settings: resolveSettings({}), theme, home, mode: "fallback" },
-  );
-  return [frame.top.text, frame.bottom.text];
 }

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { readStatus } from "#footer/domain/status.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { layoutFooter } from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { CapturedFooter } from "#footer/ui/inspection/explanation.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
 

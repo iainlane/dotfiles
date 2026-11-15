@@ -1,10 +1,10 @@
 import { expect, it, vi } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { layoutFooter, renderFooter } from "#footer/rendering/render.ts";
+import { layoutFooter, renderFooter } from "#test/support/layout.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 import { readQuota } from "#footer/domain/quota.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import { gitState } from "#test/support/git.ts";
 import { readSegments, SEGMENTS } from "#footer/rendering/segments.ts";
 import type { SegmentId } from "#footer/configuration/settings.ts";
 const now = Date.UTC(2026, 9, 20, 12);
@@ -106,7 +106,7 @@ it.each<[SegmentId, string]>([
   (id, expected) => {
     const state = fixture();
     state.git = {
-      ...parseGitStatus("# branch.head main", now),
+      ...gitState("main", now),
       staged: 1,
       unstaged: 2,
       untracked: 3,
@@ -373,7 +373,7 @@ it.each([
   { changes: { stale: true }, role: "dim" },
 ])("preserves semantic Git colours: $role", ({ changes, role }) => {
   const state = fixture();
-  state.git = { ...parseGitStatus("# branch.head main", now), ...changes };
+  state.git = { ...gitState("main", now), ...changes };
   const fg = vi.fn<(role: string, value: string) => string>(
     (_role, value) => value,
   );
@@ -459,7 +459,7 @@ it("captures actual extension messages rather than integration health or generic
 });
 it("preserves warnings before routine identity and quota detail", () => {
   const state = fixture();
-  state.git = { ...parseGitStatus("# branch.head main", now), conflicts: 1 };
+  state.git = { ...gitState("main", now), conflicts: 1 };
   state.activity.outcome = "failed";
   const frame = layoutFooter(
     state,
@@ -527,7 +527,7 @@ it.each([
 ])("fits every row of %j to its modelled width", (document) => {
   const state = fixture();
   state.cwd = "/work/界界/é-feature-with-a-long-name";
-  state.git = { ...parseGitStatus("# branch.head main", now), staged: 2 };
+  state.git = { ...gitState("main", now), staged: 2 };
   state.activity.outcome = "failed";
   state.statuses = new Map([["source", "a long extension message 👩‍💻"]]);
   state.usage.input = 1;

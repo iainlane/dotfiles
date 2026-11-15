@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { UsageLedger } from "#footer/domain/usage.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { renderFooter } from "#footer/rendering/render.ts";
+import { renderFooter } from "#test/support/layout.ts";
 
 it("replays auxiliary records once without changing native totals", () => {
   const ledger = new UsageLedger();

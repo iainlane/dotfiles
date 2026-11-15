@@ -8,11 +8,8 @@ import {
 } from "@earendil-works/pi-tui";
 import { ComposerEditor } from "#footer/ui/composer.ts";
 import { editorFixture } from "#test/support/editor.ts";
-import {
-  layoutFooter,
-  fitFooterRow,
-  type RenderFrame,
-} from "#footer/rendering/render.ts";
+import { fitFooterRow, type RenderFrame } from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 

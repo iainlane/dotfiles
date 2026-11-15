@@ -7,8 +7,8 @@ import {
   type InspectorContext,
 } from "#footer/ui/inspection/inspector.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { layoutFooter } from "#footer/rendering/render.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import { layoutFooter } from "#test/support/layout.ts";
+import { gitState } from "#test/support/git.ts";
 import {
   resolveSettings,
   type PresentationDocument,
@@ -30,7 +30,7 @@ function harness(
   state.provider = "footer-demo";
   state.reasoning = true;
   state.thinking = "high";
-  state.git = parseGitStatus("# branch.head main\n? new.txt", 1000);
+  state.git = gitState("main", 1000, { untracked: 1 });
   state.context = { percent: 12.7, tokens: 16624, capacity: 131072 };
   state.usage.latestHit = 25;
   state.cachePrompt = { cached: 4096, total: 16384 };
@@ -139,7 +139,7 @@ it("freezes the completed ordinary display and keeps composite widgets together"
     segment: undefined,
   });
   const before = h.render();
-  h.state.git = parseGitStatus("# branch.head changed", 2000);
+  h.state.git = gitState("changed", 2000);
   h.refresh();
   expect({
     title: before[0],

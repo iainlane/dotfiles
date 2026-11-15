@@ -21,10 +21,10 @@ import { readPr, readServiceTier } from "#footer/integrations/integrations.ts";
 import { readQuota, type QuotaState } from "#footer/domain/quota.ts";
 import {
   observeFooter,
-  renderFooter,
   type FooterPresentation,
   type RenderFrame,
 } from "#footer/rendering/render.ts";
+import type { PaintTheme } from "#footer/rendering/segment-text.ts";
 import {
   FooterLayoutCache,
   type FooterLayout,
@@ -71,7 +71,7 @@ export interface FooterUIContext extends FooterContext, InspectorContext {
   ui: InspectorContext["ui"] &
     EditorUI &
     Pick<ExtensionUIContext, "setWidget"> & {
-      theme: NonNullable<Parameters<typeof renderFooter>[2]>;
+      theme: PaintTheme;
       setFooter(
         factory: (
           tui: { requestRender(): void },

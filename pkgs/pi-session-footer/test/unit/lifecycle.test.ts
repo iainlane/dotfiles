@@ -13,7 +13,7 @@ import { record } from "#footer/shared/text.ts";
 import { editorFixture } from "#test/support/editor.ts";
 import { loadSettings } from "#footer/configuration/settings.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import { gitState } from "#test/support/git.ts";
 import type { Component } from "@earendil-works/pi-tui";
 
 type EditorFactory = NonNullable<
@@ -614,7 +614,7 @@ it.each<{
 it("restores a known PR when Git returns to its branch", async () => {
   const h = harness();
   const branch = (name: string) => ({
-    ...parseGitStatus(`# branch.head ${name}`, h.runtime.clock.now()),
+    ...gitState(name, h.runtime.clock.now()),
     root: h.context.cwd,
   });
   h.runtime.readGit.mockResolvedValue(branch("main"));

@@ -29,7 +29,7 @@ export class IncompleteGitPathsError extends Error {
   }
 }
 
-export function parseGitStatus(output: string, now: number): GitState {
+function parseGitStatus(output: string, now: number): GitState {
   const state: GitState = {
     branch: "",
     staged: 0,

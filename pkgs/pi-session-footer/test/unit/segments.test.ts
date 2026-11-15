@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { layoutFooter } from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { REGIONS, resolveSettings } from "#footer/configuration/settings.ts";
 
 it("records each repeated placement without retaining mutable readings", () => {

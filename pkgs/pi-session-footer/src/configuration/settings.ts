@@ -111,7 +111,7 @@ const workflow: readonly SegmentId[] = [
   "reviews",
   "statuses",
 ];
-export const PRESETS = {
+const PRESETS = {
   rich: {
     ...top,
     "bottom-left": workflow,

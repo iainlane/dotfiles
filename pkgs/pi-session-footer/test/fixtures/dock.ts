@@ -4,11 +4,8 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ComposerEditor } from "#footer/ui/composer.ts";
 import { DockHost } from "#footer/ui/dock/dock-host.ts";
-import {
-  fitFooterRow,
-  layoutFooter,
-  type RenderFrame,
-} from "#footer/rendering/render.ts";
+import { fitFooterRow, type RenderFrame } from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
 

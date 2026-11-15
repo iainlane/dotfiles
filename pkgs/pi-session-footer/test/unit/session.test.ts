@@ -3,7 +3,8 @@ import {
   FooterSession,
   type FooterContext,
 } from "#footer/application/session.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import type { GitState } from "#footer/integrations/git.ts";
+import { gitState } from "#test/support/git.ts";
 import { quotaWindows, readQuota } from "#footer/domain/quota.ts";
 import { readAgents } from "#footer/domain/workflow.ts";
 import { record } from "#footer/shared/text.ts";
@@ -73,7 +74,7 @@ it("disposes timers, replies and late Git requests without changing a replaced s
 
 it("preserves an initial PR reading for the current branch", async () => {
   const { bus, context, runtime } = harness();
-  const git = Promise.withResolvers<ReturnType<typeof parseGitStatus>>();
+  const git = Promise.withResolvers<GitState>();
   const session = new FooterSession(context, bus, () => {}, {
     ...runtime,
     readGit: () => git.promise,
@@ -87,9 +88,9 @@ it("preserves an initial PR reading for the current branch", async () => {
     updatedAt: 1,
   };
 
-  session.state.pr = pr;
+  session.receivePr(pr);
 
-  git.resolve(parseGitStatus("# branch.head main", 1));
+  git.resolve(gitState("main", 1));
   await Promise.resolve();
 
   expect(session.state.pr).toStrictEqual(pr);
@@ -232,18 +233,18 @@ it.each<{ field: string; change: (context: FooterContext) => void }>([
 
 it("reads Git again when a refresh is requested during a pending read", async () => {
   const { bus, context, runtime } = harness();
-  const first = Promise.withResolvers<ReturnType<typeof parseGitStatus>>();
+  const first = Promise.withResolvers<GitState>();
   const readGit = vi
-    .fn<() => Promise<ReturnType<typeof parseGitStatus>>>()
+    .fn<() => Promise<GitState>>()
     .mockReturnValueOnce(first.promise)
-    .mockResolvedValue(parseGitStatus("# branch.head feature", 2));
+    .mockResolvedValue(gitState("feature", 2));
   const session = new FooterSession(context, bus, () => {}, {
     ...runtime,
     readGit,
   });
 
   const requested = session.refreshGit();
-  first.resolve(parseGitStatus("# branch.head main", 1));
+  first.resolve(gitState("main", 1));
   await requested;
   await runtime.clock.advance(0);
 
@@ -252,7 +253,7 @@ it("reads Git again when a refresh is requested during a pending read", async ()
     git: session.state.git,
   }).toStrictEqual({
     reads: 2,
-    git: parseGitStatus("# branch.head feature", 2),
+    git: gitState("feature", 2),
   });
 
   session.dispose();
@@ -328,7 +329,7 @@ it("does not invalidate for routine content but clears a displayed inactivity wa
 
 it("preserves bounded Git errors through failure and recovery without calling non-repositories errors", async () => {
   const { bus, context, runtime } = harness();
-  const fresh = parseGitStatus("# branch.head main", 100);
+  const fresh = gitState("main", 100);
   const getGit = vi
     .fn<() => Promise<typeof fresh | undefined>>()
     .mockRejectedValueOnce(new Error("Permission denied\nfor fixture"));

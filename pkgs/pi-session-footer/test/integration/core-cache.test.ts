@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { runtimeFixture } from "#test/support/runtime.ts";
 import { readQuota } from "#footer/domain/quota.ts";
-import { renderFooter } from "#footer/rendering/render.ts";
+import { renderFooter } from "#test/support/layout.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
 
 interface Status {

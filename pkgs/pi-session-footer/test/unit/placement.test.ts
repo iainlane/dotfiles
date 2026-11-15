@@ -1,12 +1,8 @@
 import { expect, it, vi } from "vitest";
-import {
-  layoutFooter,
-  fitFooterRow,
-  completeFooterFrame,
-} from "#footer/rendering/render.ts";
+import { layoutFooter } from "#test/support/layout.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
-import { parseGitStatus } from "#footer/integrations/git.ts";
+import { gitState } from "#test/support/git.ts";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 it.each([
@@ -119,7 +115,7 @@ it.each([
   "preserves literal separator settings %j",
   (separators, left, right, marker) => {
     const state = createSnapshot(0, "/demo");
-    state.git = parseGitStatus("# branch.head main", 0);
+    state.git = gitState("main", 0);
     const frame = layoutFooter(
       state,
       { top: 80, bottom: 0 },
@@ -188,22 +184,18 @@ it("captures the styled gauge without overwriting the region separator", () => {
     separator: true,
   });
 });
-it("captures the final bottom budget without losing the top observations", () => {
+it("records each row's own budget for a widget placed in both rows", () => {
   const state = createSnapshot(0, "/demo");
-  state.git = parseGitStatus("# branch.head main", 0);
+  state.git = gitState("main", 0);
   const settings = resolveSettings({
     "top-left": ["git"],
     "top-right": [],
     "bottom-left": [],
     "bottom-right": [{ id: "git", symbol: "[G]" }],
   });
-  const pending = layoutFooter(state, { top: 40, bottom: 0 }, { settings });
-  const complete = completeFooterFrame(
-    pending,
-    fitFooterRow(pending, settings, { placement: "bottom", width: 30 }),
-  );
+  const frame = layoutFooter(state, { top: 40, bottom: 30 }, { settings });
   expect(
-    complete.placements.map(({ id, region, display, budget }) => ({
+    frame.placements.map(({ id, region, display, budget }) => ({
       id,
       region,
       display,
@@ -216,7 +208,7 @@ it("captures the final bottom budget without losing the top observations", () =>
 });
 it("styles repeated placements independently before fitting", () => {
   const state = createSnapshot(0, "/demo");
-  state.git = { ...parseGitStatus("# branch.head main", 0), staged: 1 };
+  state.git = { ...gitState("main", 0), staged: 1 };
   const frame = layoutFooter(
     state,
     { top: 80, bottom: 80 },
