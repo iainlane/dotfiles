@@ -5,7 +5,9 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -78,13 +80,28 @@ function nixConfiguration(installable: string): SubstituterConfiguration {
   };
 }
 
-function prepareEvaluation(
-  directory: string,
-  response: unknown,
-): { manifest: string; calls: string } {
-  const manifest = join(directory, "response.json");
-  const calls = join(directory, "calls");
-  writeFileSync(manifest, JSON.stringify(response));
+// A flake for the fake `nix`: the value of each attribute that `nix eval`
+// reads, and the output path of each installable that `nix build` builds.
+// When `importsFromDerivation` is set, evaluating any attribute needs a build.
+interface FakeFlake {
+  readonly attributes?: Readonly<Record<string, unknown>>;
+  readonly outputs?: Readonly<Record<string, string>>;
+  readonly importsFromDerivation?: boolean;
+}
+
+const importedDerivation =
+  "/nix/store/00000000000000000000000000000000-imported.drv";
+
+// Writes a fake `nix` for the given flake into the directory, with the
+// evaluation gate and its policy at the paths that the workflows use, and
+// returns the environment that the fake reads. Like Nix, the fake applies
+// `allow-import-from-derivation` from NIX_CONFIG, where a later line wins, and
+// then from `--option`. An evaluation that imports from a derivation builds
+// it when the setting allows that and fails otherwise. `nix build` links
+// `--out-link` to the first output, and `<out-link>-<n>` to each later one.
+function fakeNix(directory: string, flake: FakeFlake): NodeJS.ProcessEnv {
+  const file = join(directory, "flake.json");
+  writeFileSync(file, JSON.stringify(flake));
   const script = join(directory, "scripts/check-evaluation.bash");
   mkdirSync(dirname(script), { recursive: true });
   // The Nix build sandbox has no /usr/bin/env, so give the script the bash
@@ -106,21 +123,59 @@ function prepareEvaluation(
   );
   writeFileSync(
     join(directory, "nix"),
-    `#!/bin/sh
-printf '%s\\n' "$NIX_CONFIG" > "$NIX_CALLS.config"
-printf '%s\\n' "$@" > "$NIX_CALLS.args"
-cat "$NIX_TARGETS"
+    `#!${process.execPath}
+const { readFileSync, symlinkSync } = require("node:fs");
+const flake = JSON.parse(readFileSync(process.env.FAKE_FLAKE, "utf8"));
+const [command, ...args] = process.argv.slice(2);
+const installables = args.filter((arg) => arg.startsWith(".#"));
+
+function fail(message) {
+  process.stderr.write("error: " + message + "\\n");
+  process.exit(1);
+}
+
+let importFromDerivation = "true";
+for (const line of (process.env.NIX_CONFIG ?? "").split("\\n")) {
+  const [name, value] = line.split(" = ");
+  if (name === "allow-import-from-derivation") importFromDerivation = value;
+}
+args.forEach((arg, index) => {
+  if (arg === "--option" && args[index + 1] === "allow-import-from-derivation") {
+    importFromDerivation = args[index + 2];
+  }
+});
+
+if (command === "eval") {
+  const attributes = flake.attributes ?? {};
+  if (!(installables[0] in attributes)) {
+    fail("flake does not provide attribute '" + installables[0] + "'");
+  }
+  if (flake.importsFromDerivation) {
+    if (importFromDerivation !== "true") {
+      fail("cannot build '${importedDerivation}' during evaluation because the option 'allow-import-from-derivation' is disabled");
+    }
+    process.stderr.write("building '${importedDerivation}'...\\n");
+  }
+  const value = attributes[installables[0]];
+  process.stdout.write(args.includes("--json") ? JSON.stringify(value) : String(value));
+} else if (command === "build") {
+  const outputs = flake.outputs ?? {};
+  const link = args[args.indexOf("--out-link") + 1];
+  for (const installable of installables) {
+    if (!(installable in outputs)) {
+      fail("flake does not provide attribute '" + installable + "'");
+    }
+  }
+  installables.forEach((installable, index) => {
+    symlinkSync(outputs[installable], index === 0 ? link : link + "-" + index);
+  });
+} else {
+  fail("unsupported command " + command);
+}
 `,
     { mode: 0o755 },
   );
-  return { manifest, calls };
-}
-
-function evaluationCall(calls: string): { args: string[]; config: string } {
-  return {
-    args: readFileSync(`${calls}.args`, "utf8").trim().split("\n"),
-    config: readFileSync(`${calls}.config`, "utf8"),
-  };
+  return { FAKE_FLAKE: file };
 }
 
 interface Event {
@@ -178,13 +233,25 @@ function admittedJobs(event: Event): Record<string, boolean> {
   };
 }
 
+// The event that starts a run of an update workflow. A manual run without an
+// input uses the input's declared default.
+interface Trigger {
+  readonly event: "schedule" | "workflow_dispatch";
+  readonly schedule?: string;
+  readonly inputs?: Readonly<Record<string, boolean>>;
+}
+
+interface Commit {
+  readonly author: string;
+  readonly subject: string;
+  readonly files: Readonly<Record<string, string>>;
+}
+
 interface UpdateRun {
   status: number | null;
   stderr: string;
-  nixCalls: string;
-  gitCalls: string;
   body: string | null;
-  pushed: Readonly<Record<string, Readonly<Record<string, string>>>> | null;
+  pushed: Readonly<Record<string, Commit>>;
 }
 
 function runGit(cwd: string, env: NodeJS.ProcessEnv, args: string[]): string {
@@ -193,47 +260,98 @@ function runGit(cwd: string, env: NodeJS.ProcessEnv, args: string[]): string {
   return result.stdout;
 }
 
-// The files of each branch in a bare repository, by ref and then by path.
+// The commit at the tip of each branch in a bare repository, keyed by ref,
+// with its files keyed by path.
 function branches(
   origin: string,
   env: NodeJS.ProcessEnv,
-): Record<string, Record<string, string>> {
+): Record<string, Commit> {
   const refs = runGit(origin, env, ["for-each-ref", "--format=%(refname)"])
     .split("\n")
     .filter((ref) => ref !== "");
   return Object.fromEntries(
     refs.map((ref) => [
       ref,
-      Object.fromEntries(
-        runGit(origin, env, ["ls-tree", "-r", "--name-only", ref])
-          .split("\n")
-          .filter((path) => path !== "")
-          .map((path) => [
-            path,
-            runGit(origin, env, ["show", `${ref}:${path}`]),
-          ]),
-      ),
+      {
+        author: runGit(origin, env, ["log", "-1", "--format=%an <%ae>", ref]),
+        subject: runGit(origin, env, ["log", "-1", "--format=%s", ref]),
+        files: Object.fromEntries(
+          runGit(origin, env, ["ls-tree", "-r", "--name-only", ref])
+            .split("\n")
+            .filter((path) => path !== "")
+            .map((path) => [
+              path,
+              runGit(origin, env, ["show", `${ref}:${path}`]),
+            ]),
+        ),
+      },
     ]),
   );
 }
 
+// Replaces each `${{ expression }}` in a workflow value with its value in the
+// given contexts. JavaScript would read the hyphen in a property such as
+// `inputs.maintain-lockfiles` as subtraction, so such a property becomes an
+// index. GitHub renders a missing value as an empty string.
+function interpolate(value: string, contexts: Record<string, unknown>): string {
+  return value.replace(
+    /\$\{\{([\s\S]*?)\}\}/g,
+    (_match: string, expression: string) => {
+      const result: unknown = runInNewContext(
+        expression.replace(/\.([A-Za-z_]\w*(?:-\w+)+)/g, '["$1"]'),
+        contexts,
+      );
+      return result === undefined || result === null ? "" : String(result);
+    },
+  );
+}
+
+function triggerContexts(
+  definition: Record<string, unknown>,
+  trigger: Trigger,
+): Record<string, unknown> {
+  const dispatch = record(definition.on).workflow_dispatch;
+  const declared =
+    dispatch === null || dispatch === undefined
+      ? {}
+      : record(record(dispatch).inputs ?? {});
+  const defaults = Object.fromEntries(
+    Object.entries(declared).map(([name, input]) => [
+      name,
+      record(input).default,
+    ]),
+  );
+  return {
+    github: {
+      token: "fixture-token",
+      event_name: trigger.event,
+      event: { schedule: trigger.schedule },
+    },
+    inputs:
+      trigger.event === "workflow_dispatch"
+        ? { ...defaults, ...trigger.inputs }
+        : {},
+    secrets: {},
+  };
+}
+
+function quote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 // Runs the `update` job's steps after the secrets setup, each in its own shell
-// as on a runner, with stub `nix`, `gh` and `date` commands. The `nix` argument
-// is the stub's body for every call other than building the flake relock
-// summariser.
-//
-// Without `repository`, `git` is a stub too. With it, the job runs in a Git
-// repository with a bare `origin`, and the repository's first commit contains
-// the given files. `git` then runs the real command, and the result includes
-// the files of each branch that the job pushed to `origin`.
-//
-// The steps' `env` entries are GitHub expressions, which the test cannot
-// evaluate. `environment` sets their values instead.
+// with its `env` evaluated for the trigger, as on a runner. `nix`, `gh` and
+// `date` are stubs, and `runner` is the body of the update runner that `nix
+// build` provides. The job runs in a Git repository whose first commit
+// contains the given files. Its `origin` is a bare repository with a branch
+// for each of `remoteBranches`, and the result includes the commit at the tip
+// of each branch that `origin` has after the job.
 function runUpdateWorkflow(
   filename: string,
-  nix: string,
-  repository: Readonly<Record<string, string>> | null = null,
-  environment: Readonly<Record<string, string>> = {},
+  trigger: Trigger,
+  runner: string,
+  repository: Readonly<Record<string, string>>,
+  remoteBranches: readonly string[] = [],
 ): UpdateRun {
   const directory = mkdtempSync(join(tmpdir(), "update-workflow-"));
   const bin = join(directory, "bin");
@@ -265,33 +383,36 @@ printf 'before=%s; after=%s\\n' "$(cat "$1")" "$(cat "$2")"
     { mode: 0o755 },
   );
 
-  if (repository === null) {
-    writeFileSync(join(work, "flake.lock"), "before\n");
-  } else {
-    for (const [path, contents] of Object.entries(repository)) {
-      mkdirSync(dirname(join(work, path)), { recursive: true });
-      writeFileSync(join(work, path), contents);
-    }
+  for (const [path, contents] of Object.entries(repository)) {
+    mkdirSync(dirname(join(work, path)), { recursive: true });
+    writeFileSync(join(work, path), contents);
+  }
 
-    runGit(directory, env, ["init", "--quiet", "--bare", origin]);
-    runGit(work, env, ["init", "--quiet", "--initial-branch=main"]);
-    runGit(work, env, ["add", "-A"]);
+  runGit(directory, env, ["init", "--quiet", "--bare", origin]);
+  runGit(work, env, ["init", "--quiet", "--initial-branch=main"]);
+  runGit(work, env, ["add", "-A"]);
+  runGit(work, env, [
+    "-c",
+    "user.name=fixture",
+    "-c",
+    "user.email=fixture@example.invalid",
+    "commit",
+    "--quiet",
+    "-m",
+    "fixture",
+  ]);
+  runGit(work, env, ["remote", "add", "origin", origin]);
+  for (const branch of remoteBranches) {
     runGit(work, env, [
-      "-c",
-      "user.name=fixture",
-      "-c",
-      "user.email=fixture@example.invalid",
-      "commit",
+      "push",
       "--quiet",
-      "-m",
-      "fixture",
+      "origin",
+      `HEAD:refs/heads/${branch}`,
     ]);
-    runGit(work, env, ["remote", "add", "origin", origin]);
   }
 
   const commands: Readonly<Record<string, string>> = {
     nix: `
-printf '%s\\n' "$*" >> '${log}/nix-calls'
 if [ "$1 $2" = 'build .#flake-lock-summary' ]; then
   mkdir -p "$RUNNER_TEMP/flake-lock-summary/bin"
   cp '${bin}/summary' "$RUNNER_TEMP/flake-lock-summary/bin/flake-lock-summary"
@@ -302,25 +423,12 @@ if [ "$1 $2" = 'build .#update-runner' ]; then
   cp '${bin}/update-runner' "$RUNNER_TEMP/update-runner/bin/update-runner"
   exit 0
 fi
-${nix}
+exit 1
 `,
-    "update-runner": `
-printf 'runner %s\\n' "$*" >> '${log}/nix-calls'
-${nix}
-`,
-    git:
-      repository === null
-        ? `
-printf '%s\\n' "$*" >> '${log}/git-calls'
-case "$*" in
-  'diff --quiet' | 'diff --cached --quiet') exit 1 ;;
-  'show HEAD:flake.lock') printf 'before\\n' ;;
-esac
-`
-        : // Git prints progress messages that contain temporary paths on
-          // stderr. Send them to a file so the job's stderr is deterministic.
-          `
-printf '%s\\n' "$*" >> '${log}/git-calls'
+    "update-runner": runner,
+    // Git prints progress messages that contain temporary paths on stderr.
+    // Send them to a file so the job's stderr is deterministic.
+    git: `
 PATH='${process.env.PATH}' exec git "$@" 2>> '${log}/git-stderr'
 `,
     gh: `
@@ -347,7 +455,9 @@ fi
   }
 
   try {
-    const update = record(record(workflow(filename).jobs).update);
+    const definition = workflow(filename);
+    const contexts = triggerContexts(definition, trigger);
+    const update = record(record(definition.jobs).update);
     assert.ok(Array.isArray(update.steps));
     const updateSteps = update.steps.map(record);
     const setup = updateSteps.findIndex(
@@ -356,14 +466,21 @@ fi
     assert.notEqual(setup, -1);
     const script = updateSteps
       .slice(setup + 1)
-      .map((step) => `(\n${string(step.run)}\n)`)
+      .map((step) => {
+        const exports = Object.entries(
+          step.env === undefined ? {} : record(step.env),
+        ).map(
+          ([name, value]) =>
+            `export ${name}=${quote(interpolate(string(value), contexts))}`,
+        );
+        return `(\n${[...exports, string(step.run)].join("\n")}\n)`;
+      })
       .join(" &&\n");
     const result = spawnSync(bash, ["--noprofile", "--norc", "-c", script], {
       cwd: work,
       encoding: "utf8",
       env: {
         ...env,
-        ...environment,
         PATH: `${bin}:${process.env.PATH}`,
         RUNNER_TEMP: runnerTemp,
         GITHUB_RUN_ID: "123",
@@ -374,13 +491,8 @@ fi
     return {
       status: result.status,
       stderr: result.stderr,
-      nixCalls: readFileSync(join(log, "nix-calls"), "utf8").replaceAll(
-        runnerTemp,
-        "$RUNNER_TEMP",
-      ),
-      gitCalls: readFileSync(join(log, "git-calls"), "utf8"),
       body: existsSync(body) ? readFileSync(body, "utf8") : null,
-      pushed: repository === null ? null : branches(origin, env),
+      pushed: branches(origin, env),
     };
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -394,26 +506,32 @@ const relockSummary = [
   "",
   "before=before; after=after",
 ];
+const packageSummary = [
+  "Automated package bumps from the scheduled `package-update` workflow.",
+];
 const cupboardFooter = [
   "",
   "After merging, the `cupboard` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.",
   "",
 ];
+const bot =
+  "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>\n";
+const manualRun: Trigger = { event: "workflow_dispatch" };
 
 describe("Scheduled maintenance workflows", () => {
-  for (const [filename, mode, prefix, branch, commit] of [
+  for (const [filename, prefix, branch, stale, subject] of [
     [
       "flake-update.yml",
-      "inputs",
       "flake",
       "flake-update/2026-11-04-123",
+      "flake-update/2026-11-03-122",
       "chore(flake): update inputs",
     ],
     [
       "package-update.yml",
-      "packages",
       "pkgs",
       "package-update/2026-11-04",
+      "package-update/2026-11-03",
       "chore(pkgs): update packages",
     ],
   ] as const) {
@@ -422,60 +540,46 @@ describe("Scheduled maintenance workflows", () => {
         "## Updated\n\n- independent\n\n## Update notices\n\n- teamclaude\n  > Review the newer upstream release.\n\n## Failed or skipped updates\n\n- nixpkgs\n  > Caddy could not refresh.\n";
       const run = runUpdateWorkflow(
         filename,
+        manualRun,
         `
-case "$*" in
-  'inputs --stage' | 'packages --stage')
+case "$1" in
+  inputs)
     printf 'after\\n' > flake.lock
-    printf 'locked\\n' > pkgs/fixture/new-lock.json
-    git add -- flake.lock pkgs/fixture/new-lock.json
-    printf '%s' '${report}'
-    exit 1
     ;;
-  *) exit 1 ;;
+  packages)
+    ;;
+  *)
+    exit 2
+    ;;
 esac
+printf 'locked\\n' > pkgs/fixture/new-lock.json
+if [ "$2" = --stage ]; then
+  git add -- flake.lock pkgs/fixture/new-lock.json
+fi
+printf '%s' '${report}'
+exit 1
 `,
         { "flake.lock": "before\n", "pkgs/fixture/version": "unchanged\n" },
+        [stale],
       );
       assert.deepEqual(run, {
         status: 0,
         stderr: "",
-        nixCalls: [
-          ...(prefix === "flake"
-            ? [
-                "build .#flake-lock-summary --out-link $RUNNER_TEMP/flake-lock-summary",
-              ]
-            : []),
-          "build .#update-runner --out-link $RUNNER_TEMP/update-runner",
-          `runner ${mode} --stage`,
-          "",
-        ].join("\n"),
-        gitCalls: [
-          "add -- flake.lock pkgs/fixture/new-lock.json",
-          "diff --cached --quiet",
-          "config user.name github-actions[bot]",
-          "config user.email 41898282+github-actions[bot]@users.noreply.github.com",
-          ...(prefix === "flake" ? ["show HEAD:flake.lock"] : []),
-          `ls-remote --heads origin refs/heads/${prefix === "flake" ? "flake" : "package"}-update/*`,
-          `switch -C ${branch}`,
-          `commit -m ${commit}`,
-          `push ${prefix === "flake" ? "" : "--force "}origin HEAD:refs/heads/${branch}`,
-          "",
-        ].join("\n"),
         body: [
-          ...(prefix === "flake"
-            ? relockSummary
-            : [
-                "Automated package bumps from the scheduled `package-update` workflow.",
-              ]),
+          ...(prefix === "flake" ? relockSummary : packageSummary),
           "",
           report.trimEnd(),
           ...cupboardFooter,
         ].join("\n"),
         pushed: {
           [`refs/heads/${branch}`]: {
-            "flake.lock": "after\n",
-            "pkgs/fixture/version": "unchanged\n",
-            "pkgs/fixture/new-lock.json": "locked\n",
+            author: bot,
+            subject: `${subject}\n`,
+            files: {
+              "flake.lock": prefix === "flake" ? "after\n" : "before\n",
+              "pkgs/fixture/version": "unchanged\n",
+              "pkgs/fixture/new-lock.json": "locked\n",
+            },
           },
         },
       });
@@ -485,8 +589,8 @@ esac
   it("does not create a PR for a message-only run", () => {
     const run = runUpdateWorkflow(
       "package-update.yml",
+      manualRun,
       `
-test "$*" = 'packages --stage'
 printf '%s\\n' 'Review the newer upstream release.'
 `,
       { "flake.lock": "before\n" },
@@ -494,39 +598,93 @@ printf '%s\\n' 'Review the newer upstream release.'
     assert.deepEqual(run, {
       status: 0,
       stderr: "",
-      nixCalls: [
-        "build .#update-runner --out-link $RUNNER_TEMP/update-runner",
-        "runner packages --stage",
-        "",
-      ].join("\n"),
-      gitCalls: "diff --cached --quiet\n",
       body: null,
       pushed: {},
     });
   });
 
-  it("runs lock-file maintenance when the step asks for it", () => {
-    const run = runUpdateWorkflow(
-      "package-update.yml",
-      `
-test "$*" = 'packages --stage --maintain-lockfiles'
+  // The Tuesday run and a manual run with the input maintain the lock files.
+  const packageUpdate = workflow("package-update.yml");
+  const schedules = record(packageUpdate.on).schedule;
+  assert.ok(Array.isArray(schedules));
+  for (const [trigger, maintained] of [
+    ...schedules.map((schedule): [Trigger, boolean] => {
+      const cron = string(record(schedule).cron);
+      return [
+        { event: "schedule", schedule: cron },
+        cron.split(" ")[4] === "2",
+      ];
+    }),
+    ...[true, false].map((value): [Trigger, boolean] => [
+      { event: "workflow_dispatch", inputs: { "maintain-lockfiles": value } },
+      value,
+    ]),
+  ]) {
+    it(`${maintained ? "maintains" : "keeps"} the lock files on ${JSON.stringify(trigger)}`, () => {
+      const run = runUpdateWorkflow(
+        "package-update.yml",
+        trigger,
+        `
+if [ "$1" != packages ]; then
+  exit 2
+fi
+shift
+stage=false
+maintain=false
+for argument in "$@"; do
+  case "$argument" in
+    --stage)
+      stage=true
+      ;;
+    --maintain-lockfiles)
+      maintain=true
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+
+printf 'updated\\n' > pkgs/fixture/version
+if [ "$maintain" = true ]; then
+  printf 'maintained\\n' > pkgs/fixture/pnpm-lock.yaml
+fi
+if [ "$stage" = true ]; then
+  git add -- pkgs
+fi
+printf '## Updated\\n\\n- fixture\\n'
 `,
-      { "flake.lock": "before\n" },
-      { MAINTAIN_LOCKFILES: "true" },
-    );
-    assert.deepEqual(run, {
-      status: 0,
-      stderr: "",
-      nixCalls: [
-        "build .#update-runner --out-link $RUNNER_TEMP/update-runner",
-        "runner packages --stage --maintain-lockfiles",
-        "",
-      ].join("\n"),
-      gitCalls: "diff --cached --quiet\n",
-      body: null,
-      pushed: {},
+        {
+          "flake.lock": "before\n",
+          "pkgs/fixture/version": "old\n",
+          "pkgs/fixture/pnpm-lock.yaml": "locked\n",
+        },
+      );
+      assert.deepEqual(run, {
+        status: 0,
+        stderr: "",
+        body: [
+          ...packageSummary,
+          "",
+          "## Updated\n\n- fixture",
+          ...cupboardFooter,
+        ].join("\n"),
+        pushed: {
+          "refs/heads/package-update/2026-11-04": {
+            author: bot,
+            subject: "chore(pkgs): update packages\n",
+            files: {
+              "flake.lock": "before\n",
+              "pkgs/fixture/version": "updated\n",
+              "pkgs/fixture/pnpm-lock.yaml": maintained
+                ? "maintained\n"
+                : "locked\n",
+            },
+          },
+        },
+      });
     });
-  });
+  }
 });
 
 describe("Cupboard workflow event admission", () => {
@@ -561,65 +719,65 @@ describe("Cupboard workflow event admission", () => {
 });
 
 describe("Cupboard workflow source preparation", () => {
-  it("enforces the evaluation policy when preparing publish inputs", () => {
-    const directory = mkdtempSync(join(tmpdir(), "cupboard-inputs-"));
-    const output = join(directory, "output");
-    writeFileSync(output, "");
-    const { manifest, calls } = prepareEvaluation(directory, {
-      trustedPublicKey: "fixture-key",
-      builders: "fixture-builder",
-    });
+  // The evaluation gate disables import from derivation, so publish inputs
+  // that need a build fail instead of building it.
+  for (const importsFromDerivation of [false, true]) {
+    it(`${importsFromDerivation ? "refuses" : "prepares"} publish inputs ${importsFromDerivation ? "that need" : "without"} an evaluation-time build`, () => {
+      const directory = mkdtempSync(join(tmpdir(), "cupboard-inputs-"));
+      const output = join(directory, "output");
+      writeFileSync(output, "");
+      const nix = fakeNix(directory, {
+        attributes: {
+          ".#.nix.publishInputs": {
+            trustedPublicKey: "fixture-key",
+            builders: "fixture-builder",
+          },
+        },
+        importsFromDerivation,
+      });
 
-    try {
-      const result = spawnSync(
-        bash,
-        ["--noprofile", "--norc", "-c", string(evaluation.run)],
-        {
-          cwd: directory,
-          encoding: "utf8",
-          env: {
-            ...process.env,
-            PATH: `${directory}:${process.env.PATH}`,
-            NIX_CONFIG: "allow-import-from-derivation = true",
-            EVENT_NAME: "push",
-            EVENT_ACTION: "",
-            GITHUB_OUTPUT: output,
-            NIX_TARGETS: manifest,
-            NIX_CALLS: calls,
+      try {
+        const result = spawnSync(
+          bash,
+          ["--noprofile", "--norc", "-c", string(evaluation.run)],
+          {
+            cwd: directory,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              ...nix,
+              PATH: `${directory}:${process.env.PATH}`,
+              NIX_CONFIG: "allow-import-from-derivation = true",
+              EVENT_NAME: "push",
+              EVENT_ACTION: "",
+              GITHUB_OUTPUT: output,
+            },
           },
-        },
-      );
-      assert.deepEqual(
-        {
-          status: result.status,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          output: readFileSync(output, "utf8"),
-          evaluation: evaluationCall(calls),
-        },
-        {
-          status: 0,
-          stdout: "trustedPublicKey=fixture-key\nbuilders=fixture-builder\n",
-          stderr: "",
-          output: "trustedPublicKey=fixture-key\nbuilders=fixture-builder\n",
-          evaluation: {
-            args: [
-              "eval",
-              "--json",
-              ".#.nix.publishInputs",
-              "--option",
-              "allow-import-from-derivation",
-              "false",
-            ],
-            config:
-              "allow-import-from-derivation = true\nallow-import-from-derivation = false\n",
+        );
+        const inputs = importsFromDerivation
+          ? ""
+          : "trustedPublicKey=fixture-key\nbuilders=fixture-builder\n";
+        assert.deepEqual(
+          {
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            output: readFileSync(output, "utf8"),
           },
-        },
-      );
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
-  });
+          {
+            status: importsFromDerivation ? 1 : 0,
+            stdout: inputs,
+            stderr: importsFromDerivation
+              ? `error: cannot build '${importedDerivation}' during evaluation because the option 'allow-import-from-derivation' is disabled\n`
+              : "",
+            output: inputs,
+          },
+        );
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
 
   it("skips fetching and evaluating inputs on close without blocking retirement", () => {
     const directory = mkdtempSync(join(tmpdir(), "cupboard-workflows-"));
@@ -1103,73 +1261,66 @@ describe("Cupboard strict build ownership", () => {
     );
   });
 
-  it("derives the public build matrix from the target manifest", () => {
-    const plan = record(jobs["validation-plan"]);
-    assert.ok(Array.isArray(plan.steps));
-    const step = plan.steps.map(record).find((step) => step.id === "targets");
-    assert.ok(step);
-    const directory = mkdtempSync(join(tmpdir(), "cupboard-matrix-"));
-    const output = join(directory, "output");
-    writeFileSync(output, "");
-    const { manifest, calls } = prepareEvaluation(
-      directory,
-      expectedPublicTargets(),
-    );
+  for (const importsFromDerivation of [false, true]) {
+    it(`${importsFromDerivation ? "refuses a target manifest that needs" : "derives the public build matrix from the target manifest without"} an evaluation-time build`, () => {
+      const plan = record(jobs["validation-plan"]);
+      assert.ok(Array.isArray(plan.steps));
+      const step = plan.steps.map(record).find((step) => step.id === "targets");
+      assert.ok(step);
+      const directory = mkdtempSync(join(tmpdir(), "cupboard-matrix-"));
+      const output = join(directory, "output");
+      writeFileSync(output, "");
+      const nix = fakeNix(directory, {
+        attributes: { ".#.cupboardPublicOutputs": expectedPublicTargets() },
+        importsFromDerivation,
+      });
 
-    try {
-      const result = spawnSync(
-        bash,
-        ["--noprofile", "--norc", "-c", string(step.run)],
-        {
-          cwd: directory,
-          encoding: "utf8",
-          env: {
-            ...process.env,
-            PATH: `${directory}:${process.env.PATH}`,
-            NIX_CONFIG: "allow-import-from-derivation = true",
-            GITHUB_OUTPUT: output,
-            NIX_TARGETS: manifest,
-            NIX_CALLS: calls,
+      try {
+        const result = spawnSync(
+          bash,
+          ["--noprofile", "--norc", "-c", string(step.run)],
+          {
+            cwd: directory,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              ...nix,
+              PATH: `${directory}:${process.env.PATH}`,
+              NIX_CONFIG: "allow-import-from-derivation = true",
+              GITHUB_OUTPUT: output,
+            },
           },
-        },
-      );
+        );
+        const matrix = {
+          include: checkSystems.map((system) => ({
+            system,
+            os: expectedTarget("", "", "", system).os,
+          })),
+        };
 
-      assert.deepEqual(
-        {
-          status: result.status,
-          stderr: result.stderr,
-          evaluation: evaluationCall(calls),
-          matrix: JSON.parse(
-            readFileSync(output, "utf8").replace(/^matrix=/, ""),
-          ),
-        },
-        {
-          status: 0,
-          stderr: "",
-          evaluation: {
-            args: [
-              "eval",
-              "--json",
-              ".#.cupboardPublicOutputs",
-              "--option",
-              "allow-import-from-derivation",
-              "false",
-            ],
-            config:
-              "allow-import-from-derivation = true\nallow-import-from-derivation = false\n",
+        assert.deepEqual(
+          {
+            status: result.status,
+            stderr: result.stderr,
+            output: readFileSync(output, "utf8"),
           },
-          matrix: {
-            include: checkSystems.map((system) => ({
-              system,
-              os: expectedTarget("", "", "", system).os,
-            })),
-          },
-        },
-      );
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
-  });
+          importsFromDerivation
+            ? {
+                status: 1,
+                stderr: `error: cannot build '${importedDerivation}' during evaluation because the option 'allow-import-from-derivation' is disabled\n`,
+                output: "",
+              }
+            : {
+                status: 0,
+                stderr: "",
+                output: `matrix=${JSON.stringify(matrix)}\n`,
+              },
+        );
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
 
   for (const system of checkSystems) {
     it(`builds only the public targets for ${system}`, () => {
@@ -1180,20 +1331,15 @@ describe("Cupboard strict build ownership", () => {
         .find((step) => step.name === "Build public packages and checks");
       assert.ok(build);
       const directory = mkdtempSync(join(tmpdir(), "cupboard-builds-"));
-      const calls = join(directory, "calls");
-      const manifest = join(directory, "targets.json");
-      writeFileSync(calls, "");
-      writeFileSync(manifest, JSON.stringify(expectedPublicTargets()));
-      writeFileSync(
-        join(directory, "nix"),
-        `#!/bin/sh
-printf '%s\n' "$@" '' >> "$NIX_CALLS"
-if [ "$1" = eval ]; then
-  cat "$NIX_TARGETS"
-fi
-`,
-        { mode: 0o755 },
-      );
+      const targets = expectedPublicTargets();
+      const output = (target: FixtureTarget): string =>
+        target.rootDrvPath.replace(/\.drv$/, "");
+      const nix = fakeNix(directory, {
+        attributes: { ".#.cupboardPublicOutputs": targets },
+        outputs: Object.fromEntries(
+          targets.map((target) => [target.attr, output(target)]),
+        ),
+      });
       try {
         const result = spawnSync(
           bash,
@@ -1202,38 +1348,30 @@ fi
             encoding: "utf8",
             env: {
               ...process.env,
+              ...nix,
               PATH: `${directory}:${process.env.PATH}`,
               RUNNER_TEMP: directory,
-              NIX_CALLS: calls,
-              NIX_TARGETS: manifest,
               TARGET_SYSTEM: system,
             },
           },
         );
+        const index = (name: string): number =>
+          Number(/-(\d+)$/.exec(name)?.[1] ?? 0);
         assert.deepEqual(
           {
             status: result.status,
             stderr: result.stderr,
-            calls: readFileSync(calls, "utf8")
-              .trim()
-              .split("\n\n")
-              .map((call) => call.split("\n")),
+            built: readdirSync(directory)
+              .filter((name) => /^strict-build(-\d+)?$/.test(name))
+              .sort((left, right) => index(left) - index(right))
+              .map((name) => readlinkSync(join(directory, name))),
           },
           {
             status: 0,
             stderr: "",
-            calls: [
-              ["eval", "--json", ".#.cupboardPublicOutputs"],
-              [
-                "build",
-                "--keep-going",
-                "--out-link",
-                join(directory, "strict-build"),
-                ...expectedPublicTargets()
-                  .filter((target) => target.system === system)
-                  .map((target) => target.attr),
-              ],
-            ],
+            built: targets
+              .filter((target) => target.system === system)
+              .map(output),
           },
         );
       } finally {
