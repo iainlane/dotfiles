@@ -11,10 +11,30 @@ import { fileURLToPath } from "node:url";
 import { expect, it, onTestFinished } from "vitest";
 import { DemoWorkspace } from "#demo/workspace.ts";
 import { demoFixture } from "#demo/fixture.ts";
+import { clockedFooter, fixtureClock } from "#test/support/fixture-clock.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
 
 function top(screen: string[]): string {
   return screen.findLast((line) => line.startsWith("╭─ ")) ?? "";
+}
+
+const richTop =
+  "╭─  footer-demo/scripted-demo  ◒ high   ~/workspace   footer-demo ✚1 ✎1 ?1 ──────────  ◫ 0.0%/131.1k ─╮";
+const minimalTop =
+  "╭─  ~/workspace   footer-demo ✚1 ✎1 ?1 ─────────────────────────────────────────────────  ◫ 0.0%/131.1k ─╮";
+const emptyDraft =
+  "╰─                                                                                                          ─╯";
+const draftRow =
+  "╰─ second line                                                                                              ─╯";
+
+/** Passes once the composer shows the Git status, which the footer reads last. */
+function gitShown(screen: string[]): void {
+  expect(top(screen)).toContain("footer-demo ✚");
+}
+
+/** The composer's top and bottom border rows, which show the footer. */
+function footerRows(screen: string[]): string[] {
+  return [top(screen), screen.findLast((line) => line.startsWith("╰─")) ?? ""];
 }
 
 it.each(["local", "session", "managed"] as const)(
@@ -41,19 +61,22 @@ it.each(["local", "session", "managed"] as const)(
     }
     const terminal = new PiTerminal({
       command: [
-        ...workspace.command(process.env.PI_TEST_HOST ?? "pi"),
+        ...workspace.command(process.env.PI_TEST_HOST ?? "pi", clockedFooter),
         "-e",
         fileURLToPath(
           new URL(import.meta.resolve("#test/fixtures/customiser.ts")),
         ),
       ],
       cwd: workspace.cwd,
-      env: workspace.env,
+      env: { ...workspace.env, ...fixtureClock().env },
       columns: 110,
       rows: 30,
     });
     terminal.resize(110, 30);
-    await terminal.until((screen) => expect(top(screen)).toContain(""));
+    expect(await terminal.settled(footerRows, gitShown)).toStrictEqual([
+      richTop,
+      emptyDraft,
+    ]);
     terminal.input("/fixture-customise\r");
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("Footer › Customise"),
@@ -63,11 +86,11 @@ it.each(["local", "session", "managed"] as const)(
       expect(screen.join("\n")).toContain("› Profile"),
     );
     terminal.input("\u001B[B\u001B[B");
-    await terminal.until((screen) => {
-      expect(top(screen)).not.toContain("");
-      expect(top(screen)).toContain("");
-      expect(readFileSync(base, "utf8")).toBe(original);
-    });
+    expect(await terminal.settled(footerRows, gitShown)).toStrictEqual([
+      minimalTop,
+      draftRow,
+    ]);
+    expect(readFileSync(base, "utf8")).toBe(original);
     terminal.input("\r");
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("not saved"),
@@ -105,11 +128,13 @@ it.each(["local", "session", "managed"] as const)(
     if (mode === "managed") {
       terminal.input("\r");
     }
-    await terminal.until((screen) => {
-      expect(screen.join("\n")).not.toContain("Footer › Customise");
-      expect(screen.join("\n")).toContain("unchanged draft 界é");
-      expect(top(screen)).not.toContain("");
-    });
+    expect(
+      await terminal.settled(footerRows, (screen) => {
+        expect(screen.join("\n")).not.toContain("Footer › Customise");
+        expect(screen.join("\n")).toContain("unchanged draft 界é");
+        gitShown(screen);
+      }),
+    ).toStrictEqual([minimalTop, draftRow]);
     const document: unknown = JSON.parse(
       readFileSync(mode === "managed" ? user : base, "utf8"),
     );
@@ -136,19 +161,22 @@ it("hands off from the inspector overlay to one live customiser and returns focu
   const original = readFileSync(base, "utf8");
   const terminal = new PiTerminal({
     command: [
-      ...workspace.command(process.env.PI_TEST_HOST ?? "pi"),
+      ...workspace.command(process.env.PI_TEST_HOST ?? "pi", clockedFooter),
       "-e",
       fileURLToPath(
         new URL(import.meta.resolve("#test/fixtures/customiser.ts")),
       ),
     ],
     cwd: workspace.cwd,
-    env: workspace.env,
+    env: { ...workspace.env, ...fixtureClock().env },
     columns: 110,
     rows: 30,
   });
   terminal.resize(110, 30);
-  await terminal.until((screen) => expect(top(screen)).toContain(""));
+  expect(await terminal.settled(footerRows, gitShown)).toStrictEqual([
+    richTop,
+    emptyDraft,
+  ]);
   terminal.input("/fixture-customise explain\r");
   await terminal.until((screen) =>
     expect(screen.join("\n")).toContain("Footer › Explain"),
@@ -172,15 +200,17 @@ it("hands off from the inspector overlay to one live customiser and returns focu
     expect(screen.join("\n")).toContain("› Profile"),
   );
   terminal.input("\u001B[B\u001B[B");
-  await terminal.until((screen) => {
-    expect(top(screen)).not.toContain("");
-    expect(top(screen)).toContain("");
-  });
+  expect(await terminal.settled(footerRows, gitShown)).toStrictEqual([
+    minimalTop,
+    draftRow,
+  ]);
   terminal.input("\u001B");
-  await terminal.until((screen) => {
-    expect(screen.join("\n")).not.toContain("› Profile");
-    expect(top(screen)).toContain("");
-  });
+  expect(
+    await terminal.settled(footerRows, (screen) => {
+      expect(screen.join("\n")).not.toContain("› Profile");
+      gitShown(screen);
+    }),
+  ).toStrictEqual([richTop, draftRow]);
   terminal.input("\u001B");
   await terminal.until((screen) =>
     expect(screen.join("\n")).not.toContain("Footer › Customise"),

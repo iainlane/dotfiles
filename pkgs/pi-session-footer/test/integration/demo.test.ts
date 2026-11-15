@@ -1,47 +1,95 @@
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { expect, it } from "vitest";
-import { PiTerminal } from "#test/support/terminal.ts";
+import { expect, it, onTestFinished } from "vitest";
+import { DemoProvider } from "#demo/provider.ts";
 import { demoFixture } from "#demo/fixture.ts";
+import { DemoWorkspace } from "#demo/workspace.ts";
+import { clockedFooter, fixtureClock } from "#test/support/fixture-clock.ts";
+import { PiTerminal } from "#test/support/terminal.ts";
 
-it.each(["rich", "minimal"])(
-  "runs the isolated %s demo against its scripted local provider",
+/** The composer's top and bottom border rows, which show the footer. */
+function footerRows(screen: string[]): string[] {
+  return [
+    screen.findLast((line) => line.startsWith("╭─ ")) ?? "",
+    screen.findLast((line) => line.startsWith("╰─")) ?? "",
+  ];
+}
+
+it("runs the isolated demo against its scripted local provider", async () => {
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const terminal = new PiTerminal({
+    command: [process.execPath, "demo/run.ts"],
+    cwd: root,
+    env: { ...process.env, PI_TEST_HOST: process.env.PI_TEST_HOST ?? "pi" },
+    columns: 100,
+    rows: 24,
+  });
+  const answer = demoFixture.response.map((chunk) => chunk.text).join("");
+
+  await terminal.until((screen) => {
+    expect(screen.some((line) => line.startsWith("╭─ "))).toBe(true);
+  });
+  terminal.input(`${demoFixture.prompt}\r`);
+  await terminal.until((screen) => {
+    expect(screen.join("\n")).toContain(answer);
+  });
+});
+
+const expectedRows = {
+  rich: {
+    before: [
+      "╭─  footer-demo/scripted-demo  ◒ high   ~/workspace   footer-demo ✚1 ✎1 ?1   ◫ 0.0%/131.1k ─╮",
+      "╰─                                                                                                ─╯",
+    ],
+    after: [
+      "╭─  footer-demo/scripted-demo  ◒ high   workspace   footer-demo ✚1 ✎1 ?1    ◫ 12.7%/131.1k ─╮",
+      "╰─                                                                        25.0%  ≈$0.03   0m ─╯",
+    ],
+  },
+  minimal: {
+    before: [
+      "╭─  ~/workspace   footer-demo ✚1 ✎1 ?1 ───────────────────────────────────────  ◫ 0.0%/131.1k ─╮",
+      "╰─                                                                                                ─╯",
+    ],
+    after: [
+      "╭─  ~/workspace   footer-demo ✚1 ✎1 ?1 ━━━━━─────────────────────────────────  ◫ 12.7%/131.1k ─╮",
+      "╰─                                                                                                ─╯",
+    ],
+  },
+};
+
+it.each(["rich", "minimal"] as const)(
+  "shows the %s footer before and after the scripted response",
   async (preset) => {
-    const root = fileURLToPath(new URL("../../", import.meta.url));
+    const workspace = DemoWorkspace.create(demoFixture);
+    onTestFinished(() => workspace.close());
+    const provider = await DemoProvider.start(demoFixture);
+    onTestFinished(() => provider.close());
+    workspace.configure(provider.url, { preset, theme: "dark" });
     const terminal = new PiTerminal({
-      command: [process.execPath, "demo/run.ts", "--preset", preset],
-      cwd: root,
-      env: { ...process.env, PI_TEST_HOST: process.env.PI_TEST_HOST ?? "pi" },
+      command: workspace.command(
+        process.env.PI_TEST_HOST ?? "pi",
+        clockedFooter,
+      ),
+      cwd: workspace.cwd,
+      env: { ...workspace.env, ...fixtureClock().env },
       columns: 100,
       rows: 24,
     });
-    await terminal.until((screen) => {
-      expect(screen.join("\n")).toContain(demoFixture.git.branch);
-      expect(screen.join("\n")).toContain("╭─");
-    });
+    const answer = demoFixture.response.map((chunk) => chunk.text).join("");
+
+    expect(
+      await terminal.settled(footerRows, (screen) => {
+        expect(footerRows(screen)[0]).toContain("footer-demo ✚");
+      }),
+    ).toStrictEqual(expectedRows[preset].before);
     terminal.input(`${demoFixture.prompt}\r`);
-    await terminal.until((screen) => {
-      const value = screen.join("\n");
-      expect({
-        response: value.includes(
-          demoFixture.response.map((chunk) => chunk.text).join(""),
-        ),
-        context: value.includes("◫"),
-        cache: value.includes(
-          ` ${((demoFixture.usage.cachedTokens / demoFixture.usage.promptTokens) * 100).toFixed(1)}%`,
-        ),
-      }).toStrictEqual({
-        response: true,
-        context: true,
-        cache: preset === "rich",
-      });
-    });
-    terminal.input("/footer help\r");
-    await terminal.until((screen) => {
-      expect(screen.join("\n")).toContain("/footer explain");
-      expect(screen.join("\n")).not.toContain("Extension errors");
-    });
+    expect(
+      await terminal.settled(footerRows, (screen) => {
+        expect(screen.join("\n")).toContain(answer);
+      }),
+    ).toStrictEqual(expectedRows[preset].after);
   },
 );
 

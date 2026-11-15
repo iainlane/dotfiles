@@ -49,7 +49,7 @@ it.each(["regular", "fullscreen"])(
       expect(screen.join("\n")).toContain("Footer dock gate · Profile"),
     );
     terminal.input("c");
-    await terminal.until((screen) => expect(border(screen)).not.toContain("≡"));
+    expect(await terminal.settled(border)).toBe(borders.compact);
     terminal.resize(70, 14);
     terminal.input("w");
     const stateLog = join(workspace.cwd, "dock-preview-state.json");
@@ -75,9 +75,11 @@ it.each(["regular", "fullscreen"])(
       [stateLog],
     );
     terminal.resize(100, 30);
-    await terminal.until((screen) =>
-      expect(visibleWidth(border(screen))).toBe(100),
-    );
+    expect(
+      await terminal.settled(border, (screen) => {
+        expect(visibleWidth(border(screen))).toBe(100);
+      }),
+    ).toBe(borders.rich);
     terminal.input("\r");
     await terminal.until(
       async (screen) => {
@@ -108,6 +110,23 @@ it.each(["regular", "fullscreen"])(
     }, [resultLog]);
   },
 );
+
+/**
+ * The composer's bottom border in each state at 100 columns, and with the
+ * symbol at 70 columns. The compact profile has no bottom row, so the border
+ * closes the draft's last line.
+ */
+const borders = {
+  rich: "╰─ ≡───────────────────────────────────────────────────────────────────────────────────────────── ─╯",
+  symbol:
+    "╰─ [P]≡────────────────────────────────────────────────────────────────────────────────────────── ─╯",
+  narrowSymbol:
+    "╰─ [P]≡──────────────────────────────────────────────────────────── ─╯",
+  compact:
+    "╰─ third line                                                                                     ─╯",
+  compactLong:
+    "╰─ draft line 29                                                                                  ─╯",
+};
 
 function border(screen: string[]): string {
   return screen.findLast((line) => line.startsWith("╰─ ")) ?? "";
@@ -169,47 +188,53 @@ it.each([
     if (long) {
       terminal.input("\r");
     }
-    await terminal.until((screen) => {
-      const title = screen.findIndex((line) =>
-        line.includes("Footer dock gate · Profile"),
-      );
-      const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
-      expect({
-        title: title >= 0,
-        below: top > title,
-        editors: screen.filter((line) => line.startsWith("╭─ ")).length,
-        symbol: border(screen).includes("≡"),
-      }).toStrictEqual({
-        title: true,
-        below: true,
-        editors: 1,
-        symbol: true,
-      });
+    const opened = await terminal.settled(
+      (screen) => {
+        const title = screen.findIndex((line) =>
+          line.includes("Footer dock gate · Profile"),
+        );
+        const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
+
+        return {
+          below: top > title,
+          editors: screen.filter((line) => line.startsWith("╭─ ")).length,
+          border: border(screen),
+        };
+      },
+      (screen) => {
+        expect(screen.join("\n")).toContain("Footer dock gate · Profile");
+      },
+    );
+    expect(opened).toStrictEqual({
+      below: true,
+      editors: 1,
+      border: borders.rich,
     });
     terminal.input("c");
-    await terminal.until((screen) => {
-      expect(border(screen)).not.toContain("≡");
-      expect(screen.join("\n")).toContain("Footer dock gate · Profile");
-    });
+    expect(
+      await terminal.settled(border, (screen) => {
+        expect(screen.join("\n")).toContain("Footer dock gate · Profile");
+      }),
+    ).toBe(long ? borders.compactLong : borders.compact);
     terminal.input("r");
-    await terminal.until((screen) => expect(border(screen)).toContain("≡"));
+    expect(await terminal.settled(border)).toBe(borders.rich);
     terminal.input("i");
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("Footer dock gate · Symbol"),
     );
     terminal.input("\u0015[P]");
-    await terminal.until((screen) => expect(border(screen)).toContain("[P]"));
+    expect(await terminal.settled(border)).toBe(borders.symbol);
     terminal.input("\r");
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("Footer dock gate · Profile"),
     );
     terminal.resize(70, 14);
-    await terminal.until((screen) => {
-      expect({
-        controls: screen.join("\n").includes("Footer dock gate · Profile"),
-        preview: border(screen).includes("[P]"),
-      }).toStrictEqual({ controls: true, preview: true });
-    });
+    expect(
+      await terminal.settled(border, (screen) => {
+        expect(screen.join("\n")).toContain("Footer dock gate · Profile");
+        expect(visibleWidth(border(screen))).toBe(70);
+      }),
+    ).toBe(borders.narrowSymbol);
     terminal.resize(100, 24);
     terminal.input("o");
     await terminal.until((screen) =>
@@ -244,9 +269,9 @@ it.each([
           focus: true,
         });
         expect(screen.join("\n")).not.toContain("Footer dock gate");
-        expect(border(screen)).toContain("≡");
       },
       [log],
     );
+    expect(await terminal.settled(border)).toBe(borders.rich);
   },
 );

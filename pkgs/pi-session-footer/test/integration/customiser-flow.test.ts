@@ -4,7 +4,47 @@ import { fileURLToPath } from "node:url";
 import { expect, it, onTestFinished } from "vitest";
 import { DemoWorkspace } from "#demo/workspace.ts";
 import { demoFixture } from "#demo/fixture.ts";
+import { clockedFooter, fixtureClock } from "#test/support/fixture-clock.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
+
+/** Passes once the footer shows the Git status, which it reads last. */
+function gitShown(screen: string[]): void {
+  expect(footerRow(screen)).toContain("footer-demo ✚");
+}
+
+/**
+ * The row that shows the footer: the composer's top border, or the last row
+ * when another editor has replaced the composer and the footer has a row of
+ * its own.
+ */
+function footerRow(screen: string[]): string {
+  return (
+    screen.findLast((line) => line.startsWith("╭─ ")) ?? screen.at(-1) ?? ""
+  );
+}
+
+const footerRows = {
+  rich: {
+    composer:
+      "╭─  footer-demo/scripted-demo  ◒ high   ~/workspace   footer-demo ✚1 ✎1 ?1 ──────────  ◫ 0.0%/131.1k ─╮",
+    standalone:
+      " footer-demo/scripted-demo  ◒ high   ~/workspace   footer-demo ✚1 ✎1 ?1 ────────────────  ◫ 0.0%/131.1k",
+  },
+  marked: {
+    composer:
+      "╭─  footer-demo/scripted-demo  ◒ high   ~/workspace  [G] footer-demo ✚1 ✎1 ?1 ────────  ◫ 0.0%/131.1k ─╮",
+    standalone:
+      " footer-demo/scripted-demo  ◒ high   ~/workspace  [G] footer-demo ✚1 ✎1 ?1 ──────────────  ◫ 0.0%/131.1k",
+  },
+  literal: {
+    composer:
+      "╭─  footer-demo/scripted-demo  ◒ high   ~/workspace  git footer-demo ✚1 ✎1 ?1 ────────  ◫ 0.0%/131.1k ─╮",
+    standalone:
+      " footer-demo/scripted-demo  ◒ high   ~/workspace  git footer-demo ✚1 ✎1 ?1 ──────────────  ◫ 0.0%/131.1k",
+  },
+  saved:
+    "╭─  footer-demo/scripted-demo · ◒ high ·  ~/workspace · git footer-demo ✚1 ✎1 ?1 ────────  ◫ 0.0%/131.1k ─╮",
+};
 
 class CustomiserDriver {
   readonly terminal: PiTerminal;
@@ -105,20 +145,27 @@ it.each([
     const trigger = join(workspace.cwd, "replace-editor");
     const terminal = new PiTerminal({
       command: [
-        ...workspace.command(process.env.PI_TEST_HOST ?? "pi"),
+        ...workspace.command(process.env.PI_TEST_HOST ?? "pi", clockedFooter),
         "-e",
         fileURLToPath(
           new URL(import.meta.resolve("#test/fixtures/customiser.ts")),
         ),
       ],
       cwd: workspace.cwd,
-      env: { ...workspace.env, PI_FOOTER_REPLACE_EDITOR: trigger },
+      env: {
+        ...workspace.env,
+        ...fixtureClock().env,
+        PI_FOOTER_REPLACE_EDITOR: trigger,
+      },
       columns: 110,
       rows: 30,
     });
     terminal.resize(110, 30);
     const ui = new CustomiserDriver(terminal);
-    await terminal.until((screen) => expect(screen.join("\n")).toContain(""));
+    const layout = replacement ? "standalone" : "composer";
+    expect(await terminal.settled(footerRow, gitShown)).toBe(
+      footerRows.rich.composer,
+    );
     terminal.input(`/fixture-customise${replacement ? " replace" : ""}\r`);
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("Footer › Customise"),
@@ -134,17 +181,17 @@ it.each([
     await ui.open("Git");
     await ui.open("Customise");
     await ui.symbol("[G]");
-    await terminal.until((screen) =>
-      expect(screen.join("\n")).toContain("[G] footer-demo"),
+    expect(await terminal.settled(footerRow, gitShown)).toBe(
+      footerRows.marked[layout],
     );
     await ui.back();
     await ui.back();
-    await terminal.until((screen) =>
-      expect(screen.join("\n")).not.toContain("[G] footer-demo"),
+    expect(await terminal.settled(footerRow, gitShown)).toBe(
+      footerRows.rich[layout],
     );
     await ui.symbol("git");
-    await terminal.until((screen) =>
-      expect(screen.join("\n")).toContain("git footer-demo"),
+    expect(await terminal.settled(footerRow, gitShown)).toBe(
+      footerRows.literal[layout],
     );
     await ui.accept();
     await ui.open("Symbol colour");
@@ -185,20 +232,14 @@ it.each([
     if (action === "save") {
       await ui.open("Save & use");
     }
-    await terminal.until((screen) => {
-      const display = screen.join("\n");
-      expect({
-        closed: !display.includes("Footer › Customise"),
-        draft: display.includes("unchanged draft 界é"),
-        literal: display.includes("git footer-demo"),
-        separator: display.includes(" · "),
-      }).toStrictEqual({
-        closed: true,
-        draft: true,
-        literal: action === "save",
-        separator: action === "save",
-      });
-    });
+    expect(
+      await terminal.settled(footerRow, (screen) => {
+        expect(screen.find((line) => line.startsWith("Footer ›"))).toBe(
+          undefined,
+        );
+        gitShown(screen);
+      }),
+    ).toBe(action === "save" ? footerRows.saved : footerRows.rich[layout]);
     terminal.input("!");
     await terminal.until((screen) =>
       expect(screen.join("\n")).toContain("second line!"),

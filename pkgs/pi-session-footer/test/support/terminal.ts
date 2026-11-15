@@ -1,6 +1,7 @@
 import { spawn, type IPty } from "@homebridge/node-pty-prebuilt-multiarch";
 import { watch } from "node:fs";
 import { dirname } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { onTestFinished } from "vitest";
 import xterm from "@xterm/headless";
 import { visibleWidth } from "@earendil-works/pi-tui";
@@ -217,6 +218,39 @@ export class PiTerminal {
       }
       schedule();
     });
+  }
+
+  /**
+   * Waits until `ready` passes and `read` has returned the same value for
+   * `quietMs` milliseconds, then returns that value. Rows that settle over
+   * several renders can then be compared once, so a wrong expectation fails
+   * with a diff instead of a timeout.
+   */
+  async settled<T>(
+    read: (screen: string[]) => T,
+    ready: (screen: string[]) => void = () => {},
+    quietMs = 750,
+  ): Promise<T> {
+    let last: string | undefined;
+    let since = 0;
+
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Each reading waits for the screen to be ready again.
+      await this.until(ready);
+      // eslint-disable-next-line no-await-in-loop -- The value must come from the latest screen.
+      const value = read(await this.screen());
+      const key = JSON.stringify(value);
+
+      if (key !== last) {
+        last = key;
+        since = Date.now();
+      } else if (Date.now() - since >= quietMs) {
+        return value;
+      }
+
+      // eslint-disable-next-line no-await-in-loop -- Polls the screen while it is quiet.
+      await delay(50);
+    }
   }
 
   input(value: string): void {

@@ -126,13 +126,16 @@ export class DemoWorkspace {
     }
   }
 
-  command(host: string): string[] {
+  command(
+    host: string,
+    footer = fileURLToPath(new URL(import.meta.resolve("#footer-entry"))),
+  ): string[] {
     return [
       host,
       "--offline",
       "--no-extensions",
       "-e",
-      fileURLToPath(new URL(import.meta.resolve("#footer-entry"))),
+      footer,
       "--no-mcp",
       "--no-skills",
       "--no-context-files",

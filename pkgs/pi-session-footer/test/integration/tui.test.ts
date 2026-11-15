@@ -7,7 +7,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it, onTestFinished } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { sessionStarts } from "#test/support/session-starts.ts";
+import {
+  clockStart,
+  clockedFooter,
+  fixtureClock,
+} from "#test/support/fixture-clock.ts";
+import { latestSessionStart } from "#test/support/session-starts.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
 
 async function seed(
@@ -15,7 +20,7 @@ async function seed(
   cwd: string,
   quiet: boolean,
 ): Promise<string> {
-  const timestamp = new Date().toISOString();
+  const timestamp = new Date(clockStart).toISOString();
   const tasks = Array.from({ length: 24 }, (_, index) => ({
     id: index + 1,
     subject: index === 23 ? "Verify layout" : `Task ${index + 1}`,
@@ -34,7 +39,7 @@ async function seed(
         toolCallId: "fixture",
         toolName: "todo",
         isError: false,
-        timestamp: Date.now(),
+        timestamp: clockStart,
         content: [{ type: "text", text: "Synthetic footer tasks" }],
         details: { tasks, nextId: 25 },
       },
@@ -58,7 +63,7 @@ async function seed(
         provider: "openai",
         model: "gpt-5.4",
         stopReason: "toolUse",
-        timestamp: Date.now(),
+        timestamp: clockStart,
         usage: {
           input: 0,
           output: 0,
@@ -87,7 +92,7 @@ async function seed(
           lineCount: 1,
         },
         isError: false,
-        timestamp: Date.now(),
+        timestamp: clockStart,
       },
     },
     {
@@ -102,7 +107,7 @@ async function seed(
         provider: "openai",
         model: "gpt-5.4",
         stopReason: "stop",
-        timestamp: Date.now(),
+        timestamp: clockStart,
         usage: {
           input: 18_000,
           output: 320,
@@ -130,6 +135,74 @@ async function seed(
   return session;
 }
 
+/**
+ * The composer's footer rows for each step, in the compact profile used when
+ * the session is quiet and in the rich profile otherwise. The fixture clock
+ * stays at `clockStart` until the `later` step moves it one minute on.
+ */
+const footerRows = {
+  wide: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture   #123 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "╰─ ⊗1 ⚠1  ☑ 23/24 Verify layout   2   failed 1  ≡   1 failed   2                                                                                       ◴ 5h 40% ↻2h  ◴ week 42% ↻2d   82.0%  ≈$0.04   0m ─╯",
+    ],
+  },
+  narrow: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   footer-fixture ━━────  ◫ 36.9%/272k ─╮",
+      "",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒   footer-fixture   #123     ◫ 36.9%/272k ─╮",
+      "╰─ ⊗1 ⚠1   failed 1  ≡   1 failed   2   ◴ 5h 40%  ◴ week 42% ─╯",
+    ],
+  },
+  overflow: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ↑ 23 more ─╮",
+      "",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture   #123 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ↑ 23 more ─╮",
+      "╰─ ⊗1 ⚠1  ☑ 23/24 Verify layout   2   failed 1  ≡   1 failed   2                                                                                       ◴ 5h 40% ↻2h  ◴ week 42% ↻2d   82.0%  ≈$0.04   0m ─╯",
+    ],
+  },
+  newSession: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  ◫ 0.0%/272k ─╮",
+      "╰─                                                                                                                                                                                                                        ─╯",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture   #123 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  ◫ 0.0%/272k ─╮",
+      "╰─ ⊗1 ⚠1   2   failed 1  ≡   1 failed   2                                                                                                                                         ◴ 5h 40% ↻2h  ◴ week 42% ↻2d ─╯",
+    ],
+  },
+  later: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "╰─                                                                                                                                                         ◴ 5h 40% ↻1h59m  ◴ week 42% ↻1d23h   82.0%  ≈$0.04   1m ─╯",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture   #123 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "╰─ ⊗1 ⚠1  ☑ 23/24 Verify layout   2   failed 1  ≡   1 failed   2                                                                                 ◴ 5h 40% ↻1h59m  ◴ week 42% ↻1d23h   82.0%  ≈$0.04   1m ─╯",
+    ],
+  },
+  fallback: {
+    quiet: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "╰─                                                                                                                                                               ◴ 5h 40% ↻2h  ◴ week 42% ↻2d   82.0%  ≈$0.04   0m ─╯",
+    ],
+    rich: [
+      "╭─  openai/gpt-5.4  ◒ high   ~/work   footer-fixture   #123 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─────────────────────────────────────────────────────────────────────────────────────  ◫ 36.9%/272k ─╮",
+      "╰─ ⊗1 ⚠1  ☑ 23/24 Verify layout   2   failed 1  ≡   1 failed   2                                                                                       ◴ 5h 40% ↻2h  ◴ week 42% ↻2d   82.0%  ≈$0.04   0m ─╯",
+    ],
+  },
+};
+
 function editorRows(screen: string[]): string {
   const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
   const bottom = screen.findLastIndex((line) => line.startsWith("╰─ "));
@@ -143,55 +216,52 @@ function composerStatusRows(screen: string[], compact: boolean): string[] {
   ];
 }
 
+function composerTop(screen: string[]): string {
+  return screen.findLast((line) => line.startsWith("╭─ ")) ?? "";
+}
+
+/** Passes once the composer shows the Git branch, which the footer reads last. */
+function gitShown(screen: string[]): void {
+  expect(composerTop(screen)).toContain("footer-fixture");
+}
+
+/** Passes once no footer inspector or customiser remains on screen. */
+function overlayClosed(screen: string[]): void {
+  expect(screen.find((line) => /^Footer[:›]/.test(line))).toBeUndefined();
+  gitShown(screen);
+}
+
 async function footer(
   terminal: PiTerminal,
-  width: number,
-  quiet: boolean,
-): Promise<string[]> {
-  let lines: string[] = [];
-
-  await terminal.until((screen) => {
-    lines = composerStatusRows(screen, quiet);
-
-    expect(lines[0]).toMatch(/^╭─ /);
+  expected: string[],
+  ready: (screen: string[]) => void = gitShown,
+): Promise<void> {
+  const compact = expected[1] === "";
+  const actual = await terminal.settled((screen) => {
     const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
-    expect(screen[top + 1]).toMatch(quiet ? /^╰─ .*─╯$/ : /^│.*│$/);
-    expect(screen.slice(top + (quiet ? 2 : 3)).join("\n")).not.toMatch(
-      /gpt-5\.4|◫ |◴ 5h 40%/,
-    );
 
-    expect(lines[0]).toContain("◫ 36.9%/272k");
-    expect(lines[0]).toContain(" footer-fixture");
-    expect({
-      quotaWindows: /◴ 5h 40%.*◴ week 42%/.test(lines[1] ?? ""),
-      planning: lines[1]?.includes("≡") ?? false,
-    }).toStrictEqual({
-      quotaWindows: !quiet,
-      planning: !quiet,
-    });
-    expect(lines.join("\n")).not.toMatch(/status \+\d/);
-    expect(lines.join("\n")).not.toContain("FFF indexed");
-    expect(lines.join("\n")).not.toContain("unavailable");
-    expect(lines.map((line) => visibleWidth(line))).toStrictEqual([
-      width,
-      quiet ? 0 : width,
-    ]);
+    return {
+      rows: composerStatusRows(screen, compact),
+      below: screen.slice(top + (compact ? 2 : 3)).map((line) => line.trim()),
+    };
+  }, ready);
+
+  expect(actual).toStrictEqual({
+    rows: expected,
+    below: actual.below.map(() => ""),
   });
-
-  return lines;
 }
 
 async function restored(
   terminal: PiTerminal,
   expected: string[],
 ): Promise<void> {
-  await terminal.until((screen) => {
-    expect(screen.join("\n")).not.toContain("Footer:");
-    expect(screen.join("\n")).not.toContain("Footer ›");
-    expect(composerStatusRows(screen, expected[1] === "")).toStrictEqual(
-      expected,
-    );
-  });
+  const rows = await terminal.settled(
+    (screen) => composerStatusRows(screen, expected[1] === ""),
+    overlayClosed,
+  );
+
+  expect(rows).toStrictEqual(expected);
 }
 
 it.each([
@@ -244,6 +314,7 @@ it.each([
     );
 
     const session = await seed(root, work, quiet);
+    const clock = fixtureClock();
     const networkLog = join(root, "network.log");
     const modelLog = join(root, "model.log");
     const updateLog = join(root, "updates.log");
@@ -289,18 +360,8 @@ it.each([
         "--use-theme",
         theme,
         ...(prettyFirst
-          ? [
-              "-e",
-              pretty,
-              "-e",
-              fileURLToPath(new URL(import.meta.resolve("#footer-entry"))),
-            ]
-          : [
-              "-e",
-              fileURLToPath(new URL(import.meta.resolve("#footer-entry"))),
-              "-e",
-              pretty,
-            ]),
+          ? ["-e", pretty, "-e", clockedFooter]
+          : ["-e", clockedFooter, "-e", pretty]),
         "-e",
         fileURLToPath(
           new URL(import.meta.resolve("#test/fixtures/session.ts")),
@@ -332,45 +393,32 @@ it.each([
         PI_FOOTER_UPDATE_LOG: updateLog,
         PI_FOOTER_START_LOG: startLog,
         PI_FOOTER_SESSION: session,
+        ...clock.env,
       },
     });
 
     await terminal.until(async () => {
-      expect(Number(await readFile(updateLog, "utf8"))).toBeGreaterThanOrEqual(
-        1,
-      );
+      expect(await readFile(updateLog, "utf8")).toBe("startup");
     }, [updateLog]);
 
-    const wide = await footer(terminal, 220, quiet);
+    const rows = (step: keyof typeof footerRows) =>
+      quiet ? footerRows[step].quiet : footerRows[step].rich;
+    const wide = rows("wide");
+
+    await footer(terminal, wide);
     await terminal.until((screen) => {
       expect(screen.join("\n")).toContain("Read (fixture.ts)");
     });
 
     expect(terminal.color()).toBeDefined();
 
-    const published = Number(await readFile(updateLog, "utf8"));
-    terminal.input("/fixture-publish\r");
-    terminal.input("/fixture-publish\r");
+    terminal.input("/fixture-publish first\r");
+    terminal.input("/fixture-publish second\r");
     await terminal.until(async () => {
-      expect(Number(await readFile(updateLog, "utf8"))).toBeGreaterThanOrEqual(
-        published + 2,
-      );
+      expect(await readFile(updateLog, "utf8")).toBe("second");
     }, [updateLog]);
 
     await restored(terminal, wide);
-
-    const history = `/fixture-theme ${theme}`;
-    terminal.input(`${history}\r`);
-    await restored(terminal, wide);
-    terminal.input("\u001B[A");
-    await terminal.until((screen) => {
-      expect(editorRows(screen)).toContain(history);
-    });
-    terminal.input("\u0005");
-    terminal.input("\u0015");
-    await terminal.until((screen) => {
-      expect(editorRows(screen)).not.toContain(history);
-    });
 
     terminal.input("/footer he");
     await terminal.until((screen) => {
@@ -409,10 +457,11 @@ it.each([
     });
 
     terminal.input("/fixture-overflow\r");
-    await terminal.until((screen) => {
-      expect(statusRows(screen)[0]).toMatch(/↑ \d+ more/);
-      expect(editorRows(screen)).toContain("overflow 29");
-    });
+    expect(
+      await terminal.settled(statusRows, (screen) => {
+        expect(editorRows(screen)).toContain("overflow 29");
+      }),
+    ).toStrictEqual(rows("overflow"));
     terminal.input("\u0003");
     await terminal.until((screen) => {
       expect(editorRows(screen)).not.toContain("overflow");
@@ -442,30 +491,25 @@ it.each([
 
     terminal.input(`/fixture-theme ${theme === "dark" ? "light" : "dark"}\r`);
 
-    await terminal.until((screen) => {
-      expect(statusRows(screen)).toStrictEqual(wide);
-      expect(terminal.color("gpt-5.4")).not.toBe(originalColor);
-    });
+    expect(
+      await terminal.settled(statusRows, () => {
+        expect(terminal.color("gpt-5.4")).not.toBe(originalColor);
+      }),
+    ).toStrictEqual(wide);
 
     terminal.input(`/fixture-theme ${theme}\r`);
 
-    await terminal.until((screen) => {
-      expect(statusRows(screen)).toStrictEqual(wide);
-      expect(terminal.color("gpt-5.4")).toBe(originalColor);
-    });
+    expect(
+      await terminal.settled(statusRows, () => {
+        expect(terminal.color("gpt-5.4")).toBe(originalColor);
+      }),
+    ).toStrictEqual(wide);
 
     terminal.resize(72);
 
-    const narrow = await footer(terminal, 72, quiet);
-
-    expect({
-      diagnostics: narrow[1]?.includes("⊗1 ⚠1"),
-      failedRun: narrow[1]?.includes(" failed 1"),
-      failedChecks: narrow[1]?.includes(" 1 failed"),
-    }).toStrictEqual({
-      diagnostics: !quiet,
-      failedRun: !quiet,
-      failedChecks: !quiet,
+    await footer(terminal, rows("narrow"), (screen) => {
+      gitShown(screen);
+      expect(visibleWidth(composerTop(screen))).toBe(72);
     });
 
     terminal.resize(220);
@@ -591,7 +635,6 @@ it.each([
       });
     });
 
-    const starts = await sessionStarts(startLog);
     terminal.input("/reload");
     await terminal.until((screen) => {
       const top = screen.findLastIndex((line) => line.startsWith("╭─ "));
@@ -599,23 +642,22 @@ it.each([
     });
     terminal.input("\r");
     await terminal.until(async () => {
-      expect(await sessionStarts(startLog)).toBeGreaterThan(starts);
+      expect(await latestSessionStart(startLog)).toBe("reload");
     }, [startLog]);
-    await footer(terminal, 220, quiet);
+    await footer(terminal, wide);
 
-    const reloaded = await sessionStarts(startLog);
     terminal.input("/new\r");
     await terminal.until(async () => {
-      expect(await sessionStarts(startLog)).toBeGreaterThan(reloaded);
+      expect(await latestSessionStart(startLog)).toBe("new");
     }, [startLog]);
-    await terminal.until((screen) => {
-      expect(statusRows(screen)[0]).toContain("gpt-5.4");
-      expect(screen.findLast((line) => line.startsWith("╰─ "))).toMatch(
-        /^╰─ .*─╯$/,
-      );
-    });
+    expect(
+      await terminal.settled(
+        (screen) => composerStatusRows(screen, false),
+        gitShown,
+      ),
+    ).toStrictEqual(rows("newSession"));
     terminal.input("/fixture-resume\r");
-    await footer(terminal, 220, quiet);
+    await footer(terminal, wide);
 
     terminal.input("/footer config\r");
     await terminal.until((screen) => {
@@ -628,13 +670,29 @@ it.each([
     );
     await writeFile(join(agent, "session-footer.json"), '{"preset":"invalid"}');
     terminal.input("/reload\r");
-    await terminal.until((screen) => {
-      expect(screen.join("\n")).toContain("Cannot load");
-      expect(composerStatusRows(screen, false)[1]).toContain("◴ week 42%");
-    });
+    expect(
+      await terminal.settled(
+        (screen) => composerStatusRows(screen, false),
+        (screen) => {
+          expect(screen.join("\n")).toContain("Cannot load");
+          expect(composerStatusRows(screen, false)[1]).toContain("◴");
+          gitShown(screen);
+        },
+      ),
+    ).toStrictEqual(rows("fallback"));
     expect(await readFile(join(agent, "session-footer.json"), "utf8")).toBe(
       '{"preset":"invalid"}',
     );
+    clock.set(clockStart + 60_000);
+    expect(
+      await terminal.settled(
+        (screen) => composerStatusRows(screen, false),
+        (screen) => {
+          gitShown(screen);
+          expect(composerStatusRows(screen, false)[1]).not.toContain("stale");
+        },
+      ),
+    ).toStrictEqual(rows("later"));
     expect({
       network: existsSync(networkLog),
       model: existsSync(modelLog),

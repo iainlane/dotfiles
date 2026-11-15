@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it, onTestFinished } from "vitest";
-import { sessionStarts } from "#test/support/session-starts.ts";
+import { latestSessionStart } from "#test/support/session-starts.ts";
 import { PiTerminal } from "#test/support/terminal.ts";
 
 it.each([true, false])(
@@ -90,30 +90,35 @@ it.each([true, false])(
         PI_FOOTER_SESSION: session,
       },
     });
-    const active = async (expected: boolean) => {
-      await terminal.until((screen) => {
-        const border = screen.findLast((line) => line.startsWith("╰─ ")) ?? "";
-        expect(border.includes("[P]")).toBe(expected);
-        expect(border).not.toMatch(/planning:|plan mode on|implementation|◇/);
-        expect(border.match(/\[P\]/g) ?? []).toHaveLength(expected ? 1 : 0);
-      });
+    const planningBorder = `╰─ [P]${"─".repeat(111)} ─╯`;
+    const emptyBorder = `╰─${" ".repeat(116)}─╯`;
+    const active = async (border: string) => {
+      expect(
+        await terminal.settled(
+          (screen) => screen.findLast((line) => line.startsWith("╰─ ")),
+          (screen) => {
+            expect(
+              screen.findLast((line) => line.startsWith("╭─ ")),
+            ).toBeDefined();
+          },
+        ),
+      ).toBe(border);
     };
-    const replace = async (command: string, expected: boolean) => {
-      const previous = await sessionStarts(starts);
+    const replace = async (command: string, reason: string, border: string) => {
       terminal.input(command + "\r");
       await terminal.until(async () => {
-        expect(await sessionStarts(starts)).toBeGreaterThan(previous);
+        expect(await latestSessionStart(starts)).toBe(reason);
       }, [starts]);
-      await active(expected);
+      await active(border);
     };
-    await active(true);
-    await replace("/reload", true);
-    await replace("/new", false);
-    await replace("/fixture-resume", true);
+    await active(planningBorder);
+    await replace("/reload", "reload", planningBorder);
+    await replace("/new", "new", emptyBorder);
+    await replace("/fixture-resume", "resume", planningBorder);
     terminal.input("/plan exit\r");
-    await active(false);
-    await replace("/reload", false);
+    await active(emptyBorder);
+    await replace("/reload", "reload", emptyBorder);
     terminal.input("/plan\r");
-    await active(true);
+    await active(planningBorder);
   },
 );

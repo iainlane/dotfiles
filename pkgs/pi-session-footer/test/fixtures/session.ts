@@ -1,14 +1,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { isReply } from "#test/support/requests.ts";
 import { record } from "#footer/shared/text.ts";
+import { fixtureTime } from "#test/fixtures/clock.ts";
 
 export default function fixture(pi: ExtensionAPI): void {
   const quiet = process.env.PI_FOOTER_QUIET === "1";
-  const resetBase = Date.now();
+  const resetBase = fixtureTime();
   let interval: ReturnType<typeof setInterval> | undefined;
   let publish: (() => void) | undefined;
-  let updates = 0;
+  let label = "startup";
   let planning:
     | { version: 1; source: string; sessionId: string; active: boolean }
     | undefined;
@@ -27,7 +28,7 @@ export default function fixture(pi: ExtensionAPI): void {
     state: {
       provider: "codex",
       usage: {
-        lastSuccessAt: Date.now(),
+        lastSuccessAt: fixtureTime(),
         accountId: "fixture-account",
         credentialSource: "fixture",
         windows: [
@@ -117,7 +118,8 @@ export default function fixture(pi: ExtensionAPI): void {
   });
   pi.registerCommand("fixture-publish", {
     description: "Publish the synthetic quota reading again",
-    handler: async () => {
+    handler: async (args) => {
+      label = args.trim();
       publish?.();
     },
   });
@@ -139,23 +141,22 @@ export default function fixture(pi: ExtensionAPI): void {
       writeFileSync(path, "Unexpected model turn");
     }
   });
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", (event, ctx) => {
     const startLog = process.env.PI_FOOTER_START_LOG;
 
     if (startLog !== undefined && startLog !== "") {
-      appendFileSync(startLog, `${ctx.sessionManager.getSessionId()}\n`);
+      writeFileSync(startLog, event.reason);
     }
 
     publish = () => {
       ctx.ui.setStatus("fff", undefined);
       pi.events.emit("sub-core:update-current", quota());
-      updates++;
 
       if (
         process.env.PI_FOOTER_UPDATE_LOG !== undefined &&
         process.env.PI_FOOTER_UPDATE_LOG !== ""
       ) {
-        writeFileSync(process.env.PI_FOOTER_UPDATE_LOG, String(updates));
+        writeFileSync(process.env.PI_FOOTER_UPDATE_LOG, label);
       }
     };
 
@@ -197,7 +198,7 @@ export default function fixture(pi: ExtensionAPI): void {
       repository: "fixture/project",
       branch: "footer-fixture",
       health: "ok",
-      updatedAt: Date.now(),
+      updatedAt: fixtureTime(),
       pullRequest: {
         target: {
           host: "github.com",
