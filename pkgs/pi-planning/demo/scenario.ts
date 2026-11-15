@@ -41,7 +41,9 @@ for (const path of candidates) {
 }
 `;
 
-const draftPlan = `# Preview cleanup before deleting files
+const planTitle = "# Preview cleanup before deleting files";
+
+const draftPlan = `${planTitle}
 
 ## Goal
 
@@ -83,26 +85,10 @@ export class DemoScenarioError extends Error {
 }
 
 export class DemoScenario {
-  private phase = 0;
   private readonly planPath: string;
 
   constructor(planPath: string) {
     this.planPath = planPath;
-  }
-
-  private result(
-    messages: Context["messages"],
-    id: string,
-    isError = false,
-  ): void {
-    const result = messages.findLast(
-      (entry) => entry.role === "toolResult" && entry.toolCallId === id,
-    );
-    if (result?.role !== "toolResult" || result.isError !== isError) {
-      throw new DemoScenarioError(
-        `The demo expected ${id} to ${isError ? "be blocked" : "succeed"}.`,
-      );
-    }
   }
 
   private static tool(
@@ -113,24 +99,64 @@ export class DemoScenario {
     return [{ type: "toolCall", id, name, arguments: args }];
   }
 
+  /**
+   * A request that does not follow a tool result is either the opening
+   * prompt or the implementation run. Only the implementation run has the
+   * approved plan's title in its context.
+   */
   next(messages: Context["messages"]): AssistantMessage["content"] {
-    switch (this.phase++) {
-      case 0:
-        return DemoScenario.tool("enter", "enter_plan_mode", {});
-      case 1:
-        this.result(messages, "enter");
+    const last = messages.findLast((entry) => entry.role !== "system");
+    if (last?.role === "toolResult") {
+      return this.afterResult(last);
+    }
+    const context = JSON.stringify(messages);
+    if (!context.includes(planTitle)) {
+      return DemoScenario.tool("enter", "enter_plan_mode", {});
+    }
+    if (
+      context.includes(researchMessage) ||
+      !context.includes(editorAddition.trim()) ||
+      !context.includes(reviewComment)
+    ) {
+      throw new DemoScenarioError(
+        "The demo requires cleared research context and the edited, approved plan with review feedback.",
+      );
+    }
+    return [
+      {
+        type: "text",
+        text: "Research context cleared. The edited plan and review comment are still attached, and the session is unchanged.",
+      },
+      ...DemoScenario.tool("implement", "write", {
+        path: "cleanup.mjs",
+        content: implementation,
+      }),
+    ];
+  }
+
+  private afterResult(
+    result: Extract<Context["messages"][number], { role: "toolResult" }>,
+  ): AssistantMessage["content"] {
+    const expected =
+      result.toolCallId === "premature-edit" ? "be blocked" : "succeed";
+    const actual = result.isError ? "be blocked" : "succeed";
+    if (actual !== expected) {
+      throw new DemoScenarioError(
+        `The demo expected ${result.toolCallId} to ${expected}.`,
+      );
+    }
+    switch (result.toolCallId) {
+      case "enter":
         return [
           { type: "text", text: researchMessage },
           ...DemoScenario.tool("inspect", "read", { path: "cleanup.mjs" }),
         ];
-      case 2:
-        this.result(messages, "inspect");
+      case "inspect":
         return DemoScenario.tool("premature-edit", "write", {
           path: "cleanup.mjs",
           content: implementation,
         });
-      case 3:
-        this.result(messages, "premature-edit", true);
+      case "premature-edit":
         return [
           {
             type: "text",
@@ -141,53 +167,31 @@ export class DemoScenario {
             content: draftPlan,
           }),
         ];
-      case 4:
-        this.result(messages, "draft");
+      case "draft":
         return DemoScenario.tool("review", "submit_plan", {});
-      case 5:
-        this.result(messages, "review");
+      case "review":
         return [
           {
             type: "text",
             text: "The revised plan is approved. Waiting for the same-session context reset.",
           },
         ];
-      case 6: {
-        const context = JSON.stringify(messages);
-        if (
-          context.includes(researchMessage) ||
-          !context.includes(editorAddition.trim()) ||
-          !context.includes(reviewComment)
-        ) {
-          throw new DemoScenarioError(
-            "The demo requires cleared research context and the edited, approved plan with review feedback.",
-          );
-        }
-        return [
-          {
-            type: "text",
-            text: "Research context cleared. The edited plan and review comment are still attached, and the session is unchanged.",
-          },
-          ...DemoScenario.tool("implement", "write", {
-            path: "cleanup.mjs",
-            content: implementation,
-          }),
-        ];
-      }
-      case 7:
-        this.result(messages, "implement");
+      case "implement":
         return DemoScenario.tool("verify", "bash", {
           command:
             "node cleanup.mjs --dry-run && test -f scratch/cache.tmp && printf 'Preview left cache.tmp untouched.\\n'",
         });
-      default:
-        this.result(messages, "verify");
+      case "verify":
         return [
           {
             type: "text",
             text: "Implemented the approved plan. The dry-run check passed, and cache.tmp is untouched.\n\nOffline demo complete.",
           },
         ];
+      default:
+        throw new DemoScenarioError(
+          `The demo did not expect a result from ${result.toolCallId}.`,
+        );
     }
   }
 }
