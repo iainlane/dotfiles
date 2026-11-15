@@ -324,16 +324,30 @@ for mismatch in "${mismatches[@]}"; do
 	fi
 
 	# pnpm resolves a caret range to the newest matching release even when a
-	# local package installs an older one, so the pin stays exact.
+	# local package installs an older one, so the pin stays exact. A `catalog:`
+	# specifier takes its range from pnpm-workspace.yaml, which gets the pin.
 	for manifest in "${manifests[@]}"; do
 		staged="$(mktemp "$manifest.XXXXXX")"
 		jq --arg name "$name" --arg version "$versions" '
 			reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
-				if .[$field][$name] == null or (.[$field][$name] | startswith("npm:")) then .
+				if .[$field][$name] == null or (.[$field][$name] | test("^(npm|catalog):")) then .
 				else .[$field][$name] = $version end)
 		' "$manifest" >"$staged"
 		mv "$staged" "$manifest"
 	done
+
+	while IFS= read -r catalog; do
+		catalog="${catalog:-default}"
+		entry='.catalogs[strenv(catalog)][strenv(name)]'
+		if [[ "$catalog" == default && "$(name="$name" yq '(.catalog // {}) | has(strenv(name))' pnpm-workspace.yaml)" == true ]]; then
+			entry='.catalog[strenv(name)]'
+		fi
+		catalog="$catalog" name="$name" version="$versions" yq -i "$entry = strenv(version)" pnpm-workspace.yaml
+	done < <(jq -r --arg name "$name" '
+		.dependencies, .devDependencies, .optionalDependencies
+		| .[$name]? // empty
+		| select(startswith("catalog:"))
+		| ltrimstr("catalog:")' "${manifests[@]}" | LC_ALL=C sort -u)
 done
 
 relock

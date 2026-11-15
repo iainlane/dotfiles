@@ -1032,6 +1032,130 @@ expect <<'JSON'
 }
 JSON
 
+# A direct dependency with a `catalog:` specifier keeps that specifier, and its
+# entry under `catalog` or `catalogs` in pnpm-workspace.yaml moves to the exact
+# version.
+for catalog in default tools; do
+	specifier="catalog:$catalog"
+	entries="catalogs:
+  $catalog:"
+	pinned="\"catalogs\": {\"$catalog\": {\"@scope/tui\": \"1.1.0\"}}"
+	if [[ "$catalog" == default ]]; then
+		specifier='catalog:'
+		entries='catalog:'
+		pinned='"catalog": {"@scope/tui": "1.1.0"}'
+	fi
+
+	project "{\"package.json\": {\"devDependencies\": {\"@scope/host\": \"^2.0.0\", \"@scope/tui\": \"$specifier\"}}}" "$workspace
+$entries
+    \"@scope/tui\": ^1.0.0" "$(tui_lock . devDependencies)"
+	local_packages "$host_tui"
+	update
+	expect <<JSON
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "catalogs": {
+      "$catalog": {"@scope/tui": {"specifier": "1.1.0", "version": "1.1.0"}}
+    },
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "^2.0.0",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "@scope/tui": {"specifier": "$specifier", "version": "1.1.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "@scope/tui@1.1.0": {
+        "resolution": {"integrity": "sha512-@scope/tui-1.1.0"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "dependencies": {"@scope/tui": "1.1.0"}
+      },
+      "@scope/tui@1.1.0": {}
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "$specifier"}
+    }
+  },
+  "workspace": {
+    $pinned,
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": ["."]
+  }
+}
+JSON
+done
+
+# A relock keeps the version that the lockfile's `catalogs` section records for
+# an entry while the entry's range is unchanged, including for a workspace
+# member that the lockfile does not list yet.
+project '{
+  "package.json": {"devDependencies": {"other": "catalog:"}},
+  "packages/app/package.json": {"dependencies": {"other": "catalog:"}}
+}' 'packages:
+  - "."
+  - "packages/*"
+catalog:
+  other: ^4' "lockfileVersion: '9.0'
+catalogs:
+  default:
+    other: {specifier: ^4, version: 4.0.0}
+importers:
+  .:
+    devDependencies:
+      other: {specifier: 'catalog:', version: 4.0.0}
+snapshots:
+  other@4.0.0:
+    dependencies:
+      leaf: 1.0.0"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {},
+  "lockfile": {
+    "catalogs": {"default": {"other": {"specifier": "^4", "version": "4.0.0"}}},
+    "importers": {
+      ".": {
+        "devDependencies": {"other": {"specifier": "catalog:", "version": "4.0.0"}}
+      },
+      "packages/app": {
+        "dependencies": {"other": {"specifier": "catalog:", "version": "4.0.0"}}
+      }
+    },
+    "lockfileVersion": "9.0",
+    "packages": {
+      "leaf@1.0.0": {"resolution": {"integrity": "sha512-leaf-1.0.0"}},
+      "other@4.0.0": {"resolution": {"integrity": "sha512-other-4.0.0"}}
+    },
+    "snapshots": {
+      "leaf@1.0.0": {},
+      "other@4.0.0": {"dependencies": {"leaf": "1.0.0"}}
+    }
+  },
+  "manifests": {
+    "package.json": {"devDependencies": {"other": "catalog:"}},
+    "packages/app/package.json": {"dependencies": {"other": "catalog:"}}
+  },
+  "workspace": {"catalog": {"other": "^4"}, "packages": [".", "packages/*"]}
+}
+JSON
+
 # A local package and a workspace member install the same version of
 # @scope/widgets with different peers, so the lockfile's references to it end
 # in different suffixes. The versions match, and the guard leaves the member's
