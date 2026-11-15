@@ -6,7 +6,15 @@ import unittest
 from collections.abc import Callable
 from pathlib import Path
 
-from update_runner import Outcome, Runner, Snapshot, input_groups, render, require_clean
+from update_runner import (
+    DirtyPathsError,
+    Outcome,
+    Runner,
+    Snapshot,
+    input_groups,
+    render,
+    require_clean,
+)
 
 
 class SnapshotTest(unittest.TestCase):
@@ -84,14 +92,26 @@ class SnapshotTest(unittest.TestCase):
     def test_refuses_dirty_owned_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
-            (root / "owned").write_text("staged\n")
-            subprocess.run(["git", "-C", str(root), "add", "owned"], check=True)
-            with self.assertRaises(ValueError) as raised:
-                require_clean(root, ["owned"])
+
+            def git(*args: str) -> None:
+                subprocess.run(["git", "-C", str(root), *args], check=True)
+
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.invalid")
+            (root / "modified").write_text("committed\n")
+            (root / "unrelated").write_text("committed\n")
+            git("add", ".")
+            git("commit", "-qm", "initial")
+            (root / "modified").write_text("unstaged\n")
+            (root / "unrelated").write_text("unstaged\n")
+            (root / "added").write_text("staged\n")
+            git("add", "added")
+            with self.assertRaises(DirtyPathsError) as raised:
+                require_clean(root, ["added", "modified"])
             self.assertEqual(
-                raised.exception.args,
-                ("Commit or stash changes in update-owned paths first:\nA  owned\n",),
+                (type(raised.exception), raised.exception.paths),
+                (DirtyPathsError, ["added", "modified"]),
             )
 
 

@@ -25,6 +25,15 @@ class Outcome:
     changed: bool = False
 
 
+class DirtyPathsError(ValueError):
+    def __init__(self, paths: list[str]) -> None:
+        listing = "".join(f"{path}\n" for path in paths)
+        super().__init__(
+            f"Commit or stash changes in update-owned paths first:\n{listing}"
+        )
+        self.paths = paths
+
+
 def git(root: Path, *args: str) -> str:
     return subprocess.check_output(["git", "-C", str(root), *args], text=True)
 
@@ -37,11 +46,12 @@ def files(root: Path, scopes: list[str], *, indexed: bool = False) -> set[str]:
 
 
 def require_clean(root: Path, scopes: list[str]) -> None:
-    dirty = git(root, "status", "--porcelain", "--untracked-files=no", "--", *scopes)
+    dirty: set[str] = set()
+    for staged in ([], ["--cached"]):
+        listing = git(root, "diff", *staged, "--name-only", "-z", "--", *scopes)
+        dirty.update(filter(None, listing.split("\0")))
     if dirty:
-        raise ValueError(
-            f"Commit or stash changes in update-owned paths first:\n{dirty}"
-        )
+        raise DirtyPathsError(sorted(dirty))
 
 
 @dataclass(frozen=True)
