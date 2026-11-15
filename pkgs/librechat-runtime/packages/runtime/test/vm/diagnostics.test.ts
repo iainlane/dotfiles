@@ -317,11 +317,17 @@ it.each([
       response,
       new Request("http://guest/control/restore"),
     );
-    const report = diagnostics.report(new Error("failed"), undefined, []);
-    expect({
-      containsFragment: report.includes("fixture-private"),
-      omitted: report.includes("[diagnostic record omitted]"),
-    }).toStrictEqual({ containsFragment: false, omitted: true });
+    const error = Object.assign(new Error("failed"), { stack: undefined });
+    expect(JSON.parse(diagnostics.report(error, undefined, []))).toStrictEqual({
+      event: "librechat-workspace-failure",
+      stage: "startup",
+      accelerator: "tcg",
+      error: { name: "Error", message: "failed" },
+      cleanup: [],
+      output: {
+        "backend:stderr": `${"x\n".repeat(4082)}[diagnostic record omitted]\n`,
+      },
+    });
   },
 );
 

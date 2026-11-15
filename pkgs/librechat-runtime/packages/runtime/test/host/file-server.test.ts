@@ -12,7 +12,7 @@ interface FileServerProcess {
 }
 
 class Host {
-  readonly processes: FileServerProcess[] = [];
+  private readonly processes: FileServerProcess[] = [];
   private readonly freePorts: Set<number>;
   private readonly blockedPorts: Set<number>;
 
@@ -46,10 +46,16 @@ class Host {
   readonly probe = async (port: number): Promise<boolean> =>
     !this.blockedPorts.has(port) &&
     this.processes.some((child) => child.running && child.port === port);
+
+  running(): { port: number; url: string | undefined }[] {
+    return this.processes
+      .filter((child) => child.running)
+      .map(({ port, url }) => ({ port, url }));
+  }
 }
 
 function fileServer(port: number) {
-  return { port, url: `http://127.0.0.1:${port}`, running: false };
+  return { port, url: `http://127.0.0.1:${port}` };
 }
 
 it("retries a dynamic port after a failed bind and stops the failed child", async () => {
@@ -74,22 +80,51 @@ it("retries a dynamic port after a failed bind and stops the failed child", asyn
   expect({
     port: result.port,
     running: result.process.running(),
-    processes: host.processes,
+    processes: host.running(),
   }).toStrictEqual({
     port: 40_001,
     running: true,
-    processes: [fileServer(40_000), { ...fileServer(40_001), running: true }],
+    processes: [fileServer(40_001)],
   });
 });
 
-it.each([0, 31_000])(
-  "bounds failures with configured port %i",
-  async (port) => {
+async function outcome(
+  start: Promise<{ process: ManagedProcess; port: number }>,
+): Promise<unknown> {
+  try {
+    return { port: (await start).port };
+  } catch (error) {
+    return error;
+  }
+}
+
+it.each([
+  {
+    port: 0,
+    blockedPorts: [40_000, 40_001],
+    result: { port: 40_002 },
+    running: [fileServer(40_002)],
+  },
+  {
+    port: 0,
+    blockedPorts: [40_000, 40_001, 40_002],
+    result: new FileServerReadinessError(),
+    running: [],
+  },
+  {
+    port: 31_000,
+    blockedPorts: [31_000],
+    result: new FileServerReadinessError(),
+    running: [],
+  },
+])(
+  "bounds failures with configured port $port and blocked ports $blockedPorts",
+  async ({ port, blockedPorts, result: expected, running }) => {
     const host = new Host({
       freePorts: [40_000, 40_001, 40_002, 40_003],
-      blockedPorts: [31_000, 40_000, 40_001, 40_002, 40_003],
+      blockedPorts,
     });
-    await expect(
+    const result = await outcome(
       startFileServer(
         {
           command: { executable: "file-server", args: [] },
@@ -104,12 +139,11 @@ it.each([0, 31_000])(
           processes: { start: host.start },
         },
       ),
-    ).rejects.toStrictEqual(new FileServerReadinessError());
-    expect(host.processes).toStrictEqual(
-      port === 0
-        ? [fileServer(40_000), fileServer(40_001), fileServer(40_002)]
-        : [fileServer(port)],
     );
+    expect({ result, running: host.running() }).toStrictEqual({
+      result: expected,
+      running,
+    });
   },
 );
 
@@ -136,5 +170,5 @@ it("stops the candidate when shutdown interrupts readiness", async () => {
       },
     ),
   ).rejects.toBe(reason);
-  expect(host.processes).toStrictEqual([fileServer(40_000)]);
+  expect(host.running()).toStrictEqual([]);
 });

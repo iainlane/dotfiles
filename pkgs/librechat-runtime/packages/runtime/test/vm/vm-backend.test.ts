@@ -1,7 +1,10 @@
 import { once } from "node:events";
 import { StatusCodes } from "http-status-codes";
 import { z } from "zod";
-import { WorkspaceRecoveryError } from "#runtime/platform/errors";
+import {
+  QuarantineTargetError,
+  WorkspaceRecoveryError,
+} from "#runtime/platform/errors";
 import { beforeEach, expect, it } from "vitest";
 import {
   QemuBackend,
@@ -402,35 +405,45 @@ class FakeMachine implements VmFiles {
   }
 }
 
-class FailureLog {
-  readonly failures: { session: Session; error: unknown }[] = [];
-  readonly errors: unknown[] = [];
-  rejection: Error | undefined;
+class FixtureHost {
+  readonly records = new Map<string, Session>();
+  sessions: SessionManager | undefined;
+  failure: unknown;
 
-  readonly onFailure = async (
-    failed: Session,
-    error: unknown,
-  ): Promise<void> => {
-    this.failures.push({ session: failed, error });
-
-    if (this.rejection !== undefined) {
-      throw this.rejection;
-    }
+  readonly onFailure = async (failed: Session): Promise<void> => {
+    await this.sessions?.quarantine(failed.runtimeId, "The VM exited");
   };
 
   readonly onError = (error: unknown): void => {
-    this.errors.push(error);
+    this.failure = error;
   };
+
+  manage(vm: QemuBackend): void {
+    this.sessions = new SessionManager({
+      backend: vm,
+      store: {
+        load: async (id) => this.records.get(id),
+        save: async (saved) => {
+          this.records.set(saved.runtimeId, structuredClone(saved));
+        },
+        list: async () => [...this.records.keys()],
+      },
+      userId: session.userId,
+      idleMs: 1000,
+      retentionMs: 10000,
+      now: () => 0,
+    });
+  }
 }
 
 let machine: FakeMachine;
 
-let log: FailureLog;
+let host: FixtureHost;
 
 beforeEach(() => {
   machine = new FakeMachine();
 
-  log = new FailureLog();
+  host = new FixtureHost();
 });
 
 function backend(): QemuBackend {
@@ -452,8 +465,8 @@ function backend(): QemuBackend {
     caCertificate: "public-ca",
     executionPublicKey: "public-execution-key",
     archiveToken: "read-only-broker-token",
-    onFailure: log.onFailure,
-    onError: log.onError,
+    onFailure: host.onFailure,
+    onError: host.onError,
   });
 }
 
@@ -760,26 +773,44 @@ it.each([
   },
 );
 
-it("reports a rejected VM failure callback without an unhandled rejection", async () => {
-  const failure = new VmRestoreError();
+it.each([
+  {
+    outcome: "quarantines the registered session",
+    registered: true,
+    records: [{ ...session, quarantine: "The VM exited" }],
+    failure: undefined,
+  },
+  {
+    outcome: "fails the host if the session is not registered",
+    registered: false,
+    records: [],
+    failure: new QuarantineTargetError(),
+  },
+])(
+  "$outcome when a VM exits unexpectedly",
+  async ({ registered, records, failure }) => {
+    if (registered) {
+      host.records.set(session.runtimeId, session);
+    }
 
-  const recoveryError = new WorkspaceRecoveryError();
+    const vm = backend();
 
-  log.rejection = recoveryError;
+    host.manage(vm);
 
-  await backend().start(session, false);
+    await vm.start(session, false);
 
-  machine.process?.crash(failure);
+    machine.process?.crash(new VmRestoreError());
 
-  await new Promise<void>((resolve) => {
-    setImmediate(resolve);
-  });
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
 
-  expect({ failures: log.failures, errors: log.errors }).toStrictEqual({
-    failures: [{ session, error: failure }],
-    errors: [recoveryError],
-  });
-});
+    expect({
+      records: [...host.records.values()],
+      failure: host.failure,
+    }).toStrictEqual({ records, failure });
+  },
+);
 
 it("keeps older guests on workspace checkpoints", async () => {
   machine.health = "legacy";

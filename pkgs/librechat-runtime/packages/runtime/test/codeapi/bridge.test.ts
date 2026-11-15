@@ -39,13 +39,6 @@ it("matches the opaque principal observed from the CodeAPI egress gateway", () =
 class FixtureRuntimes {
   readonly vms = new Set<string>();
   readonly leases = new Set<SessionLease>();
-  readonly requests: {
-    socket: string;
-    method: string;
-    path: string;
-    runtime: string | null;
-    authorization: boolean;
-  }[] = [];
 
   whileStarting: () => void = () => {};
   whenReady: () => void = () => {};
@@ -91,22 +84,25 @@ class FixtureRuntimes {
   }
 
   async fetch(socket: string, request: Request): Promise<Response> {
-    this.requests.push({
-      socket,
+    const vm = [...this.vms].find((id) => socket === `/private/${id}`);
+
+    if (vm === undefined) {
+      return new Response(null, { status: StatusCodes.BAD_GATEWAY });
+    }
+
+    return Response.json({
+      vm,
       method: request.method,
       path: new URL(request.url).pathname,
-      runtime: request.headers.get("x-runtime-session-id"),
-      authorization: request.headers.has("authorization"),
+      headers: Object.fromEntries(request.headers),
+      body: await request.text(),
     });
-
-    return new Response("result");
   }
 
   state() {
     return {
       vms: [...this.vms],
       leases: [...this.leases].map((lease) => lease.session.runtimeId),
-      requests: this.requests,
     };
   }
 }
@@ -150,22 +146,27 @@ it("uses the verified runtime lease and omits host credentials", async () => {
 
   await lease.release();
 
-  expect({ response, leased, runtimes: runtimes.state() }).toStrictEqual({
-    response: { status: StatusCodes.OK, body: "result" },
-    leased: [runtimeId],
-    runtimes: {
-      vms: [runtimeId],
-      leases: [],
-      requests: [
-        {
-          socket: `/private/${runtimeId}`,
-          method: "POST",
-          path: "/runner/api/v2/execute",
-          runtime: runtimeId,
-          authorization: false,
-        },
-      ],
+  const body: unknown = JSON.parse(response.body);
+
+  expect({
+    status: response.status,
+    body,
+    leased,
+    runtimes: runtimes.state(),
+  }).toStrictEqual({
+    status: StatusCodes.OK,
+    body: {
+      vm: runtimeId,
+      method: "POST",
+      path: "/runner/api/v2/execute",
+      headers: {
+        "content-type": "application/json",
+        "x-runtime-session-id": runtimeId,
+      },
+      body: "{}",
     },
+    leased: [runtimeId],
+    runtimes: { vms: [runtimeId], leases: [] },
   });
 });
 
@@ -183,11 +184,7 @@ it.each([
       new BridgeOwnerError(),
     );
 
-    expect(runtimes.state()).toStrictEqual({
-      vms: [],
-      leases: [],
-      requests: [],
-    });
+    expect(runtimes.state()).toStrictEqual({ vms: [], leases: [] });
   },
 );
 
@@ -198,11 +195,7 @@ it("rejects a body digest mismatch before creating a VM", async () => {
     new BridgeBodyDigestError(),
   );
 
-  expect(runtimes.state()).toStrictEqual({
-    vms: [],
-    leases: [],
-    requests: [],
-  });
+  expect(runtimes.state()).toStrictEqual({ vms: [], leases: [] });
 });
 
 it.each([
@@ -236,6 +229,6 @@ it.each([
       new DOMException("Assignment cancelled", "AbortError"),
     );
 
-    expect(runtimes.state()).toStrictEqual({ vms, leases: [], requests: [] });
+    expect(runtimes.state()).toStrictEqual({ vms, leases: [] });
   },
 );

@@ -45,7 +45,7 @@ class FixtureProcess implements ManagedProcess {
 }
 
 class FixtureHost {
-  readonly processes: FixtureProcess[] = [];
+  private readonly processes: FixtureProcess[] = [];
   stoppable = true;
 
   async start(): Promise<ManagedProcess> {
@@ -68,8 +68,8 @@ class FixtureHost {
     await child.stop();
   }
 
-  running(): boolean[] {
-    return this.processes.map((child) => child.running());
+  running(): FixtureProcess[] {
+    return this.processes.filter((child) => child.running());
   }
 }
 
@@ -96,12 +96,10 @@ it("stops a failed startup before retrying and publishes readiness only after su
     running: host.running(),
     readyAfterFailure,
     ready: service.isReady(),
-    child,
   }).toStrictEqual({
-    running: [false, true],
+    running: [child],
     readyAfterFailure: false,
     ready: true,
-    child: host.processes[1],
   });
 });
 
@@ -129,11 +127,9 @@ it("retries failed cleanup before starting another process", async () => {
   expect({
     running: host.running(),
     readyAfterFailure,
-    child,
   }).toStrictEqual({
-    running: [false, true],
+    running: [child],
     readyAfterFailure: false,
-    child: host.processes[1],
   });
 });
 
@@ -174,10 +170,10 @@ it("shares pending startup and reuses only a ready process", async () => {
     results,
     reused,
   }).toStrictEqual({
-    running: [false],
+    running: [],
     readyBeforeInitialisation: false,
     ready: false,
-    results: [host.processes[0], host.processes[0]],
-    reused: host.processes[0],
+    results: [reused, reused],
+    reused: results[0],
   });
 });

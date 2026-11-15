@@ -82,7 +82,7 @@ it("preserves the committed checkpoint after an oversized replacement", async ()
 
   await expect(
     storage.saveCheckpoint(session, body("x".repeat(65))),
-  ).rejects.toThrow(CheckpointLimitError);
+  ).rejects.toStrictEqual(new CheckpointLimitError());
 
   expect(await new Response(await storage.readCheckpoint(session)).text()).toBe(
     "original",
@@ -183,8 +183,8 @@ it.each(["digest", "bytes"])(
     }
     await writeFile(pointer, JSON.stringify(metadata));
     await writeFile(disk, "working state");
-    await expect(storage.prepare(session, true)).rejects.toThrow(
-      VmSnapshotIntegrityError,
+    await expect(storage.prepare(session, true)).rejects.toStrictEqual(
+      new VmSnapshotIntegrityError(),
     );
     expect({
       disk: await readFile(disk, "utf8"),

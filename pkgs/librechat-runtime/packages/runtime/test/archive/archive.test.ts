@@ -51,5 +51,5 @@ it.each([
   ["session", "messages", "id", "--limit", "00"],
   ["session", "messages", "id", "--limit", "00000"],
 ])("rejects unsafe or unbounded archive queries %j", (...input) => {
-  expect(() => archiveArguments(input)).toThrow(ArchiveArgumentsError);
+  expect(() => archiveArguments(input)).toThrow(new ArchiveArgumentsError());
 });

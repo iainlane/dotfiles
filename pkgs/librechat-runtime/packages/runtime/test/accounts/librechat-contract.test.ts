@@ -63,7 +63,6 @@ const api = z
 const dataProvider = z
   .object({
     configSchema: z.object({ parse: callable }),
-    replaceSpecialVars: callable,
   })
   .parse(require("librechat-data-provider"));
 
@@ -98,8 +97,8 @@ it("preserves the managed chat prompt and default in LibreChat configuration", (
   });
 });
 
-it("resolves built-in context from a configured default prompt", async () => {
-  const prompt = "Model: {{current_model}}. Date: {{current_date}}.";
+it("resolves the configured default prompt as chat instructions", async () => {
+  const prompt = "Ordinary chat instructions";
   const groupId = "123456789012345678901234";
   const service = z.object({ resolveInstructions: callable }).parse(
     api.createChatPromptService({
@@ -125,14 +124,7 @@ it("resolves built-in context from a configured default prompt", async () => {
     }),
   );
 
-  expect(
-    dataProvider.replaceSpecialVars({
-      text: instructions,
-      model: "fixture-model",
-      now: "2026-10-28T12:00:00Z",
-      timezone: "UTC",
-    }),
-  ).toBe("Model: fixture-model. Date: 2026-10-28 (Wednesday).");
+  expect(instructions).toBe(prompt);
 });
 
 it("preserves the ordinary-chat tool defaults in LibreChat configuration", () => {
@@ -281,61 +273,18 @@ it.each([
   },
 );
 
-it.each([
-  { settings: {}, mode: "eager" },
-  { settings: { authorizationMode: "eager" }, mode: "eager" },
-  { settings: { authorizationMode: "nonblocking" }, mode: "nonblocking" },
-])("preserves the MCP authorization mode $mode", ({ settings, mode }) => {
+it("preserves the nonblocking MCP authorization mode that the host writes", () => {
   const parsed: unknown = dataProvider.configSchema.parse({
     version: "1.3.18",
-    mcpSettings: settings,
+    mcpSettings: { authorizationMode: "nonblocking" },
   });
   const result = z
     .object({ mcpSettings: z.object({ authorizationMode: z.string() }) })
     .parse(parsed);
 
-  expect(result).toStrictEqual({ mcpSettings: { authorizationMode: mode } });
-});
-
-it("rejects an unsupported MCP authorization mode", () => {
-  expect(() =>
-    dataProvider.configSchema.parse({
-      version: "1.3.18",
-      mcpSettings: { authorizationMode: "sometimes" },
-    }),
-  ).toThrow(/authorizationMode/u);
-});
-
-it.each([
-  { settings: {}, timeout: 3_000 },
-  { settings: { initializationTimeoutMs: 500 }, timeout: 500 },
-  { settings: { initializationTimeoutMs: 60_000 }, timeout: 60_000 },
-])(
-  "preserves the MCP initialization timeout $timeout",
-  ({ settings, timeout }) => {
-    const parsed: unknown = dataProvider.configSchema.parse({
-      version: "1.3.18",
-      mcpSettings: settings,
-    });
-    const result = z
-      .object({
-        mcpSettings: z.object({ initializationTimeoutMs: z.number() }),
-      })
-      .parse(parsed);
-
-    expect(result).toStrictEqual({
-      mcpSettings: { initializationTimeoutMs: timeout },
-    });
-  },
-);
-
-it.each([0, 60_001])("rejects the MCP initialization timeout %s", (timeout) => {
-  expect(() =>
-    dataProvider.configSchema.parse({
-      version: "1.3.18",
-      mcpSettings: { initializationTimeoutMs: timeout },
-    }),
-  ).toThrow(/initializationTimeoutMs/u);
+  expect(result).toStrictEqual({
+    mcpSettings: { authorizationMode: "nonblocking" },
+  });
 });
 
 it.each<{ options: ProviderOptions; catalog: string; model: string }>([

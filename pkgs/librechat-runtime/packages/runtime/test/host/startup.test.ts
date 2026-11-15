@@ -58,44 +58,71 @@ function status(
 class Clock {
   time = 0;
 
-  private readonly step: number;
+  private readonly interval: number;
 
-  constructor(step: number) {
-    this.step = step;
+  constructor(interval: number) {
+    this.interval = interval;
   }
 
   readonly now = (): number => this.time;
 
   readonly pause = async (): Promise<void> => {
-    this.time += this.step;
+    this.time += this.interval;
   };
 }
 
-it("waits for the current secret job to finish before startup", async () => {
+async function outcome(wait: Promise<void>): Promise<unknown> {
+  try {
+    await wait;
+
+    return "ready";
+  } catch (error) {
+    return error;
+  }
+}
+
+it.each([
+  { finished: 30_000, expected: "ready" },
+  { finished: 30_001, expected: new SecretReadinessTimeoutError() },
+])(
+  "waits up to 30 seconds for a job that finishes at $finished ms",
+  async ({ finished, expected }) => {
+    const clock = new Clock(1000);
+    const job = (): string => {
+      if (clock.time < finished) {
+        return status({ state: "running" });
+      }
+      return status();
+    };
+
+    const result = waitForSecrets(program, {
+      now: clock.now,
+      status: async () => job(),
+      pause: clock.pause,
+    });
+
+    expect(await outcome(result)).toStrictEqual(expected);
+  },
+);
+
+it.each([
+  { job: "missing", status: "" },
+  {
+    job: "from an earlier generation",
+    status: status({ program: "/nix/store/old-sops" }),
+  },
+  { job: "that has not run", status: status({ runs: 0 }) },
+  { job: "still running", status: status({ state: "running" }) },
+])("keeps waiting for a secret job $job", async ({ status: current }) => {
   const clock = new Clock(1000);
-  const job = (): string => {
-    if (clock.time < 1000) {
-      return "";
-    }
-    if (clock.time < 2000) {
-      return status({ program: "/nix/store/old-sops" });
-    }
-    if (clock.time < 3000) {
-      return status({ runs: 0 });
-    }
-    if (clock.time < 4000) {
-      return status({ state: "running" });
-    }
-    return status();
-  };
 
-  await waitForSecrets(program, {
-    now: clock.now,
-    status: async () => job(),
-    pause: clock.pause,
-  });
-
-  expect(clock.time).toBe(4000);
+  await expect(
+    waitForSecrets(program, {
+      now: clock.now,
+      status: async () => current,
+      pause: clock.pause,
+    }),
+  ).rejects.toStrictEqual(new SecretReadinessTimeoutError());
 });
 
 it("reports failed decryption before starting services", async () => {
@@ -106,20 +133,6 @@ it("reports failed decryption before starting services", async () => {
       pause: async () => {},
     }),
   ).rejects.toStrictEqual(new SecretDecryptionError());
-});
-
-it("bounds the wait for a missing secret job", async () => {
-  const clock = new Clock(10_000);
-
-  await expect(
-    waitForSecrets(program, {
-      now: clock.now,
-      status: async () => "",
-      pause: clock.pause,
-    }),
-  ).rejects.toStrictEqual(new SecretReadinessTimeoutError());
-
-  expect(clock.time).toBe(30_000);
 });
 
 it("recognises a launchd job configured with program arguments", async () => {
@@ -133,8 +146,32 @@ it("recognises a launchd job configured with program arguments", async () => {
   ).resolves.toBeUndefined();
 });
 
-it.each([0, 2])("limits readiness polling to %i retries", async (retries) => {
-  const clock = new Clock(1);
+it.each([
+  { retries: 0, ready: 0, expected: "ready" },
+  { retries: 0, ready: 1000, expected: new SecretReadinessTimeoutError() },
+  { retries: 2, ready: 2000, expected: "ready" },
+  { retries: 2, ready: 3000, expected: new SecretReadinessTimeoutError() },
+])(
+  "allows $retries retries for a probe ready at $ready ms",
+  async ({ retries, ready, expected }) => {
+    const clock = new Clock(1000);
+
+    const waiter = new ReadinessWaiter({
+      signal: new AbortController().signal,
+      pause: clock.pause,
+    });
+
+    const result = waiter.wait(async () => clock.time >= ready, {
+      attempts: retries,
+      TimeoutError: SecretReadinessTimeoutError,
+    });
+
+    expect(await outcome(result)).toStrictEqual(expected);
+  },
+);
+
+it("waits without a limit until the probe succeeds", async () => {
+  const clock = new Clock(1000);
 
   const waiter = new ReadinessWaiter({
     signal: new AbortController().signal,
@@ -142,26 +179,8 @@ it.each([0, 2])("limits readiness polling to %i retries", async (retries) => {
   });
 
   await expect(
-    waiter.wait(async () => false, {
-      attempts: retries,
-      TimeoutError: SecretReadinessTimeoutError,
-    }),
-  ).rejects.toStrictEqual(new SecretReadinessTimeoutError());
-
-  expect(clock.time).toBe(retries);
-});
-
-it("waits without a limit until the probe succeeds", async () => {
-  const clock = new Clock(1);
-
-  const waiter = new ReadinessWaiter({
-    signal: new AbortController().signal,
-    pause: clock.pause,
-  });
-
-  await waiter.wait(async () => clock.time >= 10_000);
-
-  expect(clock.time).toBe(10_000);
+    waiter.wait(async () => clock.time >= 10_000_000),
+  ).resolves.toBeUndefined();
 });
 
 it.each(["before", "during"])(
@@ -171,7 +190,7 @@ it.each(["before", "during"])(
 
     const reason = new DOMException("Readiness cancelled", "AbortError");
 
-    const clock = new Clock(1);
+    const clock = new Clock(1000);
 
     const waiter = new ReadinessWaiter({
       signal: controller.signal,
@@ -186,12 +205,10 @@ it.each(["before", "during"])(
       controller.abort(reason);
     }
 
-    const readyAt = stage === "before" ? 0 : 1;
+    const ready = stage === "before" ? 0 : 1000;
 
-    await expect(waiter.wait(async () => clock.time >= readyAt)).rejects.toBe(
+    await expect(waiter.wait(async () => clock.time >= ready)).rejects.toBe(
       reason,
     );
-
-    expect(clock.time).toBe(readyAt);
   },
 );

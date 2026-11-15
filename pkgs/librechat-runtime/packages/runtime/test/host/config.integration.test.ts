@@ -2,7 +2,10 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ZodError } from "zod";
+import {
+  CredentialFormatError,
+  CredentialReadError,
+} from "#runtime/platform/errors";
 import { hostManifestSchema } from "#runtime/host/manifest";
 import {
   configureChatPrompts,
@@ -70,20 +73,39 @@ describe("provider configuration", () => {
     });
   });
 
-  it.each(["absent", "empty", "multiline"])(
-    "rejects a configured %s key",
-    async (kind) => {
-      const key = join(directory, "key");
-
-      if (kind !== "absent") {
-        await writeFile(key, kind === "empty" ? "\n" : "first\nsecond\n");
-      }
-
-      await expect(
-        configureProviders({ anthropicKeyFile: key }),
-      ).rejects.toThrow("Anthropic");
+  it.each([
+    {
+      kind: "absent",
+      contents: undefined,
+      error: (file: string) =>
+        new CredentialReadError(
+          { file, label: "Anthropic" },
+          expect.objectContaining({ code: "ENOENT" }),
+        ),
     },
-  );
+    {
+      kind: "empty",
+      contents: "\n",
+      error: (file: string) =>
+        new CredentialFormatError({ file, label: "Anthropic" }),
+    },
+    {
+      kind: "multiline",
+      contents: "first\nsecond\n",
+      error: (file: string) =>
+        new CredentialFormatError({ file, label: "Anthropic" }),
+    },
+  ])("rejects a configured $kind key", async ({ contents, error }) => {
+    const key = join(directory, "key");
+
+    if (contents !== undefined) {
+      await writeFile(key, contents);
+    }
+
+    await expect(
+      configureProviders({ anthropicKeyFile: key }),
+    ).rejects.toStrictEqual(error(key));
+  });
 });
 
 it.each(["hvf", "kvm", "tcg"])(
@@ -103,9 +125,9 @@ it.each(["hvf", "kvm", "tcg"])(
 );
 
 it("rejects automatic acceleration in the service manifest", () => {
-  expect(() =>
-    hostManifestSchema.shape.guest.shape.accelerator.parse("auto"),
-  ).toThrow(ZodError);
+  expect(
+    hostManifestSchema.shape.guest.shape.accelerator.safeParse("auto").success,
+  ).toBe(false);
 });
 
 it("publishes the ordinary-chat instructions as a managed library default", () => {

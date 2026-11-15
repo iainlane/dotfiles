@@ -14,6 +14,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+/**
+ * Splits a terminal record into its header line and the inspected properties
+ * that follow it. LogTape renders the timestamp and level in the header.
+ */
+function terminalRecord(line: string): { header: string; properties: string } {
+  const plain = stripVTControlCharacters(line);
+  const end = plain.indexOf("\n");
+  return { header: plain.slice(0, end), properties: plain.slice(end + 1) };
+}
+
+/** Matches a terminal header with our layout for the category and message. */
+function terminalHeader(category: string, message: string): unknown {
+  return expect.stringMatching(
+    new RegExp(`^.+ \\[.+\\] ${category}: ${message}$`, "u"),
+  );
+}
+
+function inspected(properties: unknown): string {
+  return `${stripVTControlCharacters(inspect(properties, { colors: true, depth: 8 }))}\n`;
+}
+
 it("redacts structured fields and text without losing error causes or child context", () => {
   const output: string[] = [];
   configureSync({
@@ -148,17 +169,23 @@ it.each([
         cause: { name: "Error", message: "socket closed" },
       },
     };
-    const expected = terminal
-      ? `1970-01-01 00:00:00.000 +00 [ERR] librechat: Request failed\n${stripVTControlCharacters(inspect(properties, { colors: true, depth: 8 }))}\n`
-      : JSON.stringify({
-          "@timestamp": "1970-01-01T00:00:00.000Z",
-          level: "ERROR",
-          message: "Request failed",
-          logger: "librechat",
-          ...properties,
-        }) + "\n";
-    expect(output.map((line) => stripVTControlCharacters(line))).toStrictEqual([
-      expected,
+    expect(
+      terminal
+        ? output.map((line) => terminalRecord(line))
+        : output.map((line): unknown => JSON.parse(line)),
+    ).toStrictEqual([
+      terminal
+        ? {
+            header: terminalHeader("librechat", "Request failed"),
+            properties: inspected(properties),
+          }
+        : {
+            "@timestamp": "1970-01-01T00:00:00.000Z",
+            level: "ERROR",
+            message: "Request failed",
+            logger: "librechat",
+            ...properties,
+          },
     ]);
   },
 );
@@ -186,7 +213,15 @@ it("uses readable terminal output with redacted structured context", () => {
     password: "private-value",
     code: "ENOENT",
   });
-  expect(output.map((line) => stripVTControlCharacters(line))).toStrictEqual([
-    "1970-01-01 00:00:00.000 +00 [ERR] librechat: Runner failed\n{\n  service: 'guest',\n  event: 'runner-failure',\n  password: '[redacted]',\n  code: 'ENOENT'\n}\n",
+  expect(output.map((line) => terminalRecord(line))).toStrictEqual([
+    {
+      header: terminalHeader("librechat", "Runner failed"),
+      properties: inspected({
+        service: "guest",
+        event: "runner-failure",
+        password: "[redacted]",
+        code: "ENOENT",
+      }),
+    },
   ]);
 });

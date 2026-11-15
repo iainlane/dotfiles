@@ -76,14 +76,9 @@ it.each([
 );
 
 it.each([
-  [{ forwarder: "/bin/socat;bad" }, VmForwarderPathError],
-  [{ controlSocket: "x".repeat(104) }, VmSocketLengthError],
-  [{ ironPort: 0 }, VmPortError],
-] as const)(
-  "rejects invalid forwarding configuration %j",
-  (invalid, errorType) => {
-    expect(() => qemuArguments({ ...specification, ...invalid })).toThrow(
-      errorType,
-    );
-  },
-);
+  [{ forwarder: "/bin/socat;bad" }, new VmForwarderPathError()],
+  [{ controlSocket: "x".repeat(104) }, new VmSocketLengthError()],
+  [{ ironPort: 0 }, new VmPortError()],
+] as const)("rejects invalid forwarding configuration %j", (invalid, error) => {
+  expect(() => qemuArguments({ ...specification, ...invalid })).toThrow(error);
+});

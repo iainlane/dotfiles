@@ -39,7 +39,6 @@ class FixtureGuest implements GuestOperations {
   private initialising = false;
   private mcp: "stopped" | "running" | "quiesced" = "stopped";
   private clock: number | undefined;
-  private readonly requests: { target: string; path: string }[] = [];
   private initialisation: Promise<void> = Promise.resolve();
   private readonly started = Promise.withResolvers<void>();
 
@@ -94,18 +93,11 @@ class FixtureGuest implements GuestOperations {
     target: "runner" | "mcp",
     path: string,
   ): Promise<Response> {
-    this.requests.push({ target, path });
-
-    return new Response("forwarded");
+    return Response.json({ target, path });
   }
 
   state() {
-    return {
-      bound: this.bound,
-      mcp: this.mcp,
-      clock: this.clock,
-      requests: this.requests,
-    };
+    return { bound: this.bound, mcp: this.mcp, clock: this.clock };
   }
 }
 
@@ -163,7 +155,7 @@ it.each(["", "{"])("rejects malformed binding JSON: %j", async (body) => {
       error: "GuestBindingFormatError",
       message: "The guest runtime binding is invalid",
     },
-    guest: { bound: undefined, mcp: "stopped", clock: undefined, requests: [] },
+    guest: { bound: undefined, mcp: "stopped", clock: undefined },
   });
 });
 
@@ -186,7 +178,6 @@ it("preserves binding body transport and limit errors", async () => {
     bound: undefined,
     mcp: "stopped",
     clock: undefined,
-    requests: [],
   });
 });
 
@@ -289,12 +280,14 @@ it.each([
     }),
   );
 
-  expect({
-    status: response.status,
-    requests: guest.state().requests,
-  }).toStrictEqual({
+  const body: unknown = await response.json();
+
+  expect({ status: response.status, body }).toStrictEqual({
     status: StatusCodes.METHOD_NOT_ALLOWED,
-    requests: [],
+    body: {
+      error: "GuestHttpMethodError",
+      message: "The guest route does not accept this HTTP method",
+    },
   });
 });
 
@@ -308,12 +301,14 @@ it("rejects a different runtime without forwarding the request", async () => {
     }),
   );
 
-  expect({
-    status: response.status,
-    requests: guest.state().requests,
-  }).toStrictEqual({
+  const body: unknown = await response.json();
+
+  expect({ status: response.status, body }).toStrictEqual({
     status: StatusCodes.FORBIDDEN,
-    requests: [],
+    body: {
+      error: "GuestRuntimeMismatchError",
+      message: "The requested runtime differs from the guest runtime",
+    },
   });
 });
 
@@ -326,13 +321,11 @@ it("quiesces MCP before reporting success", async () => {
 
   expect({ status: response.status, guest: guest.state() }).toStrictEqual({
     status: StatusCodes.OK,
-    guest: { bound: binding, mcp: "quiesced", clock: undefined, requests: [] },
+    guest: { bound: binding, mcp: "quiesced", clock: undefined },
   });
 });
 
 it("forwards application headers and body without connection-specific headers", async () => {
-  const requests: Request[] = [];
-
   const guestOperations = new NodeGuestOperations(
     {
       runner: "/unused",
@@ -361,9 +354,14 @@ it("forwards application headers and body without connection-specific headers", 
     },
     {
       fetch: async (input, init) => {
-        requests.push(new Request(input, init));
+        const request = new Request(input, init);
 
-        return new Response("forwarded");
+        return Response.json({
+          url: request.url,
+          method: request.method,
+          headers: Object.fromEntries(request.headers),
+          body: await request.text(),
+        });
       },
       onError: () => {
         throw new UnexpectedGuestProcessError();
@@ -390,30 +388,17 @@ it("forwards application headers and body without connection-specific headers", 
     "/api/v2/execute",
   );
 
-  expect({
-    response: await response.text(),
-    requests: await Promise.all(
-      requests.map(async (request) => ({
-        url: request.url,
-        method: request.method,
-        headers: Object.fromEntries(request.headers),
-        body: await request.text(),
-      })),
-    ),
-  }).toStrictEqual({
-    response: "forwarded",
-    requests: [
-      {
-        url: "http://127.0.0.1:2000/api/v2/execute",
-        method: "POST",
-        headers: {
-          authorization: "scoped-credential",
-          "content-type": "application/json",
-          "x-runtime-session-id": binding.runtimeId,
-        },
-        body: "{}",
-      },
-    ],
+  const body: unknown = await response.json();
+
+  expect(body).toStrictEqual({
+    url: "http://127.0.0.1:2000/api/v2/execute",
+    method: "POST",
+    headers: {
+      authorization: "scoped-credential",
+      "content-type": "application/json",
+      "x-runtime-session-id": binding.runtimeId,
+    },
+    body: "{}",
   });
 });
 
@@ -433,7 +418,6 @@ it("passes the host clock to the resume operation", async () => {
       bound: binding,
       mcp: "running",
       clock: 1793309000000,
-      requests: [],
     },
   });
 });
@@ -452,7 +436,7 @@ it.each(["invalid", "-1", "Infinity", ""])(
 
     expect({ status: response.status, guest: guest.state() }).toStrictEqual({
       status: StatusCodes.BAD_REQUEST,
-      guest: { bound: binding, mcp: "stopped", clock: undefined, requests: [] },
+      guest: { bound: binding, mcp: "stopped", clock: undefined },
     });
   },
 );

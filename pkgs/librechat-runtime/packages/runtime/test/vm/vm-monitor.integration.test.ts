@@ -12,7 +12,7 @@ it("recovers through a real private UNIX monitor socket", async () => {
 
   const path = join(directory, "monitor");
 
-  const commands: unknown[] = [];
+  const vm = { mode: "negotiation", running: true };
 
   const server = createServer((socket) => {
     const lines = createInterface({ input: socket });
@@ -26,17 +26,23 @@ it("recovers through a real private UNIX monitor socket", async () => {
         .object({ execute: z.string(), id: z.string() })
         .parse(raw);
 
-      commands.push(command);
-
-      const response = `${JSON.stringify({ return: {}, id: command.id })}\n`;
-
-      if (command.execute === "quit") {
-        socket.end(response);
+      if (command.execute === "qmp_capabilities") {
+        vm.mode = "command";
+        socket.write(`${JSON.stringify({ return: {}, id: command.id })}\n`);
 
         return;
       }
 
-      socket.write(response);
+      if (command.execute !== "quit" || vm.mode !== "command") {
+        socket.write(
+          `${JSON.stringify({ error: { class: "CommandNotFound" }, id: command.id })}\n`,
+        );
+
+        return;
+      }
+
+      vm.running = false;
+      socket.end(`${JSON.stringify({ return: {}, id: command.id })}\n`);
     });
   });
 
@@ -47,10 +53,7 @@ it("recovers through a real private UNIX monitor socket", async () => {
 
     await stopExistingVm(path);
 
-    expect(commands).toStrictEqual([
-      { execute: "qmp_capabilities", id: "capabilities" },
-      { execute: "quit", id: "quit" },
-    ]);
+    expect(vm).toStrictEqual({ mode: "command", running: false });
   } finally {
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
