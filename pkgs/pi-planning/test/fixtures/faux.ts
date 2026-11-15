@@ -7,6 +7,7 @@ import {
   type FauxResponseFactory,
   type Message,
   type Model,
+  type Provider,
   type ToolCall,
 } from "@earendil-works/pi-ai";
 
@@ -36,15 +37,28 @@ export function transcriptProvider(
       },
     ],
   });
-  // The faux provider takes one queued step for each request. Every queued
-  // step is the same reply function and queues a copy of itself, so the queue
-  // never runs out and its order never decides a reply.
-  const step: FauxResponseFactory = (...request) => {
-    faux.appendResponses([step]);
-    return respond(...request);
+  return { ...faux, provider: answerEveryRequest(faux, respond) };
+}
+
+/** Returns `faux`'s provider with every request answered by `respond`. */
+function answerEveryRequest(
+  faux: FauxProviderHandle,
+  respond: FauxResponseFactory,
+): Provider {
+  // The faux provider takes the next queued step as soon as a request starts.
+  // Queueing `respond` at that point gives every request one step, however
+  // many requests start together.
+  return {
+    ...faux.provider,
+    stream: (model, context, options) => {
+      faux.appendResponses([respond]);
+      return faux.provider.stream(model, context, options);
+    },
+    streamSimple: (model, context, options) => {
+      faux.appendResponses([respond]);
+      return faux.provider.streamSimple(model, context, options);
+    },
   };
-  faux.setResponses(Array.from({ length: 8 }, () => step));
-  return faux;
 }
 
 /** A reply that calls one tool. */

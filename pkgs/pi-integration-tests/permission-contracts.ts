@@ -11,9 +11,9 @@ import {
   fauxText,
   fauxToolCall,
   getCurrentTools,
-  type AssistantMessage,
   type FauxProviderHandle,
   type FauxResponseFactory,
+  type Provider,
 } from "@earendil-works/pi-ai";
 import {
   createAgentSession,
@@ -25,19 +25,26 @@ import {
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 
-// The faux provider replays a queue of responses. Re-queueing the factory makes
-// the provider answer every request from its transcript instead.
+// A copy of answerEveryRequest in pi-planning's test/fixtures/faux.ts. Each
+// package builds from its own directory, so the two cannot share a file.
 function answerEveryRequest(
-  provider: FauxProviderHandle,
-  respond: (
-    messages: Parameters<FauxResponseFactory>[0]["messages"],
-  ) => AssistantMessage,
-): void {
-  const step: FauxResponseFactory = (context) => {
-    provider.appendResponses([step]);
-    return respond(context.messages);
+  faux: FauxProviderHandle,
+  respond: FauxResponseFactory,
+): Provider {
+  // The faux provider takes the next queued step as soon as a request starts.
+  // Queueing `respond` at that point gives every request one step, however
+  // many requests start together.
+  return {
+    ...faux.provider,
+    stream: (model, context, options) => {
+      faux.appendResponses([respond]);
+      return faux.provider.stream(model, context, options);
+    },
+    streamSimple: (model, context, options) => {
+      faux.appendResponses([respond]);
+      return faux.provider.streamSimple(model, context, options);
+    },
   };
-  provider.setResponses([step]);
 }
 
 export default function permissionContracts(pi: ExtensionAPI): void {
@@ -79,7 +86,7 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         }),
       );
       const outcomes = ["allow", "deny"] as const;
-      answerEveryRequest(main, (messages) => {
+      const mainProvider = answerEveryRequest(main, ({ messages }) => {
         const last = messages.at(-1);
         if (last?.role !== "user") {
           return fauxAssistantMessage(fauxText("Done."));
@@ -104,7 +111,7 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         );
       });
       const investigationTools = new Set<string>();
-      answerEveryRequest(reviewer, (messages) => {
+      const reviewerProvider = answerEveryRequest(reviewer, ({ messages }) => {
         for (const tool of getCurrentTools(messages)) {
           investigationTools.add(tool.name);
         }
@@ -150,8 +157,8 @@ export default function permissionContracts(pi: ExtensionAPI): void {
         allowModelNetwork: false,
         refreshOnCreate: false,
       });
-      for (const provider of [main, reviewer]) {
-        modelRuntime.registerNativeProvider(provider.provider);
+      for (const provider of [mainProvider, reviewerProvider]) {
+        modelRuntime.registerNativeProvider(provider);
       }
       const createSession = () =>
         createAgentSession({
