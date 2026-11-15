@@ -32,7 +32,6 @@ import {
   UnconfirmedRemoveError,
   UnconfirmedRepairError,
 } from "#footer/configuration/settings-store.ts";
-import { thrown } from "#test/support/thrown.ts";
 
 vi.mock("node:fs", async (original) => {
   const fs = await original<typeof import("node:fs")>();
@@ -139,14 +138,12 @@ it("creates confirmed local preferences beside a symlink without changing its ta
     newUserFile: true,
     repair: false,
   });
-  expect(
-    thrown(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "compact" },
-      }),
-    ),
-  ).toStrictEqual(new UnconfirmedCreateError(h.user));
+  expect(() =>
+    h.store.save(snapshot, {
+      kind: "write",
+      document: { preset: "compact" },
+    }),
+  ).toThrow(new UnconfirmedCreateError(h.user));
   h.store.save(snapshot, {
     kind: "write",
     document: { preset: "compact" },
@@ -192,14 +189,12 @@ it.each(["base", "user"] as const)(
     }
     const initial = h.store.load();
     json(h[file], { preset: "minimal" });
-    expect(
-      thrown(() =>
-        h.store.save(initial, {
-          kind: "write",
-          document: { preset: "workflow" },
-        }),
-      ),
-    ).toStrictEqual(new SettingsConflictError());
+    expect(() =>
+      h.store.save(initial, {
+        kind: "write",
+        document: { preset: "workflow" },
+      }),
+    ).toThrow(new SettingsConflictError());
     expect(readJson(h[file])).toStrictEqual({ preset: "minimal" });
   },
 );
@@ -217,14 +212,12 @@ it("refuses an active user symlink even if its target is writable", () => {
     path: h.user,
     problem,
   });
-  expect(
-    thrown(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "minimal" },
-      }),
-    ),
-  ).toStrictEqual(problem);
+  expect(() =>
+    h.store.save(snapshot, {
+      kind: "write",
+      document: { preset: "minimal" },
+    }),
+  ).toThrow(problem);
   expect({
     link: lstatSync(h.user).isSymbolicLink(),
     target: readJson(target),
@@ -239,15 +232,13 @@ it("rejects a destination that becomes a link while editing", () => {
   json(target, { preset: "minimal" });
   rmSync(h.base);
   symlinkSync(target, h.base);
-  expect(
-    thrown(() =>
-      h.store.save(initial, {
-        kind: "write",
-        document: { preset: "compact" },
-        confirmed: true,
-      }),
-    ),
-  ).toStrictEqual(new SettingsConflictError());
+  expect(() =>
+    h.store.save(initial, {
+      kind: "write",
+      document: { preset: "compact" },
+      confirmed: true,
+    }),
+  ).toThrow(new SettingsConflictError());
   expect({
     link: lstatSync(h.base).isSymbolicLink(),
     target: readJson(target),
@@ -280,14 +271,12 @@ it.each([
   json(h.user, { preset: "compact" });
   denied.add(h[file]);
   const snapshot = h.store.load();
-  expect(
-    thrown(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "minimal" },
-      }),
-    ),
-  ).toStrictEqual(error(h[file]));
+  expect(() =>
+    h.store.save(snapshot, {
+      kind: "write",
+      document: { preset: "minimal" },
+    }),
+  ).toThrow(error(h[file]));
   expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
 });
 it("rejects a non-regular preferences destination", () => {
@@ -317,11 +306,9 @@ it("uses the base on malformed user settings and requires confirmation to repair
     diagnostic: true,
     leaked: false,
   });
-  expect(
-    thrown(() =>
-      h.store.save(initial, { kind: "write", document: { preset: "rich" } }),
-    ),
-  ).toStrictEqual(new UnconfirmedRepairError(h.user));
+  expect(() =>
+    h.store.save(initial, { kind: "write", document: { preset: "rich" } }),
+  ).toThrow(new UnconfirmedRepairError(h.user));
   h.store.save(initial, {
     kind: "write",
     document: { preset: "rich" },
@@ -344,14 +331,12 @@ it("preserves session-only lifetime independently of local appearance", () => {
     persistence: "session",
     destination: { kind: "session" },
   });
-  expect(
-    thrown(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "minimal" },
-      }),
-    ),
-  ).toStrictEqual(new SessionOnlySettingsError());
+  expect(() =>
+    h.store.save(snapshot, {
+      kind: "write",
+      document: { preset: "minimal" },
+    }),
+  ).toThrow(new SessionOnlySettingsError());
   expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
 });
 
@@ -360,7 +345,7 @@ it("resets only on a confirmed commit and leaves the base unchanged", () => {
   json(h.base, { preset: "minimal" });
   json(h.user, { preset: "compact" });
   const snapshot = h.store.load();
-  expect(thrown(() => h.store.save(snapshot, { kind: "reset" }))).toStrictEqual(
+  expect(() => h.store.save(snapshot, { kind: "reset" })).toThrow(
     new UnconfirmedRemoveError(h.user),
   );
   expect(readJson(h.user)).toStrictEqual({ preset: "compact" });
@@ -409,14 +394,12 @@ it("checks the source again after preparing the temporary file", async () => {
     fs.fsyncSync(descriptor);
     json(h.base, { preset: "minimal" });
   });
-  expect(
-    thrown(() =>
-      h.store.save(snapshot, {
-        kind: "write",
-        document: { preset: "compact" },
-      }),
-    ),
-  ).toStrictEqual(new SettingsConflictError());
+  expect(() =>
+    h.store.save(snapshot, {
+      kind: "write",
+      document: { preset: "compact" },
+    }),
+  ).toThrow(new SettingsConflictError());
   expect({
     base: readJson(h.base),
     entries: readdirSync(h.root),
@@ -452,14 +435,12 @@ it.each(["flush", "close", "rename"] as const)(
         throw failure;
       });
     }
-    expect(
-      thrown(() =>
-        h.store.save(snapshot, {
-          kind: "write",
-          document: { preset: "compact" },
-        }),
-      ),
-    ).toStrictEqual(new SettingsWriteError(h.base, { cause: failure }));
+    expect(() =>
+      h.store.save(snapshot, {
+        kind: "write",
+        document: { preset: "compact" },
+      }),
+    ).toThrow(new SettingsWriteError(h.base, { cause: failure }));
     expect({
       base: readJson(h.base),
       entries: readdirSync(h.root),

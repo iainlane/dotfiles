@@ -10,7 +10,6 @@ import {
   type SettingsSnapshot,
   type SettingsStore,
 } from "#footer/configuration/settings-store.ts";
-import { thrown } from "#test/support/thrown.ts";
 
 function fixture() {
   const loaded = loadSettings(
@@ -94,9 +93,9 @@ it("keeps field previews separate from accepted edits and persistent saving", ()
 it("preserves the last valid preview when a field is invalid", () => {
   const { transaction } = fixture();
   transaction.preview({ preset: "minimal" });
-  expect(
-    thrown(() => transaction.preview({ separators: "invalid" })),
-  ).toStrictEqual(new ExpectedObjectError("separators"));
+  expect(() => transaction.preview({ separators: "invalid" })).toThrow(
+    new ExpectedObjectError("separators"),
+  );
   expect(transaction.presentation).toStrictEqual({ preset: "minimal" });
 });
 it("stages user-file removal and discards it on cancellation", () => {
@@ -153,7 +152,7 @@ it("keeps the draft open and unapplied after an I/O error", () => {
     throw error;
   });
   transaction.replace({ preset: "compact" });
-  expect(thrown(() => transaction.save())).toBe(error);
+  expect(() => transaction.save()).toThrow(error);
   expect({
     draft: transaction.document,
     closed: transaction.closed,

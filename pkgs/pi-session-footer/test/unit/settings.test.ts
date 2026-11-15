@@ -13,7 +13,6 @@ import {
   UnknownPresetError,
   UnknownSettingError,
 } from "#footer/configuration/settings-errors.ts";
-import { thrown } from "#test/support/thrown.ts";
 
 const top = {
   "top-left": [
@@ -103,7 +102,7 @@ it.each([
     error: new DuplicateWidgetError("top-left"),
   },
 ])("rejects invalid configuration atomically: $value", ({ value, error }) => {
-  expect(thrown(() => resolveSettings(value))).toStrictEqual(error);
+  expect(() => resolveSettings(value)).toThrow(error);
 });
 it.each(["{", '{"preset":"bad"}'])(
   "retains a safe actionable diagnostic for %s",
@@ -192,19 +191,17 @@ it.each([
     error: new UnknownSettingError("separators.extra"),
   },
 ])("rejects invalid separators $separators", ({ separators, error }) => {
-  expect(thrown(() => resolveSettings({ separators }))).toStrictEqual(error);
+  expect(() => resolveSettings({ separators })).toThrow(error);
 });
 it.each(["local", "session"])("resolves persistence %s", (persistence) => {
   expect(resolveSettings({ persistence }).persistence).toBe(persistence);
 });
 it("rejects duplicate widget IDs across string and object forms", () => {
-  expect(
-    thrown(() =>
-      resolveSettings({
-        "top-left": ["git", { id: "git", colour: "accent" }],
-      }),
-    ),
-  ).toStrictEqual(new DuplicateWidgetError("top-left"));
+  expect(() =>
+    resolveSettings({
+      "top-left": ["git", { id: "git", colour: "accent" }],
+    }),
+  ).toThrow(new DuplicateWidgetError("top-left"));
 });
 it("retains only explicit document settings and normalises empty appearance", () => {
   const loaded = loadSettings(

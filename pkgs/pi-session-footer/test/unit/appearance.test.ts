@@ -15,7 +15,6 @@ import {
   UnknownSymbolAliasError,
   UnknownWidgetPartError,
 } from "#footer/configuration/settings-errors.ts";
-import { thrown } from "#test/support/thrown.ts";
 
 it.each([
   { value: "git", expected: "git" },
@@ -59,38 +58,26 @@ it.each([
   { value: "\u001B[31mx", error: new InvalidInlineTextError("symbol") },
   { value: "界界界界界", error: new InlineTextTooWideError("symbol") },
 ])("rejects invalid symbol $value", ({ value, error }) => {
-  expect(thrown(() => parseSymbol(value, "symbol"))).toStrictEqual(error);
+  expect(() => parseSymbol(value, "symbol")).toThrow(error);
 });
 
 it.each([
   ["context", "gauge-used"],
   ["thinking", "off"],
 ] as const)("rejects text colours for symbol-only %s parts", (id, role) => {
-  expect(
-    thrown(() =>
-      parseAppearance(
-        { roles: { [role]: { colour: "text" } } },
-        "placement",
-        id,
-      ),
-    ),
-  ).toStrictEqual(
-    new TextColourNotAllowedError(`placement.roles.${role}.colour`),
-  );
+  expect(() =>
+    parseAppearance({ roles: { [role]: { colour: "text" } } }, "placement", id),
+  ).toThrow(new TextColourNotAllowedError(`placement.roles.${role}.colour`));
 });
 
 it("rejects multi-column symbols for repeating gauge parts", () => {
-  expect(
-    thrown(() =>
-      parseAppearance(
-        { roles: { "gauge-used": { symbol: "##" } } },
-        "top-right[0]",
-        "context",
-      ),
+  expect(() =>
+    parseAppearance(
+      { roles: { "gauge-used": { symbol: "##" } } },
+      "top-right[0]",
+      "context",
     ),
-  ).toStrictEqual(
-    new MultiColumnSymbolError("top-right[0].roles.gauge-used.symbol"),
-  );
+  ).toThrow(new MultiColumnSymbolError("top-right[0].roles.gauge-used.symbol"));
 });
 
 it("keeps text and symbol colours independent, including role overrides", () => {
@@ -129,7 +116,5 @@ it.each([
     error: new UnknownSettingError("top-left[1].color"),
   },
 ])("rejects unsupported appearance $value", ({ value, error }) => {
-  expect(
-    thrown(() => parseAppearance(value, "top-left[1]", "model")),
-  ).toStrictEqual(error);
+  expect(() => parseAppearance(value, "top-left[1]", "model")).toThrow(error);
 });
