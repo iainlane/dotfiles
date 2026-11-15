@@ -24,7 +24,9 @@
             cp package.json "$PI_UPDATER_CONSUMED_MANIFEST"
           fi
           printf '%s\n' called >>"$PI_UPDATER_NPM_CALLS"
-          cp "$PI_UPDATER_LOCK" package-lock.json
+          if [[ ! -e package-lock.json ]]; then
+            cp "$PI_UPDATER_LOCK" package-lock.json
+          fi
           ;;
         ls)
           test "$*" = 'ls --all --package-lock-only'
