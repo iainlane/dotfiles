@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import {
   mkdir,
   mkdtemp,
@@ -10,13 +11,75 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import {
   MeilisearchDatabase,
   MeilisearchUpgradeError,
 } from "#runtime/host/meilisearch";
-import type { ProcessRunner } from "#runtime/platform/processes";
+import type { Command, ProcessRunner } from "#runtime/platform/processes";
 import { ZodError } from "zod";
+
+class UnexpectedCommandError extends Error {
+  constructor(command: Command) {
+    super(
+      `Unexpected command: ${[command.executable, ...command.args].join(" ")}`,
+    );
+    this.name = "UnexpectedCommandError";
+  }
+}
+
+function meilisearch(versionOutput: string): Pick<ProcessRunner, "run"> {
+  return {
+    run: async (command) => {
+      if (
+        command.executable !== "meilisearch" ||
+        command.args.join(" ") !== "--version"
+      ) {
+        throw new UnexpectedCommandError(command);
+      }
+      return versionOutput;
+    },
+  };
+}
+
+const engine = meilisearch("meilisearch 1.56.0\n");
+
+const noExecutables: Pick<ProcessRunner, "run"> = {
+  run: async (command) => {
+    throw new UnexpectedCommandError(command);
+  },
+};
+
+function tasksEndpoint(status: string, version = "1.56.0"): typeof fetch {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    if (request.url !== "http://search/tasks?types=upgradeDatabase&limit=1") {
+      return new Response(null, { status: 404 });
+    }
+    if (request.headers.get("Authorization") !== "Bearer fixture") {
+      return new Response(null, { status: 401 });
+    }
+    return Response.json({
+      results: [{ status, details: { upgradeTo: `v${version}` } }],
+    });
+  };
+}
+
+class SearchEngineOfflineError extends Error {
+  constructor() {
+    super("Search engine is offline");
+    this.name = "SearchEngineOfflineError";
+  }
+}
+
+const offline: typeof fetch = async () => {
+  throw new SearchEngineOfflineError();
+};
+
+const unanswered: typeof fetch = async (_input, init) => {
+  await once(init?.signal ?? new AbortController().signal, "abort");
+  throw new SearchEngineOfflineError();
+};
 
 let state: string;
 
@@ -38,40 +101,28 @@ async function seed(version: string): Promise<void> {
 }
 
 it("starts a fresh database without creating a backup", async () => {
-  const run = vi.fn<ProcessRunner["run"]>();
-  await new MeilisearchDatabase(state).prepareUpgrade("meilisearch", { run });
-  expect({ files: await readdir(state), calls: run.mock.calls }).toStrictEqual({
-    files: [],
-    calls: [],
-  });
+  await new MeilisearchDatabase(state).prepareUpgrade(
+    "meilisearch",
+    noExecutables,
+  );
+  expect(await readdir(state)).toStrictEqual([]);
 });
 
 it("leaves a same-version database unchanged", async () => {
   await seed("1.56.0");
-  const run = vi
-    .fn<ProcessRunner["run"]>()
-    .mockResolvedValue("meilisearch 1.56.0\n");
-  await new MeilisearchDatabase(state).prepareUpgrade("meilisearch", { run });
-  expect({ files: await readdir(state), calls: run.mock.calls }).toStrictEqual({
-    files: ["meili"],
-    calls: [[{ executable: "meilisearch", args: ["--version"] }]],
-  });
+  await new MeilisearchDatabase(state).prepareUpgrade("meilisearch", engine);
+  expect(await readdir(state)).toStrictEqual(["meili"]);
 });
 
 it("keeps a private offline backup before upgrading and preserves it on retry", async () => {
   await seed("1.55.0");
-  const processes = {
-    run: vi
-      .fn<ProcessRunner["run"]>()
-      .mockResolvedValue("meilisearch 1.56.0\n"),
-  };
   const database = new MeilisearchDatabase(state);
-  await database.prepareUpgrade("meilisearch", processes);
+  await database.prepareUpgrade("meilisearch", engine);
   await writeFile(
     join(state, "meili", "indexes", "data.mdb"),
     "partially upgraded",
   );
-  await database.prepareUpgrade("meilisearch", processes);
+  await database.prepareUpgrade("meilisearch", engine);
   const backups = join(state, "meili-backups");
   const backup = join(backups, "1.55.0-to-1.56.0");
   expect({
@@ -96,11 +147,7 @@ it("rejects an upgrade when the backup cannot be created", async () => {
   await seed("1.55.0");
   await writeFile(join(state, "meili-backups"), "not a directory");
   await expect(
-    new MeilisearchDatabase(state).prepareUpgrade("meilisearch", {
-      run: vi
-        .fn<ProcessRunner["run"]>()
-        .mockResolvedValue("meilisearch 1.56.0\n"),
-    }),
+    new MeilisearchDatabase(state).prepareUpgrade("meilisearch", engine),
   ).rejects.toThrow(/ENOTDIR/u);
   expect(
     await readFile(join(state, "meili", "indexes", "data.mdb"), "utf8"),
@@ -125,19 +172,11 @@ async function prepareHistory(): Promise<MeilisearchDatabase> {
 
   await utimes(join(state, "meili"), 0, 0);
   const database = new MeilisearchDatabase(state);
-  await database.prepareUpgrade("meilisearch", {
-    run: vi
-      .fn<ProcessRunner["run"]>()
-      .mockResolvedValue("meilisearch 1.56.0\n"),
-  });
+  await database.prepareUpgrade("meilisearch", engine);
   return database;
 }
 
-function upgradeResponse(status: string, version = "1.56.0"): Response {
-  return Response.json({
-    results: [{ status, details: { upgradeTo: `v${version}` } }],
-  });
-}
+const allBackups = ["1.53.0-to-1.54.0", "1.54.0-to-1.55.0", "1.55.0-to-1.56.0"];
 
 it.each(["upgrade", "restart"])(
   "keeps the two newest backups after a verified %s",
@@ -148,40 +187,21 @@ it.each(["upgrade", "restart"])(
 
     if (stage === "restart") {
       database = new MeilisearchDatabase(state);
-      await database.prepareUpgrade("meilisearch", {
-        run: vi
-          .fn<ProcessRunner["run"]>()
-          .mockResolvedValue("meilisearch 1.56.0\n"),
-      });
+      await database.prepareUpgrade("meilisearch", engine);
     }
 
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(upgradeResponse("succeeded"));
     const ready = await database.upgradeReady({
       url: "http://search",
       token: "fixture",
-      fetch: request,
+      fetch: tasksEndpoint("succeeded"),
     });
 
     expect({
       ready,
       files: (await readdir(join(state, "meili-backups"))).toSorted(),
-      requests: request.mock.calls.map(([url, options]) => ({
-        url,
-        headers: options?.headers,
-        signal: options?.signal instanceof AbortSignal,
-      })),
     }).toStrictEqual({
       ready: true,
       files: ["1.54.0-to-1.55.0", "1.55.0-to-1.56.0", "manual"],
-      requests: [
-        {
-          url: "http://search/tasks?types=upgradeDatabase&limit=1",
-          headers: { Authorization: "Bearer fixture" },
-          signal: true,
-        },
-      ],
     });
   },
 );
@@ -198,19 +218,16 @@ it.each(["enqueued", "processing", "succeeded"])(
     const ready = await database.upgradeReady({
       url: "http://search",
       token: "fixture",
-      fetch: vi.fn<typeof fetch>().mockResolvedValue(upgradeResponse(status)),
+      fetch: tasksEndpoint(status),
     });
     expect({
       ready,
       files: (await readdir(join(state, "meili-backups"))).toSorted(),
-    }).toStrictEqual({
-      ready: false,
-      files: ["1.53.0-to-1.54.0", "1.54.0-to-1.55.0", "1.55.0-to-1.56.0"],
-    });
+    }).toStrictEqual({ ready: false, files: allBackups });
   },
 );
 
-it.each(["failed", "canceled"])(
+it.each(["failed", "canceled"] as const)(
   "preserves every backup and refuses a %s upgrade",
   async (status) => {
     const database = await prepareHistory();
@@ -219,45 +236,38 @@ it.each(["failed", "canceled"])(
       database.upgradeReady({
         url: "http://search",
         token: "fixture",
-        fetch: vi.fn<typeof fetch>().mockResolvedValue(upgradeResponse(status)),
+        fetch: tasksEndpoint(status),
       }),
-    ).rejects.toThrow(MeilisearchUpgradeError);
+    ).rejects.toStrictEqual(new MeilisearchUpgradeError(status));
     expect(
       (await readdir(join(state, "meili-backups"))).toSorted(),
-    ).toStrictEqual([
-      "1.53.0-to-1.54.0",
-      "1.54.0-to-1.55.0",
-      "1.55.0-to-1.56.0",
-    ]);
+    ).toStrictEqual(allBackups);
   },
 );
 
-it.each(["unreachable", "unauthorised"])(
-  "preserves every backup when upgrade verification is %s",
-  async (failure) => {
+it.each([
+  { failure: "unreachable", token: "fixture", fetch: offline },
+  {
+    failure: "unauthorised",
+    token: "another-token",
+    fetch: tasksEndpoint("succeeded"),
+  },
+  { failure: "unanswered", token: "fixture", fetch: unanswered },
+])(
+  "preserves every backup when upgrade verification is $failure",
+  async ({ token, fetch }) => {
     const database = await prepareHistory();
-    const request = vi.fn<typeof fetch>();
-
-    if (failure === "unreachable") {
-      request.mockRejectedValue(new Error("Search engine is offline"));
-    }
-
-    if (failure === "unauthorised") {
-      request.mockResolvedValue(new Response(null, { status: 401 }));
-    }
+    await writeFile(join(state, "meili", "VERSION"), "1.56.0");
 
     const ready = await database.upgradeReady({
       url: "http://search",
-      token: "fixture",
-      fetch: request,
+      token,
+      fetch,
     });
     expect({
       ready,
       files: (await readdir(join(state, "meili-backups"))).toSorted(),
-    }).toStrictEqual({
-      ready: false,
-      files: ["1.53.0-to-1.54.0", "1.54.0-to-1.55.0", "1.55.0-to-1.56.0"],
-    });
+    }).toStrictEqual({ ready: false, files: allBackups });
   },
 );
 
@@ -266,17 +276,12 @@ it("does not prune backups based on another engine's successful task", async () 
   const ready = await database.upgradeReady({
     url: "http://search",
     token: "fixture",
-    fetch: vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(upgradeResponse("succeeded", "1.55.0")),
+    fetch: tasksEndpoint("succeeded", "1.55.0"),
   });
   expect({
     ready,
     files: (await readdir(join(state, "meili-backups"))).toSorted(),
-  }).toStrictEqual({
-    ready: false,
-    files: ["1.53.0-to-1.54.0", "1.54.0-to-1.55.0", "1.55.0-to-1.56.0"],
-  });
+  }).toStrictEqual({ ready: false, files: allBackups });
 });
 
 it.each([
@@ -287,9 +292,10 @@ it.each([
   async (stored, output) => {
     await seed(stored);
     await expect(
-      new MeilisearchDatabase(state).prepareUpgrade("meilisearch", {
-        run: vi.fn<ProcessRunner["run"]>().mockResolvedValue(output),
-      }),
+      new MeilisearchDatabase(state).prepareUpgrade(
+        "meilisearch",
+        meilisearch(output),
+      ),
     ).rejects.toThrow(ZodError);
     expect(await readdir(state)).toStrictEqual(["meili"]);
   },
@@ -305,11 +311,7 @@ it("records backup creation through the injected clock and reporter", async () =
       messages.push(text);
     },
   });
-  await database.prepareUpgrade("meilisearch", {
-    run: vi
-      .fn<ProcessRunner["run"]>()
-      .mockResolvedValue("meilisearch 1.56.0\n"),
-  });
+  await database.prepareUpgrade("meilisearch", engine);
   const backup = join(state, "meili-backups/1.55.0-to-1.56.0");
   expect({ created: (await stat(backup)).mtimeMs, messages }).toStrictEqual({
     created: now,

@@ -66,31 +66,31 @@ it.each([
 ])(
   "denies unsafe credential destinations without reading the host token: %j",
   async (override) => {
-    let reads = 0;
-
     const transform = new GithubCredentialTransform(async () => {
-      reads += 1;
-
-      return "host-secret";
+      throw new UnexpectedTokenReadError();
     });
 
-    expect({
-      result: await transform.request(
+    expect(
+      await transform.request(
         transformRequestSchema.parse({ ...source, ...override }),
       ),
-      reads,
-    }).toStrictEqual({
-      result: {
-        action: 2,
-        response: {
-          statusCode: StatusCodes.FORBIDDEN,
-          body: Buffer.from("GitHub credential request denied"),
-        },
+    ).toStrictEqual({
+      action: 2,
+      response: {
+        statusCode: StatusCodes.FORBIDDEN,
+        body: Buffer.from("GitHub credential request denied"),
       },
-      reads: 0,
     });
   },
 );
+
+class UnexpectedTokenReadError extends Error {
+  constructor() {
+    super("The host token was read");
+
+    this.name = "UnexpectedTokenReadError";
+  }
+}
 
 it("replaces the exact Git credential placeholder", async () => {
   const transform = new GithubCredentialTransform(async () => "host-secret");

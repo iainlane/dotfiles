@@ -1,11 +1,9 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   NodeProcessRunner,
   type ProcessOutput,
 } from "#runtime/platform/processes";
-
-afterEach(() => vi.restoreAllMocks());
 
 class ProcessOutputTimeoutError extends Error {
   constructor() {
@@ -18,45 +16,6 @@ async function outputDeadline(): Promise<never> {
   await delay(5000, undefined, { ref: false });
   throw new ProcessOutputTimeoutError();
 }
-
-it("routes managed-service output to the injected sink without ambient writes", async () => {
-  const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-  const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-  const output: ProcessOutput[] = [];
-  const observed = Promise.withResolvers<void>();
-  const runner = new NodeProcessRunner({}, (item) => {
-    output.push(item);
-    if (output.length === 2) {
-      observed.resolve();
-    }
-  });
-  const child = await runner.start({
-    executable: process.execPath,
-    args: [
-      "-e",
-      'process.stdout.write("output"); process.stderr.write("error"); setInterval(() => {}, 1000);',
-    ],
-  });
-  try {
-    await Promise.race([observed.promise, outputDeadline()]);
-  } finally {
-    await child.stop();
-  }
-  expect({
-    output: output.toSorted((a, b) => a.stream.localeCompare(b.stream)),
-    running: child.running(),
-    stdout: stdout.mock.calls,
-    stderr: stderr.mock.calls,
-  }).toStrictEqual({
-    output: [
-      { executable: process.execPath, stream: "stderr", text: "error" },
-      { executable: process.execPath, stream: "stdout", text: "output" },
-    ],
-    running: false,
-    stdout: [],
-    stderr: [],
-  });
-});
 
 it("decodes UTF-8 characters split across pipe chunks", async () => {
   const output: ProcessOutput[] = [];

@@ -5,7 +5,7 @@ import {
   provisionAgents,
   personalAgentData,
   configuredPersonalAgents,
-  personalAgentId,
+  type AgentBootstrapStore,
   type BootstrapOwner,
   type PersonalAgent,
   type StoredAgent,
@@ -23,6 +23,83 @@ const definition: PersonalAgent = {
   model: "configured-model",
 };
 
+class AgentDatabase implements AgentBootstrapStore {
+  readonly agents = new Map<string, StoredAgent>();
+  readonly owners = new Map<string, string[]>();
+
+  /** An agent that another bootstrap process creates between this process's lookup and its insert. */
+  concurrentCreation: StoredAgent | undefined;
+
+  constructor(agents: StoredAgent[] = []) {
+    for (const agent of agents) {
+      this.agents.set(agent.id, structuredClone(agent));
+    }
+  }
+
+  async load(id: string): Promise<StoredAgent | null> {
+    const agent = this.agents.get(id);
+
+    return agent === undefined ? null : structuredClone(agent);
+  }
+
+  async create(
+    agent: PersonalAgent,
+    creator: BootstrapOwner,
+  ): Promise<StoredAgent> {
+    if (this.concurrentCreation !== undefined) {
+      this.agents.set(this.concurrentCreation.id, this.concurrentCreation);
+    }
+
+    if (this.agents.has(agent.id)) {
+      throw new BootstrapAgentAlreadyExistsError();
+    }
+
+    const stored: StoredAgent = {
+      id: agent.id,
+      databaseId: `database-${agent.id}`,
+      author: creator.userId,
+      provider: agent.provider,
+    };
+
+    this.agents.set(agent.id, stored);
+
+    return structuredClone(stored);
+  }
+
+  async grantOwner(agent: StoredAgent, grantee: BootstrapOwner): Promise<void> {
+    const owners = this.owners.get(agent.databaseId) ?? [];
+
+    if (!owners.includes(grantee.userId)) {
+      this.owners.set(agent.databaseId, [...owners, grantee.userId]);
+    }
+  }
+
+  async setProvider(agent: StoredAgent, provider: string): Promise<void> {
+    const stored = this.agents.get(agent.id);
+
+    if (stored?.provider === agent.provider) {
+      stored.provider = provider;
+    }
+  }
+
+  contents(): {
+    agents: StoredAgent[];
+    owners: Record<string, string[]>;
+  } {
+    return {
+      agents: [...this.agents.values()],
+      owners: Object.fromEntries(this.owners),
+    };
+  }
+}
+
+const existing: StoredAgent = {
+  id: definition.id,
+  databaseId: "database-id",
+  author: owner.userId,
+  provider: definition.provider,
+};
+
 it("uses the canonical Ollama endpoint and preserves the deployment agent ID", () => {
   expect(
     configuredPersonalAgents(
@@ -31,7 +108,7 @@ it("uses the canonical Ollama endpoint and preserves the deployment agent ID", (
     ),
   ).toStrictEqual([
     {
-      id: personalAgentId("Ollama"),
+      id: "agent_4ddc3060371e804f1ec74",
       name: "Personal (Ollama)",
       provider: "ollama",
       model: "qwen3:4b",
@@ -42,27 +119,20 @@ it("uses the canonical Ollama endpoint and preserves the deployment agent ID", (
 it.each(["Ollama", "ollama", "customized-provider"])(
   "repairs only the legacy Ollama provider: %s",
   async (provider) => {
-    const agent = { ...definition, provider: "ollama" };
-    const stored = {
-      ...agent,
-      provider,
-      databaseId: "database-id",
-      author: owner.userId,
-    };
-    const updates: { id: string; provider: string }[] = [];
+    const database = new AgentDatabase([{ ...existing, provider }]);
 
-    await provisionAgents(owner, [agent], {
-      load: async () => stored,
-      create: async () => stored,
-      setProvider: async (existing, canonical) => {
-        updates.push({ id: existing.databaseId, provider: canonical });
-      },
-      grantOwner: async () => {},
-    });
-
-    expect(updates).toStrictEqual(
-      provider === "Ollama" ? [{ id: "database-id", provider: "ollama" }] : [],
+    await provisionAgents(
+      owner,
+      [{ ...definition, provider: "ollama" }],
+      database,
     );
+
+    expect(database.contents()).toStrictEqual({
+      agents: [
+        { ...existing, provider: provider === "Ollama" ? "ollama" : provider },
+      ],
+      owners: { "database-id": [owner.userId] },
+    });
   },
 );
 
@@ -95,85 +165,35 @@ it.each([false, true])(
 );
 
 it("preserves an existing agent and repairs its owner grant", async () => {
-  const events: string[] = [];
+  const database = new AgentDatabase([existing]);
 
-  const stored: StoredAgent = {
-    id: definition.id,
-    databaseId: "database-id",
-    author: owner.userId,
-    provider: definition.provider,
-  };
+  await provisionAgents(owner, [definition], database);
 
-  await provisionAgents(owner, [definition], {
-    load: async () => stored,
-    create: async () => {
-      events.push("create");
-
-      return stored;
-    },
-    setProvider: async () => {},
-    grantOwner: async (agent) => {
-      events.push(`grant:${agent.databaseId}`);
-    },
+  expect(database.contents()).toStrictEqual({
+    agents: [existing],
+    owners: { "database-id": [owner.userId] },
   });
-
-  expect(events).toStrictEqual(["grant:database-id"]);
 });
 
 it("refuses to adopt another account's agent", async () => {
-  const events: string[] = [];
-
-  const stored: StoredAgent = {
-    id: definition.id,
-    databaseId: "database-id",
-    author: "different-owner",
-    provider: definition.provider,
-  };
+  const foreign = { ...existing, author: "different-owner" };
+  const database = new AgentDatabase([foreign]);
 
   await expect(
-    provisionAgents(owner, [definition], {
-      load: async () => stored,
-      create: async () => stored,
-      setProvider: async () => {},
-      grantOwner: async () => {
-        events.push("grant");
-      },
-    }),
-  ).rejects.toThrow(BootstrapAgentOwnerError);
+    provisionAgents(owner, [definition], database),
+  ).rejects.toStrictEqual(new BootstrapAgentOwnerError());
 
-  expect(events).toStrictEqual([]);
+  expect(database.contents()).toStrictEqual({ agents: [foreign], owners: {} });
 });
 
 it("recovers a concurrent agent creation without overwriting the existing record", async () => {
-  const events: string[] = [];
+  const database = new AgentDatabase();
+  database.concurrentCreation = existing;
 
-  const stored: StoredAgent = {
-    id: definition.id,
-    databaseId: "database-id",
-    author: owner.userId,
-    provider: definition.provider,
-  };
+  await provisionAgents(owner, [definition], database);
 
-  let firstLookup = true;
-
-  await provisionAgents(owner, [definition], {
-    load: async () => {
-      if (firstLookup) {
-        firstLookup = false;
-
-        return null;
-      }
-
-      return stored;
-    },
-    create: async () => {
-      throw new BootstrapAgentAlreadyExistsError();
-    },
-    setProvider: async () => {},
-    grantOwner: async (agent) => {
-      events.push(`grant:${agent.databaseId}`);
-    },
+  expect(database.contents()).toStrictEqual({
+    agents: [existing],
+    owners: { "database-id": [owner.userId] },
   });
-
-  expect(events).toStrictEqual(["grant:database-id"]);
 });

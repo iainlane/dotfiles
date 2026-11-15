@@ -8,6 +8,10 @@ import {
   IronProtocolDefinitionError,
 } from "#runtime/platform/iron-service";
 
+async function tokenThatNeverArrives(): Promise<string> {
+  return await new Promise(() => {});
+}
+
 it("serves credential transforms through a private Unix socket", async () => {
   const directory = await mkdtemp("/tmp/librechat-credentials-");
 
@@ -41,17 +45,7 @@ it("serves credential transforms through a private Unix socket", async () => {
     throw new IronProtocolDefinitionError();
   }
 
-  let reads = 0;
-
-  const server = await credentialService(
-    proto,
-    async () => {
-      reads += 1;
-
-      return "synthetic-token";
-    },
-    socket,
-  );
+  const server = await credentialService(proto, tokenThatNeverArrives, socket);
 
   const client = new Client(`unix://${socket}`, credentials.createInsecure());
 
@@ -82,13 +76,11 @@ it("serves credential transforms through a private Unix socket", async () => {
       socketMode: socketState.mode & 0o777,
       directoryMode: directoryState.mode & 0o777,
       response,
-      reads,
     }).toStrictEqual({
       socket: true,
       socketMode: 0o600,
       directoryMode: 0o700,
       response: { action: 2 },
-      reads: 0,
     });
   } finally {
     client.close();

@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
-import { OllamaEndpointError } from "#runtime/platform/errors";
+import {
+  CredentialReadError,
+  OllamaEndpointError,
+} from "#runtime/platform/errors";
 import {
   configureProviders,
   hasEmbeddingProvider,
@@ -36,30 +39,56 @@ it("does not read credentials for disabled providers", async () => {
   });
 });
 
-it("uses the injected credential source without filesystem access", async () => {
-  const requests: string[] = [];
+class MissingCredentialFileError extends Error {
+  constructor(file: string) {
+    super(`No credential file at ${file}`);
 
-  const readKey: CredentialReader = async (file, label) => {
-    requests.push(`${label}:${file}`);
+    this.name = "MissingCredentialFileError";
+  }
+}
 
-    return "injected-key";
+function credentialFiles(files: Record<string, string>): CredentialReader {
+  return async (file, label) => {
+    const value = files[file];
+
+    if (value === undefined) {
+      throw new CredentialReadError(
+        { file, label },
+        new MissingCredentialFileError(file),
+      );
+    }
+
+    return value;
   };
+}
 
-  const result = await configureProviders(
-    { openaiKeyFile: "/private/openai" },
-    readKey,
-  );
-
-  expect({ requests, result }).toStrictEqual({
-    requests: ["OpenAI:/private/openai"],
-    result: {
-      endpoints: { custom: [] },
-      environment: {
-        ENDPOINTS: "agents,openAI",
-        OPENAI_API_KEY: "injected-key",
-      },
+it("uses the injected credential source without filesystem access", async () => {
+  expect(
+    await configureProviders(
+      { openaiKeyFile: "/private/openai" },
+      credentialFiles({ "/private/openai": "injected-key" }),
+    ),
+  ).toStrictEqual({
+    endpoints: { custom: [] },
+    environment: {
+      ENDPOINTS: "agents,openAI",
+      OPENAI_API_KEY: "injected-key",
     },
   });
+});
+
+it("identifies the provider whose credential cannot be read", async () => {
+  await expect(
+    configureProviders(
+      { openaiKeyFile: "/private/openai" },
+      credentialFiles({}),
+    ),
+  ).rejects.toStrictEqual(
+    new CredentialReadError(
+      { file: "/private/openai", label: "OpenAI" },
+      new MissingCredentialFileError("/private/openai"),
+    ),
+  );
 });
 
 class UnexpectedCredentialAccessError extends Error {
@@ -80,6 +109,6 @@ it.each([
   async (ollamaUrl) => {
     await expect(
       configureProviders({ ollamaUrl }, forbiddenReader),
-    ).rejects.toThrow(OllamaEndpointError);
+    ).rejects.toStrictEqual(new OllamaEndpointError());
   },
 );
