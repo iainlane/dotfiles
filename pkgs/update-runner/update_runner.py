@@ -6,7 +6,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
 
 class Operation(TypedDict):
@@ -166,21 +166,33 @@ def render(outcomes: list[Outcome]) -> str:
     return "\n".join(lines) + "\n" if lines else "No updates were needed.\n"
 
 
-class Runner:
-    def __init__(self, root: Path, system: str, stage: bool = False) -> None:
-        self.root = root
-        self.system = system
-        self.stage = stage
-        self.outcomes: list[Outcome] = []
+class Executor(Protocol):
+    def run(self, args: list[str]) -> subprocess.CompletedProcess[str]: ...
 
-    def command(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+
+class Processes:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
         print("+ " + " ".join(args), file=sys.stderr)
         return subprocess.run(
             args, cwd=self.root, stdout=subprocess.PIPE, text=True, check=False
         )
 
+
+class Runner:
+    def __init__(
+        self, root: Path, system: str, executor: Executor, *, stage: bool
+    ) -> None:
+        self.root = root
+        self.system = system
+        self.executor = executor
+        self.stage = stage
+        self.outcomes: list[Outcome] = []
+
     def metadata(self) -> dict[str, Operation]:
-        result = self.command(
+        result = self.executor.run(
             ["nix", "eval", "--json", f".#legacyPackages.{self.system}.updaterMetadata"]
         )
         if result.returncode:
@@ -188,7 +200,7 @@ class Runner:
         return json.loads(result.stdout)
 
     def plan(self) -> dict:
-        result = self.command(["nix", "run", ".#update-plan", "--", "describe"])
+        result = self.executor.run(["nix", "run", ".#update-plan", "--", "describe"])
         if result.returncode:
             raise ValueError("Could not determine maintenance order.")
         return json.loads(result.stdout)
@@ -198,7 +210,7 @@ class Runner:
         operation = metadata[name]
         if "--refresh" in args and not operation["refresh"]:
             return Outcome(name, 1, "This updater does not support --refresh.")
-        result = self.command(
+        result = self.executor.run(
             [
                 "nix",
                 "build",
@@ -214,7 +226,7 @@ class Runner:
         paths = result.stdout.strip().splitlines()
         if len(paths) != 1:
             return Outcome(name, 1, "Expected one updater executable output.")
-        result = self.command(
+        result = self.executor.run(
             [str(Path(paths[0]) / "bin" / operation["program"]), *args]
         )
         message = result.stdout.strip()
@@ -267,7 +279,7 @@ class Runner:
             result = (
                 self.execute(updater, args or [])
                 if updater
-                else self.command(["nix", "flake", "update", *group])
+                else self.executor.run(["nix", "flake", "update", *group])
             )
             status = result.status if isinstance(result, Outcome) else result.returncode
             message = (
@@ -284,7 +296,7 @@ class Runner:
             failed = next((result for result in refreshed if result.status), None)
             if failed:
                 raise ValueError(f"{failed.name}: {failed.message}")
-            evaluation = self.command(["bash", "scripts/check-evaluation.bash"])
+            evaluation = self.executor.run(["bash", "scripts/check-evaluation.bash"])
             if evaluation.returncode:
                 raise ValueError(
                     "The candidate input update failed the no-build evaluation gate."
@@ -322,7 +334,9 @@ class Runner:
                 )
                 if failed:
                     raise ValueError(f"{failed.name}: {failed.message}")
-                evaluation = self.command(["bash", "scripts/check-evaluation.bash"])
+                evaluation = self.executor.run(
+                    ["bash", "scripts/check-evaluation.bash"]
+                )
                 if evaluation.returncode:
                     raise ValueError(
                         "The candidate package update failed the no-build evaluation gate."
@@ -377,7 +391,7 @@ def main() -> int:
                 ["git", "rev-parse", "--show-toplevel"], text=True
             ).strip()
         )
-        runner = Runner(root, arguments.system, arguments.stage)
+        runner = Runner(root, arguments.system, Processes(root), stage=arguments.stage)
         metadata = runner.metadata()
         refresh_names = [
             name for name, operation in metadata.items() if operation["refresh"]

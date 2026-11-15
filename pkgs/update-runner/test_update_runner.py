@@ -3,8 +3,8 @@ import os
 import subprocess
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import call, patch
 
 from update_runner import Outcome, Runner, Snapshot, input_groups, render, require_clean
 
@@ -87,8 +87,95 @@ class SnapshotTest(unittest.TestCase):
             subprocess.run(["git", "init", "-q", str(root)], check=True)
             (root / "owned").write_text("staged\n")
             subprocess.run(["git", "-C", str(root), "add", "owned"], check=True)
-            with self.assertRaisesRegex(ValueError, "owned"):
+            with self.assertRaises(ValueError) as raised:
                 require_clean(root, ["owned"])
+            self.assertEqual(
+                raised.exception.args,
+                ("Commit or stash changes in update-owned paths first:\nA  owned\n",),
+            )
+
+
+SYSTEM = "fixture"
+STORE = Path("/nix/store")
+
+# A fake updater takes its command-line arguments and returns its exit status
+# and standard output.
+Updater = Callable[[list[str]], tuple[int, str]]
+
+
+class FakeNix:
+    """Runs the commands that `Runner` issues against a fixture repository.
+
+    The metadata lists each updater with its package directory, and `nix build`
+    returns a store path for each updater. Running the program in that path
+    calls the updater. `nix flake update` sets each named input in flake.lock to
+    its entry in `releases`, or to "new". The evaluation gate fails when
+    flake.lock or a package's `source` file contains "invalid".
+    """
+
+    def __init__(
+        self,
+        root: Path,
+        plan: dict,
+        updaters: dict[str, Updater],
+        *,
+        maintained: tuple[str, ...] = (),
+        releases: dict[str, str] | None = None,
+    ) -> None:
+        self.root = root
+        self.plan = plan
+        self.updaters = updaters
+        self.releases = releases or {}
+        self.metadata = {
+            name: {
+                "refresh": True,
+                "paths": [f"pkgs/{name}"],
+                "program": name,
+                "input": None,
+                "lockfileMaintenance": name in maintained,
+            }
+            for name in updaters
+        }
+
+    def run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        scripts = f".#legacyPackages.{SYSTEM}.updaterScripts."
+        match args:
+            case ["nix", "eval", "--json", installable] if (
+                installable == f".#legacyPackages.{SYSTEM}.updaterMetadata"
+            ):
+                return subprocess.CompletedProcess(args, 0, json.dumps(self.metadata))
+            case ["nix", "run", ".#update-plan", "--", "describe"]:
+                return subprocess.CompletedProcess(args, 0, json.dumps(self.plan))
+            case ["nix", "build", "--no-link", "--print-out-paths", installable] if (
+                installable.removeprefix(scripts) in self.updaters
+            ):
+                name = installable.removeprefix(scripts)
+                return subprocess.CompletedProcess(args, 0, f"{STORE / name}\n")
+            case ["nix", "flake", "update", *inputs]:
+                lock = json.loads((self.root / "flake.lock").read_text())
+                lock |= {name: self.releases.get(name, "new") for name in inputs}
+                (self.root / "flake.lock").write_text(json.dumps(lock))
+                return subprocess.CompletedProcess(args, 0, "")
+            case ["bash", "scripts/check-evaluation.bash"]:
+                return subprocess.CompletedProcess(args, int(self.invalid()), "")
+            case [program, *arguments] if updater := self.updater(program):
+                status, output = updater(arguments)
+                return subprocess.CompletedProcess(args, status, output)
+        return subprocess.CompletedProcess(args, 127, "")
+
+    def updater(self, program: str) -> Updater | None:
+        path = Path(program)
+        name = path.parent.parent.name
+        if path.parent.parent.parent != STORE or path.parent.name != "bin":
+            return None
+        if name not in self.updaters or self.metadata[name]["program"] != path.name:
+            return None
+        return self.updaters[name]
+
+    def invalid(self) -> bool:
+        lock = json.loads((self.root / "flake.lock").read_text())
+        sources = [path.read_text() for path in self.root.glob("pkgs/*/source")]
+        return "invalid" in [*lock.values(), *sources]
 
 
 class TransactionTest(unittest.TestCase):
@@ -115,7 +202,7 @@ class TransactionTest(unittest.TestCase):
             ],
             check=True,
         )
-        for name in ["caddy", "pi"]:
+        for name in ["caddy", "pi", "independent"]:
             directory = self.root / "pkgs" / name
             directory.mkdir(parents=True)
             (directory / "source").write_text("old")
@@ -128,110 +215,82 @@ class TransactionTest(unittest.TestCase):
             ["git", "-C", str(self.root), "commit", "-qm", "initial"], check=True
         )
         (self.root / "librechat-password").write_text("unrelated")
-        self.runner = Runner(self.root, "fixture")
-        metadata = {
-            name: {
-                "refresh": True,
-                "paths": [f"pkgs/{name}"],
-                "program": name,
-                "input": None,
-                "lockfileMaintenance": name == "pi",
-            }
-            for name in ["caddy", "pi"]
-        }
-        self.metadata_patch = patch.object(
-            self.runner, "metadata", return_value=metadata
-        )
-        self.metadata_patch.start()
-        self.addCleanup(self.metadata_patch.stop)
-        plan_patch = patch.object(
-            self.runner,
-            "plan",
-            return_value={
-                "refreshOrder": ["caddy", "pi"],
-                "dependencies": {"caddy": [], "pi": []},
-            },
-        )
-        plan_patch.start()
-        self.addCleanup(plan_patch.stop)
+
+    def runner(self, nix: FakeNix) -> Runner:
+        return Runner(self.root, SYSTEM, nix, stage=False)
+
+    def lock(self) -> dict[str, str]:
+        return json.loads((self.root / "flake.lock").read_text())
+
+    def source(self, name: str) -> str:
+        return (self.root / f"pkgs/{name}/source").read_text()
+
+    def write(self, name: str, source: str) -> None:
+        (self.root / f"pkgs/{name}/source").write_text(source)
 
     def test_failed_input_restores_its_refreshes_and_keeps_independent_success(
         self,
     ) -> None:
-        calls = []
+        def refresh(name: str) -> Updater:
+            def run(args: list[str]) -> tuple[int, str]:
+                if args != ["--refresh"]:
+                    return 1, "Unsupported updater arguments."
+                lock = self.lock()
+                self.write(name, lock["llm-agents"])
+                if lock["nixpkgs"] == "new":
+                    (self.root / f"pkgs/{name}/partial").write_text("partial")
+                    return 1, f"Cannot refresh {name}."
+                return 0, ""
 
-        def command(args: list[str]) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["nix", "flake", "update"]:
-                lock = json.loads((self.root / "flake.lock").read_text())
-                lock[args[3]] = "new"
-                (self.root / "flake.lock").write_text(json.dumps(lock))
-            return subprocess.CompletedProcess(args, 0, "")
+            return run
 
-        def execute(name: str, args: list[str]) -> Outcome:
-            calls.append((name, args))
-            lock = json.loads((self.root / "flake.lock").read_text())
-            (self.root / f"pkgs/{name}/source").write_text(lock["llm-agents"])
-            if lock["nixpkgs"] == "new":
-                (self.root / "pkgs/caddy/partial").write_text("partial")
-                return Outcome(name, 1, "Cannot refresh Caddy.")
-            return Outcome(name)
-
-        with (
-            patch.object(self.runner, "command", side_effect=command),
-            patch.object(self.runner, "execute", side_effect=execute),
-            patch.object(
-                self.runner, "plan", return_value={"refreshOrder": ["caddy", "pi"]}
-            ),
-        ):
-            failed = self.runner.input_transaction(["nixpkgs"])
-            accepted = self.runner.input_transaction(["llm-agents"])
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {"refreshOrder": ["caddy", "pi"]},
+                {name: refresh(name) for name in ["caddy", "pi"]},
+            )
+        )
+        failed = runner.input_transaction(["nixpkgs"])
+        accepted = runner.input_transaction(["llm-agents"])
         self.assertEqual(
             {
                 "failed": failed,
                 "accepted": accepted,
-                "lock": json.loads((self.root / "flake.lock").read_text()),
-                "caddy": (self.root / "pkgs/caddy/source").read_text(),
-                "pi": (self.root / "pkgs/pi/source").read_text(),
+                "lock": self.lock(),
+                "caddy": self.source("caddy"),
+                "pi": self.source("pi"),
                 "partial": (self.root / "pkgs/caddy/partial").exists(),
                 "unrelated": (self.root / "librechat-password").read_text(),
-                "calls": calls,
             },
             {
-                "failed": Outcome("nixpkgs", 1, "caddy: Cannot refresh Caddy."),
+                "failed": Outcome("nixpkgs", 1, "caddy: Cannot refresh caddy."),
                 "accepted": Outcome("llm-agents", changed=True),
                 "lock": {"nixpkgs": "old", "llm-agents": "new"},
                 "caddy": "new",
                 "pi": "new",
                 "partial": False,
                 "unrelated": "unrelated",
-                "calls": [
-                    ("caddy", ["--refresh"]),
-                    ("caddy", ["--refresh"]),
-                    ("pi", ["--refresh"]),
-                ],
             },
         )
 
     def test_a_later_input_failure_preserves_an_earlier_accepted_lock(self) -> None:
-        def command(args: list[str]) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["nix", "flake", "update"]:
-                lock = json.loads((self.root / "flake.lock").read_text())
-                lock[args[3]] = "new"
-                (self.root / "flake.lock").write_text(json.dumps(lock))
-            return subprocess.CompletedProcess(args, 0, "")
+        def caddy(args: list[str]) -> tuple[int, str]:
+            if self.lock()["nixpkgs"] == "new":
+                return 1, "Hash discovery failed."
+            return 0, ""
 
-        with (
-            patch.object(self.runner, "command", side_effect=command),
-            patch.object(
-                self.runner,
-                "refresh",
-                side_effect=[[], [Outcome("caddy", 1, "Hash discovery failed.")]],
-            ),
-        ):
-            accepted = self.runner.input_transaction(["llm-agents"])
-            failed = self.runner.input_transaction(["nixpkgs"])
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {"refreshOrder": ["caddy", "pi"]},
+                {"caddy": caddy, "pi": lambda args: (0, "")},
+            )
+        )
+        accepted = runner.input_transaction(["llm-agents"])
+        failed = runner.input_transaction(["nixpkgs"])
         self.assertEqual(
-            (accepted, failed, json.loads((self.root / "flake.lock").read_text())),
+            (accepted, failed, self.lock()),
             (
                 Outcome("llm-agents", changed=True),
                 Outcome("nixpkgs", 1, "caddy: Hash discovery failed."),
@@ -241,57 +300,52 @@ class TransactionTest(unittest.TestCase):
 
     def test_a_failed_coupled_update_restores_both_inputs(self) -> None:
         original = (self.root / "flake.lock").read_bytes()
-
-        def command(args: list[str]) -> subprocess.CompletedProcess[str]:
-            if args[:3] == ["nix", "flake", "update"]:
-                lock = json.loads(original)
-                lock.update(dict.fromkeys(args[3:], "new"))
-                (self.root / "flake.lock").write_text(json.dumps(lock))
-                return subprocess.CompletedProcess(args, 0, "")
-            return subprocess.CompletedProcess(args, 1, "")
-
-        with (
-            patch.object(self.runner, "command", side_effect=command),
-            patch.object(self.runner, "refresh", return_value=[]),
-        ):
-            failed = self.runner.input_transaction(
-                ["lanzaboote", "nixpkgs-measured-boot"]
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {"refreshOrder": ["caddy", "pi"]},
+                {"caddy": lambda args: (0, ""), "pi": lambda args: (0, "")},
+                releases={"lanzaboote": "new", "nixpkgs-measured-boot": "invalid"},
             )
+        )
+        failed = runner.input_transaction(["lanzaboote", "nixpkgs-measured-boot"])
         self.assertEqual(
-            (failed.status, (self.root / "flake.lock").read_bytes()), (1, original)
+            (failed, (self.root / "flake.lock").read_bytes()),
+            (
+                Outcome(
+                    "lanzaboote, nixpkgs-measured-boot",
+                    1,
+                    "The candidate input update failed the no-build evaluation gate.",
+                ),
+                original,
+            ),
         )
 
     def test_a_failed_consumer_refresh_restores_its_provider_update(self) -> None:
-        def execute(name: str, _args: list[str]) -> Outcome:
-            (self.root / f"pkgs/{name}/source").write_text("new")
-            return (
-                Outcome(name, 1, "Consumer refresh failed.")
-                if name == "pi"
-                else Outcome(name)
-            )
+        def caddy(args: list[str]) -> tuple[int, str]:
+            self.write("caddy", "new")
+            return 0, ""
 
-        plan = {
-            "refreshOrder": ["caddy", "pi"],
-            "dependencies": {"caddy": [], "pi": ["caddy"]},
-        }
-        with (
-            patch.object(self.runner, "plan", return_value=plan),
-            patch.object(self.runner, "execute", side_effect=execute),
-            patch.object(
-                self.runner,
-                "command",
-                return_value=subprocess.CompletedProcess([], 0, ""),
-            ),
-        ):
-            result = self.runner.package_transaction("caddy", [])
+        def pi(args: list[str]) -> tuple[int, str]:
+            self.write("pi", "new")
+            return 1, "Consumer refresh failed."
+
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {
+                    "refreshOrder": ["caddy", "pi"],
+                    "dependencies": {"caddy": [], "pi": ["caddy"]},
+                },
+                {"caddy": caddy, "pi": pi},
+            )
+        )
+        result = runner.package_transaction("caddy", [])
         self.assertEqual(
             {
                 "result": result,
-                "sources": [
-                    (self.root / f"pkgs/{name}/source").read_text()
-                    for name in ["caddy", "pi"]
-                ],
-                "notices": self.runner.outcomes,
+                "sources": [self.source(name) for name in ["caddy", "pi"]],
+                "notices": runner.outcomes,
             },
             {
                 "result": Outcome("caddy", 1, "pi: Consumer refresh failed."),
@@ -301,88 +355,102 @@ class TransactionTest(unittest.TestCase):
         )
 
     def test_failed_candidate_evaluation_rolls_back_a_package_update(self) -> None:
-        def execute(name: str, _args: list[str]) -> Outcome:
-            (self.root / "pkgs/caddy/source").write_text("invalid")
-            return Outcome(name)
+        def caddy(args: list[str]) -> tuple[int, str]:
+            self.write("caddy", "invalid")
+            return 0, ""
 
-        with (
-            patch.object(self.runner, "execute", side_effect=execute),
-            patch.object(
-                self.runner,
-                "command",
-                return_value=subprocess.CompletedProcess([], 1, ""),
-            ),
-        ):
-            result = self.runner.package_transaction("caddy", [])
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {"refreshOrder": ["caddy"], "dependencies": {"caddy": []}},
+                {"caddy": caddy},
+            )
+        )
+        result = runner.package_transaction("caddy", [])
         self.assertEqual(
-            (result.status, (self.root / "pkgs/caddy/source").read_text()), (1, "old")
+            (result, self.source("caddy")),
+            (
+                Outcome(
+                    "caddy",
+                    1,
+                    "The candidate package update failed the no-build evaluation gate.",
+                ),
+                "old",
+            ),
         )
 
     def test_failed_provider_skips_dependents_but_not_independent_updates(self) -> None:
-        plan = {
-            "order": ["provider", "dependent", "independent"],
-            "dependencies": {
-                "provider": [],
-                "dependent": ["provider"],
-                "independent": [],
-            },
-        }
-        with (
-            patch.object(self.runner, "plan", return_value=plan),
-            patch.object(
-                self.runner,
-                "package_transaction",
-                side_effect=[Outcome("provider", 1, "Failed."), Outcome("independent")],
-            ) as execute,
-        ):
-            self.runner.packages(False)
+        def update(name: str) -> Updater:
+            def run(args: list[str]) -> tuple[int, str]:
+                self.write(name, "updated")
+                return 0, ""
+
+            return run
+
+        names = ["caddy", "pi", "independent"]
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {
+                    "order": names,
+                    "refreshOrder": names,
+                    "dependencies": {"caddy": [], "pi": ["caddy"], "independent": []},
+                },
+                {
+                    "caddy": lambda args: (1, "Failed."),
+                    "pi": update("pi"),
+                    "independent": update("independent"),
+                },
+            )
+        )
+        runner.packages(False)
         self.assertEqual(
-            (execute.call_args_list, self.runner.outcomes),
-            (
-                [call("provider", []), call("independent", [])],
-                [
-                    Outcome("provider", 1, "Failed."),
-                    Outcome(
-                        "dependent", 1, "Skipped because a required provider failed."
-                    ),
-                    Outcome("independent"),
+            {
+                "outcomes": runner.outcomes,
+                "sources": {name: self.source(name) for name in names},
+            },
+            {
+                "outcomes": [
+                    Outcome("caddy", 1, "Failed."),
+                    Outcome("pi", 1, "Skipped because a required provider failed."),
+                    Outcome("independent", changed=True),
                 ],
-            ),
+                "sources": {"caddy": "old", "pi": "old", "independent": "updated"},
+            },
         )
 
     def test_lockfile_maintenance_reaches_only_the_updaters_that_support_it(
         self,
     ) -> None:
-        def execute(name: str, args: list[str]) -> Outcome:
-            supported = [["--maintain-lockfile"]] if name == "pi" else []
-            if args and args not in supported:
-                return Outcome(name, 1, "Unsupported updater arguments.")
-            source = "maintained" if args else "updated"
-            (self.root / f"pkgs/{name}/source").write_text(source)
-            return Outcome(name)
+        def update(name: str, supported: list[list[str]]) -> Updater:
+            def run(args: list[str]) -> tuple[int, str]:
+                if args and args not in supported:
+                    return 1, "Unsupported updater arguments."
+                self.write(name, "maintained" if args else "updated")
+                return 0, ""
 
-        plan = {
-            "order": ["caddy", "pi"],
-            "refreshOrder": ["caddy", "pi"],
-            "dependencies": {"caddy": [], "pi": []},
-        }
-        with (
-            patch.object(self.runner, "plan", return_value=plan),
-            patch.object(self.runner, "execute", side_effect=execute),
-            patch.object(
-                self.runner,
-                "command",
-                return_value=subprocess.CompletedProcess([], 0, ""),
-            ),
-        ):
-            self.runner.packages(False, maintain_lockfiles=True)
+            return run
+
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {
+                    "order": ["caddy", "pi"],
+                    "refreshOrder": ["caddy", "pi"],
+                    "dependencies": {"caddy": [], "pi": []},
+                },
+                {
+                    "caddy": update("caddy", []),
+                    "pi": update("pi", [["--maintain-lockfile"]]),
+                },
+                maintained=("pi",),
+            )
+        )
+        runner.packages(False, maintain_lockfiles=True)
         self.assertEqual(
             {
-                "outcomes": self.runner.outcomes,
-                "sources": {
-                    name: (self.root / f"pkgs/{name}/source").read_text()
-                    for name in ["caddy", "pi"]
-                },
+                "outcomes": runner.outcomes,
+                "sources": {name: self.source(name) for name in ["caddy", "pi"]},
             },
             {
                 "outcomes": [
