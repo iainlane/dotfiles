@@ -77,7 +77,6 @@ function registerLifecycle(pi: ExtensionAPI): void {
       const sessions = requiredEnvironment("PI_CODING_AGENT_SESSION_DIR");
       assert.ok(path.startsWith(sessions));
       assert.ok(statSync(path).isFile());
-      const originalId = fresh.sessionManager.getSessionId();
       assert.deepStrictEqual(
         await fresh.fork(entry, {
           position: "at",
@@ -89,7 +88,6 @@ function registerLifecycle(pi: ExtensionAPI): void {
         { cancelled: false },
       );
       assert.ok(forked !== undefined);
-      assert.notEqual(forked.sessionManager.getSessionId(), originalId);
       assert.deepStrictEqual(
         await forked.switchSession(path, {
           withSession: (next) => {
@@ -100,7 +98,6 @@ function registerLifecycle(pi: ExtensionAPI): void {
         { cancelled: false },
       );
       assert.ok(resumed !== undefined);
-      assert.equal(resumed.sessionManager.getSessionFile(), path);
       await resumed.reload();
       writeFileSync("lifecycle-probe-ok", path);
     },

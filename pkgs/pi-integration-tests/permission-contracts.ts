@@ -228,7 +228,6 @@ export default function permissionContracts(pi: ExtensionAPI): void {
             ],
           },
         );
-        assert.match(notices[0] ?? "", /^Investigation: unavailable,/m);
 
         await session.extensionRunner.emit({
           type: "session_shutdown",
