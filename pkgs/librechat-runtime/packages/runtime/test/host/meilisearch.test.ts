@@ -16,9 +16,9 @@ import {
   MeilisearchBackupError,
   MeilisearchDatabase,
   MeilisearchUpgradeError,
+  MeilisearchVersionError,
 } from "#runtime/host/meilisearch";
 import type { Command, ProcessRunner } from "#runtime/platform/processes";
-import { ZodError } from "zod";
 
 class UnexpectedCommandError extends Error {
   constructor(command: Command) {
@@ -91,6 +91,16 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(state, { recursive: true, force: true });
 });
+
+async function rejection(operation: Promise<unknown>): Promise<unknown> {
+  try {
+    await operation;
+  } catch (error) {
+    return error;
+  }
+
+  return undefined;
+}
 
 async function seed(version: string): Promise<void> {
   await mkdir(join(state, "meili", "indexes"), { recursive: true });
@@ -291,19 +301,30 @@ it("does not prune backups based on another engine's successful task", async () 
 });
 
 it.each([
-  ["../../outside", "meilisearch 1.56.0\n"],
-  ["1.55.0", "unexpected output"],
+  {
+    stored: "../../outside",
+    output: "meilisearch 1.56.0\n",
+    error: new MeilisearchVersionError("database", "../../outside"),
+  },
+  {
+    stored: "1.55.0",
+    output: "unexpected output",
+    error: new MeilisearchVersionError("executable", "unexpected output"),
+  },
 ])(
-  "rejects invalid versions before copying the database: %s",
-  async (stored, output) => {
+  "rejects invalid versions before copying the database: $stored",
+  async ({ stored, output, error }) => {
     await seed(stored);
-    await expect(
+    const failure = await rejection(
       new MeilisearchDatabase(state).prepareUpgrade(
         "meilisearch",
         meilisearch(output),
       ),
-    ).rejects.toThrow(ZodError);
-    expect(await readdir(state)).toStrictEqual(["meili"]);
+    );
+    expect({ failure, entries: await readdir(state) }).toStrictEqual({
+      failure: error,
+      entries: ["meili"],
+    });
   },
 );
 

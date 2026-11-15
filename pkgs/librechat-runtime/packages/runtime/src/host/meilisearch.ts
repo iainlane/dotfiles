@@ -46,6 +46,18 @@ export class MeilisearchUpgradeError extends Error {
   }
 }
 
+export class MeilisearchVersionError extends Error {
+  readonly origin: "database" | "executable";
+  readonly version: string;
+
+  constructor(origin: "database" | "executable", version: string) {
+    super(`The Meilisearch ${origin} reported an invalid version: ${version}`);
+    this.name = "MeilisearchVersionError";
+    this.origin = origin;
+    this.version = version;
+  }
+}
+
 export class MeilisearchBackupVersionError extends Error {
   readonly backup: string;
 
@@ -72,6 +84,16 @@ export class MeilisearchBackupError extends Error {
 interface MeilisearchRuntime {
   now(): number;
   report(text: string): void;
+}
+
+function parseVersion(origin: "database" | "executable", text: string): string {
+  const result = versionSchema.safeParse(text);
+
+  if (!result.success) {
+    throw new MeilisearchVersionError(origin, text);
+  }
+
+  return result.data;
 }
 
 const nativeRuntime: MeilisearchRuntime = {
@@ -112,9 +134,10 @@ export class MeilisearchDatabase {
       throw error;
     }
 
-    const source = versionSchema.parse(stored.trim());
+    const source = parseVersion("database", stored.trim());
     const output = await processes.run({ executable, args: ["--version"] });
-    const target = versionSchema.parse(
+    const target = parseVersion(
+      "executable",
       output.trim().replace(/^meilisearch /u, ""),
     );
 
@@ -212,7 +235,7 @@ export class MeilisearchDatabase {
 
     const stored = await readFile(join(this.state, "meili", "VERSION"), "utf8");
 
-    if (versionSchema.parse(stored.trim()) !== this.versions.target) {
+    if (parseVersion("database", stored.trim()) !== this.versions.target) {
       return false;
     }
 
