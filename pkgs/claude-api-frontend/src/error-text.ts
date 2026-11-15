@@ -34,7 +34,7 @@ export function errorText(error: FrontendError): string {
   }
 
   if (error instanceof InvalidConfigurationError) {
-    return `Invalid ${error.source} configuration or response at: ${error.issues.map((issue) => issue.path.join(".")).join(", ")}`;
+    return `Invalid ${error.source} configuration or response at: ${error.fields.map((field) => field.join(".")).join(", ")}`;
   }
 
   if (error instanceof ConfigurationReadError) {

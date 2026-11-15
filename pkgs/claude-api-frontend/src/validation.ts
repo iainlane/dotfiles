@@ -25,10 +25,7 @@ export function validate<T>(
   if (!result.success) {
     throw new InvalidConfigurationError(
       source,
-      result.error.issues.map((issue) => ({
-        code: issue.code,
-        path: issue.path,
-      })),
+      result.error.issues.map((issue) => issue.path),
     );
   }
 

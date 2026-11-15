@@ -137,9 +137,7 @@ it("checks the running certificate, account and upstream through an injected tra
   await expect(
     checkHealth(config, { transport: stale, files: new NodeFrontendFiles() }),
   ).rejects.toStrictEqual(
-    new InvalidConfigurationError("health", [
-      { code: "invalid_value", path: ["account"] },
-    ]),
+    new InvalidConfigurationError("health", [["account"]]),
   );
 });
 

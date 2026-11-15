@@ -2,11 +2,6 @@ import { StatusCodes } from "http-status-codes";
 
 export type ValidationSource = "frontend" | "teamclaude" | "health";
 
-export interface ValidationIssue {
-  code: string;
-  path: PropertyKey[];
-}
-
 export abstract class FrontendError extends Error {
   abstract readonly code: string;
 
@@ -43,13 +38,13 @@ export class InvalidConfigurationError extends FrontendError {
   readonly code = "invalid-config";
 
   readonly source: ValidationSource;
-  readonly issues: ValidationIssue[];
+  readonly fields: PropertyKey[][];
 
-  constructor(source: ValidationSource, issues: ValidationIssue[]) {
+  constructor(source: ValidationSource, fields: PropertyKey[][]) {
     super();
 
     this.source = source;
-    this.issues = issues;
+    this.fields = fields;
   }
 }
 
