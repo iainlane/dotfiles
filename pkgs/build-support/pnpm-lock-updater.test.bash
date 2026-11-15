@@ -24,6 +24,14 @@ jq . >"$FAKE_REGISTRY" <<'JSON'
   "uses-alias": {"1.0.0": {"dependencies": {"renamed": "npm:@scope/host@^2.0.0"}}},
   "uses-host": {"1.0.0": {"dependencies": {"@scope/host": "^2.0.0"}}},
   "uses-linked": {"1.0.0": {"dependencies": {"linked": "^1.0.0"}}},
+  "host-plugin": {
+    "1.0.0": {"dependencies": {"@scope/host": "^2.0.0"}, "peerDependencies": {"linked": "^1.0.0"}}
+  },
+  "@scope/widgets": {
+    "1.0.0": {"peerDependencies": {"keymap": "^1.0.0", "theme": "^1.0.0"}}
+  },
+  "keymap": {"1.0.0": {}},
+  "theme": {"1.0.0": {}},
   "chain-start": {"1.0.0": {"dependencies": {"chain-0": "^1.0.0"}}},
   "chain-0": {"1.0.0": {}}, "chain-1": {"1.0.0": {}}, "chain-2": {"1.0.0": {}},
   "chain-3": {"1.0.0": {}}, "chain-4": {"1.0.0": {}}, "chain-5": {"1.0.0": {}},
@@ -549,10 +557,95 @@ expect <<'JSON'
 }
 JSON
 
-# pnpm-workspace.yaml lists the members. A negated pattern excludes a member.
+# A registry package that has a local package as a peer resolves the project's
+# copy of the peer, and its snapshot key and references end in the peer's
+# version. The package also depends on the registry release of the project's
+# peer, which an override scoped to the package replaces.
+project '{"package.json": {
+  "devDependencies": {"@scope/host": "^1", "host-plugin": "^1", "linked": "^1"},
+  "peerDependencies": {"@scope/host": "^1"}
+}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "host-plugin": {
+            "specifier": "^1",
+            "version": "1.0.0(linked@file:.nix-providers/linked-1.0.0.tgz)"
+          },
+          "linked": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "host-plugin>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "host-plugin@1.0.0": {
+        "peerDependencies": {"linked": "^1.0.0"},
+        "resolution": {"integrity": "sha512-host-plugin-1.0.0"}
+      },
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "host-plugin@1.0.0(linked@file:.nix-providers/linked-1.0.0.tgz)": {
+        "dependencies": {
+          "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+          "linked": "file:.nix-providers/linked-1.0.0.tgz"
+        }
+      },
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {}
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {
+        "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+        "host-plugin": "^1",
+        "linked": "^1.0.0"
+      },
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "host-plugin>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# pnpm-workspace.yaml lists the members. A negated pattern excludes a member,
+# and `*` matches only one directory level.
 project '{
   "package.json": {"name": "workspace"},
   "packages/app/package.json": {"dependencies": {"linked": "^0"}},
+  "packages/app/fixture/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}},
   "packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host"}},
   "packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
 }' 'packages:
@@ -607,6 +700,9 @@ expect <<'JSON'
   },
   "manifests": {
     "package.json": {"name": "workspace"},
+    "packages/app/fixture/package.json": {
+      "dependencies": {"@dotfiles/private": "^0.1.0"}
+    },
     "packages/app/package.json": {"dependencies": {"linked": "^1.0.0"}},
     "packages/ignored/package.json": {
       "dependencies": {"@dotfiles/private": "^0.1.0"}
@@ -691,10 +787,11 @@ diff -r -u "$root/first" "$root/scenario"
 printf '%s\n' "$workspace" 'overrides:' '  "@scope/host": file:.nix-providers/scope-host-2.0.0.tgz' '  linked: file:.nix-providers/linked-1.0.0.tgz' | diff -u - "$root/scenario/pnpm-workspace.yaml"
 
 # A normal relock, with or without `--refresh`, keeps the locked versions that
-# still satisfy their ranges. Lockfile maintenance moves every dependency,
-# direct and transitive, to the newest version in its range, and the provider
-# overrides, the scoped override for the project's peer and the other overrides
-# remain as in a normal update.
+# still satisfy their ranges. Lockfile maintenance moves every dependency of
+# the root and of the workspace members, direct and transitive, to the newest
+# version in its range, and leaves the manifests' ranges as they were. The
+# provider overrides, the scoped override for the project's peer and the other
+# overrides remain as in a normal update.
 for mode in default --refresh --maintain-lockfile; do
 	arguments=()
 	other=4.0.0
@@ -711,16 +808,23 @@ for mode in default --refresh --maintain-lockfile; do
 		;;
 	esac
 
-	project '{"package.json": {
-  "devDependencies": {"@scope/host": "^1", "linked": "^1", "other": "^4", "uses-host": "^1"},
-  "peerDependencies": {"@scope/host": "^1"}
-}}' "$workspace"'
+	project '{
+  "package.json": {
+    "devDependencies": {"@scope/host": "^1", "linked": "^1", "other": "^4", "uses-host": "^1"},
+    "peerDependencies": {"@scope/host": "^1"}
+  },
+  "packages/app/package.json": {"dependencies": {"leaf": "^1.0.0"}}
+}' "$workspace"'
+  - "packages/*"
 overrides:
   other>dependency: "-"' "lockfileVersion: '9.0'
 importers:
   .:
     devDependencies:
       other: {specifier: ^4, version: 4.0.0}
+  packages/app:
+    dependencies:
+      leaf: {specifier: ^1.0.0, version: 1.0.0}
 snapshots:
   other@4.0.0:
     dependencies:
@@ -748,6 +852,9 @@ snapshots:
           "other": {"specifier": "^4", "version": "$other"},
           "uses-host": {"specifier": "^1", "version": "1.0.0"}
         }
+      },
+      "packages/app": {
+        "dependencies": {"leaf": {"specifier": "^1.0.0", "version": "$leaf"}}
       }
     },
     "lockfileVersion": "9.0",
@@ -788,7 +895,8 @@ snapshots:
         "uses-host": "^1"
       },
       "peerDependencies": {"@scope/host": "^1"}
-    }
+    },
+    "packages/app/package.json": {"dependencies": {"leaf": "^1.0.0"}}
   },
   "workspace": {
     "overrides": {
@@ -796,7 +904,7 @@ snapshots:
       "other>dependency": "-",
       "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
     },
-    "packages": ["."]
+    "packages": [".", "packages/*"]
   }
 }
 JSON
@@ -916,6 +1024,84 @@ expect <<'JSON'
   "manifests": {
     "package.json": {"devDependencies": {"@scope/host": "^2.0.0"}},
     "packages/app/package.json": {"dependencies": {"@scope/tui": "1.1.0"}}
+  },
+  "workspace": {
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": ["packages/*"]
+  }
+}
+JSON
+
+# A local package and a workspace member install the same version of
+# @scope/widgets with different peers, so the lockfile's references to it end
+# in different suffixes. The versions match, and the guard leaves the member's
+# range as it is.
+project '{
+  "package.json": {"devDependencies": {"@scope/host": "^2.0.0"}},
+  "packages/app/package.json": {"dependencies": {"@scope/widgets": "^1.0.0", "keymap": "^1.0.0"}}
+}' 'packages:
+  - "packages/*"'
+local_packages "$(jq '.host.dependencies = {"@scope/widgets": "1.0.0", "theme": "1.0.0"}' <<<"$default_packages")"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "^2.0.0",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          }
+        }
+      },
+      "packages/app": {
+        "dependencies": {
+          "@scope/widgets": {
+            "specifier": "^1.0.0",
+            "version": "1.0.0(keymap@1.0.0)"
+          },
+          "keymap": {"specifier": "^1.0.0", "version": "1.0.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "@scope/widgets@1.0.0": {
+        "peerDependencies": {"keymap": "^1.0.0", "theme": "^1.0.0"},
+        "resolution": {"integrity": "sha512-@scope/widgets-1.0.0"}
+      },
+      "keymap@1.0.0": {"resolution": {"integrity": "sha512-keymap-1.0.0"}},
+      "theme@1.0.0": {"resolution": {"integrity": "sha512-theme-1.0.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "dependencies": {
+          "@scope/widgets": "1.0.0(theme@1.0.0)",
+          "theme": "1.0.0"
+        }
+      },
+      "@scope/widgets@1.0.0(keymap@1.0.0)": {
+        "dependencies": {"keymap": "1.0.0"}
+      },
+      "@scope/widgets@1.0.0(theme@1.0.0)": {
+        "dependencies": {"theme": "1.0.0"}
+      },
+      "keymap@1.0.0": {},
+      "theme@1.0.0": {}
+    }
+  },
+  "manifests": {
+    "package.json": {"devDependencies": {"@scope/host": "^2.0.0"}},
+    "packages/app/package.json": {
+      "dependencies": {"@scope/widgets": "^1.0.0", "keymap": "^1.0.0"}
+    }
   },
   "workspace": {
     "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
