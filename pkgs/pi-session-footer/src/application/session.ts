@@ -245,11 +245,7 @@ export class FooterSession {
       void this.refreshAgents();
     }
 
-    if (
-      displayed ||
-      clock !== this.clockKey() ||
-      this.state.activity.runningSince !== undefined
-    ) {
+    if (displayed || clock !== this.clockKey()) {
       this.changed();
       return;
     }
