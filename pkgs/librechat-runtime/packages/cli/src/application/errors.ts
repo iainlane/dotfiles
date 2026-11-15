@@ -4,10 +4,6 @@ import type {
   BootstrapRegistrationError,
 } from "@dotfiles/librechat-runtime/native-bootstrap";
 
-interface CommandArgumentIssue {
-  path?: readonly PropertyKey[];
-}
-
 export abstract class UsageError extends Error {
   readonly status = 2;
 
@@ -139,17 +135,17 @@ export class ArchiveArgumentsUsageError extends UsageError {
 export class CommandArgumentsError extends UsageError {
   readonly entry: "public" | "runtime";
   readonly path: readonly string[];
-  readonly issues: readonly CommandArgumentIssue[];
+  readonly fields: readonly string[];
 
   constructor(
     entry: "public" | "runtime",
     path: readonly string[],
-    issues: readonly CommandArgumentIssue[] = [],
+    fields: readonly string[] = [],
   ) {
     super();
     this.entry = entry;
     this.path = path;
-    this.issues = issues;
+    this.fields = fields;
     const program = entry === "public" ? "librechatctl" : "librechat-runtime";
     const descriptions: Readonly<Record<string, string>> = {
       email: "Use a valid email address for --email.",
@@ -160,13 +156,9 @@ export class CommandArgumentsError extends UsageError {
       file: "Provide the service configuration file path.",
       limit: "Use --limit with an integer from 1 to 500.",
     };
-    const key = issues
-      .map((issue) => issue.path?.[0])
-      .find(
-        (value) =>
-          typeof value === "string" && descriptions[value] !== undefined,
-      );
-    const detail = typeof key === "string" ? descriptions[key] : undefined;
+    const detail = fields
+      .map((field) => descriptions[field])
+      .find((description) => description !== undefined);
     const help = [program, ...path, "--help"].join(" ");
     this.message = [
       "Invalid arguments.",

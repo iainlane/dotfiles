@@ -256,9 +256,9 @@ export function parseCommand(args: string[], entry: EntryPoint): CommandIntent {
       entry,
       result.path,
       result.code === "unprocessable-content"
-        ? result.issues.map((issue) => {
+        ? result.issues.flatMap((issue) => {
             const field = issue.path?.[0];
-            return { path: typeof field === "string" ? [field] : [] };
+            return typeof field === "string" ? [field] : [];
           })
         : [],
     );

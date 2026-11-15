@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import assert from "node:assert/strict";
 import { parseCommand } from "#cli/definitions/commands";
-import { UsageError } from "#cli/application/errors";
+import { CommandArgumentsError, UsageError } from "#cli/application/errors";
 
 it.each([
   ["--yes", "bootstrap", "--email", "you@example.com", "--name", "Your Name"],
@@ -61,14 +61,36 @@ it("reports the version", () => {
 });
 
 it.each([
-  ["bootstrap", "--email", "invalid"],
-  ["bootstrap", "--name", "x"],
-  ["bootstrap", "--password-file", ""],
-  ["reset", "--conversation", "invalid"],
-  ["bootstrap", "--unknown", "secret-value"],
-  ["missing-command"],
-])("rejects supplied invalid options: %j", (...args) => {
-  expect(() => parseCommand(args, "public")).toThrow(/Invalid arguments/u);
+  {
+    args: ["bootstrap", "--email", "invalid"],
+    path: ["bootstrap"],
+    fields: ["email"],
+  },
+  {
+    args: ["bootstrap", "--name", "x"],
+    path: ["bootstrap"],
+    fields: ["name"],
+  },
+  {
+    args: ["bootstrap", "--password-file", ""],
+    path: ["bootstrap"],
+    fields: ["passwordFile"],
+  },
+  {
+    args: ["reset", "--conversation", "invalid"],
+    path: ["reset"],
+    fields: ["conversation"],
+  },
+  {
+    args: ["bootstrap", "--unknown", "secret-value"],
+    path: ["bootstrap"],
+    fields: [],
+  },
+  { args: ["missing-command"], path: [], fields: [] },
+])("rejects supplied invalid options: $args", ({ args, path, fields }) => {
+  expect(() => parseCommand(args, "public")).toThrow(
+    new CommandArgumentsError("public", path, fields),
+  );
 });
 
 it.each([
@@ -83,7 +105,7 @@ it.each([
 
 it.each(["serve", "guest", "hook"])("requires the %s file", (command) => {
   expect(() => parseCommand([command], "runtime")).toThrow(
-    /Invalid arguments/u,
+    new CommandArgumentsError("runtime", [command], ["file"]),
   );
 });
 
