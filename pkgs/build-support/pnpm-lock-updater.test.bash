@@ -4,505 +4,963 @@ updater="$1"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 git -C "$root" init --quiet
+
+# The fakes in flake/local-packages/checks/npm-packages.nix read these. `nix
+# build .#<attribute>.tarball` packs `$FAKE_PACKAGES/<attribute>` into
+# `$FAKE_STORE/<attribute>-tarball/package.tgz`, and pnpm resolves from
+# `$FAKE_REGISTRY`.
+export FAKE_PACKAGES="$root/packages" FAKE_REGISTRY="$root/registry.json" FAKE_STORE="$root/store"
+
+jq . >"$FAKE_REGISTRY" <<'JSON'
+{
+  "@scope/host": {"1.0.0": {}, "2.0.0": {}},
+  "@scope/tui": {"1.0.0": {}, "1.1.0": {}, "1.2.0": {}},
+  "linked": {"1.0.0": {}},
+  "leaf": {"1.0.0": {}, "1.1.0": {}},
+  "other": {
+    "4.0.0": {"dependencies": {"leaf": "^1.0.0"}},
+    "4.1.0": {"dependencies": {"leaf": "^1.0.0"}}
+  },
+  "uses-alias": {"1.0.0": {"dependencies": {"renamed": "npm:@scope/host@^2.0.0"}}},
+  "uses-host": {"1.0.0": {"dependencies": {"@scope/host": "^2.0.0"}}},
+  "uses-linked": {"1.0.0": {"dependencies": {"linked": "^1.0.0"}}},
+  "chain-start": {"1.0.0": {"dependencies": {"chain-0": "^1.0.0"}}},
+  "chain-0": {"1.0.0": {}}, "chain-1": {"1.0.0": {}}, "chain-2": {"1.0.0": {}},
+  "chain-3": {"1.0.0": {}}, "chain-4": {"1.0.0": {}}, "chain-5": {"1.0.0": {}},
+  "chain-6": {"1.0.0": {}}, "chain-7": {"1.0.0": {}}, "chain-8": {"1.0.0": {}},
+  "chain-9": {"1.0.0": {}}
+}
+JSON
+
 printf '%s\n' '{"semverGroups": [{"dependencies": ["@scope/tui"], "range": ""}, {"range": "^"}]}' >"$root/.syncpackrc.json"
 
-# Starts the project from a package.json and the overrides in its
-# pnpm-workspace.yaml. Each later argument is the lockfile that the next relock
-# writes.
-project() {
-	rm -rf "$root/scenario" "$root/locks" "$root/calls" "$root/states"
-	mkdir "$root/scenario" "$root/locks"
-	printf '%s\n' "$1" >"$root/scenario/package.json"
-	printf '%s\n' 'packages:' '  - "."' >"$root/scenario/pnpm-workspace.yaml"
-	if [[ -n "$2" ]]; then
-		printf '%s\n' 'overrides:' "$2" >>"$root/scenario/pnpm-workspace.yaml"
-	fi
-	printf '%s\n' "lockfileVersion: '9.0'" >"$root/scenario/pnpm-lock.yaml"
-	shift 2
+# Writes the manifest of each local package, keyed by attribute name, from
+# which the fake nix packs the package's tarball. The catalogue in
+# npm-packages.nix lists the same packages.
+local_packages() {
+	rm -rf "$FAKE_PACKAGES"
+	while IFS=$'\t' read -r attribute manifest; do
+		mkdir -p "$FAKE_PACKAGES/$attribute"
+		printf '%s\n' "$manifest" >"$FAKE_PACKAGES/$attribute/package.json"
+	done < <(jq -r 'to_entries[] | [.key, (.value | tojson)] | @tsv' <<<"$1")
+}
 
-	local count=0 lock
-	for lock in "$@"; do
-		count=$((count + 1))
-		printf '%s\n' "$lock" >"$root/locks/$count.yaml"
-	done
+default_packages='{
+  "host": {"name": "@scope/host", "version": "2.0.0"},
+  "linked": {"name": "linked", "version": "1.0.0"},
+  "consumer": {"name": "@dotfiles/consumer", "version": "1.0.0", "dependencies": {"@dotfiles/private": "^0.1.0", "other": "^4"}},
+  "private": {"name": "@dotfiles/private", "version": "0.1.0"}
+}'
+for count in $(seq 0 9); do
+	next=$((count + 1))
+	dependencies="{\"chain-$next\": \"^1.0.0\"}"
+	if ((count == 9)); then
+		dependencies='{}'
+	fi
+	default_packages="$(jq --arg name "chain-$count" --argjson dependencies "$dependencies" '. + {($name): {name: $name, version: "1.0.0", dependencies: $dependencies}}' <<<"$default_packages")"
+done
+
+# Starts the project from its manifests, keyed by path, and its
+# pnpm-workspace.yaml. A third argument is the committed pnpm-lock.yaml.
+project() {
+	rm -rf "$root/scenario"
+	mkdir "$root/scenario"
+	while IFS=$'\t' read -r path manifest; do
+		mkdir -p "$root/scenario/$(dirname "$path")"
+		printf '%s\n' "$manifest" >"$root/scenario/$path"
+	done < <(jq -r 'to_entries[] | [.key, (.value | tojson)] | @tsv' <<<"$1")
+	printf '%s\n' "$2" >"$root/scenario/pnpm-workspace.yaml"
+	if (($# > 2)); then
+		printf '%s\n' "$3" >"$root/scenario/pnpm-lock.yaml"
+	fi
+	printf '%s\n' '{' '  dependencyHash = "sha256-old";' '}' >"$root/scenario/package.nix"
+	local_packages "$default_packages"
 }
 
 update() {
-	(cd "$root/scenario" && UPDATE_LOG="$root/calls" PNPM_LOCKS="$root/locks" PNPM_STATES="$root/states" "$updater" "$@")
+	(cd "$root/scenario" && "$updater" "$@")
 }
 
-# Prints the calls as `install`, `update`, `build <attribute>` and
-# `nix-update`.
-calls() {
-	sed -E \
-		-e 's/^pnpm:[^:]*:install --lockfile-only --no-frozen-lockfile --ignore-scripts$/install/' \
-		-e 's/^pnpm:[^:]*:update --recursive --lockfile-only --no-save --ignore-scripts$/update/' \
-		-e 's/^nix:[^:]*:build --no-link --print-out-paths \.#(.*)\.tarball$/build \1/' \
-		-e 's/^nix-update:.*/nix-update/' \
-		"$root/calls"
-}
-
-empty_lock="lockfileVersion: '9.0'"
-
-# The updater rewrites the project's dependencies on local packages and their
-# npm aliases, links the tarballs before relocking, and replaces the stale
-# overrides with one for each local package and each alias. The project's own
-# peer gets no global override.
-project '{
-  "name": "fixture",
-  "dependencies": { "@scope/host": "^1", "alias": "npm:@scope/host@~1", "other": "^4" },
-  "devDependencies": { "linked": "^0", "plain": "npm:linked" },
-  "optionalDependencies": { "scoped": "npm:@scope/host" },
-  "peerDependencies": { "@scope/host": "^1" }
-}' '  other>dependency: "-"
-  "@scope/host": file:.nix-providers/scope-host-1.0.0.tgz
-  gone: file:.nix-providers/gone-1.0.0.tgz' "$empty_lock"
-update
-
-jq --sort-keys . "$root/scenario/package.json" >"$root/actual.json"
-jq --sort-keys . >"$root/expected.json" <<'JSON'
-{
-  "name": "fixture",
-  "dependencies": { "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "alias": "npm:@scope/host@^2.0.0", "other": "^4" },
-  "devDependencies": { "linked": "^1.0.0", "plain": "npm:linked@^1.0.0" },
-  "optionalDependencies": { "scoped": "npm:@scope/host@^2.0.0" },
-  "peerDependencies": { "@scope/host": "^1" }
-}
-JSON
-diff -u "$root/expected.json" "$root/actual.json"
-
-yq -o=json '.' "$root/scenario/pnpm-workspace.yaml" >"$root/actual-workspace.json"
-jq . >"$root/expected-workspace.json" <<'JSON'
-{
-  "packages": ["."],
-  "overrides": {
-    "other>dependency": "-",
-    "alias": "file:.nix-providers/scope-host-2.0.0.tgz",
-    "scoped": "file:.nix-providers/scope-host-2.0.0.tgz",
-    "linked": "file:.nix-providers/linked-1.0.0.tgz",
-    "plain": "file:.nix-providers/linked-1.0.0.tgz"
-  }
-}
-JSON
-diff -u "$root/expected-workspace.json" "$root/actual-workspace.json"
-
-jq -s . "$root/states" >"$root/actual-states.json"
-jq . >"$root/expected-states.json" <<'JSON'
-[
-  {
-    "overrides": {
-      "other>dependency": "-",
-      "alias": "file:.nix-providers/scope-host-2.0.0.tgz",
-      "scoped": "file:.nix-providers/scope-host-2.0.0.tgz",
-      "linked": "file:.nix-providers/linked-1.0.0.tgz",
-      "plain": "file:.nix-providers/linked-1.0.0.tgz"
-    },
-    "links": {
-      "linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz",
-      "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"
-    }
-  }
-]
-JSON
-diff -u "$root/expected-states.json" "$root/actual-states.json"
-
-printf '%s\n' \
-	"nix:$root:build --no-link --print-out-paths .#host.tarball" \
-	"nix:$root:build --no-link --print-out-paths .#linked.tarball" \
-	"pnpm:$root/scenario:install --lockfile-only --no-frozen-lockfile --ignore-scripts" \
-	"nix-update:$root:--flake --override-filename scenario/package.nix --version=skip scenario" >"$root/expected-calls"
-diff -u "$root/expected-calls" "$root/calls"
-
-# A package that no longer uses local packages keeps no empty overrides map.
-project '{"name": "plain", "dependencies": {"other": "^4"}}' '  gone: file:.nix-providers/gone-1.0.0.tgz' "$empty_lock"
-update
-yq -o=json '.' "$root/scenario/pnpm-workspace.yaml" | jq --sort-keys . | diff -u <(printf '%s\n' '{"packages": ["."]}' | jq --sort-keys .) -
-
-# Prints every package.json in the project as one object keyed by path.
-manifests() {
-	(cd "$root/scenario" && find . -name package.json -not -path './.nix-providers/*' | sed 's|^\./||' | LC_ALL=C sort | xargs jq -n --sort-keys '[inputs | {(input_filename): .}] | add')
-}
-
-# Each case lists the project's package.json and overrides, the lockfiles that
-# successive relocks write, the package.json that the update leaves, the
-# overrides and links that each relock sees, and the calls. A case with
-# workspace members also lists the workspace's patterns and the members'
-# manifests before and after the update. A case that passes arguments to the
-# updater lists them.
-for case in private discovered direct-alias transitive-alias peer unchanged workspace followed maintain; do
-	packages='["."]'
-	members='{}'
-	updated_members='{}'
-	arguments=()
-	case "$case" in
-	private)
-		# A private local package has no registry release, so it is linked
-		# and overridden before the first relock.
-		manifest='{"devDependencies": {"@dotfiles/private": "^0.1.0"}}'
-		overrides=''
-		locks=("lockfileVersion: '9.0'
-packages:
-  '@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz':
-    resolution: {integrity: sha512-private, tarball: file:.nix-providers/dotfiles-private-0.1.0.tgz}")
-		updated='{"devDependencies": {"@dotfiles/private": "^0.1.0"}}'
-		states='[
-			{"overrides": {"@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"},
-			 "links": {"dotfiles-private-0.1.0.tgz": "/nix/store/private-tarball/package.tgz"}}
-		]'
-		expected_calls=("build private" install nix-update)
-		;;
-	discovered)
-		# A registry package depends on a local package, which the first
-		# relock resolves from the registry.
-		manifest='{"dependencies": {"consumer": "^1"}}'
-		overrides=''
-		locks=("lockfileVersion: '9.0'
-packages:
-  consumer@1.0.0:
-    resolution: {integrity: sha512-consumer}
-  linked@1.0.0:
-    resolution: {integrity: sha512-linked}
-snapshots:
-  consumer@1.0.0:
-    dependencies:
-      linked: 1.0.0" "lockfileVersion: '9.0'
-packages:
-  consumer@1.0.0:
-    resolution: {integrity: sha512-consumer}
-  linked@file:.nix-providers/linked-1.0.0.tgz:
-    resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/linked-1.0.0.tgz}
-snapshots:
-  consumer@1.0.0:
-    dependencies:
-      linked: file:.nix-providers/linked-1.0.0.tgz")
-		updated="$manifest"
-		states='[
-			{"overrides": {}, "links": {}},
-			{"overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz"}}
-		]'
-		expected_calls=(install "build linked" install nix-update)
-		;;
-	direct-alias)
-		manifest='{"devDependencies": {"old": "npm:linked@^1"}}'
-		overrides=''
-		locks=("lockfileVersion: '9.0'
-importers:
-  .:
-    devDependencies:
-      old:
-        specifier: npm:linked@1.0.0
-        version: linked@file:.nix-providers/linked-1.0.0.tgz
-packages:
-  linked@file:.nix-providers/linked-1.0.0.tgz:
-    resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/linked-1.0.0.tgz}")
-		updated='{"devDependencies": {"old": "npm:linked@^1.0.0"}}'
-		states='[
-			{"overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz", "old": "file:.nix-providers/linked-1.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz"}}
-		]'
-		expected_calls=("build linked" install nix-update)
-		;;
-	transitive-alias)
-		# A registry package depends on an npm alias of a local package.
-		manifest='{"dependencies": {"consumer": "^1"}}'
-		overrides=''
-		locks=("lockfileVersion: '9.0'
-packages:
-  '@scope/host@2.0.0':
-    resolution: {integrity: sha512-host}
-  consumer@1.0.0:
-    resolution: {integrity: sha512-consumer}
-snapshots:
-  consumer@1.0.0:
-    dependencies:
-      renamed: '@scope/host@2.0.0'" "lockfileVersion: '9.0'
-packages:
-  '@scope/host@file:.nix-providers/scope-host-2.0.0.tgz':
-    resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/scope-host-2.0.0.tgz}
-  consumer@1.0.0:
-    resolution: {integrity: sha512-consumer}
-snapshots:
-  consumer@1.0.0:
-    dependencies:
-      renamed: '@scope/host@file:.nix-providers/scope-host-2.0.0.tgz'")
-		updated="$manifest"
-		states='[
-			{"overrides": {}, "links": {}},
-			{"overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "renamed": "file:.nix-providers/scope-host-2.0.0.tgz"},
-			 "links": {"scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
-		]'
-		expected_calls=(install "build host" install nix-update)
-		;;
-	peer)
-		# pnpm turns a global override of the project's own peer into a
-		# production dependency. The project's dependency points at the
-		# tarball, and an override scoped to each dependent package replaces
-		# the registry release.
-		manifest='{"devDependencies": {"@scope/host": "^1"}, "peerDependencies": {"@scope/host": "^1"}}'
-		overrides=''
-		locks=()
-		for host in 2.0.0 file:.nix-providers/scope-host-2.0.0.tgz; do
-			locks+=("lockfileVersion: '9.0'
-importers:
-  .:
-    devDependencies:
-      '@scope/host':
-        specifier: file:.nix-providers/scope-host-2.0.0.tgz
-        version: file:.nix-providers/scope-host-2.0.0.tgz
-snapshots:
-  consumer@1.0.0(peer@1.0.0):
-    dependencies:
-      '@scope/host': $host")
-		done
-		updated='{"devDependencies": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"}, "peerDependencies": {"@scope/host": "^1"}}'
-		states='[
-			{"overrides": {}, "links": {"scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}},
-			{"overrides": {"consumer>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
-			 "links": {"scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
-		]'
-		expected_calls=("build host" install install nix-update)
-		;;
-	unchanged)
-		# The repository's formatter writes double quotes, which the
-		# update keeps.
-		manifest='{"devDependencies": {"@scope/host": "^2.0.0", "linked": "^1.0.0"}}'
-		overrides='  "@scope/host": file:.nix-providers/scope-host-2.0.0.tgz
-  linked: file:.nix-providers/linked-1.0.0.tgz'
-		locks=("lockfileVersion: '9.0'
-packages:
-  '@scope/host@file:.nix-providers/scope-host-2.0.0.tgz':
-    resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/scope-host-2.0.0.tgz}
-  linked@file:.nix-providers/linked-1.0.0.tgz:
-    resolution: {integrity: sha512-tarball, tarball: file:.nix-providers/linked-1.0.0.tgz}")
-		updated="$manifest"
-		states='[
-			{"overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "linked": "file:.nix-providers/linked-1.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
-		]'
-		expected_calls=("build host" "build linked" install nix-update)
-		;;
-	workspace)
-		# pnpm-workspace.yaml lists the members. A negated pattern excludes
-		# a member.
-		manifest='{"name": "workspace"}'
-		packages='["packages/*", "!packages/ignored"]'
-		members='{
-			"packages/app/package.json": {"dependencies": {"linked": "^0"}},
-			"packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host"}},
-			"packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
-		}'
-		overrides=''
-		locks=("$empty_lock")
-		updated="$manifest"
-		updated_members='{
-			"packages/app/package.json": {"dependencies": {"linked": "^1.0.0"}},
-			"packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host@^2.0.0"}},
-			"packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
-		}'
-		states='[
-			{"overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "renamed": "file:.nix-providers/scope-host-2.0.0.tgz", "linked": "file:.nix-providers/linked-1.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
-		]'
-		expected_calls=("build host" "build linked" install nix-update)
-		;;
-	followed)
-		# A local package from this repository depends on a private local
-		# package, which has no registry release for the relock to find.
-		manifest='{"dependencies": {"@dotfiles/consumer": "^1.0.0"}}'
-		overrides=''
-		locks=("$empty_lock")
-		updated="$manifest"
-		states='[
-			{"overrides": {"@dotfiles/consumer": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz", "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"},
-			 "links": {"dotfiles-consumer-1.0.0.tgz": "/nix/store/consumer-tarball/package.tgz", "dotfiles-private-0.1.0.tgz": "/nix/store/private-tarball/package.tgz"}}
-		]'
-		expected_calls=("build consumer" "build private" install nix-update)
-		;;
-	maintain)
-		# Lockfile maintenance resolves the first relock with `pnpm update`.
-		# The other overrides, the provider overrides and the scoped override
-		# for the project's peer remain as in a normal update.
-		arguments=(--maintain-lockfile)
-		manifest='{"devDependencies": {"@scope/host": "^1", "linked": "^1"}, "peerDependencies": {"@scope/host": "^1"}}'
-		overrides='  other>dependency: "-"'
-		locks=()
-		for host in 2.0.0 file:.nix-providers/scope-host-2.0.0.tgz; do
-			locks+=("lockfileVersion: '9.0'
-snapshots:
-  consumer@1.0.0(peer@1.0.0):
-    dependencies:
-      '@scope/host': $host")
-		done
-		updated='{"devDependencies": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz", "linked": "^1.0.0"}, "peerDependencies": {"@scope/host": "^1"}}'
-		states='[
-			{"overrides": {"other>dependency": "-", "linked": "file:.nix-providers/linked-1.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}},
-			{"overrides": {"other>dependency": "-", "linked": "file:.nix-providers/linked-1.0.0.tgz", "consumer>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
-			 "links": {"linked-1.0.0.tgz": "/nix/store/linked-tarball/package.tgz", "scope-host-2.0.0.tgz": "/nix/store/host-tarball/package.tgz"}}
-		]'
-		expected_calls=("build host" "build linked" update install nix-update)
-		;;
-	esac
-
-	project "$manifest" "$overrides" "${locks[@]}"
-	packages="$packages" yq -i '.packages = env(packages)' "$root/scenario/pnpm-workspace.yaml"
-	while IFS=$'\t' read -r path member; do
-		mkdir -p "$root/scenario/${path%/*}"
-		printf '%s\n' "$member" >"$root/scenario/$path"
-	done < <(jq -r 'to_entries[] | [.key, (.value | tojson)] | @tsv' <<<"$members")
-	cp "$root/scenario/pnpm-workspace.yaml" "$root/workspace-before.yaml"
-	update "${arguments[@]}"
-
-	jq -n --sort-keys --argjson root "$updated" --argjson members "$updated_members" '{"package.json": $root} + $members' | diff -u - <(manifests)
-	jq --sort-keys . <<<"$states" | diff -u - <(jq -s --sort-keys . "$root/states")
-	printf '%s\n' "${expected_calls[@]}" | diff -u - <(calls)
-	if [[ "$case" == unchanged ]]; then
-		diff -u "$root/workspace-before.yaml" "$root/scenario/pnpm-workspace.yaml"
-	fi
-done
-
-# A lockfile that adds another npm alias of a local package after every relock
-# stops the update.
-locks=()
-for count in $(seq 10); do
-	locks+=("lockfileVersion: '9.0'
-snapshots:
-  consumer@1.0.0:
-    dependencies:
-      alias-$count: linked@1.0.0")
-done
-project '{"dependencies": {"consumer": "^1"}}' '' "${locks[@]}"
-if update 2>"$root/unstable.log"; then
-	echo 'A lockfile that never stops changing must stop the update.' >&2
-	exit 1
-fi
-printf '%s\n' 'Relocking still added local npm packages after 10 rounds.' | diff -u - "$root/unstable.log"
-
-# A direct dependency moves to the exact version that a local package installs,
-# so pnpm installs one copy, with one set of module state.
-lock() {
-	local direct="$1"
-	shift
-
-	cat <<EOF
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    devDependencies:
-      '@scope/tui':
-        specifier: $direct
-        version: $direct(peer@1.0.0)
-      other:
-        specifier: ^4
-        version: 4.1.0
-
-snapshots:
-EOF
-	while (($# > 0)); do
-		cat <<EOF
-
-  '$1@file:.nix-providers/$1.tgz(peer@1.0.0)':
-    dependencies:
-      '@scope/tui': $2(peer@1.0.0)
-      alias: other@4.1.0
-      other: 4.1.0
-EOF
-		shift 2
+# Prints the project as one object: its manifests keyed by path, its workspace,
+# its lockfile, the links in `.nix-providers`, and whether package.nix has the
+# lockfile's hash.
+state() {
+	cd "$root/scenario"
+	local manifests links hash
+	manifests="$(find . -name package.json -not -path './.nix-providers/*' | sed 's|^\./||' | LC_ALL=C sort | xargs jq -n '[inputs | {(input_filename): .}] | add')"
+	links='{}'
+	shopt -s nullglob
+	for link in .nix-providers/*; do
+		links="$(jq --arg file "${link##*/}" --arg target "$(readlink "$link")" --arg store "$FAKE_STORE/" '. + {($file): ($target | ltrimstr($store))}' <<<"$links")"
 	done
+	shopt -u nullglob
+	hash="$(sha256sum pnpm-lock.yaml | cut -d ' ' -f 1)"
+	jq -n --sort-keys \
+		--argjson manifests "$manifests" \
+		--argjson workspace "$(yq -o=json . pnpm-workspace.yaml)" \
+		--argjson lockfile "$(yq -o=json . pnpm-lock.yaml)" \
+		--argjson links "$links" \
+		--argjson hashed "$(grep -qF "dependencyHash = \"sha256-$hash\";" package.nix && echo true || echo false)" \
+		'{$manifests, $workspace, $lockfile, $links, $hashed}'
+	cd - >/dev/null
 }
 
-# `--refresh` updates as no argument does, and lockfile maintenance starts with
-# `pnpm update`.
-tui='{"name": "scenario", "devDependencies": {"@scope/tui": "^1.0.0", "other": "^4"}}'
+expect() {
+	jq --sort-keys . | diff -u - <(state)
+}
+
+workspace='packages:
+  - "."'
+
+# The updater points the manifests' dependencies on local packages and their npm
+# aliases at caret ranges of the local versions, and the project's own peer at
+# its tarball. It replaces the stale provider overrides with one for each local
+# package and each alias, and keeps the other overrides.
+project '{"package.json": {
+  "name": "fixture",
+  "dependencies": {"@scope/host": "^1", "alias": "npm:@scope/host@~1", "other": "^4"},
+  "devDependencies": {"linked": "^0", "plain": "npm:linked"},
+  "optionalDependencies": {"scoped": "npm:@scope/host"},
+  "peerDependencies": {"@scope/host": "^1"}
+}}' "$workspace"'
+overrides:
+  other>dependency: "-"
+  "@scope/host": file:.nix-providers/scope-host-1.0.0.tgz
+  gone: file:.nix-providers/gone-1.0.0.tgz'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "dependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "alias": {
+            "specifier": "npm:@scope/host@^2.0.0",
+            "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "other": {"specifier": "^4", "version": "4.1.0"}
+        },
+        "devDependencies": {
+          "linked": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          },
+          "plain": {
+            "specifier": "npm:linked@^1.0.0",
+            "version": "linked@file:.nix-providers/linked-1.0.0.tgz"
+          }
+        },
+        "optionalDependencies": {
+          "scoped": {
+            "specifier": "npm:@scope/host@^2.0.0",
+            "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "alias": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "other>dependency": "-",
+      "plain": "file:.nix-providers/linked-1.0.0.tgz",
+      "scoped": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "leaf@1.1.0": {"resolution": {"integrity": "sha512-leaf-1.1.0"}},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      },
+      "other@4.1.0": {"resolution": {"integrity": "sha512-other-4.1.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "leaf@1.1.0": {},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {},
+      "other@4.1.0": {"dependencies": {"leaf": "1.1.0"}}
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "dependencies": {
+        "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+        "alias": "npm:@scope/host@^2.0.0",
+        "other": "^4"
+      },
+      "devDependencies": {"linked": "^1.0.0", "plain": "npm:linked@^1.0.0"},
+      "name": "fixture",
+      "optionalDependencies": {"scoped": "npm:@scope/host@^2.0.0"},
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "alias": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "other>dependency": "-",
+      "plain": "file:.nix-providers/linked-1.0.0.tgz",
+      "scoped": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# A project that no longer uses local packages keeps no empty overrides map.
+project '{"package.json": {"name": "plain", "dependencies": {"other": "^4"}}}' "$workspace"'
+overrides:
+  gone: file:.nix-providers/gone-1.0.0.tgz'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {},
+  "lockfile": {
+    "importers": {
+      ".": {"dependencies": {"other": {"specifier": "^4", "version": "4.1.0"}}}
+    },
+    "lockfileVersion": "9.0",
+    "packages": {
+      "leaf@1.1.0": {"resolution": {"integrity": "sha512-leaf-1.1.0"}},
+      "other@4.1.0": {"resolution": {"integrity": "sha512-other-4.1.0"}}
+    },
+    "snapshots": {
+      "leaf@1.1.0": {},
+      "other@4.1.0": {"dependencies": {"leaf": "1.1.0"}}
+    }
+  },
+  "manifests": {
+    "package.json": {"dependencies": {"other": "^4"}, "name": "plain"}
+  },
+  "workspace": {"packages": ["."]}
+}
+JSON
+
+# A private local package has no registry release, so the updater links and
+# overrides it before the first relock.
+project '{"package.json": {"devDependencies": {"@dotfiles/private": "^0.1.0"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"dotfiles-private-0.1.0.tgz": "private-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@dotfiles/private": {
+            "specifier": "^0.1.0",
+            "version": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+    },
+    "packages": {
+      "@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz": {
+        "resolution": {
+          "tarball": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+        }
+      }
+    },
+    "snapshots": {
+      "@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz": {}
+    }
+  },
+  "manifests": {
+    "package.json": {"devDependencies": {"@dotfiles/private": "^0.1.0"}}
+  },
+  "workspace": {
+    "overrides": {
+      "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# A local package from this repository depends on a private local package, which
+# the first relock could not resolve either.
+project '{"package.json": {"dependencies": {"@dotfiles/consumer": "^1.0.0"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "dotfiles-consumer-1.0.0.tgz": "consumer-tarball/package.tgz",
+    "dotfiles-private-0.1.0.tgz": "private-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "dependencies": {
+          "@dotfiles/consumer": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@dotfiles/consumer": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz",
+      "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+    },
+    "packages": {
+      "@dotfiles/consumer@file:.nix-providers/dotfiles-consumer-1.0.0.tgz": {
+        "resolution": {
+          "tarball": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz"
+        }
+      },
+      "@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz": {
+        "resolution": {
+          "tarball": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+        }
+      },
+      "leaf@1.1.0": {"resolution": {"integrity": "sha512-leaf-1.1.0"}},
+      "other@4.1.0": {"resolution": {"integrity": "sha512-other-4.1.0"}}
+    },
+    "snapshots": {
+      "@dotfiles/consumer@file:.nix-providers/dotfiles-consumer-1.0.0.tgz": {
+        "dependencies": {
+          "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz",
+          "other": "4.1.0"
+        }
+      },
+      "@dotfiles/private@file:.nix-providers/dotfiles-private-0.1.0.tgz": {},
+      "leaf@1.1.0": {},
+      "other@4.1.0": {"dependencies": {"leaf": "1.1.0"}}
+    }
+  },
+  "manifests": {
+    "package.json": {"dependencies": {"@dotfiles/consumer": "^1.0.0"}}
+  },
+  "workspace": {
+    "overrides": {
+      "@dotfiles/consumer": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz",
+      "@dotfiles/private": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# A registry package depends on a local package, and the first relock resolves
+# the local package's registry release.
+project '{"package.json": {"dependencies": {"uses-linked": "^1"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"linked-1.0.0.tgz": "linked-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "dependencies": {"uses-linked": {"specifier": "^1", "version": "1.0.0"}}
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": {
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      },
+      "uses-linked@1.0.0": {
+        "resolution": {"integrity": "sha512-uses-linked-1.0.0"}
+      }
+    },
+    "snapshots": {
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {},
+      "uses-linked@1.0.0": {
+        "dependencies": {"linked": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    }
+  },
+  "manifests": {"package.json": {"dependencies": {"uses-linked": "^1"}}},
+  "workspace": {
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": ["."]
+  }
+}
+JSON
+
+# An npm alias of a local package in the manifest.
+project '{"package.json": {"devDependencies": {"old": "npm:linked@^1"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"linked-1.0.0.tgz": "linked-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "old": {
+            "specifier": "npm:linked@^1.0.0",
+            "version": "linked@file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "old": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": {
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {"linked@file:.nix-providers/linked-1.0.0.tgz": {}}
+  },
+  "manifests": {
+    "package.json": {"devDependencies": {"old": "npm:linked@^1.0.0"}}
+  },
+  "workspace": {
+    "overrides": {
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "old": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# A registry package depends on an npm alias of a local package.
+project '{"package.json": {"dependencies": {"uses-alias": "^1"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "dependencies": {"uses-alias": {"specifier": "^1", "version": "1.0.0"}}
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "renamed": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "uses-alias@1.0.0": {
+        "resolution": {"integrity": "sha512-uses-alias-1.0.0"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "uses-alias@1.0.0": {
+        "dependencies": {
+          "renamed": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
+        }
+      }
+    }
+  },
+  "manifests": {"package.json": {"dependencies": {"uses-alias": "^1"}}},
+  "workspace": {
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "renamed": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# pnpm turns a global override of the project's own peer into a production
+# dependency. The project's dependency points at the tarball, and an override
+# scoped to each dependent package replaces the registry release.
+project '{"package.json": {
+  "devDependencies": {"@scope/host": "^1", "uses-host": "^1"},
+  "peerDependencies": {"@scope/host": "^1"}
+}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "uses-host": {"specifier": "^1", "version": "1.0.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "uses-host@1.0.0": {"resolution": {"integrity": "sha512-uses-host-1.0.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "uses-host@1.0.0": {
+        "dependencies": {
+          "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+        }
+      }
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {
+        "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+        "uses-host": "^1"
+      },
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
+# pnpm-workspace.yaml lists the members. A negated pattern excludes a member.
+project '{
+  "package.json": {"name": "workspace"},
+  "packages/app/package.json": {"dependencies": {"linked": "^0"}},
+  "packages/tool/package.json": {"devDependencies": {"renamed": "npm:@scope/host"}},
+  "packages/ignored/package.json": {"dependencies": {"@dotfiles/private": "^0.1.0"}}
+}' 'packages:
+  - "packages/*"
+  - "!packages/ignored"'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {},
+      "packages/app": {
+        "dependencies": {
+          "linked": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      },
+      "packages/tool": {
+        "devDependencies": {
+          "renamed": {
+            "specifier": "npm:@scope/host@^2.0.0",
+            "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "renamed": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {}
+    }
+  },
+  "manifests": {
+    "package.json": {"name": "workspace"},
+    "packages/app/package.json": {"dependencies": {"linked": "^1.0.0"}},
+    "packages/ignored/package.json": {
+      "dependencies": {"@dotfiles/private": "^0.1.0"}
+    },
+    "packages/tool/package.json": {
+      "devDependencies": {"renamed": "npm:@scope/host@^2.0.0"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "renamed": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["packages/*", "!packages/ignored"]
+  }
+}
+JSON
+
+# The repository's formatter writes double quotes, and a second update changes
+# nothing.
+project '{"package.json": {"devDependencies": {"@scope/host": "^2.0.0", "linked": "^1.0.0"}}}' "$workspace"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "^2.0.0",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "linked": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {}
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {"@scope/host": "^2.0.0", "linked": "^1.0.0"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+rm -rf "$root/first"
+cp -R "$root/scenario" "$root/first"
+update
+diff -r -u "$root/first" "$root/scenario"
+printf '%s\n' "$workspace" 'overrides:' '  "@scope/host": file:.nix-providers/scope-host-2.0.0.tgz' '  linked: file:.nix-providers/linked-1.0.0.tgz' | diff -u - "$root/scenario/pnpm-workspace.yaml"
+
+# A normal relock, with or without `--refresh`, keeps the locked versions that
+# still satisfy their ranges. Lockfile maintenance moves every dependency,
+# direct and transitive, to the newest version in its range, and the provider
+# overrides, the scoped override for the project's peer and the other overrides
+# remain as in a normal update.
 for mode in default --refresh --maintain-lockfile; do
 	arguments=()
-	first=install
+	other=4.0.0
+	leaf=1.0.0
 	case "$mode" in
-	default)
-		;;
+	default) ;;
 	--refresh)
 		arguments=(--refresh)
 		;;
 	--maintain-lockfile)
 		arguments=(--maintain-lockfile)
-		first=update
+		other=4.1.0
+		leaf=1.1.0
 		;;
 	esac
 
-	project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.1.0 host 1.1.0)"
+	project '{"package.json": {
+  "devDependencies": {"@scope/host": "^1", "linked": "^1", "other": "^4", "uses-host": "^1"},
+  "peerDependencies": {"@scope/host": "^1"}
+}}' "$workspace"'
+overrides:
+  other>dependency: "-"' "lockfileVersion: '9.0'
+importers:
+  .:
+    devDependencies:
+      other: {specifier: ^4, version: 4.0.0}
+snapshots:
+  other@4.0.0:
+    dependencies:
+      leaf: 1.0.0"
 	update "${arguments[@]}"
-	jq -c .devDependencies "$root/scenario/package.json" | diff -u <(printf '%s\n' '{"@scope/tui":"1.1.0","other":"^4"}') -
-	printf '%s\n' "$first" install nix-update | diff -u - <(calls)
+	expect <<JSON
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "linked": {
+            "specifier": "^1.0.0",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          },
+          "other": {"specifier": "^4", "version": "$other"},
+          "uses-host": {"specifier": "^1", "version": "1.0.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "other>dependency": "-",
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "leaf@$leaf": {"resolution": {"integrity": "sha512-leaf-$leaf"}},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      },
+      "other@$other": {"resolution": {"integrity": "sha512-other-$other"}},
+      "uses-host@1.0.0": {"resolution": {"integrity": "sha512-uses-host-1.0.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "leaf@$leaf": {},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {},
+      "other@$other": {"dependencies": {"leaf": "$leaf"}},
+      "uses-host@1.0.0": {
+        "dependencies": {
+          "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+        }
+      }
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {
+        "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+        "linked": "^1.0.0",
+        "other": "^4",
+        "uses-host": "^1"
+      },
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "linked": "file:.nix-providers/linked-1.0.0.tgz",
+      "other>dependency": "-",
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
 done
 
-# Any other argument stops the updater before it changes anything.
-project "$tui" '' "$(lock 1.0.0 host 1.1.0)"
-if update --unknown 2>"$root/usage.log"; then
-	echo 'An unknown argument must stop the update.' >&2
+# A chain of local packages, each found only after the previous relock, stops
+# the update after 10 rounds.
+project '{"package.json": {"dependencies": {"chain-start": "^1"}}}' "$workspace"
+if update 2>"$root/unstable.log"; then
+	echo 'A relock that keeps finding local packages must stop the update.' >&2
 	exit 1
 fi
-printf '%s\n' 'Usage: update-scenario [--refresh | --maintain-lockfile]' | diff -u - "$root/usage.log"
-if [[ -e "$root/calls" ]]; then
-	echo 'An unknown argument must stop the update before it runs any command.' >&2
-	exit 1
-fi
+printf '%s\n' 'Relocking still added local npm packages after 10 rounds.' | diff -u - "$root/unstable.log"
 
-# The guard also moves a workspace member's direct dependency.
-member_lock() {
-	cat <<EOF
-lockfileVersion: '9.0'
-
-importers:
-
-  .: {}
-
-  packages/app:
-    dependencies:
-      '@scope/tui':
-        specifier: $1
-        version: $1
-
-snapshots:
-
-  'host@file:.nix-providers/host.tgz':
-    dependencies:
-      '@scope/tui': 1.1.0
-EOF
+# A local package installs @scope/tui 1.1.0, and the project's range resolves
+# another version. The direct dependency moves to the exact version, so pnpm
+# installs one copy, with one set of module state. The guard covers the
+# workspace members too.
+#
+# Prints a lockfile in which the given importer locks @scope/tui 1.0.0.
+tui_lock() {
+	printf '%s\n' "lockfileVersion: '9.0'" 'importers:' "  $1:" "    $2:" "      '@scope/tui': {specifier: ^1.0.0, version: 1.0.0}"
 }
-project '{"name": "workspace"}' '' "$(member_lock 1.0.0)" "$(member_lock 1.1.0)"
-yq -i '.packages = ["packages/*"]' "$root/scenario/pnpm-workspace.yaml"
-mkdir -p "$root/scenario/packages/app"
-printf '%s\n' '{"dependencies": {"@scope/tui": "^1.0.0"}}' >"$root/scenario/packages/app/package.json"
+host_tui="$(jq '.host.dependencies = {"@scope/tui": "1.1.0"}' <<<"$default_packages")"
+project '{"package.json": {"devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "^1.0.0"}}}' "$workspace" "$(tui_lock . devDependencies)"
+local_packages "$host_tui"
 update
-jq -n --sort-keys '{"package.json": {"name": "workspace"}, "packages/app/package.json": {"dependencies": {"@scope/tui": "1.1.0"}}}' | diff -u - <(manifests)
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "^2.0.0",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "@scope/tui": {"specifier": "1.1.0", "version": "1.1.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "@scope/tui@1.1.0": {
+        "resolution": {"integrity": "sha512-@scope/tui-1.1.0"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "dependencies": {"@scope/tui": "1.1.0"}
+      },
+      "@scope/tui@1.1.0": {}
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "1.1.0"}
+    }
+  },
+  "workspace": {
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": ["."]
+  }
+}
+JSON
 
-# Local packages that need different versions of a direct dependency, an exact
-# version that syncpack would reject, and a relock that still installs two
-# copies stop the update.
+project '{
+  "package.json": {"devDependencies": {"@scope/host": "^2.0.0"}},
+  "packages/app/package.json": {"dependencies": {"@scope/tui": "^1.0.0"}}
+}' 'packages:
+  - "packages/*"' "$(tui_lock packages/app dependencies)"
+local_packages "$host_tui"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "^2.0.0",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          }
+        }
+      },
+      "packages/app": {
+        "dependencies": {
+          "@scope/tui": {"specifier": "1.1.0", "version": "1.1.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "@scope/tui@1.1.0": {
+        "resolution": {"integrity": "sha512-@scope/tui-1.1.0"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "dependencies": {"@scope/tui": "1.1.0"}
+      },
+      "@scope/tui@1.1.0": {}
+    }
+  },
+  "manifests": {
+    "package.json": {"devDependencies": {"@scope/host": "^2.0.0"}},
+    "packages/app/package.json": {"dependencies": {"@scope/tui": "1.1.0"}}
+  },
+  "workspace": {
+    "overrides": {"@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"},
+    "packages": ["packages/*"]
+  }
+}
+JSON
+
+# The guard stops the update when local packages need different versions, when
+# syncpack would reject the exact version, and when pnpm still installs a second
+# copy after the guard has run.
 for case in conflict syncpack persistent; do
-	cp "$root/.syncpackrc.json" "$root/syncpackrc.json"
+	manifest='{"devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "^1.0.0"}}'
+	packages="$host_tui"
 	case "$case" in
 	conflict)
-		project "$tui" '' "$(lock 1.0.0 host 1.1.0 linked 1.2.0)"
+		manifest='{"devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "^1.0.0", "linked": "^1.0.0"}}'
+		packages="$(jq '.linked.dependencies = {"@scope/tui": "1.2.0"}' <<<"$host_tui")"
 		expected='Local packages need different versions of @scope/tui: 1.1.0 1.2.0'
 		;;
 	syncpack)
-		printf '%s\n' '{"semverGroups": [{"range": "^"}]}' >"$root/.syncpackrc.json"
-		project "$tui" '' "$(lock 1.0.0 host 1.1.0)"
-		expected='@scope/tui needs the exact version 1.1.0, which a local package installs, but .syncpackrc.json allows exact versions only for the dependencies in its semver group with "range": "". Add @scope/tui to that group.'
+		packages="$(jq '.host.dependencies = {"leaf": "1.0.0"}' <<<"$default_packages")"
+		manifest='{"devDependencies": {"@scope/host": "^2.0.0", "leaf": "^1.0.0"}}'
+		expected='leaf needs the exact version 1.0.0, which a local package installs, but .syncpackrc.json allows exact versions only for the dependencies in its semver group with "range": "". Add leaf to that group.'
 		;;
 	persistent)
-		project "$tui" '' "$(lock 1.0.0 host 1.1.0)" "$(lock 1.0.0 host 1.1.0)"
+		manifest='{"devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "npm:@scope/tui@^1.0.0"}}'
 		expected='pnpm still installs a second copy of @scope/tui beside a local package.'
 		;;
 	esac
+	project "{\"package.json\": $manifest}" "$workspace" "$(tui_lock . devDependencies)"
+	local_packages "$packages"
 	if update 2>"$root/$case.log"; then
 		printf 'The %s case must stop the update.\n' "$case" >&2
 		exit 1
 	fi
 	printf '%s\n' "$expected" | diff -u - "$root/$case.log"
-	mv "$root/syncpackrc.json" "$root/.syncpackrc.json"
 done
+
+# Any other argument stops the updater before it changes anything.
+project '{"package.json": {"devDependencies": {"linked": "^0"}}}' "$workspace"
+cp -R "$root/scenario" "$root/before"
+if update --unknown 2>"$root/usage.log"; then
+	echo 'An unknown argument must stop the update.' >&2
+	exit 1
+fi
+printf '%s\n' 'Usage: update-scenario [--refresh | --maintain-lockfile]' | diff -u - "$root/usage.log"
+diff -r -u "$root/before" "$root/scenario"

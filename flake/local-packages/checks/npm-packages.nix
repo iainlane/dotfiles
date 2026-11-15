@@ -50,54 +50,57 @@ in
   {pkgs, ...}:
     (
       let
-        command = name:
-          pkgs.writeShellApplication {
-            inherit name;
-            text = ''printf '${name}:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"'';
-          };
-        # `nix build .#<attribute>.tarball` prints `/nix/store/<attribute>-tarball`.
+        # `nix build .#<attribute>.tarball` packs `$FAKE_PACKAGES/<attribute>`
+        # into `$FAKE_STORE/<attribute>-tarball/package.tgz`.
         nix = pkgs.writeShellApplication {
           name = "nix";
+          runtimeInputs = [pkgs.gnutar pkgs.gzip];
           text = ''
-            printf 'nix:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"
-
-            installable="''${!#}"
-            attribute="''${installable#.#}"
-            printf '/nix/store/%s-tarball\n' "''${attribute%.tarball}"
+            if (($# != 4)) || [[ "$1 $2 $3" != "build --no-link --print-out-paths" || "$4" != .#*.tarball ]]; then
+              echo "The fake nix does not support: $*" >&2
+              exit 1
+            fi
+            attribute="''${4#.#}"
+            attribute="''${attribute%.tarball}"
+            output="$FAKE_STORE/$attribute-tarball"
+            mkdir -p "$output"
+            tar -czf "$output/package.tgz" -C "$FAKE_PACKAGES" --transform "s|^$attribute|package|" "$attribute"
+            printf '%s\n' "$output"
+          '';
+        };
+        # Writes the SHA-256 of the package's pnpm-lock.yaml as its
+        # `dependencyHash`.
+        nix-update = pkgs.writeShellApplication {
+          name = "nix-update";
+          runtimeInputs = [pkgs.coreutils pkgs.gnused];
+          text = ''
+            file=""
+            while (($# > 0)); do
+              if [[ "$1" == --override-filename ]]; then
+                file="$2"
+              fi
+              shift
+            done
+            hash="$(sha256sum "$(dirname "$file")/pnpm-lock.yaml" | cut -d ' ' -f 1)"
+            sed -i -E "s|dependencyHash = \"[^\"]*\";|dependencyHash = \"sha256-$hash\";|" "$file"
           '';
         };
         updaters = pkgs.callPackage ../../../pkgs/build-support/updaters.nix {
-          nix-update = command "nix-update";
-          inherit nix;
+          inherit nix nix-update;
         };
-        # Each call records the overrides and the links in `.nix-providers` as a
-        # line in `$PNPM_STATES`, and copies the next lockfile from
-        # `$PNPM_LOCKS`.
         pnpm = pkgs.writeShellApplication {
           name = "pnpm";
-          runtimeInputs = [pkgs.jq pkgs.yq-go];
-          text = ''
-            printf 'pnpm:%s:%s\n' "$PWD" "$*" >>"$UPDATE_LOG"
-
-            shopt -s nullglob
-            links='{}'
-            for link in .nix-providers/*; do
-              links="$(jq -c --arg file "''${link##*/}" --arg target "$(readlink "$link")" '. + {($file): $target}' <<<"$links")"
-            done
-            yq -o=json '.overrides // {}' pnpm-workspace.yaml | jq -c --argjson links "$links" '{overrides: ., links: $links}' >>"$PNPM_STATES"
-
-            count=$(($(cat "$PNPM_LOCKS/count" 2>/dev/null || echo 0) + 1))
-            echo "$count" >"$PNPM_LOCKS/count"
-            cp "$PNPM_LOCKS/$count.yaml" pnpm-lock.yaml
-          '';
+          runtimeInputs = [pkgs.python3 pkgs.yq-go];
+          text = ''exec python3 ${../../../pkgs/build-support/fake-pnpm.py} "$@"'';
         };
         updater = updaters.mkPnpmLockUpdater {
           pname = "scenario";
           directory = "scenario";
-          catalogue = npmPackages.pnpmCatalogue {
-            inherit consumer host linked;
-            private = producer "@dotfiles/private" "0.1.0";
-          };
+          catalogue = npmPackages.pnpmCatalogue ({
+              inherit consumer host linked;
+              private = producer "@dotfiles/private" "0.1.0";
+            }
+            // lib.genAttrs (map (count: "chain-${toString count}") (lib.range 0 9)) (name: producer name "1.0.0"));
           inherit pnpm;
         };
         assertions =
@@ -292,10 +295,13 @@ in
         checks.npm-packages =
           pkgs.runCommandLocal "npm-packages" {
             inherit report;
-            nativeBuildInputs = [pkgs.nodejs_24 pkgs.gitMinimal pkgs.jq pkgs.yq-go pkgs.diffutils];
+            nativeBuildInputs = [pkgs.nodejs_24 pkgs.gitMinimal pkgs.jq pkgs.yq-go pkgs.diffutils pkgs.pyright pkgs.ruff];
             passthru.ci.runOnce = true;
           } ''
             if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
+            ruff check ${../../../pkgs/build-support/fake-pnpm.py}
+            ruff format --check ${../../../pkgs/build-support/fake-pnpm.py}
+            pyright ${../../../pkgs/build-support/fake-pnpm.py}
             bash ${../../../pkgs/build-support/pnpm-providers.test.bash} ${../../../pkgs/build-support/pnpm-providers.bash}
             bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
             touch "$out"
