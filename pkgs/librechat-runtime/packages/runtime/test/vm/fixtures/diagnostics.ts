@@ -1,10 +1,27 @@
 import { basename } from "node:path";
-import {
-  errorDiagnostic,
-  redactDiagnostic,
-} from "@dotfiles/librechat-runtime/diagnostics";
+import { z } from "zod";
+import { errorDiagnostic } from "@dotfiles/librechat-runtime/diagnostics";
+import { diagnosticSink } from "@dotfiles/librechat-runtime/logging";
 import type { ProcessOutput } from "@dotfiles/librechat-runtime/processes";
 import type { VmRuntime } from "@dotfiles/librechat-runtime/qemu";
+
+function redactDiagnostic(text: string, secrets: readonly string[]): string {
+  let line = "";
+  diagnosticSink({
+    write: (formatted) => {
+      line = formatted;
+    },
+    secrets,
+  })({
+    category: ["librechat"],
+    level: "debug",
+    timestamp: 0,
+    rawMessage: text,
+    message: [text],
+    properties: {},
+  });
+  return z.object({ message: z.string() }).parse(JSON.parse(line)).message;
+}
 
 type WorkspaceStage =
   | "startup"

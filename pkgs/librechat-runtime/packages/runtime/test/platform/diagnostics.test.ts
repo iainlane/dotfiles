@@ -1,8 +1,9 @@
 import { expect, it } from "vitest";
-import {
-  errorDiagnostic,
-  redactDiagnostic,
-} from "#runtime/platform/diagnostics";
+import { errorDiagnostic } from "#runtime/platform/diagnostics";
+
+function failure(message: string): Error {
+  return Object.assign(new Error(message), { stack: undefined });
+}
 
 it.each([
   ["Bearer private-value", "Bearer [redacted]"],
@@ -30,7 +31,10 @@ it.each([
     "[redacted private key]",
   ],
 ])("redacts conventional credential text in %s", (input, expected) => {
-  expect(redactDiagnostic(input)).toBe(expected);
+  expect(errorDiagnostic(failure(input))).toStrictEqual({
+    name: "Error",
+    message: expected,
+  });
 });
 
 it.each([
@@ -74,7 +78,10 @@ it.each([
   "http://[::1])",
   "https://[2001:db8::1],",
 ])("preserves ordinary diagnostic URL text: %s", (message) => {
-  expect(redactDiagnostic(message)).toBe(message);
+  expect(errorDiagnostic(failure(message))).toStrictEqual({
+    name: "Error",
+    message,
+  });
 });
 
 it.each([
@@ -148,9 +155,12 @@ it.each([
   "masks intersecting known credentials in either registration order",
   (first, second, text) => {
     expect([
-      redactDiagnostic(text, [first, second]),
-      redactDiagnostic(text, [second, first]),
-    ]).toStrictEqual(["[redacted]", "[redacted]"]);
+      errorDiagnostic(failure(text), [first, second]),
+      errorDiagnostic(failure(text), [second, first]),
+    ]).toStrictEqual([
+      { name: "Error", message: "[redacted]" },
+      { name: "Error", message: "[redacted]" },
+    ]);
   },
 );
 

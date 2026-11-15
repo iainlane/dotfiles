@@ -97,7 +97,7 @@ export class BootstrapAgentOwnerError extends Error {
   }
 }
 
-export function personalAgentId(provider: string): string {
+function personalAgentId(provider: string): string {
   return `agent_${createHash("sha256").update(`dotfiles-librechat:${provider}`).digest("hex").slice(0, 21)}`;
 }
 

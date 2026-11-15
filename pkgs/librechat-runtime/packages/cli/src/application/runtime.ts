@@ -31,7 +31,7 @@ function environmentSecrets(
     );
 }
 
-export class RuntimeErrorPolicy {
+class RuntimeErrorPolicy {
   private readonly commands: ErrorReporter;
   private readonly services: ErrorReporter;
 

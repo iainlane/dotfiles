@@ -10,7 +10,7 @@ interface ErrorDiagnostic {
   errors?: ErrorDiagnostic[];
 }
 
-export function redactDiagnostic(
+function redactDiagnostic(
   text: string,
   secrets: readonly string[] = [],
 ): string {

@@ -1,6 +1,5 @@
 import { expect, it } from "vitest";
 import { GuestOperationError } from "#cli/application/errors";
-import { RuntimeErrorPolicy } from "#cli/application/runtime";
 import { ErrorReporter } from "#cli/presentation/errors";
 import { testLogger } from "./logging.ts";
 
@@ -24,12 +23,14 @@ it("redacts secrets registered after startup before projecting and truncating er
   const output: string[] = [];
   const logger = testLogger((text) => output.push(text));
   const secrets = ["fixture-environment-secret"];
-  const policy = new RuntimeErrorPolicy(
-    { FIXTURE_PASSWORD: secrets[0] },
-    (text) => output.push(text),
+  const reporter = new ErrorReporter({
+    diagnostics: true,
     logger,
     secrets,
-  );
+    write: (text) => {
+      output.push(text);
+    },
+  });
   secrets.push("fixture-file-secret");
   const error = Object.assign(
     new Error("x".repeat(8189) + "fixture-file-secret", {
@@ -39,7 +40,7 @@ it("redacts secrets registered after startup before projecting and truncating er
     }),
     { stack: undefined },
   );
-  policy.diagnose(error, true, logger);
+  reporter.diagnose(error);
   expect(output.map((line): unknown => JSON.parse(line))).toStrictEqual([
     {
       "@timestamp": "1970-01-01T00:00:00.000Z",

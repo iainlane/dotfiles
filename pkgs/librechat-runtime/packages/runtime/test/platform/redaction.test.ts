@@ -1,6 +1,6 @@
 import { check } from "recheck";
 import { expect, it } from "vitest";
-import { redactDiagnostic } from "#runtime/platform/diagnostics";
+import { errorDiagnostic } from "#runtime/platform/diagnostics";
 import { diagnosticPatterns } from "#runtime/platform/redaction";
 
 it(
@@ -45,5 +45,9 @@ it.each([
     "[redacted] in [redacted] with Bearer [redacted]",
   ],
 ])("redacts %j as %j", (input, output) => {
-  expect(redactDiagnostic(input, ["fixture-secret"])).toBe(output);
+  const error = Object.assign(new Error(input), { stack: undefined });
+  expect(errorDiagnostic(error, ["fixture-secret"])).toStrictEqual({
+    name: "Error",
+    message: output,
+  });
 });
