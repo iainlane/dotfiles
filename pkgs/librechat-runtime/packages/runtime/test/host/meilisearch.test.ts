@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import {
+  MeilisearchBackupError,
   MeilisearchDatabase,
   MeilisearchUpgradeError,
 } from "#runtime/host/meilisearch";
@@ -148,7 +149,12 @@ it("rejects an upgrade when the backup cannot be created", async () => {
   await writeFile(join(state, "meili-backups"), "not a directory");
   await expect(
     new MeilisearchDatabase(state).prepareUpgrade("meilisearch", engine),
-  ).rejects.toThrow(/ENOTDIR/u);
+  ).rejects.toStrictEqual(
+    new MeilisearchBackupError(
+      join(state, "meili-backups", "1.55.0-to-1.56.0"),
+      expect.objectContaining({ code: "ENOTDIR" }),
+    ),
+  );
   expect(
     await readFile(join(state, "meili", "indexes", "data.mdb"), "utf8"),
   ).toBe("original index");

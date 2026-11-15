@@ -56,6 +56,19 @@ export class MeilisearchBackupVersionError extends Error {
   }
 }
 
+export class MeilisearchBackupError extends Error {
+  readonly backup: string;
+
+  constructor(backup: string, cause: unknown) {
+    super(
+      `Cannot read or create the Meilisearch backup at ${backup}; check that the state directory is readable and writable before upgrading`,
+      { cause },
+    );
+    this.name = "MeilisearchBackupError";
+    this.backup = backup;
+  }
+}
+
 interface MeilisearchRuntime {
   now(): number;
   report(text: string): void;
@@ -114,8 +127,19 @@ export class MeilisearchDatabase {
     const backups = join(this.state, "meili-backups");
     const backup = join(backups, `${source}-to-${target}`);
 
+    let saved: string | undefined;
+
     try {
-      const saved = await readFile(join(backup, "VERSION"), "utf8");
+      saved = await readFile(join(backup, "VERSION"), "utf8");
+    } catch (error) {
+      if (
+        !(error instanceof Error && "code" in error && error.code === "ENOENT")
+      ) {
+        throw new MeilisearchBackupError(backup, error);
+      }
+    }
+
+    if (saved !== undefined) {
       versionSchema.parse(saved.trim());
 
       if (saved.trim() !== source) {
@@ -123,25 +147,23 @@ export class MeilisearchDatabase {
       }
 
       return;
-    } catch (error) {
-      if (
-        !(error instanceof Error && "code" in error && error.code === "ENOENT")
-      ) {
-        throw error;
-      }
     }
 
-    await mkdir(backups, { recursive: true, mode: 0o700 });
-    const temporary = await mkdtemp(join(backups, ".pending-"));
-
     try {
-      const copy = join(temporary, "database");
-      await cp(database, copy, { recursive: true, preserveTimestamps: true });
-      const created = new Date(this.runtime.now());
-      await utimes(copy, created, created);
-      await rename(copy, backup);
-    } finally {
-      await rm(temporary, { recursive: true, force: true });
+      await mkdir(backups, { recursive: true, mode: 0o700 });
+      const temporary = await mkdtemp(join(backups, ".pending-"));
+
+      try {
+        const copy = join(temporary, "database");
+        await cp(database, copy, { recursive: true, preserveTimestamps: true });
+        const created = new Date(this.runtime.now());
+        await utimes(copy, created, created);
+        await rename(copy, backup);
+      } finally {
+        await rm(temporary, { recursive: true, force: true });
+      }
+    } catch (error) {
+      throw new MeilisearchBackupError(backup, error);
     }
 
     this.runtime.report(
