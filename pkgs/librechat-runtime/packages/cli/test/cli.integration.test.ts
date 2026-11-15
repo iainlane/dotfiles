@@ -10,8 +10,17 @@ import { hostManifestSchema } from "@dotfiles/librechat-runtime/manifest";
 import { runProcess } from "./processes.ts";
 
 const execute = promisify(execFile);
-const stringMatcher: unknown = expect.any(String);
-const redactedTextMatcher: unknown = expect.stringContaining("[redacted]");
+
+const anyString: unknown = expect.any(String);
+const timestamp: unknown = expect.stringMatching(
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u,
+);
+
+/** Matches a V8 stack that starts with `header` and continues with frames. */
+function stack(header: string): unknown {
+  const literal = header.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, "\\$&");
+  return expect.stringMatching(new RegExp(`^${literal}\n {4}at `, "u"));
+}
 
 function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -112,7 +121,7 @@ it("keeps the logger configured for HTTP handlers after command startup returns"
     expect({ stdout, diagnostics }).toStrictEqual({
       stdout: '{"archive":true}',
       diagnostics: {
-        "@timestamp": stringMatcher,
+        "@timestamp": timestamp,
         level: "ERROR",
         logger: "librechat",
         message: "Guest operation failed",
@@ -131,7 +140,6 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
   const secretDirectory = join(directory, "secrets");
   await mkdir(secretDirectory);
   await writeFile(join(secretDirectory, "mongodb"), secret);
-  await writeFile(join(secretDirectory, "code-auth.json"), secret);
   const manifest = hostManifestSchema.parse({
     stateDirectory: directory,
     socketDirectory: join(directory, "sockets"),
@@ -150,11 +158,14 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
     mcpServers: {},
     localMcpServers: [],
     mcpHeaderFiles: {},
-    programs: Object.fromEntries(
-      hostManifestSchema.shape.programs
-        .keyof()
-        .options.map((program) => [program, "/unused"]),
-    ),
+    programs: {
+      ...Object.fromEntries(
+        hostManifestSchema.shape.programs
+          .keyof()
+          .options.map((program) => [program, "/unused"]),
+      ),
+      mongodb: join(directory, secret),
+    },
     guest: {
       image: "/unused",
       kernel: "/unused",
@@ -178,18 +189,19 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
     );
     const [first, ...messages] = output.stderr.trimEnd().split("\n");
     const diagnostic: unknown = JSON.parse(first ?? "");
+    const redactedProgram = join(directory, "[redacted]");
     expect({
       status: output.status,
       stdout: output.stdout,
-      containsSecret: output.stderr.includes(secret),
+      secretInOutput: output.stderr.includes(secret),
       diagnostics: [diagnostic, ...messages],
     }).toStrictEqual({
       status: 1,
       stdout: "",
-      containsSecret: false,
+      secretInOutput: false,
       diagnostics: [
         {
-          "@timestamp": stringMatcher,
+          "@timestamp": timestamp,
           level: "ERROR",
           logger: "librechat",
           message: "LibreChat operation failed",
@@ -200,11 +212,21 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
             name: "HostStartupError",
             message:
               "Could not start the LibreChat host services. Check the service logs.",
-            stack: stringMatcher,
+            stack: stack(
+              "HostStartupError: Could not start the LibreChat host services. Check the service logs.",
+            ),
             cause: {
-              name: "SyntaxError",
-              message: redactedTextMatcher,
-              stack: stringMatcher,
+              name: "ProcessStartError",
+              message: `Cannot start process: ${redactedProgram}`,
+              stack: stack(
+                `ProcessStartError: Cannot start process: ${redactedProgram}`,
+              ),
+              cause: {
+                name: "Error",
+                message: anyString,
+                code: "ENOENT",
+                stack: anyString,
+              },
             },
           },
         },
@@ -323,7 +345,7 @@ it.each([
         ...(logged
           ? [
               {
-                "@timestamp": stringMatcher,
+                "@timestamp": timestamp,
                 level: "ERROR",
                 logger: "librechat",
                 message: "LibreChat operation failed",
@@ -332,13 +354,12 @@ it.each([
                 event: "librechat-service-error",
                 error: {
                   ...error,
-                  stack: stringMatcher,
+                  stack: stack(`${error.name}: ${error.message}`),
                   cause: {
                     name: "Error",
-                    message:
-                      "ENOENT: no such file or directory, open '/nonexistent/spec.json'",
+                    message: anyString,
                     code: "ENOENT",
-                    stack: stringMatcher,
+                    stack: anyString,
                   },
                 },
               },

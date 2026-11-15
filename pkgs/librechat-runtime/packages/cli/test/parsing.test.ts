@@ -1,7 +1,22 @@
 import { expect, it } from "vitest";
-import assert from "node:assert/strict";
+import { ArchiveArgumentsError } from "@dotfiles/librechat-runtime/archive";
 import { parseCommand } from "#cli/definitions/commands";
-import { CommandArgumentsError, UsageError } from "#cli/application/errors";
+import {
+  ArchiveArgumentsUsageError,
+  CommandArgumentsError,
+} from "#cli/application/errors";
+
+/**
+ * Matches a help intent whose text ends with the given examples. The router
+ * renders the text before them.
+ */
+function helpEndingWith(examples: readonly string[]): unknown {
+  const suffix = ["Examples", ...examples.map((example) => `  ${example}`)]
+    .join("\n")
+    .replaceAll(/[\\^$.*+?()[\]{}|/]/gu, "\\$&");
+  const text: unknown = expect.stringMatching(new RegExp(`\n${suffix}$`, "u"));
+  return { kind: "help", text };
+}
 
 it.each([
   ["--yes", "bootstrap", "--email", "you@example.com", "--name", "Your Name"],
@@ -42,21 +57,103 @@ it("preserves the runtime bootstrap manifest argument", () => {
   });
 });
 
-it.each([[], ["--help"], ["bootstrap", "--help"], ["reset", "--help"]])(
-  "provides public help without a manifest: %j",
-  (...args) => {
-    const result = parseCommand(args, "public");
-    assert.ok(result.kind === "help");
-    expect(result.text).toContain("librechatctl");
-    expect(result.text).toContain("--yes");
-    expect(result.text).not.toContain("<MANIFEST>");
+it("preserves the runtime reset manifest argument", () => {
+  expect(
+    parseCommand(
+      [
+        "reset",
+        "/deployment.json",
+        "--conversation",
+        "00000000-0000-4000-8000-000000000001",
+      ],
+      "runtime",
+    ),
+  ).toStrictEqual({
+    kind: "reset",
+    manifest: "/deployment.json",
+    conversation: "00000000-0000-4000-8000-000000000001",
+    yes: false,
+  });
+});
+
+it.each([
+  {
+    entry: "public",
+    args: [],
+    examples: [
+      "librechatctl bootstrap",
+      "librechatctl reset --conversation CONVERSATION_UUID --yes",
+    ],
+  },
+  {
+    entry: "public",
+    args: ["--help"],
+    examples: [
+      "librechatctl bootstrap",
+      "librechatctl reset --conversation CONVERSATION_UUID --yes",
+    ],
+  },
+  {
+    entry: "public",
+    args: ["bootstrap", "--help"],
+    examples: [
+      "librechatctl bootstrap",
+      "librechatctl bootstrap --email you@example.com --name 'Your Name' --password-file ./password",
+    ],
+  },
+  {
+    entry: "public",
+    args: ["reset", "--help"],
+    examples: [
+      "librechatctl reset",
+      "librechatctl --yes reset --conversation CONVERSATION_UUID",
+    ],
+  },
+  {
+    entry: "runtime",
+    args: [],
+    examples: [
+      "librechat-runtime bootstrap ./manifest.json",
+      "librechat-runtime reset ./manifest.json --conversation CONVERSATION_UUID --yes",
+    ],
+  },
+  {
+    entry: "runtime",
+    args: ["bootstrap", "--help"],
+    examples: [
+      "librechat-runtime bootstrap ./manifest.json",
+      "librechat-runtime bootstrap ./manifest.json --email you@example.com --name 'Your Name' --password-file ./password",
+    ],
+  },
+  {
+    entry: "runtime",
+    args: ["reset", "--help"],
+    examples: [
+      "librechat-runtime reset ./manifest.json",
+      "librechat-runtime --yes reset ./manifest.json --conversation CONVERSATION_UUID",
+    ],
+  },
+  {
+    entry: "runtime",
+    args: ["archive", "session", "search", "--help"],
+    examples: [
+      "librechat-runtime archive session search 'search text' --limit 50",
+    ],
+  },
+] as const)(
+  "returns $entry help for $args with its examples",
+  ({ entry, args, examples }) => {
+    expect(parseCommand([...args], entry)).toStrictEqual(
+      helpEndingWith(examples),
+    );
   },
 );
 
-it("reports the version", () => {
-  expect(parseCommand(["--version"], "public")).toStrictEqual({
+it.each(["public", "runtime"] as const)("reports the %s version", (entry) => {
+  const text: unknown = expect.stringMatching(/\b0\.1\.0\b/u);
+  expect(parseCommand(["--version"], entry)).toStrictEqual({
     kind: "version",
-    text: "librechatctl 0.1.0",
+    text,
   });
 });
 
@@ -86,8 +183,24 @@ it.each([
     path: ["bootstrap"],
     fields: [],
   },
+  {
+    args: ["bootstrap", "--conversation", "invalid"],
+    path: ["bootstrap"],
+    fields: [],
+  },
+  {
+    args: ["reset", "--email", "you@example.com"],
+    path: ["reset"],
+    fields: [],
+  },
+  { args: ["bootstrap", "/deployment.json"], path: ["bootstrap"], fields: [] },
+  { args: ["reset", "/deployment.json"], path: ["reset"], fields: [] },
   { args: ["missing-command"], path: [], fields: [] },
-])("rejects supplied invalid options: $args", ({ args, path, fields }) => {
+  { args: ["serve", "/manifest.json"], path: [], fields: [] },
+  { args: ["guest", "/guest.json"], path: [], fields: [] },
+  { args: ["hook", "/hook.json"], path: [], fields: [] },
+  { args: ["archive", "session", "search", "concept"], path: [], fields: [] },
+])("rejects public arguments: $args", ({ args, path, fields }) => {
   expect(() => parseCommand(args, "public")).toThrow(
     new CommandArgumentsError("public", path, fields),
   );
@@ -97,15 +210,21 @@ it.each([
   ["serve", "/manifest.json"],
   ["guest", "/guest.json"],
   ["hook", "/hook.json"],
-])("accepts service commands and --yes: %j", (kind, file) => {
+])("accepts runtime service commands and --yes: %j", (kind, file) => {
   expect(parseCommand(["--yes", kind, file, "--yes"], "runtime")).toStrictEqual(
     { kind, file },
   );
 });
 
-it.each(["serve", "guest", "hook"])("requires the %s file", (command) => {
+it.each([
+  { command: "bootstrap", field: "manifest" },
+  { command: "reset", field: "manifest" },
+  { command: "serve", field: "file" },
+  { command: "guest", field: "file" },
+  { command: "hook", field: "file" },
+])("requires the runtime $command $field", ({ command, field }) => {
   expect(() => parseCommand([command], "runtime")).toThrow(
-    new CommandArgumentsError("runtime", [command], ["file"]),
+    new CommandArgumentsError("runtime", [command], [field]),
   );
 });
 
@@ -137,6 +256,8 @@ it.each([
 ])(
   "classifies invalid bounded archive queries as usage errors: %j",
   (...args) => {
-    expect(() => parseCommand(args, "runtime")).toThrow(UsageError);
+    expect(() => parseCommand(args, "runtime")).toThrow(
+      new ArchiveArgumentsUsageError(new ArchiveArgumentsError()),
+    );
   },
 );

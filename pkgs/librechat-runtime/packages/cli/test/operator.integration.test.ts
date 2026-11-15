@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, it } from "vitest";
+import { parseCommand } from "#cli/definitions/commands";
 import { runProcess, type ProcessResult } from "./processes.ts";
 
 const directories: string[] = [];
@@ -52,22 +53,22 @@ async function run(
   );
 }
 
-it.each([[], ["--help"], ["bootstrap", "--help"]])(
-  "runs public help without deployment access: %j",
-  async (...args) => {
-    const result = await run(args);
-    expect({
-      status: result.status,
-      stderr: result.stderr,
-      program: result.stdout.includes("librechatctl"),
-      examples: result.stdout.includes("Examples"),
-      manifest: result.stdout.includes("<MANIFEST>"),
-    }).toStrictEqual({
+it.each([
+  { args: [] },
+  { args: ["--help"] },
+  { args: ["bootstrap", "--help"] },
+  { args: ["--version"] },
+])(
+  "prints public help and version without deployment access: $args",
+  async ({ args }) => {
+    const intent = parseCommand(args, "public");
+    expect(await run(args)).toStrictEqual({
       status: 0,
+      stdout:
+        intent.kind === "help" || intent.kind === "version"
+          ? `${intent.text}\n`
+          : intent,
       stderr: "",
-      program: true,
-      examples: true,
-      manifest: false,
     });
   },
 );
@@ -98,14 +99,6 @@ it.each([
     });
   },
 );
-
-it("reports public version without deployment access", async () => {
-  expect(await run(["--version"])).toStrictEqual({
-    status: 0,
-    stdout: "librechatctl 0.1.0\n",
-    stderr: "",
-  });
-});
 
 it.each([
   { stdinTTY: false, stderrTTY: true, ci: undefined },

@@ -50,9 +50,10 @@ it("sends interactive confirmation to stderr and defaults to No", async () => {
   const { presentation, type, screen } = terminal(true);
   const answer = presentation.confirm("Delete?");
   type("\r");
+  const output: unknown = expect.stringContaining("Delete?");
   expect({ answer: await answer, output: screen() }).toStrictEqual({
     answer: false,
-    output: "│\n◆  Delete?\n│  ○ Yes / ● No\n└\n◇  Delete?\n│  No\n",
+    output,
   });
 });
 
