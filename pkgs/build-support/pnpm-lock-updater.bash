@@ -215,7 +215,7 @@ dependents() {
 	yq -o=json '.snapshots // {}' pnpm-lock.yaml | jq -r --arg name "$1" '
 		to_entries[]
 		| select(((.value.dependencies // {}) + (.value.optionalDependencies // {}))[$name] // "" | test("^[0-9]"))
-		| .key | sub("\\(.*$"; "")
+		| .key
 		| if startswith("@") then "@" + (.[1:] | split("@")[0]) else split("@")[0] end' |
 		LC_ALL=C sort -u
 }
