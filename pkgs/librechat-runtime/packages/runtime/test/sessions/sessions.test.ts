@@ -1,13 +1,16 @@
+import { once } from "node:events";
 import {
   ConversationPrincipalError,
   RuntimeNotRegisteredError,
   ConversationIdError,
   SessionBusyError,
   SessionClosingError,
+  WorkspaceStartupCleanupError,
 } from "#runtime/platform/errors";
 import { beforeEach, expect, it } from "vitest";
 import {
   SessionManager,
+  type Guest,
   type GuestBackend,
   type Session,
   type SessionStore,
@@ -18,67 +21,46 @@ const userId = "0123456789abcdef01234567";
 
 const conversationId = "ea277865-9bbd-45ec-9cd2-234cf9dc9169";
 
-let records: Map<string, Session>;
+const runtimeId = runtimeIdentity(userId, conversationId);
 
-let store: SessionStore;
+class VmAlreadyRunningError extends Error {
+  constructor() {
+    super("The workspace disk is locked by a running VM");
 
-let clock = 0;
+    this.name = "VmAlreadyRunningError";
+  }
+}
 
-let events: string[];
+class VmNotRunningError extends Error {
+  constructor() {
+    super("The workspace has no running VM");
 
-let failCheckpoint: boolean;
+    this.name = "VmNotRunningError";
+  }
+}
 
-const backend: GuestBackend = {
-  async start(session, restore) {
-    events.push(restore ? "restore" : "start");
+class MissingCheckpointError extends Error {
+  constructor() {
+    super("The workspace has no checkpoint to restore");
 
-    return {
-      socket: `/private/${session.runtimeId}.sock`,
-      bootId: "test-boot",
-    };
-  },
-  async checkpoint() {
-    events.push("checkpoint");
+    this.name = "MissingCheckpointError";
+  }
+}
 
-    if (failCheckpoint) {
-      throw new CheckpointInterruptedError();
-    }
-  },
-  async stop() {
-    events.push("stop");
-  },
-  async remove() {
-    events.push("remove");
-  },
-};
+class WorkspaceInUseError extends Error {
+  constructor() {
+    super("A running VM still uses the workspace");
 
-beforeEach(() => {
-  records = new Map();
+    this.name = "WorkspaceInUseError";
+  }
+}
 
-  store = {
-    load: async (id) => structuredClone(records.get(id)),
-    save: async (session) => {
-      records.set(session.runtimeId, structuredClone(session));
-    },
-    list: async () => [...records.keys()],
-  };
+class CheckpointInterruptedError extends Error {
+  constructor() {
+    super("Checkpoint interrupted");
 
-  clock = 0;
-
-  events = [];
-
-  failCheckpoint = false;
-});
-
-function manager(guestBackend: GuestBackend = backend): SessionManager {
-  return new SessionManager({
-    store,
-    userId,
-    idleMs: 100,
-    retentionMs: 1000,
-    backend: guestBackend,
-    now: () => clock,
-  });
+    this.name = "CheckpointInterruptedError";
+  }
 }
 
 class LeaseSaveError extends Error {
@@ -89,20 +71,181 @@ class LeaseSaveError extends Error {
   }
 }
 
+class BootGate {
+  readonly began = Promise.withResolvers<void>();
+  private readonly opened = Promise.withResolvers<void>();
+
+  open(): void {
+    this.opened.resolve();
+  }
+
+  async pass(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+
+    this.began.resolve();
+
+    await Promise.race([
+      this.opened.promise,
+      ...(signal === undefined ? [] : [once(signal, "abort")]),
+    ]);
+
+    signal?.throwIfAborted();
+  }
+}
+
+interface Workspace {
+  vm: "running" | "stopped";
+  checkpoint: boolean;
+  restored: boolean;
+}
+
+class FakeGuestBackend implements GuestBackend {
+  readonly workspaces = new Map<string, Workspace>();
+  gate: BootGate | undefined;
+  onBoot: (() => void) | undefined;
+  checkpointFailure: Error | undefined;
+  stopFailure: Error | undefined;
+
+  async start(
+    session: Session,
+    restore: boolean,
+    signal?: AbortSignal,
+  ): Promise<Guest> {
+    await this.gate?.pass(signal);
+
+    const workspace = this.workspaces.get(session.runtimeId);
+
+    if (workspace?.vm === "running") {
+      throw new VmAlreadyRunningError();
+    }
+
+    if (restore && workspace?.checkpoint !== true) {
+      throw new MissingCheckpointError();
+    }
+
+    this.workspaces.set(session.runtimeId, {
+      vm: "running",
+      checkpoint: workspace?.checkpoint ?? false,
+      restored: restore,
+    });
+
+    this.onBoot?.();
+
+    return {
+      socket: `/private/${session.runtimeId}.sock`,
+      bootId: "test-boot",
+    };
+  }
+
+  async checkpoint(session: Session): Promise<void> {
+    const workspace = this.running(session);
+
+    if (this.checkpointFailure !== undefined) {
+      throw this.checkpointFailure;
+    }
+
+    workspace.checkpoint = true;
+  }
+
+  async stop(session: Session): Promise<void> {
+    const workspace = this.running(session);
+
+    if (this.stopFailure !== undefined) {
+      throw this.stopFailure;
+    }
+
+    workspace.vm = "stopped";
+  }
+
+  async remove(session: Session): Promise<void> {
+    if (this.workspaces.get(session.runtimeId)?.vm === "running") {
+      throw new WorkspaceInUseError();
+    }
+
+    this.workspaces.delete(session.runtimeId);
+  }
+
+  private running(session: Session): Workspace {
+    const workspace = this.workspaces.get(session.runtimeId);
+
+    if (workspace?.vm !== "running") {
+      throw new VmNotRunningError();
+    }
+
+    return workspace;
+  }
+}
+
+class FakeSessionStore implements SessionStore {
+  readonly records = new Map<string, Session>();
+  onLoad: (() => void) | undefined;
+  onSave: ((session: Session) => void) | undefined;
+  saveFailure: Error | undefined;
+
+  async load(id: string): Promise<unknown> {
+    this.onLoad?.();
+
+    return structuredClone(this.records.get(id));
+  }
+
+  async save(session: Session): Promise<void> {
+    if (this.saveFailure !== undefined) {
+      throw this.saveFailure;
+    }
+
+    this.records.set(session.runtimeId, structuredClone(session));
+
+    this.onSave?.(session);
+  }
+
+  async list(): Promise<string[]> {
+    return [...this.records.keys()];
+  }
+}
+
+let store: FakeSessionStore;
+
+let backend: FakeGuestBackend;
+
+let clock = 0;
+
+beforeEach(() => {
+  store = new FakeSessionStore();
+
+  backend = new FakeGuestBackend();
+
+  clock = 0;
+});
+
+function manager(): SessionManager {
+  return new SessionManager({
+    store,
+    userId,
+    idleMs: 100,
+    retentionMs: 1000,
+    backend,
+    now: () => clock,
+  });
+}
+
+const guest = { socket: `/private/${runtimeId}.sock`, bootId: "test-boot" };
+
+const suspended = { vm: "stopped", checkpoint: true, restored: false };
+
 it("rejects queued conversation registration after shutdown starts", async () => {
   const sessions = manager();
 
   const registration = sessions.register(userId, conversationId);
   const shutdown = sessions.shutdown();
 
-  await expect(registration).rejects.toThrow(SessionClosingError);
+  await expect(registration).rejects.toStrictEqual(new SessionClosingError());
 
   await shutdown;
 
-  expect({ events, records: [...records] }).toStrictEqual({
-    events: [],
-    records: [],
-  });
+  expect({
+    workspaces: [...backend.workspaces],
+    records: [...store.records],
+  }).toStrictEqual({ workspaces: [], records: [] });
 });
 
 it("drains a guest after saving a new lease fails", async () => {
@@ -110,17 +253,13 @@ it("drains a guest after saving a new lease fails", async () => {
 
   const active = await sessions.register(userId, conversationId);
 
-  const save = store.save.bind(store);
+  store.saveFailure = new LeaseSaveError();
 
-  store.save = async () => {
-    throw new LeaseSaveError();
-  };
-
-  await expect(sessions.acquire(active.runtimeId)).rejects.toThrow(
-    LeaseSaveError,
+  await expect(sessions.acquire(active.runtimeId)).rejects.toStrictEqual(
+    new LeaseSaveError(),
   );
 
-  store.save = save;
+  store.saveFailure = undefined;
 
   clock = 101;
 
@@ -128,7 +267,7 @@ it("drains a guest after saving a new lease fails", async () => {
 
   await sessions.shutdown();
 
-  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+  expect(backend.workspaces.get(runtimeId)).toStrictEqual(suspended);
 });
 
 it("rejects other principals and unregistered runtime identities", async () => {
@@ -136,13 +275,13 @@ it("rejects other principals and unregistered runtime identities", async () => {
 
   await expect(
     sessions.register("another-user", conversationId),
-  ).rejects.toThrow(ConversationPrincipalError);
+  ).rejects.toStrictEqual(new ConversationPrincipalError());
 
   await expect(
     sessions.acquire("rt_0000000000000000000000000000000000000000"),
-  ).rejects.toThrow(RuntimeNotRegisteredError);
+  ).rejects.toStrictEqual(new RuntimeNotRegisteredError());
 
-  expect(events).toStrictEqual([]);
+  expect([...backend.workspaces]).toStrictEqual([]);
 });
 
 it("uses one VM for concurrent CodeAPI and MCP leases", async () => {
@@ -159,10 +298,14 @@ it("uses one VM for concurrent CodeAPI and MCP leases", async () => {
 
   await sessions.sweep();
 
-  expect({ code: code.guest, mcp: mcp.guest, events }).toStrictEqual({
-    code: { socket: `/private/${session.runtimeId}.sock`, bootId: "test-boot" },
-    mcp: { socket: `/private/${session.runtimeId}.sock`, bootId: "test-boot" },
-    events: ["start"],
+  expect({
+    code: code.guest,
+    mcp: mcp.guest,
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
+    code: guest,
+    mcp: guest,
+    workspace: { vm: "running", checkpoint: false, restored: false },
   });
 
   await Promise.all([code.release(), mcp.release()]);
@@ -180,6 +323,8 @@ it("checkpoints before idle stop and restores before reuse", async () => {
 
   await sessions.sweep();
 
+  const idle = structuredClone(backend.workspaces.get(runtimeId));
+
   const resumed = await sessions.register(userId, conversationId);
   const resumedLease = await sessions.acquire(resumed.runtimeId);
   await resumedLease.release();
@@ -188,12 +333,14 @@ it("checkpoints before idle stop and restores before reuse", async () => {
     runtime: resumed.runtimeId,
     generation: resumed.generation,
     originalGeneration: original.generation,
-    events,
+    idle,
+    workspace: backend.workspaces.get(runtimeId),
   }).toStrictEqual({
     runtime: original.runtimeId,
     generation: 1,
     originalGeneration: 1,
-    events: ["start", "checkpoint", "stop", "restore"],
+    idle: suspended,
+    workspace: { vm: "running", checkpoint: true, restored: true },
   });
 });
 
@@ -205,15 +352,23 @@ it("keeps a VM running when checkpointing fails", async () => {
   const lease = await sessions.acquire(original.runtimeId);
   await lease.release();
 
-  failCheckpoint = true;
+  backend.checkpointFailure = new CheckpointInterruptedError();
 
   clock = 101;
 
-  await expect(sessions.sweep()).rejects.toThrow(CheckpointInterruptedError);
+  await expect(sessions.sweep()).rejects.toStrictEqual(
+    new CheckpointInterruptedError(),
+  );
 
   const resumed = await sessions.acquire(original.runtimeId);
 
-  expect(events).toStrictEqual(["start", "checkpoint"]);
+  expect({
+    guest: resumed.guest,
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
+    guest,
+    workspace: { vm: "running", checkpoint: false, restored: false },
+  });
 
   await resumed.release();
 });
@@ -233,6 +388,8 @@ it("extends retention on conversation activity and deletes expired work", async 
 
   await sessions.sweep();
 
+  const retained = structuredClone(backend.workspaces.get(runtimeId));
+
   clock = 1901;
 
   await sessions.sweep();
@@ -242,12 +399,14 @@ it("extends retention on conversation activity and deletes expired work", async 
   expect({
     generation: recreated.generation,
     reset: recreated.resetReason,
-    events,
+    retained,
+    workspaces: [...backend.workspaces],
   }).toStrictEqual({
     generation: 2,
     reset:
       "The previous workspace expired and was deleted, including unpushed work.",
-    events: ["start", "checkpoint", "stop", "remove"],
+    retained: suspended,
+    workspaces: [],
   });
 });
 
@@ -268,17 +427,17 @@ it("recovers durable registration and reports a controller restart", async () =>
   const resumedLease = await second.acquire(resumed.runtimeId);
   await resumedLease.release();
 
-  const state = records.get(original.runtimeId);
+  const state = store.records.get(original.runtimeId);
 
   expect({
     runtime: resumed.runtimeId,
     generation: resumed.generation,
-    events,
+    workspace: backend.workspaces.get(runtimeId),
     saved: typeof state === "object",
   }).toStrictEqual({
     runtime: original.runtimeId,
     generation: 1,
-    events: ["start", "checkpoint", "stop", "restore"],
+    workspace: { vm: "running", checkpoint: true, restored: true },
     saved: true,
   });
 });
@@ -286,11 +445,14 @@ it("recovers durable registration and reports a controller restart", async () =>
 it("does not derive host paths from conversation IDs", async () => {
   const sessions = manager();
 
-  await expect(sessions.register(userId, "../../outside")).rejects.toThrow(
-    ConversationIdError,
-  );
+  await expect(
+    sessions.register(userId, "../../outside"),
+  ).rejects.toStrictEqual(new ConversationIdError());
 
-  expect(events).toStrictEqual([]);
+  expect({
+    workspaces: [...backend.workspaces],
+    records: [...store.records],
+  }).toStrictEqual({ workspaces: [], records: [] });
 });
 
 it("matches the pinned upstream runtime identity vector", () => {
@@ -306,17 +468,27 @@ it("drains active calls before shutdown and refuses new calls", async () => {
 
   const lease = await sessions.acquire(session.runtimeId);
 
-  await expect(sessions.shutdown()).rejects.toThrow(SessionBusyError);
-
-  await expect(sessions.acquire(session.runtimeId)).rejects.toThrow(
-    SessionClosingError,
+  await expect(sessions.shutdown()).rejects.toStrictEqual(
+    new SessionBusyError(),
   );
+
+  await expect(sessions.acquire(session.runtimeId)).rejects.toStrictEqual(
+    new SessionClosingError(),
+  );
+
+  const busy = structuredClone(backend.workspaces.get(runtimeId));
 
   await lease.release();
 
   await sessions.shutdown();
 
-  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+  expect({
+    busy,
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
+    busy: { vm: "running", checkpoint: false, restored: false },
+    workspace: suspended,
+  });
 });
 
 it("resets an idle workspace and reports discarded work", async () => {
@@ -333,11 +505,11 @@ it("resets an idle workspace and reports discarded work", async () => {
 
   expect({
     generation: session.generation,
-    events,
+    workspaces: [...backend.workspaces],
     reason: session.resetReason,
   }).toStrictEqual({
     generation: 2,
-    events: ["start", "stop", "remove"],
+    workspaces: [],
     reason:
       "The workspace was explicitly reset and unpushed work was discarded.",
   });
@@ -346,70 +518,48 @@ it("resets an idle workspace and reports discarded work", async () => {
 it("binds a later conversation hook to the VM already acquired by authenticated prewarming", async () => {
   const sessions = manager();
 
-  const id = runtimeIdentity(userId, conversationId);
-
-  const prewarm = await sessions.acquireCodeRuntime(id);
+  const prewarm = await sessions.acquireCodeRuntime(runtimeId);
 
   await prewarm.release();
 
   const registered = await sessions.register(userId, conversationId);
 
-  const mcp = await sessions.acquire(id);
+  const mcp = await sessions.acquire(runtimeId);
 
   expect({
     conversation: registered.conversationId,
     guest: mcp.guest,
-    events,
+    workspace: backend.workspaces.get(runtimeId),
   }).toStrictEqual({
     conversation: conversationId,
     guest: prewarm.guest,
-    events: ["start"],
+    workspace: { vm: "running", checkpoint: false, restored: false },
   });
 
   await mcp.release();
 });
 
-class CheckpointInterruptedError extends Error {
-  constructor() {
-    super("Checkpoint interrupted");
-
-    this.name = "CheckpointInterruptedError";
-  }
-}
-
 it("skips a cancelled CodeAPI acquisition queued behind another VM startup", async () => {
-  const started = Promise.withResolvers<void>();
+  const gate = new BootGate();
 
-  const proceed = Promise.withResolvers<void>();
+  backend.gate = gate;
 
-  const sessions = manager({
-    ...backend,
-    start: async (session, restore) => {
-      started.resolve();
-
-      await proceed.promise;
-
-      return await backend.start(session, restore);
-    },
-  });
+  const sessions = manager();
 
   const registration = await sessions.register(userId, conversationId);
   const active = sessions.acquire(registration.runtimeId);
 
-  await started.promise;
+  await gate.began.promise;
 
   const controller = new AbortController();
 
   const reason = new DOMException("Assignment cancelled", "AbortError");
 
-  const pending = sessions.acquireCodeRuntime(
-    runtimeIdentity(userId, conversationId),
-    controller.signal,
-  );
+  const pending = sessions.acquireCodeRuntime(runtimeId, controller.signal);
 
   controller.abort(reason);
 
-  proceed.resolve();
+  gate.open();
 
   await expect(pending).rejects.toBe(reason);
 
@@ -420,90 +570,64 @@ it("skips a cancelled CodeAPI acquisition queued behind another VM startup", asy
 
   await sessions.sweep();
 
-  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+  expect(backend.workspaces.get(runtimeId)).toStrictEqual(suspended);
 });
 
 it("passes CodeAPI cancellation through to VM startup", async () => {
+  const gate = new BootGate();
+
+  backend.gate = gate;
+
   const controller = new AbortController();
 
   const reason = new DOMException("Assignment cancelled", "AbortError");
 
-  let receivedSignal: AbortSignal | undefined;
+  const pending = manager().acquireCodeRuntime(runtimeId, controller.signal);
 
-  const sessions = manager({
-    ...backend,
-    start: async (session, restore, signal) => {
-      receivedSignal = signal;
+  await gate.began.promise;
 
-      controller.abort(reason);
+  controller.abort(reason);
 
-      signal?.throwIfAborted();
+  gate.open();
 
-      return await backend.start(session, restore);
-    },
-  });
+  await expect(pending).rejects.toBe(reason);
 
-  await expect(
-    sessions.acquireCodeRuntime(
-      runtimeIdentity(userId, conversationId),
-      controller.signal,
-    ),
-  ).rejects.toBe(reason);
-
-  expect({ receivedSignal, events }).toStrictEqual({
-    receivedSignal: controller.signal,
-    events: [],
-  });
+  expect([...backend.workspaces]).toStrictEqual([]);
 });
 
-it.each(["startup", "lease-save"])(
-  "cleans up cancellation at the %s boundary",
-  async (stage) => {
+it.each([
+  { stage: "startup", workspace: { ...suspended, checkpoint: false } },
+  { stage: "lease-save", workspace: suspended },
+])(
+  "cleans up cancellation at the $stage boundary",
+  async ({ stage, workspace }) => {
     const controller = new AbortController();
 
     const reason = new DOMException("Assignment cancelled", "AbortError");
 
-    const save = store.save.bind(store);
+    if (stage === "startup") {
+      backend.onBoot = () => controller.abort(reason);
+    }
 
-    let saves = 0;
-
-    store.save = async (session) => {
-      await save(session);
-
-      saves += 1;
-
-      if (stage === "lease-save" && saves === 2) {
-        controller.abort(reason);
-      }
-    };
-
-    const sessions = manager({
-      ...backend,
-      start: async (session, restore) => {
-        const guest = await backend.start(session, restore);
-
-        if (stage === "startup") {
+    if (stage === "lease-save") {
+      store.onSave = (session) => {
+        if (backend.workspaces.get(session.runtimeId)?.vm === "running") {
           controller.abort(reason);
         }
+      };
+    }
 
-        return guest;
-      },
-    });
+    const sessions = manager();
 
     await expect(
-      sessions.acquireCodeRuntime(
-        runtimeIdentity(userId, conversationId),
-        controller.signal,
-      ),
+      sessions.acquireCodeRuntime(runtimeId, controller.signal),
     ).rejects.toBe(reason);
 
     clock = 101;
 
     await sessions.sweep();
 
-    expect(events).toStrictEqual(
-      stage === "startup" ? ["start", "stop"] : ["start", "checkpoint", "stop"],
-    );
+    expect(backend.workspaces.get(runtimeId)).toStrictEqual(workspace);
   },
 );
 
@@ -518,13 +642,7 @@ it("preserves another caller's lease when CodeAPI acquisition is cancelled", asy
 
   const reason = new DOMException("Assignment cancelled", "AbortError");
 
-  const save = store.save.bind(store);
-
-  store.save = async (session) => {
-    await save(session);
-
-    controller.abort(reason);
-  };
+  store.onSave = () => controller.abort(reason);
 
   await expect(
     sessions.acquireCodeRuntime(active.runtimeId, controller.signal),
@@ -534,7 +652,7 @@ it("preserves another caller's lease when CodeAPI acquisition is cancelled", asy
 
   await sessions.sweep();
 
-  expect(events).toStrictEqual(["start"]);
+  const leased = structuredClone(backend.workspaces.get(runtimeId));
 
   await lease.release();
 
@@ -542,66 +660,59 @@ it("preserves another caller's lease when CodeAPI acquisition is cancelled", asy
 
   await sessions.sweep();
 
-  expect(events).toStrictEqual(["start", "checkpoint", "stop"]);
+  expect({
+    leased,
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
+    leased: { vm: "running", checkpoint: false, restored: false },
+    workspace: suspended,
+  });
 });
 
 it("does not persist registration cancelled during session lookup", async () => {
   const controller = new AbortController();
   const reason = new DOMException("MCP request cancelled", "AbortError");
-  store.load = async () => {
-    controller.abort(reason);
-  };
+  store.onLoad = () => controller.abort(reason);
 
   await expect(
     manager().register(userId, conversationId, controller.signal),
   ).rejects.toBe(reason);
 
-  expect({ events, records: [...records] }).toStrictEqual({
-    events: [],
-    records: [],
-  });
+  expect({
+    workspaces: [...backend.workspaces],
+    records: [...store.records],
+  }).toStrictEqual({ workspaces: [], records: [] });
 });
 
 it.each(["register", "acquire"] as const)(
   "skips cancelled %s while preserving another caller's startup",
   async (operation) => {
-    const started = Promise.withResolvers<void>();
-    const proceed = Promise.withResolvers<void>();
-    const sessions = manager({
-      ...backend,
-      start: async (session, restore) => {
-        started.resolve();
-        await proceed.promise;
-        return await backend.start(session, restore);
-      },
-    });
+    const gate = new BootGate();
+    backend.gate = gate;
+    const sessions = manager();
     const registration = await sessions.register(userId, conversationId);
     const active = sessions.acquire(registration.runtimeId);
-    await started.promise;
+    await gate.began.promise;
     const controller = new AbortController();
     const reason = new DOMException("MCP request cancelled", "AbortError");
     const pending =
       operation === "register"
         ? sessions.register(userId, conversationId, controller.signal)
-        : sessions.acquire(
-            runtimeIdentity(userId, conversationId),
-            controller.signal,
-          );
+        : sessions.acquire(runtimeId, controller.signal);
     controller.abort(reason);
-    proceed.resolve();
+    gate.open();
 
     await expect(pending).rejects.toBe(reason);
     const previousLease = await active;
     await previousLease.release();
-    const session = previousLease.session;
-    const lease = await sessions.acquire(session.runtimeId);
+    const lease = await sessions.acquire(previousLease.session.runtimeId);
 
-    expect({ events, guest: lease.guest }).toStrictEqual({
-      events: ["start"],
-      guest: {
-        socket: `/private/${session.runtimeId}.sock`,
-        bootId: "test-boot",
-      },
+    expect({
+      workspace: backend.workspaces.get(runtimeId),
+      guest: lease.guest,
+    }).toStrictEqual({
+      workspace: { vm: "running", checkpoint: false, restored: false },
+      guest,
     });
 
     await lease.release();
@@ -610,29 +721,22 @@ it.each(["register", "acquire"] as const)(
 );
 
 it("passes acquisition cancellation to VM startup", async () => {
-  const id = runtimeIdentity(userId, conversationId);
   const seed = manager();
   await seed.register(userId, conversationId);
   await seed.shutdown();
 
+  const gate = new BootGate();
+  backend.gate = gate;
   const controller = new AbortController();
   const reason = new DOMException("MCP request cancelled", "AbortError");
-  let receivedSignal: AbortSignal | undefined;
-  const sessions = manager({
-    ...backend,
-    start: async (session, restore, signal) => {
-      receivedSignal = signal;
-      controller.abort(reason);
-      signal?.throwIfAborted();
-      return await backend.start(session, restore);
-    },
-  });
+  const sessions = manager();
+  const pending = sessions.acquire(runtimeId, controller.signal);
+  await gate.began.promise;
+  controller.abort(reason);
+  gate.open();
 
-  await expect(sessions.acquire(id, controller.signal)).rejects.toBe(reason);
-  expect({ receivedSignal, events }).toStrictEqual({
-    receivedSignal: controller.signal,
-    events: [],
-  });
+  await expect(pending).rejects.toBe(reason);
+  expect([...backend.workspaces]).toStrictEqual([]);
   await sessions.shutdown();
 });
 
@@ -643,9 +747,13 @@ it("registers and renews conversation activity without booting a VM", async () =
   const renewed = await sessions.register(userId, conversationId);
   await sessions.shutdown();
 
-  expect({ original, renewed, events }).toStrictEqual({
+  expect({
+    original,
+    renewed,
+    workspaces: [...backend.workspaces],
+  }).toStrictEqual({
     original: {
-      runtimeId: runtimeIdentity(userId, conversationId),
+      runtimeId,
       conversationId,
       userId,
       generation: 1,
@@ -656,7 +764,7 @@ it("registers and renews conversation activity without booting a VM", async () =
       quarantine: null,
     },
     renewed: {
-      runtimeId: runtimeIdentity(userId, conversationId),
+      runtimeId,
       conversationId,
       userId,
       generation: 1,
@@ -666,7 +774,7 @@ it("registers and renews conversation activity without booting a VM", async () =
       resetReason: "A new conversation workspace was created.",
       quarantine: null,
     },
-    events: [],
+    workspaces: [],
   });
 });
 
@@ -681,9 +789,12 @@ it("renews retention without postponing VM suspension on text-only activity", as
   clock = 101;
   await sessions.sweep();
 
-  expect({ session: records.get(session.runtimeId), events }).toStrictEqual({
+  expect({
+    session: store.records.get(session.runtimeId),
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
     session: { ...session, checkpoint: true, lastUsed: 90 },
-    events: ["start", "checkpoint", "stop"],
+    workspace: suspended,
   });
 });
 
@@ -691,31 +802,25 @@ it("preserves cancellation and retries failed startup cancellation cleanup on sh
   const controller = new AbortController();
   const reason = new DOMException("Assignment cancelled", "AbortError");
   const cleanup = new Error("fixture stop failed");
-  let failures = 1;
-  const sessions = manager({
-    ...backend,
-    start: async (session, restore) => {
-      const guest = await backend.start(session, restore);
-      controller.abort(reason);
-      return guest;
-    },
-    stop: async (session, guest) => {
-      if (failures-- > 0) {
-        events.push("stop-failed");
-        throw cleanup;
-      }
-      await backend.stop(session, guest);
-    },
-  });
+  backend.onBoot = () => controller.abort(reason);
+  backend.stopFailure = cleanup;
+  const sessions = manager();
+
   await expect(
-    sessions.acquireCodeRuntime(
-      runtimeIdentity(userId, conversationId),
-      controller.signal,
-    ),
-  ).rejects.toMatchObject({
-    name: "WorkspaceStartupCleanupError",
-    errors: [reason, cleanup],
-  });
+    sessions.acquireCodeRuntime(runtimeId, controller.signal),
+  ).rejects.toStrictEqual(
+    new WorkspaceStartupCleanupError(guest, reason, cleanup),
+  );
+  const failed = structuredClone(backend.workspaces.get(runtimeId));
+
+  backend.stopFailure = undefined;
   await sessions.shutdown();
-  expect(events).toStrictEqual(["start", "stop-failed", "stop"]);
+
+  expect({
+    failed,
+    workspace: backend.workspaces.get(runtimeId),
+  }).toStrictEqual({
+    failed: { vm: "running", checkpoint: false, restored: false },
+    workspace: { vm: "stopped", checkpoint: false, restored: false },
+  });
 });

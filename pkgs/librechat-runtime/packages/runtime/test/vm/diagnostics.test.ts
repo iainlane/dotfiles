@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
-import { WorkspaceDiagnostics } from "./fixtures/diagnostics.ts";
+import {
+  WorkspaceDiagnostics,
+  WorkspaceExecutionResponseError,
+} from "./fixtures/diagnostics.ts";
 
 it("retains the original failure, background and cleanup errors with bounded output", () => {
   const diagnostics = new WorkspaceDiagnostics("tcg");
@@ -48,28 +51,36 @@ it("redacts fixture credentials from response errors and captured service output
     stream: "stdout",
     text: "fixture-private-value",
   });
-  let failure: unknown;
-  try {
-    await diagnostics.response(
+  const failure = new WorkspaceExecutionResponseError("resumed-execution", {
+    status: 500,
+    statusText: "",
+    body: '{"error":"TypeError","detail":"[redacted]"}',
+  });
+  await expect(
+    diagnostics.response(
       new Response('{"error":"TypeError","detail":"fixture-private-value"}', {
         status: 500,
       }),
-    );
-  } catch (error) {
-    failure = error;
-  }
-  expect(failure).toBeInstanceOf(Error);
-  const report = diagnostics.report(failure, undefined, []);
-  expect({
-    containsSecret: report.includes("fixture-private-value"),
-    containsStage: report.includes("resumed-execution"),
-    containsStatus: report.includes("HTTP 500"),
-    containsType: report.includes("TypeError"),
-  }).toStrictEqual({
-    containsSecret: false,
-    containsStage: true,
-    containsStatus: true,
-    containsType: true,
+    ),
+  ).rejects.toStrictEqual(failure);
+  const report: unknown = JSON.parse(
+    diagnostics.report(
+      Object.assign(failure, { stack: undefined }),
+      undefined,
+      [],
+    ),
+  );
+  expect(report).toStrictEqual({
+    event: "librechat-workspace-failure",
+    stage: "resumed-execution",
+    accelerator: "hvf",
+    error: {
+      name: "WorkspaceExecutionResponseError",
+      message:
+        'Workspace resumed-execution POST /runner/api/v2/execute failed: HTTP 500 : {"error":"TypeError","detail":"[redacted]"}',
+    },
+    cleanup: [],
+    output: { "redis:stdout": "[redacted]" },
   });
 });
 
@@ -242,19 +253,20 @@ it("redacts unfinished quoted credentials in pending records", () => {
 
 it("bounds failed backend-response consumption and cancels excess output", async () => {
   const diagnostics = new WorkspaceDiagnostics("tcg");
-  let produced = 0;
-  let cancelled = false;
+  const body = { size: 4096 * 1000, sent: 0, state: "open" };
   const response = new Response(
     new ReadableStream<Uint8Array>({
       pull(controller) {
-        produced += 1;
-        controller.enqueue(new TextEncoder().encode("x".repeat(4096)));
-        if (produced === 1000) {
+        const chunk = Math.min(4096, body.size - body.sent);
+        controller.enqueue(new TextEncoder().encode("x".repeat(chunk)));
+        body.sent += chunk;
+        if (body.sent === body.size) {
+          body.state = "complete";
           controller.close();
         }
       },
       cancel() {
-        cancelled = true;
+        body.state = "cancelled";
       },
     }),
     { status: 500, statusText: "Backend failure" },
@@ -264,17 +276,15 @@ it("bounds failed backend-response consumption and cancels excess output", async
     new Request("http://guest/control/restore"),
   );
   expect({
-    produced,
-    cancelled,
+    body,
     status: returned.status,
     statusText: returned.statusText,
-    body: returned.body,
+    returnedBody: returned.body,
   }).toStrictEqual({
-    produced: 5,
-    cancelled: true,
+    body: { size: 4096 * 1000, sent: 4096 * 5, state: "cancelled" },
     status: 500,
     statusText: "Backend failure",
-    body: null,
+    returnedBody: null,
   });
 });
 

@@ -1,4 +1,6 @@
+import { once } from "node:events";
 import { StatusCodes } from "http-status-codes";
+import { z } from "zod";
 import { WorkspaceRecoveryError } from "#runtime/platform/errors";
 import { beforeEach, expect, it } from "vitest";
 import {
@@ -6,13 +8,14 @@ import {
   VmCheckpointError,
   VmQuiesceError,
   VmRestoreError,
+  VmStartupCleanupError,
   type VmFiles,
 } from "#runtime/vm/vm-backend";
 import type {
+  Command,
   ManagedProcess,
   ProcessRunner,
 } from "#runtime/platform/processes";
-import type { SocketFetch } from "#runtime/http/http-socket";
 import { SessionManager, type Session } from "#runtime/sessions/sessions";
 
 const session: Session = {
@@ -27,24 +30,7 @@ const session: Session = {
   resetReason: "",
 };
 
-let events: string[];
-
-let files: VmFiles;
-
-let processes: ProcessRunner;
-
-let fetch: SocketFetch;
-
-let failedPath: string;
-let snapshotCapable: boolean;
-
-let exit: PromiseWithResolvers<void>;
-
-let onFailure: (session: Session, error: unknown) => Promise<void>;
-
-let onError: (error: unknown) => void;
-
-let delay: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+const guestAddress = { socket: "/control", bootId: "boot" };
 
 class FixtureDeadlines {
   private now = 0;
@@ -63,169 +49,425 @@ class FixtureDeadlines {
 
     for (const { at, controller } of this.pending) {
       if (at <= this.now) {
-        controller.abort(
-          new DOMException(
-            "The guest control deadline expired",
-            "TimeoutError",
-          ),
-        );
+        controller.abort(deadlineExpired());
       }
     }
   }
 }
 
-let deadlines: FixtureDeadlines;
+function deadlineExpired(): DOMException {
+  return new DOMException("The guest control deadline expired", "TimeoutError");
+}
 
-function checkpointBody(): ReadableStream<Uint8Array> {
+class GuestUnreachableError extends Error {
+  constructor() {
+    super("The guest control socket is not accepting connections");
+    this.name = "GuestUnreachableError";
+  }
+}
+
+class StopFailedError extends Error {
+  constructor() {
+    super("fixture stop failure");
+    this.name = "StopFailedError";
+  }
+}
+
+class SnapshotFailedError extends Error {
+  constructor() {
+    super("snapshot failed");
+    this.name = "SnapshotFailedError";
+  }
+}
+
+class UnexpectedCommandError extends Error {
+  constructor() {
+    super("The backend ran a command outside QEMU");
+    this.name = "UnexpectedCommandError";
+  }
+}
+
+function stream(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode("checkpoint"));
+      controller.enqueue(new TextEncoder().encode(text));
 
       controller.close();
     },
   });
 }
 
-beforeEach(() => {
-  events = [];
+interface GuestState {
+  bound: string | undefined;
+  mcp: "running" | "stopped";
+  workspace: string;
+}
 
-  deadlines = new FixtureDeadlines();
+interface Failure {
+  mode: "response" | "transport" | "body";
+  error: Error;
+}
 
-  failedPath = "";
-  snapshotCapable = true;
+class FakeQemu implements ManagedProcess {
+  state: "running" | "stopped" = "running";
+  paused: boolean;
+  private readonly exit = Promise.withResolvers<void>();
+  private readonly machine: FakeMachine;
 
-  delay = async () => {
-    events.push("delay");
-  };
+  constructor(machine: FakeMachine, paused: boolean) {
+    this.machine = machine;
+    this.paused = paused;
+  }
 
-  exit = Promise.withResolvers<void>();
+  get exited(): Promise<void> {
+    return this.exit.promise;
+  }
 
-  onFailure = async () => {
-    events.push("failed");
-  };
+  running(): boolean {
+    return this.state === "running";
+  }
 
-  onError = () => {
-    events.push("recovery-error");
-  };
+  async stop(): Promise<void> {
+    if (this.machine.stopFailure !== undefined) {
+      throw this.machine.stopFailure;
+    }
 
-  const process: ManagedProcess = {
-    exited: exit.promise,
-    running: () => true,
-    stop: async () => {
-      events.push("stop");
+    this.state = "stopped";
+    this.exit.resolve();
+  }
 
-      exit.resolve();
+  crash(error: unknown): void {
+    this.state = "stopped";
+    this.exit.reject(error);
+  }
+}
+
+class FakeMachine implements VmFiles {
+  health: "ready" | "legacy" | "without-snapshots" | "hang" | "unavailable" =
+    "ready";
+  readonly failures = new Map<string, Failure>();
+  readonly durations = new Map<string, number>();
+  cancellation: { stage: string; abort(): void } | undefined;
+  stalls = false;
+  readonly stalled = Promise.withResolvers<void>();
+  stopFailure: Error | undefined;
+  snapshotFailure: Error | undefined;
+  readonly deadlines = new FixtureDeadlines();
+
+  prepared = false;
+  checkpoint: string | undefined = "saved workspace";
+  vmSnapshot: GuestState | undefined;
+  process: FakeQemu | undefined;
+  guest: GuestState | undefined;
+  private internalSnapshot: GuestState | undefined;
+
+  state(): unknown {
+    return {
+      prepared: this.prepared,
+      process: this.process?.state,
+      guest: this.guest,
+      checkpoint: this.checkpoint,
+      vmSnapshot: this.vmSnapshot,
+    };
+  }
+
+  private reach(stage: string): void {
+    if (this.cancellation?.stage === stage) {
+      this.cancellation.abort();
+    }
+  }
+
+  async prepare(
+    _session: Session,
+    restore?: boolean,
+  ): ReturnType<VmFiles["prepare"]> {
+    this.prepared = true;
+
+    this.reach("prepare");
+
+    return {
+      runtime: {
+        executable: "/qemu",
+        architecture: "aarch64",
+        accelerator: "hvf",
+        forwarder: "/bin/socat",
+        memoryMiB: 4096,
+        cpus: 2,
+      },
+      disk: "/disk",
+      kernel: "/kernel",
+      initrd: "/initrd",
+      init: "/init",
+      controlSocket: guestAddress.socket,
+      monitorSocket: "/monitor",
+      ...(restore === true && this.vmSnapshot !== undefined
+        ? { snapshot: "librechat" as const }
+        : {}),
+    };
+  }
+
+  async readCheckpoint(): Promise<ReadableStream<Uint8Array>> {
+    return stream(z.string().parse(this.checkpoint));
+  }
+
+  async saveCheckpoint(
+    _session: Session,
+    body: ReadableStream<Uint8Array>,
+  ): Promise<void> {
+    this.checkpoint = await new Response(body).text();
+  }
+
+  async saveSnapshot(): Promise<void> {
+    if (this.snapshotFailure !== undefined) {
+      throw this.snapshotFailure;
+    }
+
+    this.vmSnapshot = structuredClone(this.internalSnapshot);
+  }
+
+  async remove(): Promise<void> {
+    this.checkpoint = undefined;
+    this.vmSnapshot = undefined;
+  }
+
+  readonly processes: ProcessRunner = {
+    run: async () => {
+      throw new UnexpectedCommandError();
     },
-  };
+    start: async (command: Command) => {
+      const process = new FakeQemu(this, command.args.includes("-S"));
 
-  processes = {
-    run: async () => "",
-    start: async () => {
-      events.push("qemu");
+      this.process = process;
+      this.guest = command.args.includes("-loadvm")
+        ? structuredClone(this.vmSnapshot)
+        : { bound: undefined, mcp: "stopped", workspace: "new workspace" };
+
+      this.reach("qemu");
 
       return process;
     },
   };
 
-  files = {
-    prepare: async () => {
-      events.push("prepare");
+  readonly saveVmSnapshot = async (
+    _socket: string,
+    persist: () => Promise<void>,
+  ): Promise<void> => {
+    this.internalSnapshot = structuredClone(this.guest);
 
-      return {
-        runtime: {
-          executable: "/qemu",
-          architecture: "aarch64",
-          accelerator: "hvf",
-          forwarder: "/bin/socat",
-          memoryMiB: 4096,
-          cpus: 2,
-        },
-        disk: "/disk",
-        kernel: "/kernel",
-        initrd: "/initrd",
-        init: "/init",
-        controlSocket: "/control",
-        monitorSocket: "/monitor",
-      };
-    },
-    saveSnapshot: async () => {
-      events.push("save-snapshot");
-      if (failedPath === "snapshot") {
-        throw new Error("snapshot failed");
-      }
-    },
-    saveCheckpoint: async () => {
-      events.push("save-workspace");
-    },
-    readCheckpoint: async () => {
-      events.push("read-checkpoint");
-
-      return checkpointBody();
-    },
-    remove: async () => {
-      events.push("remove");
-    },
+    await persist();
   };
 
-  fetch = async (_socket, request) => {
+  readonly resumeVm = async (): Promise<void> => {
+    if (this.process !== undefined) {
+      this.process.paused = false;
+    }
+  };
+
+  readonly delay = async (
+    _milliseconds: number,
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    signal?.throwIfAborted();
+
+    if (this.stalls && signal !== undefined) {
+      await this.stall(signal);
+    }
+  };
+
+  private async stall(signal: AbortSignal): Promise<never> {
+    const aborted = once(signal, "abort");
+
+    this.stalled.resolve();
+
+    await aborted;
+
+    signal.throwIfAborted();
+
+    throw new GuestUnreachableError();
+  }
+
+  readonly fetch = async (
+    _socket: string,
+    request: Request,
+  ): Promise<Response> => {
     const path = new URL(request.url).pathname;
+    const guest = this.guest;
 
-    events.push(path);
-
-    if (path === failedPath) {
-      return new Response(null, { status: StatusCodes.INTERNAL_SERVER_ERROR });
+    if (this.process?.running() !== true || this.process.paused || !guest) {
+      throw new GuestUnreachableError();
     }
 
-    return path === "/health"
-      ? Response.json({ resumeClock: snapshotCapable })
-      : new Response(path.endsWith("checkpoint") ? checkpointBody() : null);
+    const duration = this.durations.get(path);
+
+    if (duration !== undefined) {
+      this.deadlines.advance(duration);
+    }
+
+    this.reach(path);
+
+    request.signal.throwIfAborted();
+
+    switch (path) {
+      case "/health":
+        return await this.healthResponse(request);
+      case "/control/bind": {
+        const binding = z
+          .object({ runtimeId: z.string() })
+          .parse(await request.json());
+
+        guest.bound = binding.runtimeId;
+
+        return new Response(null);
+      }
+      case "/runner/api/v2/session/restore":
+        if (guest.bound === undefined || guest.mcp === "running") {
+          return new Response(null, { status: StatusCodes.CONFLICT });
+        }
+
+        return this.failure(path) ?? this.restore(guest, await request.text());
+      case "/control/resume":
+        if (guest.bound === undefined) {
+          return new Response(null, { status: StatusCodes.CONFLICT });
+        }
+
+        return this.failure(path) ?? this.startMcp(guest);
+      case "/control/quiesce":
+        guest.mcp = "stopped";
+
+        return this.failure(path) ?? new Response(null);
+      case "/runner/api/v2/session/checkpoint":
+        if (guest.mcp === "running") {
+          return new Response(null, { status: StatusCodes.CONFLICT });
+        }
+
+        return this.failure(path) ?? new Response(stream(guest.workspace));
+    }
+
+    return new Response(null, { status: StatusCodes.NOT_FOUND });
   };
+
+  private async healthResponse(request: Request): Promise<Response> {
+    switch (this.health) {
+      case "ready":
+        return Response.json({ resumeClock: true });
+      case "without-snapshots":
+        return Response.json({ resumeClock: false });
+      case "legacy":
+        return Response.json({ runtimeId: session.runtimeId });
+      case "hang":
+        return await this.stall(request.signal);
+      case "unavailable":
+        break;
+    }
+
+    return new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE });
+  }
+
+  private restore(guest: GuestState, workspace: string): Response {
+    guest.workspace = workspace;
+
+    return new Response(null);
+  }
+
+  private startMcp(guest: GuestState): Response {
+    guest.mcp = "running";
+
+    return new Response(null);
+  }
+
+  private failure(path: string): Response | undefined {
+    const failure = this.failures.get(path);
+
+    if (failure === undefined) {
+      return undefined;
+    }
+
+    if (failure.mode === "transport") {
+      throw failure.error;
+    }
+
+    if (failure.mode === "body") {
+      return new Response(
+        new ReadableStream({
+          cancel: () => {
+            throw failure.error;
+          },
+        }),
+      );
+    }
+
+    return new Response(null, {
+      status: StatusCodes.INTERNAL_SERVER_ERROR,
+    });
+  }
+}
+
+class FailureLog {
+  readonly failures: { session: Session; error: unknown }[] = [];
+  readonly errors: unknown[] = [];
+  rejection: Error | undefined;
+
+  readonly onFailure = async (
+    failed: Session,
+    error: unknown,
+  ): Promise<void> => {
+    this.failures.push({ session: failed, error });
+
+    if (this.rejection !== undefined) {
+      throw this.rejection;
+    }
+  };
+
+  readonly onError = (error: unknown): void => {
+    this.errors.push(error);
+  };
+}
+
+let machine: FakeMachine;
+
+let log: FailureLog;
+
+beforeEach(() => {
+  machine = new FakeMachine();
+
+  log = new FailureLog();
 });
 
 function backend(): QemuBackend {
   return new QemuBackend({
-    saveVmSnapshot: async (_socket, persist) => {
-      events.push("snapshot");
-      await persist();
-    },
-    resumeVm: async () => {
-      events.push("resume-vm");
-    },
+    saveVmSnapshot: machine.saveVmSnapshot,
+    resumeVm: machine.resumeVm,
     boot: {
       ironPort: 3128,
       fileRelayPort: 3190,
       archiveBrokerPort: 3194,
     },
-    files,
-    processes,
-    fetch: async (socket, request) => fetch(socket, request),
-    delay,
-    timeout: (milliseconds) => deadlines.signal(milliseconds),
-    newBootId: () => "boot",
+    files: machine,
+    processes: machine.processes,
+    fetch: machine.fetch,
+    delay: machine.delay,
+    timeout: (milliseconds) => machine.deadlines.signal(milliseconds),
+    newBootId: () => guestAddress.bootId,
     now: () => 1700000000000,
     caCertificate: "public-ca",
     executionPublicKey: "public-execution-key",
     archiveToken: "read-only-broker-token",
-    onFailure,
-    onError,
+    onFailure: log.onFailure,
+    onError: log.onError,
   });
 }
+
+const serving: GuestState = {
+  bound: session.runtimeId,
+  mcp: "running",
+  workspace: "new workspace",
+};
 
 it.each([
   { path: "/control/bind", elapsed: 90_000 },
   { path: "/control/resume", elapsed: 420_000 },
 ])("allows the guest operation budget for $path", async ({ path, elapsed }) => {
-  const originalFetch = fetch;
-
-  fetch = async (socket, request) => {
-    if (new URL(request.url).pathname === path) {
-      deadlines.advance(elapsed);
-
-      request.signal.throwIfAborted();
-    }
-
-    return await originalFetch(socket, request);
-  };
+  machine.durations.set(path, elapsed);
 
   const vm = backend();
 
@@ -233,71 +475,63 @@ it.each([
 
   await vm.checkpoint(session, guest);
 
-  expect(events).toStrictEqual([
-    "prepare",
-    "qemu",
-    "/health",
-    "/control/bind",
-    "/control/resume",
-    "snapshot",
-    "save-snapshot",
-  ]);
+  expect({ guest, state: machine.state() }).toStrictEqual({
+    guest: guestAddress,
+    state: {
+      prepared: true,
+      process: "running",
+      guest: serving,
+      checkpoint: "saved workspace",
+      vmSnapshot: serving,
+    },
+  });
 });
 
 it("stops a VM when guest startup exceeds its control deadline", async () => {
-  const originalFetch = fetch;
+  machine.durations.set("/control/resume", 600_000);
 
-  fetch = async (socket, request) => {
-    if (new URL(request.url).pathname === "/control/resume") {
-      deadlines.advance(600_000);
-
-      request.signal.throwIfAborted();
-    }
-
-    return await originalFetch(socket, request);
-  };
-
-  await expect(backend().start(session, false)).rejects.toThrow(
-    "The guest control deadline expired",
+  await expect(backend().start(session, false)).rejects.toStrictEqual(
+    deadlineExpired(),
   );
 
-  expect(events).toStrictEqual([
-    "prepare",
-    "qemu",
-    "/health",
-    "/control/bind",
-    "stop",
-  ]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "stopped",
+    guest: { ...serving, mcp: "stopped" },
+    checkpoint: "saved workspace",
+    vmSnapshot: undefined,
+  });
 });
 
 it("restores files before starting MCP processes", async () => {
   await backend().start(session, true);
 
-  expect(events).toStrictEqual([
-    "prepare",
-    "qemu",
-    "/health",
-    "/control/bind",
-    "read-checkpoint",
-    "/runner/api/v2/session/restore",
-    "/control/resume",
-  ]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "running",
+    guest: { ...serving, workspace: "saved workspace" },
+    checkpoint: "saved workspace",
+    vmSnapshot: undefined,
+  });
 });
 
 it("stops a VM after a failed restore before MCP can read files", async () => {
-  failedPath = "/runner/api/v2/session/restore";
+  machine.failures.set("/runner/api/v2/session/restore", {
+    mode: "response",
+    error: new VmRestoreError(),
+  });
 
-  await expect(backend().start(session, true)).rejects.toThrow(VmRestoreError);
+  await expect(backend().start(session, true)).rejects.toStrictEqual(
+    new VmRestoreError(),
+  );
 
-  expect(events).toStrictEqual([
-    "prepare",
-    "qemu",
-    "/health",
-    "/control/bind",
-    "read-checkpoint",
-    "/runner/api/v2/session/restore",
-    "stop",
-  ]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "stopped",
+    guest: { ...serving, mcp: "stopped" },
+    checkpoint: "saved workspace",
+    vmSnapshot: undefined,
+  });
 });
 
 it("snapshots the VM without stopping its MCP processes", async () => {
@@ -305,300 +539,224 @@ it("snapshots the VM without stopping its MCP processes", async () => {
 
   const guest = await vm.start(session, false);
 
-  events = [];
-
   await vm.checkpoint(session, guest);
 
-  expect(events).toStrictEqual(["snapshot", "save-snapshot"]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "running",
+    guest: serving,
+    checkpoint: "saved workspace",
+    vmSnapshot: serving,
+  });
 });
 
 it("propagates snapshot failure without stopping the VM", async () => {
   const vm = backend();
   const guest = await vm.start(session, false);
-  events = [];
-  failedPath = "snapshot";
-  await expect(vm.checkpoint(session, guest)).rejects.toThrow(
-    "snapshot failed",
+  machine.snapshotFailure = new SnapshotFailedError();
+  await expect(vm.checkpoint(session, guest)).rejects.toStrictEqual(
+    new SnapshotFailedError(),
   );
-  expect(events).toStrictEqual(["snapshot", "save-snapshot"]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "running",
+    guest: serving,
+    checkpoint: "saved workspace",
+    vmSnapshot: undefined,
+  });
 });
 
 it("resumes a complete VM snapshot without restoring workspace files", async () => {
-  const prepare = files.prepare.bind(files);
-  files.prepare = async (candidate, restore) => ({
-    ...(await prepare(candidate, restore)),
-    snapshot: "librechat",
-  });
+  const suspended = { ...serving, workspace: "suspended workspace" };
+  machine.vmSnapshot = suspended;
   await backend().start(session, true);
-  expect(events).toStrictEqual([
-    "prepare",
-    "qemu",
-    "resume-vm",
-    "/health",
-    "/control/bind",
-    "/control/resume",
-  ]);
+  expect({
+    paused: machine.process?.paused,
+    state: machine.state(),
+  }).toStrictEqual({
+    paused: false,
+    state: {
+      prepared: true,
+      process: "running",
+      guest: suspended,
+      checkpoint: "saved workspace",
+      vmSnapshot: suspended,
+    },
+  });
 });
 
 it("resumes MCP and keeps the VM running after a failed checkpoint", async () => {
-  snapshotCapable = false;
+  machine.health = "without-snapshots";
   const vm = backend();
 
   const guest = await vm.start(session, false);
 
-  events = [];
+  machine.failures.set("/runner/api/v2/session/checkpoint", {
+    mode: "response",
+    error: new VmCheckpointError(),
+  });
 
-  failedPath = "/runner/api/v2/session/checkpoint";
-
-  await expect(vm.checkpoint(session, guest)).rejects.toThrow(
-    VmCheckpointError,
+  await expect(vm.checkpoint(session, guest)).rejects.toStrictEqual(
+    new VmCheckpointError(),
   );
 
-  expect(events).toStrictEqual([
-    "/control/quiesce",
-    "/runner/api/v2/session/checkpoint",
-    "/control/resume",
-  ]);
-});
-
-it.each(["response", "transport", "body"])(
-  "reports a recovery failure when resume fails through %s",
-  async (failure) => {
-    snapshotCapable = false;
-    const vm = backend();
-
-    const guest = await vm.start(session, false);
-
-    events = [];
-
-    const originalFetch = fetch;
-
-    fetch = async (socket, request) => {
-      const path = new URL(request.url).pathname;
-
-      if (path === "/control/resume") {
-        events.push(path);
-
-        if (failure === "transport") {
-          throw new VmCheckpointError();
-        }
-
-        if (failure === "body") {
-          return new Response(
-            new ReadableStream({
-              cancel: () => {
-                throw new VmCheckpointError();
-              },
-            }),
-          );
-        }
-
-        return new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE });
-      }
-
-      return originalFetch(socket, request);
-    };
-
-    failedPath = "/runner/api/v2/session/checkpoint";
-
-    await expect(vm.checkpoint(session, guest)).rejects.toThrow(
-      WorkspaceRecoveryError,
-    );
-
-    expect(events).toStrictEqual([
-      "/control/quiesce",
-      "/runner/api/v2/session/checkpoint",
-      "/control/resume",
-    ]);
-  },
-);
-
-it.each(["response", "transport", "body"])(
-  "resumes MCP after quiesce fails through %s",
-  async (failure) => {
-    snapshotCapable = false;
-    const vm = backend();
-
-    const guest = await vm.start(session, false);
-
-    events = [];
-
-    const originalFetch = fetch;
-
-    fetch = async (socket, request) => {
-      const path = new URL(request.url).pathname;
-
-      if (path === "/control/quiesce") {
-        events.push(path);
-
-        if (failure === "transport") {
-          throw new VmQuiesceError();
-        }
-
-        if (failure === "body") {
-          return new Response(
-            new ReadableStream({
-              cancel: () => {
-                throw new VmQuiesceError();
-              },
-            }),
-          );
-        }
-
-        return new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE });
-      }
-
-      return originalFetch(socket, request);
-    };
-
-    await expect(vm.checkpoint(session, guest)).rejects.toThrow(VmQuiesceError);
-
-    expect(events).toStrictEqual(["/control/quiesce", "/control/resume"]);
-  },
-);
-
-it.each([
-  { stage: "before", expected: [] },
-  { stage: "prepare", expected: ["prepare"] },
-  { stage: "qemu", expected: ["prepare", "qemu", "stop"] },
-  {
-    stage: "/control/bind",
-    expected: ["prepare", "qemu", "/health", "/control/bind", "stop"],
-  },
-  {
-    stage: "/runner/api/v2/session/restore",
-    expected: [
-      "prepare",
-      "qemu",
-      "/health",
-      "/control/bind",
-      "read-checkpoint",
-      "/runner/api/v2/session/restore",
-      "stop",
-    ],
-  },
-  {
-    stage: "/control/resume",
-    expected: [
-      "prepare",
-      "qemu",
-      "/health",
-      "/control/bind",
-      "read-checkpoint",
-      "/runner/api/v2/session/restore",
-      "/control/resume",
-      "stop",
-    ],
-  },
-])("stops cancelled startup at $stage", async ({ stage, expected }) => {
-  const controller = new AbortController();
-
-  const reason = new DOMException("Assignment cancelled", "AbortError");
-
-  const prepare = files.prepare.bind(files);
-
-  files.prepare = async (candidate) => {
-    const result = await prepare(candidate);
-
-    if (stage === "prepare") {
-      controller.abort(reason);
-    }
-
-    return result;
-  };
-
-  const start = processes.start.bind(processes);
-
-  processes.start = async (command) => {
-    const result = await start(command);
-
-    if (stage === "qemu") {
-      controller.abort(reason);
-    }
-
-    return result;
-  };
-
-  const originalFetch = fetch;
-
-  let requestAborted: boolean | undefined;
-
-  fetch = async (socket, request) => {
-    const response = await originalFetch(socket, request);
-
-    if (new URL(request.url).pathname === stage) {
-      controller.abort(reason);
-
-      requestAborted = request.signal.aborted;
-    }
-
-    return response;
-  };
-
-  if (stage === "before") {
-    controller.abort(reason);
-  }
-
-  await expect(backend().start(session, true, controller.signal)).rejects.toBe(
-    reason,
-  );
-
-  expect({ events, requestAborted }).toStrictEqual({
-    events: expected,
-    requestAborted: stage.startsWith("/") ? true : undefined,
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "running",
+    guest: serving,
+    checkpoint: "saved workspace",
+    vmSnapshot: undefined,
   });
 });
 
-it.each(["probe", "delay"])(
-  "interrupts the readiness %s when startup is cancelled",
-  async (stage) => {
+it.each([
+  { mode: "response", error: new WorkspaceRecoveryError() },
+  {
+    mode: "transport",
+    error: new WorkspaceRecoveryError({ cause: new VmCheckpointError() }),
+  },
+  {
+    mode: "body",
+    error: new WorkspaceRecoveryError({ cause: new VmCheckpointError() }),
+  },
+] as const)(
+  "reports a recovery failure when resume fails through $mode",
+  async ({ mode, error }) => {
+    machine.health = "without-snapshots";
+    const vm = backend();
+
+    const guest = await vm.start(session, false);
+
+    machine.failures.set("/runner/api/v2/session/checkpoint", {
+      mode: "response",
+      error: new VmCheckpointError(),
+    });
+    machine.failures.set("/control/resume", {
+      mode,
+      error: new VmCheckpointError(),
+    });
+
+    await expect(vm.checkpoint(session, guest)).rejects.toStrictEqual(error);
+
+    expect(machine.state()).toStrictEqual({
+      prepared: true,
+      process: "running",
+      guest: { ...serving, mcp: "stopped" },
+      checkpoint: "saved workspace",
+      vmSnapshot: undefined,
+    });
+  },
+);
+
+it.each(["response", "transport", "body"] as const)(
+  "resumes MCP after quiesce fails through %s",
+  async (mode) => {
+    machine.health = "without-snapshots";
+    const vm = backend();
+
+    const guest = await vm.start(session, false);
+
+    machine.failures.set("/control/quiesce", {
+      mode,
+      error: new VmQuiesceError(),
+    });
+
+    await expect(vm.checkpoint(session, guest)).rejects.toStrictEqual(
+      new VmQuiesceError(),
+    );
+
+    expect(machine.state()).toStrictEqual({
+      prepared: true,
+      process: "running",
+      guest: serving,
+      checkpoint: "saved workspace",
+      vmSnapshot: undefined,
+    });
+  },
+);
+
+const booted: GuestState = {
+  bound: undefined,
+  mcp: "stopped",
+  workspace: "new workspace",
+};
+
+it.each([
+  { stage: "before", prepared: false, process: undefined, guest: undefined },
+  { stage: "prepare", prepared: true, process: undefined, guest: undefined },
+  { stage: "qemu", prepared: true, process: "stopped", guest: booted },
+  { stage: "/control/bind", prepared: true, process: "stopped", guest: booted },
+  {
+    stage: "/runner/api/v2/session/restore",
+    prepared: true,
+    process: "stopped",
+    guest: { ...booted, bound: session.runtimeId },
+  },
+  {
+    stage: "/control/resume",
+    prepared: true,
+    process: "stopped",
+    guest: {
+      ...booted,
+      bound: session.runtimeId,
+      workspace: "saved workspace",
+    },
+  },
+])(
+  "stops cancelled startup at $stage",
+  async ({ stage, prepared, process, guest }) => {
     const controller = new AbortController();
 
     const reason = new DOMException("Assignment cancelled", "AbortError");
 
-    const waiting = Promise.withResolvers<void>();
+    machine.cancellation = { stage, abort: () => controller.abort(reason) };
 
-    const waitForAbort = async (signal?: AbortSignal): Promise<void> => {
-      await new Promise<void>((_resolve, reject) => {
-        signal?.addEventListener("abort", () => reject(reason), {
-          once: true,
-        });
+    if (stage === "before") {
+      controller.abort(reason);
+    }
 
-        waiting.resolve();
-      });
-    };
+    await expect(
+      backend().start(session, true, controller.signal),
+    ).rejects.toBe(reason);
 
-    fetch = async (_socket, request) => {
-      events.push(new URL(request.url).pathname);
+    expect(machine.state()).toStrictEqual({
+      prepared,
+      process,
+      guest,
+      checkpoint: "saved workspace",
+      vmSnapshot: undefined,
+    });
+  },
+);
 
-      if (stage === "probe") {
-        await waitForAbort(request.signal);
-      }
+it.each([
+  { stage: "probe", health: "hang", stalls: false },
+  { stage: "delay", health: "unavailable", stalls: true },
+] as const)(
+  "interrupts the readiness $stage when startup is cancelled",
+  async ({ health, stalls }) => {
+    const controller = new AbortController();
 
-      return new Response(null, { status: StatusCodes.SERVICE_UNAVAILABLE });
-    };
+    const reason = new DOMException("Assignment cancelled", "AbortError");
 
-    delay = async (_milliseconds, signal) => {
-      events.push("delay");
-
-      await waitForAbort(signal);
-    };
+    machine.health = health;
+    machine.stalls = stalls;
 
     const pending = backend().start(session, false, controller.signal);
 
-    await waiting.promise;
+    await machine.stalled.promise;
 
     controller.abort(reason);
 
     await expect(pending).rejects.toBe(reason);
 
-    expect(events).toStrictEqual([
-      "prepare",
-      "qemu",
-      "/health",
-      ...(stage === "delay" ? ["delay"] : []),
-      "stop",
-    ]);
+    expect(machine.state()).toStrictEqual({
+      prepared: true,
+      process: "stopped",
+      guest: booted,
+      checkpoint: "saved workspace",
+      vmSnapshot: undefined,
+    });
   },
 );
 
@@ -607,81 +765,45 @@ it("reports a rejected VM failure callback without an unhandled rejection", asyn
 
   const recoveryError = new WorkspaceRecoveryError();
 
-  let receivedSession: Session | undefined;
-
-  let receivedFailure: unknown;
-
-  let reported: unknown;
-
-  onFailure = async (failedSession, error) => {
-    receivedSession = failedSession;
-
-    receivedFailure = error;
-
-    events.push("failed");
-
-    throw recoveryError;
-  };
-
-  onError = (error) => {
-    reported = error;
-
-    events.push("recovery-error");
-  };
+  log.rejection = recoveryError;
 
   await backend().start(session, false);
 
-  events = [];
-
-  exit.reject(failure);
+  machine.process?.crash(failure);
 
   await new Promise<void>((resolve) => {
     setImmediate(resolve);
   });
 
-  expect({ receivedSession, receivedFailure, reported, events }).toStrictEqual({
-    receivedSession: session,
-    receivedFailure: failure,
-    reported: recoveryError,
-    events: ["failed", "recovery-error"],
+  expect({ failures: log.failures, errors: log.errors }).toStrictEqual({
+    failures: [{ session, error: failure }],
+    errors: [recoveryError],
   });
 });
 
 it("keeps older guests on workspace checkpoints", async () => {
-  const originalFetch = fetch;
-  fetch = async (socket, request) =>
-    new URL(request.url).pathname === "/health"
-      ? Response.json({ runtimeId: session.runtimeId })
-      : originalFetch(socket, request);
+  machine.health = "legacy";
   const vm = backend();
   const guest = await vm.start(session, false);
-  events = [];
   await vm.checkpoint(session, guest);
-  expect(events).toStrictEqual([
-    "/control/quiesce",
-    "/runner/api/v2/session/checkpoint",
-    "save-workspace",
-  ]);
+  expect(machine.state()).toStrictEqual({
+    prepared: true,
+    process: "running",
+    guest: { ...serving, mcp: "stopped" },
+    checkpoint: "new workspace",
+    vmSnapshot: undefined,
+  });
 });
 
 it("retains startup and cleanup failures and retries tracked VM cleanup", async () => {
-  const cleanup = new Error("fixture stop failure");
-  let failures = 1;
-  processes.start = async () => ({
-    exited: exit.promise,
-    running: () => true,
-    stop: async () => {
-      events.push("stop");
-      if (failures-- > 0) {
-        throw cleanup;
-      }
-      exit.resolve();
-    },
+  const cleanup = new StopFailedError();
+  machine.stopFailure = cleanup;
+  machine.failures.set("/runner/api/v2/session/restore", {
+    mode: "response",
+    error: new VmRestoreError(),
   });
-  failedPath = "/runner/api/v2/session/restore";
-  const vm = backend();
   const manager = new SessionManager({
-    backend: vm,
+    backend: backend(),
     store: {
       load: async () => ({ ...session, checkpoint: true }),
       save: async () => {},
@@ -694,13 +816,14 @@ it("retains startup and cleanup failures and retries tracked VM cleanup", async 
   });
   await expect(
     manager.acquireCodeRuntime(session.runtimeId),
-  ).rejects.toMatchObject({
-    name: "VmStartupCleanupError",
-    errors: [expect.any(VmRestoreError), cleanup],
-  });
+  ).rejects.toStrictEqual(
+    new VmStartupCleanupError(guestAddress, new VmRestoreError(), cleanup),
+  );
+  const failed = machine.process?.state;
+  machine.stopFailure = undefined;
   await manager.shutdown();
-  expect(events.filter((event) => event === "stop")).toStrictEqual([
-    "stop",
-    "stop",
-  ]);
+  expect({ failed, process: machine.process?.state }).toStrictEqual({
+    failed: "running",
+    process: "stopped",
+  });
 });
