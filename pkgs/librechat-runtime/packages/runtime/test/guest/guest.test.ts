@@ -17,11 +17,101 @@ class UnexpectedGuestProcessError extends Error {
   }
 }
 
+class GuestAlreadyBoundError extends Error {
+  constructor() {
+    super("The fixture guest accepts one binding");
+
+    this.name = "GuestAlreadyBoundError";
+  }
+}
+
+class FixtureBindingError extends Error {
+  constructor() {
+    super("The fixture binding could not initialise");
+
+    this.name = "FixtureBindingError";
+  }
+}
+
+class FixtureGuest implements GuestOperations {
+  failure: Error | undefined;
+  private bound: GuestBinding | undefined;
+  private initialising = false;
+  private mcp: "stopped" | "running" | "quiesced" = "stopped";
+  private clock: number | undefined;
+  private readonly requests: { target: string; path: string }[] = [];
+  private initialisation: Promise<void> = Promise.resolve();
+  private readonly started = Promise.withResolvers<void>();
+
+  get initialisationStarted(): Promise<void> {
+    return this.started.promise;
+  }
+
+  holdInitialisation(): () => void {
+    const gate = Promise.withResolvers<void>();
+
+    this.initialisation = gate.promise;
+
+    return () => gate.resolve();
+  }
+
+  async bind(binding: GuestBinding): Promise<void> {
+    if (this.initialising || this.bound !== undefined) {
+      throw new GuestAlreadyBoundError();
+    }
+
+    this.initialising = true;
+    this.started.resolve();
+
+    try {
+      await this.initialisation;
+
+      if (this.failure !== undefined) {
+        throw this.failure;
+      }
+
+      this.bound = binding;
+    } finally {
+      this.initialising = false;
+    }
+  }
+
+  async resume(time?: number): Promise<void> {
+    this.clock = time ?? this.clock;
+    this.mcp = "running";
+  }
+
+  async quiesce(): Promise<void> {
+    this.mcp = "quiesced";
+  }
+
+  async shutdown(): Promise<void> {
+    this.mcp = "stopped";
+  }
+
+  async forward(
+    _request: Request,
+    target: "runner" | "mcp",
+    path: string,
+  ): Promise<Response> {
+    this.requests.push({ target, path });
+
+    return new Response("forwarded");
+  }
+
+  state() {
+    return {
+      bound: this.bound,
+      mcp: this.mcp,
+      clock: this.clock,
+      requests: this.requests,
+    };
+  }
+}
+
+let guest: FixtureGuest;
+
 let gateway: GuestGateway;
-
-let operations: GuestOperations;
-
-let events: string[];
 
 const binding = {
   runtimeId: `rt_${"a".repeat(40)}`,
@@ -31,39 +121,10 @@ const binding = {
 };
 
 beforeEach(() => {
-  events = [];
+  guest = new FixtureGuest();
 
-  operations = {
-    bind: async () => {
-      events.push("bind");
-    },
-    resume: async () => {
-      events.push("resume");
-    },
-    quiesce: async () => {
-      events.push("quiesce");
-    },
-    shutdown: async () => {
-      events.push("shutdown");
-    },
-    forward: async (_request, target, path) => {
-      events.push(`${target}:${path}`);
-
-      return new Response("forwarded");
-    },
-  };
-
-  gateway = new GuestGateway(operations);
+  gateway = new GuestGateway(guest);
 });
-
-async function bind(): Promise<void> {
-  await gateway.route(
-    new Request("http://guest/control/bind", {
-      method: "POST",
-      body: JSON.stringify(binding),
-    }),
-  );
-}
 
 function bindingRequest(value: GuestBinding): Request {
   return new Request("http://guest/control/bind", {
@@ -72,12 +133,14 @@ function bindingRequest(value: GuestBinding): Request {
   });
 }
 
-class FixtureBindingError extends Error {
-  constructor() {
-    super("The fixture binding could not initialise");
+async function bind(): Promise<Response> {
+  return await gateway.route(bindingRequest(binding));
+}
 
-    this.name = "FixtureBindingError";
-  }
+async function health(): Promise<unknown> {
+  const response = await gateway.route(new Request("http://guest/health"));
+
+  return await response.json();
 }
 
 it.each(["", "{"])("rejects malformed binding JSON: %j", async (body) => {
@@ -90,33 +153,41 @@ it.each(["", "{"])("rejects malformed binding JSON: %j", async (body) => {
 
   const error: unknown = await response.json();
 
-  expect({ status: response.status, error, events }).toStrictEqual({
+  expect({
+    status: response.status,
+    error,
+    guest: guest.state(),
+  }).toStrictEqual({
     status: StatusCodes.BAD_REQUEST,
     error: {
       error: "GuestBindingFormatError",
       message: "The guest runtime binding is invalid",
     },
-    events: [],
+    guest: { bound: undefined, mcp: "stopped", clock: undefined, requests: [] },
   });
 });
 
 it("preserves binding body transport and limit errors", async () => {
-  const error = new RequestBodyLimitError();
   const init: RequestInit & { duplex: "half" } = {
     method: "POST",
     duplex: "half",
     body: new ReadableStream({
       start(controller) {
-        controller.error(error);
+        controller.error(new RequestBodyLimitError());
       },
     }),
   };
 
   await expect(
     gateway.route(new Request("http://guest/control/bind", init)),
-  ).rejects.toBe(error);
+  ).rejects.toStrictEqual(new RequestBodyLimitError());
 
-  expect(events).toStrictEqual([]);
+  expect(guest.state()).toStrictEqual({
+    bound: undefined,
+    mcp: "stopped",
+    clock: undefined,
+    requests: [],
+  });
 });
 
 it.each([
@@ -125,110 +196,83 @@ it.each([
 ])(
   "rejects a conflicting binding during initialisation: %j",
   async (conflict) => {
-    const entered = Promise.withResolvers<void>();
-    const secondEntered = Promise.withResolvers<void>();
-    const finish = Promise.withResolvers<void>();
-    const bindings: GuestBinding[] = [];
-
-    operations.bind = async (value) => {
-      bindings.push(value);
-      entered.resolve();
-
-      if (bindings.length === 2) {
-        secondEntered.resolve();
-      }
-
-      await finish.promise;
-    };
+    const finish = guest.holdInitialisation();
 
     const first = gateway.route(bindingRequest(binding));
 
-    await entered.promise;
+    await guest.initialisationStarted;
 
-    const second = gateway.route(bindingRequest(conflict));
+    const second = await gateway.route(bindingRequest(conflict));
 
-    await Promise.race([second, secondEntered.promise]);
+    finish();
 
-    finish.resolve();
-
-    const responses = await Promise.all([first, second]);
-    const health = await gateway.route(new Request("http://guest/health"));
-    const state: unknown = await health.json();
+    const responses = [await first, second];
 
     expect({
       statuses: responses.map((response) => response.status),
-      bindings,
-      state,
+      state: await health(),
+      bound: guest.state().bound,
     }).toStrictEqual({
       statuses: [StatusCodes.OK, StatusCodes.CONFLICT],
-      bindings: [binding],
       state: { runtimeId: binding.runtimeId, resumeClock: true },
+      bound: binding,
     });
   },
 );
 
 it("shares initialisation between identical concurrent bindings", async () => {
-  const entered = Promise.withResolvers<void>();
-  const finish = Promise.withResolvers<void>();
-
-  operations.bind = async () => {
-    events.push("bind");
-    entered.resolve();
-
-    await finish.promise;
-  };
+  const finish = guest.holdInitialisation();
 
   const first = gateway.route(bindingRequest(binding));
   const second = gateway.route(bindingRequest(binding));
 
-  await entered.promise;
+  await guest.initialisationStarted;
 
-  const health = await gateway.route(new Request("http://guest/health"));
-  const initialState: unknown = await health.json();
+  const initialState = await health();
 
-  finish.resolve();
+  finish();
 
   const responses = await Promise.all([first, second]);
 
   expect({
     statuses: responses.map((response) => response.status),
     initialState,
-    events,
+    state: await health(),
   }).toStrictEqual({
     statuses: [StatusCodes.OK, StatusCodes.OK],
     initialState: { runtimeId: null, resumeClock: true },
-    events: ["bind"],
+    state: { runtimeId: binding.runtimeId, resumeClock: true },
   });
 });
 
 it("reuses an identical completed binding without reinitialising it", async () => {
   await bind();
-  await bind();
 
-  expect(events).toStrictEqual(["bind"]);
+  const response = await bind();
+
+  expect({
+    status: response.status,
+    bound: guest.state().bound,
+  }).toStrictEqual({ status: StatusCodes.OK, bound: binding });
 });
 
 it("allows another binding after initialisation fails", async () => {
-  const failure = new FixtureBindingError();
+  guest.failure = new FixtureBindingError();
 
-  operations.bind = async () => {
-    throw failure;
-  };
-
-  await expect(gateway.route(bindingRequest(binding))).rejects.toBe(failure);
-
-  operations.bind = async () => {
-    events.push("bind");
-  };
-
-  const response = await gateway.route(
-    bindingRequest({ ...binding, runtimeId: `rt_${"b".repeat(40)}` }),
+  await expect(gateway.route(bindingRequest(binding))).rejects.toStrictEqual(
+    new FixtureBindingError(),
   );
 
-  expect({ status: response.status, events }).toStrictEqual({
-    status: StatusCodes.OK,
-    events: ["bind"],
-  });
+  guest.failure = undefined;
+
+  const replacement = { ...binding, runtimeId: `rt_${"b".repeat(40)}` };
+
+  const response = await gateway.route(bindingRequest(replacement));
+
+  expect({
+    status: response.status,
+    bound: guest.state().bound,
+  }).toStrictEqual({ status: StatusCodes.OK, bound: replacement });
 });
 
 it.each([
@@ -238,8 +282,6 @@ it.each([
 ])("rejects unsupported runner method %s %s", async (path, method) => {
   await bind();
 
-  events = [];
-
   const response = await gateway.route(
     new Request(`http://guest${path}`, {
       method,
@@ -247,16 +289,17 @@ it.each([
     }),
   );
 
-  expect({ status: response.status, events }).toStrictEqual({
+  expect({
+    status: response.status,
+    requests: guest.state().requests,
+  }).toStrictEqual({
     status: StatusCodes.METHOD_NOT_ALLOWED,
-    events: [],
+    requests: [],
   });
 });
 
 it("rejects a different runtime without forwarding the request", async () => {
   await bind();
-
-  events = [];
 
   const response = await gateway.route(
     new Request("http://guest/runner/api/v2/execute", {
@@ -265,24 +308,25 @@ it("rejects a different runtime without forwarding the request", async () => {
     }),
   );
 
-  expect({ status: response.status, events }).toStrictEqual({
+  expect({
+    status: response.status,
+    requests: guest.state().requests,
+  }).toStrictEqual({
     status: StatusCodes.FORBIDDEN,
-    events: [],
+    requests: [],
   });
 });
 
 it("quiesces MCP before reporting success", async () => {
   await bind();
 
-  events = [];
-
   const response = await gateway.route(
     new Request("http://guest/control/quiesce", { method: "POST" }),
   );
 
-  expect({ status: response.status, events }).toStrictEqual({
+  expect({ status: response.status, guest: guest.state() }).toStrictEqual({
     status: StatusCodes.OK,
-    events: ["quiesce"],
+    guest: { bound: binding, mcp: "quiesced", clock: undefined, requests: [] },
   });
 });
 
@@ -375,19 +419,22 @@ it("forwards application headers and body without connection-specific headers", 
 
 it("passes the host clock to the resume operation", async () => {
   await bind();
-  let resumed: number | undefined;
-  operations.resume = async (time) => {
-    resumed = time;
-  };
+
   const response = await gateway.route(
     new Request("http://guest/control/resume", {
       method: "POST",
       headers: { "x-librechat-resume-time": "1793309000000" },
     }),
   );
-  expect({ status: response.status, resumed }).toStrictEqual({
-    status: 200,
-    resumed: 1793309000000,
+
+  expect({ status: response.status, guest: guest.state() }).toStrictEqual({
+    status: StatusCodes.OK,
+    guest: {
+      bound: binding,
+      mcp: "running",
+      clock: 1793309000000,
+      requests: [],
+    },
   });
 });
 
@@ -395,15 +442,17 @@ it.each(["invalid", "-1", "Infinity", ""])(
   "rejects an invalid resume time %j",
   async (time) => {
     await bind();
+
     const response = await gateway.route(
       new Request("http://guest/control/resume", {
         method: "POST",
         headers: { "x-librechat-resume-time": time },
       }),
     );
-    expect({ status: response.status, events }).toStrictEqual({
-      status: 400,
-      events: ["bind"],
+
+    expect({ status: response.status, guest: guest.state() }).toStrictEqual({
+      status: StatusCodes.BAD_REQUEST,
+      guest: { bound: binding, mcp: "stopped", clock: undefined, requests: [] },
     });
   },
 );

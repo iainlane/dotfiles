@@ -36,13 +36,86 @@ it("matches the opaque principal observed from the CodeAPI egress gateway", () =
   });
 });
 
+class FixtureRuntimes {
+  readonly vms = new Set<string>();
+  readonly leases = new Set<SessionLease>();
+  readonly requests: {
+    socket: string;
+    method: string;
+    path: string;
+    runtime: string | null;
+    authorization: boolean;
+  }[] = [];
+
+  whileStarting: () => void = () => {};
+  whenReady: () => void = () => {};
+
+  async acquireCodeRuntime(
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<SessionLease> {
+    this.whileStarting();
+    signal?.throwIfAborted();
+    this.vms.add(id);
+    this.whenReady();
+
+    const lease: SessionLease = {
+      session: {
+        runtimeId: id,
+        userId,
+        conversationId: null,
+        generation: 1,
+        lastUsed: 0,
+        checkpoint: false,
+        expired: false,
+        resetReason: "",
+        quarantine: null,
+      },
+      guest: { socket: `/private/${id}`, bootId: "boot" },
+      release: async () => {
+        this.leases.delete(lease);
+      },
+    };
+
+    this.leases.add(lease);
+
+    return lease;
+  }
+
+  async reset(id: string): Promise<void> {
+    this.vms.delete(id);
+  }
+
+  async quarantine(id: string): Promise<void> {
+    this.vms.delete(id);
+  }
+
+  async fetch(socket: string, request: Request): Promise<Response> {
+    this.requests.push({
+      socket,
+      method: request.method,
+      path: new URL(request.url).pathname,
+      runtime: request.headers.get("x-runtime-session-id"),
+      authorization: request.headers.has("authorization"),
+    });
+
+    return new Response("result");
+  }
+
+  state() {
+    return {
+      vms: [...this.vms],
+      leases: [...this.leases].map((lease) => lease.session.runtimeId),
+      requests: this.requests,
+    };
+  }
+}
+
 let claims: ManifestClaims;
 
-let events: string[];
+let runtimes: FixtureRuntimes;
 
 let supervisor: ConversationRuntimeSupervisor;
-
-let onAcquire: (signal?: AbortSignal) => void;
 
 beforeEach(() => {
   claims = {
@@ -51,52 +124,12 @@ beforeEach(() => {
     execute_body_sha256: "body-digest",
   };
 
-  events = [];
-
-  onAcquire = () => {};
-
-  const lease: SessionLease = {
-    session: {
-      runtimeId,
-      userId,
-      conversationId: null,
-      generation: 1,
-      lastUsed: 0,
-      checkpoint: false,
-      expired: false,
-      resetReason: "",
-      quarantine: null,
-    },
-    guest: { socket: "/private/control", bootId: "boot" },
-    release: async () => {
-      events.push("release");
-    },
-  };
+  runtimes = new FixtureRuntimes();
 
   supervisor = new ConversationRuntimeSupervisor({
     userId,
-    sessions: {
-      acquireCodeRuntime: async (id, signal) => {
-        events.push(`acquire:${id}`);
-
-        onAcquire(signal);
-
-        return lease;
-      },
-      reset: async () => {
-        events.push("reset");
-      },
-      quarantine: async () => {
-        events.push("quarantine");
-      },
-    },
-    fetch: async (_socket, request) => {
-      events.push(
-        `${request.method}:${new URL(request.url).pathname}:${request.headers.get("x-runtime-session-id")}:${request.headers.has("authorization")}`,
-      );
-
-      return new Response("result");
-    },
+    sessions: runtimes,
+    fetch: async (socket, request) => await runtimes.fetch(socket, request),
     verifyManifest: () => claims,
     bodyDigest: () => "body-digest",
   });
@@ -113,15 +146,26 @@ it("uses the verified runtime lease and omits host credentials", async () => {
     },
   });
 
+  const leased = runtimes.state().leases;
+
   await lease.release();
 
-  expect({ response, events }).toStrictEqual({
+  expect({ response, leased, runtimes: runtimes.state() }).toStrictEqual({
     response: { status: StatusCodes.OK, body: "result" },
-    events: [
-      `acquire:${runtimeId}`,
-      `POST:/runner/api/v2/execute:${runtimeId}:false`,
-      "release",
-    ],
+    leased: [runtimeId],
+    runtimes: {
+      vms: [runtimeId],
+      leases: [],
+      requests: [
+        {
+          socket: `/private/${runtimeId}`,
+          method: "POST",
+          path: "/runner/api/v2/execute",
+          runtime: runtimeId,
+          authorization: false,
+        },
+      ],
+    },
   });
 });
 
@@ -135,50 +179,63 @@ it.each([
   async (override) => {
     claims = { ...claims, ...override };
 
-    await expect(supervisor.acquire(assignment)).rejects.toThrow(
-      BridgeOwnerError,
+    await expect(supervisor.acquire(assignment)).rejects.toStrictEqual(
+      new BridgeOwnerError(),
     );
 
-    expect(events).toStrictEqual([]);
+    expect(runtimes.state()).toStrictEqual({
+      vms: [],
+      leases: [],
+      requests: [],
+    });
   },
 );
 
 it("rejects a body digest mismatch before creating a VM", async () => {
   claims.execute_body_sha256 = "different";
 
-  await expect(supervisor.acquire(assignment)).rejects.toThrow(
-    BridgeBodyDigestError,
+  await expect(supervisor.acquire(assignment)).rejects.toStrictEqual(
+    new BridgeBodyDigestError(),
   );
 
-  expect(events).toStrictEqual([]);
+  expect(runtimes.state()).toStrictEqual({
+    vms: [],
+    leases: [],
+    requests: [],
+  });
 });
 
-it.each(["before", "during"])(
-  "rejects cancellation %s acquisition without leaking a lease",
-  async (timing) => {
+it.each([
+  { timing: "before acquisition", vms: [] },
+  { timing: "while the VM starts", vms: [] },
+  { timing: "after the VM is ready", vms: [runtimeId] },
+])(
+  "rejects cancellation $timing without leaking a lease",
+  async ({ timing, vms }) => {
     const controller = new AbortController();
 
-    const reason = new DOMException("Assignment cancelled", "AbortError");
-
-    let receivedSignal: AbortSignal | undefined;
-
-    onAcquire = (signal) => {
-      receivedSignal = signal;
-
-      controller.abort(reason);
+    const cancel = () => {
+      controller.abort(new DOMException("Assignment cancelled", "AbortError"));
     };
 
-    if (timing === "before") {
-      controller.abort(reason);
+    if (timing === "before acquisition") {
+      cancel();
+    }
+
+    if (timing === "while the VM starts") {
+      runtimes.whileStarting = cancel;
+    }
+
+    if (timing === "after the VM is ready") {
+      runtimes.whenReady = cancel;
     }
 
     await expect(
       supervisor.acquire(assignment, controller.signal),
-    ).rejects.toBe(reason);
+    ).rejects.toStrictEqual(
+      new DOMException("Assignment cancelled", "AbortError"),
+    );
 
-    expect({ events, receivedSignal }).toStrictEqual({
-      events: timing === "before" ? [] : [`acquire:${runtimeId}`, "release"],
-      receivedSignal: timing === "before" ? undefined : controller.signal,
-    });
+    expect(runtimes.state()).toStrictEqual({ vms, leases: [], requests: [] });
   },
 );

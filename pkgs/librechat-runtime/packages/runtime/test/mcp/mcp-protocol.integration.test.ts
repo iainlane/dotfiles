@@ -1,9 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { expect, it } from "vitest";
 import { z } from "zod";
 import { runtimeIdentity } from "#runtime/platform/identity";
 import { McpRouter } from "#runtime/mcp/mcp-router";
-import { SessionManager, type Session } from "#runtime/sessions/sessions";
+import {
+  SessionManager,
+  type Guest,
+  type GuestBackend,
+  type Session,
+} from "#runtime/sessions/sessions";
 
 interface Client {
   connect(transport: object): Promise<void>;
@@ -28,6 +34,43 @@ interface Server {
     callback: () => Promise<{ content: { type: "text"; text: string }[] }>,
   ): void;
   close(): Promise<void>;
+}
+
+class GuestAlreadyRunningError extends Error {
+  constructor() {
+    super("The fixture guest is already running");
+    this.name = "GuestAlreadyRunningError";
+  }
+}
+
+class FixtureBackend implements GuestBackend {
+  readonly running = new Set<string>();
+  private readonly now: () => number;
+
+  constructor(now: () => number) {
+    this.now = now;
+  }
+
+  async start(session: Session): Promise<Guest> {
+    if (this.running.has(session.runtimeId)) {
+      throw new GuestAlreadyRunningError();
+    }
+
+    this.running.add(session.runtimeId);
+
+    return {
+      socket: session.runtimeId,
+      bootId: `${session.runtimeId}@${this.now()}`,
+    };
+  }
+
+  async checkpoint(): Promise<void> {}
+
+  async stop(session: Session): Promise<void> {
+    this.running.delete(session.runtimeId);
+  }
+
+  async remove(): Promise<void> {}
 }
 
 class McpSdkFixtureRequiredError extends Error {
@@ -97,8 +140,8 @@ it.each([true, false])(
     const catalogueId = "rt_15373aaf9899b0caebed2c07022005137f42d743";
     const token = "a".repeat(64);
     const records = new Map<string, Session>();
-    const starts: string[] = [];
     let clock = 0;
+    const backend = new FixtureBackend(() => clock);
     const sessions = new SessionManager({
       userId,
       idleMs: 100,
@@ -111,21 +154,13 @@ it.each([true, false])(
         },
         list: async () => [...records.keys()],
       },
-      backend: {
-        start: async (session) => {
-          starts.push(session.runtimeId);
-          return {
-            socket: session.runtimeId,
-            bootId: `${session.runtimeId}-${starts.length}`,
-          };
-        },
-        checkpoint: async () => {},
-        stop: async () => {},
-        remove: async () => {},
-      },
+      backend,
     });
     const servers: Server[] = [];
-    const transports = new Map<string, ServerTransport>();
+    const transports = new Map<
+      string,
+      { socket: string; transport: ServerTransport }
+    >();
     const router = new McpRouter({
       userId,
       token,
@@ -136,7 +171,7 @@ it.each([true, false])(
         sessions.acquireRunning(catalogueId, signal),
       forward: async (guest, _server, request) => {
         const id = request.headers.get("mcp-session-id");
-        let transport = id === null ? undefined : transports.get(id);
+        let transport = id === null ? undefined : transports.get(id)?.transport;
 
         if (id === null && request.method === "POST") {
           const server = new sdkServer.McpServer({
@@ -148,14 +183,14 @@ it.each([true, false])(
             { description: "Return the workspace identity", inputSchema: {} },
             async () => ({ content: [{ type: "text", text: guest.socket }] }),
           );
-          const session = `${guest.bootId}-${servers.length}`;
+          const session = randomUUID();
           transport =
             new sdkServerTransport.WebStandardStreamableHTTPServerTransport({
               sessionIdGenerator: () => session,
               enableJsonResponse,
             });
           servers.push(server);
-          transports.set(session, transport);
+          transports.set(session, { socket: guest.socket, transport });
           await server.connect(transport);
         }
 
@@ -196,7 +231,7 @@ it.each([true, false])(
           await client.listTools();
         }),
       );
-      expect(starts).toStrictEqual([catalogueId]);
+      expect([...backend.running]).toStrictEqual([catalogueId]);
 
       const results = await Promise.all(
         clients.map(
@@ -207,13 +242,19 @@ it.each([true, false])(
             ]),
         ),
       );
-      expect({ starts, results }).toStrictEqual({
-        starts: [
-          catalogueId,
-          ...conversations.map((conversation) =>
-            runtimeIdentity(userId, conversation),
-          ),
-        ],
+      const workspaces = conversations.map((conversation) =>
+        runtimeIdentity(userId, conversation),
+      );
+
+      expect({
+        vms: [...backend.running].toSorted(),
+        mcpSessions: [...transports.values()]
+          .map(({ socket }) => socket)
+          .toSorted(),
+        results,
+      }).toStrictEqual({
+        vms: [catalogueId, ...workspaces].toSorted(),
+        mcpSessions: [catalogueId, catalogueId, ...workspaces].toSorted(),
         results: conversations.map((conversation) => [
           {
             content: [
@@ -228,8 +269,6 @@ it.each([true, false])(
         ]),
       });
 
-      expect(servers).toHaveLength(4);
-
       clock = 101;
       await sessions.sweep();
       await Promise.all(
@@ -237,12 +276,7 @@ it.each([true, false])(
           async ({ transport }) => await transport.terminateSession(),
         ),
       );
-      expect(starts).toStrictEqual([
-        catalogueId,
-        ...conversations.map((conversation) =>
-          runtimeIdentity(userId, conversation),
-        ),
-      ]);
+      expect([...backend.running]).toStrictEqual([]);
     } finally {
       await Promise.all(
         clients.map(async ({ client }) => await client.close()),
