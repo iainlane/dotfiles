@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { DomainPages } from "#footer/ui/inspection/domain-pages.ts";
 import type {
   InspectionNavigation,
@@ -10,11 +10,11 @@ import { createSnapshot } from "#footer/domain/state.ts";
 function fixture() {
   const state = createSnapshot(1000, "/work");
   const navigation: InspectionNavigation = {
-    open: vi.fn<InspectionNavigation["open"]>(),
-    section: vi.fn<InspectionNavigation["section"]>(),
-    widget: vi.fn<InspectionNavigation["widget"]>(),
-    sections: vi.fn<InspectionNavigation["sections"]>(),
-    customise: vi.fn<InspectionNavigation["customise"]>(),
+    open() {},
+    section() {},
+    widget() {},
+    sections() {},
+    customise() {},
   };
   const pages = new DomainPages(() => state, navigation);
   const content = (section: Section) => {

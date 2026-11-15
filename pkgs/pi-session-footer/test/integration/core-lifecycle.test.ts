@@ -1,6 +1,8 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { bindModel } from "#test/support/bound-runner.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +12,25 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
 });
+
+function usage(usedPercent: number): Response {
+  return Response.json({
+    rate_limit: {
+      primary_window: {
+        used_percent: usedPercent,
+        reset_at: 2_000_000_000,
+        limit_window_seconds: 18_000,
+      },
+    },
+  });
+}
+
+async function readCache(directory: string): Promise<unknown> {
+  const path = join(directory, "cache/sub-core/cache.json");
+  return existsSync(path)
+    ? JSON.parse(await readFile(path, "utf8"))
+    : undefined;
+}
 
 it.each([
   "shutdown",
@@ -39,7 +60,7 @@ it.each([
     }),
   );
   const channels = new Map<string, Set<(value: unknown) => unknown>>();
-  const publish = vi.fn<(event: string, value: unknown) => void>();
+  const published: { event: string; value: unknown }[] = [];
   const events = {
     on(event: string, callback: (value: unknown) => unknown) {
       const callbacks = channels.get(event) ?? new Set();
@@ -50,35 +71,48 @@ it.each([
       };
     },
     emit(event: string, value: unknown) {
-      publish(event, value);
+      published.push({ event, value });
       for (const callback of channels.get(event) ?? []) {
         callback(value);
       }
     },
   };
   const { api, context: ctx, runner } = await runtimeFixture(events);
-  vi.spyOn(runner, "createContext").mockReturnValue(ctx);
   const model = ctx.model;
 
   if (model === undefined) {
     throw new Error("Expected the fixture model");
   }
 
+  let selected = model;
+
+  bindModel(runner, () => selected);
+
   const response = Promise.withResolvers<Response>();
   const fetching = Promise.withResolvers<void>();
   const replacement = Promise.withResolvers<Response>();
   const replacementFetching = Promise.withResolvers<void>();
+  const held = [
+    { started: fetching, response: response.promise },
+    ...(reason === "successful replacement"
+      ? [{ started: replacementFetching, response: replacement.promise }]
+      : []),
+  ];
   const requests: (AbortSignal | null | undefined)[] = [];
   const dependencies = {
-    fetch: vi.fn<typeof fetch>((_input, init) => {
+    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
       requests.push(init?.signal);
-      if (requests.length === 1) {
-        fetching.resolve();
-        return response.promise;
+
+      const next = held.shift();
+
+      if (next === undefined) {
+        return usage(99);
       }
-      replacementFetching.resolve();
-      return replacement.promise;
-    }),
+
+      next.started.resolve();
+
+      return next.response;
+    },
     homedir: () => directory,
     env: { OPENAI_CODEX_OAUTH_TOKEN: "fixture" },
     readFile: () => {},
@@ -125,11 +159,17 @@ it.each([
     // The first quota response is released only after the turn, so a turn
     // that waited for the fetch would never finish.
     await turn;
-    const reply = vi.fn<(value: unknown) => void>();
+    const replies: unknown[] = [];
     const entries = [...(channels.get("sub-core:request") ?? [])].map(
-      (callback) => callback({ type: "entries", force: true, reply }),
+      (callback) =>
+        callback({
+          type: "entries",
+          force: true,
+          reply: (value: unknown) => {
+            replies.push(value);
+          },
+        }),
     );
-    let replacementCache: string | undefined;
     if (reason === "successful replacement") {
       await runner.emit({
         type: "model_select",
@@ -142,32 +182,14 @@ it.each([
         (callback) =>
           callback({ type: "entries", force: true, reply: () => {} }),
       );
-      replacement.resolve(
-        Response.json({
-          rate_limit: {
-            primary_window: {
-              used_percent: 42,
-              reset_at: 2_000_000_000,
-              limit_window_seconds: 18_000,
-            },
-          },
-        }),
-      );
+      replacement.resolve(usage(42));
       await Promise.all(completed);
       await idle();
-      replacementCache = await readFile(
-        join(directory, "cache/sub-core/cache.json"),
-        "utf8",
-      );
     } else if (reason === "model replacement") {
-      const replacementContext = {
-        ...ctx,
-        model: { ...model, provider: "fixture", id: "no-provider" },
-      };
-      vi.spyOn(runner, "createContext").mockReturnValue(replacementContext);
+      selected = { ...model, provider: "fixture", id: "no-provider" };
       await runner.emit({
         type: "model_select",
-        model: replacementContext.model,
+        model: selected,
         previousModel: model,
         source: "set",
       });
@@ -175,41 +197,42 @@ it.each([
       await runner.emit({ type: "session_shutdown", reason: "quit" });
     }
     expect(requests[0]?.aborted).toBe(true);
-    const before = publish.mock.calls.slice();
-    response.resolve(
-      Response.json({
-        rate_limit: {
-          primary_window: {
-            used_percent: 1,
-            reset_at: 2_000_000_000,
-            limit_window_seconds: 18_000,
-          },
-        },
-      }),
-    );
+    const before = published.length;
+    response.resolve(usage(1));
     await Promise.all(entries);
     await drained;
-    expect(reply.mock.calls).toStrictEqual(
+    expect(replies).toStrictEqual(
       reason === "model replacement" || reason === "successful replacement"
-        ? [[{ entries: [] }]]
+        ? [{ entries: [] }]
         : [],
     );
-    expect(dependencies.fetch).toHaveBeenCalledTimes(
-      reason === "successful replacement" ? 2 : 1,
-    );
-    expect(
-      publish.mock.calls.filter(([event]) => event === "sub-core:update-all"),
-    ).toStrictEqual(
-      before.filter(([event]) => event === "sub-core:update-all"),
-    );
-    const [cached] = await Promise.allSettled([
-      readFile(join(directory, "cache/sub-core/cache.json"), "utf8"),
-    ]);
-    const missing: unknown = expect.objectContaining({ code: "ENOENT" });
-    expect(cached).toStrictEqual(
-      replacementCache === undefined
-        ? { status: "rejected", reason: missing }
-        : { status: "fulfilled", value: replacementCache },
+    expect(published.slice(before)).toStrictEqual([]);
+    const now: unknown = expect.any(Number);
+    const description: unknown = expect.any(String);
+    const replacementCache = {
+      codex: {
+        fetchedAt: now,
+        statusFetchedAt: now,
+        usage: {
+          provider: "codex",
+          displayName: "Codex Plan",
+          windows: [
+            {
+              label: "5h",
+              usedPercent: 42,
+              windowSeconds: 18_000,
+              resetDescription: description,
+              resetAt: new Date(2_000_000_000_000).toISOString(),
+            },
+          ],
+          credentialSource: "environment",
+          lastSuccessAt: now,
+        },
+        status: { indicator: "none" },
+      },
+    };
+    expect(await readCache(directory)).toStrictEqual(
+      reason === "successful replacement" ? replacementCache : undefined,
     );
   } finally {
     response.resolve(Response.json({}));

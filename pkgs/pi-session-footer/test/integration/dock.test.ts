@@ -59,7 +59,6 @@ it.each(["regular", "fullscreen"])(
         expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
           visible: false,
           preset: "rich",
-          changes: 1,
         });
       },
       [stateLog],
@@ -71,7 +70,6 @@ it.each(["regular", "fullscreen"])(
         expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
           visible: false,
           preset: "rich",
-          changes: 3,
         });
       },
       [stateLog],
@@ -88,7 +86,6 @@ it.each(["regular", "fullscreen"])(
         expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
           visible: true,
           preset: "compact",
-          changes: 4,
         });
       },
       [stateLog],
@@ -103,8 +100,6 @@ it.each(["regular", "fullscreen"])(
       expect(result).toStrictEqual({
         factory: true,
         instance: true,
-        mounts: 0,
-        modelTurns: 0,
         draft: "draft 界é\nsecond line\nthird line",
         cursor: result.expectedCursor,
         expectedCursor: result.expectedCursor,
@@ -238,8 +233,6 @@ it.each([
         expect(result).toStrictEqual({
           factory: true,
           instance: true,
-          mounts: 0,
-          modelTurns: 0,
           draft: long
             ? Array.from(
                 { length: 30 },

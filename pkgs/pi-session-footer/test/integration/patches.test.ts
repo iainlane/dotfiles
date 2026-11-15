@@ -35,7 +35,7 @@ beforeAll(async () => {
 afterEach(() => {
   server.resetHandlers();
   vi.unstubAllEnvs();
-  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 afterAll(() => server.close());
@@ -151,7 +151,8 @@ it("publishes exact Anthropic durations without inventing account identity", asy
 });
 
 it("reads the current Claude credential file on every quota request", async () => {
-  vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(2_000_000_000_000);
   let token = "first";
   const observed: (string | null)[] = [];
   server.use(
@@ -231,7 +232,8 @@ it.each([
 ])(
   "selects $source credentials when Pi auth is $credential",
   async ({ credential, env, token, source }) => {
-    vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(2_000_000_000_000);
     const observed: (string | null)[] = [];
     server.use(
       http.get("https://api.anthropic.com/api/oauth/usage", ({ request }) => {
@@ -317,7 +319,8 @@ it.each([
 ])(
   "selects $source credentials when Claude file expiry is $credential",
   async ({ credential, token, source }) => {
-    vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(2_000_000_000_000);
     const observed: (string | null)[] = [];
     server.use(
       http.get("https://api.anthropic.com/api/oauth/usage", ({ request }) => {

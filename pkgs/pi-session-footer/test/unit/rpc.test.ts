@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { record } from "#footer/shared/text.ts";
 import { RpcClient } from "#footer/integrations/rpc.ts";
 
@@ -12,7 +12,14 @@ function harness() {
         handlers.delete(key);
       };
     },
-    emit: vi.fn<(event: string, value: unknown) => void>(),
+    published: [] as { event: string; value: unknown }[],
+    failure: undefined as Error | undefined,
+    emit(event: string, value: unknown) {
+      if (bus.failure) {
+        throw bus.failure;
+      }
+      bus.published.push({ event, value });
+    },
   };
 
   const runtime = dependencies();
@@ -36,7 +43,7 @@ it.each([
   async ({ expected, ...payload }) => {
     const { bus, handlers, client, runtime } = harness();
     const result = client.request("status");
-    const request = bus.emit.mock.lastCall?.[1];
+    const request = bus.published.at(-1)?.value;
 
     if (!record(request) || typeof request.requestId !== "string") {
       throw new Error("Expected an RPC request");
@@ -65,9 +72,7 @@ it.each([
 it("reports transport failure without leaving a timer or subscription", async () => {
   const { bus, handlers, client, runtime } = harness();
 
-  bus.emit.mockImplementation(() => {
-    throw new Error("Bus unavailable\nretry later");
-  });
+  bus.failure = new Error("Bus unavailable\nretry later");
 
   const result = await client.request("status");
 

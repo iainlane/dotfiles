@@ -1,5 +1,5 @@
 import { setImmediate } from "node:timers/promises";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   CURSOR_MARKER,
   stripTerminalSequences,
@@ -37,19 +37,18 @@ it.each([
   "reports the completed geometry with bottom '$bottom'",
   ({ bottom, height }) => {
     const { tui, theme, keys } = editorFixture();
-    const completed =
-      vi.fn<(geometry: { height: number; completionRows: number }) => void>();
+    let geometry: unknown;
     const editor = new ComposerEditor(tui, theme, keys, {
       top: () => "top",
       bottom: () => bottom,
-      completed,
+      completed: (completed) => {
+        geometry = completed;
+      },
       invalidate() {},
     });
     editor.setText("one\ntwo");
     const lines = editor.render(40);
-    expect(completed.mock.calls).toStrictEqual([
-      [{ height, completionRows: 0, lines }],
-    ]);
+    expect(geometry).toStrictEqual({ height, completionRows: 0, lines });
   },
 );
 

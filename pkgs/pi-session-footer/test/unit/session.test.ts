@@ -1,10 +1,10 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   FooterSession,
   type FooterContext,
 } from "#footer/application/session.ts";
-import type { GitState } from "#footer/integrations/git.ts";
 import { gitState } from "#test/support/git.ts";
+import { renderFooter } from "#test/support/layout.ts";
 import { quotaWindows, readQuota } from "#footer/domain/quota.ts";
 import { readAgents } from "#footer/domain/workflow.ts";
 import { record } from "#footer/shared/text.ts";
@@ -13,13 +13,6 @@ import { dependencies } from "#test/support/dependencies.ts";
 
 function harness() {
   const handlers = new Map<string, Set<(value: unknown) => void>>();
-  const emit = vi.fn<(key: string, value: unknown) => void>(
-    (key: string, value: unknown) => {
-      for (const handler of handlers.get(key) ?? []) {
-        handler(value);
-      }
-    },
-  );
   const bus = {
     on: (key: string, handler: (value: unknown) => void) => {
       const set = handlers.get(key) ?? new Set();
@@ -35,7 +28,11 @@ function harness() {
         }
       };
     },
-    emit,
+    emit: (key: string, value: unknown) => {
+      for (const handler of handlers.get(key) ?? []) {
+        handler(value);
+      }
+    },
   };
   const context: FooterContext = {
     cwd: "/work",
@@ -54,31 +51,54 @@ function harness() {
   return { bus, context, handlers, runtime: dependencies() };
 }
 
-it("disposes timers, replies and late Git requests without changing a replaced session", async () => {
-  const { bus, context, handlers, runtime } = harness();
-  const change = vi.fn<() => void>();
-  const pending = Promise.withResolvers<undefined>();
-  const session = new FooterSession(context, bus, change, {
-    ...runtime,
-    readGit: () => pending.promise,
-  });
+/**
+ * Starts a session whose change notifications redraw `screen.lines`, as the
+ * controller redraws the footer.
+ */
+function display(h: ReturnType<typeof harness>) {
+  const screen = { lines: [] as string[] };
+  const session: FooterSession = new FooterSession(
+    h.context,
+    h.bus,
+    () => {
+      screen.lines = renderFooter(session.state, 200);
+    },
+    h.runtime,
+  );
+  screen.lines = renderFooter(session.state, 200);
+  const shows = (text: string) => screen.lines.join("\n").includes(text);
+  return { session, screen, shows };
+}
+
+it("disposes timers, replies and late Git reads without changing a replaced session", async () => {
+  const h = harness();
+  h.runtime.repository.state = gitState("main", 0);
+  const release = h.runtime.repository.hold();
+  const { session, screen } = display(h);
+  const initial = screen.lines;
 
   session.dispose();
-  pending.resolve(undefined);
-  await runtime.clock.advance(0);
+  release();
+  await h.runtime.clock.advance(0);
 
-  expect(handlers.size).toBe(0);
-  expect(runtime.clock.pending).toBe(0);
-  expect(change).not.toHaveBeenCalled();
+  expect({
+    listeners: h.handlers.size,
+    timers: h.runtime.clock.pending,
+    git: session.state.git,
+    lines: screen.lines,
+  }).toStrictEqual({
+    listeners: 0,
+    timers: 0,
+    git: undefined,
+    lines: initial,
+  });
 });
 
 it("preserves an initial PR reading for the current branch", async () => {
   const { bus, context, runtime } = harness();
-  const git = Promise.withResolvers<GitState>();
-  const session = new FooterSession(context, bus, () => {}, {
-    ...runtime,
-    readGit: () => git.promise,
-  });
+  runtime.repository.state = gitState("main", 1);
+  const release = runtime.repository.hold();
+  const session = new FooterSession(context, bus, () => {}, runtime);
   const pr = {
     protocol: 1 as const,
     source: "pi-prs" as const,
@@ -90,8 +110,8 @@ it("preserves an initial PR reading for the current branch", async () => {
 
   session.receivePr(pr);
 
-  git.resolve(gitState("main", 1));
-  await Promise.resolve();
+  release();
+  await runtime.clock.advance(0);
 
   expect(session.state.pr).toStrictEqual(pr);
 
@@ -157,24 +177,23 @@ it.each([
   },
 );
 
-it("invalidates session age relative to the header timestamp", async () => {
+it("shows the session age from the header timestamp at the minute boundary", async () => {
   const now = Date.UTC(2026, 9, 20, 12, 0, 30);
-
-  const { bus, context, runtime } = harness();
-  runtime.clock.set(now);
-  const change = vi.fn<() => void>();
-
-  context.sessionManager.getHeader = () => ({
+  const h = harness();
+  h.runtime.clock.set(now);
+  h.context.sessionManager.getHeader = () => ({
     timestamp: new Date(now).toISOString(),
   });
+  const { session, shows } = display(h);
 
-  const session = new FooterSession(context, bus, change, runtime);
+  await h.runtime.clock.advance(59_000);
+  const before = shows(" 1m");
+  await h.runtime.clock.advance(1000);
 
-  await runtime.clock.advance(2500);
-  change.mockClear();
-  await runtime.clock.advance(57_500);
-
-  expect(change.mock.calls).toStrictEqual([[]]);
+  expect({ before, after: shows(" 1m") }).toStrictEqual({
+    before: false,
+    after: true,
+  });
 
   session.dispose();
 });
@@ -214,129 +233,136 @@ it.each<{ field: string; change: (context: FooterContext) => void }>([
     },
   },
 ])(
-  "invalidates when a tick changes the displayed $field",
+  "redraws when a tick changes the displayed $field",
   async ({ field, change }) => {
-    const { bus, context, runtime } = harness();
-    const changed = vi.fn<() => void>();
-    const session = new FooterSession(context, bus, changed, runtime);
+    const h = harness();
+    h.context.model = {
+      id: "fixture",
+      provider: "openai",
+      contextWindow: 200_000,
+      reasoning: true,
+    };
+    const { session, screen } = display(h);
 
-    await runtime.clock.advance(0);
-    changed.mockClear();
-    change(context);
-    await runtime.clock.advance(1000);
+    await h.runtime.clock.advance(0);
+    const initial = screen.lines;
+    change(h.context);
+    await h.runtime.clock.advance(1000);
 
-    expect(changed.mock.calls).toStrictEqual(field === "nothing" ? [] : [[]]);
+    expect({
+      lines: screen.lines,
+      changed: JSON.stringify(screen.lines) !== JSON.stringify(initial),
+    }).toStrictEqual({
+      lines: renderFooter(session.state, 200),
+      changed: field !== "nothing",
+    });
 
     session.dispose();
   },
 );
 
 it("reads Git again when a refresh is requested during a pending read", async () => {
-  const { bus, context, runtime } = harness();
-  const first = Promise.withResolvers<GitState>();
-  const readGit = vi
-    .fn<() => Promise<GitState>>()
-    .mockReturnValueOnce(first.promise)
-    .mockResolvedValue(gitState("feature", 2));
-  const session = new FooterSession(context, bus, () => {}, {
-    ...runtime,
-    readGit,
-  });
+  const h = harness();
+  h.runtime.repository.state = gitState("main", 0);
+  const release = h.runtime.repository.hold();
+  const { session, shows } = display(h);
 
+  h.runtime.repository.state = gitState("feature", 0);
   const requested = session.refreshGit();
-  first.resolve(gitState("main", 1));
+  release();
   await requested;
-  await runtime.clock.advance(0);
+  await h.runtime.clock.advance(0);
 
   expect({
-    reads: readGit.mock.calls.length,
     git: session.state.git,
+    shown: shows("feature"),
   }).toStrictEqual({
-    reads: 2,
-    git: gitState("feature", 2),
+    git: gitState("feature", h.runtime.clock.now()),
+    shown: true,
   });
 
   session.dispose();
 });
 
 it("polls Git a fixed interval after the previous read finishes", async () => {
-  const { bus, context, runtime } = harness();
-  const reads: number[] = [];
-  const session = new FooterSession(context, bus, () => {}, {
-    ...runtime,
-    readGit: async (_cwd, now) => {
-      reads.push(now);
-      const finished = Promise.withResolvers<undefined>();
-      runtime.clock.after(3000, () => finished.resolve(undefined));
-      return finished.promise;
-    },
+  const h = harness();
+  h.runtime.repository.state = gitState("main", 0);
+  h.runtime.repository.duration = 3000;
+  const { session, shows } = display(h);
+
+  await h.runtime.clock.advance(4000);
+  h.runtime.repository.state = gitState("feature", 0);
+  await h.runtime.clock.advance(6000);
+  const tenSeconds = shows("feature");
+  await h.runtime.clock.advance(1000);
+
+  expect({ tenSeconds, elevenSeconds: shows("feature") }).toStrictEqual({
+    tenSeconds: false,
+    elevenSeconds: true,
   });
-
-  await runtime.clock.advance(20_000);
-
-  const start = Date.UTC(2026, 9, 20, 12);
-  expect(reads.map((at) => at - start)).toStrictEqual([0, 8000, 16_000]);
 
   session.dispose();
 });
 
 it("backs off Git polling after failures and resets after a success", async () => {
-  const { bus, context, runtime } = harness();
-  const reads: number[] = [];
-  const session = new FooterSession(context, bus, () => {}, {
-    ...runtime,
-    readGit: async (_cwd, now): Promise<undefined> => {
-      reads.push(now);
-      if (reads.length <= 4) {
-        throw new Error("Git timed out");
-      }
-    },
+  const h = harness();
+  const start = h.runtime.clock.now();
+  h.runtime.repository.failure = new Error("Git timed out");
+  const { session, shows } = display(h);
+  await h.runtime.clock.advance(0);
+  const at = (seconds: number) =>
+    h.runtime.clock.advance(start + seconds * 1000 - h.runtime.clock.now());
+
+  await at(100);
+  h.runtime.repository.failure = undefined;
+  h.runtime.repository.state = gitState("main", 0);
+  await at(129);
+  const beforeRetry = shows(" main");
+  await at(130);
+  const afterRetry = shows(" main");
+  await at(131);
+  h.runtime.repository.state = gitState("feature", 0);
+  await at(134);
+  const beforePoll = shows("feature");
+  await at(135);
+
+  expect({
+    beforeRetry,
+    afterRetry,
+    beforePoll,
+    afterPoll: shows("feature"),
+  }).toStrictEqual({
+    beforeRetry: false,
+    afterRetry: true,
+    beforePoll: false,
+    afterPoll: true,
   });
-
-  await runtime.clock.advance(0);
-  await runtime.clock.advance(145_000);
-
-  const start = Date.UTC(2026, 9, 20, 12);
-  expect(reads.map((at) => at - start)).toStrictEqual([
-    0, 10_000, 30_000, 70_000, 130_000, 135_000, 140_000, 145_000,
-  ]);
 
   session.dispose();
 });
 
-it("does not invalidate for routine content but clears a displayed inactivity warning", async () => {
-  const { bus, context, runtime } = harness();
-  const change = vi.fn<() => void>();
-  const session = new FooterSession(context, bus, change, runtime);
+it("shows an inactivity warning after 30 s without content and clears it on content", async () => {
+  const h = harness();
+  const { session, shows } = display(h);
 
-  await runtime.clock.advance(2500);
-
+  await h.runtime.clock.advance(2500);
   session.activity("start");
-  change.mockClear();
-  session.activity("content");
-  session.activity("content");
-
-  expect(change.mock.calls).toStrictEqual([]);
-
-  await runtime.clock.advance(31_000);
-  change.mockClear();
+  await h.runtime.clock.advance(31_000);
+  const warned = shows("no content 0m");
   session.activity("content");
 
-  expect(change.mock.calls).toStrictEqual([[]]);
+  expect({ warned, cleared: !shows("no content") }).toStrictEqual({
+    warned: true,
+    cleared: true,
+  });
 
   session.dispose();
 });
 
 it("preserves bounded Git errors through failure and recovery without calling non-repositories errors", async () => {
   const { bus, context, runtime } = harness();
-  const fresh = gitState("main", 100);
-  const getGit = vi
-    .fn<() => Promise<typeof fresh | undefined>>()
-    .mockRejectedValueOnce(new Error("Permission denied\nfor fixture"));
-  const session = new FooterSession(context, bus, () => {}, {
-    ...runtime,
-    readGit: getGit,
-  });
+  runtime.repository.failure = new Error("Permission denied\nfor fixture");
+  const session = new FooterSession(context, bus, () => {}, runtime);
 
   await runtime.clock.advance(0);
 
@@ -348,8 +374,10 @@ it("preserves bounded Git errors through failure and recovery without calling no
     error: "Permission denied for fixture",
   });
 
-  getGit.mockResolvedValue(fresh);
+  runtime.repository.failure = undefined;
+  runtime.repository.state = gitState("main", 0);
   await session.refreshGit();
+  const fresh = gitState("main", runtime.clock.now());
 
   expect({
     git: session.state.git,
@@ -359,7 +387,7 @@ it("preserves bounded Git errors through failure and recovery without calling no
     error: undefined,
   });
 
-  getGit.mockRejectedValue(new Error("Git unavailable"));
+  runtime.repository.failure = new Error("Git unavailable");
   await session.refreshGit();
 
   expect({
@@ -370,7 +398,8 @@ it("preserves bounded Git errors through failure and recovery without calling no
     error: "Git unavailable",
   });
 
-  getGit.mockResolvedValue(undefined);
+  runtime.repository.failure = undefined;
+  runtime.repository.state = undefined;
   await session.refreshGit();
 
   expect({

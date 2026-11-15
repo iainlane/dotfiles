@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { createSnapshot } from "#footer/domain/state.ts";
 import { layoutFooter, renderFooter } from "#test/support/layout.ts";
@@ -8,6 +8,16 @@ import { gitState } from "#test/support/git.ts";
 import { readSegments, SEGMENTS } from "#footer/rendering/segments.ts";
 import type { SegmentId } from "#footer/configuration/settings.ts";
 const now = Date.UTC(2026, 9, 20, 12);
+const marking = {
+  fg: (role: string, value: string) => `<${role}:${value}>`,
+  bold: (value: string) => value,
+  style: (value: string) => value,
+};
+function colours(readings: unknown, value?: string): string[] {
+  return [...JSON.stringify(readings).matchAll(/<([^:<>]+):([^<>]*)>/g)]
+    .filter((match) => value === undefined || match[2] === value)
+    .map((match) => match[1] ?? "");
+}
 function fixture() {
   const state = createSnapshot(now - 3_000_000, "/Users/test/dev/dotfiles");
   Object.assign(state, {
@@ -334,21 +344,11 @@ it.each(["off", "minimal", "low", "medium", "high", "xhigh", "max", "unknown"])(
   (thinking) => {
     const state = fixture();
     state.thinking = thinking;
-    const fg = vi.fn<(role: string, value: string) => string>(
-      (_role, value) => value,
-    );
-    readSegments(state, {
-      theme: { fg, bold: (s) => s, style: (value) => value },
-    });
-    expect(
-      fg.mock.calls.filter(([, value]) => value === thinking),
-    ).toStrictEqual([
-      [
-        thinking === "unknown"
-          ? "muted"
-          : `thinking${thinking[0]?.toUpperCase()}${thinking.slice(1)}`,
-        thinking,
-      ],
+    const { thinking: reading } = readSegments(state, { theme: marking });
+    expect([...new Set(colours(reading))]).toStrictEqual([
+      thinking === "unknown"
+        ? "muted"
+        : `thinking${thinking[0]?.toUpperCase()}${thinking.slice(1)}`,
     ]);
   },
 );
@@ -374,16 +374,9 @@ it.each([
 ])("preserves semantic Git colours: $role", ({ changes, role }) => {
   const state = fixture();
   state.git = { ...gitState("main", now), ...changes };
-  const fg = vi.fn<(role: string, value: string) => string>(
-    (_role, value) => value,
-  );
-  readSegments(state, {
-    theme: { fg, bold: (s) => s, style: (value) => value },
-  });
-  expect(fg.mock.calls.filter(([, value]) => value === "main")).toStrictEqual([
-    [role, "main"],
-    [role, "main"],
-  ]);
+  expect(
+    colours(readSegments(state, { theme: marking }), "main"),
+  ).toStrictEqual([role, role]);
 });
 it("captures actual extension messages rather than integration health or generic counts", () => {
   const state = fixture();

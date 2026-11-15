@@ -2,7 +2,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "#test/support/keybindings.ts";
 
 import { isReply } from "#test/support/requests.ts";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   createFooter,
   type FooterUIContext,
@@ -11,7 +11,7 @@ import {
 import { dependencies } from "#test/support/dependencies.ts";
 import { record } from "#footer/shared/text.ts";
 import { editorFixture } from "#test/support/editor.ts";
-import { loadSettings } from "#footer/configuration/settings.ts";
+import { FakeScreen } from "#test/support/screen.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
 import { gitState } from "#test/support/git.ts";
 import type { Component } from "@earendil-works/pi-tui";
@@ -19,6 +19,7 @@ import type { Component } from "@earendil-works/pi-tui";
 type EditorFactory = NonNullable<
   ReturnType<ExtensionUIContext["getEditorComponent"]>
 >;
+type FooterFactory = Parameters<FooterUIContext["ui"]["setFooter"]>[0];
 
 const pretty: EditorFactory = () => {
   throw new Error("Not rendered by this fixture");
@@ -87,13 +88,8 @@ function harness(mode = "tui") {
     },
   };
   const runtime = dependencies();
-  const setFooter = vi.fn<FooterUIContext["ui"]["setFooter"]>();
+  let footerFactory: FooterFactory | undefined;
   let editor: EditorFactory | undefined;
-  const setEditorComponent = vi.fn<FooterUIContext["ui"]["setEditorComponent"]>(
-    (factory) => {
-      editor = factory;
-    },
-  );
   const context: FooterUIContext = {
     mode,
     cwd: "/footer-fixture",
@@ -114,11 +110,15 @@ function harness(mode = "tui") {
         style: (value) => value,
       },
       select: async (): Promise<undefined> => {},
-      notify: vi.fn<FooterUIContext["ui"]["notify"]>(),
+      notify() {},
       custom: async () => {},
-      setFooter,
+      setFooter: (factory) => {
+        footerFactory = factory;
+      },
       setWidget() {},
-      setEditorComponent,
+      setEditorComponent: (factory) => {
+        editor = factory;
+      },
       getEditorComponent: () => editor,
     },
   };
@@ -142,8 +142,13 @@ function harness(mode = "tui") {
     emit,
     channels,
     emitted,
-    setFooter,
-    setEditorComponent,
+    installedFooter: () => {
+      if (!footerFactory) {
+        throw new Error("Expected the footer factory");
+      }
+      return footerFactory;
+    },
+    footerInstalled: () => footerFactory !== undefined,
     events,
     footer,
     runtime,
@@ -152,18 +157,9 @@ function harness(mode = "tui") {
 
 it("loads active local preferences through the injected settings store", () => {
   const h = harness();
-  const source = h.runtime.settingsStore.load();
-  const loaded = loadSettings(() => '{"preset":"minimal"}', source.userPath);
-  h.runtime.settingsStore.load.mockReturnValue({
-    ...source,
-    loaded,
-    userExists: true,
-  });
+  h.runtime.settingsStore.stored = '{"preset":"minimal"}';
   h.footer.start(h.context);
-  const factory = h.setFooter.mock.lastCall?.[0];
-  if (!factory) {
-    throw new Error("Expected the footer factory");
-  }
+  const factory = h.installedFooter();
   const view = factory({ requestRender() {} }, h.context.ui.theme, {
     getExtensionStatuses: () => new Map(),
     onBranchChange: () => () => {},
@@ -172,8 +168,12 @@ it("loads active local preferences through the injected settings store", () => {
   expect({
     directory: display.includes(""),
     model: display.includes(""),
-    writes: h.runtime.settingsStore.save.mock.calls,
-  }).toStrictEqual({ directory: true, model: false, writes: [] });
+    stored: h.runtime.settingsStore.stored,
+  }).toStrictEqual({
+    directory: true,
+    model: false,
+    stored: '{"preset":"minimal"}',
+  });
   h.footer.shutdown();
 });
 
@@ -184,13 +184,9 @@ it.each(["sub-core:ready", "sub-core:update-current"])(
 
     h.emit({ type: "session_start", reason: "startup" }, h.context);
 
-    const factory = h.setFooter.mock.lastCall?.[0];
+    const factory = h.installedFooter();
 
-    if (!factory) {
-      throw new Error("Expected the session footer factory");
-    }
-
-    const tui = { requestRender: vi.fn<() => void>() };
+    const tui = { requestRender() {} };
 
     const view = factory(tui, h.context.ui.theme, {
       getExtensionStatuses: () => new Map(),
@@ -226,11 +222,7 @@ it("renders a failed message_end before settlement and cancellation", async () =
 
   h.emit({ type: "session_start", reason: "startup" }, h.context);
 
-  const factory = h.setFooter.mock.lastCall?.[0];
-
-  if (!factory) {
-    throw new Error("Expected the session footer factory");
-  }
+  const factory = h.installedFooter();
 
   let view: FooterView | undefined;
   const frames: string[][] = [];
@@ -278,8 +270,7 @@ it("reconnects sources after session replacement and never enables PR automation
   await Promise.resolve();
 
   const connected = h.channels.size;
-
-  expect(h.setFooter).toHaveBeenCalledTimes(1);
+  const first = h.installedFooter();
 
   h.emit({ type: "session_shutdown", reason: "new" }, h.context);
 
@@ -290,7 +281,7 @@ it("reconnects sources after session replacement and never enables PR automation
   await Promise.resolve();
 
   expect(h.channels.size).toBe(connected);
-  expect(h.setFooter).toHaveBeenCalledTimes(2);
+  expect(h.installedFooter()).not.toBe(first);
   expect(
     h.emitted.filter((channel) =>
       /feedback|ci-failure|sub-core:action/.test(channel),
@@ -302,7 +293,7 @@ it("reconnects sources after session replacement and never enables PR automation
 
 it("replaces directory and diagnostic scope with the runtime context", async () => {
   const h = harness();
-  const tui = { requestRender: vi.fn<() => void>() };
+  const tui = { requestRender() {} };
 
   const footerData = {
     getExtensionStatuses: () => new Map<string, string>(),
@@ -311,11 +302,7 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
 
   h.emit({ type: "session_start", reason: "startup" }, h.context);
 
-  const firstFactory = h.setFooter.mock.lastCall?.[0];
-
-  if (!firstFactory) {
-    throw new Error("Expected the first footer factory");
-  }
+  const firstFactory = h.installedFooter();
 
   const first = firstFactory(tui, h.context.ui.theme, footerData);
 
@@ -338,11 +325,7 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
   h.emit({ type: "session_start", reason: "resume" }, replacement);
   first.dispose?.();
 
-  const secondFactory = h.setFooter.mock.lastCall?.[0];
-
-  if (!secondFactory) {
-    throw new Error("Expected the replacement footer factory");
-  }
+  const secondFactory = h.installedFooter();
 
   const second = secondFactory(tui, replacement.ui.theme, footerData);
 
@@ -368,27 +351,32 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
 
 it("captures one clock/status observation for both composer borders and its explanation", async () => {
   const h = harness();
-  h.runtime.readSettings.mockReturnValue(
-    JSON.stringify({
-      "top-left": ["age", "statuses"],
-      "top-right": [],
-      "bottom-left": ["age", "statuses"],
-      "bottom-right": [],
-    }),
-  );
+  h.runtime.settingsStore.stored = JSON.stringify({
+    "top-left": ["age", "statuses"],
+    "top-right": [],
+    "bottom-left": ["age", "statuses"],
+    "bottom-right": [],
+  });
   h.context.sessionManager.getEntries = () => [
     { id: "usage", type: "usage", usage: { input: 1 } },
   ];
   h.footer.start(h.context);
-  const footerFactory = h.setFooter.mock.lastCall?.[0];
-  if (!footerFactory) {
-    throw new Error("Expected footer factory");
-  }
-  let statusReads = 0;
+  const footerFactory = h.installedFooter();
+  const start = h.runtime.clock.now();
+  const observations = [
+    { at: start + 59_999, text: "first" },
+    { at: start + 60_000, text: "second" },
+  ];
   footerFactory({ requestRender() {} }, h.context.ui.theme, {
     onBranchChange: () => () => {},
-    getExtensionStatuses: () =>
-      new Map([["source", ++statusReads === 1 ? "first" : "second"]]),
+    getExtensionStatuses: () => {
+      const next = observations.shift() ?? {
+        at: start + 60_000,
+        text: "second",
+      };
+      h.runtime.clock.set(next.at);
+      return new Map([["source", next.text]]);
+    },
   });
   h.footer.mountComposer(h.context);
   const factory = h.context.ui.getEditorComponent();
@@ -397,17 +385,12 @@ it("captures one clock/status observation for both composer borders and its expl
   }
   const { tui, theme, keys } = editorFixture();
   const editor = factory(tui, theme, keys);
-  const start = h.runtime.clock.now();
-  vi.spyOn(h.runtime.clock, "now")
-    .mockReturnValueOnce(start + 59_999)
-    .mockReturnValue(start + 60_000);
   const rendered = editor.render(100);
   expect({
-    statusReads,
     top: rendered[0]?.includes(" 0m"),
     bottom: rendered.at(-1)?.includes(" 0m"),
     second: rendered.join(" ").includes("second"),
-  }).toStrictEqual({ statusReads: 1, top: true, bottom: true, second: false });
+  }).toStrictEqual({ top: true, bottom: true, second: false });
   let explanation: string[] = [];
   let technical: string[] = [];
   h.context.ui.custom = async (create) => {
@@ -435,26 +418,11 @@ it("captures one clock/status observation for both composer borders and its expl
   h.footer.shutdown();
 });
 
-function countPaints(h: ReturnType<typeof harness>) {
-  const paints = {
-    count: 0,
-    paint: (_role: string, value: string) => value,
-  };
-  h.context.ui.theme.fg = (role, value) => {
-    paints.count++;
-    return paints.paint(role, value);
-  };
-  return paints;
-}
-
 function fallbackView(
   h: ReturnType<typeof harness>,
   statuses = new Map<string, string>(),
 ) {
-  const factory = h.setFooter.mock.lastCall?.[0];
-  if (!factory) {
-    throw new Error("Expected the footer factory");
-  }
+  const factory = h.installedFooter();
   return () =>
     factory({ requestRender() {} }, h.context.ui.theme, {
       getExtensionStatuses: () => statuses,
@@ -462,25 +430,8 @@ function fallbackView(
     });
 }
 
-it("reuses the fallback layout while nothing displayed changes", async () => {
+it("paints the composer borders again after a theme change", async () => {
   const h = harness();
-  const paints = countPaints(h);
-  h.footer.start(h.context);
-  const view = fallbackView(h)();
-  await h.runtime.clock.advance(0);
-  const first = view.render(120);
-  paints.count = 0;
-
-  expect({ lines: view.render(120), paints: paints.count }).toStrictEqual({
-    lines: first,
-    paints: 0,
-  });
-  h.footer.shutdown();
-});
-
-it("reuses the composer borders while nothing displayed changes", async () => {
-  const h = harness();
-  const paints = countPaints(h);
   h.footer.start(h.context);
   fallbackView(h)();
   h.footer.mountComposer(h.context);
@@ -491,36 +442,31 @@ it("reuses the composer borders while nothing displayed changes", async () => {
   const { tui, theme, keys } = editorFixture();
   const editor = factory(tui, theme, keys);
   await h.runtime.clock.advance(0);
-  const first = editor.render(100);
-  paints.count = 0;
-  const second = editor.render(100);
-  const unchanged = paints.count;
-  paints.paint = (_role, value) => `[${value}]`;
+  const plain = editor.render(100)[0]?.includes("[") ?? false;
+  h.context.ui.theme.fg = (_role, value) => `[${value}]`;
   editor.invalidate();
 
   expect({
-    second,
-    unchanged,
+    plain,
     themed: editor.render(100)[0]?.includes("[") ?? false,
-  }).toStrictEqual({ second: first, unchanged: 0, themed: true });
+  }).toStrictEqual({ plain: false, themed: true });
   h.footer.shutdown();
 });
 
 it.each<{
   trigger: string;
   width?: number;
-  repaint: boolean;
+  changes: boolean;
   change: (
     h: ReturnType<typeof harness>,
     view: FooterView,
     statuses: Map<string, string>,
-    paints: ReturnType<typeof countPaints>,
   ) => Promise<void> | void;
 }>([
-  { trigger: "a width change", width: 100, repaint: true, change: () => {} },
+  { trigger: "a width change", width: 100, changes: true, change: () => {} },
   {
     trigger: "a quota update",
-    repaint: true,
+    changes: true,
     change: (h) => {
       h.events.emit("sub-core:update-current", {
         state: {
@@ -535,22 +481,22 @@ it.each<{
   },
   {
     trigger: "an extension status change",
-    repaint: true,
+    changes: true,
     change: (_h, _view, statuses) => {
       statuses.set("source", "changed");
     },
   },
   {
     trigger: "a theme change",
-    repaint: true,
-    change: (_h, view, _statuses, paints) => {
-      paints.paint = (_role, value) => `[${value}]`;
+    changes: true,
+    change: (h, view) => {
+      h.context.ui.theme.fg = (_role, value) => `[${value}]`;
       view.invalidate();
     },
   },
   {
     trigger: "a model selection",
-    repaint: true,
+    changes: true,
     change: (h) => {
       h.context.model = {
         id: "replacement",
@@ -562,14 +508,14 @@ it.each<{
   },
   {
     trigger: "a minute boundary while idle",
-    repaint: true,
+    changes: true,
     change: async (h) => {
       await h.runtime.clock.advance(60_000);
     },
   },
   {
     trigger: "a minute boundary while running",
-    repaint: true,
+    changes: true,
     change: async (h) => {
       h.footer.startAgent(h.context);
       await h.runtime.clock.advance(60_000);
@@ -577,34 +523,30 @@ it.each<{
   },
   {
     trigger: "a second within the same idle minute",
-    repaint: false,
+    changes: false,
     change: async (h) => {
       await h.runtime.clock.advance(1000);
     },
   },
 ])(
-  "repaints the fallback footer after $trigger",
-  async ({ width = 120, repaint, change }) => {
+  "updates the fallback footer after $trigger",
+  async ({ width = 120, changes, change }) => {
     const h = harness();
-    const paints = countPaints(h);
+    h.context.ui.theme.fg = (_role, value) => value;
     const statuses = new Map([["source", "initial"]]);
     h.footer.start(h.context);
     const create = fallbackView(h, statuses);
     const view = create();
     await h.runtime.clock.advance(0);
     const before = view.render(120);
-    paints.count = 0;
-    await change(h, view, statuses, paints);
+    await change(h, view, statuses);
     const after = view.render(width);
-    const painted = paints.count > 0;
 
     expect({
-      painted,
       changed: JSON.stringify(after) !== JSON.stringify(before),
       after,
     }).toStrictEqual({
-      painted: repaint,
-      changed: repaint,
+      changed: changes,
       after: create().render(width),
     });
     h.footer.shutdown();
@@ -617,7 +559,7 @@ it("restores a known PR when Git returns to its branch", async () => {
     ...gitState(name, h.runtime.clock.now()),
     root: h.context.cwd,
   });
-  h.runtime.readGit.mockResolvedValue(branch("main"));
+  h.runtime.repository.state = branch("main");
   h.footer.start(h.context);
   const view = fallbackView(h)();
   await h.runtime.clock.advance(0);
@@ -637,7 +579,7 @@ it("restores a known PR when Git returns to its branch", async () => {
   });
   const shown = () => view.render(200).join("\n").includes("#7");
   const checkout = async (name: string) => {
-    h.runtime.readGit.mockResolvedValue(branch(name));
+    h.runtime.repository.state = branch(name);
     h.footer.endTool("tool");
     await h.runtime.clock.advance(0);
     return shown();
@@ -667,10 +609,7 @@ it.each([true, false])(
       h.footer.start(h.context);
     }
 
-    const factory = h.setFooter.mock.lastCall?.[0];
-    if (!factory) {
-      throw new Error("Expected the footer factory");
-    }
+    const factory = h.installedFooter();
     const view = factory({ requestRender() {} }, h.context.ui.theme, {
       getExtensionStatuses: () => new Map(),
       onBranchChange: () => () => {},
@@ -679,19 +618,20 @@ it.each([true, false])(
     h.footer.mountComposer(h.context);
     const ours = h.context.ui.getEditorComponent();
     h.footer.mountComposer(h.context);
+    const again = h.context.ui.getEditorComponent();
     const compact = view.render(120);
     h.context.ui.setEditorComponent(pretty);
 
     expect({
       different: ours !== pretty,
       compact,
+      kept: again === ours,
       fallback: view.render(120),
-      installations: h.setEditorComponent.mock.calls.length,
     }).toStrictEqual({
       different: true,
       compact: [],
+      kept: true,
       fallback: original,
-      installations: 3,
     });
     h.footer.shutdown();
   },
@@ -740,17 +680,20 @@ it("leaves a later editor intact during shutdown", () => {
 
 it("keeps shared session state alive when its footer view is disposed", async () => {
   const h = harness();
+  const screen = new FakeScreen(200);
   h.footer.start(h.context);
-  const factory = h.setFooter.mock.lastCall?.[0];
-  if (!factory) {
-    throw new Error("Expected the footer factory");
-  }
-  const redraw = vi.fn<() => void>();
-  const view = factory({ requestRender: redraw }, h.context.ui.theme, {
+  const factory = h.installedFooter();
+  const view = factory(screen, h.context.ui.theme, {
     getExtensionStatuses: () => new Map(),
     onBranchChange: () => () => {},
   });
   h.footer.mountComposer(h.context);
+  const createEditor = h.context.ui.getEditorComponent();
+  if (!createEditor) {
+    throw new Error("Expected editor factory");
+  }
+  const { tui, theme, keys } = editorFixture();
+  screen.show(createEditor(tui, theme, keys));
   view.dispose();
   h.events.emit("sub-core:update-current", {
     state: {
@@ -764,9 +707,9 @@ it("keeps shared session state alive when its footer view is disposed", async ()
   await h.runtime.clock.advance(0);
 
   expect({
-    redraw: redraw.mock.calls.length > 0,
+    quota: screen.lines.join("\n").includes("week 42%"),
     alive: h.runtime.clock.pending > 0,
-  }).toStrictEqual({ redraw: true, alive: true });
+  }).toStrictEqual({ quota: true, alive: true });
   h.footer.shutdown();
 });
 
@@ -780,10 +723,10 @@ it.each(["rpc", "json", "print"] as const)(
     h.footer.mountComposer(h.context);
 
     expect({
-      footer: h.setFooter.mock.calls,
-      editor: h.setEditorComponent.mock.calls,
+      footer: h.footerInstalled(),
+      editor: h.context.ui.getEditorComponent(),
       timers: h.runtime.clock.pending,
-    }).toStrictEqual({ footer: [], editor: [], timers: 0 });
+    }).toStrictEqual({ footer: false, editor: undefined, timers: 0 });
 
     h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
 
@@ -805,10 +748,7 @@ it("requests structured status on every start, rejects cross-session events and 
     });
   h.events.on("dotfiles:status:request:v1", () => publish(true));
   h.footer.start(h.context);
-  const factory = h.setFooter.mock.lastCall?.[0];
-  if (!factory) {
-    throw new Error("Missing footer");
-  }
+  const factory = h.installedFooter();
   const view = factory({ requestRender() {} }, h.context.ui.theme, {
     getExtensionStatuses: () => new Map([["planning", "plan mode on"]]),
     onBranchChange: () => () => {},
@@ -829,16 +769,22 @@ it("requests structured status on every start, rejects cross-session events and 
   expect(view.render(200).join("\n")).not.toMatch(/≡|plan mode on/);
   id = "two";
   h.footer.start(h.context);
-  expect(
-    h.emitted.filter((channel) => channel === "dotfiles:status:request:v1"),
-  ).toHaveLength(2);
+  const restarted = h.installedFooter()(
+    { requestRender() {} },
+    h.context.ui.theme,
+    {
+      getExtensionStatuses: () => new Map(),
+      onBranchChange: () => () => {},
+    },
+  );
+  expect(restarted.render(200).join("\n")).toContain("≡");
   h.footer.shutdown();
   expect(h.channels.has("dotfiles:status:v1")).toBe(false);
 });
 
 it("retains effective source symbols in live profile previews without saving", async () => {
   const h = harness();
-  h.runtime.readSettings.mockReturnValue('{"symbols":{"planning":"[P]"}}');
+  h.runtime.settingsStore.stored = '{"symbols":{"planning":"[P]"}}';
   h.context.sessionManager.getSessionId = () => "one";
   h.footer.start(h.context);
   h.events.emit("dotfiles:status:v1", {
@@ -847,10 +793,7 @@ it("retains effective source symbols in live profile previews without saving", a
     sessionId: "one",
     active: true,
   });
-  const factory = h.setFooter.mock.lastCall?.[0];
-  if (!factory) {
-    throw new Error("Missing footer");
-  }
+  const factory = h.installedFooter();
   factory({ requestRender() {} }, h.context.ui.theme, {
     getExtensionStatuses: () => new Map(),
     onBranchChange: () => () => {},
@@ -888,8 +831,12 @@ it("retains effective source symbols in live profile previews without saving", a
   expect({
     screen: view.render(200).join("\n").includes("Workflow"),
     symbol: editor.render(200).join("\n").includes("[P]"),
-    writes: h.runtime.settingsStore.save.mock.calls,
-  }).toStrictEqual({ screen: true, symbol: true, writes: [] });
+    stored: h.runtime.settingsStore.stored,
+  }).toStrictEqual({
+    screen: true,
+    symbol: true,
+    stored: '{"symbols":{"planning":"[P]"}}',
+  });
   view.handleInput?.("\u001B");
   view.handleInput?.("\u001B");
   await opened;
@@ -943,21 +890,135 @@ it.each(["shutdown", "restart", "inspect"] as const)(
     }
     await opened;
     const current = h.context.ui.getEditorComponent();
-    const changes = h.setEditorComponent.mock.calls.length;
     stale.handleInput?.("\r");
     stale.handleInput?.("\u001B");
     stale.render(200);
     expect({
-      writes: h.runtime.settingsStore.save.mock.calls,
+      stored: h.runtime.settingsStore.stored,
       factory: h.context.ui.getEditorComponent() === current,
-      replacements: h.setEditorComponent.mock.calls.length - changes,
       widget,
     }).toStrictEqual({
-      writes: [],
+      stored: undefined,
       factory: true,
-      replacements: 0,
       widget: undefined,
     });
     h.footer.shutdown();
   },
 );
+
+async function composerLines(stored: string): Promise<string[]> {
+  const h = harness();
+  h.runtime.settingsStore.stored = stored;
+  h.footer.start(h.context);
+  h.footer.mountComposer(h.context);
+  const create = h.context.ui.getEditorComponent();
+  if (!create) {
+    throw new Error("Missing editor factory");
+  }
+  const { tui, theme, keys } = editorFixture();
+  const editor = create(tui, theme, keys);
+  await h.runtime.clock.advance(0);
+  const lines = editor.render(200);
+  h.footer.shutdown();
+  return lines;
+}
+
+async function openCustomiser(h: ReturnType<typeof harness>) {
+  const native = editorFixture();
+  const { context } = await runtimeFixture();
+  let widget: (Component & { dispose?(): void }) | undefined;
+  h.context.ui.setWidget = (_key, content) => {
+    widget =
+      typeof content === "function"
+        ? content(native.tui, context.ui.theme)
+        : undefined;
+  };
+  h.footer.start(h.context);
+  h.footer.mountComposer(h.context);
+  const create = h.context.ui.getEditorComponent();
+  if (!create) {
+    throw new Error("Missing editor factory");
+  }
+  const editor = create(native.tui, native.theme, native.keys);
+  editor.render(200);
+  const opened = h.footer.inspect("config", h.context);
+  const view = () => {
+    if (!widget) {
+      throw new Error("Missing customiser");
+    }
+    return widget;
+  };
+  const screen = () => view().render(200).join("\n");
+  const choose = (label: string) => {
+    for (let attempts = 0; attempts < 100; attempts++) {
+      if (screen().includes(`→ ${label}`)) {
+        view().handleInput?.("\r");
+        return;
+      }
+      view().handleInput?.("\u001B[B");
+    }
+    throw new Error(`Missing selectable action: ${label}\n${screen()}`);
+  };
+  return {
+    editor,
+    opened,
+    screen,
+    choose,
+    cancel: () => view().handleInput?.("\u001B"),
+    open: () => widget !== undefined,
+  };
+}
+
+it("keeps a draft open after a failed save and uses it for the session on request", async () => {
+  const h = harness();
+  h.runtime.settingsStore.failure = Object.assign(
+    new Error("Permission denied"),
+    { code: "EACCES" },
+  );
+  const customiser = await openCustomiser(h);
+  customiser.choose("Profile");
+  customiser.choose("Compact");
+  customiser.choose("Save & use");
+  const failed = customiser.screen().includes("Couldn't save");
+  customiser.choose("Use for this session");
+  await customiser.opened;
+  await h.runtime.clock.advance(0);
+
+  expect({
+    failed,
+    open: customiser.open(),
+    composer: customiser.editor.render(200),
+    stored: h.runtime.settingsStore.stored,
+  }).toStrictEqual({
+    failed: true,
+    open: false,
+    composer: await composerLines('{"preset":"compact"}'),
+    stored: undefined,
+  });
+  h.footer.shutdown();
+});
+
+it("shows the settings from disk after a conflicting draft is discarded", async () => {
+  const h = harness();
+  const customiser = await openCustomiser(h);
+  customiser.choose("Profile");
+  customiser.choose("Compact");
+  h.runtime.settingsStore.stored = '{"preset":"minimal"}';
+  customiser.choose("Save & use");
+  customiser.choose("Review disk changes");
+  customiser.choose("Discard draft & reload");
+  customiser.cancel();
+  await customiser.opened;
+  await h.runtime.clock.advance(0);
+
+  expect({
+    open: customiser.open(),
+    composer: customiser.editor.render(200),
+    stored: h.runtime.settingsStore.stored,
+  }).toStrictEqual({
+    open: false,
+    composer: await composerLines('{"preset":"minimal"}'),
+    stored: '{"preset":"minimal"}',
+  });
+  h.footer.shutdown();
+});

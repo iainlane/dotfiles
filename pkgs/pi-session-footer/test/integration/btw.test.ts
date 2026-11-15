@@ -3,7 +3,12 @@ import {
   type AssistantMessage,
 } from "@earendil-works/pi-ai/compat";
 import { runtimeFixture } from "#test/support/runtime.ts";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  ModelRegistry,
+  ModelRuntime,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { join } from "node:path";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 let configDirectory: string | undefined;
@@ -68,36 +73,80 @@ it.each(["success", "overflow", "aborted"])(
               stopReason: outcome === "aborted" ? "aborted" : "stop",
             },
           ];
-    const stream = vi.fn<ExtensionContext["modelRegistry"]["streamSimple"]>();
-    for (const reply of replies) {
-      stream.mockImplementationOnce(() => {
-        const output = createAssistantMessageEventStream();
-        output.end(reply);
-        return output;
-      });
-    }
+    const queued = [...replies];
+    const requested = Promise.withResolvers<void>();
     const { context: ctx } = await runtimeFixture();
-    ctx.cwd = "/fixture";
-    ctx.model = {
-      provider: "openai",
-      id: "fixture",
-      api: "openai-completions",
-      name: "fixture",
-      baseUrl: "http://127.0.0.1:1",
-      contextWindow: 200000,
-      maxTokens: 4096,
-      reasoning: false,
-      input: ["text"],
-      cost: usage.cost,
-    };
-    vi.spyOn(ctx.sessionManager, "getSessionFile").mockReturnValue(
-      `/fixture/${outcome}.jsonl`,
+
+    if (configDirectory === undefined) {
+      throw new Error("Expected the configuration directory");
+    }
+
+    ctx.modelRegistry = new ModelRegistry(
+      await ModelRuntime.create({
+        authPath: join(configDirectory, "auth.json"),
+        modelsPath: null,
+        refreshOnCreate: false,
+      }),
     );
-    vi.spyOn(ctx.sessionManager, "getSessionId").mockReturnValue(outcome);
-    vi.spyOn(ctx.modelRegistry, "getApiKeyAndHeaders").mockResolvedValue({
-      ok: true,
+    ctx.modelRegistry.registerProvider("btw-fixture", {
+      baseUrl: "http://127.0.0.1:1",
+      apiKey: "fixture",
+      api: "btw-fixture",
+      models: [
+        {
+          id: "fixture",
+          name: "fixture",
+          reasoning: false,
+          input: ["text"],
+          cost: usage.cost,
+          contextWindow: 200_000,
+          maxTokens: 4096,
+        },
+      ],
+      streamSimple: (_model, _context, options) => {
+        const output = createAssistantMessageEventStream();
+        const reply = queued.shift();
+
+        if (reply === undefined) {
+          throw new Error("The fixture provider has no reply left");
+        }
+
+        requested.resolve();
+
+        if (reply.stopReason !== "aborted") {
+          output.end(reply);
+
+          return output;
+        }
+
+        // The aborted reply is sent only when the request's signal aborts. A
+        // request without a signal cannot be cancelled, so it completes with
+        // the successful response.
+        const signal = options?.signal;
+
+        if (signal === undefined) {
+          output.end(response);
+
+          return output;
+        }
+
+        signal.addEventListener("abort", () => output.end(reply), {
+          once: true,
+        });
+
+        return output;
+      },
     });
-    vi.spyOn(ctx.modelRegistry, "streamSimple").mockImplementation(stream);
+
+    const model = ctx.modelRegistry.find("btw-fixture", "fixture");
+
+    if (model === undefined) {
+      throw new Error("Expected the registered fixture model");
+    }
+
+    ctx.cwd = "/fixture";
+    ctx.model = model;
+
     const { executeBtw, buildBtwMessages, BTW_STATE_KEY } =
       await vi.importActual<{
         executeBtw: (
@@ -136,18 +185,23 @@ it.each(["success", "overflow", "aborted"])(
       buildBtwMessages(ctx, { role: "user", content: "Question", timestamp: 1 })
         .systemPrompt,
     ).not.toContain("Private question");
-    const record = vi.fn<(response: unknown) => void>();
+
+    const records: unknown[] = [];
     const controller = new AbortController();
-    const result = await executeBtw("Question", ctx, controller, record);
-    expect({
-      kind: result.kind,
-      records: record.mock.calls.map(([value]) => value),
-    }).toStrictEqual({
+    const execution = executeBtw("Question", ctx, controller, (value) => {
+      records.push(value);
+    });
+
+    if (outcome === "aborted") {
+      await Promise.race([requested.promise, execution]);
+      controller.abort();
+    }
+
+    const result = await execution;
+
+    expect({ kind: result.kind, records }).toStrictEqual({
       kind: outcome === "aborted" ? "aborted" : "success",
       records: replies,
     });
-    expect(stream.mock.calls.map((call) => call[2])).toStrictEqual(
-      replies.map(() => ({ signal: controller.signal })),
-    );
   },
 );

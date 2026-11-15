@@ -31,7 +31,9 @@ import {
   UnconfirmedCreateError,
   UnconfirmedRemoveError,
   UnconfirmedRepairError,
+  type SettingsStore,
 } from "#footer/configuration/settings-store.ts";
+import { MemorySettingsStore } from "#test/support/dependencies.ts";
 
 interface Failure {
   operation: "flush" | "close" | "rename";
@@ -459,5 +461,27 @@ it.each(["flush", "close", "rename"] as const)(
       base: { preset: "rich" },
       entries: ["session-footer.json"],
     });
+  },
+);
+
+it.each([
+  { store: "NodeSettingsStore", create: (): SettingsStore => harness().store },
+  {
+    store: "MemorySettingsStore",
+    create: (): SettingsStore => new MemorySettingsStore(),
+  },
+])(
+  "$store rejects a save from a snapshot that an earlier save replaced",
+  ({ create }) => {
+    const store = create();
+    const snapshot = store.load();
+    const saved = store.save(snapshot, {
+      kind: "write",
+      document: { preset: "compact" },
+    });
+    expect(() =>
+      store.save(snapshot, { kind: "write", document: { preset: "minimal" } }),
+    ).toThrow(new SettingsConflictError());
+    expect(store.load()).toStrictEqual(saved);
   },
 );

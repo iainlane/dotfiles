@@ -1,6 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, expect, it, vi } from "vitest";
@@ -9,6 +9,18 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
 });
+
+function usage(usedPercent: number): Response {
+  return Response.json({
+    rate_limit: {
+      primary_window: {
+        used_percent: usedPercent,
+        reset_at: 2_000_000_000,
+        limit_window_seconds: 18_000,
+      },
+    },
+  });
+}
 
 it.each(["cached", "cache filled during lookup"])(
   "preserves forced refresh semantics (%s)",
@@ -50,10 +62,9 @@ it.each(["cached", "cache filled during lookup"])(
     settings.behavior.minRefreshInterval = 0;
     settings.providers.codex.enabled = "on";
     const response = Promise.withResolvers<Response>();
+    const responses = [response.promise];
     const dependencies = {
-      fetch: vi.fn<typeof fetch>(() => {
-        return response.promise;
-      }),
+      fetch: async () => responses.shift() ?? usage(3),
       homedir: () => root,
       env: { OPENAI_CODEX_OAUTH_TOKEN: "fixture" },
       readFile: () => {},
@@ -72,19 +83,8 @@ it.each(["cached", "cache filled during lookup"])(
       const another = fetchUsageForProvider(dependencies, settings, "codex", {
         force: true,
       });
-      response.resolve(
-        Response.json({
-          rate_limit: {
-            primary_window: {
-              used_percent: 2,
-              reset_at: 2_000_000_000,
-              limit_window_seconds: 18_000,
-            },
-          },
-        }),
-      );
+      response.resolve(usage(2));
       const results = await Promise.all([cached, forced, another]);
-      expect(dependencies.fetch).toHaveBeenCalledTimes(1);
       expect(
         results.map((result) => result.usage?.windows[0]?.usedPercent),
       ).toStrictEqual([1, 2, 2]);
@@ -106,10 +106,12 @@ it("does not publish a cancelled status-cache update", async () => {
         status: { indicator: "none" },
         options: { signal: AbortSignal },
       ) => Promise<void>;
-      onCacheSnapshot: (callback: () => void) => () => void;
+      onCacheSnapshot: (callback: (cache: unknown) => void) => () => void;
     }>("#fixtures/pi-sub-core/src/cache.ts");
-    const publish = vi.fn<() => void>();
-    const stop = onCacheSnapshot(publish);
+    const published: unknown[] = [];
+    const stop = onCacheSnapshot((cache) => {
+      published.push(cache);
+    });
     const controller = new AbortController();
     controller.abort(new Error("Status update cancelled"));
     await expect(
@@ -119,11 +121,9 @@ it("does not publish a cancelled status-cache update", async () => {
         { signal: controller.signal },
       ),
     ).rejects.toThrow("Status update cancelled");
-    expect(publish).not.toHaveBeenCalled();
+    expect(published).toStrictEqual([]);
     stop();
-    await expect(
-      readFile(join(root, "cache/sub-core/cache.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(existsSync(join(root, "cache/sub-core/cache.json"))).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

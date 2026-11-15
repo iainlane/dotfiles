@@ -1,94 +1,62 @@
-import { expect, it, vi } from "vitest";
-import {
-  AppearanceTransaction,
-  type AppearanceEffects,
-} from "#footer/configuration/appearance-transaction.ts";
-import { loadSettings } from "#footer/configuration/settings.ts";
+import { expect, it } from "vitest";
+import { AppearanceTransaction } from "#footer/configuration/appearance-transaction.ts";
+import type { PresentationDocument } from "#footer/configuration/settings.ts";
 import { ExpectedObjectError } from "#footer/configuration/settings-errors.ts";
-import {
-  SettingsWriteError,
-  type SettingsSnapshot,
-  type SettingsStore,
-} from "#footer/configuration/settings-store.ts";
+import { SettingsWriteError } from "#footer/configuration/settings-store.ts";
+import { storeEffects } from "#test/support/appearance.ts";
+import { MemorySettingsStore } from "#test/support/dependencies.ts";
 
-function fixture() {
-  const loaded = loadSettings(
-    () => '{"preset":"rich"}',
-    "/agent/session-footer.json",
-  );
-  const source: SettingsSnapshot = {
-    loaded,
-    base: loaded,
-    userPath: "/agent/session-footer.user.json",
-    userExists: false,
-    revision: "r1",
-    destination: {
-      kind: "file",
-      path: loaded.path,
-      newUserFile: false,
-      repair: false,
-    },
-  };
-  const save = vi.fn<SettingsStore["save"]>(() => source);
-  const effects = {
-    store: { load: () => source, save },
-    preview: vi.fn<AppearanceEffects["preview"]>(),
-    saved: vi.fn<AppearanceEffects["saved"]>(),
-    reloaded: vi.fn<AppearanceEffects["reloaded"]>(),
-    applied: vi.fn<AppearanceEffects["applied"]>(),
-    finished: vi.fn<AppearanceEffects["finished"]>(),
-  };
+function fixture(user?: PresentationDocument) {
+  const store = new MemorySettingsStore();
+  store.stored = '{"preset":"rich"}';
+  if (user !== undefined) {
+    store.user = JSON.stringify(user);
+  }
+  const source = store.load();
   const transaction = new AppearanceTransaction(
     source,
-    { preset: "rich" },
-    effects,
+    user ?? { preset: "rich" },
+    storeEffects(store),
   );
-  return { source, save, effects, transaction };
+  return { source, store, transaction };
 }
 it("reloads an explicitly reviewed source and discards the previous draft", () => {
-  const { transaction, source, effects, save } = fixture();
+  const { transaction, store } = fixture();
   transaction.replace({ preset: "minimal" });
-  const loaded = loadSettings(() => '{"preset":"compact"}', source.loaded.path);
-  const fresh = { ...source, loaded, revision: "r2" };
+  store.stored = '{"preset":"compact"}';
+  const fresh = store.load();
   transaction.reload(fresh);
   transaction.save();
   expect({
     document: transaction.document,
-    writes: save.mock.calls,
-    reloaded: effects.reloaded.mock.calls,
-    saved: effects.saved.mock.calls,
+    source: transaction.source,
+    stored: store.load(),
   }).toStrictEqual({
     document: { preset: "compact" },
-    writes: [],
-    reloaded: [[fresh]],
-    saved: [[fresh]],
+    source: fresh,
+    stored: fresh,
   });
 });
 
 it("keeps field previews separate from accepted edits and persistent saving", () => {
-  const { transaction, save } = fixture();
+  const { transaction, store, source } = fixture();
   transaction.replace({ preset: "compact" });
   transaction.preview({ preset: "minimal" });
   expect({
     draft: transaction.document,
     visible: transaction.presentation,
-    writes: save.mock.calls,
+    stored: store.load(),
   }).toStrictEqual({
     draft: { preset: "compact" },
     visible: { preset: "minimal" },
-    writes: [],
+    stored: source,
   });
   transaction.discardPreview();
   expect(transaction.presentation).toStrictEqual({ preset: "compact" });
   transaction.preview({ preset: "workflow" });
   transaction.acceptPreview();
   transaction.save();
-  expect(save.mock.calls).toStrictEqual([
-    [
-      transaction.source,
-      { kind: "write", document: { preset: "workflow" }, confirmed: false },
-    ],
-  ]);
+  expect(store.load().loaded.document).toStrictEqual({ preset: "workflow" });
 });
 it("preserves the last valid preview when a field is invalid", () => {
   const { transaction } = fixture();
@@ -99,90 +67,80 @@ it("preserves the last valid preview when a field is invalid", () => {
   expect(transaction.presentation).toStrictEqual({ preset: "minimal" });
 });
 it("stages user-file removal and discards it on cancellation", () => {
-  const { source, effects, save } = fixture();
-  source.userExists = true;
-  const transaction = new AppearanceTransaction(
-    source,
-    { preset: "minimal" },
-    effects,
-  );
+  const { transaction, store, source } = fixture({ preset: "minimal" });
   transaction.resetToBase();
   expect({
     draft: transaction.document,
     reset: transaction.resetting,
-    writes: save.mock.calls,
-  }).toStrictEqual({ draft: { preset: "rich" }, reset: true, writes: [] });
+    stored: store.load(),
+  }).toStrictEqual({
+    draft: { preset: "rich" },
+    reset: true,
+    stored: source,
+  });
   transaction.cancel();
   transaction.save(true);
   transaction.replace({ preset: "compact" });
   expect({
-    writes: save.mock.calls,
-    finished: effects.finished.mock.calls,
-    previews: effects.preview.mock.calls,
+    closed: transaction.closed,
+    visible: transaction.presentation,
+    stored: store.load(),
   }).toStrictEqual({
-    writes: [],
-    finished: [[]],
-    previews: [[{ preset: "rich" }], [undefined]],
+    closed: true,
+    visible: { preset: "rich" },
+    stored: source,
   });
 });
 it("converts a staged reset to a normal write when the base appearance is edited", () => {
-  const { source, effects, save } = fixture();
-  source.userExists = true;
-  const transaction = new AppearanceTransaction(
-    source,
-    { preset: "minimal" },
-    effects,
-  );
+  const { transaction, store } = fixture({ preset: "minimal" });
   transaction.resetToBase();
   transaction.replace({ preset: "workflow" });
   transaction.save(true);
-  expect(save.mock.calls).toStrictEqual([
-    [
-      source,
-      { kind: "write", document: { preset: "workflow" }, confirmed: true },
-    ],
-  ]);
+  const saved = store.load();
+  expect({
+    base: saved.base.document,
+    userExists: saved.userExists,
+    document: saved.loaded.document,
+  }).toStrictEqual({
+    base: { preset: "rich" },
+    userExists: true,
+    document: { preset: "workflow" },
+  });
 });
-it("keeps the draft open and unapplied after an I/O error", () => {
-  const { transaction, effects, save } = fixture();
-  const error = new SettingsWriteError("/agent/session-footer.json", {
-    cause: Object.assign(new Error("Permission denied"), { code: "EACCES" }),
+it("keeps the draft open and unsaved after an I/O error", () => {
+  const { transaction, store, source } = fixture();
+  const cause = Object.assign(new Error("Permission denied"), {
+    code: "EACCES",
   });
-  save.mockImplementation(() => {
-    throw error;
-  });
+  store.failure = cause;
   transaction.replace({ preset: "compact" });
-  expect(() => transaction.save()).toThrow(error);
+  expect(() => transaction.save()).toThrow(
+    new SettingsWriteError(source.loaded.path, { cause }),
+  );
   expect({
     draft: transaction.document,
     closed: transaction.closed,
-    applied: effects.applied.mock.calls,
-    saved: effects.saved.mock.calls,
-    finished: effects.finished.mock.calls,
+    stored: store.load(),
   }).toStrictEqual({
     draft: { preset: "compact" },
     closed: false,
-    applied: [],
-    saved: [],
-    finished: [],
+    stored: source,
   });
 });
-it("applies session settings once without writing and ignores stale callbacks", () => {
-  const { transaction, effects, save } = fixture();
+it("uses the draft for the session without saving and ignores later calls", () => {
+  const { transaction, store, source } = fixture();
   transaction.replace({ preset: "compact" });
   transaction.useForSession();
   transaction.cancel();
   transaction.useForSession();
   transaction.preview({ preset: "minimal" });
   expect({
-    writes: save.mock.calls,
-    applied: effects.applied.mock.calls,
-    finished: effects.finished.mock.calls,
     closed: transaction.closed,
+    visible: transaction.presentation,
+    stored: store.load(),
   }).toStrictEqual({
-    writes: [],
-    applied: [[{ preset: "compact" }]],
-    finished: [[]],
     closed: true,
+    visible: { preset: "compact" },
+    stored: source,
   });
 });

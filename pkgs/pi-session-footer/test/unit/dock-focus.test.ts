@@ -1,45 +1,73 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { Input } from "@earendil-works/pi-tui";
-import { expect, it, vi } from "vitest";
+import {
+  Input,
+  TuiMainScreen,
+  type TuiInputListener,
+  type TuiInputListenerResult,
+} from "@earendil-works/pi-tui";
+import { expect, it } from "vitest";
 import { DockFocus } from "#footer/ui/dock/dock-focus.ts";
 import { editorFixture } from "#test/support/editor.ts";
 
 type EditorFactory = NonNullable<
   ReturnType<ExtensionUIContext["getEditorComponent"]>
 >;
+class InputTui extends TuiMainScreen {
+  private readonly listeners = new Set<TuiInputListener>();
+
+  override addInputListener(listener: TuiInputListener): () => void {
+    this.listeners.add(listener);
+    const remove = super.addInputListener(listener);
+    return () => {
+      this.listeners.delete(listener);
+      remove();
+    };
+  }
+
+  override removeInputListener(listener: TuiInputListener): void {
+    this.listeners.delete(listener);
+    super.removeInputListener(listener);
+  }
+
+  send(data: string): TuiInputListenerResult | undefined {
+    for (const listener of this.listeners) {
+      const result = listener(data);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+    return undefined;
+  }
+}
+
+const unexpected: EditorFactory = () => {
+  throw new Error("Unexpected editor construction");
+};
+
 function fixture() {
-  const { tui } = editorFixture();
+  const tui = new InputTui(editorFixture().tui.terminal);
   const panel = new Input();
   const replacement = new Input();
   tui.addChild(panel);
   tui.addChild(replacement);
   tui.setFocus(panel);
-  const originalFactory = vi.fn<EditorFactory>(() => {
-    throw new Error("Unexpected editor construction");
-  });
-  const replacementFactory = vi.fn<EditorFactory>(() => {
-    throw new Error("Unexpected editor construction");
-  });
-  let factory: EditorFactory = originalFactory;
+  const replacementFactory: EditorFactory = (...args) => unexpected(...args);
+  let factory = unexpected;
   let active = true;
-  const registration = vi.spyOn(tui, "addInputListener");
   const lease = DockFocus.attach(
     tui,
     () => factory,
     () => active,
   );
-  const input = registration.mock.calls[0]?.[0];
-  if (!lease || !input) {
+  if (!lease) {
     throw new Error("Expected a public focus subscription");
   }
   return {
     tui,
     panel,
     replacement,
-    originalFactory,
-    replacementFactory,
     lease,
-    input,
+    input: (data: string) => tui.send(data),
     replace: () => {
       factory = replacementFactory;
       tui.setFocus(replacement);
@@ -56,13 +84,9 @@ it("keeps the controls focused after replacement and returns to the replacement 
   expect({
     result,
     panel: h.tui.getFocusedComponent() === h.panel,
-    original: h.originalFactory.mock.calls,
-    replacement: h.replacementFactory.mock.calls,
   }).toStrictEqual({
     result: undefined,
     panel: true,
-    original: [],
-    replacement: [],
   });
   h.lease.close();
   h.lease.close();

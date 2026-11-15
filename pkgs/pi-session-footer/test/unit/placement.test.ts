@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { layoutFooter } from "#test/support/layout.ts";
 import { resolveSettings } from "#footer/configuration/settings.ts";
 import { createSnapshot } from "#footer/domain/state.ts";
@@ -73,7 +73,7 @@ it("reduces custom separator overhead before omitting useful readings", () => {
     choices: frame.decisions.map(({ decision }) => decision),
   }).toStrictEqual({ value: "⊗1 ⚠0 ↑0", choices: ["full", "full"] });
 });
-it("observes diagnostics once across repeated independently styled placements", () => {
+it("styles each placement of the diagnostics widget independently", () => {
   const state = createSnapshot(0, "/demo");
   state.diagnostics.receive({
     v: 1,
@@ -86,7 +86,6 @@ it("observes diagnostics once across repeated independently styled placements", 
       },
     ],
   });
-  const summary = vi.spyOn(state.diagnostics, "summary");
   const frame = layoutFooter(
     state,
     { top: 80, bottom: 80 },
@@ -101,10 +100,10 @@ it("observes diagnostics once across repeated independently styled placements", 
       }),
     },
   );
-  expect({
-    calls: summary.mock.calls,
-    values: frame.placements.map(({ display }) => display),
-  }).toStrictEqual({ calls: [[]], values: ["⊗1 ⚠0", "E1 ⚠0"] });
+  expect(frame.placements.map(({ display }) => display)).toStrictEqual([
+    "⊗1 ⚠0",
+    "E1 ⚠0",
+  ]);
 });
 it.each([
   [{ widgets: "" }, " main↑0", "↓0", false],

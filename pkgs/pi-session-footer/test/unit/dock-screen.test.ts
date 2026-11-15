@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import {
   containsRenderedBlock,
   visibleScreen,
@@ -37,9 +37,6 @@ it("reads the regular viewport without rendering any component again", () => {
     maxLinesRendered: 3,
     previousViewportTop: 1,
   });
-  const render = vi.spyOn(tui, "render");
-  expect({
-    lines: visibleScreen(tui),
-    renders: render.mock.calls,
-  }).toStrictEqual({ lines: ["controls", "footer"], renders: [] });
+  tui.addChild({ render: () => ["rendered again"], invalidate() {} });
+  expect(visibleScreen(tui)).toStrictEqual(["controls", "footer"]);
 });

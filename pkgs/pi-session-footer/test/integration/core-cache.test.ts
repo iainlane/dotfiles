@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { bindModel } from "#test/support/bound-runner.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
 import { readQuota } from "#footer/domain/quota.ts";
 import { renderFooter } from "#test/support/layout.ts";
@@ -17,9 +18,18 @@ interface Status {
 }
 
 const dependencies = {
-  fetch: vi.fn<typeof fetch>(),
+  fetch: async () =>
+    Response.json({
+      rate_limit: {
+        secondary_window: {
+          used_percent: 99,
+          reset_at: 2_000_000_000,
+          limit_window_seconds: 604_800,
+        },
+      },
+    }),
   homedir: () => "/fixture",
-  env: {},
+  env: { OPENAI_CODEX_OAUTH_TOKEN: "fixture" },
   readFile: () => {},
   fileExists: () => false,
   execFileSync: () => "",
@@ -103,7 +113,8 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
     },
   };
   const { api, context, runner } = await runtimeFixture(events);
-  vi.spyOn(runner, "createContext").mockReturnValue(context);
+
+  bindModel(runner, () => context.model);
 
   try {
     const { default: core } = await vi.importActual<{
@@ -146,8 +157,6 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
         "",
       ],
     });
-
-    expect(dependencies.fetch).not.toHaveBeenCalled();
   } finally {
     await runner.emit({ type: "session_shutdown", reason: "quit" });
     await rm(directory, { recursive: true, force: true });

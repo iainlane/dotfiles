@@ -1,54 +1,24 @@
-import { expect, it, vi } from "vitest";
-import {
-  AppearanceTransaction,
-  type AppearanceEffects,
-} from "#footer/configuration/appearance-transaction.ts";
+import { expect, it } from "vitest";
+import { AppearanceTransaction } from "#footer/configuration/appearance-transaction.ts";
 import { CustomiserView } from "#footer/ui/customiser/customiser-view.ts";
 import { createCustomiserRoot } from "#footer/ui/customiser/customiser-pages.ts";
 import type { CustomiserEnvironment } from "#footer/ui/customiser/customiser-page.ts";
-import { loadSettings } from "#footer/configuration/settings.ts";
-import {
-  ReadOnlySettingsDirectoryError,
-  SettingsWriteError,
-  type SettingsSnapshot,
-  type SettingsStore,
-} from "#footer/configuration/settings-store.ts";
+import { storeEffects } from "#test/support/appearance.ts";
+import { MemorySettingsStore } from "#test/support/dependencies.ts";
 import { editorFixture } from "#test/support/editor.ts";
 import { KeybindingsManager } from "#test/support/keybindings.ts";
 
-function fixture() {
+function fixture(prepare: (store: MemorySettingsStore) => void = () => {}) {
   const native = editorFixture();
   native.tui.terminal = { ...native.tui.terminal, rows: 40 };
-  const loaded = loadSettings(
-    () => '{"preset":"rich"}',
-    "/agent/session-footer.json",
-  );
-  const source: SettingsSnapshot = {
-    loaded,
-    base: loaded,
-    userPath: "/agent/session-footer.user.json",
-    userExists: false,
-    revision: "r1",
-    destination: {
-      kind: "file",
-      path: loaded.path,
-      newUserFile: false,
-      repair: false,
-    },
-  };
-  const save = vi.fn<SettingsStore["save"]>(() => source);
-  const effects = {
-    store: { load: () => source, save },
-    preview: vi.fn<AppearanceEffects["preview"]>(),
-    saved: vi.fn<AppearanceEffects["saved"]>(),
-    reloaded: vi.fn<AppearanceEffects["reloaded"]>(),
-    applied: vi.fn<AppearanceEffects["applied"]>(),
-    finished: vi.fn<AppearanceEffects["finished"]>(),
-  };
+  const store = new MemorySettingsStore();
+  store.stored = '{"preset":"rich"}';
+  prepare(store);
+  const source = store.load();
   const transaction = new AppearanceTransaction(
     source,
     { preset: "rich" },
-    effects,
+    storeEffects(store),
   );
   const env: CustomiserEnvironment = {
     tui: native.tui,
@@ -62,9 +32,9 @@ function fixture() {
     presentationMode: () => "composer",
     sessionApplied: () => false,
     transaction,
-    store: effects.store,
+    store,
     sourceIds: () => [],
-    reload: vi.fn<() => void>(),
+    reload: () => transaction.reload(store.load()),
     homeDirectory: "/Users/test",
   };
   const view = new CustomiserView(env, (navigation) =>
@@ -90,8 +60,7 @@ function fixture() {
   return {
     env,
     source,
-    effects,
-    save,
+    store,
     transaction,
     view,
     screen,
@@ -114,9 +83,9 @@ it("uses configured bindings for controls and hints", () => {
   expect(h.transaction.document).toStrictEqual({ preset: "compact" });
   h.view.handleInput("q");
   expect({
-    writes: h.save.mock.calls,
+    stored: h.store.load(),
     closed: h.transaction.closed,
-  }).toStrictEqual({ writes: [], closed: true });
+  }).toStrictEqual({ stored: h.source, closed: true });
 });
 it("adds plain widgets, preserves explicit empty rows and resets only the edited row", () => {
   const h = fixture();
@@ -141,10 +110,10 @@ it("adds plain widgets, preserves explicit empty rows and resets only the edited
   h.choose("Reset row");
   expect({
     document: h.transaction.document,
-    writes: h.save.mock.calls,
+    stored: h.store.load(),
   }).toStrictEqual({
     document: { preset: "rich", "bottom-left": [] },
-    writes: [],
+    stored: h.source,
   });
 });
 it("writes an explicit alias object from the symbol picker", () => {
@@ -156,10 +125,10 @@ it("writes an explicit alias object from the symbol picker", () => {
   h.choose(" git");
   expect({
     document: h.transaction.document,
-    writes: h.save.mock.calls,
+    stored: h.store.load(),
   }).toStrictEqual({
     document: { preset: "rich", symbols: { planning: { alias: "git" } } },
-    writes: [],
+    stored: h.source,
   });
 });
 it("previews profiles on highlight and saves only at the root", () => {
@@ -169,11 +138,11 @@ it("previews profiles on highlight and saves only at the root", () => {
   expect({
     draft: h.transaction.document,
     preview: h.transaction.presentation,
-    saves: h.save.mock.calls,
+    stored: h.store.load(),
   }).toStrictEqual({
     draft: { preset: "rich" },
     preview: { preset: "compact" },
-    saves: [],
+    stored: h.source,
   });
   h.view.handleInput("\u001B");
   expect(h.transaction.presentation).toStrictEqual({ preset: "rich" });
@@ -181,15 +150,10 @@ it("previews profiles on highlight and saves only at the root", () => {
   h.choose("Compact");
   expect({
     draft: h.transaction.document,
-    saves: h.save.mock.calls,
-  }).toStrictEqual({ draft: { preset: "compact" }, saves: [] });
+    stored: h.store.load(),
+  }).toStrictEqual({ draft: { preset: "compact" }, stored: h.source });
   h.choose("Save & use");
-  expect(h.save.mock.calls).toStrictEqual([
-    [
-      h.source,
-      { kind: "write", document: { preset: "compact" }, confirmed: false },
-    ],
-  ]);
+  expect(h.store.load().loaded.document).toStrictEqual({ preset: "compact" });
 });
 it("accepts navigation immediately after returning from a picker", () => {
   const h = fixture();
@@ -227,10 +191,9 @@ it("keeps independent colours in one draft and cancels the whole flow at the roo
   expect(h.screen()).toContain("Save & use");
   h.view.handleInput("\u001B");
   expect({
-    saves: h.save.mock.calls,
-    preview: h.effects.preview.mock.calls.at(-1),
-    finished: h.effects.finished.mock.calls,
-  }).toStrictEqual({ saves: [], preview: [undefined], finished: [[]] });
+    stored: h.store.load(),
+    closed: h.transaction.closed,
+  }).toStrictEqual({ stored: h.source, closed: true });
 });
 it("keeps invalid custom text local and restores the accepted field on Escape", () => {
   const h = fixture();
@@ -244,13 +207,12 @@ it("keeps invalid custom text local and restores the accepted field on Escape", 
   expect(h.transaction.document).toStrictEqual({ preset: "rich" });
   h.view.handleInput("\u001B");
   expect(h.transaction.presentation).toStrictEqual({ preset: "rich" });
-  expect(h.save.mock.calls).toStrictEqual([]);
+  expect(h.store.load()).toStrictEqual(h.source);
 });
 it("retains the draft on save failure until session application is explicitly selected", () => {
-  const h = fixture();
-  h.save.mockImplementation(() => {
-    throw new SettingsWriteError(h.source.loaded.path, {
-      cause: Object.assign(new Error("Permission denied"), { code: "EACCES" }),
+  const h = fixture((store) => {
+    store.failure = Object.assign(new Error("Permission denied"), {
+      code: "EACCES",
     });
   });
   h.choose("Profile");
@@ -258,37 +220,31 @@ it("retains the draft on save failure until session application is explicitly se
   h.choose("Save & use");
   expect({
     error: h.screen().includes("Couldn't save"),
-    applied: h.effects.applied.mock.calls,
     closed: h.transaction.closed,
     preview: h.transaction.presentation,
   }).toStrictEqual({
     error: true,
-    applied: [],
     closed: false,
     preview: { preset: "compact" },
   });
   h.choose("Use for this session");
-  expect(h.effects.applied.mock.calls).toStrictEqual([[{ preset: "compact" }]]);
+  expect({
+    stored: h.store.load(),
+    closed: h.transaction.closed,
+  }).toStrictEqual({ stored: h.source, closed: true });
 });
 it("keeps an unavailable persistent destination distinct from session-only settings", () => {
-  const h = fixture();
-  const problem = new ReadOnlySettingsDirectoryError("/agent");
-  h.source.destination = {
-    kind: "unavailable",
-    path: h.source.loaded.path,
-    problem,
-  };
-  h.save.mockImplementation(() => {
-    throw problem;
+  const h = fixture((store) => {
+    store.readOnly.add("/agent");
   });
   h.choose("Profile");
   h.choose("Compact");
   h.choose("Save & use");
   expect({
     failed: h.screen().includes("Couldn\u0027t save"),
-    applied: h.effects.applied.mock.calls,
     closed: h.transaction.closed,
-  }).toStrictEqual({ failed: true, applied: [], closed: false });
+    stored: h.store.load(),
+  }).toStrictEqual({ failed: true, closed: false, stored: h.source });
 });
 it("allows arbitrary source IDs without shadowing the add-source action", () => {
   const h = fixture();
@@ -298,25 +254,25 @@ it("allows arbitrary source IDs without shadowing the add-source action", () => 
   expect(h.screen()).toContain("Extension source ID");
 });
 it("confirms the first local-preferences save without saving when the confirmation opens", () => {
-  const h = fixture();
-  h.source.destination = {
-    kind: "file",
-    path: h.source.userPath,
-    newUserFile: true,
-    repair: false,
-  };
+  const h = fixture((store) => {
+    store.readOnly.add(store.path);
+  });
   h.choose("Profile");
   h.choose("Compact");
   h.choose("Save & use");
   expect({
     title: h.screen().includes("Save user settings"),
-    saves: h.save.mock.calls,
-  }).toStrictEqual({ title: true, saves: [] });
+    stored: h.store.load(),
+  }).toStrictEqual({ title: true, stored: h.source });
   h.choose("Save & use");
-  expect(h.save.mock.calls).toStrictEqual([
-    [
-      h.source,
-      { kind: "write", document: { preset: "compact" }, confirmed: true },
-    ],
-  ]);
+  const saved = h.store.load();
+  expect({
+    base: saved.base.document,
+    userExists: saved.userExists,
+    document: saved.loaded.document,
+  }).toStrictEqual({
+    base: { preset: "rich" },
+    userExists: true,
+    document: { preset: "compact" },
+  });
 });

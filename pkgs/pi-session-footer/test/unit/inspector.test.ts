@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import type { KeybindingsConfig } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "#test/support/keybindings.ts";
 import {
@@ -40,8 +40,7 @@ function harness(
     { top: 150, bottom: 120 },
     { settings },
   );
-  const recorded = vi.fn<() => typeof frame>(() => frame);
-  const enterUsage = vi.fn<() => void>();
+  const delegation: { current: unknown } = { current: undefined };
   const terminal = { rows: 24 };
   const keys = new KeybindingsManager({
     "tui.select.down": "j",
@@ -51,31 +50,33 @@ function harness(
   type View = ReturnType<Parameters<InspectorContext["ui"]["custom"]>[0]>;
   const views: {
     component: View;
-    close: ReturnType<typeof vi.fn<() => void>>;
     settle(): void;
   }[] = [];
   const context: InspectorContext = {
     mode: "tui",
     ui: {
       select: async (): Promise<undefined> => {},
-      notify: vi.fn<InspectorContext["ui"]["notify"]>(),
+      notify() {},
       custom: (factory) =>
         new Promise<void>((resolve) => {
-          const close = vi.fn<() => void>(resolve);
           views.push({
             component: factory(
               { terminal, requestRender() {} },
               { fg: (_role, value) => value },
               keys,
-              close,
+              resolve,
             ),
-            close,
             settle: resolve,
           });
         }),
     },
   };
-  const inspector = new Inspector(() => state, { frame: recorded, enterUsage });
+  const inspector = new Inspector(() => state, {
+    frame: () => frame,
+    enterUsage: () => {
+      state.delegationCost = delegation.current;
+    },
+  });
   const view = () => {
     const component = views.at(-1)?.component;
     if (!component) {
@@ -105,8 +106,7 @@ function harness(
   };
   return {
     state,
-    recorded,
-    enterUsage,
+    delegation,
     terminal,
     context,
     inspector,
@@ -145,7 +145,6 @@ it("freezes the completed ordinary display and keeps composite widgets together"
     title: before[0],
     rows: before.filter((line) => line.includes("Git branch")),
     changed: h.render().some((line) => line.includes("changed")),
-    captures: h.recorded.mock.calls.length,
   }).toStrictEqual({
     title: "Footer › Explain",
     rows: [
@@ -153,7 +152,6 @@ it("freezes the completed ordinary display and keeps composite widgets together"
       "  G main ?1  Git branch and file changes · Bottom right",
     ],
     changed: false,
-    captures: 1,
   });
   h.inspector.dispose();
   await opened;
@@ -282,6 +280,7 @@ it("preserves detail scroll through a section change", async () => {
 });
 it("makes all sections selectable and refreshes delegation only on entering Usage", async () => {
   const h = harness();
+  h.delegation.current = { total: 1 };
   const opened = h.inspector.open(h.context, {
     view: "explain",
     segment: undefined,
@@ -291,7 +290,14 @@ it("makes all sections selectable and refreshes delegation only on entering Usag
     titles.push(h.render()[0] ?? "");
     h.view().handleInput("\t");
   }
-  expect({ titles, requests: h.enterUsage.mock.calls }).toStrictEqual({
+  const entered = h.state.delegationCost;
+  h.delegation.current = { total: 2 };
+  h.view().handleInput("\t");
+  expect({
+    titles,
+    entered,
+    elsewhere: h.state.delegationCost,
+  }).toStrictEqual({
     titles: [
       "Footer › Explain",
       "Footer › Overview",
@@ -302,7 +308,8 @@ it("makes all sections selectable and refreshes delegation only on entering Usag
       "Footer › Usage",
       "Footer › Help",
     ],
-    requests: [[]],
+    entered: { total: 1 },
+    elsewhere: { total: 1 },
   });
   h.choose("Sections");
   h.choose("Customise");
@@ -349,10 +356,10 @@ it("keeps a newer close handle and ignores disposed controls", async () => {
   stale.handleInput("s");
   stale.handleInput("\r");
   h.inspector.dispose();
-  expect(h.views.map((value) => value.close.mock.calls.length)).toStrictEqual([
-    1, 1,
-  ]);
-  await Promise.all([first, second]);
+  expect({
+    results: await Promise.all([first, second]),
+    current: h.render(),
+  }).toStrictEqual({ results: [undefined, undefined], current: [] });
 });
 it("clips native detail scrolling and pages by viewport height", () => {
   const viewport = new DetailViewport();

@@ -30,11 +30,6 @@ export default function dockFixture(pi: ExtensionAPI): void {
   let editor: ComposerEditor | undefined;
   let height = 3;
   let previewLines: readonly string[] = [];
-  let mounts = 0;
-  let modelTurns = 0;
-  pi.on("agent_start", () => {
-    modelTurns++;
-  });
   let dock: DockHost | undefined;
   let frame: RenderFrame | undefined;
 
@@ -43,7 +38,6 @@ export default function dockFixture(pi: ExtensionAPI): void {
   });
   pi.on("resources_discover", (_event, ctx) => {
     ctx.ui.setEditorComponent((tui, theme, keys) => {
-      mounts++;
       editor = new ComposerEditor(tui, theme, keys, {
         top(width) {
           frame = layoutFooter(
@@ -90,12 +84,10 @@ export default function dockFixture(pi: ExtensionAPI): void {
       ctx.ui.setEditorText(draft);
       const cursor = original.getCursor();
       const mounted = ctx.ui.getEditorComponent();
-      const count = mounts;
       const active = settings;
       let draftSettings = settings;
       let previewVisible = true;
       let redraw: (() => void) | undefined;
-      let visibilityChanges = 0;
       const keys = getKeybindings();
       const host = new DockHost(
         ctx.ui,
@@ -107,13 +99,11 @@ export default function dockFixture(pi: ExtensionAPI): void {
           setPreviewVisible(visible) {
             previewVisible = visible;
             settings = visible ? draftSettings : active;
-            visibilityChanges++;
             writeFileSync(
               join(ctx.cwd, "dock-preview-state.json"),
               JSON.stringify({
                 visible,
                 preset: settings.preset,
-                changes: visibilityChanges,
               }),
             );
             redraw?.();
@@ -255,8 +245,6 @@ export default function dockFixture(pi: ExtensionAPI): void {
         JSON.stringify({
           factory: ctx.ui.getEditorComponent() === mounted,
           instance: editor === original,
-          mounts: mounts - count,
-          modelTurns,
           draft: original.getText(),
           cursor: original.getCursor(),
           expectedCursor: cursor,

@@ -35,19 +35,26 @@ export class ProcessGroupProbeError extends Error {
   }
 }
 
+export type Kill = (pid: number, signal: NodeJS.Signals | 0) => boolean;
+
 export class ProcessGroup {
   private readonly pid: number;
+  private readonly kill: Kill;
 
-  constructor(pid: number) {
+  constructor(
+    pid: number,
+    kill: Kill = (target, signal) => process.kill(target, signal),
+  ) {
     if (!Number.isInteger(pid) || pid <= 0) {
       throw new InvalidProcessGroupError(pid);
     }
     this.pid = pid;
+    this.kill = kill;
   }
 
   private signal(signal: NodeJS.Signals | 0): boolean {
     try {
-      return process.kill(-this.pid, signal);
+      return this.kill(-this.pid, signal);
     } catch (error) {
       if (!(error instanceof Error && "code" in error)) {
         throw error;
