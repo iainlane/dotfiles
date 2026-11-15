@@ -31,6 +31,7 @@ const later: EditorFactory = () => {
 function harness(mode = "tui") {
   const channels = new Map<string, Set<(value: unknown) => void>>();
   const emitted: string[] = [];
+  const agents = { totalActive: 0 };
   const events = {
     on(channel: string, callback: (value: unknown) => void) {
       const listeners = channels.get(channel) ?? new Set();
@@ -75,7 +76,12 @@ function harness(mode = "tui") {
           requestId: raw.requestId,
           success: true,
           data: {
-            fleet: { version: 1, totalActive: 0, entries: [], omitted: 0 },
+            fleet: {
+              version: 1,
+              totalActive: agents.totalActive,
+              entries: [],
+              omitted: 0,
+            },
             asyncSnapshot: {
               kind: "pi-subagents.async-status-snapshot",
               version: 1,
@@ -138,6 +144,7 @@ function harness(mode = "tui") {
     footer.shutdown();
   };
   return {
+    agents,
     context,
     emit,
     channels,
@@ -595,6 +602,32 @@ it("updates the inspector's quota age on screen while no agent is running", asyn
   expect({ before, after }).toStrictEqual({
     before: "Updated 0s ago",
     after: "Updated 1s ago",
+  });
+  h.footer.shutdown();
+});
+
+it("shows a change in the active subagent count at the next poll", async () => {
+  const h = harness();
+  const screen = new FakeScreen(200);
+  h.agents.totalActive = 2;
+  h.footer.start(h.context);
+  const factory = h.installedFooter();
+  screen.show(
+    factory(screen, h.context.ui.theme, {
+      getExtensionStatuses: () => new Map(),
+      onBranchChange: () => () => {},
+    }),
+  );
+  await h.runtime.clock.advance(0);
+  const shows = (text: string) => screen.lines.join("\n").includes(text);
+  const two = shows("\uF0C0 2");
+  await h.runtime.clock.advance(2000);
+  h.agents.totalActive = 3;
+  await h.runtime.clock.advance(2000);
+
+  expect({ two, three: shows("\uF0C0 3") }).toStrictEqual({
+    two: true,
+    three: true,
   });
   h.footer.shutdown();
 });

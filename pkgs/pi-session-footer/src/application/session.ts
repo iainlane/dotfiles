@@ -372,6 +372,7 @@ export class FooterSession {
       return;
     }
 
+    const previous = this.agentsKey();
     const next = result.ok ? readAgents(result.data) : undefined;
 
     if (next) {
@@ -387,7 +388,13 @@ export class FooterSession {
       }
     }
 
-    this.changed();
+    if (previous !== this.agentsKey()) {
+      this.changed();
+    }
+  }
+
+  private agentsKey(): string {
+    return JSON.stringify([this.state.agents, this.state.rpcErrors.status]);
   }
 
   private async updateCost(): Promise<void> {
