@@ -3,11 +3,22 @@ import { createPiPrClient } from "pi-prs/api";
 import { createFooter } from "./controller.ts";
 import { nodeRuntime } from "./node-runtime.ts";
 import { completeFooter } from "./commands.ts";
+import type { FooterRuntime } from "./runtime.ts";
 
-export default function sessionFooter(pi: ExtensionAPI): void {
+export function createSessionFooter(
+  runtime: FooterRuntime,
+): (pi: ExtensionAPI) => void {
+  return (pi) => {
+    registerSessionFooter(pi, runtime);
+  };
+}
+
+export default createSessionFooter(nodeRuntime);
+
+function registerSessionFooter(pi: ExtensionAPI, runtime: FooterRuntime): void {
   const footer = createFooter({
     events: pi.events,
-    runtime: nodeRuntime,
+    runtime,
     subscribePr: (callback) => createPiPrClient(pi).onState(callback),
   });
   pi.registerCommand("footer", {
