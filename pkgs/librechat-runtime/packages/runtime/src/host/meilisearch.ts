@@ -46,11 +46,13 @@ export class MeilisearchUpgradeError extends Error {
   }
 }
 
+type MeilisearchVersionOrigin = "database" | "executable" | "backup";
+
 export class MeilisearchVersionError extends Error {
-  readonly origin: "database" | "executable";
+  readonly origin: MeilisearchVersionOrigin;
   readonly version: string;
 
-  constructor(origin: "database" | "executable", version: string) {
+  constructor(origin: MeilisearchVersionOrigin, version: string) {
     super(`The Meilisearch ${origin} reported an invalid version: ${version}`);
     this.name = "MeilisearchVersionError";
     this.origin = origin;
@@ -86,7 +88,7 @@ interface MeilisearchRuntime {
   report(text: string): void;
 }
 
-function parseVersion(origin: "database" | "executable", text: string): string {
+function parseVersion(origin: MeilisearchVersionOrigin, text: string): string {
   const result = versionSchema.safeParse(text);
 
   if (!result.success) {
@@ -163,9 +165,7 @@ export class MeilisearchDatabase {
     }
 
     if (saved !== undefined) {
-      versionSchema.parse(saved.trim());
-
-      if (saved.trim() !== source) {
+      if (parseVersion("backup", saved.trim()) !== source) {
         throw new MeilisearchBackupVersionError(backup);
       }
 
