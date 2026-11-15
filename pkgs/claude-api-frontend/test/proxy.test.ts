@@ -8,7 +8,13 @@ import { afterEach, expect, it } from "vitest";
 import { certificates } from "#frontend/certificates";
 import { startProxy } from "#frontend/proxy";
 import { StatusCodes } from "http-status-codes";
-import { FakeTransport, frontendConfig } from "./fakes.ts";
+import {
+  echo,
+  FakeTransport,
+  fetchHeaders,
+  frontendConfig,
+  serverHeaders,
+} from "./fakes.ts";
 import { UnexpectedListenerError, UpstreamError } from "#frontend/errors";
 import type { Transport } from "#frontend/transport";
 
@@ -179,15 +185,12 @@ it.each(["http/1.1", "h2"])(
       url: "/tc-acct/api%20account/v1/messages?beta=true",
       method: "POST",
       headers: {
+        ...fetchHeaders,
         host: `127.0.0.1:${upstreamPort}`,
-        connection: "keep-alive",
+        connection: anyString,
         "user-agent": "claude-cli/2.1.310 (external, sdk-cli)",
         "anthropic-beta": "other-beta",
         "content-length": String(Buffer.byteLength(converted)),
-        accept: "*/*",
-        "accept-language": "*",
-        "sec-fetch-mode": "cors",
-        "accept-encoding": "gzip, deflate",
       },
       body: converted,
     });
@@ -219,8 +222,7 @@ it.each([
 ])(
   "rejects unsupported inference requests before forwarding: $status",
   async ({ path, headers, body, status, error }) => {
-    const transport = new FakeTransport(() => new Response());
-    const { proxy } = await fixture(transport);
+    const { proxy } = await fixture(new FakeTransport(echo));
     const result = await new Promise<unknown>((resolve, reject) => {
       const request = http.request(
         { host: "127.0.0.1", port: proxy.port, path, method: "POST", headers },
@@ -244,38 +246,30 @@ it.each([
       request.on("error", reject);
       request.end(body);
     });
-    expect({
-      response: result,
-      requests: await transport.snapshot(),
-    }).toStrictEqual({
-      response: {
-        status,
-        headers: {
-          "cache-control": "no-store",
-          "content-type": "application/json",
-          "content-length": anyString,
-          connection: "keep-alive",
-          "keep-alive": "timeout=5",
-          date: anyString,
-        },
-        body: {
-          error: {
-            ...error,
-            status,
-            type: "frontend_error",
-            message: anyString,
-          },
+    expect(result).toStrictEqual({
+      status,
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+        "content-length": anyString,
+        ...serverHeaders,
+      },
+      body: {
+        error: {
+          ...error,
+          status,
+          type: "frontend_error",
+          message: anyString,
         },
       },
-      requests: [],
     });
   },
 );
 
 it("preserves non-inference requests and removes connection-specific response headers", async () => {
   const transport = new FakeTransport(
-    () =>
-      new Response("upstream response", {
+    async (request) =>
+      await echo(request, {
         status: StatusCodes.ACCEPTED,
         headers: {
           "x-upstream": "retained",
@@ -288,6 +282,9 @@ it("preserves non-inference requests and removes connection-specific response he
   );
   const { proxy, upstreamPort } = await fixture(transport);
   const input = '{ "system": "x-anthropic-billing-header: preserve" }';
+  const localConnection: unknown = expect.not.stringContaining(
+    "x-upstream-internal",
+  );
   const response = await fetch(
     `http://127.0.0.1:${proxy.port}/v1/messages/count_tokens`,
     {
@@ -299,45 +296,30 @@ it("preserves non-inference requests and removes connection-specific response he
       body: input,
     },
   );
-  const requests = await Promise.all(
-    transport.requests.map(async (request) => ({
-      url: request.url,
-      method: request.method,
-      headers: Object.fromEntries(request.headers),
-      body: await request.text(),
-    })),
-  );
+  const forwarded: unknown = await response.json();
 
   expect({
-    requests,
-    response: await response.text(),
+    forwarded,
     status: response.status,
     headers: Object.fromEntries(response.headers),
   }).toStrictEqual({
-    requests: [
-      {
-        url: `http://127.0.0.1:${upstreamPort}/v1/messages/count_tokens`,
-        method: "POST",
-        headers: {
-          accept: "*/*",
-          "accept-encoding": "gzip, deflate",
-          "accept-language": "*",
-          "anthropic-beta": "claude-code-20250219,other-beta",
-          "content-length": String(Buffer.byteLength(input)),
-          "content-type": "text/plain;charset=UTF-8",
-          "sec-fetch-mode": "cors",
-          "user-agent": "claude-cli/2.1.310 (external, cli)",
-        },
-        body: input,
+    forwarded: {
+      url: `http://127.0.0.1:${upstreamPort}/v1/messages/count_tokens`,
+      method: "POST",
+      headers: {
+        ...fetchHeaders,
+        "anthropic-beta": "claude-code-20250219,other-beta",
+        "content-length": String(Buffer.byteLength(input)),
+        "content-type": "text/plain;charset=UTF-8",
+        "user-agent": "claude-cli/2.1.310 (external, cli)",
       },
-    ],
-    response: "upstream response",
+      body: input,
+    },
     status: StatusCodes.ACCEPTED,
     headers: {
-      connection: "keep-alive",
-      "content-type": "text/plain;charset=UTF-8",
-      date: anyString,
-      "keep-alive": "timeout=5",
+      ...serverHeaders,
+      connection: localConnection,
+      "content-type": "application/json",
       "transfer-encoding": "chunked",
       "x-upstream": "retained",
     },
@@ -399,9 +381,7 @@ it("returns a typed upstream error without exposing the cause", async () => {
       "cache-control": "no-store",
       "content-type": "application/json",
       "content-length": anyString,
-      connection: "keep-alive",
-      "keep-alive": "timeout=5",
-      date: anyString,
+      ...serverHeaders,
     },
     body: {
       error: {

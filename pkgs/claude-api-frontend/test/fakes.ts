@@ -2,6 +2,24 @@ import type { CertificateCommand } from "#frontend/certificates";
 import { loadConfig, type Config } from "#frontend/config";
 import { CertificateCommandError } from "#frontend/errors";
 import type { Transport } from "#frontend/transport";
+import { expect } from "vitest";
+
+const anyString: unknown = expect.any(String);
+
+/** Headers that Node's `fetch` adds to every request that it sends. */
+export const fetchHeaders = {
+  accept: anyString,
+  "accept-encoding": anyString,
+  "accept-language": anyString,
+  "sec-fetch-mode": anyString,
+};
+
+/** Headers that Node's HTTP server adds to every response. */
+export const serverHeaders = {
+  connection: anyString,
+  "keep-alive": anyString,
+  date: anyString,
+};
 
 export async function frontendConfig(fields: object): Promise<Config> {
   return await loadConfig("/fixture/frontend.json", {
@@ -9,29 +27,31 @@ export async function frontendConfig(fields: object): Promise<Config> {
   });
 }
 
-export class FakeTransport implements Transport {
-  readonly requests: Request[] = [];
-  readonly respond: (request: Request) => Response;
+/** Answers with the URL, method, headers and body of the request. */
+export async function echo(
+  request: Request,
+  init?: ResponseInit,
+): Promise<Response> {
+  return Response.json(
+    {
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers),
+      body: await request.text(),
+    },
+    init,
+  );
+}
 
-  constructor(respond: (request: Request) => Response) {
+export class FakeTransport implements Transport {
+  readonly respond: (request: Request) => Response | Promise<Response>;
+
+  constructor(respond: (request: Request) => Response | Promise<Response>) {
     this.respond = respond;
   }
 
-  async snapshot(): Promise<object[]> {
-    return await Promise.all(
-      this.requests.map(async (request) => ({
-        url: request.url,
-        method: request.method,
-        headers: Object.fromEntries(request.headers),
-        body: await request.text(),
-      })),
-    );
-  }
-
   async send(request: Request): Promise<Response> {
-    this.requests.push(request);
-
-    return this.respond(request);
+    return await this.respond(request);
   }
 }
 

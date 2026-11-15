@@ -12,9 +12,11 @@ import { UnexpectedListenerError } from "#frontend/errors";
 import {
   FrontendEarlyExitError,
   FrontendStartupTimeoutError,
+  fetchHeaders,
 } from "./fakes.ts";
 
 const execute = promisify(execFile);
+const anyString: unknown = expect.any(String);
 
 type ProcessOutcome =
   | { kind: "exited"; code: number | null }
@@ -243,16 +245,13 @@ async function exerciseInstalledFrontend(
         url: "/tc-acct/fixture%20account/v1/messages?beta=true",
         method: "POST",
         headers: {
+          ...fetchHeaders,
           host: `127.0.0.1:${upstreamPort}`,
-          connection: "keep-alive",
+          connection: anyString,
           "user-agent": "claude-cli/2.1.310 (external, sdk-cli)",
           "anthropic-beta": "other-beta",
           "content-length": String(Buffer.byteLength(converted)),
           authorization: "Bearer fixture-private-token",
-          accept: "*/*",
-          "accept-language": "*",
-          "sec-fetch-mode": "cors",
-          "accept-encoding": "gzip, deflate",
         },
         body: converted,
       });

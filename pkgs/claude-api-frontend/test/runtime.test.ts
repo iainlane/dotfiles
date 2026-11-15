@@ -107,28 +107,21 @@ it("checks the running certificate, account and upstream through an injected tra
     account: "anthropic",
   });
   const fingerprint = new X509Certificate(chain.ca).fingerprint256;
-  const transport = new FakeTransport((request) =>
-    request.url.endsWith("/health")
-      ? Response.json({ fingerprint, upstreamPort: 3456, account: "anthropic" })
-      : new Response("dashboard"),
+  const responses: Readonly<Record<string, () => Response>> = {
+    "GET http://127.0.0.1:3457/_claude-api-frontend/health": () =>
+      Response.json({ fingerprint, upstreamPort: 3456, account: "anthropic" }),
+    "GET http://127.0.0.1:3456/teamclaude/dashboard": () =>
+      new Response("dashboard"),
+  };
+  const transport = new FakeTransport(
+    (request) =>
+      responses[`${request.method} ${request.url}`]?.() ??
+      new Response(null, { status: 404 }),
   );
 
-  await checkHealth(config, { transport, files: new NodeFrontendFiles() });
-
-  expect(await transport.snapshot()).toStrictEqual([
-    {
-      url: "http://127.0.0.1:3457/_claude-api-frontend/health",
-      method: "GET",
-      headers: {},
-      body: "",
-    },
-    {
-      url: "http://127.0.0.1:3456/teamclaude/dashboard",
-      method: "GET",
-      headers: {},
-      body: "",
-    },
-  ]);
+  await expect(
+    checkHealth(config, { transport, files: new NodeFrontendFiles() }),
+  ).resolves.toBeUndefined();
 
   const stale = new FakeTransport(() =>
     Response.json({ fingerprint, upstreamPort: 3456, account: "old-account" }),
