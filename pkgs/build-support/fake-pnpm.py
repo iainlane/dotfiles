@@ -5,7 +5,11 @@ each version to its `dependencies` and `peerDependencies`. The project's
 overrides apply as in pnpm: `name` everywhere, and `parent>name` only to the
 dependencies of `parent`. An override or a manifest entry of the form
 `file:.nix-providers/<tarball>` installs the package in that tarball, and its
-manifest supplies the package's dependencies and peers.
+manifest supplies the package's dependencies and peers. A `catalog:` or
+`catalog:<name>` specifier takes its range from the workspace's `catalog` or
+`catalogs.<name>`, and the lockfile's `catalogs` lists each entry that a
+dependency used, with the version that the entry resolved to. `install` keeps
+that version for every importer while the entry's range is unchanged.
 
 As in pnpm 10 with `autoInstallPeers: false`, a peer resolves to the package of
 that name among the dependent's siblings or, failing that, among its ancestors'
@@ -137,6 +141,12 @@ class Resolver:
         self.registry = json.loads(Path(os.environ["FAKE_REGISTRY"]).read_text())
         self.workspace = read_yaml(Path("pnpm-workspace.yaml"))
         self.overrides: dict[str, str] = self.workspace.get("overrides") or {}
+        self.catalogs: dict[str, dict[str, str]] = dict(
+            self.workspace.get("catalogs") or {}
+        )
+        if self.workspace.get("catalog"):
+            self.catalogs["default"] = self.workspace["catalog"]
+        self.used: dict[str, dict[str, dict[str, str]]] = {}
         lockfile = read_yaml(Path("pnpm-lock.yaml"))
         # The locked version of each dependency, keyed by the importer or the
         # snapshot that depends on it.
@@ -149,11 +159,15 @@ class Resolver:
             for directory, importer in (lockfile.get("importers") or {}).items()
             if command.keeps(directory)
         }
+        # The version that the lockfile records for each catalog entry, with
+        # the entry's range at the time.
+        self.locked_catalogs: dict[str, dict[str, dict[str, str]]] = {}
         if command.name == "install":
             self.locked |= {
                 key: snapshot.get("dependencies") or {}
                 for key, snapshot in (lockfile.get("snapshots") or {}).items()
             }
+            self.locked_catalogs = lockfile.get("catalogs") or {}
         self.packages: dict[str, dict] = {}
         self.snapshots: dict[str, dict] = {}
 
@@ -179,11 +193,29 @@ class Resolver:
         """Chooses the package for a dependency of `owner`, an importer or a
         snapshot, or returns None when an override removes it. `parent` is the
         name of the package that depends on it, for the scoped overrides."""
-        locked = self.locked.get(owner, {}).get(name)
         scoped = self.overrides.get(f"{parent}>{name}") if parent else None
         specifier = scoped or self.overrides.get(name) or specifier
         if specifier == "-":
             return None
+        return self.package(name, specifier, self.locked.get(owner, {}).get(name))
+
+    def package(self, name: str, specifier: str, locked: str | None) -> Node:
+        if specifier.startswith("catalog:"):
+            catalog = specifier[len("catalog:") :] or "default"
+            entries = self.catalogs.get(catalog, {})
+            if name not in entries:
+                raise Failure(
+                    f"ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC  No catalog entry '{name}' was found for catalog '{catalog}'."
+                )
+            entry = self.locked_catalogs.get(catalog, {}).get(name, {})
+            if locked is None and entry.get("specifier") == entries[name]:
+                locked = entry["version"]
+            node = self.package(name, entries[name], locked)
+            self.used.setdefault(catalog, {})[name] = {
+                "specifier": entries[name],
+                "version": node.version,
+            }
+            return node
         if specifier.startswith("file:"):
             return self.tarball(specifier)
         target = name
@@ -359,6 +391,11 @@ def main() -> int:
         print(error, file=sys.stderr)
         return 1
     lockfile: dict = {"lockfileVersion": "9.0"}
+    if resolver.used:
+        lockfile["catalogs"] = {
+            catalog: dict(sorted(entries.items()))
+            for catalog, entries in sorted(resolver.used.items())
+        }
     if resolver.overrides:
         lockfile["overrides"] = resolver.overrides
     lockfile |= {
