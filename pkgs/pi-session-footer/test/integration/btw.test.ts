@@ -2,13 +2,21 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessage,
 } from "@earendil-works/pi-ai/compat";
+import { bindModel } from "#test/support/bound-runner.ts";
+import { editorFixture } from "#test/support/editor.ts";
 import { runtimeFixture } from "#test/support/runtime.ts";
 import {
   ModelRegistry,
   ModelRuntime,
+  SessionManager,
+  type ExtensionAPI,
   type ExtensionContext,
+  type ExtensionUIContext,
+  type ProviderConfig,
 } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 import { join } from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 let configDirectory: string | undefined;
@@ -54,33 +62,154 @@ const response = {
   timestamp: 1,
 } satisfies AssistantMessage;
 
-it.each(["success", "overflow", "aborted"])(
-  "uses public streaming and records every %s response",
-  async (outcome) => {
-    const replies: AssistantMessage[] =
-      outcome === "overflow"
-        ? [
-            {
-              ...response,
-              stopReason: "error",
-              errorMessage: "maximum context length exceeded",
-            },
-            response,
-          ]
-        : [
-            {
-              ...response,
-              stopReason: outcome === "aborted" ? "aborted" : "stop",
-            },
-          ];
-    const queued = [...replies];
-    const requested = Promise.withResolvers<void>();
-    const { context: ctx } = await runtimeFixture();
+const overflow = {
+  ...response,
+  content: [],
+  usage: {
+    ...usage,
+    output: 0,
+    totalTokens: 100,
+    cost: { ...usage.cost, output: 0, total: 1 },
+  },
+  stopReason: "error",
+  errorMessage: "maximum context length exceeded",
+} satisfies AssistantMessage;
+
+const aborted = {
+  ...response,
+  usage: {
+    ...usage,
+    output: 3,
+    totalTokens: 103,
+    cost: { ...usage.cost, output: 0.5, total: 1.5 },
+  },
+  stopReason: "aborted",
+} satisfies AssistantMessage;
+
+/**
+ * Replies like a provider that accepts requests of up to `limit` characters of
+ * messages and rejects larger ones as a context overflow. A provider that
+ * `waits` sends its reply only when the request's signal aborts.
+ */
+function provider(limit: number, waits: boolean) {
+  const requested = Promise.withResolvers<void>();
+  const stream: ProviderConfig["streamSimple"] = (_model, context, options) => {
+    const output = createAssistantMessageEventStream();
+
+    requested.resolve();
+
+    if (JSON.stringify(context.messages).length > limit) {
+      output.end(overflow);
+
+      return output;
+    }
+
+    const signal = options?.signal;
+
+    if (!waits || signal === undefined) {
+      output.end(response);
+
+      return output;
+    }
+
+    signal.addEventListener("abort", () => output.end(aborted), {
+      once: true,
+    });
+
+    return output;
+  };
+
+  return { requested: requested.promise, stream };
+}
+
+/** Shows custom components as Pi does and passes keys to the latest one. */
+class OverlayHost {
+  private component: Component | undefined;
+  private readonly fixture = editorFixture();
+  private readonly theme: ExtensionUIContext["theme"];
+
+  constructor(theme: ExtensionUIContext["theme"]) {
+    this.theme = theme;
+  }
+
+  readonly custom: ExtensionUIContext["custom"] = (factory) =>
+    new Promise((resolve) => {
+      void this.show(
+        factory(this.fixture.tui, this.theme, this.fixture.keys, resolve),
+      );
+    });
+
+  private async show(component: Component | Promise<Component>): Promise<void> {
+    this.component = await component;
+  }
+
+  press(key: string): void {
+    this.component?.handleInput?.(key);
+  }
+}
+
+const generatedId: unknown = expect.any(String);
+const generatedTimestamp: unknown = expect.any(String);
+const uuid: unknown = expect.stringMatching(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+);
+
+/** The session entry for a usage record of `message`. */
+function usageEntry(message: AssistantMessage) {
+  return {
+    type: "custom",
+    customType: "rpiv-btw:usage:v1",
+    data: {
+      version: 1,
+      id: uuid,
+      source: "btw",
+      provider: message.provider,
+      model: message.model,
+      usage: message.usage,
+    },
+    id: generatedId,
+    parentId: generatedId,
+    timestamp: generatedTimestamp,
+  };
+}
+
+it.each([
+  {
+    outcome: "success",
+    branch: "Earlier question",
+    limit: Infinity,
+    waits: false,
+    recorded: [response],
+  },
+  {
+    outcome: "overflow",
+    branch: "x".repeat(600_000),
+    limit: 450_000,
+    waits: false,
+    recorded: [overflow, response],
+  },
+  {
+    outcome: "aborted",
+    branch: "Earlier question",
+    limit: Infinity,
+    waits: true,
+    recorded: [aborted],
+  },
+])(
+  "appends a usage entry to the session for every $outcome response",
+  async ({ branch, limit, waits, recorded }) => {
+    const fixture = provider(limit, waits);
+    const { api, context: ctx, runner } = await runtimeFixture();
 
     if (configDirectory === undefined) {
       throw new Error("Expected the configuration directory");
     }
 
+    const session = SessionManager.inMemory("/fixture");
+
+    session.appendMessage({ role: "user", content: branch, timestamp: 0 });
+    const seeded = session.getEntries().length;
+    ctx.sessionManager = session;
     ctx.modelRegistry = new ModelRegistry(
       await ModelRuntime.create({
         authPath: join(configDirectory, "auth.json"),
@@ -103,39 +232,7 @@ it.each(["success", "overflow", "aborted"])(
           maxTokens: 4096,
         },
       ],
-      streamSimple: (_model, _context, options) => {
-        const output = createAssistantMessageEventStream();
-        const reply = queued.shift();
-
-        if (reply === undefined) {
-          throw new Error("The fixture provider has no reply left");
-        }
-
-        requested.resolve();
-
-        if (reply.stopReason !== "aborted") {
-          output.end(reply);
-
-          return output;
-        }
-
-        // The aborted reply is sent only when the request's signal aborts. A
-        // request without a signal cannot be cancelled, so it completes with
-        // the successful response.
-        const signal = options?.signal;
-
-        if (signal === undefined) {
-          output.end(response);
-
-          return output;
-        }
-
-        signal.addEventListener("abort", () => output.end(reply), {
-          once: true,
-        });
-
-        return output;
-      },
+      streamSimple: fixture.stream,
     });
 
     const model = ctx.modelRegistry.find("btw-fixture", "fixture");
@@ -147,14 +244,14 @@ it.each(["success", "overflow", "aborted"])(
     ctx.cwd = "/fixture";
     ctx.model = model;
 
-    const { executeBtw, buildBtwMessages, BTW_STATE_KEY } =
+    const host = new OverlayHost(ctx.ui.theme);
+
+    ctx.ui = { ...ctx.ui, custom: host.custom };
+    bindModel(runner, () => model, session);
+
+    const { registerBtwCommand, buildBtwMessages, BTW_STATE_KEY } =
       await vi.importActual<{
-        executeBtw: (
-          question: string,
-          ctx: ExtensionContext,
-          controller: AbortController,
-          record: (response: unknown) => void,
-        ) => Promise<{ kind: string }>;
+        registerBtwCommand: (api: ExtensionAPI) => void;
         buildBtwMessages: (
           ctx: ExtensionContext,
           message: { role: "user"; content: string; timestamp: number },
@@ -186,22 +283,27 @@ it.each(["success", "overflow", "aborted"])(
         .systemPrompt,
     ).not.toContain("Private question");
 
-    const records: unknown[] = [];
-    const controller = new AbortController();
-    const execution = executeBtw("Question", ctx, controller, (value) => {
-      records.push(value);
-    });
+    registerBtwCommand(api);
 
-    if (outcome === "aborted") {
-      await Promise.race([requested.promise, execution]);
-      controller.abort();
+    const command = runner.getCommand("btw");
+
+    if (command === undefined) {
+      throw new Error("Expected the /btw command");
     }
 
-    const result = await execution;
+    const running = command.handler("Question", ctx);
 
-    expect({ kind: result.kind, records }).toStrictEqual({
-      kind: outcome === "aborted" ? "aborted" : "success",
-      records: replies,
-    });
+    await fixture.requested;
+
+    if (!waits) {
+      await setImmediate();
+    }
+
+    host.press("\u001B");
+    await running;
+
+    expect(session.getEntries().slice(seeded)).toStrictEqual(
+      recorded.map((message) => usageEntry(message)),
+    );
   },
 );

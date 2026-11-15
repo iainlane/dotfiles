@@ -141,17 +141,17 @@ it("freezes the completed ordinary display and keeps composite widgets together"
   const before = h.render();
   h.state.git = gitState("changed", 2000);
   h.refresh();
-  expect({
-    title: before[0],
-    rows: before.filter((line) => line.includes("Git branch")),
-    changed: h.render().some((line) => line.includes("changed")),
-  }).toStrictEqual({
-    title: "Footer › Explain",
-    rows: [
-      "›  main ?1  Git branch and file changes · Top left",
-      "  G main ?1  Git branch and file changes · Bottom right",
-    ],
-    changed: false,
+  const frozen = [
+    "Footer › Explain",
+    "›  main ?1  Git branch and file changes · Top left",
+    "  G main ?1  Git branch and file changes · Bottom right",
+    "  Sections…",
+    "enter open · escape/ctrl+c close · s sections",
+    "1/3 · k/j move · pageUp/pageDown page",
+  ];
+  expect({ before, after: h.render() }).toStrictEqual({
+    before: frozen,
+    after: frozen,
   });
   h.inspector.dispose();
   await opened;
@@ -169,12 +169,33 @@ it("opens the same captured cache page from the legend and a direct command", as
     view: "explain",
     segment: "cache",
   });
-  expect(other.render()).toStrictEqual(selected);
-  expect(selected.join("\n")).toContain("4,096 of 16,384 prompt tokens cached");
+  const page = other.render();
   other.view().handleInput("\u001B");
-  expect(other.render().find((line) => line.startsWith("› "))).toContain(
-    "25.0%",
-  );
+  const cachePage = [
+    "Footer › Explain › Cache hit rate",
+    "4,096 of 16,384 prompt tokens cached",
+    "›  25.0%  Bottom right",
+    "  Rendering details",
+    "  Open Usage",
+    "  Sections…",
+    "enter open · escape/ctrl+c back · s sections",
+    "1/4 · k/j move · pageUp/pageDown page",
+  ];
+  expect({ selected, page, back: other.render() }).toStrictEqual({
+    selected: cachePage,
+    page: cachePage,
+    back: [
+      "Footer › Explain",
+      "   footer-demo/scripted-demo  Model",
+      "  ◒ high  Reasoning effort",
+      "   main ?1  Git branch and file changes",
+      "  ◫ 12.7%/131.1k  Context used",
+      "›  25.0%  Cache hit rate",
+      "  Sections…",
+      "enter open · escape/ctrl+c close · s sections",
+      "5/6 · k/j move · pageUp/pageDown page",
+    ],
+  });
   h.inspector.dispose();
   other.inspector.dispose();
   await Promise.all([first, second]);
@@ -201,11 +222,82 @@ it("provides the full captured value from a narrow widget page", async () => {
   });
   h.render(24);
   h.view().handleInput("\r");
-  const content = h.render(24).slice(1, -2).join("").replaceAll(" ", "");
-  expect(content).toContain(value.replaceAll(" ", ""));
+  expect(h.render(24)).toStrictEqual([
+    "Footer › Explain › Mode\u001B[0m…\u001B[0m",
+    "",
+    "footer-demo/abcdefghijkl",
+    "abcdefghijklabcdefghijkl",
+    "abcdefghijklabcdefghijkl",
+    "abcdefghijklabcdefghijkl",
+    "abcdefghijklabcdefghijkl",
+    "abcdefghijkl",
+    "Top left",
+    "escape/ctrl+c back · s \u001B[0m…\u001B[0m",
+    "1–8/8 · k/j move · page\u001B[0m…\u001B[0m",
+  ]);
   h.inspector.dispose();
   await opened;
 });
+const expectedWidget: Record<string, unknown> = {
+  missing: {
+    page: [
+      "Footer › Explain › Model",
+      "The footer has not drawn yet.",
+      "› Rendering details",
+      "  Open Overview",
+      "  Sections…",
+      "enter open · escape/ctrl+c back · s sections",
+      "1/3 · k/j move · pageUp/pageDown page",
+    ],
+    legend: [
+      "Footer › Explain",
+      "The footer has not drawn yet.",
+      "› Sections…",
+      "enter open · escape/ctrl+c close · s sections",
+      "1/1 · k/j move · pageUp/pageDown page",
+    ],
+  },
+  disabled: {
+    page: [
+      "Footer › Explain › Delegation",
+      "Not enabled in this layout.",
+      "› Rendering details",
+      "  Open Workflow",
+      "  Sections…",
+      "enter open · escape/ctrl+c back · s sections",
+      "1/3 · k/j move · pageUp/pageDown page",
+    ],
+    legend: [
+      "Footer › Explain",
+      "›  footer-demo/scripted-demo  Model",
+      "  ◒ high  Reasoning effort",
+      "   main ?1  Git branch and file changes",
+      "  ◫ 12.7%/131.1k  Context used",
+      "   25.0%  Cache hit rate",
+      "  Sections…",
+      "enter open · escape/ctrl+c close · s sections",
+      "1/6 · k/j move · pageUp/pageDown page",
+    ],
+  },
+  width: {
+    page: [
+      "Footer › Explain › Model",
+      "Omitted because the footer was too narrow.",
+      "› Rendering details",
+      "  Open Overview",
+      "  Sections…",
+      "enter open · escape/ctrl+c back · s sections",
+      "1/3 · k/j move · pageUp/pageDown page",
+    ],
+    legend: [
+      "Footer › Explain",
+      "No fields are visible in this layout.",
+      "› Sections…",
+      "enter open · escape/ctrl+c close · s sections",
+      "1/1 · k/j move · pageUp/pageDown page",
+    ],
+  },
+};
 it.each(["missing", "disabled", "width"] as const)(
   "explains a %s widget without inventing a visible placement",
   async (cause) => {
@@ -220,18 +312,9 @@ it.each(["missing", "disabled", "width"] as const)(
       view: "explain",
       segment: cause === "disabled" ? "agents" : "model",
     });
-    expect(h.render().join("\n")).toContain(
-      cause === "missing"
-        ? "The footer has not drawn yet."
-        : cause === "disabled"
-          ? "Not enabled in this layout."
-          : "Omitted because the footer was too narrow.",
-    );
+    const page = h.render();
     h.view().handleInput("\u001B");
-    expect(h.render()[0]).toBe("Footer › Explain");
-    expect(h.render().join("\n")).not.toMatch(
-      /Not shown|Update capture|hidden on/,
-    );
+    expect({ page, legend: h.render() }).toStrictEqual(expectedWidget[cause]);
     h.inspector.dispose();
     await opened;
   },
@@ -249,13 +332,37 @@ it("scrolls to every legend row on a narrow short terminal and preserves back se
     h.render(28);
   }
   const before = h.render(28);
-  expect(before.find((line) => line.startsWith("› "))).toContain("25.0%");
   h.view().handleInput("\r");
   h.render(28);
   h.view().handleInput("\u001B");
-  expect(h.render(28)).toStrictEqual(before);
+  const back = h.render(28);
   h.terminal.rows = 12;
-  expect(h.render(42).find((line) => line.startsWith("› "))).toContain("25.0%");
+  const taller = h.render(42);
+  const scrolled = [
+    "Footer › Explain",
+    "  Git branch and file",
+    "  changes",
+    "  ◫ 12.7%/131.1k",
+    "  Context used",
+    "›  25.0%  Cache hit rate",
+    "enter open · escape/ctrl+c \u001B[0m…\u001B[0m",
+    "5/6 · k/j move · pageUp/pag\u001B[0m…\u001B[0m",
+  ];
+  expect({ before, back, taller }).toStrictEqual({
+    before: scrolled,
+    back: scrolled,
+    taller: [
+      "Footer › Explain",
+      "   footer-demo/scripted-demo  Model",
+      "  ◒ high  Reasoning effort",
+      "   main ?1  Git branch and file changes",
+      "  ◫ 12.7%/131.1k  Context used",
+      "›  25.0%  Cache hit rate",
+      "  Sections…",
+      "enter open · escape/ctrl+c close · s sect\u001B[0m…\u001B[0m",
+      "5/6 · k/j move · pageUp/pageDown page",
+    ],
+  });
   h.inspector.dispose();
   await opened;
 });
@@ -315,6 +422,41 @@ it("makes all sections selectable and refreshes delegation only on entering Usag
   h.choose("Customise");
   expect(await opened).toBe("customise");
 });
+const expectedBinding: Record<string, unknown> = {
+  s: [
+    "Footer › Explain",
+    "   footer-demo/scripted-demo  Model",
+    "› ◒ high  Reasoning effort",
+    "   main ?1  Git branch and file changes",
+    "  ◫ 12.7%/131.1k  Context used",
+    "   25.0%  Cache hit rate",
+    "  Sections…",
+    "enter open · escape/ctrl+c close · alt+s sections",
+    "2/6 · k/s move · pageUp/pageDown page",
+  ],
+  h: [
+    "Footer › Explain",
+    "   footer-demo/scripted-demo  Model",
+    "› ◒ high  Reasoning effort",
+    "   main ?1  Git branch and file changes",
+    "  ◫ 12.7%/131.1k  Context used",
+    "   25.0%  Cache hit rate",
+    "  Sections…",
+    "enter open · escape/ctrl+c close · s sections",
+    "2/6 · k/h move · pageUp/pageDown page",
+  ],
+  tab: [
+    "Footer › Explain",
+    "   footer-demo/scripted-demo  Model",
+    "› ◒ high  Reasoning effort",
+    "   main ?1  Git branch and file changes",
+    "  ◫ 12.7%/131.1k  Context used",
+    "   25.0%  Cache hit rate",
+    "  Sections…",
+    "enter open · escape/ctrl+c close · s sections",
+    "2/6 · k/tab move · pageUp/pageDown page",
+  ],
+};
 it.each(["s", "h", "tab"] as const)(
   "gives configured navigation precedence over %s",
   async (binding) => {
@@ -325,13 +467,7 @@ it.each(["s", "h", "tab"] as const)(
     });
     h.render();
     h.view().handleInput(binding === "tab" ? "\t" : binding);
-    const display = h.render();
-    expect({
-      title: display[0],
-      selected: display
-        .find((line) => line.startsWith("› "))
-        ?.includes("Reasoning effort"),
-    }).toStrictEqual({ title: "Footer › Explain", selected: true });
+    expect(h.render()).toStrictEqual(expectedBinding[binding]);
     h.inspector.dispose();
     await opened;
   },

@@ -83,9 +83,8 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
   );
 
   const listeners = new Map<string, Set<(value: unknown) => void>>();
-  const snapshots: ReturnType<typeof readQuota>[] = [];
+  let screen: { quota: ReturnType<typeof readQuota>; line: string } | undefined;
   const firstSnapshot = Promise.withResolvers<void>();
-  const rendered: string[] = [];
   const events = {
     on(event: string, listener: (value: unknown) => void) {
       const handlers = listeners.get(event) ?? new Set();
@@ -102,9 +101,11 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
         const state = createSnapshot(Date.now(), "/fixture");
 
         state.quota = readQuota(value);
-        snapshots.push(state.quota);
+        screen = {
+          quota: state.quota,
+          line: renderFooter(state, 120)[1]?.trim() ?? "",
+        };
         firstSnapshot.resolve();
-        rendered.push(renderFooter(state, 120)[1]?.trim() ?? "");
       }
 
       for (const listener of listeners.get(event) ?? []) {
@@ -128,7 +129,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
 
     await runner.emit({ type: "session_start", reason: "startup" });
     await firstSnapshot.promise;
-    expect(snapshots).toHaveLength(1);
+    const screens = [screen];
 
     for (const elapsed of [11_000, 31_000, 300_001]) {
       vi.setSystemTime(fetchedAt + elapsed);
@@ -137,6 +138,7 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
         indicator: "none",
         description: `Status update ${elapsed}`,
       });
+      screens.push(screen);
     }
 
     const expected = {
@@ -148,15 +150,14 @@ it("preserves quota fetch time through actual sub-core cache notifications", asy
       source: undefined,
     };
 
-    expect({ snapshots, rendered }).toStrictEqual({
-      snapshots: Array.from({ length: 4 }, () => structuredClone(expected)),
-      rendered: [
+    expect(screens).toStrictEqual(
+      [
         " ◴ week 42% ↻2d",
         " ◴ week 42% ↻1d23h",
         " ◴ week 42% ↻1d23h stale",
         "",
-      ],
-    });
+      ].map((line) => ({ quota: expected, line })),
+    );
   } finally {
     await runner.emit({ type: "session_shutdown", reason: "quit" });
     await rm(directory, { recursive: true, force: true });

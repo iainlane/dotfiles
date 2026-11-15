@@ -313,15 +313,46 @@ it("does not insert a blank PR detail line without a CI URL", () => {
 it("labels missing measurements and accounting scope in the inspector", () => {
   const state = createSnapshot(100, "/work");
 
-  expect(detailsLines(state, "quota").join("\n")).toContain(
-    "Account identity: unavailable",
-  );
-  expect(detailsLines(state, "diagnostics").join("\n")).toContain(
-    "Coverage: unknown",
-  );
-  expect(detailsLines(state, "usage").join("\n")).toContain(
-    "Whole-session recorded estimate",
-  );
+  const details = {
+    quota: detailsLines(state, "quota"),
+    diagnostics: detailsLines(state, "diagnostics"),
+    usage: detailsLines(state, "usage"),
+  };
+  expect(details).toStrictEqual({
+    quota: [
+      "Quota percentages are used, not remaining.",
+      "Provider: unavailable",
+      "Account identity: unavailable (account of the reading; runtime identity is not verified)",
+      "Credential source: unavailable",
+      "Last successful fetch: unavailable",
+      "Last error: none reported",
+      "Pace compares quota consumed with the elapsed fraction of a reported-duration window. It is a heuristic, not a forecast.",
+      "Cached readings become stale after 30 seconds; percentages expire after five minutes or the quota reset.",
+    ],
+    diagnostics: [
+      "Coverage: unknown",
+      "Received findings: 0 errors, 0 warnings, 0 files pending",
+      "Missing diagnostics or MCP inventory does not establish clean files or healthy servers.",
+      "Use /lens-widget-toggle to show pi-lens's native diagnostic widget.",
+    ],
+    usage: [
+      "Whole-session recorded estimate: $0.0000 (includes abandoned branches, reported tool usage, summaries and cache warming; not a verified invoice)",
+      "Auxiliary recorded estimate (separate from session cost): $0.0000",
+      "Auxiliary tokens: input 0, output 0, cache read 0, cache write 0",
+      "Tokens: input 0, output 0, cache read 0, cache write 0",
+      "Latest active-branch request cache hit rate: unknown",
+      "Whole-session cache hit rate: unknown",
+      "Live session age: 0m",
+      "Current run duration: not running",
+      "Observed active-work time: 0m (observed since 1970-01-01T00:00:00.100Z)",
+      "Current tool: none",
+      "Compaction duration: not compacting",
+      "Cache hit rate is not an estimate of invoice savings.",
+      "Delegation last error: none reported",
+      "Delegation report (separate scope; not added to session cost; safe raw JSON, capped at 2000 columns and 4096 source characters; ellipsis indicates truncation):",
+      "unavailable",
+    ],
+  });
 });
 
 it.each(["threads", "checks"])("rejects fractional PR %s counts", (field) => {

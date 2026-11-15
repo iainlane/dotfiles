@@ -75,7 +75,9 @@ it("uses configured bindings for controls and hints", () => {
     "tui.select.confirm": "o",
     "tui.select.cancel": "q",
   });
-  expect(h.screen()).toContain("o edit · q cancel");
+  expect(h.screen()).toStrictEqual(
+    "Footer › Customise\n→ Profile                         Rich\n  Widgets…\n  Separators…\n  Extension symbols…\n  Source & saving…\n  Save & use\no edit · q cancel",
+  );
   h.view.handleInput("o");
   h.screen();
   h.view.handleInput("j");
@@ -163,7 +165,9 @@ it("accepts navigation immediately after returning from a picker", () => {
   for (let count = 0; count < 5; count++) {
     h.view.handleInput("\u001B[B");
   }
-  expect(h.screen()).toContain("enter save");
+  expect(h.screen()).toStrictEqual(
+    "Footer › Customise\n  Profile                         Compact\n  Widgets…\n  Separators…\n  Extension symbols…\n  Source & saving…\n→ Save & use\nPreview · not saved\nenter save · escape/ctrl+c cancel",
+  );
 });
 it("keeps independent colours in one draft and cancels the whole flow at the root", () => {
   const h = fixture();
@@ -188,7 +192,9 @@ it("keeps independent colours in one draft and cancels the whole flow at the roo
   for (let index = 0; index < 4; index++) {
     h.view.handleInput("\u001B");
   }
-  expect(h.screen()).toContain("Save & use");
+  expect(h.screen()).toStrictEqual(
+    "Footer › Customise\n  Profile                         Custom\n→ Widgets…\n  Separators…\n  Extension symbols…\n  Source & saving…\n  Save & use\nPreview · not saved\nenter edit · escape/ctrl+c cancel",
+  );
   h.view.handleInput("\u001B");
   expect({
     stored: h.store.load(),
@@ -203,7 +209,9 @@ it("keeps invalid custom text local and restores the accepted field on Escape", 
   for (const character of "123456789") {
     h.view.handleInput(character);
   }
-  expect(h.screen()).toContain("8 columns");
+  expect(h.screen()).toStrictEqual(
+    "Footer › Customise › Custom separator\n> 123456789\u001B_pi:c\u0007\u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                        \nSpaces: 123456789\nExpected at most 8 columns\nPreview · not saved\nenter use · escape/ctrl+c back",
+  );
   expect(h.transaction.document).toStrictEqual({ preset: "rich" });
   h.view.handleInput("\u001B");
   expect(h.transaction.presentation).toStrictEqual({ preset: "rich" });
@@ -219,11 +227,12 @@ it("retains the draft on save failure until session application is explicitly se
   h.choose("Compact");
   h.choose("Save & use");
   expect({
-    error: h.screen().includes("Couldn't save"),
+    error: h.screen(),
     closed: h.transaction.closed,
     preview: h.transaction.presentation,
   }).toStrictEqual({
-    error: true,
+    error:
+      "Footer › Customise › Couldn't save\n  Could not save /agent/session-\u001B[0m  Save error\n→ Retry\n  Use for this session\n  Back\nPreview · not saved\nenter retry · escape/ctrl+c back",
     closed: false,
     preview: { preset: "compact" },
   });
@@ -241,17 +250,24 @@ it("keeps an unavailable persistent destination distinct from session-only setti
   h.choose("Compact");
   h.choose("Save & use");
   expect({
-    failed: h.screen().includes("Couldn\u0027t save"),
+    failed: h.screen(),
     closed: h.transaction.closed,
     stored: h.store.load(),
-  }).toStrictEqual({ failed: true, closed: false, stored: h.source });
+  }).toStrictEqual({
+    failed:
+      "Footer › Customise › Couldn't save\n  The settings directory is not \u001B[0m  Save error\n→ Retry\n  Use for this session\n  Back\nPreview · not saved\nenter retry · escape/ctrl+c back",
+    closed: false,
+    stored: h.source,
+  });
 });
 it("allows arbitrary source IDs without shadowing the add-source action", () => {
   const h = fixture();
   h.transaction.replace({ symbols: { "add-source": "!" } });
   h.choose("Extension symbols");
   h.choose("Add source");
-  expect(h.screen()).toContain("Extension source ID");
+  expect(h.screen()).toStrictEqual(
+    "Footer › Customise › Extension source ID\n> \u001B_pi:c\u0007\u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                                 \nPreview · not saved\nenter use · escape/ctrl+c back",
+  );
 });
 it("confirms the first local-preferences save without saving when the confirmation opens", () => {
   const h = fixture((store) => {
@@ -261,9 +277,13 @@ it("confirms the first local-preferences save without saving when the confirmati
   h.choose("Compact");
   h.choose("Save & use");
   expect({
-    title: h.screen().includes("Save user settings"),
+    screen: h.screen(),
     stored: h.store.load(),
-  }).toStrictEqual({ title: true, stored: h.source });
+  }).toStrictEqual({
+    screen:
+      "Footer › Customise › Save user settings\n  /agent/session-footer.user.jso\u001B[0m  User settings override base settings until reset.\n→ Save & use\n  Back\nPreview · not saved\nenter save · escape/ctrl+c back",
+    stored: h.source,
+  });
   h.choose("Save & use");
   const saved = h.store.load();
   expect({

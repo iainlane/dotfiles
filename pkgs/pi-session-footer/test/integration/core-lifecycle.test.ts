@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -32,12 +33,64 @@ async function readCache(directory: string): Promise<unknown> {
     : undefined;
 }
 
+interface HeldReply {
+  arrived: Promise<void>;
+  release(usedPercent: number): void;
+}
+
+/**
+ * A Codex usage endpoint whose replies the test releases. A request waits for
+ * the reply that was held when it arrived. The endpoint ignores the request's
+ * signal, so a reply can arrive after the client has cancelled the request.
+ */
+class UsageEndpoint {
+  private current:
+    | { arrived: PromiseWithResolvers<void>; reply: Promise<number> }
+    | undefined;
+  private readonly releases: (() => void)[] = [];
+
+  hold(): HeldReply {
+    const arrived = Promise.withResolvers<void>();
+    const reply = Promise.withResolvers<number>();
+
+    this.current = { arrived, reply: reply.promise };
+    this.releases.push(() => reply.resolve(0));
+
+    return {
+      arrived: arrived.promise,
+      release: (usedPercent) => reply.resolve(usedPercent),
+    };
+  }
+
+  /** Answers every request that is still waiting. */
+  releaseAll(): void {
+    for (const release of this.releases) {
+      release();
+    }
+  }
+
+  readonly fetch = async (): Promise<Response> => {
+    const current = this.current;
+
+    if (current === undefined) {
+      throw new Error("The usage endpoint has no reply to send");
+    }
+
+    current.arrived.resolve();
+
+    return usage(await current.reply);
+  };
+}
+
 it.each([
   "shutdown",
   "model replacement",
   "cycle cancellation",
   "successful replacement",
 ])("revokes late quota replies and cache writes on %s", async (reason) => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.UTC(2026, 9, 20, 12));
+
   const directory = await mkdtemp(join(tmpdir(), "pi-core-lifecycle-"));
   vi.stubEnv("PI_CODING_AGENT_DIR", directory);
   expect(getAgentDir()).toBe(directory);
@@ -60,7 +113,7 @@ it.each([
     }),
   );
   const channels = new Map<string, Set<(value: unknown) => unknown>>();
-  const published: { event: string; value: unknown }[] = [];
+  const latest = new Map<string, unknown>();
   const events = {
     on(event: string, callback: (value: unknown) => unknown) {
       const callbacks = channels.get(event) ?? new Set();
@@ -71,7 +124,7 @@ it.each([
       };
     },
     emit(event: string, value: unknown) {
-      published.push({ event, value });
+      latest.set(event, value);
       for (const callback of channels.get(event) ?? []) {
         callback(value);
       }
@@ -88,31 +141,10 @@ it.each([
 
   bindModel(runner, () => selected);
 
-  const response = Promise.withResolvers<Response>();
-  const fetching = Promise.withResolvers<void>();
-  const replacement = Promise.withResolvers<Response>();
-  const replacementFetching = Promise.withResolvers<void>();
-  const held = [
-    { started: fetching, response: response.promise },
-    ...(reason === "successful replacement"
-      ? [{ started: replacementFetching, response: replacement.promise }]
-      : []),
-  ];
-  const requests: (AbortSignal | null | undefined)[] = [];
+  const endpoint = new UsageEndpoint();
+  const stale = endpoint.hold();
   const dependencies = {
-    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
-      requests.push(init?.signal);
-
-      const next = held.shift();
-
-      if (next === undefined) {
-        return usage(99);
-      }
-
-      next.started.resolve();
-
-      return next.response;
-    },
+    fetch: endpoint.fetch,
     homedir: () => directory,
     env: { OPENAI_CODEX_OAUTH_TOKEN: "fixture" },
     readFile: () => {},
@@ -154,35 +186,36 @@ it.each([
             timestamp: Date.now(),
           }),
     );
-    await fetching.promise;
+    await stale.arrived;
     const drained = idle();
     // The first quota response is released only after the turn, so a turn
     // that waited for the fetch would never finish.
     await turn;
-    const replies: unknown[] = [];
+    let answer: unknown;
     const entries = [...(channels.get("sub-core:request") ?? [])].map(
       (callback) =>
         callback({
           type: "entries",
           force: true,
           reply: (value: unknown) => {
-            replies.push(value);
+            answer = value;
           },
         }),
     );
     if (reason === "successful replacement") {
+      const current = endpoint.hold();
       await runner.emit({
         type: "model_select",
         model,
         previousModel: model,
         source: "set",
       });
-      await replacementFetching.promise;
+      await current.arrived;
       const completed = [...(channels.get("sub-core:request") ?? [])].map(
         (callback) =>
           callback({ type: "entries", force: true, reply: () => {} }),
       );
-      replacement.resolve(usage(42));
+      current.release(42);
       await Promise.all(completed);
       await idle();
     } else if (reason === "model replacement") {
@@ -196,19 +229,11 @@ it.each([
     } else {
       await runner.emit({ type: "session_shutdown", reason: "quit" });
     }
-    expect(requests[0]?.aborted).toBe(true);
-    const before = published.length;
-    response.resolve(usage(1));
+    const published = new Map(latest);
+    stale.release(1);
     await Promise.all(entries);
     await drained;
-    expect(replies).toStrictEqual(
-      reason === "model replacement" || reason === "successful replacement"
-        ? [{ entries: [] }]
-        : [],
-    );
-    expect(published.slice(before)).toStrictEqual([]);
-    const now: unknown = expect.any(Number);
-    const description: unknown = expect.any(String);
+    const now = Date.now();
     const replacementCache = {
       codex: {
         fetchedAt: now,
@@ -221,7 +246,7 @@ it.each([
               label: "5h",
               usedPercent: 42,
               windowSeconds: 18_000,
-              resetDescription: description,
+              resetDescription: "2401d15h",
               resetAt: new Date(2_000_000_000_000).toISOString(),
             },
           ],
@@ -231,12 +256,20 @@ it.each([
         status: { indicator: "none" },
       },
     };
-    expect(await readCache(directory)).toStrictEqual(
-      reason === "successful replacement" ? replacementCache : undefined,
-    );
+    expect({
+      answer,
+      published: latest,
+      cache: await readCache(directory),
+    }).toStrictEqual({
+      answer:
+        reason === "model replacement" || reason === "successful replacement"
+          ? { entries: [] }
+          : undefined,
+      published,
+      cache: reason === "successful replacement" ? replacementCache : undefined,
+    });
   } finally {
-    response.resolve(Response.json({}));
-    replacement.resolve(Response.json({}));
+    endpoint.releaseAll();
     await runner.emit({ type: "session_shutdown", reason: "quit" });
     await turn;
     await rm(directory, { recursive: true, force: true });

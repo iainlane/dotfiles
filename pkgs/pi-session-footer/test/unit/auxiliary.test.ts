@@ -64,7 +64,10 @@ it("replays auxiliary records once without changing native totals", () => {
   const state = createSnapshot(0, "/fixture");
   state.usage = ledger.totals;
   state.auxiliaryUsage = ledger.auxiliary;
-  expect(renderFooter(state, 160)[1]).toContain("≈$1.00   ≈$0.25");
+  expect(renderFooter(state, 160)).toStrictEqual([
+    " /fixture",
+    "                                                                                                                               0.0%  ≈$1.00   ≈$0.25   0m",
+  ]);
   ledger.update([], []);
   ledger.update(entries, entries);
   expect(ledger.auxiliary).toStrictEqual({

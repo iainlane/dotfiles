@@ -40,7 +40,52 @@ afterEach(() => {
 
 afterAll(() => server.close());
 
-const stringMatcher: unknown = expect.any(String);
+/**
+ * Answers Anthropic usage requests for the accounts in `utilization`, keyed by
+ * access token, and rejects other tokens as unauthorised.
+ */
+function anthropicUsage(utilization: Record<string, number>) {
+  return http.get(
+    "https://api.anthropic.com/api/oauth/usage",
+    ({ request }) => {
+      const token = /^Bearer (.*)$/.exec(
+        request.headers.get("authorization") ?? "",
+      )?.[1];
+      const used = token === undefined ? undefined : utilization[token];
+
+      return used === undefined
+        ? HttpResponse.json({ error: "unauthorised" }, { status: 401 })
+        : HttpResponse.json({ five_hour: { utilization: used } });
+    },
+  );
+}
+
+function anthropicResult(source: string, used: number | undefined) {
+  return {
+    provider: "anthropic",
+    displayName: "Claude Plan",
+    credentialSource: source,
+    extraUsageEnabled: false,
+    fiveHourUsage: used,
+    windows: [
+      {
+        label: "5h",
+        usedPercent: used,
+        windowSeconds: 18_000,
+        resetAt: undefined,
+        resetDescription: undefined,
+      },
+    ],
+  };
+}
+
+const tokenUsage: Record<string, number> = {
+  pi: 11,
+  claude: 12,
+  override: 13,
+  file: 14,
+  keychain: 15,
+};
 
 const dependencies = {
   fetch: globalThis.fetch,
@@ -52,9 +97,13 @@ const dependencies = {
 };
 
 it("publishes Codex duration only when reported and identifies the credential source", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_799_990_000_000);
   server.use(
     http.get("https://chatgpt.com/backend-api/wham/usage", ({ request }) => {
-      expect(request.headers.get("ChatGPT-Account-Id")).toBe("account-a");
+      if (request.headers.get("ChatGPT-Account-Id") !== "account-a") {
+        return HttpResponse.json({ error: "unknown account" }, { status: 403 });
+      }
 
       return HttpResponse.json({
         rate_limit: {
@@ -92,14 +141,14 @@ it("publishes Codex duration only when reported and identifies the credential so
         usedPercent: 15,
         windowSeconds: 18_000,
         resetAt: new Date(1_800_000_000_000).toISOString(),
-        resetDescription: stringMatcher,
+        resetDescription: "2h46m",
       },
       {
         label: "Day",
         usedPercent: 18,
         windowSeconds: undefined,
         resetAt: new Date(1_800_100_000_000).toISOString(),
-        resetDescription: stringMatcher,
+        resetDescription: "1d6h",
       },
     ],
   });
@@ -154,13 +203,7 @@ it("reads the current Claude credential file on every quota request", async () =
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(2_000_000_000_000);
   let token = "first";
-  const observed: (string | null)[] = [];
-  server.use(
-    http.get("https://api.anthropic.com/api/oauth/usage", ({ request }) => {
-      observed.push(request.headers.get("authorization"));
-      return HttpResponse.json({ five_hour: { utilization: 15 } });
-    }),
-  );
+  server.use(anthropicUsage({ first: 15, second: 25 }));
   const { AnthropicProvider } = await vi.importActual<{
     AnthropicProvider: new () => Provider;
   }>("#fixtures/pi-sub-core/src/providers/impl/anthropic.ts");
@@ -180,10 +223,13 @@ it("reads the current Claude credential file on every quota request", async () =
           })
         : undefined,
   };
-  await provider.fetchUsage(deps);
+  const first = await provider.fetchUsage(deps);
   token = "second";
-  await provider.fetchUsage(deps);
-  expect(observed).toStrictEqual(["Bearer first", "Bearer second"]);
+  const second = await provider.fetchUsage(deps);
+  expect([first, second]).toStrictEqual([
+    anthropicResult("claude-code-file", 15),
+    anthropicResult("claude-code-file", 25),
+  ]);
 });
 
 it.each([
@@ -234,13 +280,7 @@ it.each([
   async ({ credential, env, token, source }) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(2_000_000_000_000);
-    const observed: (string | null)[] = [];
-    server.use(
-      http.get("https://api.anthropic.com/api/oauth/usage", ({ request }) => {
-        observed.push(request.headers.get("authorization"));
-        return HttpResponse.json({ five_hour: { utilization: 15 } });
-      }),
-    );
+    server.use(anthropicUsage(tokenUsage));
     const { AnthropicProvider } = await vi.importActual<{
       AnthropicProvider: new () => Provider;
     }>("#fixtures/pi-sub-core/src/providers/impl/anthropic.ts");
@@ -267,25 +307,7 @@ it.each([
       fileExists: (path) => files.has(path),
       readFile: (path) => files.get(path),
     });
-    expect({ observed, result }).toStrictEqual({
-      observed: [`Bearer ${token}`],
-      result: {
-        provider: "anthropic",
-        displayName: "Claude Plan",
-        credentialSource: source,
-        extraUsageEnabled: false,
-        fiveHourUsage: 15,
-        windows: [
-          {
-            label: "5h",
-            usedPercent: 15,
-            windowSeconds: 18_000,
-            resetAt: undefined,
-            resetDescription: undefined,
-          },
-        ],
-      },
-    });
+    expect(result).toStrictEqual(anthropicResult(source, tokenUsage[token]));
   },
 );
 
@@ -321,13 +343,7 @@ it.each([
   async ({ credential, token, source }) => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(2_000_000_000_000);
-    const observed: (string | null)[] = [];
-    server.use(
-      http.get("https://api.anthropic.com/api/oauth/usage", ({ request }) => {
-        observed.push(request.headers.get("authorization"));
-        return HttpResponse.json({ five_hour: { utilization: 15 } });
-      }),
-    );
+    server.use(anthropicUsage(tokenUsage));
     const { AnthropicProvider } = await vi.importActual<{
       AnthropicProvider: new () => Provider;
     }>("#fixtures/pi-sub-core/src/providers/impl/anthropic.ts");
@@ -353,24 +369,6 @@ it.each([
           },
         }),
     });
-    expect({ observed, result }).toStrictEqual({
-      observed: [`Bearer ${token}`],
-      result: {
-        provider: "anthropic",
-        displayName: "Claude Plan",
-        credentialSource: source,
-        extraUsageEnabled: false,
-        fiveHourUsage: 15,
-        windows: [
-          {
-            label: "5h",
-            usedPercent: 15,
-            windowSeconds: 18_000,
-            resetAt: undefined,
-            resetDescription: undefined,
-          },
-        ],
-      },
-    });
+    expect(result).toStrictEqual(anthropicResult(source, tokenUsage[token]));
   },
 );

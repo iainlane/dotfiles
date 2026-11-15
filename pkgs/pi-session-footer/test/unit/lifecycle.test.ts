@@ -30,7 +30,7 @@ const later: EditorFactory = () => {
 
 function harness(mode = "tui") {
   const channels = new Map<string, Set<(value: unknown) => void>>();
-  const emitted: string[] = [];
+  const published = new Map<string, unknown>();
   const agents = { totalActive: 0 };
   const events = {
     on(channel: string, callback: (value: unknown) => void) {
@@ -48,7 +48,7 @@ function harness(mode = "tui") {
       };
     },
     emit(channel: string, raw: unknown) {
-      emitted.push(channel);
+      published.set(channel, raw);
 
       for (const callback of channels.get(channel) ?? []) {
         callback(raw);
@@ -148,7 +148,7 @@ function harness(mode = "tui") {
     context,
     emit,
     channels,
-    emitted,
+    published,
     installedFooter: () => {
       if (!footerFactory) {
         throw new Error("Expected the footer factory");
@@ -171,14 +171,13 @@ it("loads active local preferences through the injected settings store", () => {
     getExtensionStatuses: () => new Map(),
     onBranchChange: () => () => {},
   });
-  const display = view.render(200).join("\n");
   expect({
-    directory: display.includes(""),
-    model: display.includes(""),
+    display: view.render(200),
     stored: h.runtime.settingsStore.stored,
   }).toStrictEqual({
-    directory: true,
-    model: false,
+    display: [
+      " /footer-fixture                                                                                                                                                                                ◫ 200k",
+    ],
     stored: '{"preset":"minimal"}',
   });
   h.footer.shutdown();
@@ -232,11 +231,11 @@ it("renders a failed message_end before settlement and cancellation", async () =
   const factory = h.installedFooter();
 
   let view: FooterView | undefined;
-  const frames: string[][] = [];
+  let screen: string[] = [];
   const tui = {
     requestRender() {
       if (view) {
-        frames.push(view.render(200));
+        screen = view.render(200);
       }
     },
   };
@@ -245,26 +244,30 @@ it("renders a failed message_end before settlement and cancellation", async () =
     getExtensionStatuses: () => new Map(),
     onBranchChange: () => () => {},
   });
-  frames.length = 0;
 
   h.footer.endMessage(h.context, true);
-  const failed = frames.at(-1)?.join("\n") ?? "";
+  const failed = screen;
 
   h.footer.settleAgent(h.context, false);
-  const settled = frames.at(-1)?.join("\n") ?? "";
+  const settled = screen;
 
   h.footer.endMessage(h.context, true);
   h.footer.settleAgent(h.context, true);
-  const cancelled = frames.at(-1)?.join("\n") ?? "";
+  const cancelled = screen;
 
-  expect({
-    failed: failed.includes("run failed"),
-    settled: settled.includes("run failed"),
-    cancelled: cancelled.includes("run cancelled"),
-  }).toStrictEqual({
-    failed: true,
-    settled: true,
-    cancelled: true,
+  expect({ failed, settled, cancelled }).toStrictEqual({
+    failed: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "✗ run failed                                                                                                                                                                                  ◴ week 2%",
+    ],
+    settled: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "✗ run failed                                                                                                                                                                                  ◴ week 2%",
+    ],
+    cancelled: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "⊘ run cancelled                                                                                                                                                                               ◴ week 2%",
+    ],
   });
 
   h.emit({ type: "session_shutdown", reason: "quit" }, h.context);
@@ -290,7 +293,7 @@ it("reconnects sources after session replacement and never enables PR automation
   expect(h.channels.size).toBe(connected);
   expect(h.installedFooter()).not.toBe(first);
   expect(
-    h.emitted.filter((channel) =>
+    [...h.published.keys()].filter((channel) =>
       /feedback|ci-failure|sub-core:action/.test(channel),
     ),
   ).toStrictEqual([]);
@@ -325,7 +328,10 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
     ],
   });
 
-  expect(first.render(240)[1]).toContain("⊗1 ⚠0");
+  expect(first.render(240)).toStrictEqual([
+    " openai/fixture   /footer-fixture                                                                                                                                                                                                     ◫ 200k",
+    "⊗1 ⚠0                                                                                                                                                                                                                                 ◴ week 2%",
+  ]);
 
   const replacement = { ...h.context, cwd: "/replacement-footer-fixture" };
 
@@ -349,8 +355,8 @@ it("replaces directory and diagnostic scope with the runtime context", async () 
   });
 
   expect(second.render(240)).toStrictEqual([
-    expect.stringContaining(replacement.cwd),
-    expect.not.stringContaining("⊗1"),
+    " openai/fixture   /replacement-footer-fixture                                                                                                                                                                                         ◫ 200k",
+    "                                                                                                                                                                                                                                      ◴ week 2%",
   ]);
 
   h.emit({ type: "session_shutdown", reason: "quit" }, replacement);
@@ -370,20 +376,12 @@ it("captures one clock/status observation for both composer borders and its expl
   h.footer.start(h.context);
   const footerFactory = h.installedFooter();
   const start = h.runtime.clock.now();
-  const observations = [
-    { at: start + 59_999, text: "first" },
-    { at: start + 60_000, text: "second" },
-  ];
   footerFactory({ requestRender() {} }, h.context.ui.theme, {
     onBranchChange: () => () => {},
-    getExtensionStatuses: () => {
-      const next = observations.shift() ?? {
-        at: start + 60_000,
-        text: "second",
-      };
-      h.runtime.clock.set(next.at);
-      return new Map([["source", next.text]]);
-    },
+    getExtensionStatuses: () =>
+      new Map([
+        ["source", h.runtime.clock.now() < start + 60_000 ? "first" : "second"],
+      ]),
   });
   h.footer.mountComposer(h.context);
   const factory = h.context.ui.getEditorComponent();
@@ -392,12 +390,9 @@ it("captures one clock/status observation for both composer borders and its expl
   }
   const { tui, theme, keys } = editorFixture();
   const editor = factory(tui, theme, keys);
+  h.runtime.clock.set(start + 59_999);
   const rendered = editor.render(100);
-  expect({
-    top: rendered[0]?.includes(" 0m"),
-    bottom: rendered.at(-1)?.includes(" 0m"),
-    second: rendered.join(" ").includes("second"),
-  }).toStrictEqual({ top: true, bottom: true, second: false });
+  h.runtime.clock.set(start + 60_000);
   let explanation: string[] = [];
   let technical: string[] = [];
   h.context.ui.custom = async (create) => {
@@ -415,13 +410,43 @@ it("captures one clock/status observation for both composer borders and its expl
     view.dispose();
   };
   await h.footer.inspect("explain age", h.context);
-  expect({
-    capturedTime: technical
-      .join(" ")
-      .includes(new Date(start + 59_999).toISOString()),
-    oldAge: explanation.join(" ").includes(" 0m"),
-    newAge: explanation.join(" ").includes(" 1m"),
-  }).toStrictEqual({ capturedTime: true, oldAge: true, newAge: false });
+  expect({ rendered, explanation, technical }).toStrictEqual({
+    rendered: [
+      "╭─  0m  ◇ source: first──────────────────────────────────────────────────────────────────────── ─╮",
+      "│  \u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                               │",
+      "╰─  0m  ◇ source: first──────────────────────────────────────────────────────────────────────── ─╯",
+    ],
+    explanation: [
+      "Footer › Explain › Session age",
+      "›  0m  Top left                                                                                                                                                ",
+      "   0m  Bottom left                                                                                                                                             ",
+      "  Rendering details                                                                                                                                             ",
+      "  Open Usage                                                                                                                                                    ",
+      "  Sections…                                                                                                                                                     ",
+      "enter open · escape/ctrl+c back · s sections",
+      "1/5 · up/down move · pageUp/pageDown page",
+    ],
+    technical: [
+      "Footer › Explain › Session age › Rendering details",
+      "Captured: 2026-10-20T12:00:59.999Z                                                                                                                              ",
+      "Owner: composer                                                                                                                                                 ",
+      "Usable columns: top 94, bottom 94                                                                                                                               ",
+      "Source symbols:  elapsed wall-clock session age                                                                                                                ",
+      "Top left: 94 columns                                                                                                                                            ",
+      "Appearance: {}                                                                                                                                                  ",
+      "age: variant 1, priority 1                                                                                                                                      ",
+      'Symbols: [{"value":"","colour":"dim"}]                                                                                                                         ',
+      "Bottom left: 94 columns                                                                                                                                         ",
+      "Appearance: {}                                                                                                                                                  ",
+      "age: variant 1, priority 1                                                                                                                                      ",
+      'Symbols: [{"value":"","colour":"dim"}]                                                                                                                         ',
+      "Top left · age: full                                                                                                                                            ",
+      "Bottom left · age: full                                                                                                                                         ",
+      "Default priority: 1. Full, shortened where supported, then omitted for width.                                                                                   ",
+      "escape/ctrl+c back · s sections",
+      "1–15/15 · up/down move · pageUp/pageDown page",
+    ],
+  });
   h.footer.shutdown();
 });
 
@@ -449,14 +474,17 @@ it("paints the composer borders again after a theme change", async () => {
   const { tui, theme, keys } = editorFixture();
   const editor = factory(tui, theme, keys);
   await h.runtime.clock.advance(0);
-  const plain = editor.render(100)[0]?.includes("[") ?? false;
+  const plain = editor.render(100)[0];
   h.context.ui.theme.fg = (_role, value) => `[${value}]`;
   editor.invalidate();
+  const themed = editor.render(100)[0];
 
-  expect({
-    plain,
-    themed: editor.render(100)[0]?.includes("[") ?? false,
-  }).toStrictEqual({ plain: false, themed: true });
+  expect({ plain, themed }).toStrictEqual({
+    plain:
+      "╭─  openai/fixture   /footer-fixture                                                   ◫ 200k ─╮",
+    themed:
+      "╭─ [ openai/][fixture][  ][ /footer-fixture]                                    [ ][◫ ][200k] ─╮",
+  });
   h.footer.shutdown();
 });
 
@@ -619,15 +647,21 @@ it("shows a change in the active subagent count at the next poll", async () => {
     }),
   );
   await h.runtime.clock.advance(0);
-  const shows = (text: string) => screen.lines.join("\n").includes(text);
-  const two = shows("\uF0C0 2");
+  const two = screen.lines;
   await h.runtime.clock.advance(2000);
   h.agents.totalActive = 3;
   await h.runtime.clock.advance(2000);
+  const three = screen.lines;
 
-  expect({ two, three: shows("\uF0C0 3") }).toStrictEqual({
-    two: true,
-    three: true,
+  expect({ two, three }).toStrictEqual({
+    two: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      " 2                                                                                                                                                                                           ◴ week 2%",
+    ],
+    three: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      " 3                                                                                                                                                                                           ◴ week 2%",
+    ],
   });
   h.footer.shutdown();
 });
@@ -656,7 +690,7 @@ it("restores a known PR when Git returns to its branch", async () => {
       unresolvedThreadCount: 0,
     },
   });
-  const shown = () => view.render(200).join("\n").includes("#7");
+  const shown = () => view.render(200);
   const checkout = async (name: string) => {
     h.runtime.repository.state = branch(name);
     h.footer.endTool("tool");
@@ -668,9 +702,18 @@ it("restores a known PR when Git returns to its branch", async () => {
   const back = await checkout("main");
 
   expect({ initial, away, back }).toStrictEqual({
-    initial: true,
-    away: false,
-    back: true,
+    initial: [
+      " openai/fixture   /footer-fixture   main   #7                                                                                                                                             ◫ 200k",
+      "                                                                                                                                                                                              ◴ week 2%",
+    ],
+    away: [
+      " openai/fixture   /footer-fixture   feature                                                                                                                                                 ◫ 200k",
+      "                                                                                                                                                                                              ◴ week 2%",
+    ],
+    back: [
+      " openai/fixture   /footer-fixture   main   #7                                                                                                                                             ◫ 200k",
+      "                                                                                                                                                                                              ◴ week 2%",
+    ],
   });
   h.footer.shutdown();
 });
@@ -786,9 +829,16 @@ it("keeps shared session state alive when its footer view is disposed", async ()
   await h.runtime.clock.advance(0);
 
   expect({
-    quota: screen.lines.join("\n").includes("week 42%"),
+    screen: screen.lines,
     alive: h.runtime.clock.pending > 0,
-  }).toStrictEqual({ quota: true, alive: true });
+  }).toStrictEqual({
+    screen: [
+      "╭─  openai/fixture   /footer-fixture                                                                                                                                                       ◫ 200k ─╮",
+      "│  \u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                                                                                                                                   │",
+      "╰─                                                                                                                                                                                        ◴ week 42% ─╯",
+    ],
+    alive: true,
+  });
   h.footer.shutdown();
 });
 
@@ -832,10 +882,9 @@ it("requests structured status on every start, rejects cross-session events and 
     getExtensionStatuses: () => new Map([["planning", "plan mode on"]]),
     onBranchChange: () => () => {},
   });
-  expect(view.render(200).join("\n")).toContain("≡");
-  expect(view.render(200).join("\n")).not.toContain("plan mode on");
+  const requested = view.render(200);
   publish(true, "editing");
-  expect(view.render(200).join("\n")).toContain("≡ editing");
+  const editing = view.render(200);
   publish(false, undefined, "wrong");
   h.events.emit("dotfiles:status:v1", {
     version: 2,
@@ -843,9 +892,9 @@ it("requests structured status on every start, rejects cross-session events and 
     sessionId: id,
     active: false,
   });
-  expect(view.render(200).join("\n")).toContain("≡ editing");
+  const rejected = view.render(200);
   publish(false);
-  expect(view.render(200).join("\n")).not.toMatch(/≡|plan mode on/);
+  const inactive = view.render(200);
   id = "two";
   h.footer.start(h.context);
   const restarted = h.installedFooter()(
@@ -856,7 +905,35 @@ it("requests structured status on every start, rejects cross-session events and 
       onBranchChange: () => () => {},
     },
   );
-  expect(restarted.render(200).join("\n")).toContain("≡");
+  const screens = {
+    requested,
+    editing,
+    rejected,
+    inactive,
+    restarted: restarted.render(200),
+  };
+  expect(screens).toStrictEqual({
+    requested: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "≡                                                                                                                                                                                             ◴ week 2%",
+    ],
+    editing: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "≡ editing                                                                                                                                                                                     ◴ week 2%",
+    ],
+    rejected: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "≡ editing                                                                                                                                                                                     ◴ week 2%",
+    ],
+    inactive: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "                                                                                                                                                                                              ◴ week 2%",
+    ],
+    restarted: [
+      " openai/fixture   /footer-fixture                                                                                                                                                             ◫ 200k",
+      "≡                                                                                                                                                                                             ◴ week 2%",
+    ],
+  });
   h.footer.shutdown();
   expect(h.channels.has("dotfiles:status:v1")).toBe(false);
 });
@@ -908,12 +985,24 @@ it("retains effective source symbols in live profile previews without saving", a
     view.handleInput?.("j");
   }
   expect({
-    screen: view.render(200).join("\n").includes("Workflow"),
-    symbol: editor.render(200).join("\n").includes("[P]"),
+    screen: view.render(200),
+    editor: editor.render(200),
     stored: h.runtime.settingsStore.stored,
   }).toStrictEqual({
-    screen: true,
-    symbol: true,
+    screen: [
+      "Footer › Customise › Profile",
+      "  Rich                            Identity, workflow and usage",
+      "  Compact                         Identity and context",
+      "  Minimal                         Directory, Git and context",
+      "→ Workflow                        Work and attention",
+      "Preview · not saved",
+      "enter choose · escape/ctrl+c back",
+    ],
+    editor: [
+      "╭─  openai/fixture   /footer-fixture                                                                                                                                                       ◫ 200k ─╮",
+      "│  \u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                                                                                                                                   │",
+      "╰─ [P]                                                                                                                                                                                     ◴ week 2% ─╯",
+    ],
     stored: '{"symbols":{"planning":"[P]"}}',
   });
   view.handleInput?.("\u001B");
@@ -954,7 +1043,10 @@ it.each(["shutdown", "restart", "inspect"] as const)(
     stale.render(200);
     stale.handleInput?.("\u001B[B");
     stale.handleInput?.("\u001B[B");
-    expect(editor.render(200).join("\n")).not.toContain("");
+    expect(editor.render(200)).toStrictEqual([
+      "╭─  /footer-fixture                                                                                                                                                                          ◫ 200k ─╮",
+      "╰─ \u001B_pi:fc\u0007 \u001B_pi:/fc\u0007                                                                                                                                                                                                  ─╯",
+    ]);
     switch (action) {
       case "shutdown":
         h.footer.shutdown();
@@ -1058,7 +1150,7 @@ it("keeps a draft open after a failed save and uses it for the session on reques
   customiser.choose("Profile");
   customiser.choose("Compact");
   customiser.choose("Save & use");
-  const failed = customiser.screen().includes("Couldn't save");
+  const failed = customiser.screen();
   customiser.choose("Use for this session");
   await customiser.opened;
   await h.runtime.clock.advance(0);
@@ -1069,7 +1161,8 @@ it("keeps a draft open after a failed save and uses it for the session on reques
     composer: customiser.editor.render(200),
     stored: h.runtime.settingsStore.stored,
   }).toStrictEqual({
-    failed: true,
+    failed:
+      "Footer › Customise › Couldn't save\n  Could not save /agent/session-\u001B[0m  Save error\n→ Retry\n  Use for this session\n  Back\nPreview · not saved\nenter retry · escape/ctrl+c back",
     open: false,
     composer: await composerLines('{"preset":"compact"}'),
     stored: undefined,

@@ -185,14 +185,12 @@ it("fits delegation warnings independently from exact active children", () => {
     },
   );
   expect({
-    failed: frame.bottom.text.includes("failed 1+ stale"),
-    active: frame.bottom.text.includes(" 1 stale"),
+    bottom: frame.bottom.text,
     decisions: frame.decisions
       .filter((d) => d.id === "agents")
       .map(({ child, decision }) => ({ child, decision })),
   }).toStrictEqual({
-    failed: true,
-    active: false,
+    bottom: "⊗1 ⚠0   failed 1+ stale",
     decisions: [
       { child: "active", decision: "omitted" },
       { child: "failed", decision: "full" },
@@ -253,24 +251,32 @@ it("retains source failure and provenance without fabricating missing readings",
   expect({
     git: readings.git.parts[0]?.variants[0],
     quota: readings.quota.parts[0]?.variants[0],
-    source: readings.quota.details.some((line) => line.includes("fixture")),
+    details: readings.quota.details,
   }).toStrictEqual({
     git: " ⚠ permission denied",
     quota: "◴ ⚠ AUTH_FAILED",
-    source: true,
+    details: [
+      "Reading: unknown",
+      "Source: fixture; account unknown",
+      "Last error: AUTH_FAILED",
+    ],
   });
   state.quota = fixture().quota;
   state.now += 300_001;
   expect({
     state: readSegments(state).quota.state,
     expired: readSegments(state).quota.reason,
-    retained: readSegments(state).quota.details.some((line) =>
-      line.includes("5h"),
-    ),
+    details: readSegments(state).quota.details,
   }).toStrictEqual({
     state: "unavailable",
     expired: "Quota percentages expired",
-    retained: true,
+    details: [
+      "Reading: 2026-10-20T12:00:00.000Z",
+      "Source: unknown; account unknown",
+      "Last error: none reported",
+      "5h: percentage unavailable or expired; unavailable; reset in unknown",
+      "Week: percentage unavailable or expired; unavailable; reset in unknown",
+    ],
   });
 });
 it.each([0, 1, 2, 10, 30, 60, 80, 120, 180, 240])(
@@ -460,11 +466,18 @@ it("preserves warnings before routine identity and quota detail", () => {
     { settings: resolveSettings({}) },
   );
   expect({
-    conflict: frame.top.text.includes("conflicts 1"),
-    failed: frame.bottom.text.includes("run failed"),
-    countdown: frame.bottom.text.includes("↻2h"),
-  }).toStrictEqual({ conflict: true, failed: true, countdown: false });
+    top: frame.top.text,
+    bottom: frame.bottom.text,
+  }).toStrictEqual({
+    top: "⚠ conflicts 1 ━─────  ◫ 24.3%/272k",
+    bottom: "✗ run failed              ◴ 5h 15%",
+  });
 });
+const expectedFresh: Record<string, unknown> = {
+  "0": "◴ 5h 15% ↻2h",
+  "31000": "◴ 5h 15% ↻1h59m stale",
+  "300001": undefined,
+};
 it.each([0, 31000, 300001])(
   "keeps quota freshness and omits expired percentages at age %i",
   (age) => {
@@ -473,10 +486,10 @@ it.each([0, 31000, 300001])(
     const reading = readSegments(state).quota;
     expect({
       state: reading.state,
-      stale: reading.parts[0]?.variants[0]?.includes("stale") ?? false,
+      value: reading.parts[0]?.variants[0],
     }).toStrictEqual({
       state: age > 300000 ? "unavailable" : "available",
-      stale: age === 31000,
+      value: expectedFresh[String(age)],
     });
   },
 );
@@ -497,7 +510,9 @@ it("records child-level quota fits and restores countdowns on widening", () => {
     { child: "0:5h", decision: "shortened" },
     { child: "1:Week", decision: "shortened" },
   ]);
-  expect(fit(240).bottom.text).toContain("↻2h");
+  expect(fit(240).bottom.text).toStrictEqual(
+    "                                                                                                                                                                                                          ◴ 5h 15% ↻2h  ◴ week 18% ↻3d   50m",
+  );
 });
 it("retains zero measurements but suppresses initial idle cost and age", () => {
   const state = createSnapshot(now, "/work");

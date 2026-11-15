@@ -106,13 +106,33 @@ it("styles each placement of the diagnostics widget independently", () => {
   ]);
 });
 it.each([
-  [{ widgets: "" }, " main↑0", "↓0", false],
-  [{ widgets: "  " }, " main  ↑0", "↓0", false],
-  [{ regions: "界" }, " main  ↑0", "↓0", true],
-  [{ widgets: "", regions: "" }, " main↑0", "↓0", false],
+  [
+    { widgets: "" },
+    " main↑0",
+    "↓0",
+    " main↑0                                                                     ↓0",
+  ],
+  [
+    { widgets: "  " },
+    " main  ↑0",
+    "↓0",
+    " main  ↑0                                                                   ↓0",
+  ],
+  [
+    { regions: "界" },
+    " main  ↑0",
+    "↓0",
+    " main  ↑0                                                                 界↓0",
+  ],
+  [
+    { widgets: "", regions: "" },
+    " main↑0",
+    "↓0",
+    " main↑0                                                                      ↓0",
+  ],
 ] as const)(
   "preserves literal separator settings %j",
-  (separators, left, right, marker) => {
+  (separators, left, right, text) => {
     const state = createSnapshot(0, "/demo");
     state.git = gitState("main", 0);
     const frame = layoutFooter(
@@ -131,9 +151,9 @@ it.each([
     expect({
       left: frame.top.left,
       right: frame.top.right,
-      marker: frame.top.text.includes("界"),
+      text: frame.top.text,
       width: visibleWidth(frame.top.text),
-    }).toStrictEqual({ left, right, marker, width: 80 });
+    }).toStrictEqual({ left, right, text, width: 80 });
   },
 );
 it("captures the styled gauge without overwriting the region separator", () => {
@@ -165,7 +185,7 @@ it("captures the styled gauge without overwriting the region separator", () => {
   expect({
     value: gauge?.value,
     symbols: gauge?.symbols,
-    separator: frame.top.text.includes(" │ "),
+    text: frame.top.text,
   }).toStrictEqual({
     value: "#".repeat(29) + "-".repeat(28),
     symbols: [
@@ -180,7 +200,7 @@ it("captures the styled gauge without overwriting the region separator", () => {
         colour: "border",
       })),
     ],
-    separator: true,
+    text: "◫ 50.0%/100k #############################----------------------------  │ ≈$1.00",
   });
 });
 it("records each row's own budget for a widget placed in both rows", () => {

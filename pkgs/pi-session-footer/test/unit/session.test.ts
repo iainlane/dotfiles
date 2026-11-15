@@ -69,8 +69,7 @@ function display(h: ReturnType<typeof harness>) {
     view,
   );
   screen.lines = renderFooter(session.state, 200);
-  const shows = (text: string) => screen.lines.join("\n").includes(text);
-  return { session, screen, shows };
+  return { session, screen };
 }
 
 it("disposes timers, replies and late Git reads without changing a replaced session", async () => {
@@ -138,17 +137,17 @@ it.each([
 
     const { bus, context, runtime } = harness();
     runtime.clock.set(now);
-    const frames: { at: number; freshness: string[] }[] = [];
+    let frame: { at: number; freshness: string[] } | undefined;
     const session = new FooterSession(
       context,
       bus,
       () => {
-        frames.push({
+        frame = {
           at: runtime.clock.now(),
           freshness: quotaWindows(session.state.quota, session.state.now).map(
             (window) => window.freshness,
           ),
-        });
+        };
       },
       runtime,
       view,
@@ -172,7 +171,7 @@ it.each([
 
     await runtime.clock.advance(elapsed);
 
-    expect(frames.at(-1)).toStrictEqual({
+    expect(frame).toStrictEqual({
       at: now + elapsed,
       freshness: [freshness],
     });
@@ -188,15 +187,22 @@ it("shows the session age from the header timestamp at the minute boundary", asy
   h.context.sessionManager.getHeader = () => ({
     timestamp: new Date(now).toISOString(),
   });
-  const { session, shows } = display(h);
+  const { session, screen } = display(h);
 
   await h.runtime.clock.advance(59_000);
-  const before = shows(" 1m");
+  const before = screen.lines;
   await h.runtime.clock.advance(1000);
+  const after = screen.lines;
 
-  expect({ before, after: shows(" 1m") }).toStrictEqual({
-    before: false,
-    after: true,
+  expect({ before, after }).toStrictEqual({
+    before: [
+      " openai/fixture   /work                                                                                                                                                                       ◫ 200k",
+      "",
+    ],
+    after: [
+      " openai/fixture   /work                                                                                                                                                                       ◫ 200k",
+      "                                                                                                                                                                                                    1m",
+    ],
   });
 
   session.dispose();
@@ -269,7 +275,7 @@ it("reads Git again when a refresh is requested during a pending read", async ()
   const h = harness();
   h.runtime.repository.state = gitState("main", 0);
   const release = h.runtime.repository.hold();
-  const { session, shows } = display(h);
+  const { session, screen } = display(h);
 
   h.runtime.repository.state = gitState("feature", 0);
   const requested = session.refreshGit();
@@ -279,10 +285,13 @@ it("reads Git again when a refresh is requested during a pending read", async ()
 
   expect({
     git: session.state.git,
-    shown: shows("feature"),
+    screen: screen.lines,
   }).toStrictEqual({
     git: gitState("feature", h.runtime.clock.now()),
-    shown: true,
+    screen: [
+      " openai/fixture   /work   feature                                                                                                                                                           ◫ 200k",
+      "",
+    ],
   });
 
   session.dispose();
@@ -292,17 +301,24 @@ it("polls Git a fixed interval after the previous read finishes", async () => {
   const h = harness();
   h.runtime.repository.state = gitState("main", 0);
   h.runtime.repository.duration = 3000;
-  const { session, shows } = display(h);
+  const { session, screen } = display(h);
 
   await h.runtime.clock.advance(4000);
   h.runtime.repository.state = gitState("feature", 0);
   await h.runtime.clock.advance(6000);
-  const tenSeconds = shows("feature");
+  const tenSeconds = screen.lines;
   await h.runtime.clock.advance(1000);
+  const elevenSeconds = screen.lines;
 
-  expect({ tenSeconds, elevenSeconds: shows("feature") }).toStrictEqual({
-    tenSeconds: false,
-    elevenSeconds: true,
+  expect({ tenSeconds, elevenSeconds }).toStrictEqual({
+    tenSeconds: [
+      " openai/fixture   /work   main                                                                                                                                                              ◫ 200k",
+      "",
+    ],
+    elevenSeconds: [
+      " openai/fixture   /work   feature                                                                                                                                                           ◫ 200k",
+      "",
+    ],
   });
 
   session.dispose();
@@ -312,7 +328,7 @@ it("backs off Git polling after failures and resets after a success", async () =
   const h = harness();
   const start = h.runtime.clock.now();
   h.runtime.repository.failure = new Error("Git timed out");
-  const { session, shows } = display(h);
+  const { session, screen } = display(h);
   await h.runtime.clock.advance(0);
   const at = (seconds: number) =>
     h.runtime.clock.advance(start + seconds * 1000 - h.runtime.clock.now());
@@ -321,25 +337,33 @@ it("backs off Git polling after failures and resets after a success", async () =
   h.runtime.repository.failure = undefined;
   h.runtime.repository.state = gitState("main", 0);
   await at(129);
-  const beforeRetry = shows(" main");
+  const beforeRetry = screen.lines;
   await at(130);
-  const afterRetry = shows(" main");
+  const afterRetry = screen.lines;
   await at(131);
   h.runtime.repository.state = gitState("feature", 0);
   await at(134);
-  const beforePoll = shows("feature");
+  const beforePoll = screen.lines;
   await at(135);
+  const afterPoll = screen.lines;
 
-  expect({
-    beforeRetry,
-    afterRetry,
-    beforePoll,
-    afterPoll: shows("feature"),
-  }).toStrictEqual({
-    beforeRetry: false,
-    afterRetry: true,
-    beforePoll: false,
-    afterPoll: true,
+  expect({ beforeRetry, afterRetry, beforePoll, afterPoll }).toStrictEqual({
+    beforeRetry: [
+      " openai/fixture   /work   ⚠ Git timed out                                                                                                                                                   ◫ 200k",
+      "                                                                                                                                                                                                    2m",
+    ],
+    afterRetry: [
+      " openai/fixture   /work   main                                                                                                                                                              ◫ 200k",
+      "                                                                                                                                                                                                    2m",
+    ],
+    beforePoll: [
+      " openai/fixture   /work   main                                                                                                                                                              ◫ 200k",
+      "                                                                                                                                                                                                    2m",
+    ],
+    afterPoll: [
+      " openai/fixture   /work   feature                                                                                                                                                           ◫ 200k",
+      "                                                                                                                                                                                                    2m",
+    ],
   });
 
   session.dispose();
@@ -347,17 +371,24 @@ it("backs off Git polling after failures and resets after a success", async () =
 
 it("shows an inactivity warning after 30 s without content and clears it on content", async () => {
   const h = harness();
-  const { session, shows } = display(h);
+  const { session, screen } = display(h);
 
   await h.runtime.clock.advance(2500);
   session.activity("start");
   await h.runtime.clock.advance(31_000);
-  const warned = shows("no content 0m");
+  const warned = screen.lines;
   session.activity("content");
+  const cleared = screen.lines;
 
-  expect({ warned, cleared: !shows("no content") }).toStrictEqual({
-    warned: true,
-    cleared: true,
+  expect({ warned, cleared }).toStrictEqual({
+    warned: [
+      " openai/fixture   /work                                                                                                                                                                       ◫ 200k",
+      "◷ no content 0m",
+    ],
+    cleared: [
+      " openai/fixture   /work                                                                                                                                                                       ◫ 200k",
+      "",
+    ],
   });
 
   session.dispose();

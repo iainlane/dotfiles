@@ -331,13 +331,11 @@ it("uses the base on malformed user settings and requires confirmation to repair
   expect({
     preset: initial.loaded.preset,
     document: initial.loaded.document,
-    diagnostic: initial.loaded.diagnostic?.includes(h.user),
-    leaked: initial.loaded.diagnostic?.includes("sensitive"),
+    diagnostic: initial.loaded.diagnostic,
   }).toStrictEqual({
     preset: "compact",
     document: { preset: "compact" },
-    diagnostic: true,
-    leaked: false,
+    diagnostic: `Cannot load ${h.user}. Check file permissions and JSON syntax; using ${h.base}.`,
   });
   expect(() =>
     h.store.save(initial, { kind: "write", document: { preset: "rich" } }),

@@ -51,11 +51,25 @@ it("renders semantic planning with the configured icon and no native duplicate",
   ]);
   const frame = layoutFooter(state, { top: 200, bottom: 200 }, { settings });
   expect(frame.readings.planning.parts[0]?.variants[0]).toBe("[P]");
-  expect(frame.bottom.text).not.toContain("plan mode on");
-  expect(frame.bottom.text).toContain("◇ legacy: plan: implementation");
-  expect(new CapturedFooter(frame).technical("planning")).toContain(
-    "Source symbols: [P]",
-  );
+  const legacy = {
+    bottom: frame.bottom.text,
+    planning: new CapturedFooter(frame).technical("planning"),
+  };
+  expect(legacy).toStrictEqual({
+    bottom: "[P]  ◇ legacy: plan: implementation",
+    planning: [
+      "Captured: 1970-01-01T00:00:01.000Z",
+      "Owner: composer",
+      "Usable columns: top 200, bottom 200",
+      "Source symbols: [P]",
+      "Bottom left: 200 columns",
+      "Appearance: {}",
+      "planning: variant 1, priority 80",
+      'Symbols: [{"value":"[P]","colour":"accent"}]',
+      "Bottom left · planning: full",
+      "Default priority: 80. Full, shortened where supported, then omitted for width.",
+    ],
+  });
   expect(Object.fromEntries(settings.symbols)).toStrictEqual({
     planning: "[P]",
     default: "◇",
@@ -91,9 +105,19 @@ it("supports arbitrary cooperative source IDs, inactive suppression and detail u
   expect(
     frame.readings.statuses.parts.map((part) => part.variants[0]),
   ).toStrictEqual(["@ reviewing"]);
-  expect(new CapturedFooter(frame).technical("statuses")).toContain(
+  expect(new CapturedFooter(frame).technical("statuses")).toStrictEqual([
+    "Captured: 1970-01-01T00:00:01.000Z",
+    "Owner: composer",
+    "Usable columns: top 200, bottom 200",
     "Source symbols: __proto__: @",
-  );
+    "Bottom left: 200 columns",
+    "Appearance: {}",
+    "__proto__: variant 1, priority 25",
+    'Symbols: [{"role":"message","value":"@","colour":"dim"}]',
+    "Bottom left · __proto__: full",
+    "__proto__: reviewing",
+    "Default priority: 25. Full, shortened where supported, then omitted for width.",
+  ]);
 });
 it.each(["legacy", "default"])(
   "uses the %s symbol override for a native source and its captured legend",
@@ -124,10 +148,31 @@ it("explains effective symbols even when their readings are unavailable", () => 
     "/settings",
   );
   const frame = layoutFooter(state, { top: 200, bottom: 200 }, { settings });
-  expect(new CapturedFooter(frame).technical("planning")).toContain(
-    "Source symbols: P",
-  );
-  expect(new CapturedFooter(frame).technical("statuses")).toContain(
-    "Source symbols: +",
-  );
+  const captured = new CapturedFooter(frame);
+  const technical = {
+    planning: captured.technical("planning"),
+    statuses: captured.technical("statuses"),
+  };
+  expect(technical).toStrictEqual({
+    planning: [
+      "Captured: 1970-01-01T00:00:01.000Z",
+      "Owner: composer",
+      "Usable columns: top 200, bottom 200",
+      "Source symbols: P",
+      "Bottom left: 200 columns",
+      "Appearance: {}",
+      "Bottom left · planning: suppressed · unavailable: No planning publication",
+      "Default priority: 80. Full, shortened where supported, then omitted for width.",
+    ],
+    statuses: [
+      "Captured: 1970-01-01T00:00:01.000Z",
+      "Owner: composer",
+      "Usable columns: top 200, bottom 200",
+      "Source symbols: +",
+      "Bottom left: 200 columns",
+      "Appearance: {}",
+      "Bottom left · statuses: suppressed · unavailable: No other extension messages published",
+      "Default priority: 25. Full, shortened where supported, then omitted for width.",
+    ],
+  });
 });

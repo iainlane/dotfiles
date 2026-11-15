@@ -1,9 +1,10 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { afterAll, expect, it } from "vitest";
+import { record } from "#footer/shared/text.ts";
 
 const directory = mkdtempSync(join(tmpdir(), "footer-import-policy-"));
 const lint = fileURLToPath(
@@ -14,7 +15,42 @@ const config = fileURLToPath(
   new URL("../../../../.oxlintrc.json", import.meta.url),
 );
 
+const rejected = join(directory, "rejected.ts");
+
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
+
+/**
+ * Lints `path` and returns the exit status and the diagnostics of the
+ * parent-relative import rule, without the text that oxlint writes for them.
+ */
+function parentImports(path: string): unknown {
+  const result = spawnSync(
+    process.execPath,
+    [lint, "-c", config, "-f", "json", path],
+    { encoding: "utf8" },
+  );
+  const report: unknown = JSON.parse(result.stdout);
+
+  if (!record(report) || !Array.isArray(report.diagnostics)) {
+    throw new Error(`Unexpected oxlint output: ${result.stdout}`);
+  }
+
+  return {
+    status: result.status,
+    diagnostics: report.diagnostics
+      .filter(
+        (diagnostic: unknown) =>
+          record(diagnostic) &&
+          diagnostic.code === "import(no-relative-parent-imports)",
+      )
+      .map((diagnostic: Record<string, unknown>) => ({
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        filename: diagnostic.filename,
+        labels: diagnostic.labels,
+      })),
+  };
+}
 
 function readDocument(file: string): unknown {
   return JSON.parse(
@@ -68,19 +104,30 @@ it.each([
   'const value = require("../outside.ts"); console.log(value);',
   'export * from "./../outside.ts";',
 ])("rejects parent-relative module imports: %s", (source) => {
-  const path = join(directory, "rejected.ts");
-  writeFileSync(path, source);
-  const result = spawnSync(process.execPath, [lint, "-c", config, path], {
-    encoding: "utf8",
-  });
+  writeFileSync(rejected, source);
+  const specifier = /"[^"]*outside\.ts"/u.exec(source)?.[0] ?? "";
+  const offset = source.indexOf(specifier);
 
-  const diagnostic: unknown = expect.stringContaining(
-    "no-relative-parent-imports",
-  );
-  expect({
-    status: result.status,
-    diagnostic: result.stdout + result.stderr,
-  }).toStrictEqual({ status: 1, diagnostic });
+  expect(parentImports(rejected)).toStrictEqual({
+    status: 1,
+    diagnostics: [
+      {
+        code: "import(no-relative-parent-imports)",
+        severity: "error",
+        filename: rejected,
+        labels: [
+          {
+            span: {
+              offset,
+              length: specifier.length,
+              line: 1,
+              column: offset + 1,
+            },
+          },
+        ],
+      },
+    ],
+  });
 });
 
 it.each(["./nearby.ts", "#footer/domain/usage.ts"])(
@@ -89,10 +136,6 @@ it.each(["./nearby.ts", "#footer/domain/usage.ts"])(
     const path = join(directory, "accepted.ts");
     writeFileSync(path, `export * from ${JSON.stringify(specifier)};`);
 
-    expect(
-      execFileSync(process.execPath, [lint, "-c", config, path], {
-        encoding: "utf8",
-      }),
-    ).not.toContain("no-relative-parent-imports");
+    expect(parentImports(path)).toStrictEqual({ status: 0, diagnostics: [] });
   },
 );

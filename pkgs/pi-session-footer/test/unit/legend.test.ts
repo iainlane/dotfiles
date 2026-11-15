@@ -40,7 +40,26 @@ it("freezes composite and repeated placements in rendered order without refittin
   frame.placements.length = 0;
   frame.decisions.length = 0;
   expect(captured.entries).toStrictEqual(expected);
-  expect(captured.technical("git").join("\n")).toContain("top 100, bottom 100");
+  expect(captured.technical("git")).toStrictEqual([
+    "Captured: 1970-01-01T00:00:01.000Z",
+    "Owner: composer",
+    "Usable columns: top 100, bottom 100",
+    "Source symbols:  branch; ✚ staged, ✎ modified, ? untracked paths; ↑ ahead, ↓ behind commits",
+    "Top left: 100 columns",
+    'Appearance: {"id":"git","symbol":"G"}',
+    "git: variant 1, priority 40",
+    'Symbols: [{"role":"branch","value":"G","colour":"muted"},{"role":"staged","value":"✚","colour":"success"},{"role":"untracked","value":"?","colour":"muted"}]',
+    "Bottom right: 100 columns",
+    "Appearance: {}",
+    "git: variant 1, priority 40",
+    'Symbols: [{"role":"branch","value":"","colour":"muted"},{"role":"staged","value":"✚","colour":"success"},{"role":"untracked","value":"?","colour":"muted"}]',
+    "Top left · git: full",
+    "Bottom right · git: full",
+    "Counts are paths and commits, not line changes",
+    "Git data: fresh",
+    "No error reported",
+    "Default priority: 40. Full, shortened where supported, then omitted for width.",
+  ]);
 });
 it("explains individual Git symbols from typed captured roles", () => {
   const state = createSnapshot(1000, "/demo");

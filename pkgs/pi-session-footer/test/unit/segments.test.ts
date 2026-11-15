@@ -31,11 +31,37 @@ it("uses spare top-border space as a gauge only for displayed known context", ()
       { top: 80, bottom: 80 },
       { settings: resolveSettings(settings) },
     );
-  expect(fit({}).top.text).toContain("━");
-  expect(fit({ "top-right": [] }).top.text).not.toContain("━");
+  const known = fit({}).top.text;
+  const withoutRight = fit({ "top-right": [] }).top.text;
   state.context.percent = null;
-  expect(fit({}).top.text).not.toContain("━");
+  const unknown = fit({}).top.text;
+  expect({ known, withoutRight, unknown }).toStrictEqual({
+    known:
+      " /work ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━───────────────────────────────  ◫ 50.0%",
+    withoutRight: " /work",
+    unknown: " /work",
+  });
 });
+const expectedRegion: Record<string, unknown> = {
+  "top-left": {
+    top: "◫ 50.0% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─────────────────────────────────── ",
+    bottom: "",
+  },
+  "top-right": {
+    top: " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────  ◫ 50.0%",
+    bottom: "",
+  },
+  "bottom-left": {
+    top: "",
+    bottom:
+      "◫ 50.0% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─────────────────────────────────── ",
+  },
+  "bottom-right": {
+    top: "",
+    bottom:
+      " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━──────────────────────────────────  ◫ 50.0%",
+  },
+};
 it.each(REGIONS)(
   "keeps the context gauge with its configured %s occurrence",
   (region) => {
@@ -49,13 +75,8 @@ it.each(REGIONS)(
       [region]: ["context"],
     });
     const frame = layoutFooter(state, { top: 80, bottom: 80 }, { settings });
-    expect({
-      top: frame.top.text.includes("━"),
-      bottom: frame.bottom.text.includes("━"),
-    }).toStrictEqual({
-      top: region.startsWith("top-"),
-      bottom: region.startsWith("bottom-"),
-    });
+    const rows = { top: frame.top.text, bottom: frame.bottom.text };
+    expect(rows).toStrictEqual(expectedRegion[region]);
   },
 );
 it("does not reinsert excluded warnings or idle placeholders", () => {
@@ -69,8 +90,39 @@ it("does not reinsert excluded warnings or idle placeholders", () => {
   expect({
     top: frame.top.text,
     bottom: frame.bottom.text,
-    disabled: frame.disabled.includes("activity"),
-  }).toStrictEqual({ top: " /work", bottom: "", disabled: true });
+    disabled: frame.disabled,
+  }).toStrictEqual({
+    top: " /work",
+    bottom: "",
+    disabled: [
+      "model",
+      "thinking",
+      "tier",
+      "pr",
+      "activity",
+      "diagnostics",
+      "tasks",
+      "blocked",
+      "agents",
+      "pending",
+      "planning",
+      "ci",
+      "reviews",
+      "statuses",
+      "quota",
+      "cache",
+      "cost",
+      "auxiliary-cost",
+      "age",
+      "input",
+      "output",
+      "cache-read",
+      "cache-write",
+      "run-duration",
+      "active-duration",
+      "compaction-duration",
+    ],
+  });
 });
 it.each([1, 12, 35, 80, 200])("records bounded region fits at %i", (width) => {
   const state = createSnapshot(1000, "/界/é-long-directory");

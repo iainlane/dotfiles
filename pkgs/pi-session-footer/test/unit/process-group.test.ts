@@ -99,7 +99,7 @@ it.each(["descendants-stubborn", "all-stubborn", "leader-exited"])(
   "kills every process in a three-generation group: %s",
   async (mode) => {
     const { leader, pid, pids } = await startGroup(mode);
-    expect(pids).toHaveLength(3);
+    const started = pids.map((child) => alive(child));
 
     if (mode === "leader-exited") {
       leader.stdin?.end("exit\n");
@@ -108,9 +108,14 @@ it.each(["descendants-stubborn", "all-stubborn", "leader-exited"])(
 
     await new ProcessGroup(pid).close();
     expect({
+      started,
       group: alive(-pid),
-      processes: pids.filter((child) => alive(child)),
-    }).toStrictEqual({ group: false, processes: [] });
+      processes: pids.map((child) => alive(child)),
+    }).toStrictEqual({
+      started: [true, true, true],
+      group: false,
+      processes: [false, false, false],
+    });
   },
 );
 

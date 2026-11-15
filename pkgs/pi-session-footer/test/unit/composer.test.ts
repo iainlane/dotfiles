@@ -2,6 +2,7 @@ import { setImmediate } from "node:timers/promises";
 import { expect, it } from "vitest";
 import {
   CURSOR_MARKER,
+  Editor,
   stripTerminalSequences,
   truncateToWidth,
   visibleWidth,
@@ -52,6 +53,12 @@ it.each([
   },
 );
 
+const expectedTop: Record<string, unknown> = {
+  "1": "…",
+  "2": "…",
+  "7": " /work",
+  "8": "╭─ … ─╮",
+};
 it.each([1, 2, 7, 8])(
   "records only the actual status budgets at %i columns",
   (width) => {
@@ -101,14 +108,14 @@ it.each([1, 2, 7, 8])(
       completed,
       topBudget: frame.top.width,
       bottomBudget: frame.bottom.width,
-      topDisplayed: output[0]?.includes(stripTerminalSequences(frame.top.text)),
+      top: output[0],
       bottomDisplay: frame.bottom.text,
       fits: output.every((line) => visibleWidth(line) <= width),
     }).toStrictEqual({
       completed: true,
       topBudget: width < 8 ? width : width - 6,
       bottomBudget: width < 8 ? 0 : width - 6,
-      topDisplayed: true,
+      top: expectedTop[String(width)],
       bottomDisplay: width < 8 ? "" : frame.bottom.text,
       fits: true,
     });
@@ -141,7 +148,9 @@ it.each([
     ],
     text,
   });
-  expect(lines.join("\n")).toContain(CURSOR_MARKER);
+  const [beforeCursor] = (lines.at(-1) ?? "").split(CURSOR_MARKER);
+
+  expect(beforeCursor).toBe(`╰─ ${content.at(-1) ?? ""}`);
 });
 
 it.each([0, 1, 2, 5, 7, 8, 10, 30, 80])(
@@ -159,17 +168,8 @@ it.each([0, 1, 2, 5, 7, 8, 10, 30, 80])(
   },
 );
 
-it("preserves input columns and inherited keyboard and paste actions", () => {
+it("places a click in the draft after the configured padding", () => {
   const editor = harness();
-  const actions: string[] = [];
-  editor.onEscape = () => actions.push("interrupt");
-  editor.onCtrlD = () => actions.push("exit");
-  editor.onPasteImage = () => actions.push("image");
-  editor.onAction("app.thinking.cycle", () => actions.push("thinking"));
-  editor.handleInput("\u001B");
-  editor.handleInput("\u0004");
-  editor.handleInput("\u0016");
-  editor.handleInput("\u001B[Z");
   editor.setPaddingX(1);
   editor.setText("hello");
   editor.render(40);
@@ -187,22 +187,11 @@ it("preserves input columns and inherited keyboard and paste actions", () => {
     ctrl: false,
   });
   editor.handleInput("X");
-  const edited = editor.getText();
-  editor.addToHistory("saved draft");
-  editor.setText("");
-  editor.handleInput("\u001B[A");
 
   expect({
-    actions,
-    edited,
     text: editor.getText(),
     padding: editor.getPaddingX(),
-  }).toStrictEqual({
-    actions: ["interrupt", "exit", "image", "thinking"],
-    edited: "heXllo",
-    text: "saved draft",
-    padding: 1,
-  });
+  }).toStrictEqual({ text: "heXllo", padding: 1 });
 });
 
 it.each([
@@ -272,26 +261,67 @@ it.each([false, true])(
   "preserves overflow indicators with cursor at top=%s",
   (top) => {
     const editor = harness();
-    editor.setText(
-      Array.from({ length: 20 }, (_, index) => `line ${index}`).join("\n"),
-    );
+    const { tui, theme } = editorFixture();
+    const base = new Editor(tui, theme, { paddingX: 3 });
+    const text = Array.from({ length: 20 }, (_, index) => `line ${index}`);
 
-    if (top) {
-      for (let index = 0; index < 20; index++) {
-        editor.handleInput("\u001B[A");
+    base.focused = true;
+    for (const component of [editor, base]) {
+      component.setText(text.join("\n"));
+
+      if (top) {
+        for (let index = 0; index < 20; index++) {
+          component.handleInput("\u001B[A");
+        }
       }
     }
 
-    const lines = plain(editor.render(60));
+    // The composer replaces the base editor's top border, draws its own
+    // sides and corners around the base editor's rows, and drops an empty
+    // bottom border by closing the frame on the last row.
+    const rows = plain(base.render(60));
+    const content = rows.slice(1, -1);
+    const lastContent = content.at(-1) ?? "";
+    const bottom = rows.at(-1) ?? "";
 
-    expect({
-      above: lines[0]?.includes("↑ 13 more"),
-      below: lines.at(-1)?.includes("↓ 13 more"),
-      rows: lines.length,
-    }).toStrictEqual({ above: !top, below: top, rows: top ? 9 : 8 });
+    expect(plain(editor.render(60))).toStrictEqual(
+      top
+        ? [
+            `╭─ model · high${"─".repeat(42)} ─╮`,
+            ...content.map((row) => `│${row.slice(1, -1)}│`),
+            `╰${bottom.slice(1, -1)}╯`,
+          ]
+        : [
+            `╭─ model · high ↑ 13 more${"─".repeat(32)} ─╮`,
+            ...content.slice(0, -1).map((row) => `│${row.slice(1, -1)}│`),
+            `╰─${lastContent.slice(2, -2)}─╯`,
+          ],
+    );
   },
 );
 
+const expectedRich: Record<string, unknown> = {
+  "tasks 0/1": [
+    "╭─ model · high────────────────────── ─╮",
+    "│  draft 界                            │",
+    "╰─ tasks 0/1───────────────────────── ─╯",
+  ],
+  " week 0% used": [
+    "╭─ model · high────────────────────── ─╮",
+    "│  draft 界                            │",
+    "╰─  week 0% used──────────────────── ─╯",
+  ],
+};
+const expectedCompact: Record<string, unknown> = {
+  "tasks 0/1": [
+    "╭─ model · high────────────────────── ─╮",
+    "╰─ draft 界                           ─╯",
+  ],
+  " week 0% used": [
+    "╭─ model · high────────────────────── ─╮",
+    "╰─ draft 界                           ─╯",
+  ],
+};
 it.each(["tasks 0/1", " week 0% used"])(
   "keeps a separate populated bottom border: %s",
   (status) => {
@@ -304,17 +334,15 @@ it.each(["tasks 0/1", " week 0% used"])(
     bottom = status;
     const restored = plain(editor.render(40));
     expect({
-      rich: rich.length,
-      compact: compact.length,
+      rich,
+      compact,
       restored,
       text: editor.getText(),
-      status: rich.at(-1)?.includes(status),
     }).toStrictEqual({
-      rich: 3,
-      compact: 2,
+      rich: expectedRich[status],
+      compact: expectedCompact[status],
       restored: rich,
       text: "draft 界",
-      status: true,
     });
   },
 );

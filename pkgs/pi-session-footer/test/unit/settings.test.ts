@@ -104,20 +104,23 @@ it.each([
 ])("rejects invalid configuration atomically: $value", ({ value, error }) => {
   expect(() => resolveSettings(value)).toThrow(error);
 });
+const expectedDiag: Record<string, unknown> = {
+  "{": "Cannot load /agent/session-footer.json. Check file permissions and JSON syntax; using built-in rich. See /footer config.",
+  '{"preset":"bad"}':
+    "Cannot load /agent/session-footer.json. preset: Unknown preset; using built-in rich. See /footer config.",
+};
 it.each(["{", '{"preset":"bad"}'])(
   "retains a safe actionable diagnostic for %s",
   (content) => {
     const result = loadSettings(() => content, "/agent/session-footer.json");
     expect({
       ...result,
-      diagnostic: Boolean(
-        result.diagnostic?.includes("/agent/session-footer.json"),
-      ),
+      diagnostic: result.diagnostic,
     }).toStrictEqual({
       ...resolveSettings({}),
       path: "/agent/session-footer.json",
       source: "fallback",
-      diagnostic: true,
+      diagnostic: expectedDiag[content],
       document: {},
     });
   },
