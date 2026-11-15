@@ -36,6 +36,9 @@
         pkgs.nodejs
         inputs.llm-agents.packages.${system}.codex
       ])
+      "--set-default"
+      "CLAUDE_CODE_TMPDIR"
+      "${config.xdg.stateHome}/claude/tmp"
     ];
   };
 in {

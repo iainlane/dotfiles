@@ -10,6 +10,11 @@ managed settings. Add policy through `dotfiles.claudeCode.managedSettings`.
 Permission lists and hooks from multiple modules are combined; other settings
 merge recursively.
 
+The wrapper moves Claude Code's temporary files, including each session's
+scratchpad and background-task output, into the XDG state directory so they
+remain after a reboot. Claude Code deletes them together with the session's
+expired transcript.
+
 Use these Home Manager options for harness-specific changes:
 
 - `dotfiles.claudeCode.excludeMcpServers`: omit shared MCP servers
