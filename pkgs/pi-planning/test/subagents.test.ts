@@ -1,7 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
-import { ensureSubagentsIdle, subagentPolicy } from "#planning/subagents.ts";
+import {
+  ensureSubagentsIdle,
+  SubagentStatusError,
+  subagentPolicy,
+} from "#planning/subagents.ts";
 
 it.each([undefined, 123, 2_000_000])(
   "preserves the native caller's timeout choice: %s",
@@ -107,9 +111,7 @@ it.each([1, 3])(
     f.reply({ requestId: "foreign", data: { fleet: { totalActive: 0 } } });
     f.reply({ data: { fleet: { totalActive } } });
     await expect(f.pending).rejects.toStrictEqual(
-      new Error(
-        "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
-      ),
+      new SubagentStatusError("active"),
     );
     expect({
       requests: f.requests,
@@ -131,14 +133,19 @@ it.each([
 ])("refuses approval without a valid native status: %j", async (reply) => {
   const f = fixture();
   f.reply(reply);
-  await expect(f.pending).rejects.toThrow("Cannot verify subagent status");
+  await expect(f.pending).rejects.toStrictEqual(
+    new SubagentStatusError("unverified"),
+  );
   expect(f.listeners()).toStrictEqual(["subagents:rpc:v1:request"]);
 });
 
 it("cancels an outstanding status check on human exit", async () => {
   const f = fixture();
-  f.signal.abort();
-  await expect(f.pending).rejects.toThrow("status check was cancelled");
+  const exit = new Error("Fixture human exit");
+  f.signal.abort(exit);
+  await expect(f.pending).rejects.toStrictEqual(
+    new SubagentStatusError("cancelled", { cause: exit }),
+  );
   expect(f.listeners()).toStrictEqual(["subagents:rpc:v1:request"]);
 });
 
@@ -147,9 +154,7 @@ it("times out when the native status service does not reply", async () => {
   const f = fixture();
   await Promise.all([
     expect(f.pending).rejects.toStrictEqual(
-      new Error(
-        "Subagent status is unavailable. Retry before requesting implementation approval.",
-      ),
+      new SubagentStatusError("unavailable"),
     ),
     vi.advanceTimersByTimeAsync(5000),
   ]);

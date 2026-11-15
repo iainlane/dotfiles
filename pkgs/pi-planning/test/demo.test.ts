@@ -7,7 +7,7 @@ import type {
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { expect, it } from "vitest";
-import { DemoScenario } from "#demo/scenario.ts";
+import { DemoScenario, DemoScenarioError } from "#demo/scenario.ts";
 
 const planPath = "/demo/plans/session.md";
 // The demo tape types these into the plan editor and the review comment.
@@ -168,7 +168,11 @@ it.each([
     const content = parts.map((part) => text[part]).join("");
     expect(() =>
       scenario.next([{ role: "user", content, timestamp: 1 }]),
-    ).toThrow("cleared research context and the edited, approved plan");
+    ).toThrow(
+      new DemoScenarioError(
+        "The demo requires cleared research context and the edited, approved plan with review feedback.",
+      ),
+    );
   },
 );
 
@@ -178,6 +182,6 @@ it("fails if Plan mode did not block the project edit", () => {
   scenario.next([result("enter")]);
   scenario.next([result("inspect")]);
   expect(() => scenario.next([result("premature-edit")])).toThrow(
-    "expected premature-edit to be blocked",
+    new DemoScenarioError("The demo expected premature-edit to be blocked."),
   );
 });

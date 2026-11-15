@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { readPlanningSettings } from "#planning/settings.ts";
+import {
+  PlanningSettingsError,
+  PlanningSettingsFormatError,
+  readPlanningSettings,
+} from "#planning/settings.ts";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -37,10 +41,6 @@ it.each([
 ])("rejects malformed planning settings: %j", (value) => {
   const path = writeSettings(value);
   expect(() => readPlanningSettings()).toThrow(
-    new Error(`Cannot read planning settings at ${path}.`, {
-      cause: new Error(
-        "planning.json must be an object with an optional researchExtensions array of extension paths.",
-      ),
-    }),
+    new PlanningSettingsError(path, new PlanningSettingsFormatError()),
   );
 });

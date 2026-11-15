@@ -82,6 +82,29 @@ export function subagentPolicy(
   return undefined;
 }
 
+const subagentStatusMessages = {
+  cancelled: "The subagent status check was cancelled.",
+  unavailable:
+    "Subagent status is unavailable. Retry before requesting implementation approval.",
+  unverified:
+    "Cannot verify subagent status. Retry before requesting implementation approval.",
+  active:
+    "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
+} as const;
+
+export class SubagentStatusError extends Error {
+  override readonly name = "SubagentStatusError";
+  readonly reason: keyof typeof subagentStatusMessages;
+
+  constructor(
+    reason: keyof typeof subagentStatusMessages,
+    options?: ErrorOptions,
+  ) {
+    super(subagentStatusMessages[reason], options);
+    this.reason = reason;
+  }
+}
+
 const statusSchema = Type.Object({
   version: Type.Literal(1),
   requestId: Type.String(),
@@ -116,18 +139,9 @@ export function ensureSubagentsIdle(
       resolve();
     };
     const cancel = () =>
-      finish(
-        new Error("The subagent status check was cancelled.", {
-          cause: signal.reason,
-        }),
-      );
+      finish(new SubagentStatusError("cancelled", { cause: signal.reason }));
     const timer = setTimeout(
-      () =>
-        finish(
-          new Error(
-            "Subagent status is unavailable. Retry before requesting implementation approval.",
-          ),
-        ),
+      () => finish(new SubagentStatusError("unavailable")),
       5000,
     );
     timer.unref();
@@ -138,19 +152,11 @@ export function ensureSubagentsIdle(
           return;
         }
         if (!Check(statusSchema, value)) {
-          finish(
-            new Error(
-              "Cannot verify subagent status. Retry before requesting implementation approval.",
-            ),
-          );
+          finish(new SubagentStatusError("unverified"));
           return;
         }
         if (value.data.fleet.totalActive > 0) {
-          finish(
-            new Error(
-              "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.",
-            ),
-          );
+          finish(new SubagentStatusError("active"));
           return;
         }
         finish();

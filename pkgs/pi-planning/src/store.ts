@@ -8,6 +8,27 @@ export interface PlanRevision {
   revision: string;
 }
 
+const planFileMessages = {
+  irregular: () =>
+    "The active plan must be a regular file in the plans directory.",
+  missing: (path: string) =>
+    `The active plan is missing. Write a new implementation plan to ${path} before requesting approval.`,
+  "unsafe-replace": () =>
+    "Cannot replace a plan through a symlink or an unexpected path.",
+} as const;
+
+export class PlanFileError extends Error {
+  override readonly name = "PlanFileError";
+  readonly reason: keyof typeof planFileMessages;
+  readonly path: string;
+
+  constructor(reason: keyof typeof planFileMessages, path: string) {
+    super(planFileMessages[reason](path));
+    this.reason = reason;
+    this.path = path;
+  }
+}
+
 function digest(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -42,16 +63,12 @@ export class PlanStore {
 
   read(): PlanRevision {
     if (!this.permitsWrite(this.path, this.directory)) {
-      throw new Error(
-        "The active plan must be a regular file in the plans directory.",
-      );
+      throw new PlanFileError("irregular", this.path);
     }
 
     const content = this.files.read(this.path);
     if (content === undefined) {
-      throw new Error(
-        `The active plan is missing. Write a new implementation plan to ${this.path} before requesting approval.`,
-      );
+      throw new PlanFileError("missing", this.path);
     }
     return { path: this.path, content, revision: digest(content) };
   }
@@ -62,9 +79,7 @@ export class PlanStore {
 
   write(content: string): PlanRevision {
     if (!this.permitsWrite(this.path, this.directory)) {
-      throw new Error(
-        "Cannot replace a plan through a symlink or an unexpected path.",
-      );
+      throw new PlanFileError("unsafe-replace", this.path);
     }
     this.files.replace(this.path, content);
 

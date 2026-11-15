@@ -11,7 +11,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { PlanStore } from "#planning/store.ts";
+import { PlanFileError, PlanStore } from "#planning/store.ts";
+import { PlanValidationError } from "#planning/validation.ts";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -40,7 +41,7 @@ it.each(["unwritten", "deleted"])(
     }
 
     expect(() => store.read()).toThrow(
-      `The active plan is missing. Write a new implementation plan to ${store.path} before requesting approval.`,
+      new PlanFileError("missing", store.path),
     );
     expect(store.permitsWrite(store.path, directory)).toBe(true);
 
@@ -53,7 +54,11 @@ it("refuses invalid UTF-8 instead of approving replacement characters", () => {
   const { store } = fixture();
   store.write("# Context\n");
   writeFileSync(store.path, Uint8Array.from([192, 175]));
-  expect(() => store.read()).toThrow(/UTF-8/iu);
+  expect(() => store.read()).toThrow(
+    new PlanValidationError("The plan is not valid UTF-8 text.", {
+      cause: expect.any(TypeError),
+    }),
+  );
 });
 
 it("preserves a UTF-8 byte-order mark in the canonical document", () => {
@@ -87,7 +92,7 @@ it("permits writes only to the active document and refuses symlinks", () => {
   symlinkSync(outside, store.path);
   expect(store.permitsWrite(store.path, directory)).toBe(false);
   expect(() => store.write("Changed\n")).toThrow(
-    "Cannot replace a plan through a symlink or an unexpected path.",
+    new PlanFileError("unsafe-replace", store.path),
   );
   expect(readFileSync(outside, "utf8")).toBe("Keep\n");
 });

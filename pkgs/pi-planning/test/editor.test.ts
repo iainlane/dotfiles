@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import {
+  EditorExitError,
+  EditorStartError,
   editorName,
   openPlanEditor,
   openPlanEditorInUi,
@@ -108,9 +110,7 @@ it("hands the terminal to the editor and restores it afterwards", async () => {
 it("restores the terminal when the editor fails", async () => {
   const edit = await editInSharedTerminal(7);
   await expect(edit.opening).rejects.toStrictEqual(
-    new Error(
-      "The editor exited with status 7. Use a wait-capable editor command.",
-    ),
+    new EditorExitError(7, null),
   );
   expect(await edit.state()).toStrictEqual(restored);
 });
@@ -150,7 +150,12 @@ it.each([
 it("reports an editor startup failure", async () => {
   await expect(
     openPlanEditor("/unused-plan", "/missing/planning-editor"),
-  ).rejects.toThrow("Cannot start editor");
+  ).rejects.toStrictEqual(
+    new EditorStartError(
+      "/missing/planning-editor",
+      expect.objectContaining({ code: "ENOENT" }),
+    ),
+  );
 });
 
 it("reports a nonzero editor exit", async () => {
@@ -159,5 +164,5 @@ it("reports a nonzero editor exit", async () => {
       "/unused-plan",
       `"${process.execPath}" -e 'process.exit(7)'`,
     ),
-  ).rejects.toThrow("status 7");
+  ).rejects.toStrictEqual(new EditorExitError(7, null));
 });

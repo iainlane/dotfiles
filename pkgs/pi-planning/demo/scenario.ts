@@ -78,6 +78,10 @@ Preview the same files that normal cleanup would remove.
 const editorAddition = "- Verify dry-run never removes a file.\n";
 const reviewComment = "Preserve the existing command-line interface.";
 
+export class DemoScenarioError extends Error {
+  override readonly name = "DemoScenarioError";
+}
+
 export class DemoScenario {
   private phase = 0;
   private readonly planPath: string;
@@ -95,7 +99,7 @@ export class DemoScenario {
       (entry) => entry.role === "toolResult" && entry.toolCallId === id,
     );
     if (result?.role !== "toolResult" || result.isError !== isError) {
-      throw new Error(
+      throw new DemoScenarioError(
         `The demo expected ${id} to ${isError ? "be blocked" : "succeed"}.`,
       );
     }
@@ -155,7 +159,7 @@ export class DemoScenario {
           !context.includes(editorAddition.trim()) ||
           !context.includes(reviewComment)
         ) {
-          throw new Error(
+          throw new DemoScenarioError(
             "The demo requires cleared research context and the edited, approved plan with review feedback.",
           );
         }

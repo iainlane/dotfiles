@@ -15,6 +15,45 @@ export interface PlanEditor {
 
 type EditorTerminal = Pick<TUI, "stop" | "start" | "requestRender">;
 
+export class EditorCommandError extends Error {
+  override readonly name = "EditorCommandError";
+}
+
+export class EditorUnavailableError extends Error {
+  override readonly name = "EditorUnavailableError";
+
+  constructor() {
+    super("Opening the plan in an external editor requires Pi's terminal UI.");
+  }
+}
+
+export class EditorStartError extends Error {
+  override readonly name = "EditorStartError";
+  readonly executable: string;
+
+  constructor(executable: string, cause: unknown) {
+    super(
+      `Cannot start editor ${executable}. Check externalEditor, VISUAL or EDITOR.`,
+      { cause },
+    );
+    this.executable = executable;
+  }
+}
+
+export class EditorExitError extends Error {
+  override readonly name = "EditorExitError";
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+
+  constructor(code: number | null, signal: NodeJS.Signals | null) {
+    super(
+      `The editor exited with ${signal ?? `status ${String(code)}`}. Use a wait-capable editor command.`,
+    );
+    this.code = code;
+    this.signal = signal;
+  }
+}
+
 const literalNodes = new Set([
   "Command",
   "Word",
@@ -39,7 +78,7 @@ function editorArguments(source: string): {
     command.name.value === "" ||
     command.prefix.length > 0
   ) {
-    throw new Error(
+    throw new EditorCommandError(
       "Configure the editor as one executable with literal arguments.",
     );
   }
@@ -52,7 +91,7 @@ function editorArguments(source: string): {
   };
   visit(command);
   if (!literal) {
-    throw new Error(
+    throw new EditorCommandError(
       "Editor commands cannot include shell expansion or redirection. Use an editor wrapper script if needed.",
     );
   }
@@ -60,7 +99,7 @@ function editorArguments(source: string): {
     executable: command.name.value,
     args: command.args.map((argument) => {
       if (argument.type !== "Word") {
-        throw new Error("Editor arguments must be literal words.");
+        throw new EditorCommandError("Editor arguments must be literal words.");
       }
       return argument.value;
     }),
@@ -106,9 +145,7 @@ export async function openPlanEditorInUi(
   command: string,
 ): Promise<void> {
   if (!ctx.hasUI || ctx.mode !== "tui") {
-    throw new Error(
-      "Opening the plan in an external editor requires Pi's terminal UI.",
-    );
+    throw new EditorUnavailableError();
   }
   const failure = await ctx.ui.custom((tui, _theme, _keys, done) => {
     let live = true;
@@ -158,20 +195,11 @@ export async function openPlanEditor(
   await new Promise<void>((resolve, reject) => {
     const editor = spawn(executable, [...args, path], { stdio: "inherit" });
     editor.once("error", (error) =>
-      reject(
-        new Error(
-          `Cannot start editor ${executable}. Check externalEditor, VISUAL or EDITOR.`,
-          { cause: error },
-        ),
-      ),
+      reject(new EditorStartError(executable, error)),
     );
     editor.once("close", (code, signal) => {
       if (code !== 0) {
-        reject(
-          new Error(
-            `The editor exited with ${signal ?? `status ${String(code)}`}. Use a wait-capable editor command.`,
-          ),
-        );
+        reject(new EditorExitError(code, signal));
         return;
       }
       resolve();

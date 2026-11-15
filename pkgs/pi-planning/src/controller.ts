@@ -38,6 +38,31 @@ import type { PlanningOutcome } from "./outcomes.ts";
 import { displayText, errorText } from "./presentation.ts";
 import type { PlanningStatus } from "./status.ts";
 
+const planningStateMessages = {
+  "session-unavailable": "The planning session is unavailable.",
+  "consent-required":
+    "Plan mode entry requires user consent. Use /plan or --plan to enter explicitly.",
+  "entry-open": "A Plan mode entry request is already open.",
+  "session-changed": "The planning session changed during entry confirmation.",
+  inactive: "Plan mode is not active.",
+  editing: "Finish editing the plan before requesting approval.",
+  "review-open": "A plan review is already open.",
+  "plan-changed":
+    "The plan changed during review. Review the new revision before implementation.",
+  "approval-expired":
+    "The plan approval expired. Review the current file again.",
+} as const;
+
+export class PlanningStateError extends Error {
+  override readonly name = "PlanningStateError";
+  readonly reason: keyof typeof planningStateMessages;
+
+  constructor(reason: keyof typeof planningStateMessages) {
+    super(planningStateMessages[reason]);
+    this.reason = reason;
+  }
+}
+
 const clearedContextSchema = Type.Object({
   type: Type.Literal("compaction"),
   id: Type.String(),
@@ -186,7 +211,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
       restore(ctx);
     }
     if (!session) {
-      throw new Error("The planning session is unavailable.");
+      throw new PlanningStateError("session-unavailable");
     }
     return session;
   }
@@ -394,12 +419,10 @@ export function createPlanning(dependencies: PlanningDependencies) {
     const state = current(ctx);
     if (!state.active) {
       if (!ctx.hasUI) {
-        throw new Error(
-          "Plan mode entry requires user consent. Use /plan or --plan to enter explicitly.",
-        );
+        throw new PlanningStateError("consent-required");
       }
       if (entryRequest) {
-        throw new Error("A Plan mode entry request is already open.");
+        throw new PlanningStateError("entry-open");
       }
       const pending = new AbortController();
       entryRequest = pending;
@@ -420,9 +443,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
           session !== state ||
           ctx.sessionManager.getSessionId() !== state.id
         ) {
-          throw new Error(
-            "The planning session changed during entry confirmation.",
-          );
+          throw new PlanningStateError("session-changed");
         }
       } finally {
         if (entryRequest === pending) {
@@ -461,13 +482,13 @@ export function createPlanning(dependencies: PlanningDependencies) {
   ): Promise<PlanningResult<SubmitPlanOutput>> => {
     const state = current(ctx);
     if (!state.active) {
-      throw new Error("Plan mode is not active.");
+      throw new PlanningStateError("inactive");
     }
     if (editing) {
-      throw new Error("Finish editing the plan before requesting approval.");
+      throw new PlanningStateError("editing");
     }
     if (review) {
-      throw new Error("A plan review is already open.");
+      throw new PlanningStateError("review-open");
     }
     ticket = undefined;
     const plan = state.store.read();
@@ -515,9 +536,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
       (decision === "current" || decision === "clear") &&
       !state.store.matches(presented)
     ) {
-      throw new Error(
-        "The plan changed during review. Review the new revision before implementation.",
-      );
+      throw new PlanningStateError("plan-changed");
     }
     const feedback =
       decision === "cancel" ||
@@ -701,9 +720,7 @@ export function createPlanning(dependencies: PlanningDependencies) {
         session !== approval.session ||
         !approval.session.store.matches(approval.plan)
       ) {
-        throw new Error(
-          "The plan approval expired. Review the current file again.",
-        );
+        throw new PlanningStateError("approval-expired");
       }
       ticket = { ...pending, phase: "verified", verificationSignal: signal };
     } catch (error) {

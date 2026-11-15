@@ -10,7 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { nodeFiles } from "#planning/node-files.ts";
 import { PlanStore } from "#planning/store.ts";
-import { DemoScenario } from "./scenario.ts";
+import { DemoScenario, DemoScenarioError } from "./scenario.ts";
 
 export default function demoProvider(pi: ExtensionAPI): void {
   let scenario: DemoScenario | undefined;
@@ -40,7 +40,9 @@ export default function demoProvider(pi: ExtensionAPI): void {
     models: [model],
     streamSimple: (_model, context, options) => {
       if (!scenario || options?.sessionId !== sessionId) {
-        throw new Error("The demo must remain in its original session.");
+        throw new DemoScenarioError(
+          "The demo must remain in its original session.",
+        );
       }
       const content = scenario.next(context.messages);
       const reason = content.some((entry) => entry.type === "toolCall")
