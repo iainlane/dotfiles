@@ -48,7 +48,7 @@ export class FooterSession {
   private context: FooterContext;
   private readonly changed: () => void;
   private readonly runtime: FooterRuntime;
-  private readonly view: TimedView | undefined;
+  private readonly view: TimedView;
   private readonly rpc: RpcClient;
   private readonly ledger = new UsageLedger();
   private readonly stopClock: () => void;
@@ -67,7 +67,7 @@ export class FooterSession {
     bus: FooterBus,
     changed: () => void,
     runtime: FooterRuntime,
-    view?: TimedView,
+    view: TimedView,
   ) {
     this.context = context;
     this.changed = changed;
@@ -229,7 +229,7 @@ export class FooterSession {
     }
 
     const clock = this.clockKey();
-    const shown = this.view?.shown();
+    const shown = this.view.shown();
     const displayed = this.sync(this.context);
     const now = this.state.now;
 
@@ -250,8 +250,8 @@ export class FooterSession {
       return;
     }
 
-    if (shown !== this.view?.shown()) {
-      this.view?.redraw();
+    if (shown !== this.view.shown()) {
+      this.view.redraw();
     }
   }
 

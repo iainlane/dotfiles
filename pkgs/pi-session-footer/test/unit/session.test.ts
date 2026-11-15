@@ -11,6 +11,8 @@ import { record } from "#footer/shared/text.ts";
 
 import { dependencies } from "#test/support/dependencies.ts";
 
+const view = { shown: () => "", redraw: () => {} };
+
 function harness() {
   const handlers = new Map<string, Set<(value: unknown) => void>>();
   const bus = {
@@ -64,6 +66,7 @@ function display(h: ReturnType<typeof harness>) {
       screen.lines = renderFooter(session.state, 200);
     },
     h.runtime,
+    view,
   );
   screen.lines = renderFooter(session.state, 200);
   const shows = (text: string) => screen.lines.join("\n").includes(text);
@@ -98,7 +101,7 @@ it("preserves an initial PR reading for the current branch", async () => {
   const { bus, context, runtime } = harness();
   runtime.repository.state = gitState("main", 1);
   const release = runtime.repository.hold();
-  const session = new FooterSession(context, bus, () => {}, runtime);
+  const session = new FooterSession(context, bus, () => {}, runtime, view);
   const pr = {
     protocol: 1 as const,
     source: "pi-prs" as const,
@@ -148,6 +151,7 @@ it.each([
         });
       },
       runtime,
+      view,
     );
 
     session.state.quota = readQuota({
@@ -362,7 +366,7 @@ it("shows an inactivity warning after 30 s without content and clears it on cont
 it("preserves bounded Git errors through failure and recovery without calling non-repositories errors", async () => {
   const { bus, context, runtime } = harness();
   runtime.repository.failure = new Error("Permission denied\nfor fixture");
-  const session = new FooterSession(context, bus, () => {}, runtime);
+  const session = new FooterSession(context, bus, () => {}, runtime, view);
 
   await runtime.clock.advance(0);
 
@@ -415,7 +419,7 @@ it("preserves bounded Git errors through failure and recovery without calling no
 
 it("keeps stale subagent data with a reason and clears the failure on recovery", async () => {
   const { bus, context, runtime } = harness();
-  const session = new FooterSession(context, bus, () => {}, runtime);
+  const session = new FooterSession(context, bus, () => {}, runtime, view);
 
   await runtime.clock.advance(2500);
 
@@ -487,7 +491,7 @@ it("keeps stale subagent data with a reason and clears the failure on recovery",
 
 it("does not count time spent waiting for user input as active work", async () => {
   const { bus, context, runtime } = harness();
-  const session = new FooterSession(context, bus, () => {}, runtime);
+  const session = new FooterSession(context, bus, () => {}, runtime, view);
 
   session.activity("start");
   await runtime.clock.advance(5000);
