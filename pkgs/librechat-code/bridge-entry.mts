@@ -6,6 +6,7 @@ export type {
   RuntimeExecutionRequest,
 } from "../packages/code/src/runtime.js";
 export {
+  ExecutionManifestError,
   verifyExecutionManifestWithPublicKey,
   executionManifestBodySha256,
 } from "./src/execution-manifest.js";
