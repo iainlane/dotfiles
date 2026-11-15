@@ -247,6 +247,29 @@ it("reuses an identical completed binding without reinitialising it", async () =
   }).toStrictEqual({ status: StatusCodes.OK, bound: binding });
 });
 
+it("reports a failed shared initialisation to every concurrent binding", async () => {
+  guest.failure = new FixtureBindingError();
+
+  const finish = guest.holdInitialisation();
+
+  const first = gateway.route(bindingRequest(binding));
+  const second = gateway.route(bindingRequest(binding));
+
+  await guest.initialisationStarted;
+
+  finish();
+
+  const outcomes = await Promise.allSettled([first, second]);
+
+  expect({ outcomes, state: await health() }).toStrictEqual({
+    outcomes: [
+      { status: "rejected", reason: new FixtureBindingError() },
+      { status: "rejected", reason: new FixtureBindingError() },
+    ],
+    state: { runtimeId: null, resumeClock: true },
+  });
+});
+
 it("allows another binding after initialisation fails", async () => {
   guest.failure = new FixtureBindingError();
 
