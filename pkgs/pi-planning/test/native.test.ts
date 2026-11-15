@@ -1,11 +1,20 @@
-import { writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, writeFileSync } from "node:fs";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
   createAssistantMessageEventStream,
   type AssistantMessage,
+  type Message,
   type Model,
 } from "@earendil-works/pi-ai/compat";
 import {
@@ -26,7 +35,11 @@ import { resolvePiLaunchToolPlan } from "pi-subagents/child-tool-plan";
 import { expect, it, vi } from "vitest";
 import { Check } from "typebox/value";
 import planning from "#planning/extension.ts";
-import { enterPlanDescription, planDisplayType } from "#planning/prompt.ts";
+import {
+  enterPlanDescription,
+  planDisplayType,
+  planningPrompt,
+} from "#planning/prompt.ts";
 import { PlanStore } from "#planning/store.ts";
 import { nodeFiles } from "#planning/node-files.ts";
 import researchFixture from "./fixtures/research.ts";
@@ -477,102 +490,275 @@ it.each([
   },
 );
 
-it.each([
+type TranscriptStep =
+  | { user: string[] }
+  | {
+      tools: string[];
+      reply: string[];
+      stopReason: AssistantMessage["stopReason"];
+    }
+  | { result: string; isError: boolean; text: unknown[] };
+
+function textBlocks(content: Message["content"]): string[] {
+  return typeof content === "string"
+    ? [content]
+    : content.flatMap((block) => (block.type === "text" ? [block.text] : []));
+}
+
+/**
+ * Summarises a session's messages. Each reply lists the tools that `shown`
+ * accepts from those available when the model produced it.
+ */
+function transcript(
+  messages: Message[],
+  shown: (tool: string) => boolean,
+): TranscriptStep[] {
+  return messages.flatMap((message, index): TranscriptStep[] => {
+    if (message.role === "user") {
+      return [{ user: textBlocks(message.content) }];
+    }
+
+    if (message.role === "assistant") {
+      return [
+        {
+          tools: getCurrentTools(messages.slice(0, index))
+            .map((tool) => tool.name)
+            .filter((tool) => shown(tool))
+            .toSorted(),
+          reply: message.content.flatMap((block) =>
+            block.type === "toolCall"
+              ? [block.id]
+              : block.type === "text"
+                ? [block.text]
+                : [],
+          ),
+          stopReason: message.stopReason,
+        },
+      ];
+    }
+
+    if (message.role === "toolResult") {
+      return [
+        {
+          result: message.toolCallId,
+          isError: message.isError,
+          text: textBlocks(message.content),
+        },
+      ];
+    }
+
+    return [];
+  });
+}
+
+/**
+ * Reads the messages of the session in `file` and of every child session that
+ * pi-subagents stored beside it, ordered by nesting depth.
+ */
+async function sessionMessages(file: string): Promise<Message[][]> {
+  const children = file.slice(0, -".jsonl".length);
+  const files = existsSync(children)
+    ? (await readdir(children, { recursive: true }))
+        .filter((path) => path.endsWith("session.jsonl"))
+        .toSorted((a, b) => a.split("/").length - b.split("/").length)
+        .map((path) => join(children, path))
+    : [];
+  return [file, ...files].map((path) =>
+    SessionManager.open(path)
+      .getBranch()
+      .flatMap((entry): Message[] => {
+        if (entry.type !== "message") {
+          return [];
+        }
+        const { message } = entry;
+        return message.role === "system" ||
+          message.role === "user" ||
+          message.role === "assistant" ||
+          message.role === "toolResult"
+          ? [message]
+          : [];
+      }),
+  );
+}
+
+const planningTools = ["enter_plan_mode", "submit_plan"];
+const fixturePrompt = { user: ["Exercise the fixed planning fixture."] };
+const childPrompt = { user: ["Task: Return the offline fixture report."] };
+const call = (tools: string[], id: string): TranscriptStep => ({
+  tools,
+  reply: [id],
+  stopReason: "toolUse",
+});
+const report = (tools: string[]): TranscriptStep => ({
+  tools,
+  reply: ["Offline fixture report"],
+  stopReason: "stop",
+});
+const aborted = (tools: string[]): TranscriptStep => ({
+  tools,
+  reply: [],
+  stopReason: "aborted",
+});
+const result = (
+  id: string,
+  text: unknown[],
+  isError = false,
+): TranscriptStep => ({ result: id, isError, text });
+const entered = (plan: string): TranscriptStep[] => [
+  fixturePrompt,
+  call(["enter_plan_mode"], "enter-fixture"),
+  result("enter-fixture", [planningPrompt(plan)]),
+];
+function literal(text: string): string {
+  return text.replaceAll(/[\\^$.*+?()[\]{}|/]/gu, "\\$&");
+}
+
+/**
+ * Matches text that contains each of `texts` in order. Codemode and
+ * pi-subagents decide how they frame the output of the tools and children
+ * that planning allows, so only that output is compared.
+ */
+function inOrder(...texts: string[]): unknown {
+  return expect.stringMatching(
+    new RegExp(texts.map((text) => literal(text)).join("[\\s\\S]*"), "u"),
+  );
+}
+const anyText: unknown = expect.any(String);
+const scriptOutput = (...texts: string[]) => [anyText, inOrder(...texts)];
+const researchOutput = scriptOutput(
+  "fixture:web_enable",
+  "fixture:pi_lens_activate_tools",
+  "fixture:web_search",
+  "fixture:project_report",
+  JSON.stringify({ content: [{ type: "text", text: "fixture:mcp" }] }),
+  "Error: Native permission fixture refused {}",
+  "fixture:lsp_navigation",
+  "fixture:ast_grep_replace",
+  "Error: Only previews are available before plan approval.",
+);
+const delegated = (plan: string): TranscriptStep[] => [
+  ...entered(plan),
+  call(planningTools, "research-fixture"),
+  result("research-fixture", [inOrder("Offline fixture report")]),
+  report(planningTools),
+];
+const refusedMutation: TranscriptStep[] = [
+  childPrompt,
+  call(nativeResearchTools, "child-mutation"),
+  result(
+    "child-mutation",
+    [
+      `Native permission fixture refused ${JSON.stringify({ command: "printf changed > project.ts" })}`,
+    ],
+    true,
+  ),
+  report(nativeResearchTools),
+];
+const mcpTools = [...mcpResearchTools, "mcp__fixture__inspect_tool"].toSorted();
+const mcpDocument = {
+  resources: {
+    server: "fixture",
+    resources: [
+      { server: "fixture", uri: "fixture://document", name: "document" },
+    ],
+  },
+  templates: {
+    server: "fixture",
+    resourceTemplates: [
+      { server: "fixture", uriTemplate: "fixture://{name}", name: "document" },
+    ],
+  },
+  document: {
+    server: "fixture",
+    uri: "fixture://document",
+    contents: [
+      { uri: "fixture://document", text: "Offline resource contents." },
+    ],
+  },
+};
+const nestedResearch = (task: string, delegation: TranscriptStep[]) => [
+  { user: [`Task: ${task}`] },
+  call(initialResearchTools, "research-script"),
+  result("research-script", researchOutput),
+  ...delegation,
+  report(extendedResearchTools),
+];
+
+it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
   {
     mode: "codemode",
-    expected: {
-      childCancelled: false,
-      sessions: ["parent", "parent", "parent"],
-      childSessionCount: 0,
-      childTools: [],
-      blocked: [],
-      depthErrors: [],
-    },
+    sessions: (plan) => [
+      [
+        ...entered(plan),
+        call(planningTools, "native-fixture"),
+        result(
+          "native-fixture",
+          scriptOutput(
+            `Error: Only the active plan may be edited: ${plan}`,
+            `Successfully wrote to ${plan}`,
+          ),
+        ),
+        report(planningTools),
+      ],
+    ],
   },
   {
     mode: "research",
-    expected: {
-      childCancelled: false,
-      sessions: ["parent", "parent", "child", "child", "parent"],
-      childSessionCount: 1,
-      childTools: [nativeResearchTools, nativeResearchTools],
-      blocked: [false, true],
-      depthErrors: [],
-    },
+    sessions: (plan) => [delegated(plan), refusedMutation],
   },
   {
     mode: "settings-error",
-    expected: {
-      childCancelled: false,
-      sessions: ["parent", "parent", "child", "child", "parent"],
-      childSessionCount: 1,
-      childTools: [nativeResearchTools, nativeResearchTools],
-      blocked: [false, true],
-      depthErrors: [],
-    },
+    sessions: (plan) => [delegated(plan), refusedMutation],
   },
   {
     mode: "research-cancel",
-    expected: {
-      childCancelled: true,
-      sessions: ["parent", "parent", "child"],
-      childSessionCount: 1,
-      childTools: [nativeResearchTools],
-      blocked: [false],
-      depthErrors: [],
-    },
+    sessions: (plan) => [
+      [
+        ...entered(plan),
+        call(planningTools, "research-fixture"),
+        result("research-fixture", [inOrder("Request was aborted")], true),
+        aborted(planningTools),
+      ],
+      [childPrompt, aborted(nativeResearchTools)],
+    ],
   },
   {
     mode: "mcp",
-    expected: {
-      childCancelled: false,
-      sessions: ["parent", "parent", "child", "child", "child", "parent"],
-      childSessionCount: 1,
-      childTools: [
-        mcpResearchTools,
-        [...mcpResearchTools, "mcp__fixture__inspect_tool"].toSorted(),
-        [...mcpResearchTools, "mcp__fixture__inspect_tool"].toSorted(),
+    sessions: (plan) => [
+      delegated(plan),
+      [
+        childPrompt,
+        call(mcpResearchTools, "mcp-search"),
+        result("mcp-search", [anyText]),
+        call(mcpTools, "mcp-script"),
+        result("mcp-script", [
+          anyText,
+          inOrder(`MCP_RESULT=${JSON.stringify(mcpDocument)}`),
+        ]),
+        report(mcpTools),
       ],
-      blocked: [false, false, false],
-      depthErrors: [],
-    },
+    ],
   },
   {
     mode: "nested",
-    expected: {
-      childCancelled: false,
-      sessions: [
-        "parent",
-        "parent",
-        "child",
-        "child",
-        "child",
-        "child",
-        "child",
-        "child",
-        "parent",
-      ],
-      childSessionCount: 2,
-      childTools: [
-        initialResearchTools,
-        extendedResearchTools,
-        initialResearchTools,
-        extendedResearchTools,
-        extendedResearchTools,
-        extendedResearchTools,
-      ],
-      blocked: [false, true, false, true, true, true],
-      depthErrors: [
-        expect.stringContaining(
-          "Nested subagent call blocked (depth=2, max=2)",
-        ),
-      ],
-    },
+    sessions: (plan) => [
+      delegated(plan),
+      nestedResearch("Return the offline fixture report.", [
+        call(extendedResearchTools, "nested-research"),
+        result("nested-research", [inOrder("Offline fixture report")]),
+      ]),
+      nestedResearch("Inspect the nested research fixture.", [
+        call(extendedResearchTools, "depth-limit"),
+        result("depth-limit", [anyText], true),
+      ]),
+    ],
   },
 ])(
   "runs $mode through native planning and resolves a guarded child launch",
-  async ({ mode, expected }) => {
-    const cwd = await mkdtemp(join(tmpdir(), "pi-planning-native-"));
+  async ({ mode, sessions }) => {
+    const cwd = await realpath(
+      await mkdtemp(join(tmpdir(), "pi-planning-native-")),
+    );
     vi.stubEnv("PI_CODING_AGENT_DIR", join(cwd, "agent"));
     const fixtureModel: Model<"planning-fixture"> = {
       id: "fixture",
@@ -587,10 +773,6 @@ it.each([
       maxTokens: 4096,
     };
     let planPath = "";
-    let childCancelled = false;
-    const delegationErrors: string[] = [];
-    const depthErrors: string[] = [];
-    const mcpResults: unknown[] = [];
     const hasMcp = mode === "nested" || mode === "mcp";
     const gate = join(cwd, "mcp-ready");
     const mcpConfig = (gated: boolean) =>
@@ -606,65 +788,7 @@ it.each([
         },
       });
     const childStarted = Promise.withResolvers<void>();
-    const requests: {
-      sessionId: string | undefined;
-      tools: string[];
-      entryDescription: string | undefined;
-      guardBlocked: boolean;
-    }[] = [];
     const faux = transcriptProvider(fixtureModel, async (context, options) => {
-      for (const message of context.messages) {
-        if (
-          message.role === "toolResult" &&
-          message.toolCallId === "mcp-script"
-        ) {
-          const text = message.content
-            .flatMap((block) => (block.type === "text" ? [block.text] : []))
-            .join("\n");
-          const result = /MCP_RESULT=(\{.*\})/.exec(text)?.[1];
-          const parsed: unknown =
-            result === undefined ? message.content : JSON.parse(result);
-          mcpResults.push({ isError: message.isError, result: parsed });
-        }
-        if (
-          message.role === "toolResult" &&
-          ["research-fixture", "nested-research"].includes(
-            message.toolCallId,
-          ) &&
-          message.isError
-        ) {
-          delegationErrors.push(JSON.stringify(message.content));
-        }
-        if (
-          message.role === "toolResult" &&
-          message.toolCallId === "depth-limit" &&
-          message.isError
-        ) {
-          depthErrors.push(JSON.stringify(message.content));
-        }
-      }
-      const availableTools = getCurrentTools(context.messages);
-      requests.push({
-        sessionId: options?.sessionId,
-        tools: availableTools.map((tool) => tool.name).toSorted(),
-        entryDescription: availableTools.find(
-          (tool) => tool.name === "enter_plan_mode",
-        )?.description,
-        guardBlocked: context.messages.some(
-          (message) =>
-            (message.role === "toolResult" &&
-              message.toolCallId === "child-mutation" &&
-              message.isError &&
-              JSON.stringify(message.content).includes(
-                "Native permission fixture refused",
-              )) ||
-            (message.role === "toolResult" &&
-              message.toolCallId === "research-script" &&
-              JSON.stringify(message.content).includes(
-                "Only previews are available",
-              )),
-        ),
-      });
       const task = userText(context.messages);
       const last = lastToolResult(context.messages);
       if (task.includes("Exercise the fixed planning fixture.")) {
@@ -696,7 +820,6 @@ it.each([
             signal.addEventListener("abort", resolve, { once: true });
           });
         }
-        childCancelled = true;
         return fauxAssistantMessage([], {
           stopReason: "aborted",
           errorMessage: "Fixture child cancelled",
@@ -801,6 +924,7 @@ it.each([
                   name: "mcp",
                   builtin: true as const,
                   replaceable: true as const,
+                  // Node fires a timer with a longer delay, Infinity included, after 1 ms.
                   factory: createMcpExtension({ startupWaitMs: 2 ** 31 - 1 }),
                 },
               ]
@@ -861,96 +985,40 @@ it.each([
         await session.abort();
       }
       await running;
-      const parentId = manager.getSessionId();
-      expect(requests[0]?.entryDescription).toContain(enterPlanDescription);
-      expect(delegationErrors).toStrictEqual([]);
-      expect(mcpResults).toStrictEqual(
-        mode === "mcp"
-          ? [
-              {
-                isError: false,
-                result: {
-                  resources: {
-                    server: "fixture",
-                    resources: [
-                      {
-                        server: "fixture",
-                        uri: "fixture://document",
-                        name: "document",
-                      },
-                    ],
-                  },
-                  templates: {
-                    server: "fixture",
-                    resourceTemplates: [
-                      {
-                        server: "fixture",
-                        uriTemplate: "fixture://{name}",
-                        name: "document",
-                      },
-                    ],
-                  },
-                  document: {
-                    server: "fixture",
-                    uri: "fixture://document",
-                    contents: [
-                      {
-                        uri: "fixture://document",
-                        text: "Offline resource contents.",
-                      },
-                    ],
-                  },
-                },
-              },
-            ]
-          : [],
-      );
-      const childRequests = requests.filter(
-        (request) => request.sessionId !== parentId,
+      const file = manager.getSessionFile();
+      if (file === undefined) {
+        throw new Error("The native fixture must persist its session.");
+      }
+      const [parent = [], ...children] = await sessionMessages(file);
+      const ceiling = resolveCurrentSubagentCapabilityCeiling(
+        manager.getSessionId(),
       );
       expect({
         project: await readFile(join(cwd, "project.ts"), "utf8"),
         streaming: session.isStreaming,
-        childCancelled,
-        depthErrors,
-        sessions: requests.map((request) =>
-          request.sessionId === parentId
-            ? "parent"
-            : typeof request.sessionId === "string"
-              ? "child"
-              : "missing",
-        ),
-        childSessionCount: new Set(
-          childRequests.map((request) => request.sessionId),
-        ).size,
-        childTools: childRequests.map((request) => request.tools),
-        blocked: childRequests.map((request) => request.guardBlocked),
-      }).toStrictEqual({ project: "original", streaming: false, ...expected });
+        entryDescription: getCurrentTools(parent).find(
+          (tool) => tool.name === "enter_plan_mode",
+        )?.description,
+        sessions: [
+          transcript(parent, (tool) => planningTools.includes(tool)),
+          ...children.map((messages) => transcript(messages, () => true)),
+        ],
+        ceiling,
+      }).toStrictEqual({
+        project: "original",
+        streaming: false,
+        entryDescription: enterPlanDescription,
+        sessions: sessions(planPath),
+        ceiling: {
+          version: 1,
+          sources: ["planning"],
+          denyExtensions: false,
+          allowedAgents: ["planning-explore", "planning-plan"],
+        },
+      });
       if (mode === "research-cancel") {
         return;
       }
-      const parent = session.messages.find(
-        (message) =>
-          message.role === "toolResult" &&
-          message.toolCallId ===
-            (mode === "codemode" ? "native-fixture" : "research-fixture"),
-      );
-      expect(parent).toMatchObject({ isError: false });
-      if (parent?.role !== "toolResult") {
-        throw new Error("Native codemode did not return a result");
-      }
-      expect(JSON.stringify(parent.content)).toContain(
-        mode === "codemode"
-          ? "Only the active plan may be edited"
-          : "Offline fixture report",
-      );
-      const ceiling = resolveCurrentSubagentCapabilityCeiling(
-        manager.getSessionId(),
-      );
-      expect(ceiling).toMatchObject({
-        denyExtensions: false,
-        allowedAgents: ["planning-explore", "planning-plan"],
-      });
       const guard = fileURLToPath(new URL("../child.ts", import.meta.url));
       const launch = resolvePiLaunchToolPlan({
         agentName: "planning-explore",

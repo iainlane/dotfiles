@@ -453,13 +453,13 @@ it.each([
 ])(
   "discards $invalid RPC feedback when cancelling with $choice",
   async ({ choice, invalid }) => {
-    const choices = ["Add a comment", choice];
     const result = await reviewPlan(
       {
         mode: "rpc",
         hasUI: true,
         ui: {
-          select: async () => choices.shift(),
+          select: async (_title, options) =>
+            options.includes("Add a comment") ? "Add a comment" : choice,
           input: async () =>
             invalid === "oversized" ? "a".repeat(200001) : "\uD800",
           getToolsExpanded: () => false,
@@ -988,7 +988,10 @@ it.each(["missing", "empty", "template", "oversized"] as const)(
     f.question().handleInput?.("\r");
     expect(f.ui.result).toBeUndefined();
     f.question().handleInput?.("\u001B");
-    expect((await f.pending).decision).toBe("cancel");
+    expect(await f.pending).toStrictEqual({
+      decision: "cancel",
+      presentedPlan: original,
+    });
   },
 );
 

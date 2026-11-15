@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import {
+  EditorCommandError,
   EditorExitError,
   EditorStartError,
   editorName,
@@ -134,18 +135,26 @@ it("passes the actual plan path to a quoted editor command without using a shell
   }
 });
 
+const singleCommand =
+  "Configure the editor as one executable with literal arguments.";
+const expansion =
+  "Editor commands cannot include shell expansion or redirection. Use an editor wrapper script if needed.";
+
 it.each([
-  "",
-  "nvim; touch project.ts",
-  "nvim | tee project.ts",
-  "nvim > project.ts",
-  "nvim $(touch project.ts)",
-  "OPTION=value nvim",
-])("rejects unsupported editor shell syntax: %s", async (command) => {
-  await expect(openPlanEditor("/unused-plan", command)).rejects.toThrow(
-    /executable|literal|shell/,
-  );
-});
+  { command: "", message: singleCommand },
+  { command: "nvim; touch project.ts", message: singleCommand },
+  { command: "nvim | tee project.ts", message: singleCommand },
+  { command: "nvim > project.ts", message: expansion },
+  { command: "nvim $(touch project.ts)", message: expansion },
+  { command: "OPTION=value nvim", message: singleCommand },
+])(
+  "rejects unsupported editor shell syntax: $command",
+  async ({ command, message }) => {
+    await expect(openPlanEditor("/unused-plan", command)).rejects.toStrictEqual(
+      new EditorCommandError(message),
+    );
+  },
+);
 
 it("reports an editor startup failure", async () => {
   await expect(

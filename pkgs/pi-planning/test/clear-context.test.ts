@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +9,7 @@ import {
   SettingsManager,
   type ExtensionFactory,
   type BoundaryResult,
+  type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { getCurrentSystemPrompt } from "@earendil-works/pi-ai";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@earendil-works/pi-ai/compat";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { expect, it, vi } from "vitest";
 import { createPlanning } from "#planning/controller.ts";
 import { nodeFiles } from "#planning/node-files.ts";
@@ -27,6 +29,7 @@ import {
   reminderType,
   implementationContext,
   implementationMessageType,
+  reviewedPlanContext,
 } from "#planning/prompt.ts";
 import { stateEntry } from "#planning/session.ts";
 import { PlanStore } from "#planning/store.ts";
@@ -34,17 +37,13 @@ import { ensureSubagentsIdle } from "#planning/subagents.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 import { outcomeEntryType } from "#planning/outcomes.ts";
 
+const resumePrompt = "Continue the approved implementation.";
+
 const outcomeEventSchema = Type.Object({ event: Type.String() });
 
 const requestSchema = Type.Object({
   requestId: Type.String(),
   method: Type.Literal("status"),
-});
-
-const feedbackImageSchema = Type.Object({
-  type: Type.Literal("image"),
-  data: Type.Literal(feedbackImage.data),
-  mimeType: Type.Literal(feedbackImage.mimeType),
 });
 
 async function readOptionalFile(path: string): Promise<string | undefined> {
@@ -57,6 +56,69 @@ async function readOptionalFile(path: string): Promise<string | undefined> {
     }
   }
   return contents;
+}
+
+/** Summarises a message that the model sees or that a session records. */
+function steps(message: AgentMessage): unknown[] {
+  if (message.role === "user") {
+    return [{ user: message.content }];
+  }
+
+  if (message.role === "assistant") {
+    return [
+      {
+        assistant: message.content,
+        stopReason: message.stopReason,
+        ...(message.errorMessage === undefined
+          ? {}
+          : { errorMessage: message.errorMessage }),
+      },
+    ];
+  }
+
+  if (message.role === "toolResult") {
+    return [
+      {
+        result: message.toolCallId,
+        isError: message.isError,
+        content: message.content,
+      },
+    ];
+  }
+
+  if (message.role === "custom") {
+    return [{ custom: message.customType, content: message.content }];
+  }
+
+  if (message.role === "compactionSummary") {
+    return [{ compaction: message.summary }];
+  }
+
+  return [];
+}
+
+/**
+ * Summarises the messages, custom messages and compactions on a session
+ * branch.
+ */
+function transcript(entries: SessionEntry[]): unknown[] {
+  return entries.flatMap((entry) => {
+    if (entry.type === "compaction") {
+      return [
+        {
+          compaction: entry.summary,
+          selfRetaining: entry.firstKeptEntryId === entry.id,
+          details: entry.details,
+        },
+      ];
+    }
+
+    if (entry.type === "custom_message") {
+      return [{ custom: entry.customType, content: entry.content }];
+    }
+
+    return entry.type === "message" ? steps(entry.message) : [];
+  });
 }
 
 interface ApprovalScenario {
@@ -174,27 +236,22 @@ it.each<ApprovalScenario>([
       outcome === "completed" &&
       (continuation === undefined || continuation === "idle");
     const implementsPlan = settledApproval && !launchFailure;
-    const cwd = await mkdtemp(join(tmpdir(), "pi-clear-cancellation-"));
+    const cwd = await realpath(
+      await mkdtemp(join(tmpdir(), "pi-clear-cancellation-")),
+    );
     vi.stubEnv("PI_CODING_AGENT_DIR", join(cwd, "agent"));
     const ready = Promise.withResolvers<void>();
-    const starts: string[] = [];
     const errors: unknown[] = [];
-    const ordinary: { reason: string; context: string | undefined }[] = [];
+    const notifications: { message: string; level: string | undefined }[] = [];
     const ordinarySummary =
       "No remediation implementation has begun. The user approved implementation and implementation is underway.";
     const settings = SettingsManager.inMemory({
       compaction: { enabled: false, keepRecentTokens: 1, reserveTokens: 8192 },
       retry: { enabled: false },
     });
-    const requests: {
-      planning: boolean;
-      approvedBody: boolean;
-      imageFeedback: boolean;
-    }[] = [];
     const implementationPath = join(cwd, "implementation.txt");
     let releaseStatus: (() => void) | undefined;
     let verifying = false;
-    let settling = false;
     let continued = false;
     let runSignal: AbortSignal | undefined;
     let controller: ReturnType<typeof createPlanning> | undefined;
@@ -227,11 +284,16 @@ it.each<ApprovalScenario>([
         requestId: () => "approval-fixture",
         sendUserMessage: (message, options) =>
           pi.sendUserMessage(message, options),
-        sendImplementationMessage: (content, onError) =>
+        sendImplementationMessage: (content, onError) => {
+          if (launchFailure) {
+            onError(new Error("Fixture deferred launch failed"));
+            return;
+          }
           pi.sendMessage(
             { customType: implementationMessageType, content, display: false },
             { triggerTurn: true, onError },
-          ),
+          );
+        },
         review: async (_ctx, request) => ({
           decision,
           presentedPlan: request.plan,
@@ -270,23 +332,6 @@ it.each<ApprovalScenario>([
           const planningActive = getCurrentSystemPrompt(
             context.messages,
           ).includes("Plan mode is active.");
-          requests.push({
-            imageFeedback: context.messages.some((message) => {
-              const content: unknown = message.content;
-              return (
-                Array.isArray(content) &&
-                content.some((block: unknown) =>
-                  Check(feedbackImageSchema, block),
-                )
-              );
-            }),
-            planning: planningActive,
-            approvedBody: context.messages.some((message) =>
-              JSON.stringify(message.content).includes(
-                "# Approved fixture plan",
-              ),
-            ),
-          });
           const lastUser = context.messages.findLastIndex(
             (message) => message.role === "user",
           );
@@ -324,10 +369,11 @@ it.each<ApprovalScenario>([
                       name: "write",
                       arguments: {
                         path: implementationPath,
-                        content:
-                          ordinary.length > 0
-                            ? "Continued approved implementation\n"
-                            : "Approved implementation\n",
+                        content: JSON.stringify(
+                          context.messages[lastUser]?.content,
+                        ).includes(resumePrompt)
+                          ? "Continued approved implementation\n"
+                          : "Approved implementation\n",
                       },
                     },
                   ];
@@ -397,10 +443,7 @@ it.each<ApprovalScenario>([
         },
       });
       pi.on("session_start", (event, ctx) => planning.start(event, ctx));
-      pi.on("before_agent_start", (event, ctx) => {
-        starts.push(event.messageType);
-        return planning.prompt(event, ctx);
-      });
+      pi.on("before_agent_start", (event, ctx) => planning.prompt(event, ctx));
       pi.on("input", () => planning.input());
       pi.on("turn_end", (event, ctx) => planning.turnEnd(event, ctx));
       pi.on("agent_end", async (_event, ctx) => {
@@ -433,14 +476,7 @@ it.each<ApprovalScenario>([
           continue: true,
         };
       });
-      pi.on("agent_settled", (event, ctx) => {
-        settling = true;
-        try {
-          planning.settled(event, ctx);
-        } finally {
-          settling = false;
-        }
-      });
+      pi.on("agent_settled", (event, ctx) => planning.settled(event, ctx));
       if (ordinaryCompaction) {
         pi.on("session_before_compact", (event) => ({
           compaction: {
@@ -449,9 +485,8 @@ it.each<ApprovalScenario>([
             tokensBefore: event.preparation.tokensBefore,
           },
         }));
-        pi.on("session_compact", (event, ctx) => {
+        pi.on("session_compact", (_event, ctx) => {
           const content = planning.compact(ctx);
-          ordinary.push({ reason: event.reason, context: content });
           settings.setCompactionEnabled(false);
           if (content !== undefined) {
             pi.sendMessage(
@@ -495,26 +530,11 @@ it.each<ApprovalScenario>([
         uiContext: {
           ...session.extensionRunner.getUIContext(),
           confirm: async (title) => title === "Enter Plan mode?",
+          notify: (message, level) => notifications.push({ message, level }),
         },
         onError: (error) => errors.push(error),
       });
-      if (launchFailure) {
-        // Planning requests the implementation run while Pi emits
-        // agent_settled for the previous run. Pi defers that request and
-        // starts the run afterwards, so the fault goes into the deferred
-        // start, which Pi reports through onError.
-        const nativeSend = session.sendCustomMessage.bind(session);
-        session.sendCustomMessage = async (message, options) => {
-          if (message.customType === implementationMessageType && !settling) {
-            throw new Error("Fixture deferred launch failed");
-          }
-          await nativeSend(message, options);
-        };
-      }
-      const launch = Promise.allSettled([
-        session.prompt("private-research-marker"),
-      ]);
-      running = launch;
+      running = session.prompt("private-research-marker");
       await Promise.race([
         ready.promise,
         (async () => {
@@ -537,19 +557,8 @@ it.each<ApprovalScenario>([
       ).read();
       if (ordinaryCompaction) {
         settings.setCompactionEnabled(true);
-        await session.prompt("Continue the approved implementation.");
+        await session.prompt(resumePrompt);
       }
-      const compactions = manager.getBranch().flatMap((entry) =>
-        entry.type === "compaction"
-          ? [
-              {
-                summary: entry.summary,
-                selfRetaining: entry.firstKeptEntryId === entry.id,
-                details: entry.details,
-              },
-            ]
-          : [],
-      );
       const saved = manager
         .getBranch()
         .findLast(
@@ -565,8 +574,127 @@ it.each<ApprovalScenario>([
               : launchFailure
                 ? "Fixture deferred launch failed"
                 : undefined;
+      const context = implementationContext(plan, manager.getSessionId());
+      const imageBlocks = imageFeedback
+        ? [{ type: "text", text: "User image feedback:" }, feedbackImage]
+        : [];
+      const planningReply = {
+        assistant: [{ type: "text", text: "No implementation changes made." }],
+        stopReason: "stop",
+      };
+      const completed = {
+        assistant: [{ type: "text", text: "Implementation complete." }],
+        stopReason: "stop",
+      };
+      const implementationRun = (content: string) => [
+        {
+          assistant: [
+            {
+              type: "toolCall",
+              id: "implement",
+              name: "write",
+              arguments: { path: implementationPath, content },
+            },
+          ],
+          stopReason: "toolUse",
+        },
+        {
+          result: "implement",
+          isError: false,
+          content: [
+            {
+              type: "text",
+              text: `Successfully wrote to ${implementationPath}`,
+            },
+          ],
+        },
+        completed,
+      ];
+      const planningRun = [
+        { user: [{ type: "text", text: "private-research-marker" }] },
+        {
+          assistant: [
+            {
+              type: "toolCall",
+              id: "approve",
+              name: "fixture_approval",
+              arguments: {},
+            },
+          ],
+          stopReason: "toolUse",
+        },
+        {
+          result: "approve",
+          isError: false,
+          content: [
+            ...(decision === "current"
+              ? [
+                  {
+                    type: "text",
+                    text: "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet.",
+                  },
+                  { type: "text", text: reviewedPlanContext(plan) },
+                ]
+              : [
+                  {
+                    type: "text",
+                    text: "Plan approved. Wait for context clearing; keep this conversation in planning until the transition finishes.",
+                  },
+                ]),
+            ...imageBlocks,
+          ],
+        },
+        planningReply,
+      ];
+      const continuedRun =
+        continuation === undefined
+          ? []
+          : [
+              {
+                custom: "fixture-research-followup",
+                content: "Continue planning with the research update.",
+              },
+              continuation === "error"
+                ? {
+                    ...planningReply,
+                    stopReason: "error",
+                    errorMessage: "Fixture continued run failed",
+                  }
+                : planningReply,
+            ];
+      const approvedRun = implementsPlan
+        ? [
+            {
+              custom: implementationMessageType,
+              content: imageFeedback
+                ? [{ type: "text", text: context }, ...imageBlocks]
+                : context,
+            },
+            ...implementationRun("Approved implementation\n"),
+          ]
+        : [];
+      const resumedRun = [
+        { custom: reminderType, content: attachedPlanContext(plan) },
+        { user: [{ type: "text", text: resumePrompt }] },
+        ...implementationRun("Continued approved implementation\n"),
+      ];
+      const cleared = decision === "clear" && outcome === "completed";
+      const clearing = cleared
+        ? [
+            {
+              compaction: context,
+              selfRetaining: true,
+              details: {
+                customType: clearContextType,
+                token: "approval-fixture",
+              },
+            },
+          ]
+        : [];
+      // Each run after a clearing approval starts from a compaction that
+      // keeps only its own summary, so the model sees only the latest run.
+      const latestRun = approvedRun.length > 0 ? approvedRun : continuedRun;
       expect({
-        launch: await launch,
         failures: manager
           .getBranch()
           .flatMap((entry) =>
@@ -577,7 +705,6 @@ it.each<ApprovalScenario>([
               ? [entry.data]
               : [],
           ),
-        ordinary,
         reviewOutcomes: manager
           .getBranch()
           .flatMap((entry) =>
@@ -588,36 +715,16 @@ it.each<ApprovalScenario>([
               ? [entry.data]
               : [],
           ),
-        uiHistoryVisible: JSON.stringify(
-          manager.buildSessionContext().messages,
-        ).includes(outcomeEntryType),
         errors,
-        compactions,
-        implementationMessages: manager
-          .getBranch()
-          .flatMap((entry) =>
-            entry.type === "custom_message" &&
-            entry.customType === implementationMessageType
-              ? [entry.content]
-              : [],
-          ),
+        notifications,
+        transcript: transcript(manager.getBranch()),
+        modelContext: manager
+          .buildSessionContext()
+          .messages.flatMap((message) => steps(message)),
         runAborted: runSignal?.aborted,
-        retainedResearch: JSON.stringify(
-          manager.buildSessionContext().messages,
-        ).includes("private-research-marker"),
         saved: saved?.type === "custom" ? saved.data : undefined,
-        requests,
-        starts,
         implementation: await readOptionalFile(implementationPath),
       }).toStrictEqual({
-        launch: [
-          launchFailure
-            ? {
-                status: "rejected",
-                reason: new Error("Fixture deferred launch failed"),
-              }
-            : { status: "fulfilled", value: undefined },
-        ],
         failures:
           failureReason === undefined
             ? []
@@ -630,9 +737,6 @@ it.each<ApprovalScenario>([
                   reason: failureReason,
                 },
               ],
-        ordinary: ordinaryCompaction
-          ? [{ reason: "threshold", context: attachedPlanContext(plan) }]
-          : [],
         reviewOutcomes: [
           {
             version: 1,
@@ -643,72 +747,43 @@ it.each<ApprovalScenario>([
             ...(imageFeedback ? { images: [feedbackImage] } : {}),
           },
         ],
-        uiHistoryVisible: false,
         errors: [],
-        compactions: ordinaryCompaction
+        notifications: launchFailure
           ? [
               {
-                summary: ordinarySummary,
-                selfRetaining: false,
-                details: undefined,
+                message: "Fixture deferred launch failed",
+                level: "error",
               },
             ]
-          : outcome === "aborted" || decision === "current"
-            ? []
-            : Array.from({ length: continuation === "idle" ? 2 : 1 }, () => ({
-                summary: implementationContext(plan, manager.getSessionId()),
-                selfRetaining: true,
-                details: {
-                  customType: clearContextType,
-                  token: "approval-fixture",
-                },
-              })),
-        implementationMessages: implementsPlan
-          ? [
-              imageFeedback
-                ? [
-                    {
-                      type: "text",
-                      text: implementationContext(plan, manager.getSessionId()),
-                    },
-                    { type: "text", text: "User image feedback:" },
-                    feedbackImage,
-                  ]
-                : implementationContext(plan, manager.getSessionId()),
-            ]
-          : [],
-        runAborted: outcome === "aborted",
-        retainedResearch:
-          !ordinaryCompaction &&
-          (outcome === "aborted" || decision === "current"),
-        requests: [
-          { planning: true, approvedBody: false, imageFeedback: false },
-          {
-            planning: true,
-            approvedBody: decision === "current",
-            imageFeedback,
-          },
-          ...(continuation === undefined
-            ? []
-            : [{ planning: true, approvedBody: true, imageFeedback }]),
-          ...(implementsPlan
+          : continuation === "busy"
             ? [
-                { planning: false, approvedBody: true, imageFeedback },
-                { planning: false, approvedBody: true, imageFeedback },
+                {
+                  message: `Cannot start approved implementation: ${failureReason}`,
+                  level: "error",
+                },
               ]
-            : []),
+            : [],
+        transcript: [
+          ...planningRun,
+          ...(continuedRun.length > 0 ? [...clearing, ...continuedRun] : []),
+          ...(approvedRun.length > 0 ? [...clearing, ...approvedRun] : []),
           ...(ordinaryCompaction
             ? [
-                { planning: false, approvedBody: true, imageFeedback: false },
-                { planning: false, approvedBody: true, imageFeedback: false },
+                {
+                  compaction: ordinarySummary,
+                  selfRetaining: false,
+                  details: undefined,
+                },
+                ...resumedRun,
               ]
             : []),
         ],
-        starts: implementsPlan
-          ? ordinaryCompaction
-            ? ["user", "custom", "user"]
-            : ["user", "custom"]
-          : ["user"],
+        modelContext: ordinaryCompaction
+          ? [{ compaction: ordinarySummary }, completed, ...resumedRun]
+          : cleared
+            ? [{ compaction: context }, ...latestRun]
+            : [...planningRun, ...continuedRun, ...approvedRun],
+        runAborted: outcome === "aborted",
         implementation: implementsPlan
           ? ordinaryCompaction
             ? "Continued approved implementation\n"

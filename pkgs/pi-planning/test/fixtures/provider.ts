@@ -1,5 +1,4 @@
 import { nodeFiles } from "#planning/node-files.ts";
-import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { fauxAssistantMessage, type Model } from "@earendil-works/pi-ai";
 import {
@@ -35,26 +34,12 @@ const model: Model<"planning-rpc-fixture"> = {
 
 export default function provider(pi: ExtensionAPI): void {
   let path = "";
-  pi.on("session_start", (event, ctx) => {
+  pi.on("session_start", (_event, ctx) => {
     path = new PlanStore(
       join(getAgentDir(), "plans"),
       ctx.sessionManager.getSessionId(),
       nodeFiles,
     ).path;
-    if (
-      process.env.PI_PLANNING_TRACE !== undefined &&
-      process.env.PI_PLANNING_TRACE !== ""
-    ) {
-      appendFileSync(
-        process.env.PI_PLANNING_TRACE,
-        JSON.stringify({
-          reason: event.reason,
-          path,
-          id: ctx.sessionManager.getSessionId(),
-          file: ctx.sessionManager.getSessionFile(),
-        }) + "\n",
-      );
-    }
   });
   pi.on("session_before_compact", (event) => ({
     compaction: {
@@ -65,13 +50,13 @@ export default function provider(pi: ExtensionAPI): void {
   }));
   const faux = transcriptProvider(model, (context) => {
     const { prompt, progress } = currentRun(context.messages);
-    const trace = process.env.PI_PLANNING_REQUEST_TRACE;
-    if (trace !== undefined && trace !== "") {
-      appendFileSync(trace, JSON.stringify({ prompt, context }) + "\n");
-    }
     const last = lastToolResult(progress);
     if (prompt.includes("Implement this approved plan.")) {
-      return fauxAssistantMessage("Implementation fixture ready");
+      return fauxAssistantMessage(
+        JSON.stringify(context.messages).includes("Plan mode is active.")
+          ? "Implementation requested with planning instructions"
+          : "Implementation fixture ready",
+      );
     }
     if (prompt.includes("Probe restored") && last === undefined) {
       return toolCallReply("mutation", "write", {

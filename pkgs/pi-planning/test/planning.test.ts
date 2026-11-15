@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { BoundaryResult } from "@earendil-works/pi-coding-agent";
 import { afterEach, expect, it } from "vitest";
 import {
   createPlanning,
+  PlanningStateError,
   type PlanningContext,
   type PlanningDependencies,
   type PlanningResult,
@@ -14,6 +16,7 @@ import {
   implementationContext,
   planExitReminder,
   planningPrompt,
+  reviewedPlanContext,
 } from "#planning/prompt.ts";
 import {
   reviewPlan,
@@ -23,7 +26,12 @@ import {
 import { stateEntry } from "#planning/session.ts";
 import { outcomeEntryType, type PlanningOutcome } from "#planning/outcomes.ts";
 import type { PlanningStatus } from "#planning/status.ts";
-import { PlanStore, type PlanRevision } from "#planning/store.ts";
+import {
+  PlanFileError,
+  PlanStore,
+  type PlanRevision,
+} from "#planning/store.ts";
+import { PlanValidationError } from "#planning/validation.ts";
 import { MemoryFiles } from "./memory-files.ts";
 import { feedbackImage } from "./fixtures/image.ts";
 
@@ -36,14 +44,60 @@ afterEach(() => {
 
 const activeSubagent =
   "A subagent is still active. Wait for completion or cancel it before requesting implementation approval.";
-
-type Answer<T> = () => T | Promise<T>;
-
-type Dialog = { state: "open" | "answered" | "dismissed" } & (
-  | { kind: "confirm"; title: string; message: string }
-  | { kind: "select"; title: string; options: string[] }
-  | { kind: "input"; title: string; placeholder: string | undefined }
+const entryConsent = {
+  kind: "confirm",
+  title: "Enter Plan mode?",
+  message:
+    "Pi will investigate and draft an implementation plan for your approval. Only the plan file may be edited in Plan mode. Entering does not approve implementation.",
+};
+const declinedInstructions =
+  "Plan mode was not entered. Continue in the current mode and follow the user's request.";
+const declinedEntry = {
+  content: [{ type: "text", text: declinedInstructions }],
+  details: { status: "declined" },
+  structuredContent: { status: "declined", instructions: declinedInstructions },
+};
+const unsafeDelegation =
+  "Use direct planning-explore or planning-plan calls, or native status and cancellation controls. Workflows, output files and implementation agents are unavailable during planning.";
+const approvedSummary =
+  "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet.";
+const clearSummary =
+  "Plan approved. Wait for context clearing; keep this conversation in planning until the transition finishes.";
+const imageModelRequired = new PlanValidationError(
+  "Use an image-capable model or continue with text feedback. The current model cannot receive image feedback.",
 );
+const changedDuringReview = new PlanningStateError("plan-changed");
+
+const planOnly = (path: string) => ({
+  block: true,
+  reason: `Only the active plan may be edited: ${path}`,
+});
+
+const requestId: unknown = expect.stringMatching(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+);
+
+type ConfirmDialog = { kind: "confirm"; title: string; message: string };
+type SelectDialog = { kind: "select"; title: string; options: string[] };
+type InputDialog = {
+  kind: "input";
+  title: string;
+  placeholder: string | undefined;
+};
+type Dialog = ConfirmDialog | SelectDialog | InputDialog;
+
+type Answer<D, T> = (dialog: D) => T | Promise<T>;
+
+/**
+ * The person at the screen. Each field answers every dialogue of one kind and
+ * can tell those dialogues apart by their title or options. When the field
+ * for a dialogue's kind is unset, the dialogue fails the test.
+ */
+type User = {
+  confirm?: Answer<ConfirmDialog, boolean>;
+  select?: Answer<SelectDialog, string | undefined>;
+  input?: Answer<InputDialog, string | undefined>;
+};
 
 type ConversationMessage =
   | {
@@ -85,7 +139,8 @@ function fixture(
     statuses: new Map<string, string>(),
     published: undefined as PlanningStatus | undefined,
     reviewAvailable: false,
-    dialogs: [] as Dialog[],
+    openDialogs: [] as Dialog[],
+    reviewer: undefined as ScriptedReview | undefined,
     planFlag: false,
     research: [] as string[],
     activeSubagents: 0,
@@ -93,40 +148,34 @@ function fixture(
     launchFailure: undefined as Error | undefined,
     researchFailure: undefined as Error | undefined,
   };
-  const answers = {
-    confirm: [] as Answer<boolean>[],
-    select: [] as Answer<string | undefined>[],
-    input: [] as Answer<string | undefined>[],
-  };
-  const reviews: ScriptedReview[] = [];
+  const user: User = {};
   let heldStatus:
     | {
         reached: PromiseWithResolvers<void>;
         release: PromiseWithResolvers<void>;
       }
     | undefined;
-  const ask = async <T>(
-    dialog: Dialog,
-    script: Answer<T>[],
-    fallback: T,
+  const ask = async <D extends Dialog, T>(
+    dialog: D,
+    answer: Answer<D, T> | undefined,
     signal: AbortSignal | undefined,
   ): Promise<T> => {
-    pi.dialogs.push(dialog);
-    const dismiss = () => {
-      if (dialog.state === "open") {
-        dialog.state = "dismissed";
+    if (answer === undefined) {
+      throw new Error(`The fixture user cannot answer ${dialog.title}`);
+    }
+    pi.openDialogs.push(dialog);
+    const close = () => {
+      const index = pi.openDialogs.indexOf(dialog);
+      if (index !== -1) {
+        pi.openDialogs.splice(index, 1);
       }
     };
-    signal?.addEventListener("abort", dismiss, { once: true });
+    signal?.addEventListener("abort", close, { once: true });
     try {
-      const answer = script.shift();
-      const value = answer === undefined ? fallback : await answer();
-      if (dialog.state === "open") {
-        dialog.state = "answered";
-      }
-      return value;
+      return await answer(dialog);
     } finally {
-      signal?.removeEventListener("abort", dismiss);
+      signal?.removeEventListener("abort", close);
+      close();
     }
   };
   const editor = {
@@ -168,26 +217,11 @@ function fixture(
         pi.statuses.set(key, text);
       },
       select: (title, options, opts) =>
-        ask(
-          { kind: "select", title, options, state: "open" },
-          answers.select,
-          undefined,
-          opts?.signal,
-        ),
+        ask({ kind: "select", title, options }, user.select, opts?.signal),
       input: (title, placeholder, opts) =>
-        ask(
-          { kind: "input", title, placeholder, state: "open" },
-          answers.input,
-          undefined,
-          opts?.signal,
-        ),
+        ask({ kind: "input", title, placeholder }, user.input, opts?.signal),
       confirm: (title, message, opts) =>
-        ask(
-          { kind: "confirm", title, message, state: "open" },
-          answers.confirm,
-          false,
-          opts?.signal,
-        ),
+        ask({ kind: "confirm", title, message }, user.confirm, opts?.signal),
       getToolsExpanded: () => false,
       setToolsExpanded: () => {},
       custom: async () => ({
@@ -219,7 +253,6 @@ function fixture(
       throw new Error(activeSubagent);
     }
   };
-  let identity = 0;
   const controller = createPlanning({
     openPlan,
     configure: (sessionId) => {
@@ -262,9 +295,9 @@ function fixture(
     setReviewAvailable: (available) => {
       pi.reviewAvailable = available;
     },
-    requestId: () => `ticket-${++identity}`,
+    requestId: randomUUID,
     review: (context, request) => {
-      const scripted = reviews.shift();
+      const scripted = pi.reviewer;
       if (scripted === undefined) {
         return review(context, request);
       }
@@ -302,8 +335,7 @@ function fixture(
   return {
     pi,
     session,
-    answers,
-    reviews,
+    user,
     review,
     holdStatus: () => {
       const held = {
@@ -424,13 +456,22 @@ it.each(["a", "🦉"])(
     await f.command("");
     const content = character.repeat(200_000 / character.length);
     f.files.replace(f.path(), content);
-    const result = await f.execute("submit_plan");
+    const shown = Promise.withResolvers<void>();
+    const choice = Promise.withResolvers<string>();
+    f.user.select = () => {
+      shown.resolve();
+      return choice.promise;
+    };
+    const submitted = f.execute("submit_plan");
+    await shown.promise;
+    const screen = [...f.pi.openDialogs];
+    choice.resolve("Continue planning");
+    const plan = f.openPlan("session-one").read();
     expect({
-      decision: result.details.decision,
-      dialogs: f.pi.dialogs,
+      screen,
+      details: (await submitted).details,
     }).toStrictEqual({
-      decision: "cancel",
-      dialogs: [
+      screen: [
         {
           kind: "select",
           title: `Review plan ${displayPath(f.path())}\n\n${content}`,
@@ -441,9 +482,17 @@ it.each(["a", "🦉"])(
             "Continue planning",
             "Add a comment",
           ],
-          state: "answered",
         },
       ],
+      details: {
+        formatVersion: 1,
+        decision: "cancel",
+        path: plan.path,
+        revision: plan.revision,
+        presentedPlan: plan,
+        reviewSummary:
+          "Plan review was cancelled. Continue planning; implementation has not been approved.",
+      },
     });
   },
 );
@@ -454,11 +503,14 @@ it.each(["a", "🦉"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), character.repeat(200_000 / character.length + 1));
-    await expect(f.execute("submit_plan")).rejects.toThrow("200,000 UTF-16");
-    expect({
-      dialogs: f.pi.dialogs,
-      conversation: f.pi.conversation,
-    }).toStrictEqual({ dialogs: [], conversation: [] });
+    f.user.select = () => "Yes, keep context";
+    await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+      new PlanValidationError(
+        "Plans are limited to 200,000 UTF-16 code units for inline review. Shorten the plan before requesting approval.",
+      ),
+    );
+    await f.completeApproval();
+    expect(f.pi.conversation).toStrictEqual([]);
   },
 );
 
@@ -469,12 +521,12 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Context\nImplement the requested change.\n");
     const plan = f.openPlan("session-one").read();
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: plan,
       feedback: "Keep the API.",
       images: [feedbackImage],
-    });
+    };
     const result = await f.execute("submit_plan");
     expect(result.structuredContent).toStrictEqual({
       version: 1,
@@ -493,12 +545,12 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: plan,
       feedback: "Keep the API.",
       images: [feedbackImage],
-    });
+    };
     await f.execute("submit_plan");
     expect(f.pi.outcomes).toStrictEqual([
       {
@@ -523,13 +575,13 @@ it.each([undefined, { input: ["text"] }] satisfies PlanningContext["model"][])(
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     f.ctx.model = model;
     const plan = f.openPlan("session-one").read();
-    f.reviews.push({
+    f.pi.reviewer = {
       decision: "current",
       presentedPlan: plan,
       images: [feedbackImage],
-    });
-    await expect(f.execute("submit_plan")).rejects.toThrow(
-      "image-capable model",
+    };
+    await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+      imageModelRequired,
     );
     await f.completeApproval();
     expect({
@@ -540,20 +592,26 @@ it.each([undefined, { input: ["text"] }] satisfies PlanningContext["model"][])(
 );
 
 it.each([
-  { feedback: "x".repeat(200_001), message: "200,000 UTF-16" },
-  { feedback: "\uD800", message: "invalid Unicode" },
+  {
+    feedback: "x".repeat(200_001),
+    message:
+      "Feedback is limited to 200,000 UTF-16 code units. Shorten the feedback before submitting it.",
+  },
+  { feedback: "\uD800", message: "Feedback contains invalid Unicode text." },
 ])(
   "refuses feedback outside the deliverable text policy: $message",
   async ({ feedback, message }) => {
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision: "current",
       presentedPlan: f.openPlan("session-one").read(),
       feedback,
-    });
-    await expect(f.execute("submit_plan")).rejects.toThrow(message);
+    };
+    await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+      new PlanValidationError(message),
+    );
     await f.completeApproval();
     expect({
       outcomes: f.pi.outcomes,
@@ -592,8 +650,8 @@ it("does not restore implementation authority from persisted approval outcomes",
   await f.completeApproval();
   expect({
     conversation: f.pi.conversation,
-    guarded: (await f.call("write", { path: "project.ts" }))?.block,
-  }).toStrictEqual({ conversation: [], guarded: true });
+    guarded: await f.call("write", { path: "project.ts" }),
+  }).toStrictEqual({ conversation: [], guarded: planOnly(f.path()) });
 });
 
 it("does not start image-based implementation after the model loses image support", async () => {
@@ -601,23 +659,22 @@ it("does not start image-based implementation after the model loses image suppor
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.reviews.push({
+  f.pi.reviewer = {
     decision: "current",
     presentedPlan: plan,
     images: [feedbackImage],
-  });
+  };
   await f.execute("submit_plan");
   f.pi.notifications.splice(0);
   f.ctx.model = { input: ["text"] };
-  await expect(f.completeApproval()).rejects.toThrow("image-capable model");
+  await expect(f.completeApproval()).rejects.toStrictEqual(imageModelRequired);
   f.controller.settled({ aborted: false }, f.ctx);
-  const reason =
-    "Use an image-capable model or continue with text feedback. The current model cannot receive image feedback.";
+  const reason = imageModelRequired.message;
   expect({
     conversation: f.pi.conversation,
     notifications: f.pi.notifications,
     failure: f.pi.outcomes.at(-1),
-    guarded: (await f.call("write", { path: "project.ts" }))?.block,
+    guarded: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
     conversation: [],
     notifications: [{ message: reason, level: "error" }],
@@ -628,7 +685,7 @@ it("does not start image-based implementation after the model loses image suppor
       revision: plan.revision,
       reason,
     },
-    guarded: true,
+    guarded: planOnly(f.path()),
   });
 });
 
@@ -637,9 +694,11 @@ it("does not grant implementation when the outcome cannot be persisted", async (
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.reviews.push({ decision: "current", presentedPlan: plan });
+  f.pi.reviewer = { decision: "current", presentedPlan: plan };
   f.pi.journalFailure = new Error("Journal unavailable");
-  await expect(f.execute("submit_plan")).rejects.toThrow("Journal unavailable");
+  await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+    new Error("Journal unavailable"),
+  );
   f.pi.journalFailure = undefined;
   await f.completeApproval();
   expect({
@@ -677,7 +736,7 @@ it.each([
     await f.command("");
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
-    f.reviews.push({ decision, presentedPlan: plan });
+    f.pi.reviewer = { decision, presentedPlan: plan };
     await f.execute("submit_plan");
     if (stage === "verification") {
       f.pi.activeSubagents = 1;
@@ -725,10 +784,12 @@ it("records a failed implementation launch and never retries the consumed approv
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.reviews.push({ decision: "current", presentedPlan: plan });
+  f.pi.reviewer = { decision: "current", presentedPlan: plan };
   f.pi.launchFailure = new Error("Launch failed");
   await f.execute("submit_plan");
-  await expect(f.completeApproval()).rejects.toThrow("Launch failed");
+  await expect(f.completeApproval()).rejects.toStrictEqual(
+    new Error("Launch failed"),
+  );
   f.pi.launchFailure = undefined;
   f.controller.settled({ aborted: false }, f.ctx);
   expect({
@@ -763,10 +824,10 @@ it.each(["input", "show", "review", "open", "exit"])(
     f.files.replace(f.path(), "# Context\nRequested work.\n");
     const plan = f.openPlan("session-one").read();
     const held = Promise.withResolvers<ReturnType<typeof f.holdStatus>>();
-    f.reviews.push(async () => {
+    f.pi.reviewer = async () => {
       held.resolve(f.holdStatus());
       return { decision: "current", presentedPlan: plan };
-    });
+    };
     const submitted = f.execute("submit_plan");
     const status = await held.promise;
     await Promise.race([
@@ -785,11 +846,29 @@ it.each(["input", "show", "review", "open", "exit"])(
     const result = await submitted;
     await f.completeApproval();
     expect({
-      decision: result.details.decision,
-      implementation: f.pi.conversation.filter(
-        ({ kind }) => kind === "implementation",
-      ),
-    }).toStrictEqual({ decision: "cancel", implementation: [] });
+      details: result.details,
+      conversation: f.pi.conversation,
+    }).toStrictEqual({
+      details: {
+        formatVersion: 1,
+        decision: "cancel",
+        path: plan.path,
+        revision: plan.revision,
+        presentedPlan: plan,
+        reviewSummary:
+          "Plan review was cancelled. Continue planning; implementation has not been approved.",
+      },
+      conversation:
+        action === "review"
+          ? [
+              {
+                kind: "user",
+                text: "Review the active plan, resolve any remaining questions, and call submit_plan.",
+                options: { deliverAs: "steer" },
+              },
+            ]
+          : [],
+    });
   },
 );
 
@@ -798,11 +877,13 @@ it("rechecks idle research after the approval choice before accepting it", async
   await f.command("");
   f.files.replace(f.path(), "# Context\nRequested work.\n");
   const plan = f.openPlan("session-one").read();
-  f.reviews.push(async () => {
+  f.pi.reviewer = async () => {
     f.pi.activeSubagents = 1;
     return { decision: "current", presentedPlan: plan };
-  });
-  await expect(f.execute("submit_plan")).rejects.toThrow(activeSubagent);
+  };
+  await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+    new Error(activeSubagent),
+  );
   await f.completeApproval();
   expect({
     outcomes: f.pi.outcomes,
@@ -828,13 +909,13 @@ it.each([
       notifications: f.pi.notifications,
       exists: f.openPlan("session-one").exists(),
       transcript: f.pi.transcript,
-      active: (await f.call("write", { path: "project.ts" }))?.block,
+      active: await f.call("write", { path: "project.ts" }),
       conversation: f.pi.conversation,
     }).toStrictEqual({
       notifications: [{ message, level: "info" }],
       exists: false,
       transcript: [],
-      active: true,
+      active: planOnly(f.path()),
       conversation: [],
     });
   },
@@ -852,13 +933,13 @@ it("enters lazily and shows the saved plan without toggling off or starting a tu
   expect({
     initiallyMissing,
     transcript: f.pi.transcript,
-    active: (await f.call("write", { path: "project.ts" }))?.block,
+    active: await f.call("write", { path: "project.ts" }),
     research: f.pi.research,
     conversation: f.pi.conversation,
   }).toStrictEqual({
     initiallyMissing: true,
     transcript: [plan, plan],
-    active: true,
+    active: planOnly(f.path()),
     research: ["session-one"],
     conversation: [],
   });
@@ -875,12 +956,12 @@ it.each([false, true])(
     expect({
       saved: f.files.read(f.path()),
       transcript: f.pi.transcript,
-      active: (await f.call("write", { path: "project.ts" }))?.block,
+      active: await f.call("write", { path: "project.ts" }),
       conversation: f.pi.conversation,
     }).toStrictEqual({
       saved: "# Saved editor changes\n",
       transcript: [f.openPlan("session-one").read()],
-      active: true,
+      active: planOnly(f.path()),
       conversation: [],
     });
   },
@@ -933,7 +1014,9 @@ it.each(["exit", "restore", "shutdown"] as const)(
     const finished = Promise.withResolvers<void>();
     f.editor.closed = finished.promise;
     const opening = f.command("open");
-    await expect(f.execute("submit_plan")).rejects.toThrow("Finish editing");
+    await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+      new PlanningStateError("editing"),
+    );
     if (action === "exit") {
       await f.command("exit");
     }
@@ -965,10 +1048,10 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Ready plan\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     await f.controller.verifyClear(f.ctx);
     await f.command(action);
@@ -1010,40 +1093,60 @@ it.each(["current", "clear"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
     const plan = f.openPlan("session-one").read();
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: plan,
       images: [feedbackImage],
-    });
+    };
     const result = await f.execute("submit_plan");
     const boundary = await f.prepareClear({ outcome: "completed" }, f.ctx);
     f.commit(boundary);
     f.controller.settled({ aborted: false }, f.ctx);
+    const summary = implementationContext(plan, "/fixture/session.jsonl");
     expect({
-      images: result.content.filter((entry) => entry.type === "image"),
+      content: result.content,
+      boundary,
       conversation: f.pi.conversation,
-      imageInSummary:
-        boundary?.entries?.some(
-          (entry) =>
-            entry.type === "compaction" &&
-            entry.summary.includes(feedbackImage.data),
-        ) ?? false,
     }).toStrictEqual({
-      images: [feedbackImage],
+      content:
+        decision === "current"
+          ? [
+              { type: "text", text: approvedSummary },
+              { type: "text", text: reviewedPlanContext(plan) },
+              { type: "text", text: "User image feedback:" },
+              feedbackImage,
+            ]
+          : [
+              { type: "text", text: clearSummary },
+              { type: "text", text: "User image feedback:" },
+              feedbackImage,
+            ],
+      boundary:
+        decision === "current"
+          ? undefined
+          : {
+              entries: [
+                {
+                  type: "compaction",
+                  summary,
+                  firstKeptEntryId: null,
+                  details: {
+                    customType: "dotfiles:planning-clear:v1",
+                    token: requestId,
+                  },
+                },
+              ],
+            },
       conversation: [
         {
           kind: "implementation",
           content: [
-            {
-              type: "text",
-              text: implementationContext(plan, "/fixture/session.jsonl"),
-            },
+            { type: "text", text: summary },
             { type: "text", text: "User image feedback:" },
             feedbackImage,
           ],
         },
       ],
-      imageInSummary: false,
     });
   },
 );
@@ -1051,25 +1154,17 @@ it.each(["current", "clear"] as const)(
 it("waits for entry consent before creating a plan or restricting tools", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.answers.confirm.push(() => answer.promise);
+  f.user.confirm = () => answer.promise;
   const entering = f.controller.enterTool(f.ctx);
 
   expect({
-    dialogs: f.pi.dialogs,
+    screen: f.pi.openDialogs,
     planExists: f.openPlan("session-one").exists(),
     research: f.pi.research,
     saved: f.branch,
     projectWrite: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
-    dialogs: [
-      {
-        kind: "confirm",
-        title: "Enter Plan mode?",
-        message:
-          "Pi will investigate and draft an implementation plan for your approval. Only the plan file may be edited in Plan mode. Entering does not approve implementation.",
-        state: "open",
-      },
-    ],
+    screen: [entryConsent],
     planExists: false,
     research: [],
     saved: [],
@@ -1092,18 +1187,13 @@ it("waits for entry consent before creating a plan or restricting tools", async 
     },
     planExists: false,
     research: ["session-one"],
-    projectWrite: {
-      block: true,
-      reason: `Only the active plan may be edited: ${f.path()}`,
-    },
+    projectWrite: planOnly(f.path()),
   });
 });
 
 it("keeps ordinary mode when entry consent is declined or cancelled", async () => {
   const f = fixture();
-  f.answers.confirm.push(() => false);
-  const instructions =
-    "Plan mode was not entered. Continue in the current mode and follow the user's request.";
+  f.user.confirm = () => false;
   expect({
     result: await f.controller.enterTool(f.ctx),
     planExists: f.openPlan("session-one").exists(),
@@ -1111,11 +1201,7 @@ it("keeps ordinary mode when entry consent is declined or cancelled", async () =
     saved: f.branch,
     projectWrite: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
-    result: {
-      content: [{ type: "text", text: instructions }],
-      details: { status: "declined" },
-      structuredContent: { status: "declined", instructions },
-    },
+    result: declinedEntry,
     planExists: false,
     research: [],
     saved: [],
@@ -1126,16 +1212,15 @@ it("keeps ordinary mode when entry consent is declined or cancelled", async () =
 it("refuses model-requested entry without a consent UI", async () => {
   const f = fixture();
   f.ctx.hasUI = false;
-  await expect(f.controller.enterTool(f.ctx)).rejects.toThrow(
-    "Plan mode entry requires user consent",
+  f.user.confirm = () => true;
+  await expect(f.controller.enterTool(f.ctx)).rejects.toStrictEqual(
+    new PlanningStateError("consent-required"),
   );
   expect({
-    dialogs: f.pi.dialogs,
     planExists: f.openPlan("session-one").exists(),
     research: f.pi.research,
     saved: f.branch,
   }).toStrictEqual({
-    dialogs: [],
     planExists: false,
     research: [],
     saved: [],
@@ -1148,7 +1233,7 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
     const f = fixture();
     const answer = Promise.withResolvers<boolean>();
     const tool = new AbortController();
-    f.answers.confirm.push(() => answer.promise);
+    f.user.confirm = () => answer.promise;
     const entering = f.controller.enterTool(f.ctx, tool.signal);
     if (cause === "tool") {
       tool.abort();
@@ -1166,14 +1251,17 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
       f.controller.toggle(f.ctx);
       f.controller.toggle(f.ctx);
     }
+    const screen = [...f.pi.openDialogs];
     answer.resolve(true);
-    await expect(entering).rejects.toThrow("aborted");
+    await expect(entering).rejects.toStrictEqual(
+      new DOMException("This operation was aborted", "AbortError"),
+    );
     expect({
-      dialogs: f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
+      screen,
       projectWrite: await f.call("write", { path: "project.ts" }),
       savedActive: f.branch.at(-1),
     }).toStrictEqual({
-      dialogs: [{ kind: "confirm", state: "dismissed" }],
+      screen: [],
       projectWrite: undefined,
       savedActive:
         cause === "human exit"
@@ -1195,73 +1283,96 @@ it.each(["tool", "run", "restore", "shutdown", "human exit"] as const)(
 it("rejects consent for a different session identity", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.answers.confirm.push(() => answer.promise);
+  f.user.confirm = () => answer.promise;
   const entering = f.controller.enterTool(f.ctx);
   f.session.id = "replacement";
   answer.resolve(true);
-  await expect(entering).rejects.toThrow("session changed");
+  await expect(entering).rejects.toStrictEqual(
+    new PlanningStateError("session-changed"),
+  );
   expect(f.pi.research).toStrictEqual([]);
 });
 
 it("does not open overlapping entry requests", async () => {
   const f = fixture();
   const answer = Promise.withResolvers<boolean>();
-  f.answers.confirm.push(() => answer.promise);
+  f.user.confirm = () => answer.promise;
   const entering = f.controller.enterTool(f.ctx);
-  await expect(f.controller.enterTool(f.ctx)).rejects.toThrow(
-    "entry request is already open",
+  await expect(f.controller.enterTool(f.ctx)).rejects.toStrictEqual(
+    new PlanningStateError("entry-open"),
   );
+  const screen = [...f.pi.openDialogs];
   answer.resolve(false);
-  await entering;
-  expect(
-    f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
-  ).toStrictEqual([{ kind: "confirm", state: "answered" }]);
+  expect({ screen, result: await entering }).toStrictEqual({
+    screen: [entryConsent],
+    result: declinedEntry,
+  });
 });
 
 it("does not request entry consent again while Plan mode is active", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Existing draft\n");
-  await f.controller.enterTool(f.ctx);
+  f.user.confirm = () => false;
+  const instructions = planningPrompt(f.path());
   expect({
-    dialogs: f.pi.dialogs,
+    result: await f.controller.enterTool(f.ctx),
     draft: f.files.read(f.path()),
     research: f.pi.research,
   }).toStrictEqual({
-    dialogs: [],
+    result: {
+      content: [{ type: "text", text: instructions }],
+      details: { status: "active", path: f.path() },
+      structuredContent: { status: "active", path: f.path(), instructions },
+    },
     draft: "# Existing draft\n",
     research: ["session-one"],
   });
 });
 
-it("can request consent again after leaving Plan mode", async () => {
-  const f = fixture();
-  await f.command("");
-  await f.command("exit");
-  f.answers.confirm.push(() => true);
-  await f.controller.enterTool(f.ctx);
-  expect({
-    dialogs: f.pi.dialogs.map(({ kind, state }) => ({ kind, state })),
-    projectWrite: (await f.call("write", { path: "project.ts" }))?.block,
-  }).toStrictEqual({
-    dialogs: [{ kind: "confirm", state: "answered" }],
-    projectWrite: true,
-  });
-});
+it.each([true, false])(
+  "asks for consent again after leaving Plan mode (consent: %s)",
+  async (consent) => {
+    const f = fixture();
+    await f.command("");
+    await f.command("exit");
+    f.user.confirm = () => consent;
+    const result = await f.controller.enterTool(f.ctx);
+    const instructions = planningPrompt(f.path());
+    expect({
+      result,
+      projectWrite: await f.call("write", { path: "project.ts" }),
+    }).toStrictEqual(
+      consent
+        ? {
+            result: {
+              content: [{ type: "text", text: instructions }],
+              details: { status: "active", path: f.path() },
+              structuredContent: {
+                status: "active",
+                path: f.path(),
+                instructions,
+              },
+            },
+            projectWrite: planOnly(f.path()),
+          }
+        : { result: declinedEntry, projectWrite: undefined },
+    );
+  },
+);
 
 it("honours the explicit startup flag without a consent UI", () => {
   const f = fixture();
   f.ctx.hasUI = false;
   f.pi.planFlag = true;
+  f.user.confirm = () => false;
   f.controller.start({ reason: "startup" }, f.ctx);
   expect({
     reviewAvailable: f.pi.reviewAvailable,
-    dialogs: f.pi.dialogs,
     planExists: f.openPlan("session-one").exists(),
     research: f.pi.research,
   }).toStrictEqual({
     reviewAvailable: true,
-    dialogs: [],
     planExists: false,
     research: ["session-one"],
   });
@@ -1461,16 +1572,20 @@ it("reassesses an existing plan on re-entry and after restoration", async () => 
   f.files.replace(f.path(), "# Plan for an earlier task\n");
   const plan = f.openPlan("session-one").read();
   await f.command("exit");
-  f.answers.confirm.push(() => true);
+  f.user.confirm = () => true;
   const result = await f.controller.enterTool(f.ctx);
   f.controller.restore(f.ctx);
   const instructions = `${planningPrompt(f.path())}\n\nExisting plan:\nA plan file already exists at ${f.path()}. Read it and compare it with the user's current request.\n- If this is a different task, overwrite the old plan with a new one.\n- If this continues the same task, update the plan and remove obsolete details.\nDo not assume the old plan still applies. Update the plan file before requesting approval.`;
   expect({
-    instructions: result.structuredContent?.instructions,
+    result,
     prompt: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
     plan: f.openPlan("session-one").read(),
   }).toStrictEqual({
-    instructions,
+    result: {
+      content: [{ type: "text", text: instructions }],
+      details: { status: "active", path: f.path() },
+      structuredContent: { status: "active", path: f.path(), instructions },
+    },
     prompt: { systemPrompt: `Base\n\n${planningPrompt(f.path())}` },
     plan,
   });
@@ -1483,7 +1598,7 @@ it("preserves an undelivered exit reminder through restart", async () => {
   await f.command("exit");
   f.controller.shutdown();
   f.controller.start({ reason: "startup" }, f.ctx);
-  expect(f.controller.prompt({ systemPrompt: "Base" }, f.ctx)).toMatchObject({
+  expect(f.controller.prompt({ systemPrompt: "Base" }, f.ctx)).toStrictEqual({
     message: {
       customType: "dotfiles:planning-exit:v1",
       content: `## Exited Plan Mode\n\nYou have exited plan mode. Plan file: ${f.path()}\nUse the normal file tools to read or update the plan. Follow the user's current request; leaving Plan mode does not itself approve implementation.`,
@@ -1570,10 +1685,10 @@ it.each(["current", "clear", "revise", "cancel"] as const)(
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
     f.pi.notifications.splice(0);
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     expect(f.pi.notifications).toStrictEqual([]);
   },
@@ -1583,9 +1698,15 @@ it("offers same-session context clearing during approval", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Approved plan\n");
-  f.answers.select.push(() => "Yes, clear context");
-  expect((await f.execute("submit_plan")).details).toMatchObject({
+  f.user.select = () => "Yes, clear context";
+  const plan = f.openPlan("session-one").read();
+  expect((await f.execute("submit_plan")).details).toStrictEqual({
+    formatVersion: 1,
     decision: "clear",
+    path: plan.path,
+    revision: plan.revision,
+    presentedPlan: plan,
+    reviewSummary: clearSummary,
   });
 });
 
@@ -1602,12 +1723,10 @@ it.each([
     parent: await f.call("bash", input),
     child: researchPolicy({ toolName: "bash", input }),
     input,
-    dialogs: f.pi.dialogs,
   }).toStrictEqual({
     parent: undefined,
     child: undefined,
     input: { command, timeout: 7 },
-    dialogs: [],
   });
 });
 
@@ -1639,26 +1758,27 @@ it.each([
 it("restricts ordinary file and preview mutations while preserving plan edits", async () => {
   const f = fixture();
   await f.command("");
-  expect(
-    await f.call("write", { path: f.path(), content: "plan" }),
-  ).toBeUndefined();
-  expect(await f.call("edit", { path: "src/file.ts" })).toMatchObject({
-    block: true,
-  });
-  expect(
-    await f.call("apply_patch", {
+  expect({
+    plan: await f.call("write", { path: f.path(), content: "plan" }),
+    project: await f.call("edit", { path: "src/file.ts" }),
+    patch: await f.call("apply_patch", {
       patch: "project mutation",
       parentToolCallId: "codemode",
     }),
-  ).toMatchObject({ block: true });
-  expect(
-    await f.call("ask_user", { question: "Requirement?" }),
-  ).toBeUndefined();
-  expect(await f.call("subagent", { agent: "worker" })).toMatchObject({
-    block: true,
-  });
-  expect(await f.call("edit", { path: "src/file.ts" })).toMatchObject({
-    block: true,
+    question: await f.call("ask_user", { question: "Requirement?" }),
+    worker: await f.call("subagent", { agent: "worker" }),
+    projectAfterwards: await f.call("edit", { path: "src/file.ts" }),
+  }).toStrictEqual({
+    plan: undefined,
+    project: planOnly(f.path()),
+    patch: {
+      block: true,
+      reason:
+        "apply_patch is unavailable during planning. Use read-only investigation tools and keep implementation for after plan approval.",
+    },
+    question: undefined,
+    worker: { block: true, reason: unsafeDelegation },
+    projectAfterwards: planOnly(f.path()),
   });
 });
 
@@ -1668,11 +1788,12 @@ it.each([undefined, "No, keep planning"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Real plan\nImplement a change.\n");
-    f.answers.select.push(() => choice);
+    f.user.select = () => choice;
+    f.user.input = () => "";
     await f.execute("submit_plan");
-    expect(await f.call("write", { path: "implementation.ts" })).toMatchObject({
-      block: true,
-    });
+    expect(await f.call("write", { path: "implementation.ts" })).toStrictEqual(
+      planOnly(f.path()),
+    );
   },
 );
 
@@ -1681,21 +1802,21 @@ it("rejects approval when the file changes during review, then accepts the revie
   await f.command("");
   const path = f.path();
   f.files.replace(path, "# First plan\n");
-  f.answers.select.push(async () => {
+  f.user.select = () => {
     f.files.replace(path, "# Changed plan\n");
     return "Yes, keep context";
-  });
-  await expect(f.execute("submit_plan")).rejects.toThrow(
-    "changed during review",
+  };
+  await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+    changedDuringReview,
   );
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
-  f.answers.select.push(() => "Yes, keep context");
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
+  f.user.select = () => "Yes, keep context";
   await f.execute("submit_plan");
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
   await f.completeApproval();
   expect(await f.call("write", { path: "project.ts" })).toBeUndefined();
 });
@@ -1706,7 +1827,7 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Initial plan\n");
-    f.reviews.push(async (request) => {
+    f.pi.reviewer = async (request) => {
       f.files.replace(
         f.path(),
         "# Edited plan\n\nImplement the updated approach.\n",
@@ -1714,15 +1835,15 @@ it.each(["current", "clear"] as const)(
       const presentedPlan = request.read();
       request.present(presentedPlan);
       return { decision, presentedPlan };
-    });
-    const partialResults: PlanningResult[] = [];
+    };
+    let progress: PlanningResult | undefined;
     const result = await f.controller.submit(f.ctx, undefined, (update) => {
-      partialResults.push(update);
+      progress = update;
     });
     const presentedPlan = f.openPlan("session-one").read();
     expect({
       details: result.details,
-      partialResults,
+      progress,
     }).toStrictEqual({
       details: {
         formatVersion: 1,
@@ -1735,12 +1856,10 @@ it.each(["current", "clear"] as const)(
             ? "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet."
             : "Plan approved. Wait for context clearing; keep this conversation in planning until the transition finishes.",
       },
-      partialResults: [
-        {
-          content: [{ type: "text", text: "Review the presented plan." }],
-          details: { decision: "pending", presentedPlan },
-        },
-      ],
+      progress: {
+        content: [{ type: "text", text: "Review the presented plan." }],
+        details: { decision: "pending", presentedPlan },
+      },
     });
   },
 );
@@ -1751,12 +1870,12 @@ it.each(["current", "revise", "cancel"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Initial plan\n");
-    f.reviews.push(async (request) => {
+    f.pi.reviewer = async (request) => {
       f.files.replace(f.path(), "# Edited plan\n\nKeep the user changes.\n");
       const presentedPlan = request.read();
       request.present(presentedPlan);
       return { decision, presentedPlan };
-    });
+    };
     const result = await f.execute("submit_plan");
     const plan = f.openPlan("session-one").read();
     const summaries = {
@@ -1787,7 +1906,7 @@ it.each(["# Unchanged plan\n", "# Externally revised plan\n"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), content);
-    f.answers.select.push(() => "Yes, keep context");
+    f.user.select = () => "Yes, keep context";
     const result = await f.execute("submit_plan");
     const plan = f.openPlan("session-one").read();
     expect(result.content).toStrictEqual([
@@ -1811,7 +1930,7 @@ it.each(["current", "clear", "revise"] as const)(
     f.files.replace(f.path(), "# Approved plan\n");
     const plan = f.openPlan("session-one").read();
     const feedback = "Preserve the existing command-line interface.";
-    f.reviews.push({ decision, presentedPlan: plan, feedback });
+    f.pi.reviewer = { decision, presentedPlan: plan, feedback };
     const messages = {
       current:
         "Plan approved. Finish this planning turn and wait for the implementation transition; do not edit project files yet.",
@@ -1864,7 +1983,7 @@ it.each(["current", "clear", "revise"] as const)(
                   firstKeptEntryId: null,
                   details: {
                     customType: "dotfiles:planning-clear:v1",
-                    token: "ticket-1",
+                    token: requestId,
                   },
                 },
               ],
@@ -1884,11 +2003,10 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
-    f.answers.select.push(
-      () => "Add a comment",
-      () => label,
-    );
-    f.answers.input.push(() => "Keep compatibility.");
+    f.user.select = ({ options }) =>
+      options.includes("Add a comment") ? "Add a comment" : label;
+    f.user.input = ({ title }) =>
+      title === "Add a comment" ? "Keep compatibility." : undefined;
     const plan = f.openPlan("session-one").read();
     const result = await f.review(f.ctx, {
       plan,
@@ -1908,12 +2026,12 @@ it("uses the refreshed snapshot when clearing context", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Initial plan\n");
-  f.reviews.push(async (request) => {
+  f.pi.reviewer = async (request) => {
     f.files.replace(f.path(), "# Edited plan\n");
     const presentedPlan = request.read();
     request.present(presentedPlan);
     return { decision: "clear", presentedPlan };
-  });
+  };
   await f.execute("submit_plan");
   const plan = f.openPlan("session-one").read();
   expect(await f.prepareClear({ outcome: "completed" }, f.ctx)).toStrictEqual({
@@ -1924,7 +2042,7 @@ it("uses the refreshed snapshot when clearing context", async () => {
         firstKeptEntryId: null,
         details: {
           customType: "dotfiles:planning-clear:v1",
-          token: "ticket-1",
+          token: requestId,
         },
       },
     ],
@@ -1935,19 +2053,19 @@ it("rejects another file change after the edited snapshot was presented", async 
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Initial plan\n");
-  f.reviews.push(async (request) => {
+  f.pi.reviewer = async (request) => {
     f.files.replace(f.path(), "# Edited plan\n");
     const presentedPlan = request.read();
     request.present(presentedPlan);
     f.files.replace(f.path(), "# Later external edit\n");
     return { decision: "current", presentedPlan };
-  });
-  await expect(f.execute("submit_plan")).rejects.toThrow(
-    "changed during review",
+  };
+  await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+    changedDuringReview,
   );
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
 });
 
 it("cancels review without granting implementation authority", async () => {
@@ -1955,15 +2073,15 @@ it("cancels review without granting implementation authority", async () => {
   await f.command("");
   f.files.replace(f.path(), "# Plan\n");
   const answer = Promise.withResolvers<string | undefined>();
-  f.answers.select.push(() => answer.promise);
+  f.user.select = () => answer.promise;
   const abort = new AbortController();
   const pending = f.execute("submit_plan", {}, abort.signal);
   abort.abort();
   answer.resolve("Yes, keep context");
   await pending;
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
 });
 
 it.each(["current", "clear"] as const)(
@@ -1972,14 +2090,14 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     const boundary = await f.prepareClear({ outcome: "completed" }, f.ctx);
     const beforeSettlement = {
-      projectWrite: (await f.call("write", { path: "project.ts" }))?.block,
+      projectWrite: await f.call("write", { path: "project.ts" }),
       reviewAvailable: f.pi.reviewAvailable,
     };
     f.commit(boundary);
@@ -1995,7 +2113,10 @@ it.each(["current", "clear"] as const)(
       prompt: f.controller.prompt({ systemPrompt: "Base" }, f.ctx),
       reviewAvailable: f.pi.reviewAvailable,
     }).toStrictEqual({
-      beforeSettlement: { projectWrite: true, reviewAvailable: true },
+      beforeSettlement: {
+        projectWrite: planOnly(f.path()),
+        reviewAvailable: true,
+      },
       conversation: [
         {
           kind: "implementation",
@@ -2028,10 +2149,10 @@ it.each(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     f.commit(await f.prepareClear({ outcome: "completed" }, f.ctx));
     f.controller.beforeSettle({ outcome }, f.ctx);
@@ -2051,10 +2172,10 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     if (when === "before") {
       f.files.replace(f.path(), "# External change\n");
@@ -2066,9 +2187,9 @@ it.each([
     }
     f.controller.settled({ aborted: false }, f.ctx);
     expect(f.pi.conversation).toStrictEqual([]);
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
-    });
+    expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+      planOnly(f.path()),
+    );
   },
 );
 
@@ -2078,14 +2199,14 @@ it.each(["aborted", "error"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.answers.select.push(() => "Yes, clear context");
+    f.user.select = () => "Yes, clear context";
     await f.execute("submit_plan");
     expect(await f.prepareClear({ outcome }, f.ctx)).toBeUndefined();
     f.controller.settled({ aborted: outcome === "aborted" }, f.ctx);
     expect(f.pi.conversation).toStrictEqual([]);
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
-    });
+    expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+      planOnly(f.path()),
+    );
   },
 );
 
@@ -2095,10 +2216,10 @@ it.each(["current", "clear"] as const)(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.reviews.push({
+    f.pi.reviewer = {
       decision,
       presentedPlan: f.openPlan("session-one").read(),
-    });
+    };
     await f.execute("submit_plan");
     await f.controller.verifyClear(f.ctx);
     f.controller.input();
@@ -2134,9 +2255,9 @@ it("restores planning through reload and compaction without replaying a model pr
   });
   expect(f.path()).toBe(path);
   expect(f.files.read(path)).toBe("# Durable plan\n");
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
   expect(f.pi.conversation).toStrictEqual([]);
 });
 
@@ -2254,30 +2375,19 @@ it.each(["resume", "reload", "fork"])(
     f.controller.start({ reason }, f.ctx);
     const path = f.openPlan(id).path;
 
-    await expect(f.execute("submit_plan")).rejects.toThrow(
-      `Write a new implementation plan to ${path} before requesting approval.`,
+    f.user.select = () => "Yes, keep context";
+    await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+      new PlanFileError("missing", path),
     );
-    const missingPlanDialogs = [...f.pi.dialogs];
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
-    });
+    expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+      planOnly(f.path()),
+    );
     expect(
       await f.call("write", { path, content: "# Replacement plan\n" }),
     ).toBeUndefined();
 
     f.files.replace(path, "# Replacement plan\n");
-    f.answers.select.push(() => "Yes, keep context");
     await f.execute("submit_plan");
-    expect({
-      missingPlanDialogs,
-      replacementDialogs: f.pi.dialogs.map(({ kind, state }) => ({
-        kind,
-        state,
-      })),
-    }).toStrictEqual({
-      missingPlanDialogs: [],
-      replacementDialogs: [{ kind: "select", state: "answered" }],
-    });
     await f.completeApproval();
     expect(await f.call("write", { path: "project.ts" })).toBeUndefined();
   },
@@ -2288,16 +2398,16 @@ it("blocks model approval while subagents are active but permits human exit", as
   await f.command("");
   f.files.replace(f.path(), "# Plan\n\nImplement the requested change.\n");
   f.pi.activeSubagents = 1;
-  await expect(f.execute("submit_plan")).rejects.toThrow(activeSubagent);
-  const beforeExit = (await f.call("write", { path: "project.ts" }))?.block;
+  await expect(f.execute("submit_plan")).rejects.toStrictEqual(
+    new Error(activeSubagent),
+  );
+  const beforeExit = await f.call("write", { path: "project.ts" });
   await f.command("exit");
   expect({
-    dialogs: f.pi.dialogs,
     beforeExit,
     afterExit: await f.call("write", { path: "project.ts" }),
   }).toStrictEqual({
-    dialogs: [],
-    beforeExit: true,
+    beforeExit: planOnly(f.path()),
     afterExit: undefined,
   });
 });
@@ -2326,21 +2436,34 @@ it.each([
   },
 );
 
+const previewsOnly = "Only previews are available before plan approval.";
+
 it.each([
-  ["lsp_navigation", { operation: "rename", apply: true }],
-  ["lsp_navigation", { operation: "rename_file", apply: true }],
-  ["lsp_navigation", { operation: "executeCommand", apply: true }],
-  ["lsp_navigation", { operation: "unknown" }],
-  ["ast_grep_replace", { apply: true }],
-] satisfies [string, Record<string, unknown>][])(
+  ["lsp_navigation", { operation: "rename", apply: true }, previewsOnly],
+  ["lsp_navigation", { operation: "rename_file", apply: true }, previewsOnly],
+  [
+    "lsp_navigation",
+    { operation: "executeCommand", apply: true },
+    previewsOnly,
+  ],
+  [
+    "lsp_navigation",
+    { operation: "unknown" },
+    "Use a recognised read-only LSP operation or an edit preview.",
+  ],
+  ["ast_grep_replace", { apply: true }, previewsOnly],
+] satisfies [string, Record<string, unknown>, string][])(
   "blocks mutations and unknown operations through %s",
-  async (toolName, input) => {
+  async (toolName, input, reason) => {
     const f = fixture();
     await f.command("");
     expect({
-      parent: (await f.call(toolName, input))?.block,
-      child: researchPolicy({ toolName, input })?.block,
-    }).toStrictEqual({ parent: true, child: true });
+      parent: await f.call(toolName, input),
+      child: researchPolicy({ toolName, input }),
+    }).toStrictEqual({
+      parent: { block: true, reason },
+      child: { block: true, reason },
+    });
   },
 );
 
@@ -2389,9 +2512,12 @@ it.each([
   const f = fixture();
   await f.command("");
   expect({
-    parent: (await f.call("subagent", input))?.block,
-    child: researchPolicy({ toolName: "subagent", input })?.block,
-  }).toStrictEqual({ parent: true, child: true });
+    parent: await f.call("subagent", input),
+    child: researchPolicy({ toolName: "subagent", input }),
+  }).toStrictEqual({
+    parent: { block: true, reason: unsafeDelegation },
+    child: { block: true, reason: unsafeDelegation },
+  });
 });
 
 it.each(["ask_user", "submit_plan", "enter_plan_mode", "write", "edit"])(
@@ -2410,10 +2536,11 @@ it.each(["revise", "exit"])(
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Plan\n");
-    f.answers.select.push(() => "Yes, clear context");
+    f.user.select = () => "Yes, clear context";
     await f.execute("submit_plan");
     if (action === "revise") {
-      f.answers.select.push(() => "No, keep planning");
+      f.user.select = () => "No, keep planning";
+      f.user.input = () => "Reconsider the approach.";
       await f.execute("submit_plan");
     } else {
       await f.command("exit");
@@ -2436,7 +2563,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.answers.select.push(() => "Yes, clear context");
+    f.user.select = () => "Yes, clear context";
     await f.execute("submit_plan");
     const boundary = await f.prepareClear({ outcome: "completed" }, f.ctx);
     if (failure !== "not committed") {
@@ -2467,9 +2594,9 @@ it.each([
     }
     f.controller.settled({ aborted: failure === "aborted" }, f.ctx);
     expect(f.pi.conversation).toStrictEqual([]);
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
-    });
+    expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+      planOnly(f.path()),
+    );
   },
 );
 
@@ -2477,15 +2604,15 @@ it("rechecks native jobs before clearing the approved context", async () => {
   const f = fixture();
   await f.command("");
   f.files.replace(f.path(), "# Approved plan\n");
-  f.answers.select.push(() => "Yes, clear context");
+  f.user.select = () => "Yes, clear context";
   await f.execute("submit_plan");
   f.pi.activeSubagents = 1;
   expect(await f.prepareClear({ outcome: "completed" }, f.ctx)).toBeUndefined();
   f.controller.settled({ aborted: false }, f.ctx);
   expect(f.pi.conversation).toStrictEqual([]);
-  expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-    block: true,
-  });
+  expect(await f.call("write", { path: "project.ts" })).toStrictEqual(
+    planOnly(f.path()),
+  );
 });
 
 it.each([
@@ -2499,7 +2626,7 @@ it.each([
     const f = fixture();
     await f.command("");
     f.files.replace(f.path(), "# Approved plan\n");
-    f.answers.select.push(() => "Yes, clear context");
+    f.user.select = () => "Yes, clear context";
     await f.execute("submit_plan");
     if (failure === "missing signal") {
       delete f.ctx.signal;
@@ -2518,9 +2645,15 @@ it.each([
       f.controller.beforeSettle({ outcome: "completed" }, f.ctx),
     ).toBeUndefined();
     f.controller.settled({ aborted: false }, f.ctx);
-    expect(f.pi.conversation).toStrictEqual([]);
-    expect(await f.call("write", { path: "project.ts" })).toMatchObject({
-      block: true,
+    expect({
+      conversation: f.pi.conversation,
+      projectWrite: await f.call("write", { path: "project.ts" }),
+    }).toStrictEqual({
+      conversation: [],
+      projectWrite:
+        failure === "aborted signal"
+          ? { block: true, reason: "The planning operation was cancelled." }
+          : planOnly(f.path()),
     });
   },
 );
@@ -2530,7 +2663,9 @@ it("keeps the live session usable when restoring its replacement fails", async (
   await f.command("");
   f.files.directoryFailure = new Error("fixture restore failure");
 
-  expect(() => f.controller.restore(f.ctx)).toThrow("fixture restore failure");
+  expect(() => f.controller.restore(f.ctx)).toThrow(
+    new Error("fixture restore failure"),
+  );
   f.files.directoryFailure = undefined;
   expect(f.pi.research).toStrictEqual(["session-one"]);
   await expect(
@@ -2542,7 +2677,9 @@ it("rejects entry when research configuration cannot be loaded", async () => {
   const f = fixture();
   f.pi.researchFailure = new Error("Invalid planning.json");
 
-  await expect(f.command("")).rejects.toThrow("Invalid planning.json");
+  await expect(f.command("")).rejects.toStrictEqual(
+    new Error("Invalid planning.json"),
+  );
   expect({
     saved: f.branch,
     draftExists: f.openPlan("session-one").exists(),

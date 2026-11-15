@@ -21,21 +21,46 @@ it.each([
   ).resolves.toStrictEqual(image);
 });
 
+const unavailable = new ClipboardFeedbackError(
+  "Native clipboard images are unavailable on this platform. Paste text normally.",
+);
+const unsupportedFormat = new ClipboardFeedbackError(
+  "Clipboard images must be PNG, JPEG, GIF or WebP.",
+);
+
 it.each([
-  { bytes: undefined, message: "unavailable" },
-  { bytes: null, message: "no image" },
-  { bytes: new Uint8Array(), message: "PNG, JPEG, GIF or WebP" },
-  { bytes: Buffer.from("BMunsupported"), message: "PNG, JPEG, GIF or WebP" },
+  { description: "unavailable", bytes: undefined, error: unavailable },
   {
+    description: "missing",
+    bytes: null,
+    error: new ClipboardFeedbackError(
+      "The clipboard has no image. Paste text normally.",
+    ),
+  },
+  { description: "empty", bytes: new Uint8Array(), error: unsupportedFormat },
+  {
+    description: "BMP",
+    bytes: Buffer.from("BMunsupported"),
+    error: unsupportedFormat,
+  },
+  {
+    description: "truncated PNG",
     bytes: Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    message: "invalid or incomplete",
+    error: new ClipboardFeedbackError(
+      "The clipboard image is invalid or incomplete.",
+      {
+        cause: new ClipboardFeedbackError(
+          "The clipboard image has invalid dimensions.",
+        ),
+      },
+    ),
   },
 ])(
-  "rejects unavailable, empty or unsupported clipboard images: $message",
-  async ({ bytes, message }) => {
+  "rejects unavailable, empty or unsupported clipboard images: $description",
+  async ({ bytes, error }) => {
     await expect(
       readClipboardImage({ getImage: async () => bytes }),
-    ).rejects.toThrow(message);
+    ).rejects.toStrictEqual(error);
   },
 );
 
@@ -44,7 +69,11 @@ it("rejects encoded images that have valid headers but cannot be decoded", async
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jPwoAAAAASUVORK5CYII=";
   await expect(
     readClipboardImage({ getImage: async () => Buffer.from(data, "base64") }),
-  ).rejects.toThrow("Native image processing");
+  ).rejects.toStrictEqual(
+    new ClipboardFeedbackError(
+      "Native image processing could not validate and prepare this image.",
+    ),
+  );
 });
 
 it("honours native image blocking before reading the clipboard", async () => {
@@ -100,8 +129,8 @@ it("refuses an image over native encoded-image limits without auto-resizing", as
 });
 
 it("reports unsupported native clipboard access", async () => {
-  await expect(readClipboardImage(undefined)).rejects.toThrow(
-    ClipboardFeedbackError,
+  await expect(readClipboardImage(undefined)).rejects.toStrictEqual(
+    unavailable,
   );
 });
 
@@ -112,5 +141,9 @@ it("reports native clipboard transfer failures", async () => {
         throw new Error("Transfer failed");
       },
     }),
-  ).rejects.toThrow("Cannot read the native clipboard image.");
+  ).rejects.toStrictEqual(
+    new ClipboardFeedbackError("Cannot read the native clipboard image.", {
+      cause: new Error("Transfer failed"),
+    }),
+  );
 });

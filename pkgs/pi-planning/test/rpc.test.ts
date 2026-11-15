@@ -20,7 +20,11 @@ import { submitPlanOutputSchema } from "#planning/contracts.ts";
 import { displayText } from "#planning/presentation.ts";
 import { maxPlanCodeUnits } from "#planning/validation.ts";
 import { boundaryText } from "./fixtures/boundary.ts";
-import { attachedPlanContext } from "#planning/prompt.ts";
+import {
+  attachedPlanContext,
+  implementationContext,
+  planExitReminder,
+} from "#planning/prompt.ts";
 import { stateEntry } from "#planning/session.ts";
 import { PlanStore } from "#planning/store.ts";
 import { nodeFiles } from "#planning/node-files.ts";
@@ -87,47 +91,96 @@ function recordLine(value: unknown): RecordLine {
   }
   return { ...value, type: value.type };
 }
-interface Start {
-  reason: string;
-  path: string;
-  id: string;
-  file: string;
+function rpcResponse(id: string, command: string, data: unknown) {
+  return { id, type: "response", command, success: true, data };
 }
-function startLine(value: unknown): Start {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("reason" in value) ||
-    typeof value.reason !== "string" ||
-    !("path" in value) ||
-    typeof value.path !== "string" ||
-    !("id" in value) ||
-    typeof value.id !== "string" ||
-    !("file" in value) ||
-    typeof value.file !== "string"
-  ) {
-    throw new Error("Expected a complete planning session trace");
+
+const sessionStateSchema = Type.Object({
+  sessionId: Type.String(),
+  sessionFile: Type.String(),
+});
+
+/** Asks the RPC child for its current session with `get_state`. */
+async function sessionState(
+  send: (value: unknown) => void,
+  wait: (condition: () => boolean) => Promise<void>,
+  records: RecordLine[],
+  id: string,
+): Promise<{ sessionId: string; sessionFile: string }> {
+  const response = () =>
+    records.find((record) => record.type === "response" && record.id === id);
+  send({ type: "get_state", id });
+  await wait(() => response() !== undefined);
+  const data = response()?.data;
+  if (!Check(sessionStateSchema, data)) {
+    throw new Error(`Expected the session state: ${JSON.stringify(data)}`);
   }
-  return {
-    reason: value.reason,
-    path: value.path,
-    id: value.id,
-    file: value.file,
-  };
+  return { sessionId: data.sessionId, sessionFile: data.sessionFile };
 }
-function requestContext(value: unknown, prompt: string): string[] {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("prompt" in value) ||
-    typeof value.prompt !== "string" ||
-    !value.prompt.includes(prompt) ||
-    !("context" in value)
-  ) {
-    return [];
+
+const requestId: unknown = expect.stringMatching(
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+);
+
+/**
+ * Summarises the conversation that the session sends to the model: the
+ * compaction summaries, custom messages and user and assistant content.
+ */
+function conversation(manager: SessionManager): unknown[] {
+  return manager
+    .buildSessionContext()
+    .messages.flatMap((message): unknown[] => {
+      if (message.role === "compactionSummary") {
+        return [{ summary: message.summary }];
+      }
+
+      if (message.role === "custom") {
+        return [
+          {
+            custom: message.customType,
+            content: message.content,
+            display: message.display,
+          },
+        ];
+      }
+
+      if (message.role === "user" || message.role === "assistant") {
+        return [{ [message.role]: message.content }];
+      }
+
+      return [];
+    });
+}
+
+type SessionEntry = ReturnType<SessionManager["getBranch"]>[number];
+
+/** The parts of a session entry that the planning extension writes. */
+function written(entry: SessionEntry | undefined): unknown {
+  if (entry?.type === "custom") {
+    return { custom: entry.customType, data: entry.data };
   }
-  const text = JSON.stringify(value.context);
-  return text === undefined ? [] : [text];
+
+  if (entry?.type === "custom_message") {
+    return {
+      custom: entry.customType,
+      content: entry.content,
+      display: entry.display,
+    };
+  }
+
+  if (entry?.type === "compaction") {
+    return {
+      compaction: entry.summary,
+      selfRetaining: entry.firstKeptEntryId === entry.id,
+      details: entry.details,
+    };
+  }
+
+  return entry;
+}
+
+function fixtureReply(text: string) {
+  return { assistant: [{ type: "text", text }] };
 }
 
 it.each(["controls", "unicode"])(
@@ -173,7 +226,6 @@ it.each(["controls", "unicode"])(
           ...process.env,
           HOME: cwd,
           PI_CODING_AGENT_DIR: join(cwd, "agent"),
-          PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
           PI_PLANNING_BOUNDARY_KIND: kind,
           PI_OFFLINE: "1",
         },
@@ -220,17 +272,19 @@ it.each(["controls", "unicode"])(
     });
     try {
       send({ type: "prompt", message: "Review the boundary fixture." });
-      await waits.until(
-        child,
-        () => records.some((record) => record.type === "agent_settled"),
-        () => `The native RPC fixture has not settled: ${errors}`,
+      const wait = (condition: () => boolean) =>
+        waits.until(
+          child,
+          condition,
+          () => `The native RPC fixture has not settled: ${errors}`,
+        );
+      await wait(() =>
+        records.some((record) => record.type === "agent_settled"),
       );
-      const source = startLine(
-        JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
-      );
+      const source = await sessionState(send, wait, records, "state");
       const plan = new PlanStore(
         join(cwd, "agent", "plans"),
-        source.id,
+        source.sessionId,
         nodeFiles,
       ).read();
       const title = `Review plan ${join("~", relative(cwd, plan.path))}\n\n${displayText(plan.content)}`;
@@ -327,8 +381,6 @@ it("clears context in the same native session and preserves the plan through com
           ...process.env,
           HOME: cwd,
           PI_CODING_AGENT_DIR: join(cwd, "agent"),
-          PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
-          PI_PLANNING_REQUEST_TRACE: join(cwd, "requests.jsonl"),
           PI_OFFLINE: "1",
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -389,119 +441,144 @@ it("clears context in the same native session and preserves the plan through com
     );
   const commandResult = async (value: Record<string, unknown>, id: string) => {
     send({ ...value, id });
-    await wait(() =>
-      records.some((entry) => entry.type === "response" && entry.id === id),
-    );
-    const response = records.find(
-      (entry) => entry.type === "response" && entry.id === id,
-    );
-    if (!response) {
-      throw new Error("Expected the requested RPC response");
-    }
-    expect(response).toMatchObject({ success: true });
-    return response;
+    const response = () =>
+      records.find((entry) => entry.type === "response" && entry.id === id);
+    await wait(() => response() !== undefined);
+    return response();
   };
-  const starts = async () =>
-    (await readFile(join(cwd, "starts.jsonl"), "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => startLine(JSON.parse(line)));
-  const request = async (prompt: string) => {
-    const matches = (await readFile(join(cwd, "requests.jsonl"), "utf8"))
-      .trim()
-      .split("\n")
-      .flatMap((line) => requestContext(JSON.parse(line), prompt));
-    const result = matches.at(-1);
-    if (result === undefined) {
-      throw new Error(`Expected a provider request for ${prompt}`);
-    }
-    return result;
-  };
+  const prompt = async (message: string, id: string, disposition: string) =>
+    expect(await commandResult({ type: "prompt", message }, id)).toStrictEqual(
+      rpcResponse(id, "prompt", { disposition }),
+    );
+  const state = (id: string) => sessionState(send, wait, records, id);
+  const settledAfter = (start: (record: RecordLine) => boolean) =>
+    wait(() => {
+      const index = records.findIndex((record) => start(record));
+      return (
+        index !== -1 &&
+        records.slice(index).some((record) => record.type === "agent_settled")
+      );
+    });
+  const response = (id: string) => (record: RecordLine) =>
+    record.type === "response" && record.id === id;
+  const plansDirectory = join(cwd, "agent/plans");
   try {
     await writeFile(join(cwd, "project.ts"), "original");
-    await commandResult(
-      {
-        type: "prompt",
-        message: "Plan the fixed fixture. private-exploration-marker",
-      },
+    const source = await state("initial-state");
+    await prompt(
+      "Plan the fixed fixture. private-exploration-marker",
       "start",
+      "started",
     );
-    await wait(() =>
-      JSON.stringify(records).includes("Implementation fixture ready"),
+    await settledAfter((record) =>
+      JSON.stringify(record).includes("Implementation fixture ready"),
     );
-    await wait(
-      () =>
-        records.filter((entry) => entry.type === "agent_settled").length >= 2,
-    );
-    const initial = await starts();
-    expect(initial.map(({ reason }) => reason)).toStrictEqual(["startup"]);
-    const source = initial[0];
-    if (!source) {
-      throw new Error("Expected the original session trace");
-    }
-    const manager = SessionManager.open(source.file);
-    const clear = manager
-      .getBranch()
-      .findLast((entry) => entry.type === "compaction");
+    const plan = new PlanStore(plansDirectory, source.sessionId, nodeFiles);
+    const approved = plan.read();
+    const summary = implementationContext(approved, source.sessionFile);
+    const manager = SessionManager.open(source.sessionFile);
+    const branch = manager.getBranch();
+    const clear = branch.findLast((entry) => entry.type === "compaction");
     if (clear?.type !== "compaction") {
       throw new Error("Expected native context clearing");
     }
-    expect(clear.firstKeptEntryId).toBe(clear.id);
-    expect(manager.getHeader()).toMatchObject({ id: source.id });
-    expect(JSON.stringify(manager.getBranch())).toContain(
-      "private-exploration-marker",
-    );
-    expect(
-      manager
-        .getBranch()
-        .findLast(
+    expect({
+      session: await state("cleared-state"),
+      prompts: branch.flatMap((entry) =>
+        entry.type === "message" && entry.message.role === "user"
+          ? [entry.message.content]
+          : [],
+      ),
+      clear: written(clear),
+      saved: written(
+        branch.findLast(
           (entry) => entry.type === "custom" && entry.customType === stateEntry,
         ),
-    ).toMatchObject({ data: { active: false, sourceSessionId: source.id } });
-    const implementation = await request("Implement this approved plan.");
-    expect(implementation).toContain("Implement the reviewed fixture.");
-    expect(implementation).toContain(source.path);
-    expect(implementation).not.toContain("private-exploration-marker");
-    expect(implementation).not.toContain("Plan mode is active.");
-
-    const plan = new PlanStore(join(cwd, "agent/plans"), source.id, nodeFiles);
-    plan.write("# Updated plan\n\nContinue the remaining implementation.\n");
-    await commandResult({ type: "compact" }, "ordinary-compact");
-    const compacted = SessionManager.open(source.file);
-    expect(
-      compacted
-        .getBranch()
-        .findLast((entry) => entry.type === "custom_message"),
-    ).toMatchObject({
-      customType: "dotfiles:planning-reminder:v1",
-      content: attachedPlanContext(plan.read()),
-      display: false,
+      ),
+      conversation: conversation(manager),
+    }).toStrictEqual({
+      session: source,
+      prompts: [
+        [
+          {
+            type: "text",
+            text: "Plan the fixed fixture. private-exploration-marker",
+          },
+        ],
+      ],
+      clear: {
+        compaction: summary,
+        selfRetaining: true,
+        details: {
+          customType: "dotfiles:planning-clear:v1",
+          token: requestId,
+        },
+      },
+      saved: {
+        custom: stateEntry,
+        data: {
+          version: 1,
+          active: false,
+          sourceSessionId: source.sessionId,
+          exitReminderPending: false,
+        },
+      },
+      conversation: [
+        { summary },
+        {
+          custom: "dotfiles:planning-implementation:v1",
+          content: summary,
+          display: false,
+        },
+        fixtureReply("Implementation fixture ready"),
+      ],
     });
-    await commandResult(
-      { type: "prompt", message: "Continue with the attached plan." },
-      "after-compact",
-    );
-    await wait(
-      () =>
-        records.filter((entry) => entry.type === "agent_settled").length >= 3,
-    );
-    expect(await request("Continue with the attached plan.")).toContain(
-      "Continue the remaining implementation.",
-    );
-    expect(await request("Continue with the attached plan.")).not.toContain(
-      "private-exploration-marker",
-    );
 
-    await commandResult({ type: "prompt", message: "/plan" }, "reenter");
-    await commandResult(
-      { type: "prompt", message: "Continue planning the fixed fixture." },
+    const updated = plan.write(
+      "# Updated plan\n\nContinue the remaining implementation.\n",
+    );
+    await commandResult({ type: "compact" }, "ordinary-compact");
+    const compaction = SessionManager.open(source.sessionFile);
+    await prompt(
+      "Continue with the attached plan.",
+      "after-compact",
+      "started",
+    );
+    await settledAfter(response("after-compact"));
+    expect({
+      reminder: written(
+        compaction
+          .getBranch()
+          .findLast((entry) => entry.type === "custom_message"),
+      ),
+      conversation: conversation(SessionManager.open(source.sessionFile)),
+    }).toStrictEqual({
+      reminder: {
+        custom: "dotfiles:planning-reminder:v1",
+        content: attachedPlanContext(updated),
+        display: false,
+      },
+      conversation: [
+        { summary: "Offline compaction fixture." },
+        fixtureReply("Implementation fixture ready"),
+        {
+          custom: "dotfiles:planning-reminder:v1",
+          content: attachedPlanContext(updated),
+          display: false,
+        },
+        { user: [{ type: "text", text: "Continue with the attached plan." }] },
+        fixtureReply("Fixture finished"),
+      ],
+    });
+
+    await prompt("/plan", "reenter", "handled");
+    await prompt(
+      "Continue planning the fixed fixture.",
       "planning-again",
+      "started",
     );
-    await wait(
-      () =>
-        records.filter((entry) => entry.type === "agent_settled").length >= 4,
-    );
-    const user = SessionManager.open(source.file)
+    await settledAfter(response("planning-again"));
+    const user = SessionManager.open(source.sessionFile)
       .getBranch()
       .findLast(
         (entry) => entry.type === "message" && entry.message.role === "user",
@@ -509,21 +586,28 @@ it("clears context in the same native session and preserves the plan through com
     if (!user) {
       throw new Error("Expected a persisted planning prompt");
     }
-    await commandResult(
+    const forked = await commandResult(
       { type: "fork", entryId: user.id, position: "at" },
       "fork",
     );
-    const fork = (await starts()).at(-1);
-    if (!fork) {
-      throw new Error("Expected the forked session trace");
-    }
-    expect(fork.reason).toBe("fork");
-    expect(fork.path).not.toBe(source.path);
-    expect(await readFile(fork.path, "utf8")).toBe(
-      await readFile(source.path, "utf8"),
-    );
+    const fork = await state("fork-state");
+    const expectedPlan = await readFile(plan.path, "utf8");
+    expect({
+      response: forked,
+      newSession: fork.sessionId !== source.sessionId,
+      plan: await readFile(
+        new PlanStore(plansDirectory, fork.sessionId, nodeFiles).path,
+        "utf8",
+      ),
+    }).toStrictEqual({
+      response: rpcResponse("fork", "fork", {
+        text: "Continue planning the fixed fixture.",
+        cancelled: false,
+      }),
+      newSession: true,
+      plan: expectedPlan,
+    });
 
-    const expectedPlan = await readFile(source.path, "utf8");
     const restart = async () => {
       const closed = once(child, "close");
       child.kill();
@@ -531,73 +615,63 @@ it("clears context in the same native session and preserves the plan through com
       records.length = 0;
       output = "";
       errors = "";
-      child = launch(["--session", source.file]);
+      child = launch(["--session", source.sessionFile]);
       attachOutput();
     };
     await restart();
-    await commandResult(
-      { type: "prompt", message: "Probe restored plan restrictions." },
+    await prompt(
+      "Probe restored plan restrictions.",
       "process-resume-active",
+      "started",
     );
     await wait(() => records.some((entry) => entry.type === "agent_settled"));
-    const activeResume = (await starts()).at(-1);
     expect({
-      id: activeResume?.id,
-      path: activeResume?.path,
-      plan: await readFile(source.path, "utf8"),
+      session: await state("resume-active-state"),
+      plan: await readFile(plan.path, "utf8"),
       project: await readFile(join(cwd, "project.ts"), "utf8"),
     }).toStrictEqual({
-      id: source.id,
-      path: source.path,
+      session: source,
       plan: expectedPlan,
       project: "original",
     });
-    await commandResult(
-      { type: "prompt", message: "/plan exit" },
-      "human-exit",
-    );
+    await prompt("/plan exit", "human-exit", "handled");
     await restart();
-    await commandResult(
-      { type: "prompt", message: "Probe restored ordinary mode." },
+    await prompt(
+      "Probe restored ordinary mode.",
       "process-resume-inactive",
+      "started",
     );
     await wait(() => records.some((entry) => entry.type === "agent_settled"));
-    const inactiveResume = (await starts()).at(-1);
-    const restored = SessionManager.open(source.file);
-    const notice = restored
-      .getBranch()
-      .findLast((entry) => entry.type === "custom_message");
+    const restored = SessionManager.open(source.sessionFile).getBranch();
     expect({
-      id: inactiveResume?.id,
-      path: inactiveResume?.path,
-      plan: await readFile(source.path, "utf8"),
+      session: await state("resume-inactive-state"),
+      plan: await readFile(plan.path, "utf8"),
       project: await readFile(join(cwd, "project.ts"), "utf8"),
-    }).toStrictEqual({
-      id: source.id,
-      path: source.path,
-      plan: expectedPlan,
-      project: "unapproved",
-    });
-    expect(notice).toMatchObject({
-      customType: "dotfiles:planning-exit:v1",
-      display: false,
-    });
-    if (notice?.type !== "custom_message") {
-      throw new Error("Expected the exit reminder");
-    }
-    expect(notice.content).toContain(source.path);
-    expect(
-      restored
-        .getBranch()
-        .findLast(
+      notice: written(
+        restored.findLast((entry) => entry.type === "custom_message"),
+      ),
+      saved: written(
+        restored.findLast(
           (entry) => entry.type === "custom" && entry.customType === stateEntry,
         ),
-    ).toMatchObject({
-      data: {
-        version: 1,
-        active: false,
-        sourceSessionId: source.id,
-        exitReminderPending: false,
+      ),
+    }).toStrictEqual({
+      session: source,
+      plan: expectedPlan,
+      project: "unapproved",
+      notice: {
+        custom: "dotfiles:planning-exit:v1",
+        content: planExitReminder(plan.path),
+        display: false,
+      },
+      saved: {
+        custom: stateEntry,
+        data: {
+          version: 1,
+          active: false,
+          sourceSessionId: source.sessionId,
+          exitReminderPending: false,
+        },
       },
     });
   } finally {
@@ -653,7 +727,6 @@ it.each([
           ...process.env,
           HOME: cwd,
           PI_CODING_AGENT_DIR: join(cwd, "agent"),
-          PI_PLANNING_TRACE: join(cwd, "starts.jsonl"),
           PI_OFFLINE: "1",
         },
         stdio: ["pipe", "pipe", "pipe"],
@@ -685,18 +758,26 @@ it.each([
       if (question === undefined) {
         throw new Error("Expected the entry consent record.");
       }
-      const source = startLine(
-        JSON.parse((await readFile(join(cwd, "starts.jsonl"), "utf8")).trim()),
+      const source = await sessionState(
+        send,
+        (condition) =>
+          waits.until(
+            child,
+            condition,
+            () => `Expected the session state: ${errors}`,
+          ),
+        records,
+        "state",
       );
       const plan = new PlanStore(
         join(cwd, "agent/plans"),
-        source.id,
+        source.sessionId,
         nodeFiles,
       );
       expect({
         title: question.title,
         planExists: plan.exists(),
-        saved: SessionManager.open(source.file)
+        saved: SessionManager.open(source.sessionFile)
           .getBranch()
           .filter(
             (item) => item.type === "custom" && item.customType === stateEntry,
@@ -713,7 +794,7 @@ it.each([
         () => records.some((item) => item.type === "agent_settled"),
         () => `The entry consent fixture has not settled: ${errors}`,
       );
-      const manager = SessionManager.open(source.file);
+      const manager = SessionManager.open(source.sessionFile);
       const result = manager
         .buildSessionContext()
         .messages.find(
