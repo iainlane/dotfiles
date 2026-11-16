@@ -44,6 +44,10 @@
         message = "refresh capability requires a local updater";
       }
       {
+        valid = builtins.isBool (policy.lockfileMaintenance or false) && (!(policy.lockfileMaintenance or false) || script != null);
+        message = "lockfile maintenance capability requires a local updater";
+      }
+      {
         valid = script == null || lib.isDerivation script;
         message = "local updateScript must be an executable derivation, not an inherited upstream script";
       }
