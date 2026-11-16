@@ -53,6 +53,7 @@ const specificationSchema = z.object({
       z.string(),
       z.strictObject({
         allowExtraUsage: z.boolean().optional(),
+        preferExtraUsage: z.boolean().optional(),
       }),
     )
     .optional(),

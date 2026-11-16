@@ -74,16 +74,24 @@ Declare policy for an existing subscription without storing OAuth tokens in Nix:
 
 ```nix
 dotfiles.claudeCode.teamclaude = {
-  accountSettings."me@example.com".allowExtraUsage = true;
+  accountSettings."me@example.com" = {
+    allowExtraUsage = true;
+    preferExtraUsage = true;
+  };
   settings.quotaProbeSeconds = 300;
 };
 ```
 
 Account settings require exact TeamClaude account names. Missing accounts are
 skipped until login adds them and activation or server startup applies the
-configuration again. Subscription extra usage is a fallback after every eligible
-account, including API-key accounts. The quota probe refreshes extra-usage
-availability and spend every five minutes.
+configuration again. With `allowExtraUsage` alone, subscription extra usage is a
+fallback after every eligible account, including API-key accounts. With
+`preferExtraUsage` as well, the subscription uses its included quota past the
+switch threshold, and then extra usage, before API-key accounts with an equal or
+higher priority value. When only subscriptions without `preferExtraUsage` have
+included quota left past their thresholds, API-key accounts are used before
+extra usage. The quota probe refreshes extra-usage availability and spend every
+five minutes.
 
 Activation and server startup apply declared settings without replacing OAuth
 credentials or undeclared values. Arrays are replaced as a whole. Removing a

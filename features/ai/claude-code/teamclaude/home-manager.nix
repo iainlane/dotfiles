@@ -106,6 +106,19 @@ in {
             default = null;
             description = "Whether the subscription may use paid extra usage, or null to preserve the runtime setting.";
           };
+          preferExtraUsage = lib.mkOption {
+            type = lib.types.nullOr lib.types.bool;
+            default = null;
+            description = ''
+              Whether the subscription uses its included quota past the switch
+              threshold, and then paid extra usage, before API-key accounts
+              with an equal or higher priority value. When only subscriptions
+              without this setting have included quota left past their
+              thresholds, API-key accounts are used before paid extra usage.
+              Null preserves the runtime setting. TeamClaude ignores it unless
+              the account also allows extra usage.
+            '';
+          };
         };
       });
       description = ''

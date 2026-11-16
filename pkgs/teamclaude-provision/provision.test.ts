@@ -282,14 +282,18 @@ describe("TeamClaude provisioning", () => {
         config: {
           ...initial,
           accounts: [
-            { ...oauth, allowExtraUsage: !enabled },
+            {
+              ...oauth,
+              allowExtraUsage: !enabled,
+              preferExtraUsage: !enabled,
+            },
             { ...fallback, disabled: true },
           ],
         },
         spec: {
           ...spec,
           accountSettings: {
-            personal: { allowExtraUsage: enabled },
+            personal: { allowExtraUsage: enabled, preferExtraUsage: enabled },
           },
         },
       });
@@ -300,7 +304,11 @@ describe("TeamClaude provisioning", () => {
       expect(f.stored()).toStrictEqual({
         config: {
           accounts: [
-            { ...oauth, allowExtraUsage: enabled },
+            {
+              ...oauth,
+              allowExtraUsage: enabled,
+              preferExtraUsage: enabled,
+            },
             { ...fallback, id: "generated-id", disabled: true },
           ],
           proxy: { port: 3457, apiKey: "proxy-key" },
