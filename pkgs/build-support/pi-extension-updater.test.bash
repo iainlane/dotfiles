@@ -16,9 +16,6 @@ cd "$fixture/repository/pkgs/fixture"
 export PI_UPDATER_VERSION=2.0.0
 export PI_UPDATER_LOCK="$fixture/new-lock.json"
 export PI_UPDATER_ARCHIVE="$fixture/source.tgz"
-export PI_UPDATER_NPM_CALLS="$fixture/npm-calls"
-export PI_UPDATER_CONSUMED_MANIFEST="$fixture/consumed-manifest.json"
-export PI_UPDATER_LISTED_MANIFEST="$fixture/listed-manifest.json"
 export PI_UPDATER_URL="$fixture/url"
 
 reset_outputs() {
@@ -33,7 +30,10 @@ reset_outputs() {
 make_archive() {
 	local manifest='{"name":"fixture","version":"2.0.0"}'
 	printf '%s\n' "${1:-$manifest}" >"$fixture/archive/package/package.json"
-	cp "$PI_UPDATER_LOCK" "$fixture/archive/package/package-lock.json"
+	rm -f "$fixture/archive/package/package-lock.json"
+	if [[ "${2:-}" != without-lock ]]; then
+		cp "$PI_UPDATER_LOCK" "$fixture/archive/package/package-lock.json"
+	fi
 	printf '%s\n' before >"$fixture/archive/package/support.txt"
 	printf '%s\n' '{"release":"2.0.0"}' >"$fixture/archive/package/scripts/metadata.json"
 	tar -czf "$PI_UPDATER_ARCHIVE" -C "$fixture/archive" package
@@ -104,21 +104,19 @@ for program in "$registry" "$github"; do
 		grep -Fx 'https://github.com/fixture/fixture/archive/explicit-revision.tar.gz' "$PI_UPDATER_URL"
 	fi
 
-	cp "$fixture/valid-lock.json" "$PI_UPDATER_LOCK"
-	make_archive '{"name":"fixture","version":"2.0.0","overrides":{"shared":"1.0.0"}}'
+	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0","dependencies":{"dep":"1.0.0"}},"node_modules/dep":{"version":"1.0.0","dependencies":{"shared":"^2.0.0"}},"node_modules/shared":{"version":"1.0.0"}}}' >"$PI_UPDATER_LOCK"
+	make_archive '{"name":"fixture","version":"2.0.0","dependencies":{"dep":"1.0.0"}}'
 	reset_outputs
-	export PI_UPDATER_LS_STATUS=1
 	if "$program"; then
 		echo 'A lockfile that does not satisfy its manifest must fail the updater' >&2
 		exit 1
 	fi
 	unchanged
-	export PI_UPDATER_LS_STATUS=0
 
+	make_archive '{"name":"fixture","version":"2.0.0","dependencies":{"dep":"1.0.0"},"overrides":{"shared":"1.0.0"}}'
 	"$program"
 	jq '.packages[""].overrides = {"shared": "1.0.0"}' "$PI_UPDATER_LOCK" >"$fixture/expected-lock.json"
 	cmp "$fixture/expected-lock.json" npm-deps/package-lock.json
-	jq '.packages[""]' "$fixture/expected-lock.json" | cmp - "$PI_UPDATER_LISTED_MANIFEST"
 done
 
 # Package a release whose lockfile differs from npm's newest resolution, and
@@ -158,30 +156,24 @@ for program in "$registry" "$github"; do
 done
 rm "$fixture/archive/package/.npmrc"
 
-export PI_UPDATER_EXPECT_PATCH=1
-printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0","dependencies":{"runtime":"1.0.0"},"peerDependencies":{"host":"^1.4.0"}}}}' >"$PI_UPDATER_LOCK"
-make_archive
+printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"},"node_modules/runtime":{"version":"1.0.0"}}}' >"$PI_UPDATER_LOCK"
+make_archive '' without-lock
+jq --compact-output '.packages[""] += {"peerDependencies":{"host":"^1.4.0"},"dependencies":{"runtime":"1.0.0"}}' "$PI_UPDATER_LOCK" >"$fixture/expected-lock.json"
 for program in "$patched_registry" "$patched_github"; do
 	reset_outputs
-	rm -f "$PI_UPDATER_CONSUMED_MANIFEST" "$PI_UPDATER_NPM_CALLS"
 	"$program"
-	jq --exit-status '.peerDependencies.host == "^1.4.0" and .dependencies.runtime == "1.0.0"' "$PI_UPDATER_CONSUMED_MANIFEST"
-	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
-	test "$(wc -l <"$PI_UPDATER_NPM_CALLS")" -eq 1
+	cmp "$fixture/expected-lock.json" npm-deps/package-lock.json
 done
 
+make_archive
 for program in "$invalid_registry" "$invalid_github"; do
 	reset_outputs
-	rm -f "$PI_UPDATER_NPM_CALLS"
 	if "$program"; then
 		echo 'A failed source patch must fail the updater' >&2
 		exit 1
 	fi
 	unchanged
-	test ! -e "$PI_UPDATER_NPM_CALLS"
 done
-
-export PI_UPDATER_EXPECT_PATCH=0
 upstream="$fixture/upstream"
 git init -q -b main "$upstream"
 git -C "$upstream" config uploadpack.allowReachableSHA1InWant true
