@@ -19,12 +19,12 @@
 in
   buildNpmPackage {
     pname = "pi-diff";
-    version = "0.9.3-unstable-2026-11-10";
+    version = "0.9.3-unstable-2026-11-16";
     src = fetchFromGitHub {
       owner = "iainlane";
       repo = "pi-diff";
-      rev = "a42bc7d49bcbad8cd2d91b45fef15ffdff0efc06";
-      hash = "sha256-PGKDRlMEuZ0TJrduB5HAlZtNQLPoSmr1XCBSR5mDegk=";
+      rev = "d8102cb9d831a4fbf7dd6ff8b9309dc7d6cf203d";
+      hash = "sha256-3ivm6CT+CL0ek/51x+Eq5lOztOjyH+XM6JhCFRf4twU=";
     };
     inherit (deps) npmDeps;
     inherit (importNpmLock) npmConfigHook;
