@@ -1,5 +1,5 @@
 import { StatusCodes } from "http-status-codes";
-import { request as httpRequest } from "node:http";
+import { request as httpRequest, type RequestOptions } from "node:http";
 import { Readable } from "node:stream";
 
 export type SocketFetch = (
@@ -15,13 +15,17 @@ export class GuestTransportError extends Error {
   }
 }
 
-export const fetchSocket: SocketFetch = async (socket, request) => {
+export async function sendHttpRequest(
+  connection: Pick<RequestOptions, "socketPath" | "createConnection">,
+  request: Request,
+  failure: (cause: unknown) => Error,
+): Promise<Response> {
   return await new Promise<Response>((resolve, reject) => {
     const url = new URL(request.url);
 
     const outgoing = httpRequest(
       {
-        socketPath: socket,
+        ...connection,
         path: `${url.pathname}${url.search}`,
         method: request.method,
         headers: Object.fromEntries(request.headers),
@@ -57,7 +61,7 @@ export const fetchSocket: SocketFetch = async (socket, request) => {
     );
 
     outgoing.on("error", (cause: unknown) => {
-      reject(new GuestTransportError(cause));
+      reject(failure(cause));
     });
 
     if (request.body === null) {
@@ -69,9 +73,16 @@ export const fetchSocket: SocketFetch = async (socket, request) => {
     const body = Readable.fromWeb(request.body);
 
     body.on("error", (cause: unknown) => {
-      outgoing.destroy(new GuestTransportError(cause));
+      outgoing.destroy(failure(cause));
     });
 
     body.pipe(outgoing);
   });
-};
+}
+
+export const fetchSocket: SocketFetch = async (socket, request) =>
+  await sendHttpRequest(
+    { socketPath: socket },
+    request,
+    (cause) => new GuestTransportError(cause),
+  );

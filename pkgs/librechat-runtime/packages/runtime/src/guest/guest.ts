@@ -10,6 +10,11 @@ import { GuestWorkspaceTrust } from "#runtime/guest/guest-trust";
 import { GuestServiceProcess } from "#runtime/guest/guest-service";
 import { SystemdService } from "#runtime/guest/systemd-service";
 import { httpReady } from "#runtime/host/startup";
+import {
+  GuestRunnerConnectionError,
+  GuestRunnerUnavailableError,
+  type GuestRunner,
+} from "#runtime/guest/guest-runner";
 import type {
   ManagedProcess,
   ProcessRunner,
@@ -55,14 +60,6 @@ class GuestResumeTimeError extends Error {
 
 interface PendingGuestBinding extends PromiseWithResolvers<void> {
   binding: GuestBinding;
-}
-
-export class GuestRunnerStartupError extends Error {
-  constructor() {
-    super("The guest execution runner did not become ready");
-
-    this.name = "GuestRunnerStartupError";
-  }
 }
 
 export class GuestWorkspaceInitialisationError extends Error {
@@ -290,11 +287,22 @@ export class GuestGateway {
         return mcpErrorResponse(new GuestHttpMethodError());
       }
 
-      return await this.operations.forward(
-        request,
-        "runner",
-        path.slice("/runner".length),
-      );
+      try {
+        return await this.operations.forward(
+          request,
+          "runner",
+          path.slice("/runner".length),
+        );
+      } catch (error) {
+        if (
+          error instanceof GuestRunnerUnavailableError ||
+          error instanceof GuestRunnerConnectionError
+        ) {
+          return mcpErrorResponse(error);
+        }
+
+        throw error;
+      }
     }
 
     const server = /^\/mcp\/([a-zA-Z0-9_-]+)$/u.exec(path)?.[1];
@@ -318,18 +326,25 @@ export class NodeGuestOperations implements GuestOperations {
   private readonly onError: (error: unknown) => void;
   private readonly mcp: GuestServiceProcess;
   private readonly runner: GuestServiceProcess;
+  private readonly runnerClient: GuestRunner;
   private binding: GuestBinding | undefined;
 
   constructor(
     specification: GuestSpecification,
     processes: ProcessRunner,
-    options: { fetch: typeof globalThis.fetch; onError(error: unknown): void },
+    options: {
+      fetch: typeof globalThis.fetch;
+      runner: GuestRunner;
+      onError(error: unknown): void;
+    },
   ) {
     this.specification = specification;
 
     this.processes = processes;
 
     this.fetch = options.fetch;
+
+    this.runnerClient = options.runner;
 
     this.onError = (error) => options.onError(error);
 
@@ -350,28 +365,6 @@ export class NodeGuestOperations implements GuestOperations {
       start: (command) => this.processes.start(command),
       stop: (child) => mcpService.stop(child),
     });
-  }
-
-  private async waitForRunner(
-    child: ManagedProcess,
-    remaining = 30,
-  ): Promise<void> {
-    if (remaining === 0 || !child.running()) {
-      throw new GuestRunnerStartupError();
-    }
-
-    if (
-      await httpReady("http://127.0.0.1:2000/api/v2/health", {
-        fetch: this.fetch,
-        timeoutMs: 1000,
-      })
-    ) {
-      return;
-    }
-
-    await delay(1000);
-
-    await this.waitForRunner(child, remaining - 1);
   }
 
   private async watchRunner(child: ManagedProcess): Promise<void> {
@@ -431,14 +424,13 @@ export class NodeGuestOperations implements GuestOperations {
       async (child) => {
         void this.watchRunner(child);
 
-        await this.waitForRunner(child);
+        await this.runnerClient.waitUntilReady(() => child.running());
 
-        const response = await this.fetch(
-          "http://127.0.0.1:2000/api/v2/session/checkpoint",
-          {
+        const response = await this.runnerClient.request(
+          new Request("http://runner/api/v2/session/checkpoint", {
             headers: { "x-runtime-session-id": binding.runtimeId },
             signal: AbortSignal.timeout(30_000),
-          },
+          }),
         );
 
         if (!response.ok) {
@@ -465,6 +457,8 @@ export class NodeGuestOperations implements GuestOperations {
         args: ["--set", `@${time / 1000}`],
       });
     }
+
+    await this.runnerClient.waitUntilReady(() => this.runner.isReady());
 
     if (this.mcp.isReady()) {
       return;
@@ -587,8 +581,6 @@ export class NodeGuestOperations implements GuestOperations {
     target: "runner" | "mcp",
     path: string,
   ): Promise<Response> {
-    const port = target === "runner" ? 2000 : 8081;
-
     const headers = new Headers(request.headers);
 
     const connectionHeaders =
@@ -622,7 +614,13 @@ export class NodeGuestOperations implements GuestOperations {
       redirect: "manual",
     };
 
-    return await this.fetch(`http://127.0.0.1:${port}${path}`, init);
+    if (target === "runner") {
+      return await this.runnerClient.request(
+        new Request(`http://runner${path}`, init),
+      );
+    }
+
+    return await this.fetch(`http://127.0.0.1:8081${path}`, init);
   }
 }
 

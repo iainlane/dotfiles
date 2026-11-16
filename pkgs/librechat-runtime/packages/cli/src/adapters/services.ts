@@ -125,6 +125,8 @@ export class NativeRuntimeServices implements RuntimeServices {
         guestSpecificationSchema,
         NodeGuestOperations,
       } = await import("@dotfiles/librechat-runtime/guest");
+      const { GuestRunner } =
+        await import("@dotfiles/librechat-runtime/guest-runner");
       const specification = guestSpecificationSchema.parse(
         await jsonFile(file, this.effects.files),
       );
@@ -134,6 +136,7 @@ export class NativeRuntimeServices implements RuntimeServices {
       });
       const operations = new NodeGuestOperations(specification, processes, {
         fetch: this.effects.http,
+        runner: GuestRunner.local(),
         onError,
       });
       const server = guestHttpService(operations, onError);
