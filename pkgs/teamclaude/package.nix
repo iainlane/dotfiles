@@ -2,24 +2,20 @@
 {
   fetchFromGitHub,
   lib,
-  libfaketime,
   makeWrapper,
   nodejs,
   stdenvNoCC,
   updaters,
-  gh,
-  python3,
-  writeShellApplication,
 }:
-stdenvNoCC.mkDerivation {
+stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "teamclaude";
-  version = "1.1.26-unstable-2026-10-30";
+  version = "1.1.30";
 
   src = fetchFromGitHub {
-    owner = "iainlane";
+    owner = "KarpelesLab";
     repo = "teamclaude";
-    rev = "654fd97303f927078cafafdbf980f0c11c5af61e";
-    hash = "sha256-aH+RFzSbS5boQlHv1L6b4Jn1Yx4Sy9oCT7RCWhTOTn8=";
+    tag = "v${finalAttrs.version}";
+    hash = "sha256-oSbOCR8iWog30pC+VgXk4HE6pA/2B+6ptAe1eCprRpw=";
   };
 
   nativeBuildInputs = [makeWrapper];
@@ -28,16 +24,14 @@ stdenvNoCC.mkDerivation {
 
   doCheck = true;
 
-  nativeCheckInputs = [libfaketime nodejs];
+  nativeCheckInputs = [nodejs];
 
   __darwinAllowLocalNetworking = true;
 
   checkPhase = ''
     runHook preCheck
 
-    HOME="$TMPDIR" TZ=UTC FAKETIME_DONT_FAKE_MONOTONIC=1 \
-      faketime -f '@2026-10-04 00:00:00' \
-      node --test --test-timeout=120000 ${lib.optionalString stdenvNoCC.hostPlatform.isDarwin "--test-concurrency=1"}
+    HOME="$TMPDIR" TZ=UTC node --test --test-timeout=120000 ${lib.optionalString stdenvNoCC.hostPlatform.isDarwin "--test-concurrency=1"}
 
     runHook postCheck
   '';
@@ -58,20 +52,8 @@ stdenvNoCC.mkDerivation {
   '';
 
   passthru = {
-    maintenance = {
-      source = "pin";
-      reason = "The fork includes subscription routing fixes from PR #621.";
-    };
-    updateScript = writeShellApplication {
-      name = "update-teamclaude";
-      runtimeInputs = [gh python3];
-      text = ''exec python3 ${./update.py} "$@"'';
-    };
-    tests.updater = updaters.mkPythonUpdaterTest {
-      pname = "teamclaude";
-      script = ./update.py;
-      test = ./test_update.py;
-    };
+    maintenance.source = "release";
+    updateScript = updaters.mkNixUpdateUpdater {attr = "teamclaude";};
   };
 
   meta = {
@@ -81,4 +63,4 @@ stdenvNoCC.mkDerivation {
     mainProgram = "teamclaude";
     platforms = lib.platforms.unix;
   };
-}
+})
