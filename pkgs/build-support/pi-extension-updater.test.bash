@@ -27,12 +27,14 @@ reset_outputs() {
 	cp metadata.json "$fixture/old-metadata.json"
 }
 
+# Package the release with `$PI_UPDATER_LOCK` as the lockfile named by the
+# second argument, or with no lockfile when it is `none`.
 make_archive() {
-	local manifest='{"name":"fixture","version":"2.0.0"}'
+	local manifest='{"name":"fixture","version":"2.0.0"}' lockfile="${2:-package-lock.json}"
 	printf '%s\n' "${1:-$manifest}" >"$fixture/archive/package/package.json"
-	rm -f "$fixture/archive/package/package-lock.json"
-	if [[ "${2:-}" != without-lock ]]; then
-		cp "$PI_UPDATER_LOCK" "$fixture/archive/package/package-lock.json"
+	rm -f "$fixture/archive/package/"{package-lock.json,npm-shrinkwrap.json,yarn.lock}
+	if [[ "$lockfile" != none ]]; then
+		cp "$PI_UPDATER_LOCK" "$fixture/archive/package/$lockfile"
 	fi
 	printf '%s\n' before >"$fixture/archive/package/support.txt"
 	printf '%s\n' '{"release":"2.0.0"}' >"$fixture/archive/package/scripts/metadata.json"
@@ -119,11 +121,12 @@ for program in "$registry" "$github"; do
 	cmp "$fixture/expected-lock.json" npm-deps/package-lock.json
 done
 
-# Package a release whose lockfile differs from npm's newest resolution, and
-# record the release in `source.json`.
+# Package a release whose lockfile, named by the optional second argument,
+# differs from npm's newest resolution, and record the release in
+# `source.json`.
 prepare_maintenance() {
 	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"release"}' >"$PI_UPDATER_LOCK"
-	make_archive
+	make_archive '' "${2:-package-lock.json}"
 	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"newest"}' >"$PI_UPDATER_LOCK"
 	reset_outputs
 	if [[ "$1" == "$registry" ]]; then
@@ -134,12 +137,14 @@ prepare_maintenance() {
 	cp source.json "$fixture/maintained-source.json"
 }
 
-for program in "$registry" "$github"; do
-	prepare_maintenance "$program"
+for lockfile in package-lock.json npm-shrinkwrap.json yarn.lock; do
+	for program in "$registry" "$github"; do
+		prepare_maintenance "$program" "$lockfile"
 
-	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --maintain-lockfile
-	cmp "$fixture/maintained-source.json" source.json
-	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+		PI_UPDATER_FORBID_DISCOVERY=1 "$program" --maintain-lockfile
+		cmp "$fixture/maintained-source.json" source.json
+		cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+	done
 done
 
 mkdir "$fixture/home"
@@ -157,7 +162,7 @@ done
 rm "$fixture/archive/package/.npmrc"
 
 printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"},"node_modules/runtime":{"version":"1.0.0"}}}' >"$PI_UPDATER_LOCK"
-make_archive '' without-lock
+make_archive '' none
 jq --compact-output '.packages[""] += {"peerDependencies":{"host":"^1.4.0"},"dependencies":{"runtime":"1.0.0"}}' "$PI_UPDATER_LOCK" >"$fixture/expected-lock.json"
 for program in "$patched_registry" "$patched_github"; do
 	reset_outputs

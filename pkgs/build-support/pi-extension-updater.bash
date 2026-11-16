@@ -348,7 +348,7 @@ fi
 rm -f "${sourceDir}/.npmrc"
 
 if [[ "${mode}" == maintain-lockfile ]]; then
-	rm -f "${sourceDir}/package-lock.json"
+	rm -f "${sourceDir}/package-lock.json" "${sourceDir}/npm-shrinkwrap.json" "${sourceDir}/yarn.lock"
 fi
 
 if [[ "${mode}" == maintain-lockfile ]] || ${commitSource} || [[ -z "${gitHubOwner}" || "$(setting '(.patches | length) + (.npmDependencies | length)')" != 0 ]]; then
