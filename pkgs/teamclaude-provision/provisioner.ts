@@ -137,12 +137,26 @@ async function readJson(
   }
 }
 
+function rejectPrototypeKeys(value: unknown): void {
+  if (typeof value !== "object" || value === null) {
+    return;
+  }
+
+  if (Object.hasOwn(value, "__proto__")) {
+    throw new UnsupportedFieldError("__proto__");
+  }
+
+  for (const nested of Object.values(value)) {
+    rejectPrototypeKeys(nested);
+  }
+}
+
 function mergeSettings(
   config: Record<string, unknown>,
   settings: Record<string, unknown>,
 ): void {
   for (const [key, value] of Object.entries(settings)) {
-    if (["__proto__", "constructor", "prototype"].includes(key)) {
+    if (["constructor", "prototype"].includes(key)) {
       throw new UnsupportedFieldError(key);
     }
 
@@ -373,13 +387,21 @@ async function run(
 ): Promise<void> {
   const { configFile, specFile } = paths;
   const { library } = dependencies;
+  const specification = await readJson(specFile, dependencies.readText);
+
+  if (
+    typeof specification === "object" &&
+    specification !== null &&
+    "settings" in specification
+  ) {
+    rejectPrototypeKeys(specification.settings);
+  }
 
   await provision(
-    parse(
-      specificationSchema,
-      await readJson(specFile, dependencies.readText),
-      { source: "specification", path: specFile },
-    ),
+    parse(specificationSchema, specification, {
+      source: "specification",
+      path: specFile,
+    }),
     {
       readKey: (path) => readKey(path, dependencies),
       defaultConfig: () =>
