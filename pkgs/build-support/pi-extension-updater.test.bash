@@ -121,22 +121,42 @@ for program in "$registry" "$github"; do
 	jq '.packages[""]' "$fixture/expected-lock.json" | cmp - "$PI_UPDATER_LISTED_MANIFEST"
 done
 
-for program in "$registry" "$github"; do
+# Package a release whose lockfile differs from npm's newest resolution, and
+# record the release in `source.json`.
+prepare_maintenance() {
 	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"release"}' >"$PI_UPDATER_LOCK"
 	make_archive
 	printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0"}},"resolution":"newest"}' >"$PI_UPDATER_LOCK"
 	reset_outputs
-	if [[ "$program" == "$registry" ]]; then
+	if [[ "$1" == "$registry" ]]; then
 		printf '%s\n' '{"tarballHash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","version":"2.0.0"}' >source.json
 	else
 		printf '%s\n' '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","tag":"v2.0.0","version":"2.0.0"}' >source.json
 	fi
 	cp source.json "$fixture/maintained-source.json"
+}
+
+for program in "$registry" "$github"; do
+	prepare_maintenance "$program"
 
 	PI_UPDATER_FORBID_DISCOVERY=1 "$program" --maintain-lockfile
 	cmp "$fixture/maintained-source.json" source.json
 	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
 done
+
+mkdir "$fixture/home"
+for npmrc in "$fixture/archive/package/.npmrc" "$fixture/home/.npmrc" "$fixture/global-npmrc"; do
+	printf '%s\n' 'registry=https://elsewhere.invalid/' '@fixture:registry=https://elsewhere.invalid/' >"$npmrc"
+done
+for program in "$registry" "$github"; do
+	prepare_maintenance "$program"
+
+	HOME="$fixture/home" PI_UPDATER_GLOBAL_NPMRC="$fixture/global-npmrc" PI_UPDATER_FORBID_DISCOVERY=1 \
+		"$program" --maintain-lockfile
+	cmp "$fixture/maintained-source.json" source.json
+	cmp "$PI_UPDATER_LOCK" npm-deps/package-lock.json
+done
+rm "$fixture/archive/package/.npmrc"
 
 export PI_UPDATER_EXPECT_PATCH=1
 printf '%s\n' '{"lockfileVersion":3,"packages":{"":{"name":"fixture","version":"2.0.0","dependencies":{"runtime":"1.0.0"},"peerDependencies":{"host":"^1.4.0"}}}}' >"$PI_UPDATER_LOCK"

@@ -3,8 +3,48 @@
   npm = pkgs.writeShellApplication {
     name = "npm";
     text = ''
+      # npm reads `registry` from the environment first, then from the
+      # project, user and global configuration files. A scope's registry
+      # setting overrides `registry` for packages in that scope.
+      config_value() {
+        local key="$1" file value
+
+        if [[ "$key" == registry && -n "''${npm_config_registry:-}" ]]; then
+          printf '%s\n' "$npm_config_registry"
+          return
+        fi
+
+        for file in .npmrc "''${npm_config_userconfig:-$HOME/.npmrc}" "''${npm_config_globalconfig:-''${PI_UPDATER_GLOBAL_NPMRC:-}}"; do
+          if [[ ! -f "$file" ]]; then
+            continue
+          fi
+
+          value="$(sed -n "s|^$key=||p" "$file")"
+          if [[ -n "$value" ]]; then
+            printf '%s\n' "$value"
+            return
+          fi
+        done
+      }
+
+      # The fixture can reach only the public registry.
+      require_public_registry() {
+        local registry scoped
+
+        registry="$(config_value registry)"
+        registry="''${registry:-https://registry.npmjs.org/}"
+        scoped="$(config_value @fixture:registry)"
+
+        for url in "$registry" "''${scoped:-$registry}"; do
+          if [[ "$url" != https://registry.npmjs.org/ ]]; then
+            exit 1
+          fi
+        done
+      }
+
       case "$1" in
         view)
+          require_public_registry
           if [[ "''${PI_UPDATER_FORBID_DISCOVERY:-0}" == 1 ]]; then exit 1; fi
           case "$3" in
             repository)
@@ -19,6 +59,7 @@
           esac
           ;;
         install)
+          require_public_registry
           if [[ "''${PI_UPDATER_EXPECT_PATCH:-0}" == 1 ]]; then
             test "$(cat support.txt)" = after
             cp package.json "$PI_UPDATER_CONSUMED_MANIFEST"
