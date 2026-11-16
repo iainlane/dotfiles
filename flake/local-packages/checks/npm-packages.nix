@@ -292,36 +292,47 @@ in
           '';
         };
       in {
-        checks.npm-packages =
-          pkgs.runCommandLocal "npm-packages" {
-            inherit report;
-            nativeBuildInputs = [pkgs.nodejs_24 pkgs.gitMinimal pkgs.jq pkgs.yq-go pkgs.diffutils pkgs.pyright pkgs.ruff];
-            passthru.ci.runOnce = true;
-          } ''
-            if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
-            ruff check ${../../../pkgs/build-support/fake-pnpm.py}
-            ruff format --check ${../../../pkgs/build-support/fake-pnpm.py}
-            pyright ${../../../pkgs/build-support/fake-pnpm.py}
-            bash ${../../../pkgs/build-support/pnpm-providers.test.bash} ${../../../pkgs/build-support/pnpm-providers.bash}
-            bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
-            touch "$out"
-          '';
+        checks = {
+          npm-packages =
+            pkgs.runCommandLocal "npm-packages" {
+              inherit report;
+              nativeBuildInputs = [pkgs.nodejs_24 pkgs.gitMinimal pkgs.jq pkgs.yq-go pkgs.diffutils pkgs.pyright pkgs.ruff];
+              passthru.ci.runOnce = true;
+            } ''
+              if [ -n "$report" ]; then printf '%s\n' "$report" >&2; exit 1; fi
+              ruff check ${../../../pkgs/build-support/fake-pnpm.py}
+              ruff format --check ${../../../pkgs/build-support/fake-pnpm.py}
+              pyright ${../../../pkgs/build-support/fake-pnpm.py}
+              bash ${../../../pkgs/build-support/pnpm-providers.test.bash} ${../../../pkgs/build-support/pnpm-providers.bash}
+              bash ${../../../pkgs/build-support/pnpm-lock-updater.test.bash} ${lib.getExe updater}
+              touch "$out"
+            '';
 
-        checks.npm-pack-hook =
-          pkgs.runCommandLocal "npm-pack-hook" {
-            nativeBuildInputs = [pkgs.diffutils pkgs.gnutar pkgs.gzip];
-            passthru.ci.runOnce = true;
-          } ''
-            set -euo pipefail
-            tar -tzf ${packed.tarball}/package.tgz | sort >contents
-            printf '%s\n' package/cli.js package/package.json | diff -u - contents
+          syncpack-config =
+            pkgs.runCommandLocal "syncpack-config" {
+              nativeBuildInputs = [pkgs.jq pkgs.syncpack pkgs.yq-go];
+              passthru.ci.runOnce = true;
+            } ''
+              bash ${../../../pkgs/build-support/syncpack-config.test.bash} ${../../../.syncpackrc.json}
+              touch "$out"
+            '';
 
-            printf '%s\n' '#!/usr/bin/env node' | diff -u - <(tar -xzOf ${packed.tarball}/package.tgz package/cli.js | head -n 1)
-            case "$(head -n 1 ${packed}/lib/cli.js)" in
-              '#!/nix/store/'*) ;;
-              *) echo 'Fixup must still patch the installed script.' >&2; exit 1 ;;
-            esac
-            touch "$out"
-          '';
+          npm-pack-hook =
+            pkgs.runCommandLocal "npm-pack-hook" {
+              nativeBuildInputs = [pkgs.diffutils pkgs.gnutar pkgs.gzip];
+              passthru.ci.runOnce = true;
+            } ''
+              set -euo pipefail
+              tar -tzf ${packed.tarball}/package.tgz | sort >contents
+              printf '%s\n' package/cli.js package/package.json | diff -u - contents
+
+              printf '%s\n' '#!/usr/bin/env node' | diff -u - <(tar -xzOf ${packed.tarball}/package.tgz package/cli.js | head -n 1)
+              case "$(head -n 1 ${packed}/lib/cli.js)" in
+                '#!/nix/store/'*) ;;
+                *) echo 'Fixup must still patch the installed script.' >&2; exit 1 ;;
+              esac
+              touch "$out"
+            '';
+        };
       }
     ).checks
