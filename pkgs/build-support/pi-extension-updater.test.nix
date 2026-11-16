@@ -61,12 +61,20 @@
         install)
           require_public_registry
 
-          # npm keeps an existing lockfile. A fresh resolution records the
+          # npm keeps an existing package-lock.json. With an
+          # npm-shrinkwrap.json, it updates that file and writes no
+          # package-lock.json. It takes resolved versions from a yarn.lock,
+          # which the fixture writes as a lockfile. A resolution records the
           # manifest's dependency declarations in the lockfile's root record.
-          if [[ ! -e package-lock.json ]]; then
+          if [[ ! -e package-lock.json && ! -e npm-shrinkwrap.json ]]; then
+            resolution="$PI_UPDATER_LOCK"
+            if [[ -e yarn.lock ]]; then
+              resolution=yarn.lock
+            fi
+
             jq --compact-output --slurpfile manifest package.json \
               '.packages[""] += ($manifest[0] | with_entries(select(.key == "dependencies" or .key == "peerDependencies")))' \
-              "$PI_UPDATER_LOCK" >package-lock.json
+              "$resolution" >package-lock.json
           fi
           ;;
         ls)
