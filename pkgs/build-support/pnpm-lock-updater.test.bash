@@ -11,6 +11,9 @@ git -C "$root" init --quiet
 # `$FAKE_REGISTRY`.
 export FAKE_PACKAGES="$root/packages" FAKE_REGISTRY="$root/registry.json" FAKE_STORE="$root/store"
 
+# GitHub Actions, which runs the updaters, sets CI, and pnpm reads it.
+export CI=true
+
 jq . >"$FAKE_REGISTRY" <<'JSON'
 {
   "@scope/host": {"1.0.0": {}, "2.0.0": {}},
