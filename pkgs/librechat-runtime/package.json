@@ -9,7 +9,7 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present typecheck",
-    "lint": "oxlint packages scripts vitest.config.ts && syncpack lint --config ../../.syncpackrc.json",
+    "lint": "oxlint packages scripts test vitest.config.ts && syncpack lint --config ../../.syncpackrc.json",
     "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {

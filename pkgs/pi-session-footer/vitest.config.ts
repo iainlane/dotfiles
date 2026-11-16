@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: { alias: aliases },
   test: {
     fileParallelism: false,
+    setupFiles: ["./test/support/error-equality.ts"],
     // A test that never finishes never runs its onTestFinished hooks, which
     // print the terminal screen and close Pi. The limits make a hung test
     // fail and report what it was waiting for.

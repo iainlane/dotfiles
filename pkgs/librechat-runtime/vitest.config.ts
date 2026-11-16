@@ -3,8 +3,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    setupFiles: [
+      fileURLToPath(new URL("./test/error-equality.ts", import.meta.url)),
+    ],
     projects: [
       {
+        extends: true,
         resolve: {
           tsconfigPaths: true,
           alias: {
@@ -16,6 +20,7 @@ export default defineConfig({
         test: { name: "runtime", root: "./packages/runtime" },
       },
       {
+        extends: true,
         resolve: {
           tsconfigPaths: true,
           alias: {
