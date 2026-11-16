@@ -40,6 +40,24 @@ in
   }
   null
   == [];
+  assert valid {
+    source = "repository";
+    lockfileMaintenance = true;
+  }
+  executable
+  == [];
+  assert valid {
+    source = "repository";
+    lockfileMaintenance = true;
+  }
+  null
+  == ["fixture: lockfile maintenance capability requires a local updater"];
+  assert valid {
+    source = "repository";
+    lockfileMaintenance = "yes";
+  }
+  executable
+  == ["fixture: lockfile maintenance capability requires a local updater"];
   assert valid {source = "unknown";} null != [];
   assert valid {
     source = "input";
