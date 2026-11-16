@@ -11,7 +11,8 @@ in the lockfile records the override's specifier, and pnpm rewrites a relative
 `catalog:<name>` specifier takes its range from the workspace's `catalog` or
 `catalogs.<name>`, and the lockfile's `catalogs` lists each entry that a
 dependency used, with the version that the entry resolved to. `install` keeps
-that version for every importer while the entry's range is unchanged.
+that version for every importer while the entry's range is unchanged. As in
+pnpm, a workspace must not have both `catalog` and `catalogs.default`.
 
 As in pnpm 10 with `autoInstallPeers: false`, a peer resolves to the package of
 that name among the dependent's siblings or, failing that, among its ancestors'
@@ -157,7 +158,11 @@ class Resolver:
         self.catalogs: dict[str, dict[str, str]] = dict(
             self.workspace.get("catalogs") or {}
         )
-        if self.workspace.get("catalog"):
+        if self.workspace.get("catalog") is not None:
+            if "default" in self.catalogs:
+                raise Failure(
+                    "ERR_PNPM_INVALID_CATALOGS_CONFIGURATION  The 'default' catalog was defined multiple times. Use the 'catalog' field or 'catalogs.default', but not both."
+                )
             self.catalogs["default"] = self.workspace["catalog"]
         self.used: dict[str, dict[str, dict[str, str]]] = {}
         lockfile = read_yaml(Path("pnpm-lock.yaml"))
