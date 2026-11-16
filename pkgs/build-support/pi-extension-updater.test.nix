@@ -60,19 +60,29 @@
           ;;
         install)
           require_public_registry
-          if [[ "''${PI_UPDATER_EXPECT_PATCH:-0}" == 1 ]]; then
-            test "$(cat support.txt)" = after
-            cp package.json "$PI_UPDATER_CONSUMED_MANIFEST"
-          fi
-          printf '%s\n' called >>"$PI_UPDATER_NPM_CALLS"
+
+          # npm keeps an existing lockfile. A fresh resolution records the
+          # manifest's dependency declarations in the lockfile's root record.
           if [[ ! -e package-lock.json ]]; then
-            cp "$PI_UPDATER_LOCK" package-lock.json
+            jq --compact-output --slurpfile manifest package.json \
+              '.packages[""] += ($manifest[0] | with_entries(select(.key == "dependencies" or .key == "peerDependencies")))' \
+              "$PI_UPDATER_LOCK" >package-lock.json
           fi
           ;;
         ls)
           test "$*" = 'ls --all --package-lock-only'
-          cp package.json "$PI_UPDATER_LISTED_MANIFEST"
-          exit "''${PI_UPDATER_LS_STATUS:-0}"
+
+          # An edge is valid when the locked version equals the requested
+          # range, or when the manifest overrides the package to that version.
+          jq --exit-status --slurpfile manifest package.json '
+            ($manifest[0].overrides // {}) as $overrides
+            | .packages as $packages
+            | all(
+                $packages[] | (.dependencies // {}) | to_entries[];
+                $packages["node_modules/" + .key].version as $locked
+                | $locked == .value or $overrides[.key] == $locked
+              )
+          ' package-lock.json >/dev/null
           ;;
         *) exit 1 ;;
       esac
