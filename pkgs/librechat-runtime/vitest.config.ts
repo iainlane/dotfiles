@@ -6,6 +6,10 @@ export default defineConfig({
     setupFiles: [
       fileURLToPath(new URL("./test/error-equality.ts", import.meta.url)),
     ],
+    // The integration tests start Node child processes. A child process
+    // takes about 130 ms on an idle machine and several seconds on a loaded
+    // builder.
+    testTimeout: 30_000,
     projects: [
       {
         extends: true,
