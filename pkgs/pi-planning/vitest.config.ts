@@ -53,6 +53,7 @@ export default defineConfig({
   },
   test: {
     fileParallelism: false,
+    setupFiles: ["./test/error-equality.ts"],
     projects: [
       {
         extends: true,

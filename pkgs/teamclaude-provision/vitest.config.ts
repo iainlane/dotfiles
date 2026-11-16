@@ -5,6 +5,7 @@ export default defineConfig({
   cacheDir: "./node_modules/.vite",
   test: {
     include: ["*.test.ts", "tests/*.test.ts"],
+    setupFiles: ["./tests/error-equality.ts"],
     provide: {
       launchers: {
         claude: process.env.TEAMCLAUDE_TEST_CLAUDE ?? "",
