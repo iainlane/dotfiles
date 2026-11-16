@@ -54,6 +54,14 @@ trap 'rm -rf "${tmpdir}" "${staged}" "${stagedLock}" "${metadataStages[@]}"' EXI
 # Leave the caller's npm cache alone; this run only reads metadata.
 export npm_config_cache="${tmpdir}/npm-cache"
 
+# Resolve against the public registry with npm's default settings. The
+# caller's configuration and a `.npmrc` shipped in the source could otherwise
+# redirect the registry or change how npm resolves the lockfile.
+touch "${tmpdir}/npmrc"
+export npm_config_userconfig="${tmpdir}/npmrc"
+export npm_config_globalconfig=/dev/null
+export npm_config_registry=https://registry.npmjs.org/
+
 # Print the GitHub owner, repository and package directory that npm records
 # for the latest release. The directory is empty when the package is the
 # repository root.
@@ -336,6 +344,8 @@ if [[ "$(setting '.npmDependencies | length')" != 0 ]]; then
 		"${sourceDir}/package.json" >"${sourceDir}/package.json.new"
 	mv "${sourceDir}/package.json.new" "${sourceDir}/package.json"
 fi
+
+rm -f "${sourceDir}/.npmrc"
 
 if [[ "${mode}" == maintain-lockfile ]]; then
 	rm -f "${sourceDir}/package-lock.json"
