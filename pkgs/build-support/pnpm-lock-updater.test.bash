@@ -792,6 +792,165 @@ expect <<'JSON'
 }
 JSON
 
+# A dependency on a local package with a `catalog:` specifier keeps that
+# specifier, and its entry under `catalog` in pnpm-workspace.yaml moves to a
+# caret range of the local version.
+project '{"package.json": {"devDependencies": {"linked": "catalog:"}}}' "$workspace"'
+catalog:
+  linked: ^0'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"linked-1.0.0.tgz": "linked-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "linked": {
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": {
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {"linked@file:.nix-providers/linked-1.0.0.tgz": {}}
+  },
+  "manifests": {"package.json": {"devDependencies": {"linked": "catalog:"}}},
+  "workspace": {
+    "catalog": {"linked": "^1.0.0"},
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": ["."]
+  }
+}
+JSON
+
+# pnpm reads the entries for a bare `catalog:` specifier from `catalog` or from
+# `catalogs.default`, and rejects a workspace that has both. A new entry goes
+# into the map that the workspace already uses.
+for location in catalog catalogs.default; do
+	case "$location" in
+	catalog)
+		entries='catalog:
+  other: ^4'
+		catalogs='"catalog": {"linked": "^1.0.0", "other": "^4"}'
+		;;
+	catalogs.default)
+		entries='catalogs:
+  default:
+    other: ^4'
+		catalogs='"catalogs": {"default": {"linked": "^1.0.0", "other": "^4"}}'
+		;;
+	esac
+
+	project '{"package.json": {"devDependencies": {"linked": "catalog:"}}}' "$workspace
+$entries"
+	update
+	expect <<JSON
+{
+  "hashed": true,
+  "links": {"linked-1.0.0.tgz": "linked-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "linked": {
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
+            "version": "file:.nix-providers/linked-1.0.0.tgz"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": {
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {"linked@file:.nix-providers/linked-1.0.0.tgz": {}}
+  },
+  "manifests": {"package.json": {"devDependencies": {"linked": "catalog:"}}},
+  "workspace": {
+    $catalogs,
+    "overrides": {"linked": "file:.nix-providers/linked-1.0.0.tgz"},
+    "packages": ["."]
+  }
+}
+JSON
+done
+
+# A dependency on the project's own peer points at the tarball even when it has
+# a `catalog:` specifier, and the catalog entry stays as it was.
+project '{"package.json": {
+  "devDependencies": {"@scope/host": "catalog:tools", "uses-host": "^1"},
+  "peerDependencies": {"@scope/host": "^1"}
+}}' "$workspace"'
+catalogs:
+  tools:
+    "@scope/host": ^1'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "uses-host": {"specifier": "^1", "version": "1.0.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "uses-host@1.0.0": {"resolution": {"integrity": "sha512-uses-host-1.0.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "uses-host@1.0.0": {
+        "dependencies": {
+          "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+        }
+      }
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {
+        "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+        "uses-host": "^1"
+      },
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "catalogs": {"tools": {"@scope/host": "^1"}},
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
 # The repository's formatter writes double quotes, and a second update changes
 # nothing.
 project '{"package.json": {"devDependencies": {"@scope/host": "^2.0.0", "linked": "^1.0.0"}}}' "$workspace"

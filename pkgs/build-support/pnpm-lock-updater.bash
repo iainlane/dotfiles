@@ -168,9 +168,13 @@ link() {
 }
 
 # Points the manifests' dependencies on the needed local packages at caret
-# ranges of their versions, or at their tarballs for the workspace's peers.
+# ranges of their versions, or at their tarballs for the workspace's peers. A
+# dependency with a `catalog:` specifier keeps it, and the caret range goes into
+# the entry in pnpm-workspace.yaml. A peer's tarball replaces the specifier:
+# pnpm rejects a `file:` entry in a catalog, and an override that reaches the
+# project's manifest turns the peer into a production dependency.
 retarget() {
-	local manifest selected links
+	local manifest selected links name version
 	selected="$(overrides | cut -f 2 | jq -R . | jq -s --slurpfile catalogue "$catalogue" '. as $names | $catalogue[0] | map(select(.name as $name | $names | index($name)))')"
 
 	for manifest in "${manifests[@]}"; do
@@ -192,13 +196,36 @@ retarget() {
 						then .value = "npm:" + $package.name + "@^" + $package.version
 						elif .key == $package.name and ($peers | index($package.name))
 						then .value = "file:" + $links + "/" + $package.file
-						elif .key == $package.name and (.value | startswith("npm:") | not)
+						elif .key == $package.name and (.value | test("^(npm|catalog):") | not)
 						then .value = "^" + $package.version
 						else . end)
 					end))
 		' "$manifest" >"$staged"
 		mv "$staged" "$manifest"
 	done
+
+	while IFS=$'\t' read -r name version; do
+		set_catalog_entries "$name" "^$version"
+	done < <(jq -r '.[] | [.name, .version] | @tsv' <<<"$selected")
+}
+
+# Writes a specifier into each entry under `catalog` or `catalogs` in
+# pnpm-workspace.yaml that a manifest's `catalog:` specifier for the given
+# dependency refers to.
+set_catalog_entries() {
+	local name="$1" value="$2" catalog entry
+	while IFS= read -r catalog; do
+		catalog="${catalog:-default}"
+		entry='.catalogs[strenv(catalog)][strenv(name)]'
+		if [[ "$catalog" == default && "$(yq '.catalogs.default == null' pnpm-workspace.yaml)" == true ]]; then
+			entry='.catalog[strenv(name)]'
+		fi
+		catalog="$catalog" name="$name" value="$value" yq -i "$entry = strenv(value)" pnpm-workspace.yaml
+	done < <(jq -r --arg name "$name" '
+		.dependencies, .devDependencies, .optionalDependencies
+		| .[$name]? // empty
+		| select(startswith("catalog:"))
+		| ltrimstr("catalog:")' "${manifests[@]}" | LC_ALL=C sort -u)
 }
 
 override() {
@@ -343,18 +370,7 @@ for mismatch in "${mismatches[@]}"; do
 		mv "$staged" "$manifest"
 	done
 
-	while IFS= read -r catalog; do
-		catalog="${catalog:-default}"
-		entry='.catalogs[strenv(catalog)][strenv(name)]'
-		if [[ "$catalog" == default && "$(name="$name" yq '(.catalog // {}) | has(strenv(name))' pnpm-workspace.yaml)" == true ]]; then
-			entry='.catalog[strenv(name)]'
-		fi
-		catalog="$catalog" name="$name" version="$versions" yq -i "$entry = strenv(version)" pnpm-workspace.yaml
-	done < <(jq -r --arg name "$name" '
-		.dependencies, .devDependencies, .optionalDependencies
-		| .[$name]? // empty
-		| select(startswith("catalog:"))
-		| ltrimstr("catalog:")' "${manifests[@]}" | LC_ALL=C sort -u)
+	set_catalog_entries "$name" "$versions"
 done
 
 relock
