@@ -5,7 +5,9 @@ each version to its `dependencies` and `peerDependencies`. The project's
 overrides apply as in pnpm: `name` everywhere, and `parent>name` only to the
 dependencies of `parent`. An override or a manifest entry of the form
 `file:.nix-providers/<tarball>` installs the package in that tarball, and its
-manifest supplies the package's dependencies and peers. A `catalog:` or
+manifest supplies the package's dependencies and peers. An importer's entry
+in the lockfile records the override's specifier, and pnpm rewrites a relative
+`file:` override as a path from the importer's directory. A `catalog:` or
 `catalog:<name>` specifier takes its range from the workspace's `catalog` or
 `catalogs.<name>`, and the lockfile's `catalogs` lists each entry that a
 dependency used, with the version that the entry resolved to. `install` keeps
@@ -187,19 +189,34 @@ class Resolver:
             )
         return max(versions, key=parse)
 
+    def overridden(
+        self, name: str, specifier: str, parent: str | None, directory: str
+    ) -> str:
+        """The specifier of a dependency declared in `directory` once the
+        overrides apply. `parent` is the name of the package that depends on
+        it, for the scoped overrides."""
+        scoped = self.overrides.get(f"{parent}>{name}") if parent else None
+        override = scoped or self.overrides.get(name)
+        if override is None:
+            return specifier
+        if override.startswith("file:"):
+            return f"file:{os.path.relpath(override[len('file:') :], directory)}"
+        return override
+
     def node(
-        self, name: str, specifier: str, parent: str | None, owner: str
+        self, name: str, specifier: str, parent: str | None, owner: str, directory: str
     ) -> Node | None:
         """Chooses the package for a dependency of `owner`, an importer or a
-        snapshot, or returns None when an override removes it. `parent` is the
-        name of the package that depends on it, for the scoped overrides."""
-        scoped = self.overrides.get(f"{parent}>{name}") if parent else None
-        specifier = scoped or self.overrides.get(name) or specifier
+        snapshot, or returns None when an override removes it."""
+        specifier = self.overridden(name, specifier, parent, directory)
         if specifier == "-":
             return None
-        return self.package(name, specifier, self.locked.get(owner, {}).get(name))
+        locked = self.locked.get(owner, {}).get(name)
+        return self.package(name, specifier, locked, directory)
 
-    def package(self, name: str, specifier: str, locked: str | None) -> Node:
+    def package(
+        self, name: str, specifier: str, locked: str | None, directory: str
+    ) -> Node:
         if specifier.startswith("catalog:"):
             catalog = specifier[len("catalog:") :] or "default"
             entries = self.catalogs.get(catalog, {})
@@ -210,14 +227,14 @@ class Resolver:
             entry = self.locked_catalogs.get(catalog, {}).get(name, {})
             if locked is None and entry.get("specifier") == entries[name]:
                 locked = entry["version"]
-            node = self.package(name, entries[name], locked)
+            node = self.package(name, entries[name], locked, directory)
             self.used.setdefault(catalog, {})[name] = {
                 "specifier": entries[name],
                 "version": node.version,
             }
             return node
         if specifier.startswith("file:"):
-            return self.tarball(specifier)
+            return self.tarball(specifier, directory)
         target = name
         if specifier.startswith("npm:"):
             alias = specifier[len("npm:") :]
@@ -233,8 +250,11 @@ class Resolver:
             manifest.get("peerDependencies", {}),
         )
 
-    def tarball(self, specifier: str) -> Node:
-        path = specifier[len("file:") :]
+    def tarball(self, specifier: str, directory: str) -> Node:
+        """Reads the package in a tarball. The specifier is relative to
+        `directory`, and the lockfile refers to the tarball by its path from
+        the workspace root."""
+        path = os.path.normpath(Path(directory) / specifier[len("file:") :])
         if not Path(path).exists():
             raise Failure(f"ENOENT  {path} does not exist.")
         with tarfile.open(path) as archive:
@@ -244,8 +264,8 @@ class Resolver:
             manifest = json.load(member)
         return Node(
             manifest["name"],
-            specifier,
-            {"tarball": specifier},
+            f"file:{path}",
+            {"tarball": f"file:{path}"},
             manifest.get("dependencies", {}) | manifest.get("optionalDependencies", {}),
             manifest.get("peerDependencies", {}),
         )
@@ -255,14 +275,16 @@ class Resolver:
         dependencies: dict[str, str],
         parent: str | None,
         owner: str,
+        directory: str,
         ancestors: list[dict[str, Node]],
     ) -> dict[str, str]:
-        """Resolves the dependencies of `owner` and returns the reference that
-        the lockfile records for each one. `ancestors` lists the dependencies
-        of each package above `owner`, nearest first."""
+        """Resolves the dependencies of `owner`, declared in `directory`, and
+        returns the reference that the lockfile records for each one.
+        `ancestors` lists the dependencies of each package above `owner`,
+        nearest first."""
         siblings = {}
         for name, specifier in sorted(dependencies.items()):
-            node = self.node(name, specifier, parent, owner)
+            node = self.node(name, specifier, parent, owner, directory)
             if node is not None:
                 siblings[name] = node
         scope = [siblings, *ancestors]
@@ -288,7 +310,7 @@ class Resolver:
             if node.peers:
                 package["peerDependencies"] = node.peers
             self.packages[f"{node.target}@{node.version}"] = package
-            resolved = self.resolve_all(node.dependencies, node.target, key, scope)
+            resolved = self.resolve_all(node.dependencies, node.target, key, ".", scope)
             if resolved or peers:
                 self.snapshots[key] = {
                     "dependencies": dict(sorted((resolved | peers).items()))
@@ -331,11 +353,16 @@ class Resolver:
                 for field in FIELDS
                 for name, specifier in manifest.get(field, {}).items()
             }
-            resolved = self.resolve_all(dependencies, None, f"importer:{directory}", [])
+            resolved = self.resolve_all(
+                dependencies, None, f"importer:{directory}", directory, []
+            )
             importer = {}
             for field in FIELDS:
                 entries = {
-                    name: {"specifier": specifier, "version": resolved[name]}
+                    name: {
+                        "specifier": self.overridden(name, specifier, None, directory),
+                        "version": resolved[name],
+                    }
                     for name, specifier in sorted(manifest.get(field, {}).items())
                     if name in resolved
                 }
