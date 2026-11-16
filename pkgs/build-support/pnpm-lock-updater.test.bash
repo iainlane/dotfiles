@@ -152,24 +152,24 @@ expect <<'JSON'
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "alias": {
-            "specifier": "npm:@scope/host@^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "other": {"specifier": "^4", "version": "4.1.0"}
         },
         "devDependencies": {
           "linked": {
-            "specifier": "^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "file:.nix-providers/linked-1.0.0.tgz"
           },
           "plain": {
-            "specifier": "npm:linked@^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "linked@file:.nix-providers/linked-1.0.0.tgz"
           }
         },
         "optionalDependencies": {
           "scoped": {
-            "specifier": "npm:@scope/host@^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
           }
         }
@@ -269,7 +269,7 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "@dotfiles/private": {
-            "specifier": "^0.1.0",
+            "specifier": "file:.nix-providers/dotfiles-private-0.1.0.tgz",
             "version": "file:.nix-providers/dotfiles-private-0.1.0.tgz"
           }
         }
@@ -318,7 +318,7 @@ expect <<'JSON'
       ".": {
         "dependencies": {
           "@dotfiles/consumer": {
-            "specifier": "^1.0.0",
+            "specifier": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz",
             "version": "file:.nix-providers/dotfiles-consumer-1.0.0.tgz"
           }
         }
@@ -419,7 +419,7 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "old": {
-            "specifier": "npm:linked@^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "linked@file:.nix-providers/linked-1.0.0.tgz"
           }
         }
@@ -586,7 +586,7 @@ expect <<'JSON'
             "version": "1.0.0(linked@file:.nix-providers/linked-1.0.0.tgz)"
           },
           "linked": {
-            "specifier": "^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "file:.nix-providers/linked-1.0.0.tgz"
           }
         }
@@ -665,7 +665,7 @@ expect <<'JSON'
       "packages/app": {
         "dependencies": {
           "linked": {
-            "specifier": "^1.0.0",
+            "specifier": "file:../../.nix-providers/linked-1.0.0.tgz",
             "version": "file:.nix-providers/linked-1.0.0.tgz"
           }
         }
@@ -673,7 +673,7 @@ expect <<'JSON'
       "packages/tool": {
         "devDependencies": {
           "renamed": {
-            "specifier": "npm:@scope/host@^2.0.0",
+            "specifier": "file:../../.nix-providers/scope-host-2.0.0.tgz",
             "version": "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz"
           }
         }
@@ -738,11 +738,11 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "@scope/host": {
-            "specifier": "^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "linked": {
-            "specifier": "^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "file:.nix-providers/linked-1.0.0.tgz"
           }
         }
@@ -846,7 +846,7 @@ snapshots:
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "linked": {
-            "specifier": "^1.0.0",
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
             "version": "file:.nix-providers/linked-1.0.0.tgz"
           },
           "other": {"specifier": "^4", "version": "$other"},
@@ -941,7 +941,7 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "@scope/host": {
-            "specifier": "^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "@scope/tui": {"specifier": "1.1.0", "version": "1.1.0"}
@@ -993,7 +993,7 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "@scope/host": {
-            "specifier": "^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           }
         }
@@ -1063,7 +1063,7 @@ $entries
       ".": {
         "devDependencies": {
           "@scope/host": {
-            "specifier": "^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           },
           "@scope/tui": {"specifier": "$specifier", "version": "1.1.0"}
@@ -1176,7 +1176,7 @@ expect <<'JSON'
       ".": {
         "devDependencies": {
           "@scope/host": {
-            "specifier": "^2.0.0",
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
             "version": "file:.nix-providers/scope-host-2.0.0.tgz"
           }
         }
