@@ -464,10 +464,15 @@ describe("TeamClaude provisioning", () => {
     expect(f.stored()).toStrictEqual(unchanged(initial));
   });
 
-  it.each(["constructor", "prototype"])(
-    "rejects unsafe configuration field %s without writing",
-    async (field) => {
-      const f = fixture({ spec: { ...spec, settings: { [field]: true } } });
+  it.each<{ field: string; settings: Record<string, unknown> }>([
+    { field: "constructor", settings: { constructor: true } },
+    { field: "prototype", settings: { prototype: true } },
+    { field: "__proto__", settings: { ["__proto__"]: true } },
+    { field: "__proto__", settings: { proxy: { ["__proto__"]: true } } },
+  ])(
+    "rejects unsafe configuration field $field in $settings without writing",
+    async ({ field, settings }) => {
+      const f = fixture({ spec: { ...spec, settings } });
 
       await expect(f.run()).rejects.toStrictEqual(
         new UnsupportedFieldError(field),
@@ -476,16 +481,6 @@ describe("TeamClaude provisioning", () => {
       expect(f.stored()).toStrictEqual(unchanged(initial));
     },
   );
-
-  it("drops a __proto__ setting while validating the specification", async () => {
-    const f = fixture({
-      spec: { ...spec, settings: { ...spec.settings, ["__proto__"]: true } },
-    });
-
-    await f.run();
-
-    expect(f.stored()).toStrictEqual({ config: provisioned, modified: 1000 });
-  });
 });
 
 describe("sops-nix decryption", () => {
