@@ -19,7 +19,9 @@ const reportSchema = z.object({
   running: z.boolean(),
 });
 
-it("routes managed-service output to the injected sink without ambient writes", async () => {
+it("routes managed-service output to the injected sink without ambient writes", async ({
+  signal,
+}) => {
   const directory = await mkdtemp(join(tmpdir(), "librechat-process-output-"));
   const entry = join(directory, "supervisor.mjs");
   const report = join(directory, "report.json");
@@ -46,7 +48,7 @@ it("routes managed-service output to the injected sink without ambient writes", 
   );
   try {
     const { stdout, stderr } = await execute(process.execPath, [entry], {
-      timeout: 10_000,
+      signal,
     });
     const result = reportSchema.parse(
       JSON.parse(await readFile(report, "utf8")),
@@ -70,4 +72,4 @@ it("routes managed-service output to the injected sink without ambient writes", 
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 15_000);
+});

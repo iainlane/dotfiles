@@ -26,13 +26,13 @@ function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-it.each([
+it.for([
   { code: 0, stdoutClosed: false, status: 0 },
   { code: 1, stdoutClosed: false, status: 1 },
   { code: 0, stdoutClosed: true, status: 1 },
 ])(
   "flushes output with exit code $code and stdout closed: $stdoutClosed",
-  async ({ code, stdoutClosed, status: expectedStatus }) => {
+  async ({ code, stdoutClosed, status: expectedStatus }, { signal }) => {
     const directory = await mkdtemp(join(tmpdir(), "librechat-output-"));
     const entry = join(directory, "output.mjs");
     const stdout = stdoutClosed
@@ -62,7 +62,7 @@ it.each([
     );
 
     try {
-      const output = await runProcess(process.execPath, [entry]);
+      const output = await runProcess(process.execPath, [entry], { signal });
 
       expect({
         status: output.status,
@@ -77,10 +77,11 @@ it.each([
       await rm(directory, { recursive: true, force: true });
     }
   },
-  15_000,
 );
 
-it("keeps the logger configured for HTTP handlers after command startup returns", async () => {
+it("keeps the logger configured for HTTP handlers after command startup returns", async ({
+  signal,
+}) => {
   const directory = await mkdtemp(join(tmpdir(), "librechat-logger-"));
   const entry = join(directory, "logger.mjs");
   await writeFile(
@@ -115,7 +116,7 @@ it("keeps the logger configured for HTTP handlers after command startup returns"
   try {
     const { stdout, stderr } = await execute(process.execPath, [entry], {
       env: { AGENTSVIEW_BROKER_TOKEN: "fixture-archive-token" },
-      timeout: 10_000,
+      signal,
     });
     const diagnostics: unknown = JSON.parse(stderr);
     expect({ stdout, diagnostics }).toStrictEqual({
@@ -134,7 +135,9 @@ it("keeps the logger configured for HTTP handlers after command startup returns"
   }
 });
 
-it("redacts file-backed host credentials from failures reaching the CLI reporter", async () => {
+it("redacts file-backed host credentials from failures reaching the CLI reporter", async ({
+  signal,
+}) => {
   const directory = await mkdtemp(join(tmpdir(), "librechat-host-error-"));
   const secret = "file-key-value";
   const secretDirectory = join(directory, "secrets");
@@ -185,7 +188,7 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
         "serve",
         file,
       ],
-      { env: {} },
+      { env: {}, signal },
     );
     const [first, ...messages] = output.stderr.trimEnd().split("\n");
     const diagnostic: unknown = JSON.parse(first ?? "");
@@ -238,7 +241,9 @@ it("redacts file-backed host credentials from failures reaching the CLI reporter
   }
 });
 
-it("runs archive queries without host deployment dependencies", async () => {
+it("runs archive queries without host deployment dependencies", async ({
+  signal,
+}) => {
   const directory = await mkdtemp(join(tmpdir(), "librechat-cli-"));
 
   const preload = join(directory, "fetch.mjs");
@@ -268,7 +273,7 @@ it("runs archive queries without host deployment dependencies", async () => {
         "--limit",
         "1",
       ],
-      { env: { AGENTSVIEW_BROKER_TOKEN: token }, cwd: directory },
+      { env: { AGENTSVIEW_BROKER_TOKEN: token }, cwd: directory, signal },
     );
 
     const response: unknown = JSON.parse(stdout);
@@ -301,7 +306,7 @@ const hookFailure = {
     "The conversation controller could not prepare the workspace reminder. Check the LibreChat services.",
 };
 
-it.each([
+it.for([
   {
     command: "guest",
     diagnostics: undefined,
@@ -317,7 +322,7 @@ it.each([
   { command: "hook", diagnostics: "1", error: hookFailure, logged: true },
 ])(
   "logs $command failure diagnostics with LIBRECHAT_DIAGNOSTICS=$diagnostics: $logged",
-  async ({ command, diagnostics, error, logged }) => {
+  async ({ command, diagnostics, error, logged }, { signal }) => {
     const output = await runProcess(
       process.execPath,
       [
@@ -330,6 +335,7 @@ it.each([
           diagnostics === undefined
             ? {}
             : { LIBRECHAT_DIAGNOSTICS: diagnostics },
+        signal,
       },
     );
     const [first = "", ...messages] = output.stderr.trimEnd().split("\n");

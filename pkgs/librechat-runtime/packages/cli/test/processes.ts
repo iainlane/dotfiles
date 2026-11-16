@@ -10,16 +10,16 @@ export async function runProcess(
   executable: string,
   args: string[],
   options: {
+    signal: AbortSignal;
     env?: NodeJS.ProcessEnv;
     cwd?: string;
     input?: string;
-    timeout?: number;
-  } = {},
+  },
 ): Promise<ProcessResult> {
   const child = spawn(executable, args, {
     env: options.env,
     cwd: options.cwd,
-    timeout: options.timeout ?? 10_000,
+    signal: options.signal,
   });
   const output = { stdout: "", stderr: "" };
   for (const stream of ["stdout", "stderr"] as const) {
