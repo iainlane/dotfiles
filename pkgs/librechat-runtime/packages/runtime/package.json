@@ -46,6 +46,10 @@
       "types": "./dist/guest/guest.d.ts",
       "import": "./dist/guest/guest.js"
     },
+    "./guest-runner": {
+      "types": "./dist/guest/guest-runner.d.ts",
+      "import": "./dist/guest/guest-runner.js"
+    },
     "./account-inspection": {
       "types": "./dist/accounts/inspection.d.ts",
       "import": "./dist/accounts/inspection.js"

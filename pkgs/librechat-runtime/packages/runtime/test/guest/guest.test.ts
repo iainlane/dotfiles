@@ -6,6 +6,11 @@ import {
   NodeGuestOperations,
   type GuestOperations,
 } from "#runtime/guest/guest";
+import {
+  GuestRunner,
+  GuestRunnerConnectionError,
+  GuestRunnerUnavailableError,
+} from "#runtime/guest/guest-runner";
 
 type GuestBinding = Parameters<GuestOperations["bind"]>[0];
 
@@ -35,6 +40,7 @@ class FixtureBindingError extends Error {
 
 class FixtureGuest implements GuestOperations {
   failure: Error | undefined;
+  runnerFailure: Error | undefined;
   private bound: GuestBinding | undefined;
   private initialising = false;
   private mcp: "stopped" | "running" | "quiesced" = "stopped";
@@ -93,6 +99,10 @@ class FixtureGuest implements GuestOperations {
     target: "runner" | "mcp",
     path: string,
   ): Promise<Response> {
+    if (target === "runner" && this.runnerFailure !== undefined) {
+      throw this.runnerFailure;
+    }
+
     return Response.json({ target, path });
   }
 
@@ -335,6 +345,55 @@ it("rejects a different runtime without forwarding the request", async () => {
   });
 });
 
+class FixtureConnectionError extends Error {
+  constructor() {
+    super("The fixture runner connection failed");
+
+    this.name = "FixtureConnectionError";
+  }
+}
+
+it.each([
+  {
+    failure: new GuestRunnerUnavailableError(new FixtureConnectionError()),
+    status: StatusCodes.SERVICE_UNAVAILABLE,
+    error: {
+      error: "GuestRunnerUnavailableError",
+      message: "The guest execution runner is not accepting connections",
+    },
+  },
+  {
+    failure: new GuestRunnerConnectionError(new FixtureConnectionError()),
+    status: StatusCodes.BAD_GATEWAY,
+    error: {
+      error: "GuestRunnerConnectionError",
+      message:
+        "The connection to the guest execution runner failed after the request was sent",
+    },
+  },
+])(
+  "reports a runner failure as $error.error",
+  async ({ failure, status, error }) => {
+    await bind();
+
+    guest.runnerFailure = failure;
+
+    const response = await gateway.route(
+      new Request("http://guest/runner/api/v2/execute", {
+        method: "POST",
+        headers: { "x-runtime-session-id": binding.runtimeId },
+      }),
+    );
+
+    const body: unknown = await response.json();
+
+    expect({ status: response.status, body }).toStrictEqual({
+      status,
+      body: error,
+    });
+  },
+);
+
 it("quiesces MCP before reporting success", async () => {
   await bind();
 
@@ -389,11 +448,22 @@ it("forwards application headers and body without connection-specific headers", 
       onError: () => {
         throw new UnexpectedGuestProcessError();
       },
+      runner: new GuestRunner({
+        connect: () => {
+          throw new UnexpectedGuestProcessError();
+        },
+        pause: async () => {
+          throw new UnexpectedGuestProcessError();
+        },
+        timeout: () => {
+          throw new UnexpectedGuestProcessError();
+        },
+      }),
     },
   );
 
   const response = await guestOperations.forward(
-    new Request("http://guest/runner/api/v2/execute", {
+    new Request("http://guest/mcp/fixture", {
       method: "POST",
       headers: {
         authorization: "scoped-credential",
@@ -407,14 +477,14 @@ it("forwards application headers and body without connection-specific headers", 
       },
       body: "{}",
     }),
-    "runner",
-    "/api/v2/execute",
+    "mcp",
+    "/servers/fixture/mcp",
   );
 
   const body: unknown = await response.json();
 
   expect(body).toStrictEqual({
-    url: "http://127.0.0.1:2000/api/v2/execute",
+    url: "http://127.0.0.1:8081/servers/fixture/mcp",
     method: "POST",
     headers: {
       authorization: "scoped-credential",
