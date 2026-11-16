@@ -24,11 +24,12 @@ async function directory(): Promise<string> {
 async function run(
   args: string[],
   options: {
+    signal: AbortSignal;
     entry?: "public" | "runtime";
     preload?: string;
     ci?: string;
     input?: string;
-  } = {},
+  },
 ): Promise<ProcessResult> {
   const entry =
     options.entry === "runtime" ? "librechat-runtime" : "librechatctl";
@@ -49,20 +50,21 @@ async function run(
         LIBRECHAT_INTERNAL_MANIFEST: "/nonexistent/librechat-deployment.json",
       },
       input: options.input,
+      signal: options.signal,
     },
   );
 }
 
-it.each([
+it.for([
   { args: [] },
   { args: ["--help"] },
   { args: ["bootstrap", "--help"] },
   { args: ["--version"] },
 ])(
   "prints public help and version without deployment access: $args",
-  async ({ args }) => {
+  async ({ args }, { signal }) => {
     const intent = parseCommand(args, "public");
-    expect(await run(args)).toStrictEqual({
+    expect(await run(args, { signal })).toStrictEqual({
       status: 0,
       stdout:
         intent.kind === "help" || intent.kind === "version"
@@ -73,7 +75,7 @@ it.each([
   },
 );
 
-it.each([
+it.for([
   {
     option: "--name",
     value: "ab",
@@ -91,8 +93,8 @@ it.each([
   },
 ])(
   "explains invalid $option without deployment access",
-  async ({ option, value, message }) => {
-    expect(await run(["bootstrap", option, value])).toStrictEqual({
+  async ({ option, value, message }, { signal }) => {
+    expect(await run(["bootstrap", option, value], { signal })).toStrictEqual({
       status: 2,
       stdout: "",
       stderr: `Error: Invalid arguments. ${message} Run librechatctl bootstrap --help for usage.\n`,
@@ -100,13 +102,13 @@ it.each([
   },
 );
 
-it.each([
+it.for([
   { stdinTTY: false, stderrTTY: true, ci: undefined },
   { stdinTTY: true, stderrTTY: false, ci: undefined },
   { stdinTTY: true, stderrTTY: true, ci: "1" },
 ])(
   "does not prompt with piped input or CI: %j",
-  async ({ stdinTTY, stderrTTY, ci }) => {
+  async ({ stdinTTY, stderrTTY, ci }, { signal }) => {
     const root = await directory();
     const preload = join(root, "terminal.mjs");
     await writeFile(
@@ -118,6 +120,7 @@ it.each([
     );
     expect(
       await run(["--yes", "bootstrap"], {
+        signal,
         preload,
         ci,
         input: "not prompt answers\n",
@@ -131,7 +134,9 @@ it.each([
   },
 );
 
-it("keeps hook stdin and stdout exclusively for the protocol with --yes", async () => {
+it("keeps hook stdin and stdout exclusively for the protocol with --yes", async ({
+  signal,
+}) => {
   const root = await directory();
   const token = "a".repeat(64);
   const tokenFile = join(root, "token");
@@ -151,6 +156,7 @@ it("keeps hook stdin and stdout exclusively for the protocol with --yes", async 
   );
   expect(
     await run(["--yes", "hook", configuration, "--yes"], {
+      signal,
       entry: "runtime",
       preload,
       input: JSON.stringify({ session_id: conversation }),

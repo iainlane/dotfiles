@@ -73,4 +73,4 @@ it("bounds shutdown when a descendant keeps captured pipes open", async () => {
     }
     await child.stop();
   }
-}, 10000);
+});
