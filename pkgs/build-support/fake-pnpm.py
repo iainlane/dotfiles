@@ -23,8 +23,10 @@ segment and `**` matches across segments.
 
 `install --lockfile-only` keeps the version that the lockfile records for a
 dependency of an importer or of a package while it still satisfies the range.
-With `--frozen-lockfile`, it fails instead of changing the lockfile. `update
---recursive` chooses the newest version in each range. Without `--recursive`,
+With `--frozen-lockfile`, it fails instead of changing the lockfile. As in
+pnpm 10, `install` also fails this way when the `CI` variable is set to anything
+other than `false` and a lockfile exists, unless it has `--lockfile-only` or
+`--no-frozen-lockfile`. `update --recursive` chooses the newest version in each range. Without `--recursive`,
 it updates only the root's dependencies and keeps the members' locked versions.
 Without `--no-save`, it also writes the chosen versions into the manifests'
 ranges. Without `--lockfile-only`, either command also installs each importer's
@@ -78,6 +80,15 @@ class Command:
         if self.name == "install":
             return True
         return "--recursive" not in self.options and directory != "."
+
+    def frozen(self, locked: bool) -> bool:
+        """Whether the command fails instead of changing the lockfile.
+        `locked` is whether a lockfile exists."""
+        if "--frozen-lockfile" in self.options:
+            return True
+        ci = os.environ.get("CI", "") not in ("", "false")
+        exempt = {"--lockfile-only", "--no-frozen-lockfile"}
+        return ci and locked and self.name == "install" and not self.options & exempt
 
 
 @dataclass(frozen=True)
@@ -431,7 +442,8 @@ def main() -> int:
         "snapshots": dict(sorted(resolver.snapshots.items())),
     }
     path = Path("pnpm-lock.yaml")
-    if "--frozen-lockfile" in command.options and read_yaml(path) != lockfile:
+    current = read_yaml(path)
+    if command.frozen(bool(current)) and current != lockfile:
         print(
             'ERR_PNPM_OUTDATED_LOCKFILE  Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date with package.json',
             file=sys.stderr,
