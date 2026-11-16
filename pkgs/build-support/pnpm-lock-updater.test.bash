@@ -643,6 +643,73 @@ expect <<'JSON'
 }
 JSON
 
+# pnpm resolves a `file:` specifier from the directory of the manifest that
+# declares it, so a workspace member's dependency on its peer points at the
+# tarball through a path from the member's directory.
+project '{
+  "package.json": {"name": "workspace"},
+  "packages/app/package.json": {
+    "devDependencies": {"@scope/host": "^1", "uses-host": "^1"},
+    "peerDependencies": {"@scope/host": "^1"}
+  }
+}' 'packages:
+  - "packages/*"'
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {"scope-host-2.0.0.tgz": "host-tarball/package.tgz"},
+  "lockfile": {
+    "importers": {
+      ".": {},
+      "packages/app": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:../../.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "uses-host": {"specifier": "^1", "version": "1.0.0"}
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "uses-host@1.0.0": {"resolution": {"integrity": "sha512-uses-host-1.0.0"}}
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {},
+      "uses-host@1.0.0": {
+        "dependencies": {
+          "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+        }
+      }
+    }
+  },
+  "manifests": {
+    "package.json": {"name": "workspace"},
+    "packages/app/package.json": {
+      "devDependencies": {
+        "@scope/host": "file:../../.nix-providers/scope-host-2.0.0.tgz",
+        "uses-host": "^1"
+      },
+      "peerDependencies": {"@scope/host": "^1"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "uses-host>@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz"
+    },
+    "packages": ["packages/*"]
+  }
+}
+JSON
+
 # pnpm-workspace.yaml lists the members. A negated pattern excludes a member,
 # and `*` matches only one directory level.
 project '{

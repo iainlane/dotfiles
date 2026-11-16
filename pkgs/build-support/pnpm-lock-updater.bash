@@ -170,12 +170,19 @@ link() {
 # Points the manifests' dependencies on the needed local packages at caret
 # ranges of their versions, or at their tarballs for the workspace's peers.
 retarget() {
-	local manifest selected
+	local manifest selected links
 	selected="$(overrides | cut -f 2 | jq -R . | jq -s --slurpfile catalogue "$catalogue" '. as $names | $catalogue[0] | map(select(.name as $name | $names | index($name)))')"
 
 	for manifest in "${manifests[@]}"; do
+		# pnpm resolves a `file:` specifier from the manifest's directory, and
+		# the links are in the workspace root.
+		links=.nix-providers
+		if [[ "$manifest" == */* ]]; then
+			links="$(dirname "$manifest" | sed 's|[^/][^/]*|..|g')/.nix-providers"
+		fi
+
 		staged="$(mktemp "$manifest.XXXXXX")"
-		jq --argjson providers "$selected" --argjson peers "$peers" '
+		jq --argjson providers "$selected" --argjson peers "$peers" --arg links "$links" '
 			reduce $providers[] as $package (.;
 				reduce ["dependencies", "devDependencies", "optionalDependencies"][] as $field (.;
 					if .[$field] == null then .
@@ -184,7 +191,7 @@ retarget() {
 							 (.value | startswith("npm:" + $package.name + "@"))
 						then .value = "npm:" + $package.name + "@^" + $package.version
 						elif .key == $package.name and ($peers | index($package.name))
-						then .value = "file:.nix-providers/" + $package.file
+						then .value = "file:" + $links + "/" + $package.file
 						elif .key == $package.name and (.value | startswith("npm:") | not)
 						then .value = "^" + $package.version
 						else . end)
