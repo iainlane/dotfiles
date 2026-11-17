@@ -34,7 +34,6 @@
   skillTree = import ./skill-tree.nix {inherit lib pkgs;};
   runtimePackages =
     pkgs-unstable
-    // {inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;}
     // lib.optionalAttrs config.programs.git.enable {git = config.programs.git.package;}
     // lib.optionalAttrs config.programs.gh.enable {gh = config.programs.gh.package;};
 in {

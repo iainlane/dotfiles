@@ -26,7 +26,7 @@
   runtimePackages =
     if skillRuntimePackages != null
     then skillRuntimePackages
-    else pkgs // {inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;};
+    else pkgs;
   dependencyNames = lib.unique (lib.concatLists (lib.attrValues (lib.filterAttrs (name: _: builtins.hasAttr name skills) skillRuntimeDependencies)));
   skillPackages = map (name: lib.attrByPath (lib.splitString "." name) (throw "Unknown skill runtime package: ${name}") runtimePackages) dependencyNames;
   filesFor = temporary: let

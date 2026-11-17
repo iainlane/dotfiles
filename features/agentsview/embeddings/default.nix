@@ -5,7 +5,6 @@
 {
   featureResolver,
   agentsviewTopology,
-  inputs,
   lib,
   ...
 }: let
@@ -49,7 +48,7 @@
   }: let
     cfg = config.dotfiles.agentsview;
     usesOpenRouter = agentsviewTopology.hosts.${hostConfig.name}.embeddings != "local";
-    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    inherit (pkgs) agentsview;
     probe = lib.escapeShellArgs ([
         "${pkgs.python3}/bin/python3"
         "${./local/check.py}"
@@ -108,7 +107,7 @@
   }: let
     cfg = config.dotfiles.agentsview;
     usesOpenRouter = agentsviewTopology.hosts.${hostConfig.name}.embeddings != "local";
-    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    inherit (pkgs) agentsview;
     logDir = "${config.home.homeDirectory}/Library/Logs";
 
     build = "exec \"${agentsview}/bin/agentsview\" embeddings build --yes";

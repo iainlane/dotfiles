@@ -111,7 +111,7 @@
 
   agentsview = native.writeShellScript "librechat-host-archive" ''
     export AGENTSVIEW_DATA_DIR=${lib.escapeShellArg config.dotfiles.agentsview.dataDir}
-    exec ${lib.getExe inputs.llm-agents.packages.${hostConfig.system}.agentsview} "$@"
+    exec ${lib.getExe native.agentsview} "$@"
   '';
 
   hook = native.writeShellScript "librechat-workspace-reminder" ''

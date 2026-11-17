@@ -75,7 +75,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
-    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    inherit (pkgs) agentsview;
   in {
     config = lib.mkMerge [
       (lib.mkIf (!cfg.sync.enable) {
@@ -132,7 +132,7 @@
     ...
   }: let
     cfg = config.dotfiles.agentsview;
-    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    inherit (pkgs) agentsview;
     agentName =
       if cfg.sync.enable
       then "agentsview-push"
@@ -239,7 +239,7 @@ in {
     ...
   }: let
     inherit (hostConfig) name;
-    inherit (inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}) agentsview;
+    inherit (pkgs) agentsview;
 
     cfg = config.dotfiles.agentsview;
     inventory = topology.hosts.${name};

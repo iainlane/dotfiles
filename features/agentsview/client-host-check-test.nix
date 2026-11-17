@@ -3,7 +3,6 @@
   pkgs,
   ...
 }: let
-  system = pkgs.stdenv.hostPlatform.system;
   darwin = pkgs.stdenv.hostPlatform.isDarwin;
   nixbuild = import ../../lib/nixbuild.nix {inherit lib;};
   check = homeConfig:
@@ -11,8 +10,8 @@
         hostConfig.name = "fixture";
         inherit homeConfig;
       } {
-        inherit lib pkgs;
-        inputs.llm-agents.packages.${system}.agentsview = "/agentsview";
+        inherit lib;
+        pkgs = pkgs // {agentsview = "/agentsview";};
       }).host-evaluation-agentsview-client-fixture;
   unavailable = check (throw "AgentsView check metadata forced the host configuration");
   fixture = syncing: let

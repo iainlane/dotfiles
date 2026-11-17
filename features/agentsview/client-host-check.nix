@@ -2,7 +2,6 @@
   hostConfig,
   homeConfig,
 }: {
-  inputs,
   lib,
   pkgs,
   ...
@@ -18,7 +17,7 @@
     then "agentsview-push"
     else "agentsview";
   service = services.${serviceName};
-  agentsview = "${inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.agentsview}/bin/agentsview";
+  agentsview = "${pkgs.agentsview}/bin/agentsview";
   environment = {AGENTSVIEW_DATA_DIR = cfg.dataDir;};
   command =
     [agentsview]
