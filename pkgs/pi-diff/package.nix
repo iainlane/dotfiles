@@ -23,7 +23,7 @@ in
     src = fetchFromGitHub {
       owner = "iainlane";
       repo = "pi-diff";
-      rev = "d8102cb9d831a4fbf7dd6ff8b9309dc7d6cf203d";
+      rev = "79b3d876ae4e64d7a5d0a080123de5ec2350f158";
       hash = "sha256-3ivm6CT+CL0ek/51x+Eq5lOztOjyH+XM6JhCFRf4twU=";
     };
     inherit (deps) npmDeps;
