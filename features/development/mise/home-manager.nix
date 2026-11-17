@@ -17,6 +17,7 @@
       };
 
       settings = {
+        all_compile = false;
         idiomatic_version_file_enable_tools = ["go" "node" "python"];
         not_found_auto_install = true;
         tool_update.global_auto = true;

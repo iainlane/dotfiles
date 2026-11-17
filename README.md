@@ -213,6 +213,10 @@ shell prompts, at most once every 24 hours per tool, and retains its default
 release-age policy. Run `mise upgrade --global` to check immediately. Nix
 manages mise itself from the unstable package set.
 
+Mise downloads precompiled Node and Python builds on every host. On NixOS its
+default is to compile them from source, so the configuration sets
+`all_compile = false`. The downloaded binaries run through `nix-ld`.
+
 Entering a directory installs missing tools requested by `mise.toml`,
 `.tool-versions`, or enabled Go, Node and Python version files such as `.nvmrc`
 and `.python-version`. Trust new project configuration with `mise trust` when

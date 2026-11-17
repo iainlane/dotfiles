@@ -13,11 +13,13 @@
     };
     autoUpdate = true;
     aggressive = false;
+    allCompile = false;
   };
   actual = {
     tools = mise.globalConfig.tools or {};
     autoUpdate = mise.globalConfig.settings.tool_update.global_auto or false;
     aggressive = mise.globalConfig.settings.activate_aggressive or false;
+    allCompile = mise.globalConfig.settings.all_compile or null;
   };
 in {
   "mise-policy-${hostConfig.name}" = pkgs.runCommandLocal "mise-policy-${hostConfig.name}" {} ''
