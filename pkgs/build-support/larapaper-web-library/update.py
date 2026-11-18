@@ -64,7 +64,7 @@ def main() -> None:
             [
                 "nix",
                 "build",
-                f"{root}#packages.aarch64-linux.larapaper.composerVendor",
+                f"{root}#{os.environ['LOCAL_PACKAGES_ATTR']}.larapaper.composerVendor",
                 "--no-link",
                 "--print-out-paths",
             ],

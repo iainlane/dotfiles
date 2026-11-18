@@ -22,6 +22,7 @@ export PATH="${fixture}/bin:${PATH}"
 export UPDATE_TEST_ROOT="${fixture}"
 export UPDATE_TEST_VERSION="0.44.0"
 export UPDATE_TEST_FAIL=0
+export LOCAL_PACKAGES_ATTR=legacyPackages.test-system.localPackages
 
 printf '#!%s\n' "${BASH}" >"${fixture}/bin/git"
 cat >>"${fixture}/bin/git" <<'SH'
@@ -42,7 +43,10 @@ printf '#!%s\n' "${BASH}" >"${fixture}/bin/nix"
 cat >>"${fixture}/bin/nix" <<'SH'
 set -euo pipefail
 case "$1" in
-eval) printf '%s\n' '{"version":"0.43.1","rev":"f849ce24562bcc218fdc43246c9410f78b71ce91","hash":"sha256-QK6EWpxrp36aSoaF4wECUNcUVnrp3ZaZ7Vn2IB84Ae4="}' ;;
+eval)
+  printf '%s\n' "$@" >"${UPDATE_TEST_ROOT}/eval-arguments"
+  printf '%s\n' '{"version":"0.43.1","rev":"f849ce24562bcc218fdc43246c9410f78b71ce91","hash":"sha256-QK6EWpxrp36aSoaF4wECUNcUVnrp3ZaZ7Vn2IB84Ae4="}'
+  ;;
 flake) printf '%s\n' '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' ;;
 *) exit 1 ;;
 esac
@@ -90,10 +94,14 @@ for before, after in [
 ]:
     expected = expected.replace(before, after)
 assert (root / 'pkgs/larapaper/package.nix').read_text() == expected
+assert (root / 'eval-arguments').read_text().splitlines() == [
+    'eval', '--json', f'{root}#legacyPackages.test-system.localPackages.larapaper',
+    '--apply', 'p: { inherit (p) version; inherit (p.src) rev; hash = p.src.outputHash; }',
+]
 assert (root / 'arguments').read_text().splitlines() == [
-    '--flake', '--system', 'aarch64-linux', '--version=skip', '--no-src',
+    '--flake', '--version=skip', '--no-src',
     '--subpackage', 'frontend', '--override-filename', 'pkgs/larapaper/package.nix',
-    'larapaper',
+    'legacyPackages.test-system.localPackages.larapaper',
 ]
 PY
 

@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -25,14 +26,30 @@ class UpdateTests(unittest.TestCase):
                 with (
                     self.subTest(library=library),
                     patch.object(sys, "argv", ["update.py", library]),
+                    patch.dict(
+                        os.environ,
+                        {
+                            "LOCAL_PACKAGES_ATTR": "legacyPackages.test-system.localPackages"
+                        },
+                    ),
                     patch.object(
                         update.subprocess,
                         "check_output",
                         side_effect=[directory, str(vendor)],
-                    ),
+                    ) as check_output,
                     patch.object(update, "update") as refresh,
                 ):
                     update.main()
+                    self.assertEqual(
+                        check_output.call_args.args[0],
+                        [
+                            "nix",
+                            "build",
+                            f"{directory}#legacyPackages.test-system.localPackages.larapaper.composerVendor",
+                            "--no-link",
+                            "--print-out-paths",
+                        ],
+                    )
                     self.assertEqual(
                         refresh.call_args.args,
                         (Path("source.json"), self.config, library, False),
