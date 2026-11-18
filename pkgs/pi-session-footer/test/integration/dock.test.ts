@@ -52,14 +52,15 @@ it.each(["regular", "fullscreen"])(
     expect(await terminal.settled(border)).toBe(borders.compact);
     terminal.resize(70, 14);
     terminal.input("w");
-    const stateLog = join(workspace.cwd, "dock-preview-state.json");
+    const stateLog = join(workspace.cwd, "dock-preview-states.json");
+    const paused = { visible: false, preset: "rich" };
+    const previewing = { visible: true, preset: "compact" };
     await terminal.until(
       async (screen) => {
         expect(screen.join("\n")).toContain("More room needed");
-        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
-          visible: false,
-          preset: "rich",
-        });
+        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual([
+          paused,
+        ]);
       },
       [stateLog],
     );
@@ -67,10 +68,11 @@ it.each(["regular", "fullscreen"])(
     await terminal.until(
       async (screen) => {
         expect(screen.join("\n")).toContain("More room needed");
-        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
-          visible: false,
-          preset: "rich",
-        });
+        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual([
+          paused,
+          previewing,
+          paused,
+        ]);
       },
       [stateLog],
     );
@@ -85,10 +87,12 @@ it.each(["regular", "fullscreen"])(
       async (screen) => {
         expect(screen.join("\n")).not.toContain("More room needed");
         expect(screen.join("\n")).toContain("Footer dock gate · Profile");
-        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual({
-          visible: true,
-          preset: "compact",
-        });
+        expect(JSON.parse(await readFile(stateLog, "utf8"))).toStrictEqual([
+          paused,
+          previewing,
+          paused,
+          previewing,
+        ]);
       },
       [stateLog],
     );
