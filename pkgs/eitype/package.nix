@@ -26,7 +26,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
   passthru.updateScript = updaters.mkNixUpdateUpdater {
     refresh = true;
     attr = "eitype";
-    system = "x86_64-linux";
   };
 
   meta = {
