@@ -87,6 +87,7 @@ export default function dockFixture(pi: ExtensionAPI): void {
       const active = settings;
       let draftSettings = settings;
       let previewVisible = true;
+      const previewStates: { visible: boolean; preset: string }[] = [];
       let redraw: (() => void) | undefined;
       const keys = getKeybindings();
       const host = new DockHost(
@@ -99,12 +100,10 @@ export default function dockFixture(pi: ExtensionAPI): void {
           setPreviewVisible(visible) {
             previewVisible = visible;
             settings = visible ? draftSettings : active;
+            previewStates.push({ visible, preset: settings.preset });
             writeFileSync(
-              join(ctx.cwd, "dock-preview-state.json"),
-              JSON.stringify({
-                visible,
-                preset: settings.preset,
-              }),
+              join(ctx.cwd, "dock-preview-states.json"),
+              JSON.stringify(previewStates),
             );
             redraw?.();
           },
