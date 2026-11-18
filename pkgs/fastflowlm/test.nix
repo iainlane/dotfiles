@@ -35,7 +35,7 @@ runCommand "fastflowlm-runtime-test" {
   expected = {
       f'{family}:{size}': False
       for family, variants in catalog['models'].items()
-      if not family.endswith('-rai')
+      if not family.endswith(('-rai', '-oga-hipep'))
       for size, model in variants.items()
       if 'aie2p' in model.get('supported_platforms', ['aie2p'])
   }

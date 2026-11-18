@@ -1,6 +1,6 @@
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -221,16 +221,32 @@
+@@ -218,16 +218,32 @@
  endif()
  
  # ———————————————————————————————————————————————
@@ -38,5 +38,5 @@
 +    INTERFACE_LINK_LIBRARIES "tokenizers_c;PkgConfig::SentencePiece;dl;pthread"
 +)
  
- # ———————————————————————————————————————————————
- # Gather your sources
+ # JPEG/PNG decoding for ImageReader: static libjpeg-turbo + vendored lodepng.
+ include(${CMAKE_SOURCE_DIR}/cmake/FlmImageCodecs.cmake)
