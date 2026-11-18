@@ -5,11 +5,11 @@
     text = ''printf '%s\n' "$@" >"$UPDATER_ARGS"'';
   };
   updaters = pkgs.callPackage ./updaters.nix {nix-update = command;};
+  attribute = "legacyPackages.${pkgs.stdenv.hostPlatform.system}.localPackages.fixture";
   make = refresh:
     updaters.mkNixUpdateUpdater {
       attr = "fixture";
       inherit refresh;
-      system = "x86_64-linux";
       extraFlags = ["--version=branch=integration"];
     };
   refreshable = make true;
@@ -24,11 +24,11 @@ in
     git init -q
 
     ${lib.getExe refreshable}
-    printf '%s\n' --flake --override-filename pkgs/fixture/package.nix --system x86_64-linux --version=branch=integration fixture >expected
+    printf '%s\n' --flake --override-filename pkgs/fixture/package.nix --version=branch=integration ${attribute} >expected
     diff -u expected "$UPDATER_ARGS"
 
     ${lib.getExe refreshable} --refresh
-    printf '%s\n' --flake --override-filename pkgs/fixture/package.nix --system x86_64-linux --version=skip --no-src fixture >expected
+    printf '%s\n' --flake --override-filename pkgs/fixture/package.nix --version=skip --no-src ${attribute} >expected
     diff -u expected "$UPDATER_ARGS"
 
     rm "$UPDATER_ARGS"

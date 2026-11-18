@@ -15,6 +15,6 @@ in {
       (import ./checks/npm-install.nix {inherit pkgs;})
       (import ./checks/typecheck.nix {inherit pkgs;})
     ];
-    legacyPackages = {inherit (outputs) slowChecks;};
+    legacyPackages = {inherit (outputs) localPackages slowChecks;};
   };
 }

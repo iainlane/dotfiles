@@ -21,6 +21,7 @@
   python3,
   ruff,
   runCommandLocal,
+  stdenv,
   wget,
   writeShellApplication,
   writeText,
@@ -158,6 +159,11 @@
   # `npmLockfile` is the repository path of a copy of the source's
   # package-lock.json, for a build that reads the lockfile during evaluation.
   # Reading it from the fetched source would be import-from-derivation.
+  #
+  # nix-update reads the package from `legacyPackages.<system>.localPackages`.
+  # `packages.<system>` leaves out packages that are unavailable on the system,
+  # such as Linux-only packages on Darwin, and their updaters still have to run
+  # there.
   mkNixUpdateUpdater = {
     attr,
     filename ? "pkgs/${attr}/package.nix",
@@ -166,9 +172,8 @@
     npmLockfile ? null,
     refresh ? false,
     refreshFlags ? [],
-    system ? null,
   }: let
-    targetFlags = lib.optionals (system != null) ["--system" system];
+    flakeAttr = "legacyPackages.${stdenv.hostPlatform.system}.localPackages.${attr}";
   in
     writeShellApplication {
       name = "update-${attr}";
@@ -186,10 +191,10 @@
           ${lib.concatMapStringsSep "\n" (name: "unset ${lib.escapeShellArg name}") unsetEnv}
 
           if [[ "$#" == 0 ]]; then
-            nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs targetFlags} ${lib.escapeShellArgs extraFlags} "${attr}" >&2
+            nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs extraFlags} "${flakeAttr}" >&2
           ${lib.optionalString refresh ''
             elif [[ "$#" == 1 && "$1" == --refresh ]]; then
-              nix-update --flake --override-filename "${filename}" ${lib.escapeShellArgs targetFlags} --version=skip --no-src ${lib.escapeShellArgs refreshFlags} "${attr}" >&2
+              nix-update --flake --override-filename "${filename}" --version=skip --no-src ${lib.escapeShellArgs refreshFlags} "${flakeAttr}" >&2
           ''}
           else
             echo 'Unsupported updater arguments.'
@@ -198,7 +203,7 @@
         ''
         + lib.optionalString (npmLockfile != null) ''
 
-          source="$(nix build --no-link --print-out-paths ".#${attr}.src")"
+          source="$(nix build --no-link --print-out-paths ".#${flakeAttr}.src")"
           install -m 0644 "''${source}/package-lock.json" ${lib.escapeShellArg npmLockfile}
         '';
     };
