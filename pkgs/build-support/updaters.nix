@@ -26,10 +26,20 @@
   writeShellApplication,
   writeText,
   yq-go,
-}: {
+}: let
+  # nix-update and the update scripts read packages from
+  # `legacyPackages.<system>.localPackages`. `packages.<system>` leaves out
+  # packages that are unavailable on the system, such as Linux-only packages on
+  # Darwin, and their updaters still have to run there.
+  localPackagesAttr = "legacyPackages.${stdenv.hostPlatform.system}.localPackages";
+in {
+  inherit localPackagesAttr;
+
   # Run a package's own update script from its directory in the working tree.
   # Use it when the upstream's release metadata needs more than a version
   # number and a per-platform URL, which is all `mkSourcesUpdater` handles.
+  # `LOCAL_PACKAGES_ATTR` contains the flake attribute path of the local
+  # packages for this system.
   mkScriptUpdater = {
     pname,
     script,
@@ -43,6 +53,7 @@
         inherit refresh;
       };
       runtimeInputs = [coreutils git jq nix wget] ++ extraRuntimeInputs;
+      runtimeEnv.LOCAL_PACKAGES_ATTR = localPackagesAttr;
 
       text = ''
         ${lib.optionalString (!refresh) ''
@@ -159,11 +170,6 @@
   # `npmLockfile` is the repository path of a copy of the source's
   # package-lock.json, for a build that reads the lockfile during evaluation.
   # Reading it from the fetched source would be import-from-derivation.
-  #
-  # nix-update reads the package from `legacyPackages.<system>.localPackages`.
-  # `packages.<system>` leaves out packages that are unavailable on the system,
-  # such as Linux-only packages on Darwin, and their updaters still have to run
-  # there.
   mkNixUpdateUpdater = {
     attr,
     filename ? "pkgs/${attr}/package.nix",
@@ -173,7 +179,7 @@
     refresh ? false,
     refreshFlags ? [],
   }: let
-    flakeAttr = "legacyPackages.${stdenv.hostPlatform.system}.localPackages.${attr}";
+    flakeAttr = "${localPackagesAttr}.${attr}";
   in
     writeShellApplication {
       name = "update-${attr}";

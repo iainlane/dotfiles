@@ -350,7 +350,8 @@ Generic Nix updaters read their package from
 the host's system. `packages.<system>` leaves out packages that are unavailable
 on that system. A Linux-only package can therefore update and refresh its hashes
 on a Darwin host, because the fixed-output derivations that the updater builds
-have the same hash on every system.
+have the same hash on every system. Script updaters receive the same attribute
+path in `LOCAL_PACKAGES_ATTR`.
 
 `update-plan` orders maintenance through the derivation graph. An explicit
 `maintenance.dependencies` list replaces inferred build ordering when source

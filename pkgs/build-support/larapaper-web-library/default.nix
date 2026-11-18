@@ -45,6 +45,7 @@ in
         name = "update-${pname}";
 
         runtimeInputs = [git nix python3];
+        runtimeEnv.LOCAL_PACKAGES_ATTR = updaters.localPackagesAttr;
 
         text = ''
           cd "$(git rev-parse --show-toplevel)/pkgs/${pname}"
