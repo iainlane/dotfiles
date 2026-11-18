@@ -7,6 +7,12 @@ export type SocketFetch = (
   request: Request,
 ) => Promise<Response>;
 
+const nullBodyStatuses: ReadonlySet<number> = new Set([
+  StatusCodes.NO_CONTENT,
+  StatusCodes.RESET_CONTENT,
+  StatusCodes.NOT_MODIFIED,
+]);
+
 export class GuestTransportError extends Error {
   constructor(cause: unknown) {
     super("The conversation VM control connection failed", { cause });
@@ -42,13 +48,7 @@ export async function sendHttpRequest(
 
         const status = incoming.statusCode ?? StatusCodes.BAD_GATEWAY;
 
-        if (
-          [
-            StatusCodes.NO_CONTENT,
-            StatusCodes.RESET_CONTENT,
-            StatusCodes.NOT_MODIFIED,
-          ].includes(status)
-        ) {
+        if (nullBodyStatuses.has(status)) {
           incoming.resume();
 
           resolve(new Response(null, { status, headers }));
