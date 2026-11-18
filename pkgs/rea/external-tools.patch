@@ -1,14 +1,14 @@
 --- a/bridge/mitmproxy/capture.py
 +++ b/bridge/mitmproxy/capture.py
-@@ -326,2 +325,0 @@
+@@ -325,2 +324,0 @@
 -    if version.VERSION != PROFILE:
 -        raise CaptureFailure("unsupported", "Expected mitmproxy " + PROFILE + "; observed " + version.VERSION + ".")
-@@ -346 +344 @@
+@@ -345 +343 @@
 -    return {"decoder": {"id": "mitmproxy-native-tnetstring", "name": "REA offline native mitmproxy adapter", "version": PROFILE}, "container": {"reported": None, "numeric_literals": [], "redactions": [], "records_pointer": None}, "total_records": len(records), "records": records}
 +    return {"decoder": {"id": "mitmproxy-native-tnetstring", "name": "REA offline native mitmproxy adapter", "version": version.VERSION}, "container": {"reported": None, "numeric_literals": [], "redactions": [], "records_pointer": None}, "total_records": len(records), "records": records}
 --- a/bridge/pwntools/decoder_runtime.py
 +++ b/bridge/pwntools/decoder_runtime.py
-@@ -41 +41,3 @@
+@@ -44 +44,3 @@
 -        reply = {"ok": True, "profile": profile, "value": value}
 +        observed_profile = profile() if callable(profile) else profile
 +        value["limitations"].append("Observed Python packages: " + observed_profile + ".")
@@ -34,7 +34,7 @@
 -        if version != expected:
 -            raise LayoutFailure("unsupported", "Expected " + package + " " + expected + "; selected Python reports " + version + ".")
 +            raise LayoutFailure("unavailable", "Selected Python lacks " + package + ".") from error
-@@ -340 +341 @@
+@@ -364 +365 @@
 -    runtime["main"](sys.argv[-1], inspect_elf, LayoutFailure, PROFILE)
 +    runtime["main"](sys.argv[-1], inspect_elf, LayoutFailure, observed_profile)
 --- a/bridge/pwntools/recorded_crash_impl.py
@@ -61,52 +61,64 @@
 +    runtime["main"](sys.argv[-1], inspect_core, CoreFailure, observed_profile)
 --- a/src/application/CapabilityInventory.ts
 +++ b/src/application/CapabilityInventory.ts
-@@ -500 +500 @@
--      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru ^1.13.0 (verified with 1.14.0) and util-linux prlimit; see docs/javascript-recovery.md#install-wakaru. No binary target is required.",
-+      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru (verified with 1.14.0) and util-linux prlimit; see docs/javascript-recovery.md#install-wakaru. No binary target is required.",
+@@ -633 +633 @@
+-      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru ^1.13.0 (verified with 1.14.0) and util-linux prlimit; see docs/guides/javascript/javascript-recovery.md#install-wakaru. No binary target is required.",
++      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru (verified with 1.14.0) and util-linux prlimit; see docs/guides/javascript/javascript-recovery.md#install-wakaru. No binary target is required.",
 --- a/src/browser/history/HarSchema.ts
 +++ b/src/browser/history/HarSchema.ts
-@@ -98,4 +98,2 @@
+@@ -37 +37 @@
+-  { name: "Playwright", version: "1.58.2", label: "Playwright 1.58.2" },
++  { name: "Playwright", version: null, label: "Playwright" },
+@@ -119,4 +119,10 @@
+-): string | null =>
+-  BRACKETED_IPV6_PRODUCERS.find(
+-    ({ name, version }) => creator.name === name && creator.version === version,
+-  )?.label ?? null;
++): string | null => {
++  const producer = BRACKETED_IPV6_PRODUCERS.find(
++    ({ name, version }) =>
++      creator.name === name && (version === null || creator.version === version),
++  );
++  if (producer === undefined) return null;
++  if (producer.version !== null || typeof creator.version !== "string")
++    return producer.label;
++  return `${producer.label} ${creator.version}`;
++};
+@@ -131,2 +137 @@
 -  const mitmproxy =
 -    log.creator.name === "mitmproxy" && log.creator.version === "12.2.3";
--  const playwright =
--    log.creator.name === "Playwright" && log.creator.version === "1.58.2";
 +  const mitmproxy = log.creator.name === "mitmproxy";
-+  const playwright = log.creator.name === "Playwright";
 --- a/src/browser/history/HistoricalCaptureDecoder.ts
 +++ b/src/browser/history/HistoricalCaptureDecoder.ts
-@@ -271 +271,2 @@
+@@ -333 +333,2 @@
 -        reply.value.decoder.version !== adapter.identity.version
 +        (input.format !== "mitmproxy" &&
 +          reply.value.decoder.version !== adapter.identity.version)
 --- a/src/browser/history/MitmproxyCaptureAdapter.ts
 +++ b/src/browser/history/MitmproxyCaptureAdapter.ts
-@@ -10 +10 @@
+@@ -11 +11 @@
 -  "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump 12.2.3; HAR needs no external engine.";
 +  "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump; HAR needs no external engine.";
 --- a/src/contracts/firmware/firmwareToolRequirements.ts
 +++ b/src/contracts/firmware/firmwareToolRequirements.ts
-@@ -18 +18 @@
+@@ -20 +20 @@
 -    requirement: `${release.name} ${line} (verified with ${version})`,
 +    requirement: `${release.name} (report parser verified with ${version}; installed version observed at runtime)`,
 --- a/src/contracts/javascript/javascriptRecoveryToolContracts.ts
 +++ b/src/contracts/javascript/javascriptRecoveryToolContracts.ts
 @@ -16 +16 @@
--      "Recover readable modules from local UTF-8 JavaScript scripts/bundles into an absent directory, using caller-supplied Wakaru ^1.13.0 (verified with 1.14.0) on Linux x64. Use additional_paths for related chunks; each input retains its own snapshot and provenance. Returns original/derived digests, extraction byte ranges, emitted source maps, warnings and analysis_input inline. Structural splitting may fall back to one module; original names and runtime equivalence remain unknown. No application code execution. Requires util-linux prlimit; one worker, 1 GiB address-space ceiling, 120-second deadline, 64 MiB total input, 128 MiB output, 10000 entries and 8 MiB per diagnostic/report stream.",
-+      "Recover readable modules from local UTF-8 JavaScript scripts/bundles into an absent directory, using caller-supplied Wakaru (verified with 1.14.0) on Linux x64. Use additional_paths for related chunks; each input retains its own snapshot and provenance. Returns original/derived digests, extraction byte ranges, emitted source maps, warnings and analysis_input inline. Structural splitting may fall back to one module; original names and runtime equivalence remain unknown. No application code execution. Requires util-linux prlimit; one worker, 1 GiB address-space ceiling, 120-second deadline, 64 MiB total input, 128 MiB output, 10000 entries and 8 MiB per diagnostic/report stream.",
+-      "Recover readable modules from local UTF-8 JavaScript bundles into an absent output_directory, without executing application code. Requires caller-supplied Wakaru ^1.13.0 (verified 1.14.0), Linux x64 and util-linux prlimit. additional_paths includes related chunks, preserving each input’s snapshot/provenance. Returns original/derived digests, extraction ranges, source maps, warnings and analysis_input for analyze_javascript_application. Splitting may fall back to one module; original names and runtime equivalence remain unknown. One worker has a fixed 120-second deadline and bounded input/output/report admission; limit failures are explicit and roll back output.",
++      "Recover readable modules from local UTF-8 JavaScript bundles into an absent output_directory, without executing application code. Requires caller-supplied Wakaru (verified 1.14.0), Linux x64 and util-linux prlimit. additional_paths includes related chunks, preserving each input’s snapshot/provenance. Returns original/derived digests, extraction ranges, source maps, warnings and analysis_input for analyze_javascript_application. Splitting may fall back to one module; original names and runtime equivalence remain unknown. One worker has a fixed 120-second deadline and bounded input/output/report admission; limit failures are explicit and roll back output.",
 --- a/src/contracts/native/binaryDiagnosticsToolContracts.ts
 +++ b/src/contracts/native/binaryDiagnosticsToolContracts.ts
-@@ -253 +253 @@
--      "Inspect an explicit local binary without launching it as a host process. Returns file-backed section/segment ranges, linked addresses, original symbol/REL/RELA table identities, complete encoded RELR tables and upstream-derived offsets with unknown per-word locations/addends, raw name bytes, dependency/interpreter names and static mitigation inferences inline with artifact SHA-256 Evidence. Profile: EXEC/DYN/REL ELF64 x86-64, ELF32 i386, ELF32 little-endian ARM and ELF32 little- or big-endian MIPS on Linux x64 via caller-supplied Python with unchanged pwntools 4.15.0, pyelftools 0.33 and Unicorn 2.1.2. Runtime addresses/library paths, overall relocation inventory completeness and complete derived GOT/PLT coverage remain unknown. Zero executable entry values mean absence; relocatable entries are not applicable. Upstream can emulate PLT instructions with Unicorn for derived static maps. Uses bounded complete output and owned temporary files/processes; malformed, unsupported or oversized objects return no partial success. Select detail summary to retain the complete layout Evidence in this session and receive only its summary view, then inspect sections, symbols, mitigations or linkage with inspect_analysis_view. pwntools_timeout_ms is each owned pwntools command's deadline (omitted means 30000 ms, range 1..2147483647, next call). cpuSeconds 30 and the output, diagnostic, and address-space byte allowances have no runtime override.",
-+      "Inspect an explicit local binary without launching it as a host process. Returns file-backed section/segment ranges, linked addresses, original symbol/REL/RELA table identities, complete encoded RELR tables and upstream-derived offsets with unknown per-word locations/addends, raw name bytes, dependency/interpreter names and static mitigation inferences inline with artifact SHA-256 Evidence. Profile: EXEC/DYN/REL ELF64 x86-64, ELF32 i386, ELF32 little-endian ARM and ELF32 little- or big-endian MIPS on Linux x64 via caller-supplied Python with unchanged pwntools, pyelftools and Unicorn. Runtime addresses/library paths, overall relocation inventory completeness and complete derived GOT/PLT coverage remain unknown. Zero executable entry values mean absence; relocatable entries are not applicable. Upstream can emulate PLT instructions with Unicorn for derived static maps. Uses bounded complete output and owned temporary files/processes; malformed, unsupported or oversized objects return no partial success. Select detail summary to retain the complete layout Evidence in this session and receive only its summary view, then inspect sections, symbols, mitigations or linkage with inspect_analysis_view. pwntools_timeout_ms is each owned pwntools command's deadline (omitted means 30000 ms, range 1..2147483647, next call). cpuSeconds 30 and the output, diagnostic, and address-space byte allowances have no runtime override.",
-@@ -275 +275 @@
--      "Inspect a supplied Linux ELF64 amd64 or AArch64 little-endian core without launching its target or attaching to any live PID. Returns all recorded segments, raw note owners/descriptors and source ranges, every Linux CORE PRSTATUS thread/register and SIGINFO fields inline with SHA-256 Evidence. Historical PID is recorded metadata; current process/file identity, note coverage and signal-thread associations stay unknown. Optionally add derived core-only GDB/pwndbg mapping candidates through explicit BYO configuration; zero map flags mean unknown permissions. Uses the same stable snapshot for both stages, bounded complete output and owned cleanup. Linux x64 host profile: unchanged pwntools 4.15.0/pyelftools 0.33/Unicorn 2.1.2; optional unchanged pwndbg 2026.09.15. No implicit executable/library pairing, GDB command language, host configuration changes or dependency installation. pwntools_timeout_ms is each owned pwntools command's deadline (omitted means 30000 ms, range 1..2147483647, next call). cpuSeconds 30 and the output, diagnostic, and address-space byte allowances have no runtime override.",
-+      "Inspect a supplied Linux ELF64 amd64 or AArch64 little-endian core without launching its target or attaching to any live PID. Returns all recorded segments, raw note owners/descriptors and source ranges, every Linux CORE PRSTATUS thread/register and SIGINFO fields inline with SHA-256 Evidence. Historical PID is recorded metadata; current process/file identity, note coverage and signal-thread associations stay unknown. Optionally add derived core-only GDB/pwndbg mapping candidates through explicit BYO configuration; zero map flags mean unknown permissions. Uses the same stable snapshot for both stages, bounded complete output and owned cleanup. Linux x64 host profile: unchanged pwntools/pyelftools/Unicorn; optional unchanged pwndbg 2026.09.15. No implicit executable/library pairing, GDB command language, host configuration changes or dependency installation. pwntools_timeout_ms is each owned pwntools command's deadline (omitted means 30000 ms, range 1..2147483647, next call). cpuSeconds 30 and the output, diagnostic, and address-space byte allowances have no runtime override.",
+@@ -358 +358 @@
+-      "Inspect static ELF section/segment, symbol, relocation, linkage and mitigation facts with artifact SHA-256 Evidence, without launching the image. Linux x64 requires caller-supplied pwntools 4.15.0/pyelftools 0.33/Unicorn 2.1.2; supports ELF64 x86-64/little-endian AArch64 and ELF32 i386/little-endian ARM/little- or big-endian MIPS. Unicorn may emulate PLT instructions for derived maps. Runtime addresses/paths and complete relocation/GOT/PLT discovery remain unknown; RELR per-word locations/addends can be unknown. detail summary retains full Evidence for layout section/symbol/mitigation/linkage views. pwntools_timeout_ms bounds each command independently of producer_limits and inherited OS limits. Unsupported, malformed or oversized inputs fail without partial success.",
++      "Inspect static ELF section/segment, symbol, relocation, linkage and mitigation facts with artifact SHA-256 Evidence, without launching the image. Linux x64 requires caller-supplied pwntools/pyelftools/Unicorn; supports ELF64 x86-64/little-endian AArch64 and ELF32 i386/little-endian ARM/little- or big-endian MIPS. Unicorn may emulate PLT instructions for derived maps. Runtime addresses/paths and complete relocation/GOT/PLT discovery remain unknown; RELR per-word locations/addends can be unknown. detail summary retains full Evidence for layout section/symbol/mitigation/linkage views. pwntools_timeout_ms bounds each command independently of producer_limits and inherited OS limits. Unsupported, malformed or oversized inputs fail without partial success.",
 --- a/src/contracts/webNetworkCaptureToolContracts.ts
 +++ b/src/contracts/webNetworkCaptureToolContracts.ts
 @@ -19 +19 @@
--      "Explicit record_ordinals also decode retained protobuf/gRPC bodies whose declared content type is recognized. Optional protobuf selects exact body_pointers, framing, and a caller-supplied local FileDescriptorSet with message_type. Native gRPC and gRPC-web framing remain distinct. Wire fields are flat byte-range facts; ambiguous readings stay candidates, compressed payloads stay unknown. Page retained decoding with inspect_analysis_view kind protobuf, collection bodies/frames/fields, exact batch selectors and fields. Large text and schema values require explicit fields selection in those pages. Request detail summary for capture identity and counts; then page retained records with inspect_analysis_view kind capture (preview or complete), avoiding repeated decoding. Default detail complete preserves existing inline delivery. Inspect retained local HAR 1.2, native mitmproxy, Fiddler SAZ or aioquic 1.5.0 JSON qlog 0.3 events without contacting recorded URLs. Returns original ordinals, pointers/byte ranges/archive member names, preserved producer fields, precise numeric representations and exact exposed binary bytes inline. Excludes known transport credentials and explicitly marked values. Decodes every record before optional ordinal selection; malformed or oversized captures return no partial success. Duplicate JSON members are invalid; prototype-named members such as __proto__ are preserved as ordinary own JSON members without prototype mutation. Qlog reports trace-scoped STREAM interval unions and endpoint loss declarations; it does not recover bodies, prove network loss or correlate PCAP. Other qlog layouts are unsupported. Uses pinned upstream parsers, owned temporary files and bounded offline processes. SAZ preserves HTTP fields, XML metadata and encoded body/message bytes without replay or HAR conversion; encrypted archives are unsupported. Native mitmproxy requires caller-supplied mitmdump 12.2.3 on Linux. Browser transaction IDs, runtime attribution and original bytes of HAR Unicode text remain unknown.",
-+      "Explicit record_ordinals also decode retained protobuf/gRPC bodies whose declared content type is recognized. Optional protobuf selects exact body_pointers, framing, and a caller-supplied local FileDescriptorSet with message_type. Native gRPC and gRPC-web framing remain distinct. Wire fields are flat byte-range facts; ambiguous readings stay candidates, compressed payloads stay unknown. Page retained decoding with inspect_analysis_view kind protobuf, collection bodies/frames/fields, exact batch selectors and fields. Large text and schema values require explicit fields selection in those pages. Request detail summary for capture identity and counts; then page retained records with inspect_analysis_view kind capture (preview or complete), avoiding repeated decoding. Default detail complete preserves existing inline delivery. Inspect retained local HAR 1.2, native mitmproxy, Fiddler SAZ or aioquic 1.5.0 JSON qlog 0.3 events without contacting recorded URLs. Returns original ordinals, pointers/byte ranges/archive member names, preserved producer fields, precise numeric representations and exact exposed binary bytes inline. Excludes known transport credentials and explicitly marked values. Decodes every record before optional ordinal selection; malformed or oversized captures return no partial success. Duplicate JSON members are invalid; prototype-named members such as __proto__ are preserved as ordinary own JSON members without prototype mutation. Qlog reports trace-scoped STREAM interval unions and endpoint loss declarations; it does not recover bodies, prove network loss or correlate PCAP. Other qlog layouts are unsupported. Uses pinned upstream parsers, owned temporary files and bounded offline processes. SAZ preserves HTTP fields, XML metadata and encoded body/message bytes without replay or HAR conversion; encrypted archives are unsupported. Native mitmproxy requires caller-supplied mitmdump on Linux. Browser transaction IDs, runtime attribution and original bytes of HAR Unicode text remain unknown.",
+-      "Inspect a saved local HAR 1.2, mitmproxy, Fiddler SAZ or supported aioquic qlog capture without contacting recorded URLs. Returns source-linked records, preserved producer fields, precise numbers, exposed bytes and explicit coverage/limitations; transport credentials and explicitly marked sensitive values are excluded. Use inspect_web_page for a live CDP page. Preserve capture_path exactly as supplied; it names a path on the REA host, not a path to rebase onto the client workspace. Select format; record_ordinals selects records after full decoding and also decodes recognized protobuf/gRPC bodies. Optional protobuf selects body_pointers, framing and a local FileDescriptorSet/message_type; native gRPC and gRPC-web remain distinct, ambiguous readings stay candidates and compressed payloads stay unknown. Default complete delivery is inline. detail summary retains Evidence for inspect_analysis_view kind capture (preview/complete), protobuf (bodies/frames/fields), or qlog; large text/schema values require explicit fields. Qlog supports aioquic 1.5.0 JSON qlog 0.3 and reports STREAM interval unions/endpoint loss declarations, not recovered bodies or proved network loss. SAZ preserves encoded bytes without replay/HAR conversion; encrypted archives are unsupported. Mitmproxy requires caller-supplied mitmdump 12.2.3 on Linux. Malformed or oversized captures return no partial success; browser transaction attribution and HAR text’s original bytes remain unknown.",
++      "Inspect a saved local HAR 1.2, mitmproxy, Fiddler SAZ or supported aioquic qlog capture without contacting recorded URLs. Returns source-linked records, preserved producer fields, precise numbers, exposed bytes and explicit coverage/limitations; transport credentials and explicitly marked sensitive values are excluded. Use inspect_web_page for a live CDP page. Preserve capture_path exactly as supplied; it names a path on the REA host, not a path to rebase onto the client workspace. Select format; record_ordinals selects records after full decoding and also decodes recognized protobuf/gRPC bodies. Optional protobuf selects body_pointers, framing and a local FileDescriptorSet/message_type; native gRPC and gRPC-web remain distinct, ambiguous readings stay candidates and compressed payloads stay unknown. Default complete delivery is inline. detail summary retains Evidence for inspect_analysis_view kind capture (preview/complete), protobuf (bodies/frames/fields), or qlog; large text/schema values require explicit fields. Qlog supports aioquic 1.5.0 JSON qlog 0.3 and reports STREAM interval unions/endpoint loss declarations, not recovered bodies or proved network loss. SAZ preserves encoded bytes without replay/HAR conversion; encrypted archives are unsupported. Mitmproxy requires caller-supplied mitmdump on Linux. Malformed or oversized captures return no partial success; browser transaction attribution and HAR text’s original bytes remain unknown.",
 --- a/src/firmware/FirmwareVersion.test.ts
 +++ b/src/firmware/FirmwareVersion.test.ts
 @@ -17,0 +18,2 @@
@@ -137,12 +149,12 @@
 +    limitation: `This session uses ${verified.name} ${parsed.token}. The report parser is verified against ${verified.version}; the observed version is reported and output validation remains enabled.`,
 --- a/src/javascript/recovery/WakaruCommand.ts
 +++ b/src/javascript/recovery/WakaruCommand.ts
-@@ -33 +33 @@
--  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru ^1.13.0 Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/javascript-recovery.md#install-wakaru.";
-+  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/javascript-recovery.md#install-wakaru.";
+@@ -40 +40 @@
+-  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru ^1.13.0 Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/guides/javascript/javascript-recovery.md#install-wakaru.";
++  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/guides/javascript/javascript-recovery.md#install-wakaru.";
 --- a/src/javascript/recovery/WakaruRelease.ts
 +++ b/src/javascript/recovery/WakaruRelease.ts
-@@ -10,7 +10,2 @@
+@@ -3,7 +3,2 @@
 -/**
 - * Releases the report parser accepts. Wakaru changes `--version`, `--json`
 - * and `provenance.json` only by addition within a major version
@@ -170,44 +182,40 @@
 @@ -1 +1 @@
 -import { satisfies, valid } from "semver";
 +import { valid } from "semver";
-@@ -23,5 +23 @@
+@@ -24,5 +24 @@
 -  if (
 -    token === undefined ||
 -    valid(token) !== token ||
 -    !satisfies(token, WAKARU_ACCEPTED_RANGE)
 -  )
 +  if (token === undefined || valid(token) !== token)
-@@ -37 +33 @@
+@@ -38 +34 @@
 -    limitation: `This session uses Wakaru ${token}. The report parser is verified against ${WAKARU_RELEASE.version}; other ${WAKARU_ACCEPTED_RANGE} releases are accepted and the observed version is reported.`,
 +    limitation: `This session uses Wakaru ${token}. The report parser is verified against ${WAKARU_RELEASE.version}; the observed version is reported and output validation remains enabled.`,
 --- a/src/native/pwntools/PwntoolsDecoder.ts
 +++ b/src/native/pwntools/PwntoolsDecoder.ts
-@@ -60,4 +60 @@
--import {
--  PWNTOOLS_PROVIDER_IDENTITY,
--  PWNTOOLS_LIMITS,
--} from "./PwntoolsRelease.js";
-+import { PWNTOOLS_LIMITS } from "./PwntoolsRelease.js";
-@@ -124 +121,4 @@
+@@ -77 +76,0 @@
+-import { PWNTOOLS_PROVIDER_IDENTITY } from "./PwntoolsProviderIdentity.js";
+@@ -156 +155,4 @@
 -  readonly identity: ProviderIdentity;
 +  #observedVersion: string | null = null;
 +  get identity(): ProviderIdentity {
 +    return { ...this.profile.identity, version: this.#observedVersion };
 +  }
-@@ -155,3 +155 @@
+@@ -187,3 +189 @@
 -  ) {
 -    this.identity = profile.identity;
 -  }
 +  ) {}
-@@ -237 +235,3 @@
+@@ -301 +301,3 @@
 -        profile: z.literal(PWNTOOLS_PROVIDER_IDENTITY.version),
 +        profile: z
 +          .string()
 +          .regex(/^pwntools@[^;]+;pyelftools@[^;]+;unicorn@[^;]+$/u),
-@@ -283 +283 @@
+@@ -355 +357 @@
 -          "Set REA_PWNTOOLS_PYTHON to an absolute caller-supplied Python executable with pwntools 4.15.0, pyelftools 0.33 and Unicorn 2.1.2; REA never installs Python or packages.",
 +          "Set REA_PWNTOOLS_PYTHON to an absolute caller-supplied Python executable with pwntools, pyelftools and Unicorn; REA never installs Python or packages.",
-@@ -477,0 +478 @@
+@@ -617,0 +620 @@
 +      this.#observedVersion = reply.profile;
 --- a/src/pcap/PcapConfiguration.test.ts
 +++ b/src/pcap/PcapConfiguration.test.ts
@@ -223,15 +231,15 @@
 +    );
 --- a/src/pcap/PcapConfiguration.ts
 +++ b/src/pcap/PcapConfiguration.ts
-@@ -48 +48 @@
--const TOOL_REMEDIATION = `Supply Wireshark 4.x tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
-+const TOOL_REMEDIATION = `Supply Wireshark tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
-@@ -182,2 +182,2 @@
+@@ -51 +51 @@
+-export const PCAP_TOOL_REMEDIATION = `Supply Wireshark 4.x tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
++export const PCAP_TOOL_REMEDIATION = `Supply Wireshark tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
+@@ -185,2 +185,2 @@
 - * Recognize the selected Wireshark tool's version banner: null when the first
 - * line is not a Wireshark banner, a failure when its major version is not 4.
 + * Recognize the selected Wireshark tool's version banner, or return null when
 + * its first non-empty line is not a Wireshark banner.
-@@ -200,6 +199,0 @@
+@@ -203,6 +202,0 @@
 -  if (parsed[1] !== "4")
 -    throw new PcapConfigurationFailure(
 -      `${tool}_version_unsupported`,
