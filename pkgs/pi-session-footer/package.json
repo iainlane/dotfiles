@@ -21,7 +21,7 @@
     "test:integration": "node scripts/prepare-fixtures.ts && vitest run --project integration"
   },
   "dependencies": {
-    "pi-prs": "^0.6.0"
+    "pi-prs": "^0.7.0"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "1.5.2",
