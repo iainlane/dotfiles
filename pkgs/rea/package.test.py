@@ -70,10 +70,12 @@ CALLER_SETTING = "retained"
             self.assertEqual(sorted(config.parent.iterdir()), [config])
 
             self.assertEqual(run("--yes")["status"], "ready")
+            entrypoint = PACKAGE / "lib/node_modules/rea-agents/scripts/rea.mjs"
+            interpreter = entrypoint.read_text().splitlines()[0].removeprefix("#!")
             expected = tomllib.loads(original)
             expected["mcp_servers"]["rea"].update(
-                command=str(PACKAGE / "lib/node_modules/rea-agents/scripts/rea.mjs"),
-                args=["mcp"],
+                command=str(Path(interpreter).resolve()),
+                args=[str(entrypoint), "mcp"],
             )
             configured = config.read_text()
             self.assertEqual(tomllib.loads(configured), expected)

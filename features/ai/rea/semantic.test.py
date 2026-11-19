@@ -58,6 +58,7 @@ class ToolTest(unittest.TestCase):
             "XDG_CONFIG_HOME": str(self.root / "config"),
             "PATH": "",
             "REA_LOG_LEVEL": "silent",
+            "REA_BROWSER_NO_SANDBOX": "true",
             "SDKROOT": "/fixture-sdk",
             "DEVELOPER_DIR": "/fixture-developer",
         }
@@ -305,9 +306,6 @@ class ToolTest(unittest.TestCase):
                 self.send_header("Content-Type", "text/html")
                 self.end_headers()
                 self.wfile.write(body)
-
-            def log_message(self, format: str, *args: object) -> None:
-                pass
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.addCleanup(server.server_close)
