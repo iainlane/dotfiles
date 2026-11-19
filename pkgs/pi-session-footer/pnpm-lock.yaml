@@ -12,15 +12,15 @@ overrides:
   '@mariozechner/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
   '@juicesharp/rpiv-btw': file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
   '@marckrenn/pi-sub-core': file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
-  pi-prs: file:.nix-providers/pi-prs-0.6.0.tgz
+  pi-prs: file:.nix-providers/pi-prs-0.7.0.tgz
 
 importers:
 
   .:
     dependencies:
       pi-prs:
-        specifier: file:.nix-providers/pi-prs-0.6.0.tgz
-        version: file:.nix-providers/pi-prs-0.6.0.tgz
+        specifier: file:.nix-providers/pi-prs-0.7.0.tgz
+        version: file:.nix-providers/pi-prs-0.7.0.tgz
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: 1.5.2
@@ -1239,9 +1239,9 @@ packages:
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
-  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
-    resolution: {integrity: sha512-SF5Qac1Yd54YBgkRVFcxc+LqcWvJcd/BL7WlmT3tNQdlpEmmiCbDDdSsOt90CWZrQIUCSU9A6m92YgcgixK1Vg==, tarball: file:.nix-providers/pi-prs-0.6.0.tgz}
-    version: 0.6.0
+  pi-prs@file:.nix-providers/pi-prs-0.7.0.tgz:
+    resolution: {integrity: sha512-8PgTR7ITDglD3aWo2r/e5mUxUFWdcLhMoLfu2D15RHOhwaI91AyZPwE8wPa1W0B+3fFvzKM9/epuJi38tfqYQQ==, tarball: file:.nix-providers/pi-prs-0.7.0.tgz}
+    version: 0.7.0
     engines: {node: '>=24.0.0'}
 
   picocolors@1.1.1:
@@ -2658,7 +2658,7 @@ snapshots:
 
   path-to-regexp@6.3.0: {}
 
-  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
+  pi-prs@file:.nix-providers/pi-prs-0.7.0.tgz:
     dependencies:
       turndown: 7.2.5
       turndown-plugin-gfm: 1.0.2
