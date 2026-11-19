@@ -87,6 +87,7 @@ jobs:
       nix-config: .#nix.publishCiConfig
       maximise-space: true
       gc-between-cohorts: true
+      reuse-plan-derivations: true
       trusted-public-key: ${{ needs.sources.outputs.trustedPublicKey }}
       input-known-hosts: >-
         ${{ needs.sources.outputs.githubKnownHost }}
