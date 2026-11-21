@@ -38,6 +38,16 @@
       automerge: true,
     },
 
+    // These pins mirror the requirements.txt of the rag-api revision that
+    // pkgs/librechat-rag/package.nix fetches, and move with that revision.
+    // Updating them alone leaves uv.lock unresolvable. Vulnerability fixes
+    // still apply: their `force`d `vulnerabilityAlerts` settings re-enable them.
+    {
+      matchFileNames: ["pkgs/librechat-rag/pyproject.toml"],
+      matchUpdateTypes: ["major", "minor", "patch"],
+      enabled: false,
+    },
+
     // Renovate's own pnpm relock cannot reach the local npm packages that the
     // lockfiles install from `.nix-providers`, and it cannot refresh the Nix
     // dependency hashes. The post-upgrade script runs the package updaters,
