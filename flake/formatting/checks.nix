@@ -23,6 +23,22 @@ in {
       '';
     treefmt = config.treefmt.build.check inputs.self;
 
+    # The source is only the configuration file, so the check is rebuilt only
+    # when that file changes. Given a path, the validator reads the file as
+    # self-hosted global configuration. Without one, it finds the file in the
+    # working directory and reads it as repository configuration.
+    renovate-config =
+      pkgs.runCommandLocal "renovate-config-check" {
+        nativeBuildInputs = [pkgs.renovate];
+        passthru.ci.runOnce = true;
+      } ''
+        export HOME="$TMPDIR"
+        mkdir .github
+        cp ${../../.github/renovate.json5} .github/renovate.json5
+        renovate-config-validator --strict
+        touch "$out"
+      '';
+
     zsh-tooling =
       pkgs.runCommandLocal "zsh-tooling" {
         nativeBuildInputs = [pkgs.diffutils pkgs.zsh];
