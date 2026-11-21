@@ -35,7 +35,7 @@ in {
     formatter = {
       oxfmt = {
         includes = ["*.mts" "*.cts"];
-        excludes = ["**/package-lock.json"];
+        excludes = ["**/package-lock.json" "**/pnpm-lock.yaml"];
       };
 
       shfmt.includes = ["*.zsh"];
