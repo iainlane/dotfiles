@@ -10,7 +10,7 @@
   pname = "pi-session-footer";
   directory = ./.;
   pnpm = pnpm_10;
-  dependencyHash = "sha256-o457ItDV/bE6SqgHihZ2O0D0n4jNDeYStCCO0BqGFVg=";
+  dependencyHash = "sha256-YvzWWaLNIlm7DfPtQSXa74pU6L2g61Xyr8pG0z4q0mM=";
   environment = {
     PI_TEST_HOST = "${pi}/bin/pi";
     PI_TEST_PRETTY = "${pi-pretty}/${pi-pretty.packageRoot}";

@@ -12,7 +12,7 @@
   pname = "teamclaude-provision";
   directory = ./.;
   pnpm = pnpm_10;
-  dependencyHash = "sha256-kenGjB1YQIbAJZw7Ljb/wBVz1z+5sFgYcXuOrZCgG4c=";
+  dependencyHash = "sha256-h6yjAehLRCgvBDpWQ/O2nXDM8yPgvjULzwyPnd9URD8=";
 
   # Node does not strip types from TypeScript files under node_modules.
   packageRoot = "lib/teamclaude-provision";
