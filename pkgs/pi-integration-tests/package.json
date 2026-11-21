@@ -4,13 +4,15 @@
   "scripts": {
     "typecheck": "node ../../lib/typecheck.ts --noEmit",
     "lint": "oxlint . && syncpack lint --config ../../.syncpackrc.json",
-    "check": "pnpm typecheck && pnpm lint",
+    "check": "pnpm typecheck && pnpm lint && node --test dist/rpc-session.test.js",
     "build": "tsc"
   },
   "type": "module",
   "private": true,
   "files": [
-    "dist"
+    "dist",
+    "!dist/*.test.js",
+    "!dist/*.test.d.ts"
   ],
   "devDependencies": {
     "@earendil-works/pi-ai": "1.5.2",
@@ -25,5 +27,15 @@
   "dependencies": {
     "typebox": "1.3.27"
   },
-  "packageManager": "pnpm@10.34.7"
+  "packageManager": "pnpm@10.34.7",
+  "exports": {
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "default": "./dist/protocol.js"
+    },
+    "./rpc-session": {
+      "types": "./dist/rpc-session.d.ts",
+      "default": "./dist/rpc-session.js"
+    }
+  }
 }

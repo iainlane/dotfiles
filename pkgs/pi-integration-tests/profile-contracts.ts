@@ -139,7 +139,7 @@ async function assertResources(
   }
   assert.deepStrictEqual(
     readdirSync(join(agent, "managed-extensions")).toSorted(),
-    ["planning", "prose-lint", "session-footer"],
+    ["openai-context", "planning", "prose-lint", "session-footer"],
   );
   assert.equal(lstatSync(join(agent, "extensions")).isSymbolicLink(), false);
   const permission = join(agent, "extensions/pi-permission-system/config.json");

@@ -44,6 +44,9 @@ The [session footer] shows model, context, quota and work that needs attention.
 Use `/footer` to inspect details. OpenAI quota reporting requires a separate
 legacy login with `/login openai-codex`.
 
+For ChatGPT sessions on the `openai` provider, `/openai-context-status` shows
+the active context window and the account catalogue status.
+
 `/subagents` manages delegated work, `/todos` manages execution tasks, and `/pr`
 inspects the pull request.
 

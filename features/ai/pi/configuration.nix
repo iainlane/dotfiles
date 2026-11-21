@@ -84,7 +84,13 @@
     # Pi includes package source paths in prompts, so keep them relative.
     packages = lib.mapAttrsToList (name: _: {source = "packages/${name}";} // lib.optionalAttrs (name == "pi-ask-user") {skills = [];}) piExtensions;
 
-    extensions = ["managed-extensions/session-footer" "managed-extensions/planning"] ++ lib.optional proseLintEnabled "managed-extensions/prose-lint";
+    extensions =
+      [
+        "managed-extensions/openai-context"
+        "managed-extensions/session-footer"
+        "managed-extensions/planning"
+      ]
+      ++ lib.optional proseLintEnabled "managed-extensions/prose-lint";
     themes = ["themes/*.json"];
     enableSkillCommands = true;
 
@@ -230,6 +236,7 @@
   localExtensionFiles = {
     ".pi/agent/managed-extensions/session-footer".source = "${pkgs.pi-session-footer}/${pkgs.pi-session-footer.packageRoot}";
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
+    ".pi/agent/managed-extensions/openai-context".source = "${pkgs.pi-openai-context}/${pkgs.pi-openai-context.packageRoot}";
   };
 in {
   xdg.configFile."rpiv-todo/config.json".text = toJson {maxWidgetLines = 0;};

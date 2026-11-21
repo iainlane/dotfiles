@@ -388,6 +388,27 @@ in {
       touch "$out"
     '';
 
+  pi-openai-context-profile = pkgs.runCommandLocal "pi-openai-context-profile" {} ''
+    export HOME="$TMPDIR/openai-home"
+    export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
+    export PI_OFFLINE=1
+    ${installHomeFiles}
+    bash ${permissionConfigActivation}
+    install -m600 ${openaiAuth} "$PI_CODING_AGENT_DIR/auth.json"
+    timeout 120s ${pkgs.nodejs_24}/bin/node ${testRoot}/openai-context-profile-check.js ${lib.getExe pi} ${lib.escapeShellArg modelCatalog.openai.sol} "$PI_CODING_AGENT_DIR" >responses.jsonl 2>errors.txt || {
+      status=$?
+      echo "Managed Pi context probe exited with status $status" >&2
+      cat errors.txt responses.jsonl >&2
+      exit "$status"
+    }
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' errors.txt >unexpected-errors.txt || true
+    if [[ -s unexpected-errors.txt ]]; then
+      cat unexpected-errors.txt >&2
+      exit 1
+    fi
+    touch "$out"
+  '';
+
   pi-startup = pkgs.runCommandLocal "pi-startup" {nativeBuildInputs = [pkgs.gitMinimal];} ''
     export HOME="$TMPDIR/home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"

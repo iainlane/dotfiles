@@ -1,85 +1,14 @@
-import { Type } from "typebox";
-import { Check } from "typebox/value";
-import { parseRecord } from "./protocol.js";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { createInterface } from "node:readline";
-
-const responseSchema = Type.Object({
-  type: Type.String(),
-  id: Type.Optional(Type.String()),
-  success: Type.Optional(Type.Boolean()),
-  error: Type.Optional(Type.String()),
-});
+import { withPiRpc } from "./rpc-session.js";
 
 const [pi, command, ...args] = process.argv.slice(2);
 assert.ok(
   pi !== undefined && pi !== "" && command !== undefined && command !== "",
   "Pass Pi, the command and its arguments",
 );
-const child = spawn(pi, ["--mode", "rpc", "--no-context-files", ...args], {
-  stdio: ["pipe", "pipe", "inherit"],
+
+await withPiRpc(pi, args, async (session) => {
+  await session.request({ type: "get_state" }, "ready");
+  await session.request({ type: "prompt", message: `/${command}` }, "probe");
+  await session.request({ type: "get_state" }, "state");
 });
-const completed = Promise.withResolvers<void>();
-const lines = createInterface({ input: child.stdout });
-lines.on("line", (line) => {
-  process.stdout.write(line + "\n");
-  const record = parseRecord(line);
-  assert.ok(Check(responseSchema, record), "Expected a Pi RPC response record");
-  if (record.type === "extension_error") {
-    completed.reject(
-      new Error(
-        typeof record.error === "string"
-          ? record.error
-          : "A command extension failed",
-      ),
-    );
-    return;
-  }
-  if (record.type !== "response") {
-    return;
-  }
-  if (record.success === false) {
-    completed.reject(
-      new Error(
-        typeof record.error === "string"
-          ? record.error
-          : "The probe command failed",
-      ),
-    );
-    return;
-  }
-  if (record.id === "ready") {
-    child.stdin.write(
-      JSON.stringify({ id: "probe", type: "prompt", message: `/${command}` }) +
-        "\n",
-    );
-    return;
-  }
-  if (record.id === "probe") {
-    child.stdin.write(
-      JSON.stringify({ id: "state", type: "get_state" }) + "\n",
-    );
-    return;
-  }
-  if (record.id === "state") {
-    completed.resolve();
-  }
-});
-child.on("error", (error) => completed.reject(error));
-child.on("exit", (code) =>
-  completed.reject(new Error(`Pi exited before completing the probe: ${code}`)),
-);
-child.stdin.write(JSON.stringify({ id: "ready", type: "get_state" }) + "\n");
-try {
-  await completed.promise;
-  const exited = once(child, "exit");
-  child.stdin.end();
-  const result: unknown[] = await exited;
-  const code: unknown = result[0];
-  assert.equal(code, 0);
-} finally {
-  lines.close();
-  child.kill();
-}
