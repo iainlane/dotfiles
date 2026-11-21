@@ -15,6 +15,24 @@ in
     outputs = (old.outputs or ["out"]) ++ ["sdk" "tarball"];
     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [npmPackHook];
     preInstall = ''
+      # The CLI selects its startup model before refreshing the remote catalogue.
+      node --input-type=module <<'JS'
+      import { readFileSync, writeFileSync } from "node:fs";
+
+      const path = "node_modules/@earendil-works/pi-ai/dist/providers/data/openai.json";
+      const catalogue = JSON.parse(readFileSync(path, "utf8"));
+      const models = catalogue["openai-responses"];
+      const id = "gpt-6.2-sol";
+
+      if (!models["chat:" + id]) {
+        const sol = models["chat:gpt-6.1-sol"];
+        if (!sol) throw new Error("Pi's bundled catalogue has no GPT-6.1 Sol entry");
+
+        models["chat:" + id] = { ...sol, id, name: "GPT-6.2 Sol" };
+        writeFileSync(path, JSON.stringify(catalogue));
+      }
+      JS
+
       mkdir -p "$sdk/${sdkPackageRoot}"
       cp -a package.json package-lock.json README.md CHANGELOG.md dist docs examples node_modules "$sdk/${sdkPackageRoot}/"
       ${old.preInstall or ""}

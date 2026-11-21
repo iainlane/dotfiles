@@ -6,9 +6,9 @@
   anthropic.opus = "claude-opus-5-5";
   google.geminiPro = "Gemini 3.1 Pro (High)";
   openai = {
-    astra = "gpt-6-astra";
-    sol = "gpt-6.1-sol";
-    terra = "gpt-5.6-terra";
+    astra = "gpt-6.2-astra";
+    sol = "gpt-6.2-sol";
+    terra = "gpt-6.1-terra";
   };
   openrouter.sol = "~openai/gpt-sol-latest";
 

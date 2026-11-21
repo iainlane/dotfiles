@@ -792,11 +792,8 @@ def codex_isolated_features() -> dict[str, bool]:
         "browser_use": False,
         "browser_use_external": False,
         "browser_use_full_cdp_access": False,
-        # The GPT-5.6 models declare `tool_mode: code_mode_only`, so they can
-        # reach the evidence MCP tools only through the code-mode host, which
-        # runs model-written JavaScript in a V8 isolate whose tool calls are
-        # delegated back through Codex. Disabling the host leaves the judge
-        # with no tools at all.
+        # Models with `tool_mode: code_mode_only` lose access to the evidence
+        # MCP tools if the code-mode host is disabled.
         "code_mode_host": True,
         "codex_apps_mcp_2026_07_28": False,
         "computer_use": False,
