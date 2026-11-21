@@ -291,7 +291,7 @@ packages:
       typebox: '*'
 
   '@marckrenn/pi-sub-core@file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz':
-    resolution: {integrity: sha512-aMJAuqsHjkza35d8OywMSOqJgoDkHXR+3jhM1iFFr3OdVN5HMcz1xZ1D3UxJlHNc7z6E5rowmWQWteX+7FjTmQ==, tarball: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz}
+    resolution: {integrity: sha512-IWPaIFifx45BEI3fNPzUaAAMWOR11r3QaB+X/P9RjJjUx5BydJIbVuiL+aOqM97EgO5qCNvs6/eQIZK5HzfLjQ==, tarball: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz}
     version: 1.5.0
     peerDependencies:
       '@mariozechner/pi-coding-agent': '*'

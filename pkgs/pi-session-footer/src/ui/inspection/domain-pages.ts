@@ -11,7 +11,7 @@ import {
   type InspectionText,
   type Section,
 } from "./inspection-page.ts";
-import { quotaWindows } from "#footer/domain/quota.ts";
+import { quotaErrorDescription, quotaWindows } from "#footer/domain/quota.ts";
 import type { FooterSnapshot } from "#footer/domain/state.ts";
 import { duration, text, tokens } from "#footer/shared/text.ts";
 import { taskSummary } from "#footer/domain/workflow.ts";
@@ -175,8 +175,12 @@ export class DomainPages {
           : { value: `Updated ${elapsed(state.now - at)} ago` },
       );
     }
-    if (state.quota?.error !== undefined) {
-      summary.push({ value: text(state.quota.error), colour: "error" });
+    const error = state.quota?.error;
+    if (error !== undefined) {
+      summary.push({
+        value: quotaErrorDescription(error),
+        colour: error.credential?.expired === true ? "warning" : "error",
+      });
     }
     const rows = windows.map((window, index): InspectionRow => {
       const row = detailRow(

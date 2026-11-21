@@ -1,6 +1,10 @@
 import type { FooterSnapshot } from "#footer/domain/state.ts";
 import { duration, reportText, text } from "#footer/shared/text.ts";
-import { quotaWindows, type QuotaView } from "#footer/domain/quota.ts";
+import {
+  quotaDiagnosticLines,
+  quotaWindows,
+  type QuotaView,
+} from "#footer/domain/quota.ts";
 import { taskSummary } from "#footer/domain/workflow.ts";
 import type { StatusSnapshot } from "#footer/domain/status.ts";
 
@@ -69,7 +73,7 @@ export function detailsLines(
       `Account identity: ${state.quota?.account ?? "unavailable"} (account of the reading; runtime identity is not verified)`,
       `Credential source: ${state.quota?.source ?? "unavailable"}`,
       `Last successful fetch: ${state.quota?.lastSuccessAt !== undefined && state.quota.lastSuccessAt !== 0 ? new Date(state.quota.lastSuccessAt).toISOString() : "unavailable"}`,
-      `Last error: ${state.quota?.error ?? "none reported"}`,
+      ...quotaDiagnosticLines(state.quota),
       ...quotaWindows(state.quota, state.now).map((window) =>
         quotaLine(window),
       ),

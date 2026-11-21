@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readQuota, quotaWindows } from "#footer/domain/quota.ts";
+import {
+  quotaDiagnosticLines,
+  readQuota,
+  quotaWindows,
+} from "#footer/domain/quota.ts";
 
 const now = Date.UTC(2026, 9, 20, 12);
 
@@ -82,8 +86,46 @@ describe("quota readings", () => {
       previous,
     );
 
-    expect(failed).toStrictEqual({ ...previous, error: "TIMEOUT" });
+    expect(failed).toStrictEqual({ ...previous, error: { code: "TIMEOUT" } });
     expect(quotaWindows(failed, now)[0]?.freshness).toBe("cached");
+  });
+
+  it("displays the successful fallback and clears the previous expiry error", () => {
+    const previous = readQuota(
+      event([], {
+        error: {
+          code: "API_ERROR",
+          credential: { source: "pi", expired: true },
+        },
+        lastSuccessAt: undefined,
+      }),
+    );
+    const reading = readQuota(
+      event([{ label: "Week", usedPercent: 18 }], {
+        credentialSource: "codex",
+        skippedExpiredCredential: "pi",
+      }),
+      previous,
+    );
+
+    expect({
+      windows: quotaWindows(reading, now),
+      source: quotaDiagnosticLines(reading),
+    }).toStrictEqual({
+      windows: [
+        {
+          label: "Week",
+          used: 18,
+          reset: undefined,
+          pace: undefined,
+          freshness: "fresh",
+        },
+      ],
+      source: [
+        "Last error: none reported",
+        "Skipped expired Pi Codex credential",
+      ],
+    });
   });
 
   it.each([
@@ -97,7 +139,10 @@ describe("quota readings", () => {
       const previous = readQuota(event([{ label: "Week", usedPercent: 18 }]));
       const next = readQuota(raw, previous);
 
-      expect(next).toStrictEqual({ ...previous, error: "INVALID_UPDATE" });
+      expect(next).toStrictEqual({
+        ...previous,
+        error: { code: "INVALID_UPDATE" },
+      });
       expect(quotaWindows(next, now + 301_000)).toStrictEqual([
         {
           label: "Week",

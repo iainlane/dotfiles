@@ -17,11 +17,18 @@ export interface QuotaWindow {
   windowSeconds: number | undefined;
 }
 
+interface QuotaError {
+  code: string;
+  httpStatus?: number;
+  credential?: { source: string; expired: boolean };
+}
+
 export interface QuotaState {
   provider: string;
   windows: QuotaWindow[];
   lastSuccessAt: number | undefined;
-  error: string | undefined;
+  error: QuotaError | undefined;
+  skippedExpiredCredential?: "pi";
   account: string | undefined;
   source: string | undefined;
 }
@@ -52,6 +59,7 @@ const usageSchema = Type.Object({
       lastSuccessAt: Type.Optional(Type.Unknown()),
       accountId: Type.Optional(Type.Unknown()),
       credentialSource: Type.Optional(Type.Unknown()),
+      skippedExpiredCredential: Type.Optional(Type.Unknown()),
     }),
   }),
 });
@@ -109,7 +117,7 @@ function freshness(
     return "stale";
   }
 
-  if (reading.error !== undefined && reading.error !== "") {
+  if (reading.error !== undefined) {
     return "cached";
   }
 
@@ -127,7 +135,58 @@ function invalidUpdate(
     return undefined;
   }
 
-  return { ...previous, error: "INVALID_UPDATE" };
+  return { ...previous, error: { code: "INVALID_UPDATE" } };
+}
+
+function readError(raw: unknown): QuotaError | undefined {
+  if (!record(raw)) {
+    return undefined;
+  }
+
+  const error: QuotaError = { code: text(raw.code, 48) || "UNKNOWN" };
+  if (
+    typeof raw.httpStatus === "number" &&
+    Number.isInteger(raw.httpStatus) &&
+    raw.httpStatus >= 100 &&
+    raw.httpStatus <= 599
+  ) {
+    error.httpStatus = raw.httpStatus;
+  }
+
+  if (record(raw.credential)) {
+    const source = text(raw.credential.source, 48);
+    if (source !== "") {
+      error.credential = { source, expired: raw.credential.expired === true };
+    }
+  }
+
+  return error;
+}
+
+export function quotaErrorDescription(error: QuotaError): string {
+  const details = [error.code];
+  if (error.httpStatus !== undefined) {
+    details.push(`HTTP ${error.httpStatus}`);
+  }
+  return error.credential?.expired === true
+    ? `Credential expired (${details.join(", ")})`
+    : details.join(" · ");
+}
+
+export function quotaDiagnosticLines(
+  reading: QuotaState | undefined,
+): string[] {
+  const error = reading?.error;
+  const lines = [
+    `Last error: ${error === undefined ? "none reported" : quotaErrorDescription(error)}`,
+  ];
+  if (error?.credential !== undefined) {
+    lines.push(`Failed credential source: ${error.credential.source}`);
+  }
+  if (reading?.skippedExpiredCredential === "pi") {
+    lines.push("Skipped expired Pi Codex credential");
+  }
+  return lines;
 }
 
 export function readQuota(
@@ -148,23 +207,17 @@ export function readQuota(
   }
 
   const usage = raw.state.usage;
-  const error = record(usage.error)
-    ? text(usage.error.code) || "UNKNOWN"
-    : undefined;
+  const error = readError(usage.error);
 
   if (
     error !== undefined &&
-    error !== "" &&
     previous !== undefined &&
     previous.provider === raw.state.provider
   ) {
     return { ...previous, error };
   }
 
-  if (
-    !Check(windowsSchema, usage.windows) &&
-    (error === undefined || error === "")
-  ) {
+  if (!Check(windowsSchema, usage.windows) && error === undefined) {
     return invalidUpdate(previous, raw.state.provider);
   }
 
@@ -189,6 +242,9 @@ export function readQuota(
     error,
     account: text(usage.accountId, 96) || undefined,
     source: text(usage.credentialSource, 48) || undefined,
+    ...(usage.skippedExpiredCredential === "pi"
+      ? { skippedExpiredCredential: "pi" }
+      : {}),
   };
 }
 

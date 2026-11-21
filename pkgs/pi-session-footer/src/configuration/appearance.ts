@@ -213,6 +213,7 @@ export const WIDGET_ROLES: Readonly<
     reset: marker("Reset"),
     stale: plain("Stale"),
     error: marker("Error"),
+    "credential-expired": marker("Expired credential"),
   },
   cache: {},
   cost: {},

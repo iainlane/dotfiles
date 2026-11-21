@@ -9,7 +9,7 @@ import {
   thinkingStyle,
   type FooterStyle,
 } from "./palette.ts";
-import { quotaWindows } from "#footer/domain/quota.ts";
+import { quotaDiagnosticLines, quotaWindows } from "#footer/domain/quota.ts";
 import type { FooterSnapshot } from "#footer/domain/state.ts";
 import {
   DEFAULT_SYMBOLS,
@@ -173,7 +173,7 @@ export const SEGMENTS = {
   quota: definition(
     "Quota",
     "quota",
-    "◴ percent used; ↻ time until reset, not reading age",
+    "◴ percent used; ↻ time until reset; ⚠ quota error;  expired credential",
     90,
   ),
   cache: definition(
@@ -622,21 +622,30 @@ function quota(state: FooterSnapshot, p: SegmentPainter): Reading {
   const details = [
     `Reading: ${state.quota?.lastSuccessAt === undefined ? "unknown" : new Date(state.quota.lastSuccessAt).toISOString()}`,
     `Source: ${state.quota?.source ?? "unknown"}; account ${state.quota?.account ?? "unknown"}`,
-    `Last error: ${state.quota?.error ?? "none reported"}`,
+    ...quotaDiagnosticLines(state.quota),
     ...windows.map(
       (window) =>
         `${window.label}: ${window.used === undefined ? "percentage unavailable or expired" : `${window.used}% used`}; ${window.freshness}; reset in ${window.reset ?? "unknown"}`,
     ),
   ];
   if (parts.length === 0) {
-    if (state.quota?.error !== undefined && state.quota.error !== "") {
+    const error = state.quota?.error;
+    if (error !== undefined) {
+      const expired = error.credential?.expired === true;
       return available(
         "quota",
-        p.symbol(styles.error, "◴", ` ⚠ ${text(state.quota.error)}`, {
-          primary: true,
-          role: "error",
-          attention: true,
-        }),
+        p.concat(
+          p.symbol(styles.label, "◴", " ", { primary: true }),
+          p.symbol(
+            expired ? styles.warning : styles.error,
+            expired ? "" : "⚠",
+            "",
+            {
+              role: expired ? "credential-expired" : "error",
+              attention: true,
+            },
+          ),
+        ),
         { details, priority: 120 },
       );
     }

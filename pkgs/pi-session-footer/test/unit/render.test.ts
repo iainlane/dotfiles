@@ -254,7 +254,7 @@ it("retains source failure and provenance without fabricating missing readings",
     details: readings.quota.details,
   }).toStrictEqual({
     git: " ⚠ permission denied",
-    quota: "◴ ⚠ AUTH_FAILED",
+    quota: "◴ ⚠",
     details: [
       "Reading: unknown",
       "Source: fixture; account unknown",
@@ -276,6 +276,41 @@ it("retains source failure and provenance without fabricating missing readings",
       "Last error: none reported",
       "5h: percentage unavailable or expired; unavailable; reset in unknown",
       "Week: percentage unavailable or expired; unavailable; reset in unknown",
+    ],
+  });
+});
+it("shows an expired quota credential as a key once cached quota expires", () => {
+  const state = fixture();
+  state.quota = readQuota(
+    {
+      state: {
+        provider: "codex",
+        usage: {
+          error: {
+            code: "HTTP_ERROR",
+            httpStatus: 401,
+            credential: { source: "pi", expired: true },
+          },
+        },
+      },
+    },
+    state.quota,
+  );
+  const cached = readSegments(state).quota;
+  state.now += 300_001;
+  const expired = readSegments(state).quota;
+  expect({
+    cached: cached.parts.map((part) => part.variants[0]),
+    expired: expired.parts.map((part) => part.variants[0]),
+    details: expired.details.slice(0, 4),
+  }).toStrictEqual({
+    cached: ["◴ 5h 15% ↻2h cached", "◴ week 18% ↻3d cached"],
+    expired: ["◴ "],
+    details: [
+      "Reading: 2026-10-20T12:00:00.000Z",
+      "Source: unknown; account unknown",
+      "Last error: Credential expired (HTTP_ERROR, HTTP 401)",
+      "Failed credential source: pi",
     ],
   });
 });
