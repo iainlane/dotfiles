@@ -23,6 +23,7 @@ in {
         CUPBOARD_EVALUATION_CONFIG=${../../../lib/nix/evaluation.conf} \
         CUPBOARD_TARGET_FIXTURE=${pkgs.writeText "cupboard-target-fixture.json" (builtins.toJSON fixture)} \
         CUPBOARD_WORKFLOWS=${../../../.github/workflows} \
+        CUPBOARD_UPDATE_PUBLISHER=${../../../scripts/publish-update-pr.bash} \
         CUPBOARD_WORKFLOWS_BASH=${pkgs.bash}/bin/bash \
         ${pkgs.nodejs}/bin/node --experimental-strip-types --test \
         ${../../../scripts/cupboard-workflows.test.ts}

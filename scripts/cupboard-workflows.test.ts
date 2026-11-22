@@ -352,7 +352,7 @@ function runUpdateWorkflow(
   trigger: Trigger,
   runner: string,
   repository: Readonly<Record<string, string>>,
-  remoteBranches: readonly string[] = [],
+  options: { branches?: readonly string[]; createStatus?: number } = {},
 ): UpdateRun {
   const directory = mkdtempSync(join(tmpdir(), "update-workflow-"));
   const bin = join(directory, "bin");
@@ -403,7 +403,12 @@ printf 'before=%s; after=%s\\n' "$(cat "$1")" "$(cat "$2")"
     "fixture",
   ]);
   runGit(work, env, ["remote", "add", "origin", origin]);
-  for (const branch of remoteBranches) {
+  mkdirSync(join(work, "scripts"), { recursive: true });
+  copyFileSync(
+    process.env.CUPBOARD_UPDATE_PUBLISHER ?? "scripts/publish-update-pr.bash",
+    join(work, "scripts/publish-update-pr.bash"),
+  );
+  for (const branch of options.branches ?? []) {
     runGit(work, env, [
       "push",
       "--quiet",
@@ -444,6 +449,7 @@ if [ "$1 $2" = 'pr create' ]; then
     fi
     shift
   done
+  exit ${options.createStatus ?? 0}
 fi
 `,
     date: "printf '2026-11-04\\n'",
@@ -531,14 +537,14 @@ describe("Scheduled maintenance workflows", () => {
     [
       "flake-update.yml",
       "flake",
-      "flake-update/2026-11-04-123",
+      "flake-update/2026-11-04-123-2",
       "flake-update/2026-11-03-122",
       "chore(flake): update inputs",
     ],
     [
       "package-update.yml",
       "pkgs",
-      "package-update/2026-11-04",
+      "package-update/2026-11-04-123-2",
       "package-update/2026-11-03",
       "chore(pkgs): update packages",
     ],
@@ -577,7 +583,7 @@ printf '%s' ${quote(report)}
 exit 1
 `,
         { "flake.lock": "before\n", "pkgs/fixture/version": "unchanged\n" },
-        [stale],
+        { branches: [stale] },
       );
       assert.deepEqual(run, {
         status: 0,
@@ -602,6 +608,41 @@ exit 1
               "pkgs/fixture/version": "unchanged\n",
               "pkgs/fixture/new-lock.json": "locked\n",
             },
+          },
+        },
+      });
+    });
+
+    it(`${filename} removes the failed PR branch and preserves the previous branch`, () => {
+      const report = "## Updated\n\n- fixture\n";
+      const run = runUpdateWorkflow(
+        filename,
+        manualRun,
+        `
+printf 'after\\n' > flake.lock
+if [ "$2" = --stage ]; then git add -- flake.lock; fi
+printf '%s' ${quote(report)}
+`,
+        { "flake.lock": "before\n" },
+        { branches: [stale], createStatus: 42 },
+      );
+      assert.deepEqual(run, {
+        status: 42,
+        stderr: "",
+        body: [
+          ...(prefix === "flake" ? relockSummary : packageSummary),
+          "",
+          report.trimEnd(),
+          "",
+          reportLink,
+          ...cupboardFooter,
+        ].join("\n"),
+        summary: report,
+        pushed: {
+          [`refs/heads/${stale}`]: {
+            author: "fixture <fixture@example.invalid>\n",
+            subject: "fixture\n",
+            files: { "flake.lock": "before\n" },
           },
         },
       });
@@ -696,7 +737,7 @@ printf '## Updated\\n\\n- fixture\\n'
         ].join("\n"),
         summary: "## Updated\n\n- fixture\n",
         pushed: {
-          "refs/heads/package-update/2026-11-04": {
+          "refs/heads/package-update/2026-11-04-123-2": {
             author: bot,
             subject: "chore(pkgs): update packages\n",
             files: {

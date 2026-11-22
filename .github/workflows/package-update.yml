@@ -94,70 +94,7 @@ jobs:
           fi
           cat "${report}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Open or update the pull request
+      - name: Publish the update pull request
         env:
           GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
-        run: |
-          set -euo pipefail
-
-          if git diff --cached --quiet; then
-            echo "All packages current; nothing to propose."
-            exit 0
-          fi
-
-          gh auth setup-git
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          branch="package-update/$(date -u +%Y-%m-%d)"
-          export branch
-
-          # Keep a single update in flight: close any earlier package-update PRs
-          # and delete their branches, then sweep up any branches left without a
-          # PR.
-          gh pr list --state open --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("package-update/")) | select(.headRefName != env.branch) | .number' \
-            | while read -r number; do
-                gh pr close "${number}" --delete-branch
-              done
-
-          git ls-remote --heads origin "refs/heads/package-update/*" \
-            | sed 's#.*refs/heads/##' \
-            | while read -r stale; do
-                [ "${stale}" = "${branch}" ] && continue
-                git push origin --delete "${stale}"
-              done
-
-          git switch -C "${branch}"
-          git commit -m "chore(pkgs): update packages"
-          git push --force origin "HEAD:refs/heads/${branch}"
-
-          {
-            echo "Automated package bumps from the scheduled \`package-update\` workflow."
-            echo
-            awk '!/^  > /' "${RUNNER_TEMP}/update-report.md" | LC_ALL=C awk '
-              omitted || bytes + length($0) + 1 > 8192 { omitted = 1; next }
-              { print; bytes += length($0) + 1 }
-              END { if (omitted) print "\nThe summary was shortened." }
-            '
-            printf '\n[Full update report](%s%s).\n' \
-              "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/" \
-              "${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
-
-            echo
-            echo "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache."
-          } > "${RUNNER_TEMP}/body.md"
-
-          if gh pr view "${branch}" --json state >/dev/null 2>&1; then
-            gh pr edit "${branch}" --body-file "${RUNNER_TEMP}/body.md"
-            echo "Existing pull request updated."
-            exit 0
-          fi
-
-          gh pr create \
-            --base main \
-            --head "${branch}" \
-            --title "chore(pkgs): update packages" \
-            --label dependencies \
-            --body-file "${RUNNER_TEMP}/body.md"
+        run: exec bash scripts/publish-update-pr.bash package-update
