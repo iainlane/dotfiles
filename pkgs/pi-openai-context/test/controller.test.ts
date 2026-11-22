@@ -225,9 +225,11 @@ it.each([false, true])(
     const advertised = accountWindow.toLocaleString();
     const defaultWindow = base.contextWindow.toLocaleString();
     expect(await host.controller.status(host.session)).toBe(
-      applied
-        ? `sol uses a ${advertised}-token context window, which matches the ChatGPT account catalogue.`
-        : `sol uses a ${defaultWindow}-token context window. The ChatGPT account catalogue lists ${advertised} tokens for this model.`,
+      [
+        "Model            openai/sol",
+        `Context window   ${applied ? advertised : defaultWindow} tokens`,
+        `Account context  ${advertised} tokens`,
+      ].join("\n"),
     );
   },
 );
@@ -238,7 +240,12 @@ it("identifies a saved catalogue and reports the refresh failure", async () => {
   await host.controller.apply(host.session, "run-start");
 
   expect(await host.controller.status(host.session)).toBe(
-    `sol uses a ${accountWindow.toLocaleString()}-token context window, which matches the saved ChatGPT account catalogue. ${notice}`,
+    [
+      "Model            openai/sol",
+      `Context window   ${accountWindow.toLocaleString()} tokens`,
+      `Account context  ${accountWindow.toLocaleString()} tokens (saved catalogue)`,
+      `Status           ${notice}`,
+    ].join("\n"),
   );
 });
 

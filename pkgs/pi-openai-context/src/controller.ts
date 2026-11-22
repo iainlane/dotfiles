@@ -16,6 +16,7 @@ import {
 } from "./model.ts";
 
 type Boundary = "selection" | "input" | "run-start";
+type StatusField = [label: string, value: string];
 interface ModelControls extends Pick<
   ExtensionAPI,
   "getThinkingLevel" | "setThinkingLevel"
@@ -123,47 +124,65 @@ export class ContextController {
     if (!isOpenAIResponsesModel(active)) {
       return "Select an OpenAI Responses model to see its context window.";
     }
-    const window = `${active.id} uses a ${active.contextWindow.toLocaleString()}-token context window`;
+    const report = (...details: StatusField[]) => {
+      const fields: StatusField[] = [
+        ["Model", `${active.provider}/${active.id}`],
+        ["Context window", `${active.contextWindow.toLocaleString()} tokens`],
+        ...details,
+      ];
+      const width = Math.max(...fields.map(([label]) => label.length));
+      return fields
+        .map(([label, value]) => `${label.padEnd(width)}  ${value}`)
+        .join("\n");
+    };
     if (this.failedModel === active) {
-      return `${window}. Pi could not update the active model.`;
+      return report(["Status", "Pi could not update the active model."]);
     }
     if (!ctx.managesModel(active.id)) {
-      return `${window}. Using the limits from the model provider.`;
+      return report(["Source", "Model provider"]);
     }
     const policy = await this.options.readPolicy(active.id);
     if (policy.kind === "unavailable") {
-      return `${window}. The extension could not read models.json.`;
+      return report(["Status", "The extension could not read models.json."]);
     }
     if (
       policy.kind === "override" &&
       adjustContext(active, policy.limits, "override") === undefined
     ) {
-      return `${window}. The configured context window leaves no room for input.`;
+      return report([
+        "Status",
+        "The configured context window leaves no room for input.",
+      ]);
     }
-    if (policy.kind !== "automatic" || !ctx.acceptsAccountWindows()) {
-      return `${window}. Using Pi's configured limits.`;
+    if (policy.kind !== "automatic") {
+      return report(["Source", "models.json"]);
+    }
+    if (!ctx.acceptsAccountWindows()) {
+      return report(["Source", "Pi configuration"]);
     }
     const { catalogue } = this.options;
     await catalogue.checkRegistration();
     const advertised = catalogue.window(active.id);
     const { source, notice } = catalogue.status;
-    const note = notice === undefined ? "" : ` ${notice}`;
-    if (advertised === undefined) {
-      return `${window}. No account window is available for this model.${note}`;
+    const saved = source === "saved" ? " (saved catalogue)" : "";
+    const details: StatusField[] = [
+      [
+        "Account context",
+        advertised === undefined
+          ? "Unavailable"
+          : `${advertised.toLocaleString()} tokens${saved}`,
+      ],
+    ];
+    const diagnostics = [
+      advertised !== undefined && advertised <= active.maxTokens
+        ? "The account window leaves no room for input with the current output limit."
+        : undefined,
+      notice,
+    ].filter((message) => message !== undefined);
+    if (diagnostics.length > 0) {
+      details.push(["Status", diagnostics.join(" ")]);
     }
-
-    const catalogueName =
-      source === "saved"
-        ? "saved ChatGPT account catalogue"
-        : "ChatGPT account catalogue";
-    const report = `The ${catalogueName} lists ${advertised.toLocaleString()} tokens for this model.`;
-    if (advertised <= active.maxTokens) {
-      return `${window}. ${report} That leaves no room for input with the current output limit.${note}`;
-    }
-    if (advertised === active.contextWindow) {
-      return `${window}, which matches the ${catalogueName}.${note}`;
-    }
-    return `${window}. ${report}${note}`;
+    return report(...details);
   }
 
   async apply(ctx: ContextModelSession, boundary: Boundary): Promise<void> {

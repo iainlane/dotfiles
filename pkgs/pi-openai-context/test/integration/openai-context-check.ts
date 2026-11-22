@@ -172,6 +172,31 @@ await withOpenAIContextNetwork(
           await session.request({ type: "prompt", message: `/${name}` });
         };
         if (mode === "manual-refresh") {
+          const getCommands = await session.request({ type: "get_commands" });
+          assert.ok(
+            Check(
+              Type.Object({
+                commands: Type.Array(Type.Object({ name: Type.String() })),
+              }),
+              getCommands,
+            ),
+          );
+          assert.deepEqual(
+            getCommands.commands
+              .map(({ name }) => name)
+              .filter(
+                (name) =>
+                  name === "openai-context" || name === "openai-context-status",
+              ),
+            ["openai-context"],
+          );
+          assert.deepEqual(
+            await session.request({
+              type: "prompt",
+              message: "/openai-context",
+            }),
+            { disposition: "handled" },
+          );
           const before = await session.request({ type: "get_state" });
           assert.ok(Check(modelStateSchema, before));
           assert.deepEqual(

@@ -89,15 +89,15 @@ export default async function openaiContextExtension(
     provider.unregister(ctx.modelRegistry);
   });
 
-  const showStatus = async (_args: string, ctx: ExtensionContext) => {
-    ctx.ui.notify(await controller.status(modelSession(ctx, provider)), "info");
-  };
   pi.registerCommand("openai-context", {
     description: "Show or refresh OpenAI context limits",
     handler: async (args, ctx) => {
       const action = args.trim();
       if (action === "") {
-        await showStatus(args, ctx);
+        ctx.ui.notify(
+          await controller.status(modelSession(ctx, provider)),
+          "info",
+        );
         return;
       }
       if (action !== "refresh") {
@@ -115,10 +115,5 @@ export default async function openaiContextExtension(
       }
       ctx.ui.notify("ChatGPT account catalogue refreshed.", "info");
     },
-  });
-  pi.registerCommand("openai-context-status", {
-    description:
-      "Show the active OpenAI context window and account refresh status",
-    handler: showStatus,
   });
 }
