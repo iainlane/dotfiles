@@ -684,6 +684,10 @@ const nestedResearch = (task: string, delegation: TranscriptStep[]) => [
   report(extendedResearchTools),
 ];
 
+const registerResearchToolsAfterPlanningStarts: ExtensionFactory = (pi) => {
+  pi.on("session_start", () => researchFixture(pi));
+};
+
 it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
   {
     mode: "codemode",
@@ -901,7 +905,17 @@ it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
       const settings = SettingsManager.inMemory({
         compaction: { enabled: false },
         retry: { enabled: false },
-        defaultTools: ["+codemode"],
+        defaultTools: [
+          "read",
+          "write",
+          "edit",
+          "bash",
+          "grep",
+          "find",
+          "ls",
+          "codemode",
+          ...(mode === "mcp" ? ["tool_search"] : []),
+        ],
       });
       const loader = new DefaultResourceLoader({
         cwd,
@@ -916,7 +930,6 @@ it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
         extensionFactories: [
           provider,
           nativePermissionsFixture,
-          ...(mode === "nested" ? [researchFixture] : []),
           ...(mode === "mcp" ? [createToolSearchExtension()] : []),
           ...(hasMcp
             ? [
@@ -932,6 +945,9 @@ it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
           createCodemodeExtension({ mode: "on" }),
           subagents,
           planning,
+          ...(mode === "nested"
+            ? [registerResearchToolsAfterPlanningStarts]
+            : []),
         ],
       });
       await loader.reload();
@@ -954,23 +970,6 @@ it.each<{ mode: string; sessions: (plan: string) => TranscriptStep[][] }>([
         thinkingLevel: "off",
         sessionManager: manager,
         settingsManager: settings,
-        tools: [
-          "read",
-          "write",
-          "edit",
-          "bash",
-          "grep",
-          "find",
-          "ls",
-          "codemode",
-          "enter_plan_mode",
-          "subagent",
-          "bg_wait",
-          "subagents_enable",
-          "submit_plan",
-          ...(mode === "nested" ? fixtureTools : []),
-          ...(mode === "mcp" ? ["tool_search"] : []),
-        ],
       }));
       await session.bindExtensions({
         mode: "rpc",
