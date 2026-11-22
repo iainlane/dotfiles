@@ -489,9 +489,11 @@ in {
     export PI_NOTIFY_ROOT=${pkgs.pi-notify}/${pkgs.pi-notify.packageRoot}
     export PI_SIMPLIFY_ROOT=${pkgs.pi-simplify}/${pkgs.pi-simplify.packageRoot}
     export PI_PRETTY_ROOT=${pkgs.pi-pretty}/${pkgs.pi-pretty.packageRoot}
-    ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-runtime-contracts --offline --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/runtime-contracts.js >contracts.jsonl 2>contracts-errors.txt
-    test -f runtime-contracts-ok || { cat contracts-errors.txt contracts.jsonl >&2; exit 1; }
-    test ! -s contracts-errors.txt || { cat contracts-errors.txt >&2; exit 1; }
+    if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-runtime-contracts --offline --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/runtime-contracts.js >contracts.jsonl 2>contracts-errors.txt \
+      || [[ ! -f runtime-contracts-ok || -s contracts-errors.txt ]]; then
+      cat contracts-errors.txt contracts.jsonl >&2
+      exit 1
+    fi
 
     ${pkgs.nodejs}/bin/node ${testRoot}/lsp-check.js ${pkgs.pi-lens}/${pkgs.pi-lens.packageRoot} "$HOME/.pi-lens/config.json"
 

@@ -92,6 +92,8 @@ export default function contracts(pi: ExtensionAPI): void {
           notify,
           "default",
         )({
+          events: pi.events,
+          getSessionName: () => "Runtime fixture",
           on: (
             event: string,
             callback: (event: unknown, context: ExtensionContext) => unknown,
@@ -128,7 +130,7 @@ export default function contracts(pi: ExtensionAPI): void {
           assert.deepStrictEqual(output, []);
           await settled({}, { ...ctx, mode: "tui" });
           assert.deepStrictEqual(output, [
-            "\u001B]777;notify;Pi;Ready for input\u0007",
+            "\u001B]777;notify;Pi (Runtime fixture);Ready for input\u0007",
           ]);
         } finally {
           if (original) {
