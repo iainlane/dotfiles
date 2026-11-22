@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -82,6 +83,32 @@ if (mode === "override") {
         },
       },
     }),
+  );
+}
+
+if (mode === "cached") {
+  const listContextWindow = (...authArgs: string[]) => {
+    const result = execFileSync(
+      pi,
+      ["--no-mcp", ...authArgs, "--list-models", model],
+      { encoding: "utf8" },
+    );
+    return result
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/u))
+      .find(([provider, id]) => provider === "openai" && id === model)?.[2];
+  };
+  assert.deepEqual(
+    {
+      oauth: listContextWindow(),
+      apiKey: listContextWindow(
+        "--model",
+        `openai/${model}`,
+        "--api-key",
+        "fixture",
+      ),
+    },
+    { oauth: "530K", apiKey: "272K" },
   );
 }
 

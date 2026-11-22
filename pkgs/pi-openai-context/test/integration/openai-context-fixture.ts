@@ -87,7 +87,7 @@ export default function openaiContextFixture(pi: ExtensionAPI): void {
           contextWindow:
             expectedAccountWindow ?? inactiveBaseline.contextWindow,
         },
-        registered: expectedAccountWindow !== undefined,
+        registered: pi.getFlag(modeFlag) !== "foreign",
         foreignName:
           pi.getFlag(modeFlag) === "foreign" ? "Fixture OpenAI" : undefined,
         unknown: undefined,

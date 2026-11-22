@@ -15,16 +15,19 @@ The managed dotfiles profile loads the package through Nix. To build a tarball
 that you can unpack and install locally, run
 `nix build .#pi-openai-context.tarball`.
 
-At session start and on reload, the extension reads the matching saved catalogue
-and starts refreshing the [OpenAI account catalogue] in the background. The
-extension wraps Pi's OpenAI provider so matching Responses models in the
-registry use the account windows. Pi's provider still handles sign-in, requests
-and model discovery. The extension updates the active model as well, so the
-footer and session compaction use the same limit.
+At startup, the extension wraps Pi's OpenAI provider and uses the matching saved
+catalogue for Responses models. This also applies to standalone
+`pi --list-models`, which reads the cache during Pi's startup refresh and uses
+Pi's configured limits on a cache miss. Pi's provider still handles sign-in,
+requests and model discovery.
 
-A turn can wait up to four seconds for the first fetch when there is no matching
-saved catalogue. Later turns use the last window while the extension refreshes
-the catalogue after five minutes or retries a failed request after 30 seconds.
+Session start, reload, model selection and turns check whether the [OpenAI
+account catalogue] is due for a refresh. A successful response is fresh for five
+minutes. Within a session, a failure delays the next attempt by 30 seconds. An
+idle session makes no additional requests. A turn can wait up to four seconds
+for the first fetch when there is no matching saved catalogue. Later turns use
+the last matching windows during refresh. The extension updates the active model
+so the footer and compaction use the same limit.
 
 The cache is `openai-context-cache.json` in the Pi agent directory. OpenAI binds
 the [issued OAuth client ID] to the user and workspace selected at sign-in. The
@@ -32,12 +35,11 @@ extension matches the cache to that registration. It uses Pi's credential
 resolver for requests, so Pi can renew the access token before the request. An
 offline session or a failed request uses a matching cache entry when available.
 
-API-key sessions and providers registered by another extension use Pi's
-configured limits. The extension detects an explicit context window in
-`models.json` and applies that window and its optional output limit to the
-active model before the next typed turn checks for compaction. Pi owns the rest
-of the model configuration. Explicit model limits in `models.json` take
-precedence in the registry.
+API-key sessions use Pi's configured limits. The extension detects an explicit
+context window in `models.json` and applies that window and its optional output
+limit to the active model before the next typed turn checks for compaction. Pi
+owns the rest of the model configuration. Explicit model limits in `models.json`
+take precedence in the registry.
 
 Run `/openai-context-status` to see the active context window and catalogue
 status. Pi records an entry when the extension updates the active model. If Pi

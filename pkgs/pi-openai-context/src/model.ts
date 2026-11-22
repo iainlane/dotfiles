@@ -24,7 +24,7 @@ export function isOpenAIResponsesModel(
   );
 }
 
-type ModelConfigRead =
+export type ModelConfigRead =
   | {
       kind: "available";
       content: string | undefined;

@@ -3,167 +3,171 @@ import {
   type Api,
   type Model,
   type Provider,
+  type RefreshModelsContext,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ContextCatalogue } from "./catalogue.ts";
 import { openaiBaseUrl, openaiProvider } from "./catalogue-client.ts";
+import { classifyCredential } from "./credential.ts";
 import {
   adjustContext,
   contextPolicy,
   isOpenAIResponsesModel,
+  type ModelConfigRead,
   readModelConfig,
 } from "./model.ts";
 
 type Registry = ExtensionContext["modelRegistry"];
+type Windows = ContextCatalogue["windows"];
 
-interface Registration {
-  registry: Registry;
-  provider: Provider;
-  parent: Provider;
-  windows: ReadonlyMap<string, number>;
-  config: string | undefined;
+interface Projection {
+  config: ModelConfigRead;
+  windows: Windows;
 }
 
 export class OpenAIContextProvider {
+  readonly provider: Provider;
   private readonly modelsPath: string;
-  private registration: Registration | undefined;
+  private readonly catalogue: ContextCatalogue;
+  private projection: Projection | undefined;
 
-  constructor(modelsPath: string) {
+  constructor(
+    parent: Provider,
+    modelsPath: string,
+    catalogue: ContextCatalogue,
+  ) {
     this.modelsPath = modelsPath;
+    this.catalogue = catalogue;
+    this.provider = {
+      ...parent,
+      refreshModels: async (context) => {
+        await parent.refreshModels?.(context);
+        await this.restoreWindows(context);
+      },
+      getModels: () => parent.getModels().map((model) => this.project(model)),
+      getAllModels: () =>
+        (parent.getAllModels?.() ?? parent.getModels()).map((model) =>
+          isModelType(model, "chat") ? this.project(model) : model,
+        ),
+    };
   }
 
   manages(registry: Registry): boolean {
     return (
-      this.owns(registry) ||
-      !registry.getRegisteredProviderIds().includes(openaiProvider)
+      registry.getRegisteredNativeProvider(openaiProvider) === this.provider
     );
   }
 
   acceptsAccountWindows(registry: Registry): boolean {
-    const provider = registry.getProvider(openaiProvider);
     if (
       !this.manages(registry) ||
-      provider?.baseUrl !== openaiBaseUrl ||
-      provider.auth.oauth?.isSubscription !== true
+      registry.getProvider(openaiProvider)?.baseUrl !== openaiBaseUrl ||
+      registry.getProviderAuthStatus(openaiProvider).source !== "stored"
     ) {
       return false;
     }
-    const model = provider
+    const model = this.provider
       .getModels()
       .find((entry) => isOpenAIResponsesModel(entry));
-    return model !== undefined && modelUsesStoredOAuth(registry, model);
+    return model !== undefined && registry.isUsingOAuth(model);
   }
 
-  async publish(
+  async synchronize(
     registry: Registry,
-    windows: ReadonlyMap<string, number> | undefined,
+    windows: Windows,
     isCurrent: () => boolean,
   ): Promise<void> {
-    if (!isCurrent()) {
+    if (!isCurrent() || !this.manages(registry)) {
       return;
     }
-    if (windows === undefined || !this.acceptsAccountWindows(registry)) {
-      this.unregister();
-      return;
-    }
-
     const config = await readModelConfig(this.modelsPath);
-    if (!isCurrent()) {
-      return;
-    }
-    if (config.kind === "unavailable") {
-      this.unregister();
-      return;
-    }
-
-    let previous = this.owns(registry) ? this.registration : undefined;
-    const previousWindows = previous?.windows;
-    if (previous !== undefined && previous.config !== config.content) {
-      await registry.refresh({
-        allowNetwork: false,
-        providers: [openaiProvider],
-      });
-      if (!isCurrent()) {
-        return;
-      }
-      this.unregister();
-      previous = undefined;
-    } else if (
-      previousWindows === windows ||
-      (previousWindows?.size === windows.size &&
-        [...windows].every(
-          ([id, window]) => previousWindows.get(id) === window,
-        ))
+    if (
+      !isCurrent() ||
+      !this.manages(registry) ||
+      this.isSynchronized(config, windows)
     ) {
       return;
     }
-
-    if (!this.acceptsAccountWindows(registry)) {
-      return;
+    const { errors } = await registry.refresh({
+      allowNetwork: false,
+      providers: [openaiProvider],
+    });
+    const error = errors.get(openaiProvider);
+    if (error !== undefined && isCurrent()) {
+      throw new Error("Pi could not refresh the OpenAI model registry.", {
+        cause: error,
+      });
     }
-    const parent = previous?.parent ?? registry.getProvider(openaiProvider);
-    if (parent === undefined) {
-      return;
-    }
-
-    const project = (model: Model<Api>): Model<Api> => {
-      if (
-        !isOpenAIResponsesModel(model) ||
-        !modelUsesStoredOAuth(registry, model) ||
-        contextPolicy(config, model.id).kind !== "automatic"
-      ) {
-        return model;
-      }
-      const contextWindow = windows.get(model.id);
-      if (contextWindow === undefined) {
-        return model;
-      }
-      return (
-        adjustContext(model, { contextWindow }, "account", "registry") ?? model
-      );
-    };
-    if (!parent.getModels().some((model) => project(model) !== model)) {
-      this.unregister();
-      return;
-    }
-    const provider: Provider = {
-      ...parent,
-      getModels: () => parent.getModels().map((model) => project(model)),
-      getAllModels: () =>
-        (parent.getAllModels?.() ?? parent.getModels()).map((model) =>
-          isModelType(model, "chat") ? project(model) : model,
-        ),
-    };
-    // pi.registerProvider also replaces the active model without a model_select event.
-    registry.registerProvider(provider);
-    this.registration = {
-      registry,
-      provider,
-      parent,
-      windows,
-      config: config.content,
-    };
   }
 
-  unregister(): void {
-    const registration = this.registration;
-    if (registration !== undefined && this.owns(registration.registry)) {
-      registration.registry.unregisterProvider(openaiProvider);
+  unregister(registry: Registry): void {
+    if (this.manages(registry)) {
+      registry.unregisterProvider(openaiProvider);
     }
-    this.registration = undefined;
   }
 
-  private owns(registry: Registry): boolean {
+  private isSynchronized(config: ModelConfigRead, windows: Windows): boolean {
+    const previous = this.projection;
+    if (previous?.config.kind !== config.kind) {
+      return false;
+    }
+    if (
+      config.kind === "available" &&
+      previous.config.kind === "available" &&
+      config.content !== previous.config.content
+    ) {
+      return false;
+    }
+    const published = previous.windows;
     return (
-      this.registration?.registry === registry &&
-      registry.getRegisteredNativeProvider(openaiProvider) ===
-        this.registration.provider
+      published === windows ||
+      (windows !== undefined &&
+        published?.size === windows.size &&
+        [...windows].every(([id, window]) => published.get(id) === window))
     );
   }
-}
 
-function modelUsesStoredOAuth(registry: Registry, model: Model<Api>): boolean {
-  return (
-    registry.getProviderAuthStatus(openaiProvider).source === "stored" &&
-    registry.isUsingOAuth(model)
-  );
+  private async restoreWindows(context: RefreshModelsContext): Promise<void> {
+    // Pi passes the stored credential in the cache phase, even for a public remote catalogue.
+    if (context.allowNetwork || context.signal.aborted) {
+      return;
+    }
+    const config = await readModelConfig(this.modelsPath);
+    const credential = classifyCredential(context.credential);
+    let windows: Windows;
+    if (
+      config.kind === "available" &&
+      context.baseUrl === openaiBaseUrl &&
+      credential.status === "present"
+    ) {
+      await this.catalogue.checkRegistration();
+      windows = this.catalogue.windowsFor(credential.credential.clientId);
+    }
+    await context.publish({
+      update: () => {
+        this.projection = { config, windows };
+      },
+    });
+  }
+
+  private project(model: Model<Api>): Model<Api> {
+    const projection = this.projection;
+    if (
+      projection?.config.kind !== "available" ||
+      !isOpenAIResponsesModel(model) ||
+      contextPolicy(projection.config, model.id).kind !== "automatic"
+    ) {
+      return model;
+    }
+    const contextWindow = projection.windows?.get(model.id);
+    if (contextWindow === undefined) {
+      return model;
+    }
+    const maxTokens =
+      projection.config.openai?.modelOverrides?.[model.id]?.maxTokens;
+    const baseline = maxTokens === undefined ? model : { ...model, maxTokens };
+    return (
+      adjustContext(baseline, { contextWindow }, "account", "registry") ?? model
+    );
+  }
 }

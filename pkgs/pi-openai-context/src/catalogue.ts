@@ -89,6 +89,10 @@ export class ContextCatalogue {
     return this.windows?.get(id);
   }
 
+  windowsFor(clientId: string): ReadonlyMap<string, number> | undefined {
+    return this.grant === grantKey(clientId) ? this.windows : undefined;
+  }
+
   cancel(): void {
     this.generation++;
     this.loading = undefined;

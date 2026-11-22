@@ -1,5 +1,6 @@
 import {
   getAgentDir,
+  ModelRuntime,
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
@@ -33,7 +34,7 @@ function modelSession(
     },
     acceptsAccountWindows: () => provider.acceptsAccountWindows(registry),
     publishAccountWindows: (windows, isCurrent) =>
-      provider.publish(registry, windows, isCurrent),
+      provider.synchronize(registry, windows, isCurrent),
     async resolveAccountToken() {
       const auth = await registry.getProviderAuth(openaiProvider);
       return auth?.source === "OAuth" ? auth.auth.apiKey : undefined;
@@ -41,18 +42,31 @@ function modelSession(
   };
 }
 
-export default function openaiContextExtension(pi: ExtensionAPI): void {
+export default async function openaiContextExtension(
+  pi: ExtensionAPI,
+): Promise<void> {
   const agentDir = getAgentDir();
   const authPath = join(agentDir, "auth.json");
   const modelsPath = join(agentDir, "models.json");
-  const provider = new OpenAIContextProvider(modelsPath);
+  // The CLI runtime applies models.json to the registered wrapper.
+  const runtime = await ModelRuntime.create({
+    modelsPath: null,
+    refreshOnCreate: false,
+  });
+  const parent = runtime.getProvider(openaiProvider);
+  if (parent === undefined) {
+    return;
+  }
+  const catalogue = new ContextCatalogue({
+    path: join(agentDir, "openai-context-cache.json"),
+    readCredential: () => readChatGptCredential(authPath),
+    readWindows: readAccountWindows,
+    offline: process.env.PI_OFFLINE !== undefined,
+  });
+  const provider = new OpenAIContextProvider(parent, modelsPath, catalogue);
+  pi.registerProvider(provider.provider);
   const controller = new ContextController({
-    catalogue: new ContextCatalogue({
-      path: join(agentDir, "openai-context-cache.json"),
-      readCredential: () => readChatGptCredential(authPath),
-      readWindows: readAccountWindows,
-      offline: process.env.PI_OFFLINE !== undefined,
-    }),
+    catalogue,
     controls: pi,
     readPolicy: (id) => readContextPolicy(modelsPath, id),
   });
@@ -70,9 +84,9 @@ export default function openaiContextExtension(pi: ExtensionAPI): void {
   pi.on("before_agent_start", (_event, ctx) =>
     controller.apply(modelSession(ctx, provider), "run-start"),
   );
-  pi.on("session_shutdown", () => {
+  pi.on("session_shutdown", (_event, ctx) => {
     controller.cancel();
-    provider.unregister();
+    provider.unregister(ctx.modelRegistry);
   });
 
   pi.registerCommand("openai-context-status", {
