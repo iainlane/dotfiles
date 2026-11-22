@@ -24,7 +24,7 @@ export type ResolveAccountToken = () => Promise<string | undefined>;
 
 export type CatalogueRefreshResult = { updated: true } | { error: string };
 type RefreshMode = "automatic" | "force";
-type AccountLogin = { grant: string };
+type AccountLogin = { grant: string; clientId: string };
 
 const interrupted = {
   error: "The account catalogue request timed out or was cancelled.",
@@ -110,8 +110,8 @@ export class ContextCatalogue {
     this.abortRefresh();
   }
 
-  async checkRegistration(): Promise<void> {
-    await this.load();
+  async checkRegistration(): Promise<string | undefined> {
+    return (await this.load())?.clientId;
   }
 
   async refreshNow(
@@ -212,7 +212,7 @@ export class ContextCatalogue {
         this.source = "saved";
       }
     }
-    return { grant };
+    return { grant, clientId: result.credential.clientId };
   }
 
   private fetchIfDue(

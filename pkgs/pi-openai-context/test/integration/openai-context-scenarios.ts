@@ -38,7 +38,7 @@ const scenarios = {
   failure: { catalogue: "failure" },
   malformed: { catalogue: "malformed" },
   timeout: { catalogue: "timeout" },
-  override: {},
+  override: { catalogue: "delayed", expectedWindow: 420_000 },
   overlap: { catalogue: "delayed", expectedWindow: 510_000 },
   "empty-retains-cache": {
     catalogue: "empty",

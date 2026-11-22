@@ -64,6 +64,7 @@ export default async function openaiContextExtension(
     offline: process.env.PI_OFFLINE !== undefined,
   });
   const provider = new OpenAIContextProvider(parent, modelsPath, catalogue);
+  await provider.loadSavedWindows();
   pi.registerProvider(provider.provider);
   const controller = new ContextController({
     catalogue,

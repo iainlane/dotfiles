@@ -1,13 +1,84 @@
 import type { Model } from "@earendil-works/pi-ai";
+import { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { writeCatalogue } from "#openai-context/cache.ts";
+import openaiContextExtension from "#openai-context/extension.ts";
 import {
   adjustContext,
   readContextPolicy,
   restoreContext,
 } from "#openai-context/model.ts";
+
+it("registers cached context limits before Pi refreshes the model runtime", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pi-openai-startup-"));
+  vi.stubEnv("PI_CODING_AGENT_DIR", directory);
+  try {
+    const credential = {
+      type: "oauth",
+      access: "fixture",
+      refresh: "fixture",
+      expires: 4_102_444_800_000,
+      clientId: "fixture",
+    } as const;
+    const modelId = "gpt-6.1-sol";
+    await Promise.all([
+      writeFile(
+        join(directory, "auth.json"),
+        JSON.stringify({ openai: credential }),
+      ),
+      writeCatalogue(join(directory, "openai-context-cache.json"), {
+        grant: createHash("sha256").update(credential.clientId).digest("hex"),
+        refreshAfter: Date.now() + 60_000,
+        contextWindows: new Map([[modelId, 530_000]]),
+      }),
+    ]);
+    const loader = new DefaultResourceLoader({
+      cwd: directory,
+      agentDir: directory,
+      extensionFactories: [openaiContextExtension],
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true,
+    });
+    await loader.reload();
+    const { runtime, errors } = loader.getExtensions();
+    expect(errors).toStrictEqual([]);
+    const provider = runtime.pendingNativeProviderRegistrations.find(
+      (registration) => registration.provider.id === "openai",
+    )?.provider;
+    if (provider === undefined) {
+      throw new Error("The extension did not register the OpenAI provider.");
+    }
+    const model = provider.getModels().find((entry) => entry.id === modelId);
+    if (model === undefined) {
+      throw new Error(`The OpenAI provider did not include ${modelId}.`);
+    }
+    const apiKey = { type: "api_key", key: "fixture" } as const;
+    expect({
+      initial: model.contextWindow,
+      oauth: provider.filterModels?.([model], credential)[0]?.contextWindow,
+      apiKey: provider.filterModels?.([model], apiKey)[0]?.contextWindow,
+      otherLogin: provider.filterModels?.([model], {
+        ...credential,
+        clientId: "another-login",
+      })[0]?.contextWindow,
+    }).toStrictEqual({
+      initial: 530_000,
+      oauth: 530_000,
+      apiKey: 272_000,
+      otherLogin: 272_000,
+    });
+  } finally {
+    vi.unstubAllEnvs();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
 
 it("applies only windows with room for input", () => {
   const base: Model<"openai-responses"> = {

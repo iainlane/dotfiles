@@ -67,7 +67,7 @@ function createSession(status = accountStatus) {
         async refreshNow() {
           return (await refresh) ?? { updated: true };
         },
-        checkRegistration: async () => {},
+        checkRegistration: async () => "fixture",
         window: () => window,
         get windows() {
           return windows;

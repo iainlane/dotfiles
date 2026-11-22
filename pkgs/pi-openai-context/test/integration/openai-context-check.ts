@@ -171,6 +171,16 @@ await withOpenAIContextNetwork(
         const command = async (name: string) => {
           await session.request({ type: "prompt", message: `/${name}` });
         };
+        const readInactiveWindow = async () => {
+          const result = await session.request({
+            type: "get_available_models",
+          });
+          assert.ok(Check(availableModelsSchema, result));
+          return result.models.find(
+            (entry) =>
+              entry.provider === "openai" && entry.id === inactiveModelId,
+          )?.contextWindow;
+        };
         if (mode === "manual-refresh") {
           const getCommands = await session.request({ type: "get_commands" });
           assert.ok(
@@ -234,18 +244,8 @@ await withOpenAIContextNetwork(
           return;
         }
         if (mode === "warm") {
-          const readRegistryWindow = async () => {
-            const result = await session.request({
-              type: "get_available_models",
-            });
-            assert.ok(Check(availableModelsSchema, result));
-            return result.models.find(
-              (entry) =>
-                entry.provider === "openai" && entry.id === inactiveModelId,
-            )?.contextWindow;
-          };
           const window = await waitForWindow(
-            readRegistryWindow,
+            readInactiveWindow,
             scenario.expectedWindow,
           );
           const state = await session.request({ type: "get_state" });
@@ -282,6 +282,12 @@ await withOpenAIContextNetwork(
             "Apply the new account window after reload without a model turn",
           );
           await command("check-openai-context");
+        }
+        if (mode === "override") {
+          assert.equal(
+            await waitForWindow(readInactiveWindow, 510_000),
+            510_000,
+          );
         }
         const prompt = async (
           turn: () => Promise<void> = () =>

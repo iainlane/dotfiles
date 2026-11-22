@@ -28,6 +28,7 @@ export const cacheSchema = Type.Object({
 });
 
 const openaiConfigSchema = Type.Object({
+  baseUrl: Type.Optional(Type.String()),
   modelOverrides: Type.Optional(
     Type.Record(
       Type.String(),

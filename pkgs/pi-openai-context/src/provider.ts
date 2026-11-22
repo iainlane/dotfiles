@@ -1,6 +1,7 @@
 import {
   isModelType,
   type Api,
+  type Credential,
   type Model,
   type Provider,
   type RefreshModelsContext,
@@ -15,6 +16,7 @@ import {
   isOpenAIResponsesModel,
   type ModelConfigRead,
   readModelConfig,
+  restoreContext,
 } from "./model.ts";
 
 type Registry = ExtensionContext["modelRegistry"];
@@ -23,6 +25,7 @@ type Windows = ContextCatalogue["windows"];
 interface Projection {
   config: ModelConfigRead;
   windows: Windows;
+  clientId: string | undefined;
 }
 
 export class OpenAIContextProvider {
@@ -38,6 +41,7 @@ export class OpenAIContextProvider {
   ) {
     this.modelsPath = modelsPath;
     this.catalogue = catalogue;
+    const filterAllModels = parent.filterAllModels?.bind(parent);
     this.provider = {
       ...parent,
       refreshModels: async (context) => {
@@ -49,7 +53,43 @@ export class OpenAIContextProvider {
         (parent.getAllModels?.() ?? parent.getModels()).map((model) =>
           isModelType(model, "chat") ? this.project(model) : model,
         ),
+      filterModels: (models, credential) => {
+        const available = parent.filterModels?.(models, credential) ?? models;
+        return this.matchesAccount(credential)
+          ? available
+          : available.map((model) => restoreContext(model, "account"));
+      },
+      filterAllModels:
+        filterAllModels &&
+        ((models, credential) => {
+          const available = filterAllModels(models, credential);
+          return this.matchesAccount(credential)
+            ? available
+            : available.map((model) =>
+                isModelType(model, "chat")
+                  ? restoreContext(model, "account")
+                  : model,
+              );
+        }),
     };
+  }
+
+  async loadSavedWindows(): Promise<void> {
+    const config = await readModelConfig(this.modelsPath);
+    if (
+      config.kind !== "available" ||
+      (config.openai?.baseUrl ?? this.provider.baseUrl) !== openaiBaseUrl
+    ) {
+      return;
+    }
+    const clientId = await this.catalogue.checkRegistration();
+    if (clientId !== undefined) {
+      this.projection = {
+        config,
+        windows: this.catalogue.windowsFor(clientId),
+        clientId,
+      };
+    }
   }
 
   manages(registry: Registry): boolean {
@@ -135,19 +175,29 @@ export class OpenAIContextProvider {
     const config = await readModelConfig(this.modelsPath);
     const credential = classifyCredential(context.credential);
     let windows: Windows;
+    let clientId: string | undefined;
     if (
       config.kind === "available" &&
       context.baseUrl === openaiBaseUrl &&
       credential.status === "present"
     ) {
       await this.catalogue.checkRegistration();
-      windows = this.catalogue.windowsFor(credential.credential.clientId);
+      clientId = credential.credential.clientId;
+      windows = this.catalogue.windowsFor(clientId);
     }
     await context.publish({
       update: () => {
-        this.projection = { config, windows };
+        this.projection = { config, windows, clientId };
       },
     });
+  }
+
+  private matchesAccount(credential: Credential | undefined): boolean {
+    const stored = classifyCredential(credential);
+    return (
+      stored.status === "present" &&
+      stored.credential.clientId === this.projection?.clientId
+    );
   }
 
   private project(model: Model<Api>): Model<Api> {
