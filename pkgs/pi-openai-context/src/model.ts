@@ -1,6 +1,8 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { readFile } from "node:fs/promises";
+import type { Static } from "typebox";
 import { Check } from "typebox/value";
+import { openaiBaseUrl, openaiProvider } from "./catalogue-client.ts";
 import { modelConfigSchema } from "./schemas.ts";
 
 export interface ContextLimits {
@@ -12,10 +14,25 @@ export type ContextPolicy =
   | { kind: "override"; limits: ContextLimits }
   | { kind: "automatic" | "configured" | "unavailable" };
 
-export async function readContextPolicy(
-  path: string,
-  id: string,
-): Promise<ContextPolicy> {
+export function isOpenAIResponsesModel(
+  model: Model<Api> | undefined,
+): model is Model<"openai-responses"> {
+  return (
+    model?.provider === openaiProvider &&
+    model.api === "openai-responses" &&
+    model.baseUrl === openaiBaseUrl
+  );
+}
+
+type ModelConfigRead =
+  | {
+      kind: "available";
+      content: string | undefined;
+      openai?: Static<typeof modelConfigSchema>["providers"]["openai"];
+    }
+  | { kind: "unavailable" };
+
+export async function readModelConfig(path: string): Promise<ModelConfigRead> {
   try {
     const content = await readFile(path, "utf8");
     // Match Pi's private JSON parser so a valid override cannot be missed.
@@ -31,23 +48,39 @@ export async function readContextPolicy(
     if (!Check(modelConfigSchema, settings)) {
       return { kind: "unavailable" };
     }
-    const provider = settings.providers.openai;
-    if (provider?.models?.some((model) => model.id === id) === true) {
-      return { kind: "configured" };
-    }
-    const override = provider?.modelOverrides?.[id];
-    if (override?.contextWindow === undefined) {
-      return { kind: "automatic" };
-    }
-    return {
-      kind: "override",
-      limits: { ...override, contextWindow: override.contextWindow },
-    };
+    return { kind: "available", content, openai: settings.providers.openai };
   } catch (error) {
     return error instanceof Error && "code" in error && error.code === "ENOENT"
-      ? { kind: "automatic" }
+      ? { kind: "available", content: undefined }
       : { kind: "unavailable" };
   }
+}
+
+export function contextPolicy(
+  config: ModelConfigRead,
+  id: string,
+): ContextPolicy {
+  if (config.kind === "unavailable") {
+    return config;
+  }
+  if (config.openai?.models?.some((model) => model.id === id) === true) {
+    return { kind: "configured" };
+  }
+  const override = config.openai?.modelOverrides?.[id];
+  if (override?.contextWindow === undefined) {
+    return { kind: "automatic" };
+  }
+  return {
+    kind: "override",
+    limits: { ...override, contextWindow: override.contextWindow },
+  };
+}
+
+export async function readContextPolicy(
+  path: string,
+  id: string,
+): Promise<ContextPolicy> {
+  return contextPolicy(await readModelConfig(path), id);
 }
 
 const contextAdjustment = Symbol.for(
@@ -72,13 +105,16 @@ export function restoreContext(
   ) {
     return model;
   }
-  return { ...model, ...adjustment.original };
+  const restored = { ...model, ...adjustment.original };
+  delete restored[contextAdjustment];
+  return restored;
 }
 
 export function adjustContext(
   model: ContextModel,
   limits: ContextLimits,
   source: AdjustmentSource,
+  scope: "session" | "registry" = "session",
 ): ContextModel | undefined {
   const previous = model[contextAdjustment];
   const original = previous?.original ?? {
@@ -103,10 +139,10 @@ export function adjustContext(
     return model;
   }
 
-  // Pi keeps the active model when it reloads extensions.
+  // Pi keeps the active model on reload and spreads registry models when applying models.json.
   return Object.defineProperty(
     { ...model, contextWindow, maxTokens },
     contextAdjustment,
-    { value: { source, original } },
+    { value: { source, original }, enumerable: scope === "registry" },
   );
 }

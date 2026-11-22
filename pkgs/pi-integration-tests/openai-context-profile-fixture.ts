@@ -5,21 +5,21 @@ export default function openaiContextProfileFixture(pi: ExtensionAPI): void {
   pi.on("input", (_event, ctx) => {
     const active = ctx.model;
     assert.ok(active, "The managed profile should have an active model");
-    const base = ctx.modelRegistry.find("openai", active.id);
-    assert.ok(base, "The model should remain in Pi's registry");
-    assert.notEqual(active.contextWindow, base.contextWindow);
+    const registryModel = ctx.modelRegistry.find("openai", active.id);
+    assert.ok(registryModel, "The model should remain in Pi's registry");
     assert.deepEqual(
       {
-        model: active,
+        model: structuredClone(active),
+        registryWindow: registryModel.contextWindow,
         usageWindow: ctx.getContextUsage()?.contextWindow,
-        registered: ctx.modelRegistry
-          .getRegisteredProviderIds()
-          .includes("openai"),
+        registered:
+          ctx.modelRegistry.getRegisteredNativeProvider("openai") !== undefined,
       },
       {
-        model: { ...base, contextWindow: 510_000 },
+        model: structuredClone(registryModel),
+        registryWindow: 510_000,
         usageWindow: 510_000,
-        registered: false,
+        registered: true,
       },
     );
     return { action: "handled" };

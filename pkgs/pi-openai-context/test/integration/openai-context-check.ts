@@ -5,8 +5,13 @@ import { join } from "node:path";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 import { withOpenAIContextNetwork } from "./openai-context-network.ts";
-import { readScenario, scenarioNames } from "./openai-context-scenarios.ts";
+import {
+  inactiveModelId,
+  readScenario,
+  scenarioNames,
+} from "./openai-context-scenarios.ts";
 import { parseRecord } from "@dotfiles/pi-integration-tests/protocol";
 import { withPiRpc } from "@dotfiles/pi-integration-tests/rpc-session";
 
@@ -25,6 +30,16 @@ assert.ok(
 
 const scenario = readScenario(mode);
 const { cachedWindow } = scenario;
+const settingsPath = join(agentDir, "settings.json");
+let settingsWithExtension: string | undefined;
+if (mode === "reload") {
+  settingsWithExtension = await readFile(settingsPath, "utf8");
+  const settings = parseRecord(settingsWithExtension);
+  await writeFile(
+    settingsPath,
+    JSON.stringify({ ...settings, extensions: [] }),
+  );
+}
 if (mode === "renewed") {
   const authPath = join(agentDir, "auth.json");
   const auth = parseRecord(await readFile(authPath, "utf8"));
@@ -35,7 +50,6 @@ if (mode === "renewed") {
   );
 }
 if (mode === "oauth") {
-  const settingsPath = join(agentDir, "settings.json");
   const settings = parseRecord(await readFile(settingsPath, "utf8"));
   await writeFile(
     settingsPath,
@@ -48,7 +62,10 @@ if (cachedWindow !== undefined) {
     JSON.stringify({
       grant: createHash("sha256").update("fixture").digest("hex"),
       refreshAfter: cachedWindow.stale === true ? 1 : Date.now() + 60_000,
-      contextWindows: { [model]: cachedWindow.tokens },
+      contextWindows: {
+        [model]: cachedWindow.tokens,
+        [inactiveModelId]: cachedWindow.tokens,
+      },
     }),
     { mode: 0o600 },
   );
@@ -78,6 +95,28 @@ const messagesSchema = Type.Object({
   ),
 });
 const thinkingStateSchema = Type.Object({ thinkingLevel: Type.String() });
+const modelSchema = Type.Object({
+  provider: Type.String(),
+  id: Type.String(),
+  contextWindow: Type.Integer(),
+});
+const modelStateSchema = Type.Object({ model: modelSchema });
+const availableModelsSchema = Type.Object({ models: Type.Array(modelSchema) });
+
+async function waitForWindow(
+  readWindow: () => Promise<number | undefined>,
+  expected: number | undefined,
+): Promise<number | undefined> {
+  const deadline = Date.now() + 6_000;
+  let window = await readWindow();
+  while (window !== expected && Date.now() < deadline) {
+    // eslint-disable-next-line no-await-in-loop -- Compare successive states.
+    await delay(50);
+    // eslint-disable-next-line no-await-in-loop -- Requests observe the model in order.
+    window = await readWindow();
+  }
+  return window;
+}
 const fixture = fileURLToPath(
   new URL("./openai-context-fixture.ts", import.meta.url),
 );
@@ -86,12 +125,12 @@ const args = [
   "--no-mcp",
   "--no-skills",
   "--model",
-  `openai/${model}`,
+  mode === "warm" ? "anthropic/claude-sonnet-4-6" : `openai/${model}`,
   "--context-probe-mode",
   mode,
 ];
 await withOpenAIContextNetwork(
-  { agentDir, models: [model], catalogue: scenario.catalogue },
+  { agentDir, models: [model, inactiveModelId], catalogue: scenario.catalogue },
   ({ env, requests, advertiseAccountWindow }) =>
     withPiRpc(
       pi,
@@ -105,6 +144,56 @@ await withOpenAIContextNetwork(
         const command = async (name: string) => {
           await session.request({ type: "prompt", message: `/${name}` });
         };
+        if (mode === "warm") {
+          const readRegistryWindow = async () => {
+            const result = await session.request({
+              type: "get_available_models",
+            });
+            assert.ok(Check(availableModelsSchema, result));
+            return result.models.find(
+              (entry) =>
+                entry.provider === "openai" && entry.id === inactiveModelId,
+            )?.contextWindow;
+          };
+          const window = await waitForWindow(
+            readRegistryWindow,
+            scenario.expectedWindow,
+          );
+          const state = await session.request({ type: "get_state" });
+          assert.ok(Check(modelStateSchema, state));
+          assert.deepEqual(
+            {
+              provider: state.model.provider,
+              window,
+              catalogueRequests: requests.filter(
+                ({ path }) => path === "/v1/models",
+              ).length,
+            },
+            {
+              provider: "anthropic",
+              window: scenario.expectedWindow,
+              catalogueRequests: 1,
+            },
+          );
+          return;
+        }
+        if (settingsWithExtension !== undefined) {
+          const readContextWindow = async () => {
+            const state = await session.request({ type: "get_state" });
+            assert.ok(Check(modelStateSchema, state));
+            return state.model.contextWindow;
+          };
+          assert.notEqual(await readContextWindow(), scenario.expectedWindow);
+          await writeFile(settingsPath, settingsWithExtension);
+          await command("reload-openai-context");
+
+          assert.equal(
+            await waitForWindow(readContextWindow, scenario.expectedWindow),
+            scenario.expectedWindow,
+            "Apply the new account window after reload without a model turn",
+          );
+          await command("check-openai-context");
+        }
         const prompt = async (
           turn: () => Promise<void> = () =>
             session.runTurn("Probe the Responses stream"),
@@ -138,7 +227,7 @@ await withOpenAIContextNetwork(
         };
 
         await prompt();
-        if (mode === "offline" || mode === "api-key") {
+        if (mode === "offline" || mode === "api-key" || mode === "foreign") {
           assert.deepEqual(
             requests.filter(
               ({ host, path }) =>
@@ -193,7 +282,11 @@ await withOpenAIContextNetwork(
           ),
           [],
         );
-        if (scenario.offline !== true && mode !== "api-key") {
+        if (
+          scenario.offline !== true &&
+          mode !== "api-key" &&
+          mode !== "foreign"
+        ) {
           assert.ok(
             authenticated.some(
               ({ path, authorization }) =>
@@ -209,6 +302,6 @@ await withOpenAIContextNetwork(
           [],
         );
       },
-      env,
+      mode === "warm" ? { ...env, ANTHROPIC_API_KEY: "fixture" } : env,
     ),
 );

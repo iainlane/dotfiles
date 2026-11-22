@@ -287,8 +287,10 @@ describe("ContextCatalogue", () => {
       refreshed: catalogue.window("sol"),
     }).toStrictEqual({
       cached: 500_000,
-      error:
-        "Using the saved account catalogue. Could not read the account catalogue.",
+      error: {
+        source: "saved",
+        notice: "Could not read the account catalogue.",
+      },
       beforeRetry: 500_000,
       refreshed: 510_000,
     });
@@ -308,8 +310,11 @@ describe("ContextCatalogue", () => {
       status: catalogue.status,
     }).toStrictEqual({
       window: 500_000,
-      status:
-        "Using the saved account catalogue. Pi could not resolve an access token for the stored ChatGPT registration.",
+      status: {
+        source: "saved",
+        notice:
+          "Pi could not resolve an access token for the stored ChatGPT registration.",
+      },
     });
   });
 

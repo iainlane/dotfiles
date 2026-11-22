@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 
+export const inactiveModelId = "gpt-5.6-sol";
+
 export type CatalogueResponse =
   | "failure"
   | "malformed"
@@ -18,6 +20,9 @@ interface Scenario {
 
 const scenarios = {
   oauth: { expectedWindow: 510_000 },
+  warm: { catalogue: "delayed", expectedWindow: 510_000 },
+  foreign: {},
+  reload: { catalogue: "delayed", expectedWindow: 510_000 },
   renewed: { expectedWindow: 510_000 },
   "api-key": {},
   offline: { offline: true },

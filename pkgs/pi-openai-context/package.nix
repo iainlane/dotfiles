@@ -6,7 +6,7 @@
     pname = "pi-openai-context";
     directory = ./.;
     pnpm = pnpm_10;
-    dependencyHash = "sha256-LkwUP6wuvXwug6e2+QlsoSGrMTqo8rm9dcSR/k/kbQM=";
+    dependencyHash = "sha256-ufyKkNAmadS9HTJpY+MQzLff+bGO+8brT/gMC9oH68w=";
 
     passthru = {
       maintenance = {

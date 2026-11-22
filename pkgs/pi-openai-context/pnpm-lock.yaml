@@ -143,7 +143,7 @@ packages:
     engines: {node: '>=6.9.0'}
 
   '@dotfiles/pi-integration-tests@file:.nix-providers/dotfiles-pi-integration-tests-0.1.0.tgz':
-    resolution: {integrity: sha512-j3Ki/D3Zq3RXVksn8gYVyIt3DDUlEtOI5HcIRLpc8K/El33i09ym52qNGfdXnwWVmQYMDroRJa/p5LNw+JkGiQ==, tarball: file:.nix-providers/dotfiles-pi-integration-tests-0.1.0.tgz}
+    resolution: {integrity: sha512-CPdlA76QSycoueYD5sfYGfCc8g6ETqW9252MXI/kWe8ZuVuKMIJRO42f4JDZASLE5S9OwUxwcoqc+uZ/QfEdiw==, tarball: file:.nix-providers/dotfiles-pi-integration-tests-0.1.0.tgz}
     version: 0.1.0
 
   '@earendil-works/pi-agent-core@1.5.2':

@@ -4,8 +4,12 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextCatalogue, ResolveAccountToken } from "./catalogue.ts";
-import { openaiBaseUrl, openaiProvider } from "./catalogue-client.ts";
-import { adjustContext, type ContextPolicy, restoreContext } from "./model.ts";
+import {
+  adjustContext,
+  isOpenAIResponsesModel,
+  type ContextPolicy,
+  restoreContext,
+} from "./model.ts";
 
 type Boundary = "selection" | "input" | "run-start";
 interface ModelControls extends Pick<
@@ -20,27 +24,21 @@ export interface ContextModelSession extends Pick<
   "model" | "isIdle"
 > {
   managesModel(id: string): boolean;
-  acceptsAccountWindow(model: Model<Api>): boolean;
+  acceptsAccountWindows(): boolean;
+  publishAccountWindows(
+    windows: ContextCatalogue["windows"],
+    isCurrent: () => boolean,
+  ): Promise<void>;
   resolveAccountToken: ResolveAccountToken;
 }
 
 interface ControllerOptions {
   catalogue: Pick<
     ContextCatalogue,
-    "prepare" | "checkRegistration" | "window" | "status" | "cancel"
+    "prepare" | "checkRegistration" | "window" | "windows" | "status" | "cancel"
   >;
   controls: ModelControls;
   readPolicy: (id: string) => Promise<ContextPolicy>;
-}
-
-function isOpenAIResponsesModel(
-  model: ExtensionContext["model"],
-): model is Model<"openai-responses"> {
-  return (
-    model?.provider === openaiProvider &&
-    model.api === "openai-responses" &&
-    model.baseUrl === openaiBaseUrl
-  );
 }
 
 export class ContextController {
@@ -70,99 +68,159 @@ export class ContextController {
     if (!isOpenAIResponsesModel(active)) {
       return "Select an OpenAI Responses model to see its context window.";
     }
-    const window = `${active.id} uses a ${active.contextWindow.toLocaleString()}-token context window.`;
+    const window = `${active.id} uses a ${active.contextWindow.toLocaleString()}-token context window`;
     if (this.failedModel === active) {
-      return `${window} Pi could not update the active model.`;
+      return `${window}. Pi could not update the active model.`;
     }
     if (!ctx.managesModel(active.id)) {
-      return `${window} Using the limits from the model provider.`;
+      return `${window}. Using the limits from the model provider.`;
     }
     const policy = await this.options.readPolicy(active.id);
     if (policy.kind === "unavailable") {
-      return `${window} The extension could not read models.json.`;
+      return `${window}. The extension could not read models.json.`;
     }
     if (
       policy.kind === "override" &&
       adjustContext(active, policy.limits, "override") === undefined
     ) {
-      return `${window} The configured context window leaves no room for input.`;
+      return `${window}. The configured context window leaves no room for input.`;
     }
-    if (policy.kind !== "automatic" || !ctx.acceptsAccountWindow(active)) {
-      return `${window} Using Pi's configured limits.`;
+    if (policy.kind !== "automatic" || !ctx.acceptsAccountWindows()) {
+      return `${window}. Using Pi's configured limits.`;
     }
     const { catalogue } = this.options;
     await catalogue.checkRegistration();
     const advertised = catalogue.window(active.id);
-    const detail =
-      advertised === undefined
-        ? "The account catalogue has no window for this model."
-        : advertised <= active.maxTokens
-          ? "The advertised window leaves no room for input."
-          : advertised === active.contextWindow
-            ? "The window matches the account catalogue."
-            : "The account catalogue advertises a different window.";
-    return `${window} ${detail} ${catalogue.status}`;
+    const { source, notice } = catalogue.status;
+    const note = notice === undefined ? "" : ` ${notice}`;
+    if (advertised === undefined) {
+      return `${window}. No account window is available for this model.${note}`;
+    }
+
+    const catalogueName =
+      source === "saved"
+        ? "saved ChatGPT account catalogue"
+        : "ChatGPT account catalogue";
+    const report = `The ${catalogueName} lists ${advertised.toLocaleString()} tokens for this model.`;
+    if (advertised <= active.maxTokens) {
+      return `${window}. ${report} That leaves no room for input with the current output limit.${note}`;
+    }
+    if (advertised === active.contextWindow) {
+      return `${window}, which matches the ${catalogueName}.${note}`;
+    }
+    return `${window}. ${report}${note}`;
   }
 
   async apply(ctx: ContextModelSession, boundary: Boundary): Promise<void> {
     const active = ctx.model;
     const signal = this.shutdown.signal;
-    if (
-      signal.aborted ||
-      !isOpenAIResponsesModel(active) ||
-      (boundary !== "run-start" && !ctx.isIdle())
-    ) {
+    if (signal.aborted || (boundary !== "run-start" && !ctx.isIdle())) {
       return;
     }
 
     const operation = ++this.operation;
-    const isCurrent = () =>
-      !signal.aborted &&
-      this.operation === operation &&
-      ctx.model === active &&
+    const isLatest = () => !signal.aborted && this.operation === operation;
+    const isCurrent = (model = active) =>
+      isLatest() &&
+      ctx.model === model &&
       (boundary === "run-start" || ctx.isIdle());
-    const policy = ctx.managesModel(active.id)
-      ? await this.options.readPolicy(active.id)
-      : ({ kind: "configured" } as const);
+    const policy =
+      isOpenAIResponsesModel(active) && ctx.managesModel(active.id)
+        ? await this.options.readPolicy(active.id)
+        : ({ kind: "configured" } as const);
     if (!isCurrent()) {
       return;
     }
 
     const { catalogue } = this.options;
-    if (policy.kind === "automatic" && ctx.acceptsAccountWindow(active)) {
-      const { cold, refresh } = await catalogue.prepare(() =>
-        ctx.resolveAccountToken(),
-      );
-      if (!isCurrent()) {
-        return;
-      }
-      if (cold && boundary === "run-start") {
+    let refresh: Promise<void> | undefined;
+    if (ctx.acceptsAccountWindows()) {
+      const preparation = await catalogue.prepare(ctx.resolveAccountToken);
+      refresh = preparation.refresh;
+      if (
+        isCurrent() &&
+        boundary === "run-start" &&
+        policy.kind === "automatic" &&
+        preparation.cold
+      ) {
         await refresh;
+        refresh = undefined;
       }
     }
 
     if (!isCurrent()) {
       return;
     }
-    let next = restoreContext(active);
-    if (ctx.managesModel(active.id)) {
-      if (policy.kind === "override") {
-        next =
-          adjustContext(active, policy.limits, "override") ??
-          restoreContext(active, "account");
-      }
-      if (policy.kind === "unavailable") {
-        next = restoreContext(active, "account");
-      }
-      if (policy.kind === "automatic" && ctx.acceptsAccountWindow(active)) {
-        const window = catalogue.window(active.id);
-        if (window !== undefined) {
-          next =
-            adjustContext(active, { contextWindow: window }, "account") ?? next;
+    const publish = (windows: ContextCatalogue["windows"]) =>
+      ctx.publishAccountWindows(
+        ctx.acceptsAccountWindows() ? windows : undefined,
+        isLatest,
+      );
+    const windows = catalogue.windows;
+    await publish(windows);
+    if (!isCurrent()) {
+      return;
+    }
+    let expectedModel = active;
+    if (isOpenAIResponsesModel(active)) {
+      const next = this.resolveModel(
+        active,
+        policy,
+        ctx.acceptsAccountWindows() ? windows?.get(active.id) : undefined,
+      );
+      await this.replaceModel(ctx, active, next, signal, operation);
+      expectedModel = ctx.model === next ? next : active;
+    }
+    if (refresh === undefined) {
+      return;
+    }
+
+    const applyRefreshedWindows = async (pending: Promise<void>) => {
+      try {
+        await pending;
+        if (!isLatest() || windows === catalogue.windows) {
+          return;
+        }
+        if (
+          active !== undefined &&
+          policy.kind === "automatic" &&
+          isCurrent(expectedModel) &&
+          catalogue.window(active.id) !== windows?.get(active.id)
+        ) {
+          await this.apply(ctx, "selection");
+          return;
+        }
+        await publish(catalogue.windows);
+      } catch {
+        if (isCurrent(expectedModel)) {
+          this.failedModel = expectedModel;
         }
       }
+    };
+    void applyRefreshedWindows(refresh);
+  }
+
+  private resolveModel(
+    active: Model<Api>,
+    policy: ContextPolicy,
+    accountWindow: number | undefined,
+  ): Model<Api> {
+    if (policy.kind === "override") {
+      return (
+        adjustContext(active, policy.limits, "override") ??
+        restoreContext(active, "account")
+      );
     }
-    await this.replaceModel(ctx, active, next, signal, operation);
+    if (policy.kind === "unavailable") {
+      return restoreContext(active, "account");
+    }
+    if (policy.kind === "automatic" && accountWindow !== undefined) {
+      return (
+        adjustContext(active, { contextWindow: accountWindow }, "account") ??
+        restoreContext(active)
+      );
+    }
+    return restoreContext(active);
   }
 
   private async replaceModel(

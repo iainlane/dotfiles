@@ -1,7 +1,8 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { once } from "node:events";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import type { ContextCatalogue } from "#openai-context/catalogue.ts";
 import {
   ContextController,
   type ContextModelSession,
@@ -23,9 +24,13 @@ const base: Model<"openai-responses"> = {
 const configured = { ...base, contextWindow: 200_000, maxTokens: 40_000 };
 const alternate = { ...base, id: "alternate" };
 const accountWindow = 500_000;
+const accountStatus: ContextCatalogue["status"] = {
+  source: "account",
+  notice: undefined,
+};
 type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 
-function createSession() {
+function createSession(status = accountStatus) {
   let model: Model<Api> = base;
   let thinking: ThinkingLevel = "high";
   let policy: ContextPolicy = { kind: "automatic" };
@@ -35,6 +40,9 @@ function createSession() {
   let refresh: Promise<void> | undefined;
   const catalogueEvents = new EventTarget();
   let window: number | undefined = accountWindow;
+  let windows: ContextCatalogue["windows"] = new Map([
+    [base.id, accountWindow],
+  ]);
 
   const session: ContextModelSession = {
     get model() {
@@ -42,7 +50,8 @@ function createSession() {
     },
     isIdle: () => idle,
     managesModel: (id) => id === base.id,
-    acceptsAccountWindow: () => eligible,
+    acceptsAccountWindows: () => eligible,
+    publishAccountWindows: async () => {},
     resolveAccountToken: async () => "fixture",
   };
   const createController = () =>
@@ -54,7 +63,10 @@ function createSession() {
         },
         checkRegistration: async () => {},
         window: () => window,
-        status: "Fixture catalogue.",
+        get windows() {
+          return windows;
+        },
+        status,
         cancel() {},
       },
       controls: {
@@ -110,12 +122,17 @@ function createSession() {
     rejectChanges(how: "decline" | "throw") {
       modelUpdate = how;
     },
-    delayCatalogue() {
+    delayCatalogue(previousWindow?: number) {
       const responses = new EventTarget();
-      window = undefined;
+      window = previousWindow;
+      windows =
+        previousWindow === undefined
+          ? undefined
+          : new Map([[base.id, previousWindow]]);
       const update = async () => {
         await once(responses, "reply");
         window = accountWindow;
+        windows = new Map([[base.id, accountWindow]]);
       };
       refresh = update();
       return {
@@ -167,6 +184,55 @@ it("does not wait for the account request during input handling", async () => {
     model: { ...base, contextWindow: accountWindow },
     thinking: "high",
   });
+});
+
+it.each([undefined, 410_000])(
+  "applies a completed refresh while idle with a prior account window of %s",
+  async (previousWindow) => {
+    const host = createSession();
+    const { deliver } = host.delayCatalogue(previousWindow);
+    await host.controller.apply(host.session, "selection");
+    expect(host.active).toStrictEqual({
+      model: { ...base, contextWindow: previousWindow ?? base.contextWindow },
+      thinking: "high",
+    });
+
+    deliver();
+    await vi.waitFor(() => {
+      expect(host.active).toStrictEqual({
+        model: { ...base, contextWindow: accountWindow },
+        thinking: "high",
+      });
+    });
+  },
+);
+
+it.each([false, true])(
+  "reports the active and advertised windows with the account window applied %s",
+  async (applied) => {
+    const host = createSession();
+    if (applied) {
+      await host.controller.apply(host.session, "run-start");
+    }
+
+    const advertised = accountWindow.toLocaleString();
+    const defaultWindow = base.contextWindow.toLocaleString();
+    expect(await host.controller.status(host.session)).toBe(
+      applied
+        ? `sol uses a ${advertised}-token context window, which matches the ChatGPT account catalogue.`
+        : `sol uses a ${defaultWindow}-token context window. The ChatGPT account catalogue lists ${advertised} tokens for this model.`,
+    );
+  },
+);
+
+it("identifies a saved catalogue and reports the refresh failure", async () => {
+  const notice = "Could not read the account catalogue.";
+  const host = createSession({ source: "saved", notice });
+  await host.controller.apply(host.session, "run-start");
+
+  expect(await host.controller.status(host.session)).toBe(
+    `sol uses a ${accountWindow.toLocaleString()}-token context window, which matches the saved ChatGPT account catalogue. ${notice}`,
+  );
 });
 
 it.each(["switch", "shutdown"] as const)(

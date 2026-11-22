@@ -50,6 +50,11 @@ export interface CatalogueOptions {
   offline: boolean;
 }
 
+interface CatalogueStatus {
+  source: "saved" | "account" | undefined;
+  notice: string | undefined;
+}
+
 export class ContextCatalogue {
   private readonly options: CatalogueOptions;
   private grant: string | undefined;
@@ -59,32 +64,29 @@ export class ContextCatalogue {
   private generation = 0;
   private problem: string | undefined;
   private credentialUnreadable = false;
-  private source: "saved" | "account" | undefined;
+  private source: CatalogueStatus["source"];
 
   constructor(options: CatalogueOptions) {
     this.options = options;
   }
 
-  get status(): string {
-    const source =
-      this.source === "saved"
-        ? "Using the saved account catalogue."
-        : this.source === "account"
-          ? "Using the account catalogue for this session."
-          : "Using Pi's configured window until an account window is available.";
-    return [
-      source,
-      this.credentialUnreadable
+  get status(): CatalogueStatus {
+    return {
+      source: this.source,
+      notice: this.credentialUnreadable
         ? "Pi’s stored ChatGPT registration could not be read. Reconnect ChatGPT if the error persists."
         : (this.problem ??
           (this.options.offline ? "Pi is offline." : undefined)),
-    ]
-      .filter((part) => part !== undefined)
-      .join(" ");
+    };
+  }
+
+  get windows(): ReadonlyMap<string, number> | undefined {
+    const windows = this.account?.contextWindows;
+    return windows?.size === 0 ? undefined : windows;
   }
 
   window(id: string): number | undefined {
-    return this.account?.contextWindows.get(id);
+    return this.windows?.get(id);
   }
 
   cancel(): void {
