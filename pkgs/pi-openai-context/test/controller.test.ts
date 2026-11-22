@@ -2,7 +2,10 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { once } from "node:events";
 import { expect, it, vi } from "vitest";
-import type { ContextCatalogue } from "#openai-context/catalogue.ts";
+import type {
+  CatalogueRefreshResult,
+  ContextCatalogue,
+} from "#openai-context/catalogue.ts";
 import {
   ContextController,
   type ContextModelSession,
@@ -37,7 +40,7 @@ function createSession(status = accountStatus) {
   let eligible = true;
   let idle = true;
   let modelUpdate: "apply" | "decline" | "throw" = "apply";
-  let refresh: Promise<void> | undefined;
+  let refresh: Promise<CatalogueRefreshResult> | undefined;
   const catalogueEvents = new EventTarget();
   let window: number | undefined = accountWindow;
   let windows: ContextCatalogue["windows"] = new Map([
@@ -60,6 +63,9 @@ function createSession(status = accountStatus) {
         async prepare() {
           catalogueEvents.dispatchEvent(new Event("prepare"));
           return { cold: window === undefined, refresh };
+        },
+        async refreshNow() {
+          return (await refresh) ?? { updated: true };
         },
         checkRegistration: async () => {},
         window: () => window,
@@ -133,6 +139,7 @@ function createSession(status = accountStatus) {
         await once(responses, "reply");
         window = accountWindow;
         windows = new Map([[base.id, accountWindow]]);
+        return { updated: true } as const;
       };
       refresh = update();
       return {

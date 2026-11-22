@@ -9,6 +9,7 @@ import { readCatalogue, writeCatalogue } from "#openai-context/cache.ts";
 import {
   ContextCatalogue,
   type AccountWindowsResult,
+  type ReadAccountWindows,
   type ResolveAccountToken,
 } from "#openai-context/catalogue.ts";
 import {
@@ -142,13 +143,14 @@ describe("ContextCatalogue", () => {
     await writeCatalogue(cachePath, account);
     const reply = new EventTarget();
     const released = once(reply, "reply");
+    const readWindows = vi.fn<ReadAccountWindows>(async () => {
+      await released;
+      return { windows: new Map([["sol", 620_000]]) };
+    });
     const catalogue = new ContextCatalogue({
       path: cachePath,
       readCredential: () => classifyCredential(login()),
-      readWindows: async () => {
-        await released;
-        return { windows: new Map([["sol", 620_000]]) };
-      },
+      readWindows,
       offline: false,
     });
     const first = await catalogue.prepare(storedToken);
@@ -160,10 +162,45 @@ describe("ContextCatalogue", () => {
       },
     );
     expect(concurrent.refresh).toBe(first.refresh);
+    const manual = catalogue.refreshNow(storedToken);
     reply.dispatchEvent(new Event("reply"));
-    await first.refresh;
-    expect(catalogue.window("sol")).toBe(620_000);
+    expect({
+      manual: await manual,
+      automatic: await first.refresh,
+      window: catalogue.window("sol"),
+      requests: readWindows.mock.calls.length,
+    }).toStrictEqual({
+      manual: { updated: true },
+      automatic: { updated: true },
+      window: 620_000,
+      requests: 1,
+    });
   });
+
+  it.each([false, true])(
+    "keeps the saved windows when a manual refresh fails with offline mode %s",
+    async (offline) => {
+      await writeCatalogue(cachePath, { ...account, refreshAfter: 51_000 });
+      const error = "OpenAI returned HTTP 503.";
+      const readWindows = vi.fn<ReadAccountWindows>(async () => ({ error }));
+      const catalogue = new ContextCatalogue({
+        path: cachePath,
+        offline,
+        readCredential: () => classifyCredential(login()),
+        readWindows,
+      });
+      await refreshCatalogue(catalogue);
+      expect({
+        result: await catalogue.refreshNow(storedToken),
+        window: catalogue.window("sol"),
+        requests: readWindows.mock.calls.length,
+      }).toStrictEqual({
+        result: { error: offline ? "Pi is offline." : error },
+        window: 500_000,
+        requests: offline ? 0 : 1,
+      });
+    },
+  );
 
   it("discards a cancelled refresh after the account changes", async () => {
     let credential = login();

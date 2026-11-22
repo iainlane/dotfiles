@@ -41,12 +41,17 @@ limit to the active model before the next typed turn checks for compaction. Pi
 owns the rest of the model configuration. Explicit model limits in `models.json`
 take precedence in the registry.
 
-Run `/openai-context-status` to see the active context window and catalogue
-status. Pi records an entry when the extension updates the active model. If Pi
-resets the thinking level during the update, restoring the previous level
-produces a second thinking-level event and transcript entry. This can happen
-while resuming a session. When the first fetch is still pending, Pi can check
-whether to compact before the account window is available.
+Run `/openai-context` to see the active context window and catalogue status.
+`/openai-context refresh` requests the account catalogue immediately, even if
+the cache is fresh. The command respects offline mode and can run with any model
+selected, provided Pi has a ChatGPT login for OpenAI. `/openai-context-status`
+also shows the status.
+
+Pi records an entry when the extension updates the active model. If Pi resets
+the thinking level during the update, restoring the previous level produces a
+second thinking-level event and transcript entry. This can happen while resuming
+a session. When the first fetch is still pending, Pi can check whether to
+compact before the account window is available.
 
 ## Pi 1.5.2 limitations
 

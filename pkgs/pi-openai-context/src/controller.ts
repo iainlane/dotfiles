@@ -3,7 +3,11 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { ContextCatalogue, ResolveAccountToken } from "./catalogue.ts";
+import type {
+  CatalogueRefreshResult,
+  ContextCatalogue,
+  ResolveAccountToken,
+} from "./catalogue.ts";
 import {
   adjustContext,
   isOpenAIResponsesModel,
@@ -35,7 +39,13 @@ export interface ContextModelSession extends Pick<
 interface ControllerOptions {
   catalogue: Pick<
     ContextCatalogue,
-    "prepare" | "checkRegistration" | "window" | "windows" | "status" | "cancel"
+    | "prepare"
+    | "refreshNow"
+    | "checkRegistration"
+    | "window"
+    | "windows"
+    | "status"
+    | "cancel"
   >;
   controls: ModelControls;
   readPolicy: (id: string) => Promise<ContextPolicy>;
@@ -61,6 +71,51 @@ export class ContextController {
   cancel(): void {
     this.shutdown.abort();
     this.options.catalogue.cancel();
+  }
+
+  async refresh(
+    ctx: ContextModelSession,
+  ): Promise<CatalogueRefreshResult | undefined> {
+    const signal = this.shutdown.signal;
+    if (signal.aborted) {
+      return undefined;
+    }
+    if (!ctx.acceptsAccountWindows()) {
+      return {
+        error:
+          "Use /login openai to sign in with ChatGPT before refreshing the account catalogue.",
+      };
+    }
+
+    const catalogue = this.options.catalogue;
+    const result = await catalogue.refreshNow(ctx.resolveAccountToken);
+    if (signal.aborted) {
+      return undefined;
+    }
+    if ("error" in result) {
+      return result;
+    }
+    if (!ctx.acceptsAccountWindows()) {
+      return { error: "The ChatGPT sign-in changed during the refresh." };
+    }
+    if (ctx.isIdle()) {
+      await this.apply(ctx, "selection");
+    } else {
+      await ctx.publishAccountWindows(
+        catalogue.windows,
+        () => !signal.aborted && ctx.acceptsAccountWindows(),
+      );
+    }
+    if (signal.aborted) {
+      return undefined;
+    }
+    if (ctx.model !== undefined && this.failedModel === ctx.model) {
+      return {
+        error:
+          "The account catalogue refreshed. Pi could not update the active model.",
+      };
+    }
+    return result;
   }
 
   async status(ctx: ContextModelSession): Promise<string> {
@@ -133,7 +188,7 @@ export class ContextController {
     }
 
     const { catalogue } = this.options;
-    let refresh: Promise<void> | undefined;
+    let refresh: Promise<CatalogueRefreshResult> | undefined;
     if (ctx.acceptsAccountWindows()) {
       const preparation = await catalogue.prepare(ctx.resolveAccountToken);
       refresh = preparation.refresh;
@@ -175,7 +230,9 @@ export class ContextController {
       return;
     }
 
-    const applyRefreshedWindows = async (pending: Promise<void>) => {
+    const applyRefreshedWindows = async (
+      pending: Promise<CatalogueRefreshResult>,
+    ) => {
       try {
         await pending;
         if (!isLatest() || windows === catalogue.windows) {

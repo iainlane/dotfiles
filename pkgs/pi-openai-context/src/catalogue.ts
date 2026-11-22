@@ -22,22 +22,31 @@ export type ReadAccountWindows = (
 
 export type ResolveAccountToken = () => Promise<string | undefined>;
 
+export type CatalogueRefreshResult = { updated: true } | { error: string };
+type RefreshMode = "automatic" | "force";
 type AccountLogin = { grant: string };
+
+const interrupted = {
+  error: "The account catalogue request timed out or was cancelled.",
+};
 
 function grantKey(clientId: string): string {
   return createHash("sha256").update(clientId).digest("hex");
 }
 
 async function waitForRefresh(
-  work: Promise<void>,
+  work: Promise<CatalogueRefreshResult>,
   signal: AbortSignal,
-): Promise<void> {
+): Promise<CatalogueRefreshResult> {
   const listening = new AbortController();
+  const waitForCancellation = async () => {
+    if (!signal.aborted) {
+      await once(signal, "abort", { signal: listening.signal });
+    }
+    return interrupted;
+  };
   try {
-    await Promise.race([
-      work,
-      once(signal, "abort", { signal: listening.signal }),
-    ]);
+    return await Promise.race([work, waitForCancellation()]);
   } finally {
     listening.abort();
   }
@@ -60,7 +69,9 @@ export class ContextCatalogue {
   private grant: string | undefined;
   private account: AccountCatalogue | undefined;
   private loading: Promise<AccountLogin | undefined> | undefined;
-  private pending: { cancel: AbortController; work: Promise<void> } | undefined;
+  private pending:
+    | { cancel: AbortController; work: Promise<CatalogueRefreshResult> }
+    | undefined;
   private generation = 0;
   private problem: string | undefined;
   private credentialUnreadable = false;
@@ -103,9 +114,26 @@ export class ContextCatalogue {
     await this.load();
   }
 
-  async prepare(resolveToken: ResolveAccountToken): Promise<{
+  async refreshNow(
+    resolveToken: ResolveAccountToken,
+  ): Promise<CatalogueRefreshResult> {
+    if (this.options.offline) {
+      return { error: "Pi is offline." };
+    }
+    const { refresh } = await this.prepare(resolveToken, "force");
+    return (
+      refresh ?? {
+        error: this.status.notice ?? "No ChatGPT sign-in is available.",
+      }
+    );
+  }
+
+  async prepare(
+    resolveToken: ResolveAccountToken,
+    mode: RefreshMode = "automatic",
+  ): Promise<{
     cold: boolean;
-    refresh: Promise<void> | undefined;
+    refresh: Promise<CatalogueRefreshResult> | undefined;
   }> {
     const generation = this.generation;
     const login = await this.load();
@@ -115,7 +143,7 @@ export class ContextCatalogue {
         generation === this.generation &&
         login !== undefined &&
         login.grant === this.grant
-          ? this.fetchIfDue(login, resolveToken)
+          ? this.fetchIfDue(login, resolveToken, mode)
           : undefined,
     };
   }
@@ -190,10 +218,13 @@ export class ContextCatalogue {
   private fetchIfDue(
     login: AccountLogin,
     resolveToken: ResolveAccountToken,
-  ): Promise<void> | undefined {
+    mode: RefreshMode,
+  ): Promise<CatalogueRefreshResult> | undefined {
     if (
       this.options.offline ||
-      (this.account !== undefined && Date.now() < this.account.refreshAfter)
+      (mode === "automatic" &&
+        this.account !== undefined &&
+        Date.now() < this.account.refreshAfter)
     ) {
       return undefined;
     }
@@ -243,11 +274,12 @@ export class ContextCatalogue {
       signal.throwIfAborted();
       return await this.options.readWindows(token, signal);
     } catch {
-      return {
-        error: signal.aborted
-          ? "The account catalogue request timed out or was cancelled."
-          : "Pi could not resolve the ChatGPT login or read its account catalogue.",
-      };
+      return signal.aborted
+        ? interrupted
+        : {
+            error:
+              "Pi could not resolve the ChatGPT login or read its account catalogue.",
+          };
     }
   }
 
@@ -256,7 +288,7 @@ export class ContextCatalogue {
     resolveToken: ResolveAccountToken,
     cancel: AbortController,
     signal: AbortSignal,
-  ): Promise<void> {
+  ): Promise<CatalogueRefreshResult> {
     try {
       const result = await this.requestWindows(login, resolveToken, signal);
       if (
@@ -264,7 +296,9 @@ export class ContextCatalogue {
         !(await this.matchesLogin(login)) ||
         cancel.signal.aborted
       ) {
-        return;
+        return cancel.signal.aborted
+          ? interrupted
+          : { error: "The ChatGPT sign-in changed during the refresh." };
       }
 
       const account: AccountCatalogue = {
@@ -279,10 +313,12 @@ export class ContextCatalogue {
       };
       this.account = account;
       this.problem = "error" in result ? result.error : undefined;
-      if ("windows" in result) {
-        this.source = "account";
-        await writeCatalogue(this.options.path, account);
+      if ("error" in result) {
+        return result;
       }
+      this.source = "account";
+      await writeCatalogue(this.options.path, account);
+      return { updated: true };
     } finally {
       if (this.pending?.cancel === cancel) {
         this.pending = undefined;

@@ -21,6 +21,10 @@ interface Scenario {
 const scenarios = {
   oauth: { expectedWindow: 510_000 },
   warm: { catalogue: "delayed", expectedWindow: 510_000 },
+  "manual-refresh": {
+    cachedWindow: { tokens: 530_000 },
+    expectedWindow: 530_000,
+  },
   foreign: {},
   reload: { catalogue: "delayed", expectedWindow: 510_000 },
   renewed: { expectedWindow: 510_000 },

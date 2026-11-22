@@ -171,6 +171,43 @@ await withOpenAIContextNetwork(
         const command = async (name: string) => {
           await session.request({ type: "prompt", message: `/${name}` });
         };
+        if (mode === "manual-refresh") {
+          const before = await session.request({ type: "get_state" });
+          assert.ok(Check(modelStateSchema, before));
+          assert.deepEqual(
+            await session.request({
+              type: "prompt",
+              message: "/openai-context refresh",
+            }),
+            { disposition: "handled" },
+          );
+          const after = await session.request({ type: "get_state" });
+          const available = await session.request({
+            type: "get_available_models",
+          });
+          assert.ok(Check(modelStateSchema, after));
+          assert.ok(Check(availableModelsSchema, available));
+          assert.deepEqual(
+            {
+              before: before.model.contextWindow,
+              after: after.model.contextWindow,
+              inactive: available.models.find(
+                (entry) =>
+                  entry.provider === "openai" && entry.id === inactiveModelId,
+              )?.contextWindow,
+              catalogueRequests: requests.filter(
+                ({ path }) => path === "/v1/models",
+              ).length,
+            },
+            {
+              before: 530_000,
+              after: 510_000,
+              inactive: 510_000,
+              catalogueRequests: 1,
+            },
+          );
+          return;
+        }
         if (mode === "warm") {
           const readRegistryWindow = async () => {
             const result = await session.request({
