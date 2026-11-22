@@ -251,6 +251,7 @@ interface UpdateRun {
   status: number | null;
   stderr: string;
   body: string | null;
+  summary: string | null;
   pushed: Readonly<Record<string, Commit>>;
 }
 
@@ -484,14 +485,19 @@ fi
         PATH: `${bin}:${process.env.PATH}`,
         RUNNER_TEMP: runnerTemp,
         GITHUB_RUN_ID: "123",
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_SERVER_URL: "https://github.example.invalid",
+        GITHUB_REPOSITORY: "fixture/dotfiles",
         GITHUB_STEP_SUMMARY: join(runnerTemp, "summary.md"),
       },
     });
     const body = join(log, "pr-body");
+    const summary = join(runnerTemp, "summary.md");
     return {
       status: result.status,
       stderr: result.stderr,
       body: existsSync(body) ? readFileSync(body, "utf8") : null,
+      summary: existsSync(summary) ? readFileSync(summary, "utf8") : null,
       pushed: branches(origin, env),
     };
   } finally {
@@ -509,6 +515,8 @@ const relockSummary = [
 const packageSummary = [
   "Automated package bumps from the scheduled `package-update` workflow.",
 ];
+const reportLink =
+  "[Full update report](https://github.example.invalid/fixture/dotfiles/actions/runs/123/attempts/2).";
 const cupboardFooter = [
   "",
   "After merging, the `cupboard` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache.",
@@ -535,9 +543,18 @@ describe("Scheduled maintenance workflows", () => {
       "chore(pkgs): update packages",
     ],
   ] as const) {
-    it(`${filename} publishes accepted changes and messages after a skipped update`, () => {
+    it(`${filename} publishes a short PR body and keeps the full report in the job summary`, () => {
+      const reportSections = [
+        "## Updated\n\n- independent",
+        "## Update notices\n\n- teamclaude",
+        "## Failed or skipped updates\n\n- nixpkgs",
+      ];
       const report =
-        "## Updated\n\n- independent\n\n## Update notices\n\n- teamclaude\n  > Review the newer upstream release.\n\n## Failed or skipped updates\n\n- nixpkgs\n  > Caddy could not refresh.\n";
+        [
+          reportSections[0],
+          `${reportSections[1]}\n  > Review the newer upstream release.`,
+          `${reportSections[2]}\n  > ${"Caddy could not refresh. ".repeat(3000)}\n- ${"a".repeat(9000)}`,
+        ].join("\n\n") + "\n";
       const run = runUpdateWorkflow(
         filename,
         manualRun,
@@ -556,7 +573,7 @@ printf 'locked\\n' > pkgs/fixture/new-lock.json
 if [ "$2" = --stage ]; then
   git add -- flake.lock pkgs/fixture/new-lock.json
 fi
-printf '%s' '${report}'
+printf '%s' ${quote(report)}
 exit 1
 `,
         { "flake.lock": "before\n", "pkgs/fixture/version": "unchanged\n" },
@@ -568,9 +585,14 @@ exit 1
         body: [
           ...(prefix === "flake" ? relockSummary : packageSummary),
           "",
-          report.trimEnd(),
+          reportSections.join("\n\n"),
+          "",
+          "The summary was shortened.",
+          "",
+          reportLink,
           ...cupboardFooter,
         ].join("\n"),
+        summary: report,
         pushed: {
           [`refs/heads/${branch}`]: {
             author: bot,
@@ -599,6 +621,7 @@ printf '%s\\n' 'Review the newer upstream release.'
       status: 0,
       stderr: "",
       body: null,
+      summary: "Review the newer upstream release.\n",
       pushed: {},
     });
   });
@@ -667,8 +690,11 @@ printf '## Updated\\n\\n- fixture\\n'
           ...packageSummary,
           "",
           "## Updated\n\n- fixture",
+          "",
+          reportLink,
           ...cupboardFooter,
         ].join("\n"),
+        summary: "## Updated\n\n- fixture\n",
         pushed: {
           "refs/heads/package-update/2026-11-04": {
             author: bot,

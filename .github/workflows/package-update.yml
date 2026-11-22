@@ -136,7 +136,14 @@ jobs:
           {
             echo "Automated package bumps from the scheduled \`package-update\` workflow."
             echo
-            cat "${RUNNER_TEMP}/update-report.md"
+            awk '!/^  > /' "${RUNNER_TEMP}/update-report.md" | LC_ALL=C awk '
+              omitted || bytes + length($0) + 1 > 8192 { omitted = 1; next }
+              { print; bytes += length($0) + 1 }
+              END { if (omitted) print "\nThe summary was shortened." }
+            '
+            printf '\n[Full update report](%s%s).\n' \
+              "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/" \
+              "${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
 
             echo
             echo "After merging, the \`cupboard\` workflow attempts to build the requested deploy-profile outputs on main and publishes selected outputs and intermediates built during that run to the default cache."
