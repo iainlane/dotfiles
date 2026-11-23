@@ -92,7 +92,7 @@ let
     gopls
     lua-language-server
     marksman
-    nil
+    nixd
     typescript-language-server
     pyright
     rust-analyzer

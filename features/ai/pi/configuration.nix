@@ -234,6 +234,11 @@
       })
     piExtensions;
 
+  nixpkgsSource =
+    if toString pkgs.path == inputs.nixpkgs.outPath
+    then inputs.nixpkgs.outPath
+    else inputs.nixpkgs-stable.outPath;
+
   localExtensionFiles = {
     ".pi/agent/managed-extensions/session-footer".source = "${pkgs.pi-session-footer}/${pkgs.pi-session-footer.packageRoot}";
     ".pi/agent/managed-extensions/planning".source = "${pkgs.pi-planning}/${pkgs.pi-planning.packageRoot}";
@@ -255,7 +260,14 @@ in {
           widget.visible = false;
           ui.compactLspStatus = true;
           tools.lazy = false;
-          lsp.serverOverrides.typescript.command = ["${pkgs.typescript-language-server}/bin/typescript-language-server" "--stdio"];
+          lsp.serverOverrides = {
+            nix.command = [
+              (lib.getExe pkgs.nixd)
+              "--nixpkgs-expr=import ${nixpkgsSource} {}"
+              ''--nixos-options-expr=(import ${nixpkgsSource}/nixos/lib/eval-config.nix { system = "${pkgs.stdenv.hostPlatform.parsed.cpu.name}-linux"; modules = []; }).options''
+            ];
+            typescript.command = ["${pkgs.typescript-language-server}/bin/typescript-language-server" "--stdio"];
+          };
         };
         ".pi/agent/pi-sub-core-settings.json".text = toJson piSubCoreConfig;
         ".pi/agent/extensions/subagent/config.json".text = toJson piSubagentsConfig;

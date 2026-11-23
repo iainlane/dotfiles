@@ -13,6 +13,7 @@
     };
     mcpServers = {};
   };
+  lensConfig = builtins.fromJSON (builtins.unsafeDiscardStringContext bundle.normalFiles.home.file.".pi-lens/config.json".text);
   sharedSkills = inputs.home-manager.lib.homeManagerConfiguration {
     inherit pkgs;
     extraSpecialArgs = {
@@ -42,6 +43,12 @@
   };
 in {
   pi-configured-launcher = assert sharedSkills.config.dotfiles.ai.skills.plain-technical-prose.skill.frontmatter.disable-model-invocation;
+  assert lensConfig.lsp.serverOverrides.nix.command
+  == [
+    (lib.getExe pkgs.nixd)
+    "--nixpkgs-expr=import ${inputs.nixpkgs.outPath} {}"
+    ''--nixos-options-expr=(import ${inputs.nixpkgs.outPath}/nixos/lib/eval-config.nix { system = "${pkgs.stdenv.hostPlatform.parsed.cpu.name}-linux"; modules = []; }).options''
+  ];
     pkgs.runCommandLocal "pi-configured-launcher" {} ''
       ${pkgs.python3}/bin/python ${./test/launcher.py} ${lib.getExe launcher} ${bundle.previewAssets} ${bundle.normalAssets}
       touch "$out"
