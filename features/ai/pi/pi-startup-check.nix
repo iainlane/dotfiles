@@ -401,7 +401,7 @@ in {
       cat errors.txt responses.jsonl >&2
       exit "$status"
     }
-    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' errors.txt >unexpected-errors.txt || true
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: no tool route provides review copies' errors.txt >unexpected-errors.txt || true
     if [[ -s unexpected-errors.txt ]]; then
       cat unexpected-errors.txt >&2
       exit 1
@@ -414,7 +414,7 @@ in {
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     export PI_OFFLINE=1
     check_startup_errors() {
-      grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' "$1" >unexpected-errors.txt || true
+      grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: no tool route provides review copies' "$1" >unexpected-errors.txt || true
       test ! -s unexpected-errors.txt
     }
     mkdir -p "$PI_CODING_AGENT_DIR"
@@ -476,7 +476,7 @@ in {
       cat errors.txt responses.jsonl >&2
       exit 1
     fi
-    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' errors.txt >unexpected-errors.txt || true
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: no tool route provides review copies' errors.txt >unexpected-errors.txt || true
     if [[ -s unexpected-errors.txt || ! -f role-probe-ok || ! -f live-models-probe-ok ]]; then
       cat errors.txt responses.jsonl >&2
       exit 1
@@ -507,7 +507,7 @@ in {
       exit 1
     fi
     test -f permission-contracts-ok || { cat permissions-errors.txt permissions.jsonl >&2; exit 1; }
-    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: the selected sandbox cannot satisfy the requested policy' permissions-errors.txt >unexpected-errors.txt || true
+    grep -Fvx '[pi-permission-auto-review] the reviewer cannot investigate local state: no tool route provides review copies' permissions-errors.txt >unexpected-errors.txt || true
     test ! -s unexpected-errors.txt || { cat permissions-errors.txt >&2; exit 1; }
 
     export OPENROUTER_API_KEY=openrouter-fixture
