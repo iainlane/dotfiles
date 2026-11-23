@@ -10,6 +10,8 @@
     script = package.updateScript or null;
     declaredInputs = policy.inputs or [];
     dependencies = policy.dependencies or [];
+    refresh = policy.refresh or false;
+    refreshInputs = policy.refreshInputs or null;
     failures = [
       {
         valid = builtins.elem source ["input" "release" "pin" "repository" "derived"];
@@ -40,8 +42,16 @@
         message = "temporary changes must specify a retirement condition";
       }
       {
-        valid = builtins.isBool (policy.refresh or false) && (!(policy.refresh or false) || script != null);
+        valid = builtins.isBool refresh && (!refresh || script != null);
         message = "refresh capability requires a local updater";
+      }
+      {
+        valid = refresh != true || (builtins.isList refreshInputs && lib.all (input: builtins.elem input inputs) refreshInputs);
+        message = "refresh-capable packages must declare refreshInputs using declared flake inputs";
+      }
+      {
+        valid = refresh == true || !(policy ? refreshInputs);
+        message = "refreshInputs requires refresh capability";
       }
       {
         valid = builtins.isBool (policy.lockfileMaintenance or false) && (!(policy.lockfileMaintenance or false) || script != null);

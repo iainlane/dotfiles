@@ -31,9 +31,29 @@ in
   assert valid {
     source = "release";
     refresh = true;
+    refreshInputs = ["nixpkgs"];
   }
   executable
   == [];
+  assert valid {
+    source = "release";
+    refresh = true;
+  }
+  executable
+  == ["fixture: refresh-capable packages must declare refreshInputs using declared flake inputs"];
+  assert valid {
+    source = "release";
+    refresh = true;
+    refreshInputs = ["missing"];
+  }
+  executable
+  == ["fixture: refresh-capable packages must declare refreshInputs using declared flake inputs"];
+  assert valid {
+    source = "release";
+    refreshInputs = ["nixpkgs"];
+  }
+  executable
+  == ["fixture: refreshInputs requires refresh capability"];
   assert valid {
     source = "pin";
     reason = "The fork includes required fixes.";

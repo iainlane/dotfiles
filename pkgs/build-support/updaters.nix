@@ -44,14 +44,18 @@ in {
     pname,
     script,
     extraRuntimeInputs ? [],
-    refresh ? false,
-  }:
+    refreshInputs ? null,
+  }: let
+    refresh = refreshInputs != null;
+  in
     writeShellApplication {
       name = "update-${pname}";
-      passthru.maintenance = {
-        source = "release";
-        inherit refresh;
-      };
+      passthru.maintenance =
+        {
+          source = "release";
+          inherit refresh;
+        }
+        // lib.optionalAttrs refresh {inherit refreshInputs;};
       runtimeInputs = [coreutils git jq nix wget] ++ extraRuntimeInputs;
       runtimeEnv.LOCAL_PACKAGES_ATTR = localPackagesAttr;
 
@@ -178,15 +182,18 @@ in {
     npmLockfile ? null,
     refresh ? false,
     refreshFlags ? [],
+    refreshInputs ? ["nixpkgs"],
   }: let
     flakeAttr = "${localPackagesAttr}.${attr}";
   in
     writeShellApplication {
       name = "update-${attr}";
-      passthru.maintenance = {
-        source = "release";
-        inherit refresh;
-      };
+      passthru.maintenance =
+        {
+          source = "release";
+          inherit refresh;
+        }
+        // lib.optionalAttrs refresh {inherit refreshInputs;};
 
       runtimeInputs = [coreutils git nix nix-update];
 
@@ -240,6 +247,7 @@ in {
       passthru.maintenance = {
         source = "release";
         refresh = true;
+        refreshInputs = ["nixpkgs"];
         lockfileMaintenance = true;
       };
       runtimeInputs = [bash coreutils git gnutar patch jq nix nodejs wget];
@@ -269,6 +277,7 @@ in {
       passthru.maintenance = {
         source = "repository";
         refresh = true;
+        refreshInputs = ["nixpkgs"];
         lockfileMaintenance = true;
       };
       runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update yq-go];

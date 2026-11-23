@@ -8,6 +8,7 @@ from pathlib import Path
 
 from update_runner import (
     DirtyPathsError,
+    LockGraph,
     Outcome,
     Runner,
     Snapshot,
@@ -173,7 +174,12 @@ class FakeNix:
                 return subprocess.CompletedProcess(args, 0, f"{STORE / name}\n")
             case ["nix", "flake", "update", *inputs]:
                 lock = json.loads((self.root / "flake.lock").read_text())
-                lock |= {name: self.releases.get(name, "new") for name in inputs}
+                roots = lock["nodes"][lock["root"]]["inputs"]
+                for name in inputs:
+                    node = roots.setdefault(name, name)
+                    lock["nodes"].setdefault(node, {})["locked"] = {
+                        "rev": self.releases.get(name, "new")
+                    }
                 (self.root / "flake.lock").write_text(json.dumps(lock))
                 return subprocess.CompletedProcess(args, 0, "")
             case ["bash", "scripts/check-evaluation.bash"]:
@@ -195,7 +201,10 @@ class FakeNix:
     def invalid(self) -> bool:
         lock = json.loads((self.root / "flake.lock").read_text())
         sources = [path.read_text() for path in self.root.glob("pkgs/*/source")]
-        return "invalid" in [*lock.values(), *sources]
+        revisions = [
+            node.get("locked", {}).get("rev") for node in lock["nodes"].values()
+        ]
+        return "invalid" in [*revisions, *sources]
 
 
 class TransactionTest(unittest.TestCase):
@@ -227,7 +236,19 @@ class TransactionTest(unittest.TestCase):
             directory.mkdir(parents=True)
             (directory / "source").write_text("old")
         (self.root / "flake.lock").write_text(
-            json.dumps({"nixpkgs": "old", "llm-agents": "old"})
+            json.dumps(
+                {
+                    "version": 7,
+                    "root": "root",
+                    "nodes": {
+                        "root": {
+                            "inputs": {"nixpkgs": "nixpkgs", "llm-agents": "llm-agents"}
+                        },
+                        "nixpkgs": {"locked": {"rev": "old"}},
+                        "llm-agents": {"locked": {"rev": "old"}},
+                    },
+                }
+            )
         )
         (self.root / "flake.nix").write_text("unchanged")
         subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
@@ -240,7 +261,12 @@ class TransactionTest(unittest.TestCase):
         return Runner(self.root, SYSTEM, nix, stage=False)
 
     def lock(self) -> dict[str, str]:
-        return json.loads((self.root / "flake.lock").read_text())
+        lock = json.loads((self.root / "flake.lock").read_text())
+        nodes = lock["nodes"]
+        return {
+            name: nodes[node]["locked"]["rev"]
+            for name, node in nodes[lock["root"]]["inputs"].items()
+        }
 
     def source(self, name: str) -> str:
         return (self.root / f"pkgs/{name}/source").read_text()
@@ -294,6 +320,48 @@ class TransactionTest(unittest.TestCase):
             },
         )
 
+    def test_refreshes_only_affected_packages_in_provider_order(self) -> None:
+        calls: list[tuple[str, list[str]]] = []
+
+        def refresh(name: str) -> Updater:
+            def run(args: list[str]) -> tuple[int, str]:
+                calls.append((name, args))
+                self.write(name, "refreshed")
+                return 0, ""
+
+            return run
+
+        names = ["independent", "caddy", "pi"]
+        runner = self.runner(
+            FakeNix(
+                self.root,
+                {
+                    "refreshOrder": names,
+                    "dependencies": {
+                        "independent": [],
+                        "caddy": ["provider"],
+                        "pi": ["caddy", "provider"],
+                    },
+                    "inputDependencies": {
+                        "independent": ["nixpkgs"],
+                        "provider": ["llm-agents"],
+                        "caddy": [],
+                        "pi": [],
+                    },
+                },
+                {name: refresh(name) for name in names},
+            )
+        )
+        result = runner.input_transaction(["llm-agents"])
+        self.assertEqual(
+            (result, calls, {name: self.source(name) for name in names}),
+            (
+                Outcome("llm-agents", changed=True),
+                [("caddy", ["--refresh"]), ("pi", ["--refresh"])],
+                {"independent": "old", "caddy": "refreshed", "pi": "refreshed"},
+            ),
+        )
+
     def test_a_later_input_failure_preserves_an_earlier_accepted_lock(self) -> None:
         def caddy(args: list[str]) -> tuple[int, str]:
             if self.lock()["nixpkgs"] == "new":
@@ -303,7 +371,11 @@ class TransactionTest(unittest.TestCase):
         runner = self.runner(
             FakeNix(
                 self.root,
-                {"refreshOrder": ["caddy", "pi"]},
+                {
+                    "refreshOrder": ["caddy", "pi"],
+                    "dependencies": {"caddy": [], "pi": []},
+                    "inputDependencies": {"caddy": ["nixpkgs"], "pi": ["llm-agents"]},
+                },
                 {"caddy": caddy, "pi": lambda args: (0, "")},
             )
         )
@@ -323,8 +395,15 @@ class TransactionTest(unittest.TestCase):
         runner = self.runner(
             FakeNix(
                 self.root,
-                {"refreshOrder": ["caddy", "pi"]},
-                {"caddy": lambda args: (0, ""), "pi": lambda args: (0, "")},
+                {
+                    "refreshOrder": ["caddy", "pi"],
+                    "dependencies": {"caddy": [], "pi": []},
+                    "inputDependencies": {"caddy": ["nixpkgs"], "pi": ["llm-agents"]},
+                },
+                {
+                    name: lambda args: (1, "An unaffected updater ran.")
+                    for name in ["caddy", "pi"]
+                },
                 releases={"lanzaboote": "new", "nixpkgs-measured-boot": "invalid"},
             )
         )
@@ -480,6 +559,49 @@ class TransactionTest(unittest.TestCase):
                 "sources": {"caddy": "updated", "pi": "maintained"},
             },
         )
+
+
+class LockGraphTest(unittest.TestCase):
+    def test_compares_reachable_inputs_without_using_node_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "flake.lock"
+
+            def graph(revision: str, suffix: str) -> LockGraph:
+                path.write_text(
+                    json.dumps(
+                        {
+                            "version": 7,
+                            "root": f"root{suffix}",
+                            "nodes": {
+                                f"root{suffix}": {
+                                    "inputs": {
+                                        "tools": f"tools{suffix}",
+                                        "compiler": ["tools", "compiler"],
+                                        "consumer": f"consumer{suffix}",
+                                        "independent": f"independent{suffix}",
+                                    }
+                                },
+                                f"tools{suffix}": {
+                                    "inputs": {"compiler": f"compiler{suffix}"}
+                                },
+                                f"consumer{suffix}": {
+                                    "inputs": {"compiler": ["compiler"]}
+                                },
+                                f"compiler{suffix}": {"locked": {"rev": revision}},
+                                f"independent{suffix}": {"locked": {"rev": "same"}},
+                            },
+                        }
+                    )
+                )
+                return LockGraph.read(path)
+
+            before = graph("old", "")
+            relabelled = graph("old", "_2")
+            changed = graph("new", "_2")
+            self.assertEqual(
+                (before.changes(relabelled), before.changes(changed)),
+                (set(), {"compiler", "consumer", "tools"}),
+            )
 
 
 class ReportTest(unittest.TestCase):

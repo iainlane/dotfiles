@@ -24,6 +24,7 @@ in
           inputs = ["nixpkgs" "nixpkgs-stable"];
           localPins = ["plugins"];
           refresh = true;
+          refreshInputs = [];
         };
         updateScript = writeShellApplication {
           name = "update-caddy";

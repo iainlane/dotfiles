@@ -15,7 +15,7 @@ import json
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class Node:
     updater: bool
     refresh: bool = False
     dependencies: list[str] | None = None
+    inputs: list[str] | None = field(default_factory=list)
 
 
 def references(output: str) -> dict[str, list[str]]:
@@ -128,6 +129,7 @@ class Plan:
             "order": self.order(),
             "refreshOrder": self.order(refresh=True),
             "dependencies": dependencies,
+            "inputDependencies": {node.name: node.inputs for node in self.nodes},
         }
 
     def downstream(self, changed: list[str]) -> list[str]:

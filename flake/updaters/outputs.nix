@@ -54,12 +54,16 @@ in {
       })
       scripts;
     available = packages.${system} or {};
-    packageNode = import ./package-node.nix {inherit available metadata scripts;};
+    packageNode = import ./package-node.nix {
+      inherit available metadata scripts;
+      localPackages = pkgs;
+    };
     nodes = pkgs.writeText "update-plan-nodes.json" (builtins.toJSON (
       map packageNode packageNames
       ++ map (name: {
         inherit name;
         path = builtins.unsafeDiscardStringContext inputs.${name}.outPath;
+        inputs = [name];
         updater = true;
       })
       flakeInputs

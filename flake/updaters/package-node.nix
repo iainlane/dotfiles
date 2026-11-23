@@ -1,21 +1,28 @@
 {
   available,
+  localPackages,
   metadata,
   scripts,
 }: name: let
-  package = available.${name} or null;
   updaterInfo = metadata.${name} or {};
-  policy =
-    if package == null
-    then {}
-    else package.maintenance or {};
-in {
-  inherit name;
-  path =
-    if package == null
-    then null
-    else builtins.unsafeDiscardStringContext package.drvPath;
-  updater = scripts ? ${name};
+  policy = localPackages.${name}.maintenance or {};
   refresh = updaterInfo.refresh or false;
+in {
+  inherit name refresh;
+  path =
+    if available ? ${name}
+    then builtins.unsafeDiscardStringContext available.${name}.drvPath
+    else null;
+  updater = scripts ? ${name};
+  inputs =
+    if refresh && !(policy ? refreshInputs)
+    then null
+    else
+      (policy.inputs or [])
+      ++ (
+        if refresh
+        then policy.refreshInputs
+        else []
+      );
   dependencies = policy.dependencies or null;
 }

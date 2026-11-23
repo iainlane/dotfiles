@@ -69,6 +69,12 @@
     chartkick = larapaper-chartkick;
     maplibre-gl = larapaper-maplibre-gl;
   };
+  updateScript = updaters.mkScriptUpdater {
+    refreshInputs = ["nixpkgs" "nixpkgs-stable"];
+    pname = "larapaper";
+    script = ./update.bash;
+    extraRuntimeInputs = [gh python3 nix-update];
+  };
 in
   php.buildComposerProject2 {
     pname = "larapaper";
@@ -92,18 +98,8 @@ in
       cp -rs ${trmnl-framework}/js/. "$app/public/js/"
     '';
     passthru = {
-      inherit php frontend composerVendor webLibraries;
-      maintenance = {
-        source = "release";
-        refresh = true;
-        dependencies = [];
-      };
-      updateScript = updaters.mkScriptUpdater {
-        refresh = true;
-        pname = "larapaper";
-        script = ./update.bash;
-        extraRuntimeInputs = [gh python3 nix-update];
-      };
+      inherit php frontend composerVendor webLibraries updateScript;
+      maintenance = updateScript.maintenance // {dependencies = [];};
       tests = {
         php =
           ((import ./php-check.nix {inherit lib;}) {

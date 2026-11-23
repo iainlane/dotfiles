@@ -17,6 +17,13 @@ class Operation(TypedDict):
     lockfileMaintenance: bool
 
 
+class MaintenancePlan(TypedDict):
+    order: list[str]
+    refreshOrder: list[str]
+    dependencies: dict[str, list[str]]
+    inputDependencies: dict[str, list[str] | None]
+
+
 @dataclass(frozen=True)
 class Outcome:
     name: str
@@ -128,6 +135,76 @@ class Snapshot:
             entry.restore(self.root / name)
 
 
+type LockReference = str | list[str]
+
+
+class LockNode(TypedDict, total=False):
+    inputs: dict[str, LockReference]
+
+
+@dataclass(frozen=True)
+class LockGraph:
+    nodes: dict[str, LockNode]
+    root: str
+
+    @classmethod
+    def read(cls, path: Path) -> "LockGraph":
+        try:
+            lock = json.loads(path.read_bytes())
+            return cls(lock["nodes"], lock["root"])
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ValueError(f"Could not read {path.name}: {error}") from error
+
+    def inputs(self, node: str) -> dict[str, LockReference]:
+        return self.nodes[node].get("inputs", {})
+
+    def resolve(self, reference: LockReference) -> str:
+        if isinstance(reference, str):
+            return reference
+
+        # A follows path starts at the root, even on a nested node.
+        node = self.root
+        for name in reference:
+            node = self.resolve(self.inputs(node)[name])
+        return node
+
+    def equivalent(self, other: "LockGraph", left: str, right: str) -> bool:
+        pending = [(left, right)]
+        seen: set[tuple[str, str]] = set()
+        while pending:
+            pair = pending.pop()
+            if pair in seen:
+                continue
+            seen.add(pair)
+            left, right = pair
+            old = {
+                key: value for key, value in self.nodes[left].items() if key != "inputs"
+            }
+            new = {
+                key: value
+                for key, value in other.nodes[right].items()
+                if key != "inputs"
+            }
+            old_inputs, new_inputs = self.inputs(left), other.inputs(right)
+            if old != new or old_inputs.keys() != new_inputs.keys():
+                return False
+            pending.extend(
+                (self.resolve(reference), other.resolve(new_inputs[name]))
+                for name, reference in old_inputs.items()
+            )
+        return True
+
+    def changes(self, other: "LockGraph") -> set[str]:
+        before, after = self.inputs(self.root), other.inputs(other.root)
+        return (before.keys() ^ after.keys()) | {
+            name
+            for name in before.keys() & after.keys()
+            if not self.equivalent(
+                other, self.resolve(before[name]), other.resolve(after[name])
+            )
+        }
+
+
 def input_groups(lock: dict, requested: list[str]) -> list[list[str]]:
     roots = lock["nodes"][lock.get("root", "root")]["inputs"]
     coupled = ["lanzaboote", "nixpkgs-measured-boot"]
@@ -209,7 +286,7 @@ class Runner:
             raise ValueError("Could not evaluate updater metadata.")
         return json.loads(result.stdout)
 
-    def plan(self) -> dict:
+    def plan(self) -> MaintenancePlan:
         result = self.executor.run(["nix", "run", ".#update-plan", "--", "describe"])
         if result.returncode:
             raise ValueError("Could not determine maintenance order.")
@@ -259,9 +336,27 @@ class Runner:
             if name in plan["dependencies"][other]
         ]
 
-    def refresh(self, names: list[str] | None = None) -> list[Outcome]:
+    def input_refreshes(self, changed: set[str]) -> list[str]:
+        plan = self.plan()
+        order = plan["refreshOrder"]
+        inputs = plan.get("inputDependencies")
+        if inputs is None:
+            return order
+
+        affected = {
+            name
+            for name, dependencies in inputs.items()
+            if dependencies is None or changed.intersection(dependencies)
+        }
+        return [
+            name
+            for name in order
+            if name in affected or affected.intersection(plan["dependencies"][name])
+        ]
+
+    def refresh(self, names: list[str]) -> list[Outcome]:
         results: list[Outcome] = []
-        for name in self.plan()["refreshOrder"] if names is None else names:
+        for name in names:
             snapshot = Snapshot(self.root, self.metadata()[name]["paths"])
             result = self.execute(name, ["--refresh"])
             results.append(result)
@@ -286,6 +381,8 @@ class Runner:
         snapshot = Snapshot(self.root, sorted(set(scopes)))
         name = ", ".join(group)
         try:
+            lock = self.root / "flake.lock"
+            before = LockGraph.read(lock)
             result = (
                 self.execute(updater, args or [])
                 if updater
@@ -299,10 +396,17 @@ class Runner:
                 raise ValueError(
                     message or "The input could not be relocked; see diagnostic logs."
                 )
-            if not snapshot.changed_files():
+            changed_files = snapshot.changed_files()
+            if not changed_files:
                 return Outcome(name, message=message)
             snapshot.include_new_files()
-            refreshed = self.refresh()
+            changed_inputs = before.changes(LockGraph.read(lock))
+            names = (
+                self.plan()["refreshOrder"]
+                if not changed_inputs and "flake.nix" in changed_files
+                else self.input_refreshes(changed_inputs)
+            )
+            refreshed = self.refresh(names)
             failed = next((result for result in refreshed if result.status), None)
             if failed:
                 raise ValueError(f"{failed.name}: {failed.message}")
@@ -314,7 +418,7 @@ class Runner:
             changed = self.accept(snapshot)
             self.outcomes.extend(result for result in refreshed if result.message)
             return Outcome(name, message=message, changed=bool(changed))
-        except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
             snapshot.restore()
             return Outcome(name, 1, str(error))
 

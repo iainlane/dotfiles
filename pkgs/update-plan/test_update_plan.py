@@ -66,6 +66,22 @@ class PlanTest(unittest.TestCase):
         plan = Plan.from_query(nodes, lambda _: path_info(REFERENCES))
         self.assertEqual(plan.order(refresh=True), ["provider", "consumer"])
 
+    def test_describes_flake_inputs_for_providers_without_updaters(self) -> None:
+        nodes = [
+            Node("host", "/nix/store/host.drv", False, inputs=["flake-source"]),
+            Node("plugin", "/nix/store/plugin.drv", True, refresh=True, inputs=None),
+        ]
+        plan = Plan.from_query(nodes, lambda _: path_info(REFERENCES))
+        self.assertEqual(
+            plan.describe(),
+            {
+                "order": ["plugin"],
+                "refreshOrder": ["plugin"],
+                "dependencies": {"host": [], "plugin": ["host"]},
+                "inputDependencies": {"host": ["flake-source"], "plugin": None},
+            },
+        )
+
     def test_declared_maintenance_dependencies_replace_build_order(self) -> None:
         nodes = [
             Node("host", "/nix/store/plugin.drv", True, dependencies=[]),

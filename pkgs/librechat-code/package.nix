@@ -69,6 +69,7 @@ bun2nix.mkDerivation {
     updateScript = null;
     maintenance = {
       source = "pin";
+      inputs = ["bun2nix"];
       reason = "The code service release is selected for the native LibreChat integration.";
     };
     runtimes = {

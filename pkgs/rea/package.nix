@@ -85,6 +85,7 @@ in
       passthru = {
         updateScript = updaters.mkNixUpdateUpdater {
           refresh = true;
+          refreshInputs = ["nixpkgs" "nixpkgs-stable"];
           attr = "rea";
           extraFlags = [
             "--version=stable"

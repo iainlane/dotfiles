@@ -140,6 +140,7 @@ in
         maintenance = {
           source = "release";
           refresh = true;
+          refreshInputs = ["nixpkgs"];
           lockfileMaintenance = true;
         };
         updateScript = updaters.mkPiExtensionUpdater {

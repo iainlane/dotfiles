@@ -22,6 +22,7 @@ in
             source = "release";
             inputs = ["nixpkgs"];
             refresh = true;
+            refreshInputs = [];
           };
           updateScript = updaters.mkNixUpdateUpdater {
             refresh = true;

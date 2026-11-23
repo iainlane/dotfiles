@@ -1,16 +1,29 @@
 let
-  node = import ./package-node.nix {
-    available = {
-      maintained = {
-        drvPath = "/nix/store/maintained.drv";
-        maintenance.dependencies = ["without-updater"];
+  available = {
+    maintained = {
+      drvPath = "/nix/store/maintained.drv";
+      maintenance = {
+        inputs = ["source"];
+        refreshInputs = ["toolchain"];
+        dependencies = ["without-updater"];
       };
-      without-updater = {
-        drvPath = "/nix/store/without-updater.drv";
-        maintenance.source = "repository";
-      };
-      without-policy.drvPath = "/nix/store/without-policy.drv";
     };
+    without-updater = {
+      drvPath = "/nix/store/without-updater.drv";
+      maintenance = {
+        inputs = ["provider-source"];
+        refreshInputs = "stale";
+      };
+    };
+    without-policy.drvPath = "/nix/store/without-policy.drv";
+  };
+  node = import ./package-node.nix {
+    inherit available;
+    localPackages =
+      available
+      // {
+        unavailable.maintenance.refreshInputs = ["toolchain"];
+      };
     metadata = {
       maintained.refresh = true;
       unavailable.refresh = true;
@@ -27,6 +40,7 @@ let
       path = "/nix/store/maintained.drv";
       updater = true;
       refresh = true;
+      inputs = ["source" "toolchain"];
       dependencies = ["without-updater"];
     }
     {
@@ -34,6 +48,7 @@ let
       path = "/nix/store/without-updater.drv";
       updater = false;
       refresh = false;
+      inputs = ["provider-source"];
       dependencies = null;
     }
     {
@@ -41,6 +56,7 @@ let
       path = null;
       updater = true;
       refresh = true;
+      inputs = ["toolchain"];
       dependencies = null;
     }
     {
@@ -48,6 +64,7 @@ let
       path = "/nix/store/without-policy.drv";
       updater = false;
       refresh = false;
+      inputs = [];
       dependencies = null;
     }
     {
@@ -55,6 +72,7 @@ let
       path = null;
       updater = false;
       refresh = false;
+      inputs = [];
       dependencies = null;
     }
   ];

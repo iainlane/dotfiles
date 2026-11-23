@@ -39,6 +39,7 @@ in
       maintenance = {
         source = "derived";
         refresh = true;
+        refreshInputs = ["nixpkgs"];
         dependencies = ["larapaper"];
       };
       updateScript = writeShellApplication {

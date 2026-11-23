@@ -333,14 +333,16 @@ establish a local policy. Coverage checks validate both package channels.
 The normal `update-<name>` app may advance locally controlled pins and must
 regenerate the associated derived files. Packages with
 `maintenance.refresh = true` also accept `--refresh`: the operation keeps
-locally controlled source pins and regenerates their derived files. Caddy uses
-this mode to regenerate its plugin-source hashes for both selected package
-channels. Its plugin pins advance only during a normal update. The updaters of
-pnpm packages and Pi extensions also accept `--maintain-lockfile` for lock-file
-maintenance. A normal pnpm relock keeps every locked version that still
-satisfies its range, and a normal Pi extension update leaves the lockfile alone
-until the extension has a new release. In this mode, every dependency, direct
-and transitive, moves to the newest version that its range allows.
+locally controlled source pins and regenerates their derived files.
+`maintenance.refreshInputs` lists any flake inputs that affect the refresh and
+that `maintenance.inputs` does not already list. Caddy uses this mode to
+regenerate its plugin-source hashes for both package channels in
+`maintenance.inputs`. Its plugin pins advance only during a normal update. The
+updaters of pnpm packages and Pi extensions also accept `--maintain-lockfile`
+for lock-file maintenance. A normal pnpm relock keeps every locked version that
+still satisfies its range, and a normal Pi extension update leaves the lockfile
+alone until the extension has a new release. In this mode, every dependency,
+direct and transitive, moves to the newest version that its range allows.
 `update-all --maintain-lockfiles` passes the flag to each updater whose
 `maintenance.lockfileMaintenance` is true and runs the other updaters as usual.
 The scheduled package-update workflow uses it once a week.
@@ -365,15 +367,18 @@ unrelated files or changing the caller's existing index. Local updates refuse
 pre-existing staged or unstaged changes in their ownership scopes. CI stages
 only accepted changes.
 
-Flake updates process inputs independently and run refresh-only maintenance
-before accepting each changed input. `lanzaboote` and `nixpkgs-measured-boot`
-update together because their integration requires matching revisions. A failed
-refresh or evaluation restores that input transaction, preserves earlier
-successes and permits independent updates to continue. A package update also
-refreshes dependent local packages before acceptance; a failed required refresh
-restores that provider update. Batches skip dependents of failed providers.
-Commands return nonzero after reporting any failures. The evaluation gate does
-not build packages; full builds remain separate verification.
+Flake updates process inputs independently. After each relock, the runner
+compares the two lock graphs, including transitive inputs and `follows`
+references. It refreshes packages that use a changed input and their dependents
+in maintenance order, then runs the full evaluation gate. `lanzaboote` and
+`nixpkgs-measured-boot` update together because their integration requires
+matching revisions. A failed refresh or evaluation restores that input
+transaction, preserves earlier successes and permits independent updates to
+continue. A package update also refreshes dependent local packages before
+acceptance; a failed required refresh restores that provider update. Batches
+skip dependents of failed providers. Commands return nonzero after reporting any
+failures. The evaluation gate does not build packages; full builds remain
+separate verification.
 
 Updater stdout is optional plain text for the PR description. Progress and
 diagnostics go to stderr, and exit status determines success or failure. The
