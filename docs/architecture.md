@@ -367,15 +367,17 @@ unrelated files or changing the caller's existing index. Local updates refuse
 pre-existing staged or unstaged changes in their ownership scopes. CI stages
 only accepted changes.
 
-Flake updates process inputs independently. After each relock, the runner
+Flake updates first try to relock all requested inputs in one batch. The runner
 compares the two lock graphs, including transitive inputs and `follows`
 references. It refreshes packages that use a changed input and their dependents
-in maintenance order, then runs the full evaluation gate. `lanzaboote` and
-`nixpkgs-measured-boot` update together because their integration requires
-matching revisions. A failed refresh or evaluation restores that input
-transaction, preserves earlier successes and permits independent updates to
-continue. A package update also refreshes dependent local packages before
-acceptance; a failed required refresh restores that provider update. Batches
+in maintenance order, then runs the full evaluation gate once for the batch. If
+relocking, refresh or evaluation fails, the runner restores the batch and
+retries each half in order. It preserves accepted changes when a later batch
+fails. `lanzaboote` and `nixpkgs-measured-boot` are never split because their
+integration requires matching revisions.
+
+A package update also refreshes dependent local packages before acceptance; a
+failed required refresh restores that provider update. Package update batches
 skip dependents of failed providers. Commands return nonzero after reporting any
 failures. The evaluation gate does not build packages; full builds remain
 separate verification.

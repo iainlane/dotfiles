@@ -147,6 +147,7 @@ class FakeNix:
         self.plan = plan
         self.updaters = updaters
         self.releases = releases or {}
+        self.commands: list[list[str]] = []
         self.metadata = {
             name: {
                 "refresh": True,
@@ -159,6 +160,7 @@ class FakeNix:
         }
 
     def run(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        self.commands.append(args)
         scripts = f".#legacyPackages.{SYSTEM}.updaterScripts."
         match args:
             case ["nix", "eval", "--json", installable] if (
@@ -273,6 +275,119 @@ class TransactionTest(unittest.TestCase):
 
     def write(self, name: str, source: str) -> None:
         (self.root / f"pkgs/{name}/source").write_text(source)
+
+    def test_successful_batch_relocks_refreshes_and_validates_once(self) -> None:
+        def refresh(args: list[str]) -> tuple[int, str]:
+            revisions = self.lock()
+            self.write("caddy", f"{revisions['nixpkgs']}/{revisions['llm-agents']}")
+            return 0, ""
+
+        nix = FakeNix(self.root, {"refreshOrder": ["caddy"]}, {"caddy": refresh})
+        runner = self.runner(nix)
+        runner.update_inputs([["nixpkgs"], ["llm-agents"]])
+        self.assertEqual(
+            (
+                [
+                    args
+                    for args in nix.commands
+                    if args[:3] == ["nix", "flake", "update"]
+                ],
+                [args for args in nix.commands if args[-1] == "--refresh"],
+                nix.commands.count(["bash", "scripts/check-evaluation.bash"]),
+                runner.outcomes,
+                self.source("caddy"),
+            ),
+            (
+                [["nix", "flake", "update", "nixpkgs", "llm-agents"]],
+                [[str(STORE / "caddy/bin/caddy"), "--refresh"]],
+                1,
+                [Outcome("nixpkgs", changed=True), Outcome("llm-agents", changed=True)],
+                "new/new",
+            ),
+        )
+
+    def test_failed_batch_restores_partial_files_and_preserves_coupled_groups(
+        self,
+    ) -> None:
+        partial = self.root / "pkgs/caddy/partial"
+
+        def refresh(args: list[str]) -> tuple[int, str]:
+            revisions = self.lock()
+            self.write("caddy", f"{revisions['nixpkgs']}/{revisions['llm-agents']}")
+            if "nixpkgs-measured-boot" in revisions:
+                partial.write_text("partial")
+            return 0, ""
+
+        nix = FakeNix(
+            self.root,
+            {"refreshOrder": ["caddy"]},
+            {"caddy": refresh},
+            releases={"nixpkgs-measured-boot": "invalid"},
+        )
+        runner = Runner(self.root, SYSTEM, nix, stage=True)
+        coupled = ["lanzaboote", "nixpkgs-measured-boot"]
+        runner.update_inputs([["llm-agents"], coupled, ["nixpkgs"]])
+        staged = subprocess.check_output(
+            ["git", "-C", str(self.root), "diff", "--cached", "--name-only"], text=True
+        )
+        self.assertEqual(
+            (
+                [
+                    args[3:]
+                    for args in nix.commands
+                    if args[:3] == ["nix", "flake", "update"]
+                ],
+                runner.outcomes,
+                self.lock(),
+                self.source("caddy"),
+                partial.exists(),
+                staged.splitlines(),
+            ),
+            (
+                [
+                    ["llm-agents", *coupled, "nixpkgs"],
+                    ["llm-agents"],
+                    [*coupled, "nixpkgs"],
+                    coupled,
+                    ["nixpkgs"],
+                ],
+                [
+                    Outcome("llm-agents", changed=True),
+                    Outcome(
+                        "lanzaboote, nixpkgs-measured-boot",
+                        1,
+                        "The candidate input update failed the no-build evaluation gate.",
+                    ),
+                    Outcome("nixpkgs", changed=True),
+                ],
+                {"nixpkgs": "new", "llm-agents": "new"},
+                "new/new",
+                False,
+                ["flake.lock", "pkgs/caddy/source"],
+            ),
+        )
+
+    def test_unchanged_batch_does_not_plan_refreshes_or_evaluate_targets(self) -> None:
+        nix = FakeNix(
+            self.root, {}, {}, releases={"nixpkgs": "old", "llm-agents": "old"}
+        )
+        runner = self.runner(nix)
+        runner.update_inputs([["nixpkgs"], ["llm-agents"]])
+        self.assertEqual(
+            (nix.commands, render(runner.outcomes)),
+            (
+                [
+                    [
+                        "nix",
+                        "eval",
+                        "--json",
+                        f".#legacyPackages.{SYSTEM}.updaterMetadata",
+                    ],
+                    ["nix", "flake", "update", "nixpkgs", "llm-agents"],
+                ],
+                "No updates were needed.\n",
+            ),
+        )
 
     def test_failed_input_restores_its_refreshes_and_keeps_independent_success(
         self,
@@ -599,8 +714,12 @@ class LockGraphTest(unittest.TestCase):
             relabelled = graph("old", "_2")
             changed = graph("new", "_2")
             self.assertEqual(
-                (before.changes(relabelled), before.changes(changed)),
-                (set(), {"compiler", "consumer", "tools"}),
+                (
+                    before.changes(relabelled),
+                    before.changes(changed),
+                    before.changes(changed, follow_aliases=False),
+                ),
+                (set(), {"compiler", "consumer", "tools"}, {"tools"}),
             )
 
 

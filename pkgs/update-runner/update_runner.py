@@ -32,6 +32,12 @@ class Outcome:
     changed: bool = False
 
 
+@dataclass(frozen=True)
+class InputAttempt:
+    outcome: Outcome
+    updated_inputs: frozenset[str] = frozenset()
+
+
 class DirtyPathsError(ValueError):
     def __init__(self, paths: list[str]) -> None:
         listing = "".join(f"{path}\n" for path in paths)
@@ -168,39 +174,55 @@ class LockGraph:
             node = self.resolve(self.inputs(node)[name])
         return node
 
-    def equivalent(self, other: "LockGraph", left: str, right: str) -> bool:
+    def equivalent(
+        self,
+        other: "LockGraph",
+        left: LockReference,
+        right: LockReference,
+        *,
+        follow_aliases: bool,
+    ) -> bool:
         pending = [(left, right)]
         seen: set[tuple[str, str]] = set()
         while pending:
-            pair = pending.pop()
+            left_ref, right_ref = pending.pop()
+            if not follow_aliases and (
+                isinstance(left_ref, list) or isinstance(right_ref, list)
+            ):
+                if left_ref != right_ref:
+                    return False
+                continue
+
+            left_node, right_node = self.resolve(left_ref), other.resolve(right_ref)
+            pair = (left_node, right_node)
             if pair in seen:
                 continue
             seen.add(pair)
-            left, right = pair
             old = {
-                key: value for key, value in self.nodes[left].items() if key != "inputs"
+                key: value
+                for key, value in self.nodes[left_node].items()
+                if key != "inputs"
             }
             new = {
                 key: value
-                for key, value in other.nodes[right].items()
+                for key, value in other.nodes[right_node].items()
                 if key != "inputs"
             }
-            old_inputs, new_inputs = self.inputs(left), other.inputs(right)
+            old_inputs, new_inputs = self.inputs(left_node), other.inputs(right_node)
             if old != new or old_inputs.keys() != new_inputs.keys():
                 return False
             pending.extend(
-                (self.resolve(reference), other.resolve(new_inputs[name]))
-                for name, reference in old_inputs.items()
+                (reference, new_inputs[name]) for name, reference in old_inputs.items()
             )
         return True
 
-    def changes(self, other: "LockGraph") -> set[str]:
+    def changes(self, other: "LockGraph", *, follow_aliases: bool = True) -> set[str]:
         before, after = self.inputs(self.root), other.inputs(other.root)
         return (before.keys() ^ after.keys()) | {
             name
             for name in before.keys() & after.keys()
             if not self.equivalent(
-                other, self.resolve(before[name]), other.resolve(after[name])
+                other, before[name], after[name], follow_aliases=follow_aliases
             )
         }
 
@@ -365,12 +387,51 @@ class Runner:
             snapshot.include_new_files()
         return results
 
+    def update_inputs(self, groups: list[list[str]]) -> None:
+        if not groups:
+            return
+
+        attempt = self._attempt_inputs([name for group in groups for name in group])
+        result = attempt.outcome
+        if len(groups) == 1:
+            self.outcomes.append(result)
+            return
+        if result.status:
+            print(
+                f"Splitting failed batch of {len(groups)} input groups: {result.message}",
+                file=sys.stderr,
+            )
+            middle = len(groups) // 2
+            self.update_inputs(groups[:middle])
+            self.update_inputs(groups[middle:])
+            return
+
+        updated = [
+            Outcome(", ".join(group), changed=True)
+            for group in groups
+            if attempt.updated_inputs.intersection(group)
+        ]
+        if not updated:
+            self.outcomes.append(result)
+            return
+        self.outcomes.extend(updated)
+        if result.message:
+            self.outcomes.append(Outcome(result.name, message=result.message))
+
     def input_transaction(
         self,
         group: list[str],
         updater: str | None = None,
         args: list[str] | None = None,
     ) -> Outcome:
+        return self._attempt_inputs(group, updater, args).outcome
+
+    def _attempt_inputs(
+        self,
+        inputs: list[str],
+        updater: str | None = None,
+        args: list[str] | None = None,
+    ) -> InputAttempt:
         metadata = self.metadata()
         scopes = ["flake.lock", "flake.nix"] + [
             path
@@ -379,14 +440,14 @@ class Runner:
             for path in operation["paths"]
         ]
         snapshot = Snapshot(self.root, sorted(set(scopes)))
-        name = ", ".join(group)
+        name = ", ".join(inputs)
         try:
             lock = self.root / "flake.lock"
             before = LockGraph.read(lock)
             result = (
                 self.execute(updater, args or [])
                 if updater
-                else self.executor.run(["nix", "flake", "update", *group])
+                else self.executor.run(["nix", "flake", "update", *inputs])
             )
             status = result.status if isinstance(result, Outcome) else result.returncode
             message = (
@@ -398,9 +459,10 @@ class Runner:
                 )
             changed_files = snapshot.changed_files()
             if not changed_files:
-                return Outcome(name, message=message)
+                return InputAttempt(Outcome(name, message=message))
             snapshot.include_new_files()
-            changed_inputs = before.changes(LockGraph.read(lock))
+            after = LockGraph.read(lock)
+            changed_inputs = before.changes(after)
             names = (
                 self.plan()["refreshOrder"]
                 if not changed_inputs and "flake.nix" in changed_files
@@ -415,12 +477,15 @@ class Runner:
                 raise ValueError(
                     "The candidate input update failed the no-build evaluation gate."
                 )
+            updated_inputs = frozenset(before.changes(after, follow_aliases=False))
             changed = self.accept(snapshot)
             self.outcomes.extend(result for result in refreshed if result.message)
-            return Outcome(name, message=message, changed=bool(changed))
+            return InputAttempt(
+                Outcome(name, message=message, changed=bool(changed)), updated_inputs
+            )
         except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
             snapshot.restore()
-            return Outcome(name, 1, str(error))
+            return InputAttempt(Outcome(name, 1, str(error)))
 
     def package_transaction(self, name: str, args: list[str]) -> Outcome:
         metadata = self.metadata()
@@ -534,8 +599,7 @@ def main() -> int:
             return 1 if result.status else 0
         if arguments.command == "inputs":
             lock = json.loads((root / "flake.lock").read_text())
-            for group in input_groups(lock, arguments.names):
-                runner.outcomes.append(runner.input_transaction(group))
+            runner.update_inputs(input_groups(lock, arguments.names))
         else:
             runner.packages(arguments.refresh, arguments.maintain_lockfiles)
         sys.stdout.write(render(runner.outcomes))
