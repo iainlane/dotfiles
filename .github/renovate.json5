@@ -5,8 +5,11 @@
     ":dependencyDashboard",
     ":semanticCommits",
     ":automergeDigest",
-    ":automergeBranch",
   ],
+  // Cupboard runs only on pull requests and pushes to main, so a branch
+  // pushed for branch automerge never gets status checks and never merges.
+  // Every update goes through a pull request, and automerge acts on its checks.
+  automergeType: "pr",
   timezone: "Europe/London",
   schedule: ["before 6am"],
   labels: ["dependencies"],
