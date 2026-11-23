@@ -1,0 +1,207 @@
+name: public source cache experiment
+
+on:
+  push:
+    branches: [experiment/public-source-cache-20261123]
+
+concurrency:
+  group: public-source-cache-experiment-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  EVALUATION_REVISION: 22d521a3274ed5736a05885b3e4c0a243bf97195
+
+jobs:
+  cold:
+    name: Evaluate without a source archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      sources: ${{ steps.sources.outputs.paths }}
+      manifest: ${{ steps.evaluation.outputs.manifest }}
+      targets: ${{ steps.evaluation.outputs.targets }}
+      setup_ms: ${{ steps.evaluation.outputs.setup_ms }}
+      gate_ms: ${{ steps.evaluation.outputs.gate_ms }}
+    steps:
+      - &experiment_checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: experiment
+          persist-credentials: false
+      - &candidate_checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.EVALUATION_REVISION }}
+          path: candidate
+          persist-credentials: false
+      - &install_nix # v35
+        uses: "nixbuild/nix-quick-install-action@\
+          9f63be77f412a248c9d9a65a4c82cf066cdf8f0c"
+        with:
+          nix_version: 2.34.7
+      - name: Record public sources already in the store
+        run: |
+          helper=experiment/scripts/public-source-cache-experiment.py
+          python3 "${helper}" candidate/flake.lock present \
+            > "${RUNNER_TEMP}/before.json"
+      - &secrets_access
+        name: Set up private input access
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_KEY}"
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          ssh_command="ssh -i ${key} -o IdentitiesOnly=yes"
+          ssh_command+=" -o StrictHostKeyChecking=accept-new"
+          ssh_command+=" -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts"
+          echo "GIT_SSH_COMMAND=${ssh_command}" >> "${GITHUB_ENV}"
+      - &evaluate_candidate
+        name: Evaluate all planned targets without builds
+        id: evaluation
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EVALUATION_REVISION}"
+          started=$(date +%s%3N)
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            ./scripts/check-evaluation.bash --raw .#.nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+          setup_done=$(date +%s%3N)
+          targets="${RUNNER_TEMP}/targets.json"
+          ./scripts/check-evaluation.bash --json .#.cupboardOutputs \
+            --apply 'targets: map (target: {
+              inherit (target) rootSuffix rootDrvPath;
+            }) targets' > "${targets}"
+          finished=$(date +%s%3N)
+          manifest=$(jq -cS 'sort_by(.rootSuffix)' "${targets}" |
+            sha256sum | cut -d ' ' -f 1)
+          {
+            echo "manifest=${manifest}"
+            echo "targets=$(jq -r 'length' "${targets}")"
+            echo "setup_ms=$((setup_done - started))"
+            echo "gate_ms=$((finished - setup_done))"
+          } | tee -a "${GITHUB_OUTPUT}"
+      - name: Select public sources first fetched during the measurement
+        id: sources
+        run: |
+          set -euo pipefail
+          helper=experiment/scripts/public-source-cache-experiment.py
+          before="${RUNNER_TEMP}/before.json"
+          paths=$(python3 "${helper}" candidate/flake.lock present |
+            jq -c --slurpfile before "${before}" '. - $before[0]')
+          echo "paths=${paths}" >> "${GITHUB_OUTPUT}"
+          jq -r '"Public source paths: \(length)"' <<< "${paths}"
+
+  seed:
+    name: Package only the public sources
+    needs: cold
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      bytes: ${{ steps.cache.outputs.bytes }}
+    steps:
+      - *experiment_checkout
+      - *candidate_checkout
+      - *install_nix
+      - name: Fetch the selected locked sources without credentials
+        id: cache
+        env:
+          SOURCE_PATHS: ${{ needs.cold.outputs.sources }}
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN GITHUB_TOKEN SSH_AUTH_SOCK GIT_SSH_COMMAND
+          manifest="${RUNNER_TEMP}/manifest.json"
+          directory="${RUNNER_TEMP}/public-sources"
+          printf '%s\n' "${SOURCE_PATHS}" > "${manifest}"
+          helper=experiment/scripts/public-source-cache-experiment.py
+          python3 "${helper}" candidate/flake.lock seed \
+            "${manifest}" "${directory}"
+          bytes=$(du -sb "${directory}" | cut -f 1)
+          echo "bytes=${bytes}" | tee -a "${GITHUB_OUTPUT}"
+      # v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: public-nix-sources
+          path: ${{ runner.temp }}/public-sources
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+
+  restored:
+    name: Restore the public source paths and evaluate
+    needs: [cold, seed]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - *candidate_checkout
+      - *install_nix
+      - *secrets_access
+      - name: Start timing the restore
+        id: restore_start
+        run: echo "ms=$(date +%s%3N)" >> "${GITHUB_OUTPUT}"
+      # v8.0.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: public-nix-sources
+          path: ${{ runner.temp }}/public-sources
+      - name: Import the public source paths
+        id: restore
+        env:
+          RESTORE_START_MS: ${{ steps.restore_start.outputs.ms }}
+        run: |
+          set -euo pipefail
+          directory="${RUNNER_TEMP}/public-sources"
+          mapfile -t paths < "${directory}/paths.txt"
+          test "${#paths[@]}" -gt 0
+          nix copy --no-check-sigs --from "file://${directory}" -- "${paths[@]}"
+          elapsed=$(($(date +%s%3N) - RESTORE_START_MS))
+          echo "ms=${elapsed}" | tee -a "${GITHUB_OUTPUT}"
+      - *evaluate_candidate
+      - name: Compare the measurements
+        env:
+          COLD_MANIFEST: ${{ needs.cold.outputs.manifest }}
+          WARM_MANIFEST: ${{ steps.evaluation.outputs.manifest }}
+          TARGETS: ${{ steps.evaluation.outputs.targets }}
+          COLD_SETUP: ${{ needs.cold.outputs.setup_ms }}
+          WARM_SETUP: ${{ steps.evaluation.outputs.setup_ms }}
+          COLD_GATE: ${{ needs.cold.outputs.gate_ms }}
+          WARM_GATE: ${{ steps.evaluation.outputs.gate_ms }}
+          RESTORE: ${{ steps.restore.outputs.ms }}
+          CACHE_BYTES: ${{ needs.seed.outputs.bytes }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee -a "${GITHUB_STEP_SUMMARY}"
+          import os
+          env = os.environ
+          if env["COLD_MANIFEST"] != env["WARM_MANIFEST"]:
+              raise SystemExit("Target manifests differ.")
+          phases = (
+              "COLD_SETUP", "WARM_SETUP", "COLD_GATE", "WARM_GATE", "RESTORE",
+          )
+          cold_setup, warm_setup, cold_gate, warm_gate, restore = (
+              int(env[name]) / 1000 for name in phases
+          )
+          cold = cold_setup + cold_gate
+          restored = restore + warm_setup + warm_gate
+          print(f"Both evaluations matched all {env['TARGETS']} target paths.")
+          print()
+          print(
+              f"- No archive: {cold:.1f} s "
+              f"({cold_setup:.1f} s setup, {cold_gate:.1f} s gate)."
+          )
+          print(
+              f"- With archive: {restored:.1f} s ({restore:.1f} s restore, "
+              f"{warm_setup:.1f} s setup, {warm_gate:.1f} s gate)."
+          )
+          print(f"- Net time saved: {cold - restored:+.1f} s.")
+          size = int(env["CACHE_BYTES"]) / 1024**2
+          print(f"- Cache size before artifact packaging: {size:.1f} MiB.")
+          PY
