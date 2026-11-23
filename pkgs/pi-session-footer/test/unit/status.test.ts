@@ -72,6 +72,7 @@ it("renders semantic planning with the configured icon and no native duplicate",
   });
   expect(Object.fromEntries(settings.symbols)).toStrictEqual({
     planning: "[P]",
+    "pi-lens-lsp": "󰅩",
     default: "◇",
     ["__proto__"]: "@",
   });

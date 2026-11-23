@@ -49,6 +49,7 @@ in {
     "--nixpkgs-expr=import ${inputs.nixpkgs.outPath} {}"
     ''--nixos-options-expr=(import ${inputs.nixpkgs.outPath}/nixos/lib/eval-config.nix { system = "${pkgs.stdenv.hostPlatform.parsed.cpu.name}-linux"; modules = []; }).options''
   ];
+  assert !lensConfig.ui.compactLspStatus;
     pkgs.runCommandLocal "pi-configured-launcher" {} ''
       ${pkgs.python3}/bin/python ${./test/launcher.py} ${lib.getExe launcher} ${bundle.previewAssets} ${bundle.normalAssets}
       touch "$out"

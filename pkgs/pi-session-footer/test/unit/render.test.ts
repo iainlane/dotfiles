@@ -59,7 +59,10 @@ it.each([false, true])(
     const statuses = new Map([["other", "x".repeat(100)]]);
 
     if (failure) {
-      statuses.set("pi-lens-lsp", "LSP Failed");
+      statuses.set(
+        "pi-lens-lsp",
+        `LSP Active: ${"x".repeat(100)} · LSP Failed: nix`,
+      );
     }
 
     state.statuses = statuses;
@@ -91,7 +94,14 @@ it.each([false, true])(
       },
       { id: "statuses", child: "other", decision: "omitted" },
       ...(failure
-        ? [{ id: "statuses", child: "pi-lens-lsp", decision: "full" }]
+        ? [
+            {
+              id: "statuses",
+              child: "pi-lens-lsp:active",
+              decision: "omitted",
+            },
+            { id: "statuses", child: "pi-lens-lsp:failed", decision: "full" },
+          ]
         : []),
     ]);
   },
@@ -476,11 +486,42 @@ it.each([
     colours(readSegments(state, { theme: marking }), "main"),
   ).toStrictEqual([role, role]);
 });
+it.each([
+  {
+    value: "\u001B[2mLSP Inactive\u001B[0m",
+    state: "idle",
+    values: [],
+  },
+  {
+    value: "LSP Active: nix, typescript",
+    state: "available",
+    values: ["<dim:󰅩 nix, typescript>"],
+  },
+  {
+    value:
+      "\u001B[32mLSP Active: nix\u001B[0m · \u001B[31mLSP Failed: typescript\u001B[0m",
+    state: "available",
+    values: ["<dim:󰅩 nix>", "<error:󰅩 failed: typescript>"],
+  },
+  {
+    value: "LSP ✗",
+    state: "available",
+    values: ["<dim:󰅩 pi-lens-lsp: LSP ✗>"],
+  },
+])("renders the pi-lens status $value", ({ value, state, values }) => {
+  const snapshot = fixture();
+  snapshot.statuses = new Map([["pi-lens-lsp", value]]);
+  const reading = readSegments(snapshot, { theme: marking }).statuses;
+  expect({
+    state: reading.state,
+    values: reading.parts.map((part) => part.variants[0]),
+  }).toStrictEqual({ state, values });
+});
 it("captures actual extension messages rather than integration health or generic counts", () => {
   const state = fixture();
   state.statuses = new Map([
     ["other", "\u001B[31mactual service error"],
-    ["pi-lens-lsp", "LSP Failed"],
+    ["pi-lens-lsp", "LSP Failed: nix"],
   ]);
   expect(readSegments(state).statuses).toStrictEqual({
     id: "statuses",
@@ -516,27 +557,27 @@ it("captures actual extension messages rather than integration health or generic
         priority: 25,
       },
       {
-        key: "pi-lens-lsp",
-        variants: ["◇ pi-lens-lsp: LSP Failed", ""],
+        key: "pi-lens-lsp:failed",
+        variants: ["󰅩 failed: nix", ""],
         tokens: [
           [
             {
               kind: "symbol",
-              value: "◇",
+              value: "󰅩",
               style: { color: "error" },
               role: "error",
               primary: true,
               attention: true,
-              source: "◇",
+              source: "󰅩",
             },
             {
               kind: "text",
-              value: " pi-lens-lsp: LSP Failed",
+              value: " failed: nix",
               style: { color: "error" },
               role: "error",
               primary: true,
               attention: true,
-              source: "◇",
+              source: "󰅩",
             },
           ],
           [],
@@ -544,8 +585,8 @@ it("captures actual extension messages rather than integration health or generic
         priority: 120,
       },
     ],
-    details: ["other: actual service error", "pi-lens-lsp: LSP Failed"],
-    symbols: "other: ◇; pi-lens-lsp: ◇",
+    details: ["other: actual service error", "pi-lens-lsp: LSP Failed: nix"],
+    symbols: "other: ◇; pi-lens-lsp: 󰅩",
   });
 });
 it("preserves warnings before routine identity and quota detail", () => {

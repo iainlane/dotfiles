@@ -258,7 +258,7 @@ in {
         ".pi/agent/live-models.json".text = toJson piLiveModelsConfig;
         ".pi-lens/config.json".text = toJson {
           widget.visible = false;
-          ui.compactLspStatus = true;
+          ui.compactLspStatus = false;
           tools.lazy = false;
           lsp.serverOverrides = {
             nix.command = [

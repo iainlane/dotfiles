@@ -19,8 +19,10 @@ import {
   UnknownWidgetError,
 } from "./settings-errors.ts";
 
+export const LSP_STATUS_SOURCE = "pi-lens-lsp";
 export const DEFAULT_SYMBOLS: ReadonlyMap<string, string> = new Map([
   ["planning", "≡"],
+  [LSP_STATUS_SOURCE, "󰅩"],
   ["default", "◇"],
 ]);
 export function sourceSymbol(

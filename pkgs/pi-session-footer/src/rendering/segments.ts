@@ -13,6 +13,7 @@ import { quotaDiagnosticLines, quotaWindows } from "#footer/domain/quota.ts";
 import type { FooterSnapshot } from "#footer/domain/state.ts";
 import {
   DEFAULT_SYMBOLS,
+  LSP_STATUS_SOURCE,
   sourceSymbol,
   type SegmentId,
 } from "#footer/configuration/settings.ts";
@@ -182,7 +183,7 @@ export const SEGMENTS = {
   statuses: definition(
     "Extension messages",
     "overview",
-    "◇ source name and actual published message",
+    "◇ published extension message; 󰅩 language servers",
     25,
   ),
   quota: definition(
@@ -808,6 +809,99 @@ function agentTokens(
   );
 }
 
+interface StatusDisplay {
+  tail: string;
+  lspState?: "active" | "failed";
+}
+
+function lspStatusDisplays(value: string): StatusDisplay[] {
+  const active = /^LSP Active: ([^·]+?)(?: · LSP Failed: ([^·]+))?$/.exec(
+    value,
+  );
+  const failed = active?.[2] ?? /^LSP Failed: ([^·]+)$/.exec(value)?.[1];
+  const displays: StatusDisplay[] = [];
+  if (active?.[1] !== undefined) {
+    displays.push({ tail: ` ${active[1]}`, lspState: "active" });
+  }
+  if (failed !== undefined) {
+    displays.push({ tail: ` failed: ${failed}`, lspState: "failed" });
+  }
+  return displays;
+}
+
+function statusPart(
+  p: SegmentPainter,
+  symbols: ReadonlyMap<string, SymbolSetting>,
+  source: string,
+  { tail, lspState }: StatusDisplay,
+): SegmentPart {
+  const failure = lspState === "failed";
+  return part(
+    lspState === undefined ? source : `${source}:${lspState}`,
+    [
+      p.symbol(
+        failure ? styles.error : styles.detail,
+        sourceSymbol(symbols, source),
+        tail,
+        {
+          role: failure ? "error" : "message",
+          primary: true,
+          attention: failure,
+          source: symbols.get(source) ?? symbols.get("default"),
+        },
+      ),
+      empty,
+    ],
+    failure ? 120 : SEGMENTS.statuses.priority,
+  );
+}
+
+type NativeStatus =
+  | { state: "idle" }
+  | {
+      state: "available";
+      source: string;
+      message: string;
+      displays: StatusDisplay[];
+    };
+
+function nativeStatus(key: string, raw: string): NativeStatus | undefined {
+  const value = text(raw, 500);
+  if (value === "") {
+    return undefined;
+  }
+  const isLsp = key === LSP_STATUS_SOURCE;
+  if (isLsp && value === "LSP Inactive") {
+    return { state: "idle" };
+  }
+  const source = text(key);
+  const message = source === "" ? value : `${source}: ${value}`;
+  const displays = isLsp ? lspStatusDisplays(value) : [];
+  return {
+    state: "available",
+    source,
+    message,
+    displays: displays.length === 0 ? [{ tail: ` ${message}` }] : displays,
+  };
+}
+
+function* nativeStatuses(
+  state: FooterSnapshot,
+): Generator<[string, NativeStatus]> {
+  for (const [key, raw] of state.statuses) {
+    if (
+      state.cooperativeStatuses.has(key) ||
+      ["planning", "pi-footer", "session-footer"].includes(key)
+    ) {
+      continue;
+    }
+    const status = nativeStatus(key, raw);
+    if (status !== undefined) {
+      yield [key, status];
+    }
+  }
+}
+
 function statuses(
   state: FooterSnapshot,
   p: SegmentPainter,
@@ -816,71 +910,33 @@ function statuses(
   const parts: SegmentPart[] = [];
   const messages: string[] = [];
   const selected: string[] = [];
+  let lspIdle = false;
   for (const [source, status] of state.cooperativeStatuses) {
     if (source === "planning" || !status.active) {
       continue;
     }
-    const symbol = sourceSymbol(symbols, source);
-    const tail =
-      status.text !== undefined && status.text !== "" ? ` ${status.text}` : "";
-    parts.push(
-      part(
-        source,
-        [
-          p.symbol(styles.detail, symbol, tail, {
-            role: "message",
-            primary: true,
-            source: symbols.get(source) ?? symbols.get("default"),
-          }),
-          empty,
-        ],
-        SEGMENTS.statuses.priority,
-      ),
-    );
+    const message = status.text ?? "";
+    const tail = message === "" ? "" : ` ${message}`;
+    parts.push(statusPart(p, symbols, source, { tail }));
     messages.push(`${source}: ${status.text ?? "active"}`);
-    selected.push(`${source}: ${symbol}`);
+    selected.push(`${source}: ${sourceSymbol(symbols, source)}`);
   }
-  for (const [key, raw] of state.statuses) {
-    if (
-      state.cooperativeStatuses.has(key) ||
-      ["planning", "pi-footer", "session-footer"].includes(key)
-    ) {
+  for (const [key, status] of nativeStatuses(state)) {
+    if (status.state === "idle") {
+      lspIdle = true;
       continue;
     }
-    const value = text(raw, 500);
-    if (!value) {
-      continue;
+    for (const display of status.displays) {
+      parts.push(statusPart(p, symbols, key, display));
     }
-    const source = text(key);
-    const message = source ? `${source}: ${value}` : value;
-    const failure = key === "pi-lens-lsp" && /Failed|✗/.test(value);
-    const symbol = sourceSymbol(symbols, key);
-    selected.push(`${source}: ${symbol}`);
-    parts.push(
-      part(
-        key,
-        [
-          p.symbol(
-            failure ? styles.error : styles.detail,
-            symbol,
-            ` ${message}`,
-            {
-              role: failure ? "error" : "message",
-              primary: true,
-              attention: failure,
-              source: symbols.get(key) ?? symbols.get("default"),
-            },
-          ),
-          empty,
-        ],
-        failure ? 120 : SEGMENTS.statuses.priority,
-      ),
-    );
-    messages.push(message);
+    messages.push(status.message);
+    selected.push(`${status.source}: ${sourceSymbol(symbols, key)}`);
   }
   if (parts.length === 0) {
     return {
-      ...hidden("statuses", "No other extension messages published"),
+      ...(lspIdle
+        ? hidden("statuses", "No active language servers", "idle")
+        : hidden("statuses", "No other extension messages published")),
       symbols: sourceSymbol(symbols, "default"),
     };
   }
