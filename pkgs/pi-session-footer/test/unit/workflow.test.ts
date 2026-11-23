@@ -96,6 +96,68 @@ it("uses exact fleet totals and counts top-level run failures without double cou
   expect(readAgents({ fleet: { totalActive: 0 } })).toBeUndefined();
 });
 
+const fleetEntries = [
+  { agent: "scout", tokens: { window: 56_200, total: 72_300 } },
+  { agent: "reviewer", tokens: { window: 55_700, total: 72_900 } },
+];
+
+it.each([
+  {
+    case: "complete fleet",
+    entries: fleetEntries,
+    omitted: 0,
+    usage: { context: 111_900, spent: 145_200 },
+  },
+  {
+    case: "no latest context reading for one child",
+    entries: [
+      fleetEntries[0],
+      { agent: "reviewer", tokens: { total: 72_900 } },
+    ],
+    omitted: 0,
+    usage: { context: undefined, spent: 145_200 },
+  },
+  {
+    case: "invalid spent reading for one child",
+    entries: [
+      fleetEntries[0],
+      { agent: "reviewer", tokens: { window: 55_700, total: -1 } },
+    ],
+    omitted: 0,
+    usage: { context: 111_900, spent: undefined },
+  },
+  {
+    case: "truncated fleet",
+    entries: fleetEntries,
+    omitted: 1,
+    usage: undefined,
+  },
+  {
+    case: "missing child row",
+    entries: fleetEntries.slice(0, 1),
+    omitted: 0,
+    usage: undefined,
+  },
+  {
+    case: "workflow wrapper that can overlap child usage",
+    entries: [fleetEntries[0], { ...fleetEntries[1], agent: "workflow" }],
+    omitted: 0,
+    usage: undefined,
+  },
+])("reads token totals independently: $case", ({ entries, omitted, usage }) => {
+  expect(
+    readAgents({ fleet: { version: 1, totalActive: 2, entries, omitted } }),
+  ).toStrictEqual({
+    active: 2,
+    failed: 0,
+    paused: 0,
+    incomplete: true,
+    runs: [],
+    stale: false,
+    ...(usage === undefined ? {} : { usage }),
+  });
+});
+
 it("replaces diagnostics per file, honours sequence and marks touched data provisional", () => {
   const diagnostics = new Diagnostics("/work");
 

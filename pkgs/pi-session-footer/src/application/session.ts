@@ -238,9 +238,8 @@ export class FooterSession {
     }
 
     if (
-      this.state.agents?.active !== undefined &&
-      this.state.agents?.active !== 0 &&
-      now - this.agentsAt >= 2000
+      now - this.agentsAt >= 2000 &&
+      ((this.state.agents?.active ?? 0) > 0 || this.tracker.hasTool("subagent"))
     ) {
       void this.refreshAgents();
     }

@@ -104,6 +104,16 @@ export class ActivityTracker {
     }
   }
 
+  hasTool(name: string): boolean {
+    for (const tool of this.tools.values()) {
+      if (tool === name) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   tool(id: string, name: string | undefined, now: number): void {
     const clean = text(name);
     if (clean === "") {

@@ -1,4 +1,4 @@
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { Check } from "typebox/value";
 import { finite, record, text } from "#footer/shared/text.ts";
 
@@ -57,6 +57,22 @@ const snapshotSchema = Type.Object({
   runs: Type.Optional(Type.Array(Type.Unknown())),
 });
 const runSchema = Type.Object({ label: Type.String(), state: Type.String() });
+const fleetUsageSchema = Type.Object({
+  totalActive: Type.Integer({ minimum: 1 }),
+  entries: Type.Array(Type.Unknown()),
+  omitted: Type.Literal(0),
+});
+const tokenCountSchema = Type.Integer({
+  minimum: 0,
+  maximum: Number.MAX_SAFE_INTEGER,
+});
+const fleetEntrySchema = Type.Object({
+  agent: Type.String({ minLength: 1 }),
+  tokens: Type.Object({
+    window: Type.Optional(Type.Unknown()),
+    total: Type.Optional(Type.Unknown()),
+  }),
+});
 
 function readTask(raw: unknown): Task | undefined {
   if (!Check(taskSchema, raw)) {
@@ -131,6 +147,11 @@ export function taskSummary(tasks: readonly Task[]): TaskSummary {
   };
 }
 
+interface AgentUsage {
+  context: number | undefined;
+  spent: number | undefined;
+}
+
 export interface AgentSummary {
   active: number;
   failed: number;
@@ -138,13 +159,61 @@ export interface AgentSummary {
   incomplete: boolean;
   runs: { label: string; state: string }[];
   stale: boolean;
+  usage?: AgentUsage;
+}
+
+function addTokenCount(
+  sum: number | undefined,
+  value: number | undefined,
+): number | undefined {
+  if (sum === undefined || value === undefined) {
+    return undefined;
+  }
+
+  const next = sum + value;
+  return Number.isSafeInteger(next) ? next : undefined;
+}
+
+function readAgentUsage({
+  totalActive,
+  entries,
+}: Static<typeof fleetUsageSchema>): AgentUsage | undefined {
+  if (entries.length !== totalActive) {
+    return undefined;
+  }
+
+  let context: number | undefined = 0;
+  let spent: number | undefined = 0;
+
+  for (const entry of entries) {
+    // The RPC labels workflow wrappers "workflow" and can list their children too.
+    if (!Check(fleetEntrySchema, entry) || entry.agent === "workflow") {
+      return undefined;
+    }
+
+    const { window, total } = entry.tokens;
+    context = addTokenCount(
+      context,
+      Check(tokenCountSchema, window) ? window : undefined,
+    );
+    spent = addTokenCount(
+      spent,
+      Check(tokenCountSchema, total) ? total : undefined,
+    );
+  }
+
+  if (context === undefined && spent === undefined) {
+    return undefined;
+  }
+
+  return { context, spent };
 }
 
 export function readAgents(raw: unknown): AgentSummary | undefined {
   if (!Check(fleetSchema, raw)) {
     return undefined;
   }
-  const active = raw.fleet.totalActive;
+  const { totalActive: active, omitted: fleetOmitted } = raw.fleet;
   const snapshot = Check(snapshotSchema, raw.asyncSnapshot)
     ? raw.asyncSnapshot
     : undefined;
@@ -160,7 +229,7 @@ export function readAgents(raw: unknown): AgentSummary | undefined {
     }
   }
 
-  return {
+  const summary: AgentSummary = {
     active,
     failed: runs.filter(
       (run) =>
@@ -171,11 +240,20 @@ export function readAgents(raw: unknown): AgentSummary | undefined {
     paused: runs.filter((run) => run.state === "paused").length,
     incomplete:
       !valid ||
-      Number(raw.fleet.omitted ?? 0) > 0 ||
+      Number(fleetOmitted ?? 0) > 0 ||
       Number(omitted.runs ?? 0) > 0 ||
       Number(omitted.children ?? 0) > 0 ||
       omitted.byteLimitExceeded === true,
     runs,
     stale: false,
   };
+
+  if (Check(fleetUsageSchema, raw.fleet)) {
+    const usage = readAgentUsage(raw.fleet);
+    if (usage !== undefined) {
+      summary.usage = usage;
+    }
+  }
+
+  return summary;
 }

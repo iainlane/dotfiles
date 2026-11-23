@@ -47,6 +47,8 @@ export const SEGMENT_IDS = [
   "tasks",
   "blocked",
   "agents",
+  "agent-context",
+  "agent-spent",
   "pending",
   "planning",
   "ci",

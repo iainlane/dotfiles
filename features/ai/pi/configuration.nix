@@ -176,6 +176,7 @@
   piSubagentsConfig =
     {
       asyncWidget = false;
+      fleetView = false;
       asyncByDefault = false;
       forceTopLevelAsync = false;
       parallel = {

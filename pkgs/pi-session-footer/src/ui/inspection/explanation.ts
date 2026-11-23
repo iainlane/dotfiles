@@ -38,6 +38,8 @@ const DESCRIPTIONS = {
   tasks: "Task progress",
   blocked: "Blocked tasks",
   agents: "Child agents",
+  "agent-context": "Latest context across active children",
+  "agent-spent": "Cumulative tokens from active children",
   pending: "Pending messages",
   planning: "Planning",
   ci: "Failed checks",

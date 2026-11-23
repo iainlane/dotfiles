@@ -23,7 +23,10 @@ import {
   type TextRun,
   type PaintTheme,
 } from "./segment-text.ts";
-import type { SymbolSetting } from "#footer/configuration/appearance.ts";
+import {
+  SYMBOL_ALIASES,
+  type SymbolSetting,
+} from "#footer/configuration/appearance.ts";
 import { taskSummary } from "#footer/domain/workflow.ts";
 
 export type Domain =
@@ -144,6 +147,18 @@ export const SEGMENTS = {
     "workflow",
     " active children (exact); failed/paused runs may be lower bounds",
     120,
+  ),
+  "agent-context": definition(
+    "Agent context tokens",
+    "workflow",
+    `${SYMBOL_ALIASES["agent-context"]} combined latest input and cache-read tokens`,
+    10,
+  ),
+  "agent-spent": definition(
+    "Agent tokens spent",
+    "workflow",
+    `${SYMBOL_ALIASES["agent-spent"]} cumulative input and output tokens of active children`,
+    10,
   ),
   pending: definition(
     "Queued messages",
@@ -751,6 +766,48 @@ function agents(state: FooterSnapshot, p: SegmentPainter): Reading {
     ],
   };
 }
+function agentTokens(
+  id: "agent-context" | "agent-spent",
+  state: FooterSnapshot,
+  p: SegmentPainter,
+): Reading {
+  const a = state.agents;
+  if (a === undefined) {
+    return hidden(id, "No delegation publication");
+  }
+  if (a.stale) {
+    return hidden(id, "Subagent status is stale");
+  }
+  if (a.active === 0) {
+    return hidden(id, "No active children", "idle");
+  }
+
+  const isContext = id === "agent-context";
+  const count = isContext ? a.usage?.context : a.usage?.spent;
+  if (count === undefined) {
+    return hidden(id, "No complete token reading for the active fleet");
+  }
+
+  const exact = count.toLocaleString("en-GB");
+  return available(
+    id,
+    p.symbol(styles.detail, SYMBOL_ALIASES[id], ` ${tokens(count)}`, {
+      primary: true,
+    }),
+    {
+      summary: isContext
+        ? [
+            `${exact} input and cache-read tokens across the latest turns of active children.`,
+            "Each child has its own context limit.",
+          ]
+        : [
+            `${exact} input and output tokens across the runs of active children.`,
+            "This is a token count, not a monetary cost or a session total.",
+          ],
+    },
+  );
+}
+
 function statuses(
   state: FooterSnapshot,
   p: SegmentPainter,
@@ -1011,6 +1068,8 @@ export function readSegments(
         )
       : hidden("blocked", "No blocked tasks", "idle"),
     agents: agents(state, p),
+    "agent-context": agentTokens("agent-context", state, p),
+    "agent-spent": agentTokens("agent-spent", state, p),
     pending: state.pending
       ? available(
           "pending",

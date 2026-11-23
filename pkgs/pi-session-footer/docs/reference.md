@@ -40,11 +40,16 @@ main save action.
 | `activity`                                               | Current tool, waiting, compaction, failure, cancellation or inactivity. |
 | `diagnostics`                                            | Received error and warning counts.                                      |
 | `tasks`, `blocked`, `agents`                             | Task progress, dependency-blocked tasks and child agents.               |
+| `agent-context`, `agent-spent`                           | Combined recent context and cumulative tokens for active children.      |
 | `pending`, `planning`, `statuses`                        | Queued messages, cooperative planning and extension messages.           |
 | `quota`                                                  | Quota used and reset countdowns.                                        |
 | `cache`, `cost`, `auxiliary-cost`, `age`                 | Cache hit rate, session cost, separate auxiliary cost and session age.  |
 | `input`, `output`, `cache-read`, `cache-write`           | Recorded token totals.                                                  |
 | `run-duration`, `active-duration`, `compaction-duration` | Current run, observed active work and current compaction time.          |
+
+No profile includes `agent-context` or `agent-spent`. Add either widget to a
+region with `/footer config`, or use a placement such as
+`{ "id": "agent-spent", "symbol": "↕" }` in the region's JSON array.
 
 Missing readings are hidden. Genuine zero measurements remain visible, except
 initial idle cost and age. A populated bottom region adds a dedicated status
@@ -235,6 +240,12 @@ home.file.".pi/agent/session-footer.json".text = lib.mkForce (builtins.toJSON {
   separately.
 - Active child counts use fleet totals. Failed and paused run details can be
   incomplete or stale, and retain those indicators.
+- `agent-context` sums input and cache-read tokens from each active child's
+  latest reported model turn. Each child has its own context limit.
+  `agent-spent` sums cumulative input and output tokens for those runs. The
+  figure is a token count, not a cost or a session total. Both widgets require a
+  current, complete fleet report without workflow wrappers. Each widget also
+  requires its own token count from every reported child.
 
 Explain freezes a completed ordinary frame. It retains fitted values, symbols,
 colours and placement decisions without fitting again at the inspector's width.

@@ -7,6 +7,7 @@ import { readQuota } from "#footer/domain/quota.ts";
 import { gitState } from "#test/support/git.ts";
 import { readSegments, SEGMENTS } from "#footer/rendering/segments.ts";
 import type { SegmentId } from "#footer/configuration/settings.ts";
+import { CapturedFooter } from "#footer/ui/inspection/explanation.ts";
 const now = Date.UTC(2026, 9, 20, 12);
 const marking = {
   fg: (role: string, value: string) => `<${role}:${value}>`,
@@ -153,6 +154,62 @@ it.each<[SegmentId, string]>([
     }).toStrictEqual({ value: expected, legend: true });
   },
 );
+it("fits opt-in agent metrics with separate symbols and explains their captured values", () => {
+  const state = createSnapshot(now, "/work");
+  state.agents = {
+    active: 2,
+    failed: 0,
+    paused: 0,
+    incomplete: false,
+    stale: false,
+    runs: [],
+    usage: { context: 111_900, spent: 145_200 },
+  };
+  const settings = resolveSettings({
+    "bottom-left": [
+      "agents",
+      { id: "agent-context", symbol: "C" },
+      { id: "agent-spent", symbol: "T" },
+    ],
+    "bottom-right": [],
+    separators: { widgets: " · " },
+  });
+  const fit = (width: number) =>
+    layoutFooter(state, { top: 0, bottom: width }, { settings });
+  const wide = fit(72);
+  const captured = new CapturedFooter(wide);
+  const defaults = layoutFooter(
+    state,
+    { top: 0, bottom: 72 },
+    { settings: resolveSettings({}) },
+  );
+  state.agents.stale = true;
+
+  expect({
+    default: defaults.placements
+      .filter(({ display }) => display !== "")
+      .map(({ id, display }) => [id, display]),
+    wide: wide.bottom.text,
+    narrow: fit(5).bottom.text,
+    stale: fit(72).bottom.text,
+    context: captured.summary("agent-context"),
+    spent: captured.summary("agent-spent"),
+  }).toStrictEqual({
+    default: [["agents", " 2"]],
+    wide: " 2 · C 111.9k · T 145.2k",
+    narrow: " 2 …",
+    stale: " 2 stale",
+    context: [
+      "111,900 input and cache-read tokens across the latest turns of active children.",
+      "Each child has its own context limit.",
+    ],
+    spent: [
+      "145,200 input and output tokens across the runs of active children.",
+      "This is a token count, not a monetary cost or a session total.",
+    ],
+  });
+});
+
 it("fits delegation warnings independently from exact active children", () => {
   const state = fixture();
   state.agents = {

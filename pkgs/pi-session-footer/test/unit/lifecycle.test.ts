@@ -634,10 +634,9 @@ it("updates the inspector's quota age on screen while no agent is running", asyn
   h.footer.shutdown();
 });
 
-it("shows a change in the active subagent count at the next poll", async () => {
+it("discovers foreground subagents without a lifecycle event and updates their count", async () => {
   const h = harness();
   const screen = new FakeScreen(200);
-  h.agents.totalActive = 2;
   h.footer.start(h.context);
   const factory = h.installedFooter();
   screen.show(
@@ -647,8 +646,13 @@ it("shows a change in the active subagent count at the next poll", async () => {
     }),
   );
   await h.runtime.clock.advance(0);
-  const two = screen.lines;
+  h.footer.startTool("delegation", "subagent");
+  h.footer.startTool("other", "bash");
+  h.agents.totalActive = 2;
   await h.runtime.clock.advance(2000);
+  h.footer.endTool("delegation");
+  h.footer.endTool("other");
+  const two = screen.lines;
   h.agents.totalActive = 3;
   await h.runtime.clock.advance(2000);
   const three = screen.lines;

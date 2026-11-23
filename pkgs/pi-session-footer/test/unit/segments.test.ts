@@ -104,6 +104,8 @@ it("does not reinsert excluded warnings or idle placeholders", () => {
       "tasks",
       "blocked",
       "agents",
+      "agent-context",
+      "agent-spent",
       "pending",
       "planning",
       "ci",
