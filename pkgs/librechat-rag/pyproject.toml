@@ -30,7 +30,7 @@ dependencies = [
     "pyjwt==2.13.0",
     "pymongo>=4.12.0,<5",
     "pypandoc==1.15",
-    "pypdf==6.19.0",
+    "pypdf==6.21.4",
     "python-dotenv==1.2.2",
     "python-magic==0.4.27",
     "python-multipart==0.0.32",
