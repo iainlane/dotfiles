@@ -500,9 +500,10 @@ in {
     export HOME="$TMPDIR/permission-home"
     export PI_CODING_AGENT_DIR="$HOME/.pi/agent"
     bash ${permissionConfigActivation}
+    install -m600 ${modelsFile ""} "$PI_CODING_AGENT_DIR/models.json"
     export PI_AUTO_REVIEW_ROOT=${pkgs.pi-permission-auto-review}/${pkgs.pi-permission-auto-review.packageRoot}
     export PI_PERMISSIONS_ROOT=${pkgs.pi-permission-system}/${pkgs.pi-permission-system.packageRoot}
-    if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-permission-contracts --offline --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/permission-contracts.js >permissions.jsonl 2>permissions-errors.txt; then
+    if ! ${pkgs.nodejs}/bin/node ${testRoot}/rpc-command.js ${lib.getExe pi} dotfiles-permission-contracts --offline --provider fixture --model gpt-test --no-extensions --no-skills --no-mcp --no-prompt-templates -e ${testRoot}/permission-contracts.js >permissions.jsonl 2>permissions-errors.txt; then
       cat permissions-errors.txt permissions.jsonl >&2
       exit 1
     fi
