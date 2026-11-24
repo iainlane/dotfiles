@@ -6,7 +6,7 @@
     pname = "pi-openai-context";
     directory = ./.;
     pnpm = pnpm_10;
-    dependencyHash = "sha256-aKk6qlF8/kjoIUwvi362+l3Z0VhPCmEy2varkd2JwLA=";
+    dependencyHash = "sha256-7XJUxLbyy51aZQMhc77CKxMHxn/Wwy1m6LBsc1A7RPk=";
 
     passthru.tests.integration = callPackage ./integration-test.nix {inherit package;};
     meta.description = "Apply ChatGPT account context windows to OpenAI models in Pi";

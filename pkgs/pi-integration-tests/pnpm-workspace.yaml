@@ -5,4 +5,4 @@ autoInstallPeers: false
 ignoreScripts: true
 managePackageManagerVersions: false
 overrides:
-  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.6.0.tgz
