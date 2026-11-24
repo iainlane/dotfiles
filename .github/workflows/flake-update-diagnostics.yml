@@ -32,12 +32,8 @@ jobs:
             strategy: x86-suites
             chunk_size: 48
             memory_gib: 8
-          - label: tail-targets-8g
-            strategy: x86-tail-targets
-            chunk_size: 1
-            memory_gib: 8
-          - label: tail-targets-12g
-            strategy: x86-tail-targets
+          - label: system-12g
+            strategy: system
             chunk_size: 1
             memory_gib: 12
     steps:
@@ -48,7 +44,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 103c055694746cfeaa070ff71e9f4a5913a3482e
+          ref: 797f5160297ef93f6f97febe308e18d9ea00c618
           path: candidate
           persist-credentials: false
 
