@@ -1,0 +1,9 @@
+--- a/src/packaged-loader.test.ts
++++ b/src/packaged-loader.test.ts
+@@ -21 +21 @@
+-		execFileSync("npm", ["run", "build"], { cwd: root, env, stdio: "pipe" });
++		// The Nix build phase already produced dist.
+@@ -30 +30,2 @@
+-		if (!archive) throw new Error("npm pack produced no archive.");
++		if (!archive) throw new Error("npm pack produced no archive.");
++		expect(archive.files.map(({ path }) => path)).toContain("dist/index.js");
