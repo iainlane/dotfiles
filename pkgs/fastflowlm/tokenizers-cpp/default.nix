@@ -6,6 +6,7 @@
   cmake,
   pkg-config,
   msgpack-cxx,
+  oniguruma,
   sentencepiece,
 }: let
   version = "0.1.1-unstable-2026-02-20";
@@ -26,6 +27,10 @@
     sourceRoot = "${src.name}/rust";
 
     cargoLock.lockFile = ./Cargo.lock;
+
+    nativeBuildInputs = [pkg-config];
+    # The Rust static library leaves Oniguruma symbols for its consumers to link.
+    propagatedBuildInputs = [oniguruma];
 
     postPatch = ''
       ln -s ${./Cargo.lock} Cargo.lock

@@ -28,6 +28,7 @@
   libvorbis,
   libwebp,
   opus,
+  protobuf,
   sentencepiece,
   xrt,
 }: let
@@ -79,7 +80,9 @@ in
       libvorbis
       libwebp
       opus
+      protobuf
       sentencepiece
+      tokenizers-cpp.tokenizers-c
       (lib.getLib stdenv.cc.cc)
       xrt.xdna
     ];
