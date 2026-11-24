@@ -134,8 +134,9 @@ async function waitForWindow(
   readWindow: () => Promise<number | undefined>,
   expected: number | undefined,
 ): Promise<number | undefined> {
-  const deadline = Date.now() + 6_000;
+  // The first RPC can wait for Pi to start. Budget the transition after Pi replies.
   let window = await readWindow();
+  const deadline = Date.now() + 6_000;
   while (window !== expected && Date.now() < deadline) {
     // eslint-disable-next-line no-await-in-loop -- Compare successive states.
     await delay(50);
