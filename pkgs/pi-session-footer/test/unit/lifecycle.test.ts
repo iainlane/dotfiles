@@ -393,8 +393,8 @@ it("captures one clock/status observation for both composer borders and its expl
   h.runtime.clock.set(start + 59_999);
   const rendered = editor.render(100);
   h.runtime.clock.set(start + 60_000);
-  let explanation: string[] = [];
-  let technical: string[] = [];
+  let explanation: readonly string[] = [];
+  let technical: readonly string[] = [];
   h.context.ui.custom = async (create) => {
     const view = create(
       { terminal: { rows: 40 }, requestRender() {} },
@@ -1081,7 +1081,7 @@ it.each(["shutdown", "restart", "inspect"] as const)(
   },
 );
 
-async function composerLines(stored: string): Promise<string[]> {
+async function composerLines(stored: string): Promise<readonly string[]> {
   const h = harness();
   h.runtime.settingsStore.stored = stored;
   h.footer.start(h.context);
