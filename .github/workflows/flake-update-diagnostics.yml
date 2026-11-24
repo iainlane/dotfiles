@@ -16,18 +16,24 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.head_ref == 'experiment/flake-update-runner-diagnostics'
-    name: Update (${{ matrix.memory_gib }} GiB, repeat ${{ matrix.repeat }})
+    name: Evaluate (${{ matrix.strategy }})
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        memory_gib: [8, 12]
-        repeat: [1, 2]
+        strategy: [full, full-gc, system, cohort]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          path: diagnostics
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 103c055694746cfeaa070ff71e9f4a5913a3482e
+          path: candidate
           persist-credentials: false
 
       # v35
@@ -35,6 +41,7 @@ jobs:
           9f63be77f412a248c9d9a65a4c82cf066cdf8f0c"
 
       - name: Trust the update workflow's binary caches
+        working-directory: candidate
         run: |
           set -euo pipefail
           mkdir -p "${HOME}/.config/nix"
@@ -57,21 +64,21 @@ jobs:
           ssh_command+=" -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts"
           echo "GIT_SSH_COMMAND=${ssh_command}" >> "${GITHUB_ENV}"
 
-      - name: Measure the transactional update in a bounded scope
+      - name: Measure evaluation in a 12 GiB scope
+        working-directory: candidate
         env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          MEMORY_GIB: ${{ matrix.memory_gib }}
-          PROFILE_GATE: ${{ matrix.memory_gib == 12 && matrix.repeat == 2 }}
+          GATE_STRATEGY: ${{ matrix.strategy }}
         run: |
-          bash scripts/measure-flake-update.bash \
-            "${MEMORY_GIB}" "${RUNNER_TEMP}/update-diagnostics"
+          export GATE_BENCHMARK="$GITHUB_WORKSPACE/diagnostics"
+          GATE_BENCHMARK+="/scripts/benchmark-evaluation.bash"
+          helper="$GITHUB_WORKSPACE/diagnostics/scripts/measure-flake-update.bash"
+          bash "$helper" 12 "${RUNNER_TEMP}/update-diagnostics"
 
       # v7.0.2
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: ${{ !cancelled() }}
         with:
-          name: update-diag-${{ matrix.memory_gib }}g-${{ matrix.repeat }}
+          name: evaluation-${{ matrix.strategy }}
           path: ${{ runner.temp }}/update-diagnostics
           if-no-files-found: warn
           retention-days: 7

@@ -33,6 +33,13 @@ worker() {
 	fi
 
 	export NIX_REMOTE=local
+	if [[ -n ${GATE_STRATEGY:-} ]]; then
+		mark prepare-benchmark
+		local nixpkgs=github:nixos/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601
+		nix shell "$nixpkgs#nix" "$nixpkgs#time" --option allow-import-from-derivation false \
+			--command "$BASH" "$GATE_BENCHMARK" "$samples" "$GATE_STRATEGY"
+		return
+	fi
 	if [[ ${PROFILE_GATE:-false} == true ]]; then
 		export FLAKE_UPDATE_PROFILE_DIR="$samples/evaluation"
 		mkdir -p "$FLAKE_UPDATE_PROFILE_DIR"
@@ -131,6 +138,7 @@ monitor=$!
 trap 'kill "$monitor" 2>/dev/null || true' EXIT
 status=0
 preserve=RUNNER_TEMP,GIT_SSH_COMMAND,GH_TOKEN,GITHUB_TOKEN,CI,NIX_SSL_CERT_FILE,PROFILE_GATE
+preserve+=,GATE_STRATEGY,GATE_BENCHMARK,GITHUB_STEP_SUMMARY
 sudo -n --preserve-env="$preserve" systemd-run --scope --quiet --unit="$unit" \
 	--property=MemoryMax="$budget" --property=MemorySwapMax=0 \
 	sudo -n --preserve-env="$preserve" -u "#$UID" -- env "HOME=$HOME" "PATH=$PATH" \
