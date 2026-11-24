@@ -84,8 +84,6 @@
       echo "Setting trace level to ${cfg.traceLevel}..."
       "${installDir}/falconctl" -s --trace="${cfg.traceLevel}" -f
     ''}
-    echo "Setting backend to bpf..."
-    "${installDir}/falconctl" -s --backend=bpf -f
     "${installDir}/falconctl" -g --cid || true
   '';
 
@@ -93,6 +91,7 @@
     name = "falcon-sensor-check";
     runtimeInputs = with pkgs; [
       coreutils
+      procps
       systemd
     ];
     text = builtins.readFile ./falcon-sensor-check.bash;

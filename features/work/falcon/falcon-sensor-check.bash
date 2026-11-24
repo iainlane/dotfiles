@@ -87,14 +87,13 @@ fi
 echo ""
 
 echo "--- Backend ---"
-BACKEND_OUTPUT=$("${FALCONCTL}" -g --backend 2>&1) || true
-if [[ "${BACKEND_OUTPUT}" == *"backend=bpf"* ]]; then
-	echo "  ${PASS}: Using BPF backend (recommended for NixOS)"
-elif [[ "${BACKEND_OUTPUT}" == *"backend="* ]]; then
-	echo "  ${WARN}: ${BACKEND_OUTPUT}"
+if pgrep -x falcon-sensor-b >/dev/null; then
+	echo "  ${PASS}: falcon-sensor-bpf is running"
+elif pgrep -x falcon-sensor >/dev/null; then
+	echo "  ${WARN}: falcon-sensor is running with the kernel module backend"
 	echo "         BPF backend is recommended for NixOS."
 else
-	echo "  ${WARN}: Unable to determine backend"
+	echo "  ${WARN}: No sensor process is running"
 fi
 echo ""
 
