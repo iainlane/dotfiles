@@ -270,6 +270,7 @@ class CodexNetworkPermissions(msgspec.Struct, frozen=True, forbid_unknown_fields
     domains: dict[str, str] | None = None
     unix_sockets: dict[str, str] | None = None
     allow_local_binding: bool | None = None
+    transparent_tcp: bool | None = None
     mitm: msgspec.Raw | None = None
 
 
