@@ -51,24 +51,44 @@ x86-packages)
 		"$scratch/inventory.json" >"$scratch/scope.json"
 	jq -e 'length == 1' "$scratch/scope.json" >/dev/null
 	;;
-x86-split)
+x86-split | x86-suites | x86-tail-targets)
 	if [[ ! $chunk_size =~ ^[1-9][0-9]*$ ]]; then
 		printf 'Invalid chunk size: %s\n' "$chunk_size" >&2
 		exit 2
 	fi
 	jq -e 'all(.[].rootSuffix; test("^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$"))' "$scratch/inventory.json" >/dev/null
-	jq -r --argjson size "$chunk_size" '
-		def partition($label; $names): {label: $label, names: $names};
-		partition("aarch64-darwin"; map(select(.system == "aarch64-darwin") | .rootSuffix)),
-		partition("aarch64-linux"; map(select(.system == "aarch64-linux") | .rootSuffix)),
-		partition("x86_64-linux-deploy"; map(select(.cohort == "x86_64-linux-deploy") | .rootSuffix)),
-		partition("x86_64-linux-packages"; map(select(.rootSuffix == "x86_64-linux/packages") | .rootSuffix)),
-		(map(select(.cohort == "x86_64-linux" and .rootSuffix != "x86_64-linux/packages") | .rootSuffix)
-		| . as $names | range(0; length; $size) as $i
-		| partition("x86_64-linux-checks-\($i)"; $names[$i:$i + $size]))
-		| select(.names | length > 0)
-		| [.label, (.names | tojson)] | @tsv
-	' "$scratch/inventory.json" >"$scratch/chunks.tsv"
+	if [[ $strategy == x86-tail-targets ]]; then
+		jq 'map(select(.rootSuffix == "x86_64-linux/checks-zsh-tooling"
+			or (.rootSuffix | startswith("x86_64-linux/slow-checks-"))))' \
+			"$scratch/inventory.json" >"$scratch/scope.json"
+		jq -r '.[] | .rootSuffix as $name | [($name | split("/") | last), ([$name] | tojson)] | @tsv' \
+			"$scratch/scope.json" >"$scratch/chunks.tsv"
+	else
+		jq -r --argjson size "$chunk_size" --arg strategy "$strategy" '
+			def partition($label; $names): {label: $label, names: $names};
+			def podman_oci: startswith("x86_64-linux/slow-checks-podman-oci-containers-");
+			def podman: startswith("x86_64-linux/slow-checks-podman-podman");
+			def slow: startswith("x86_64-linux/slow-checks-");
+			partition("aarch64-darwin"; map(select(.system == "aarch64-darwin") | .rootSuffix)),
+			partition("aarch64-linux"; map(select(.system == "aarch64-linux") | .rootSuffix)),
+			partition("x86_64-linux-deploy"; map(select(.cohort == "x86_64-linux-deploy") | .rootSuffix)),
+			partition("x86_64-linux-packages"; map(select(.rootSuffix == "x86_64-linux/packages") | .rootSuffix)),
+			(map(select(.cohort == "x86_64-linux" and .rootSuffix != "x86_64-linux/packages") | .rootSuffix)
+			| if $strategy == "x86-suites" then
+				(map(select(slow | not)) | . as $names | range(0; length; $size) as $i
+					| partition("x86_64-linux-checks-\($i)"; $names[$i:$i + $size])),
+				partition("x86_64-linux-podman-oci"; map(select(podman_oci))),
+				partition("x86_64-linux-podman"; map(select(podman))),
+				partition("x86_64-linux-other-slow"; map(select(slow and ((podman_oci or podman) | not))))
+			  else
+				. as $names | range(0; length; $size) as $i
+				| partition("x86_64-linux-checks-\($i)"; $names[$i:$i + $size])
+			  end)
+			| select(.names | length > 0)
+			| [.label, (.names | tojson)] | @tsv
+		' "$scratch/inventory.json" >"$scratch/chunks.tsv"
+	fi
+	test -s "$scratch/chunks.tsv"
 	while IFS=$'\t' read -r label chunk; do
 		measure_part "$label" "builtins.elem target.rootSuffix (builtins.fromJSON ''$chunk'')"
 	done <"$scratch/chunks.tsv"
@@ -84,7 +104,7 @@ if ((${#parts[@]})); then
 fi
 
 scope="$scratch/inventory.json"
-if [[ $strategy == x86-packages ]]; then
+if [[ -f $scratch/scope.json ]]; then
 	scope="$scratch/scope.json"
 fi
 jq -e --slurpfile scope "$scope" '

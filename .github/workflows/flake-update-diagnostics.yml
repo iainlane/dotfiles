@@ -24,22 +24,22 @@ jobs:
       max-parallel: 4
       matrix:
         include:
-          - label: x86-48-8g
-            strategy: x86-split
+          - label: suites-8g-1
+            strategy: x86-suites
             chunk_size: 48
             memory_gib: 8
-          - label: x86-24-8g
-            strategy: x86-split
-            chunk_size: 24
-            memory_gib: 8
-          - label: x86-48-12g
-            strategy: x86-split
+          - label: suites-8g-2
+            strategy: x86-suites
             chunk_size: 48
-            memory_gib: 12
-          - label: x86-packages-8g
-            strategy: x86-packages
+            memory_gib: 8
+          - label: tail-targets-8g
+            strategy: x86-tail-targets
             chunk_size: 1
             memory_gib: 8
+          - label: tail-targets-12g
+            strategy: x86-tail-targets
+            chunk_size: 1
+            memory_gib: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
