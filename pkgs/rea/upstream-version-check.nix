@@ -1,61 +1,25 @@
 {
-  callPackage,
   lib,
   runCommandLocal,
-  upstreamNodejs,
 }: let
-  accepts = overrides: (builtins.tryEval (callPackage ./package.nix ({inherit upstreamNodejs;} // overrides)).pname).success;
-  cases = [
-    {
-      upstream = null;
-      expected = true;
-    }
-    {
-      upstream.version = "6.5.0";
-      expected = true;
-    }
-    {
-      upstream.version = "6.7.0";
-      expected = true;
-    }
-    {
-      upstream.version = "6.7.1";
-      expected = false;
-    }
-    {
-      upstream.version = "6.8.0";
-      expected = false;
-    }
-  ];
-  nodeCases = [
-    {
-      version = "24.21.0";
-      expected = true;
-    }
-    {
-      version = "24.22.0";
-      expected = true;
-    }
-    {
-      version = "24.22.1";
-      expected = false;
-    }
-    {
-      version = "24.23.0";
-      expected = false;
-    }
-  ];
+  selectedNode = regularVersion: stableVersion:
+    (import ./args.nix {
+      final = {};
+      upstreamPackageSets = {
+        nixpkgs = {
+          inherit lib;
+          nodejs_24.version = regularVersion;
+        };
+        nixpkgs-stable.nodejs_24.version = stableVersion;
+      };
+    }).nodejs.version;
 in
-  assert lib.assertMsg (lib.all (case: accepts {upstreamRea = case.upstream;} == case.expected) cases)
-  "REA's local package must reject nixpkgs releases at or after 6.7.1.";
-  assert lib.assertMsg (lib.all (case:
-    accepts {
-      upstreamRea = null;
-      upstreamNodejs.version = case.version;
-    }
-    == case.expected)
-  nodeCases)
-  "REA's Node fallback must reject nixpkgs Node 24.22.1 or newer.";
+  assert lib.assertMsg (selectedNode "24.22.0" "24.22.3" == "24.22.3")
+  "REA must fall back to the stable package set if the regular package set provides an older Node version.";
+  assert lib.assertMsg (selectedNode "24.22.1" "24.22.3" == "24.22.1")
+  "REA must use the regular package set when it provides a supported Node version.";
+  assert lib.assertMsg (!(builtins.tryEval (selectedNode "24.21.0" "24.22.0")).success)
+  "REA must reject Node versions below its minimum.";
     runCommandLocal "rea-upstream-version" {} ''
       touch "$out"
     ''
