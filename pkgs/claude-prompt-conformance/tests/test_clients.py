@@ -481,6 +481,7 @@ class CodexProbeFailure(StrEnum):
     WEB_SEARCH = "web-search"
     PROMPT = "prompt"
     PERMISSIONS = "permissions"
+    PERMISSIONS_TRANSPARENT_TCP = "permissions-transparent-tcp"
     PERMISSIONS_READ = "permissions-read"
     PERMISSIONS_WRITE = "permissions-write"
     TRANSPORT_REDIRECT = "transport-redirect"
@@ -559,8 +560,11 @@ class FailingCodexProbeRunner:
             "conformance_judge",
         )
         judge_permissions = cast(dict[str, object], permissions["conformance_judge"])
+        network = cast(dict[str, object], judge_permissions["network"])
         if self.failure is CodexProbeFailure.PERMISSIONS:
-            cast(dict[str, object], judge_permissions["network"])["enabled"] = True
+            network["enabled"] = True
+        if self.failure is CodexProbeFailure.PERMISSIONS_TRANSPARENT_TCP:
+            network["transparent_tcp"] = True
         if self.failure is CodexProbeFailure.PERMISSIONS_READ:
             cast(dict[str, object], judge_permissions["filesystem"])[":root"] = "read"
         if self.failure is CodexProbeFailure.PERMISSIONS_WRITE:
@@ -1576,6 +1580,7 @@ def test_codex_judge_uses_bespoke_mcp_and_shared_auth(
                 "code_mode_host": True,
                 "codex_apps_mcp_2026_07_28": False,
                 "computer_use": False,
+                "daybreak_program_propagation": False,
                 "default_mode_request_user_input": False,
                 "goals": False,
                 "hooks": False,
@@ -1584,6 +1589,8 @@ def test_codex_judge_uses_bespoke_mcp_and_shared_auth(
                 "memories": False,
                 "mcp_2026_07_28": False,
                 "mcp_connection_sharing": False,
+                "mcp_lazy_stdio_startup": False,
+                "mcp_shared_repl_cwd": False,
                 "mentions_v2": False,
                 "multi_agent": False,
                 "plugins": False,
@@ -1777,6 +1784,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
         )
     elif failure in (
         CodexProbeFailure.PERMISSIONS,
+        CodexProbeFailure.PERMISSIONS_TRANSPARENT_TCP,
         CodexProbeFailure.PERMISSIONS_READ,
         CodexProbeFailure.PERMISSIONS_WRITE,
     ):
@@ -1792,7 +1800,12 @@ def test_codex_configuration_probe_fails_before_the_model_process(
             CodexPermissionProfile(
                 filesystem=filesystem,
                 network=CodexNetworkPermissions(
-                    enabled=failure is CodexProbeFailure.PERMISSIONS
+                    enabled=failure is CodexProbeFailure.PERMISSIONS,
+                    transparent_tcp=(
+                        True
+                        if failure is CodexProbeFailure.PERMISSIONS_TRANSPARENT_TCP
+                        else None
+                    ),
                 ),
             ),
             CodexPermissionProfile(
@@ -1943,6 +1956,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.WEB_SEARCH,
                     CodexProbeFailure.PROMPT,
                     CodexProbeFailure.PERMISSIONS,
+                    CodexProbeFailure.PERMISSIONS_TRANSPARENT_TCP,
                     CodexProbeFailure.PERMISSIONS_READ,
                     CodexProbeFailure.PERMISSIONS_WRITE,
                     CodexProbeFailure.TRANSPORT_REDIRECT,
@@ -1967,6 +1981,7 @@ def test_codex_configuration_probe_fails_before_the_model_process(
                     CodexProbeFailure.WEB_SEARCH,
                     CodexProbeFailure.PROMPT,
                     CodexProbeFailure.PERMISSIONS,
+                    CodexProbeFailure.PERMISSIONS_TRANSPARENT_TCP,
                     CodexProbeFailure.PERMISSIONS_READ,
                     CodexProbeFailure.PERMISSIONS_WRITE,
                     CodexProbeFailure.TRANSPORT_REDIRECT,
