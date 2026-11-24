@@ -1,6 +1,6 @@
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -218,16 +218,32 @@
+@@ -218,16 +218,34 @@
  endif()
  
  # ———————————————————————————————————————————————
@@ -22,10 +22,12 @@
 +
 +find_package(PkgConfig REQUIRED)
 +pkg_check_modules(SentencePiece REQUIRED IMPORTED_TARGET sentencepiece)
++pkg_check_modules(Oniguruma REQUIRED IMPORTED_TARGET oniguruma)
 +
 +add_library(tokenizers_c STATIC IMPORTED)
 +set_target_properties(tokenizers_c PROPERTIES
 +    IMPORTED_LOCATION ${TOKENIZERS_C_LIB_PATH}
++    INTERFACE_LINK_LIBRARIES PkgConfig::Oniguruma
 +)
  
 -add_subdirectory(${CMAKE_SOURCE_DIR}/../third_party/tokenizers-cpp
