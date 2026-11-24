@@ -10,7 +10,10 @@
   stdenv,
   updaters,
 }: let
-  packageLock = lib.importJSON ./npm-deps/package-lock.json;
+  lockfile = ./npm-deps/package-lock.json;
+  packageLock = lib.importJSON lockfile;
+  devDependencies = packageLock.packages."".devDependencies;
+  piDevDependencies = lib.filterAttrs (name: _: lib.hasPrefix "@earendil-works/" name) devDependencies;
   deps = callPackage ../build-support/npm-deps.nix {} {
     npmRoot = ./npm-deps;
     inherit packageLock;
@@ -35,6 +38,14 @@ in
     buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];
     nativeCheckInputs = [gitMinimal];
     doCheck = true;
+    # The development graph must match the Pi tarball used in the build.
+    postPatch = ''
+      npm pkg set ${lib.escapeShellArgs (lib.mapAttrsToList (name: version: "devDependencies.${name}=${version}") piDevDependencies)}
+      cp ${lockfile} package-lock.json
+      substituteInPlace src/rendering/tool-renderers.ts \
+        --replace-fail 'override render(width: number): string[]' \
+                       'override render(width: number): readonly string[]'
+    '';
     preBuild = deps.verify;
     preCheck = lib.optionalString stdenv.hostPlatform.isLinux ''
       autoPatchelf node_modules/@biomejs/cli-linux-${stdenv.hostPlatform.node.arch}/biome
