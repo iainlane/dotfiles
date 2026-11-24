@@ -19,6 +19,7 @@
   alsa-lib,
   dotool,
   libnotify,
+  oniguruma,
   openssl,
   pciutils,
   sqlite,
@@ -145,7 +146,7 @@ in
         vulkan-headers
         vulkan-loader
       ]
-      ++ lib.optionals dynamicOnnxSupport [onnxruntime]
+      ++ lib.optionals dynamicOnnxSupport [onnxruntime oniguruma]
       ++ lib.optionals webgpuOnnxSupport [webgpuRuntime];
 
     env =
