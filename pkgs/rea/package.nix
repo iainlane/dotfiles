@@ -29,6 +29,13 @@ buildNpmPackage (finalAttrs: {
 
   patches = [./external-tools.patch ./ghidra-version-policy.patch];
 
+  # Starting the packaged JVM can exceed five seconds on a cold runner.
+  postPatch = ''
+    substituteInPlace src/ghidra/GhidraJavaProbe.ts \
+      --replace-fail 'production five-second deadline' 'production 30-second deadline' \
+      --replace-fail 'timeoutMs: options.timeoutMs ?? 5000' 'timeoutMs: options.timeoutMs ?? 30_000'
+  '';
+
   npmDepsHash = "sha256-xFNYn2vxfk8unZyJQ3YWOO3fFb3iJVU6Alav0A+TiSI=";
   npmDeps = fetchNpmDeps {
     name = "${finalAttrs.pname}-${finalAttrs.version}-npm-deps";
