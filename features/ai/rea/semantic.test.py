@@ -315,6 +315,8 @@ class ToolTest(unittest.TestCase):
             "capture_browser_scenario",
             {
                 "browser": {"mode": "launch", "executable_path": BROWSER},
+                # Cold Chromium startup can take more than 20 seconds on CI.
+                "command_timeout_ms": 60_000,
                 "start_url": {"url": f"http://127.0.0.1:{server.server_port}/"},
                 "actions": [
                     {"step_id": "ready", "action": "wait_for_timeout", "duration_ms": 1}
