@@ -1,5 +1,5 @@
 interface Rendered {
-  render(width: number): string[];
+  render(width: number): readonly string[];
 }
 
 export class FakeScreen {
