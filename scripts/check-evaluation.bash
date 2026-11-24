@@ -11,4 +11,12 @@ if [[ "$#" -eq 0 ]]; then
 		'targets: builtins.deepSeq (map (target: target.rootDrvPath) targets) "Evaluation passed.\n"'
 fi
 
+if [[ -n ${FLAKE_UPDATE_PROFILE_DIR:-} ]]; then
+	profile=$(mktemp -d "${FLAKE_UPDATE_PROFILE_DIR}/gate.XXXXXX")
+	export NIX_SHOW_STATS=1 NIX_SHOW_STATS_PATH="${profile}/stats.json"
+	set -- "$@" --option eval-profiler flamegraph \
+		--option eval-profile-file "${profile}/stacks.folded" \
+		--option eval-profiler-frequency 49
+fi
+
 exec nix eval "$@" --option allow-import-from-derivation false

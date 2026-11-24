@@ -23,6 +23,7 @@ stream_update() {
 }
 
 worker() {
+	: "${RUNNER_TEMP:?Missing runner temporary directory}" "${GIT_SSH_COMMAND:?Missing private input access}"
 	local scope limit
 	scope=$(awk -F: '$1 == 0 {print $3}' /proc/self/cgroup)
 	limit=$(<"/sys/fs/cgroup${scope}/memory.max")
@@ -32,6 +33,10 @@ worker() {
 	fi
 
 	export NIX_REMOTE=local
+	if [[ ${PROFILE_GATE:-false} == true ]]; then
+		export FLAKE_UPDATE_PROFILE_DIR="$samples/evaluation"
+		mkdir -p "$FLAKE_UPDATE_PROFILE_DIR"
+	fi
 	mark build-lock-summariser
 	nix build .#flake-lock-summary --no-link
 	mark build-update-runner
@@ -125,9 +130,10 @@ monitor_scope &
 monitor=$!
 trap 'kill "$monitor" 2>/dev/null || true' EXIT
 status=0
-sudo -nE systemd-run --scope --quiet --unit="$unit" \
+preserve=RUNNER_TEMP,GIT_SSH_COMMAND,GH_TOKEN,GITHUB_TOKEN,CI,NIX_SSL_CERT_FILE,PROFILE_GATE
+sudo -n --preserve-env="$preserve" systemd-run --scope --quiet --unit="$unit" \
 	--property=MemoryMax="$budget" --property=MemorySwapMax=0 \
-	sudo -nE -u "#$UID" -- env "HOME=$HOME" "PATH=$PATH" \
+	sudo -n --preserve-env="$preserve" -u "#$UID" -- env "HOME=$HOME" "PATH=$PATH" \
 	"$BASH" "$(realpath "${BASH_SOURCE[0]}")" worker "$budget" "$samples" || status=$?
 kill "$monitor" 2>/dev/null || true
 wait "$monitor" 2>/dev/null || true

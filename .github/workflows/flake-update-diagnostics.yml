@@ -62,6 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           MEMORY_GIB: ${{ matrix.memory_gib }}
+          PROFILE_GATE: ${{ matrix.memory_gib == 12 && matrix.repeat == 2 }}
         run: |
           bash scripts/measure-flake-update.bash \
             "${MEMORY_GIB}" "${RUNNER_TEMP}/update-diagnostics"
