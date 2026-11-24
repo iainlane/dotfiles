@@ -1463,6 +1463,74 @@ expect <<'JSON'
 }
 JSON
 
+project '{"package.json": {"devDependencies": {
+  "@scope/host": "^2.0.0", "@scope/tui": "1.0.0", "linked": "^1.0.0"
+}}}' "$workspace"
+local_packages "$(jq '.linked.peerDependencies = {"@scope/tui": "^1.0.0"}' <<<"$host_tui")"
+update
+expect <<'JSON'
+{
+  "hashed": true,
+  "links": {
+    "linked-1.0.0.tgz": "linked-tarball/package.tgz",
+    "scope-host-2.0.0.tgz": "host-tarball/package.tgz"
+  },
+  "lockfile": {
+    "importers": {
+      ".": {
+        "devDependencies": {
+          "@scope/host": {
+            "specifier": "file:.nix-providers/scope-host-2.0.0.tgz",
+            "version": "file:.nix-providers/scope-host-2.0.0.tgz"
+          },
+          "@scope/tui": {"specifier": "1.1.0", "version": "1.1.0"},
+          "linked": {
+            "specifier": "file:.nix-providers/linked-1.0.0.tgz",
+            "version": "file:.nix-providers/linked-1.0.0.tgz(@scope/tui@1.1.0)"
+          }
+        }
+      }
+    },
+    "lockfileVersion": "9.0",
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "resolution": {"tarball": "file:.nix-providers/scope-host-2.0.0.tgz"}
+      },
+      "@scope/tui@1.1.0": {"resolution": {"integrity": "sha512-@scope/tui-1.1.0"}},
+      "linked@file:.nix-providers/linked-1.0.0.tgz": {
+        "peerDependencies": {"@scope/tui": "^1.0.0"},
+        "resolution": {"tarball": "file:.nix-providers/linked-1.0.0.tgz"}
+      }
+    },
+    "snapshots": {
+      "@scope/host@file:.nix-providers/scope-host-2.0.0.tgz": {
+        "dependencies": {"@scope/tui": "1.1.0"}
+      },
+      "@scope/tui@1.1.0": {},
+      "linked@file:.nix-providers/linked-1.0.0.tgz(@scope/tui@1.1.0)": {
+        "dependencies": {"@scope/tui": "1.1.0"}
+      }
+    }
+  },
+  "manifests": {
+    "package.json": {
+      "devDependencies": {"@scope/host": "^2.0.0", "@scope/tui": "1.1.0", "linked": "^1.0.0"}
+    }
+  },
+  "workspace": {
+    "overrides": {
+      "@scope/host": "file:.nix-providers/scope-host-2.0.0.tgz",
+      "linked": "file:.nix-providers/linked-1.0.0.tgz"
+    },
+    "packages": ["."]
+  }
+}
+JSON
+
 # The guard stops the update when local packages need different versions, when
 # syncpack would reject the exact version, and when pnpm still installs a second
 # copy after the guard has run.

@@ -257,17 +257,21 @@ dependents() {
 # Prints each direct dependency of the root or of a workspace member that a
 # local package resolves to another version, with the versions that the local
 # packages resolve. pnpm would install a second copy, and each copy would load
-# with its own module state.
+# with its own module state. A peer can resolve against the old importer pin,
+# so prefer the runtime versions for pinning and check every version afterwards.
 misaligned() {
-	yq -o=json '.' pnpm-lock.yaml | jq -r '
+	yq -o=json '.' pnpm-lock.yaml | jq -r --arg phase "$1" '
 		def version: sub("\\(.*$"; "");
-		[
+		(.packages // {}) as $packages
+		| [
 			.snapshots // {} | to_entries[]
 			| select(.key | test("@file:\\.nix-providers/"))
+			| ($packages[.key | version].peerDependencies // {}) as $peers
 			| (.value.dependencies // {}) + (.value.optionalDependencies // {})
 			| to_entries[]
 			| select(.value | test("^[0-9]"))
-			| {name: .key, version: (.value | version)}
+			| .key as $name
+			| {name: $name, version: (.value | version), peer: ($peers | has($name))}
 		] as $provided
 		| [
 			.importers // {} | .[]
@@ -277,11 +281,13 @@ misaligned() {
 			| {name: .key, version: (.value.version | version)}
 		] as $direct
 		| $provided | group_by(.name)[]
-		| {name: .[0].name, versions: (map(.version) | unique)}
-		| .name as $name
+		| .[0].name as $name
+		| (map(.version) | unique) as $versions
+		| (map(select(.peer | not) | .version) | unique) as $runtime
 		| ($direct | map(select(.name == $name) | .version) | unique) as $installed
-		| select($installed != [] and $installed != .versions)
-		| [.name, (.versions | join(" "))] | @tsv'
+		| select($installed != [] and $installed != $versions)
+		| [$name, (if $phase == "pin" and $runtime != [] then $runtime else $versions end | join(" "))]
+		| @tsv'
 }
 
 # Remove the overrides that earlier runs wrote. The rounds below write one for
@@ -340,7 +346,7 @@ while true; do
 	fi
 done
 
-mapfile -t mismatches < <(misaligned)
+mapfile -t mismatches < <(misaligned pin)
 if ((${#mismatches[@]} == 0)); then
 	exit 0
 fi
@@ -375,7 +381,7 @@ done
 
 relock
 
-mapfile -t mismatches < <(misaligned)
+mapfile -t mismatches < <(misaligned verify)
 for mismatch in "${mismatches[@]}"; do
 	printf 'pnpm still installs a second copy of %s beside a local package.\n' "${mismatch%%$'\t'*}" >&2
 	exit 1
