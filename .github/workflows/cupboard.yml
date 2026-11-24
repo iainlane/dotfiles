@@ -180,7 +180,8 @@ jobs:
   publish:
     if: >-
       github.event_name != 'merge_group' && (github.event_name != 'pull_request'
-      || github.event.pull_request.head.repo.id == github.repository_id)
+      || (github.event.pull_request.head.repo.id == github.repository_id &&
+      github.head_ref != 'experiment/flake-update-runner-diagnostics'))
     permissions:
       attestations: write # write build provenance attestations for the outputs
       contents: read

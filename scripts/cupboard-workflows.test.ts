@@ -184,6 +184,7 @@ interface Event {
   readonly fork?: boolean;
   readonly number?: number;
   readonly ref?: string;
+  readonly headRef?: string;
 }
 
 function evaluate(expression: string, event: Event): unknown {
@@ -192,6 +193,7 @@ function evaluate(expression: string, event: Event): unknown {
       event_name: event.name,
       repository_id: "585180069",
       ref: event.ref ?? "refs/heads/main",
+      head_ref: event.headRef ?? "",
       event: {
         action: event.action ?? "",
         pull_request: {
@@ -765,6 +767,17 @@ describe("Cupboard workflow event admission", () => {
       });
     }
   }
+
+  it("skips the cache publish on the flake update diagnostic PR", () => {
+    assert.deepEqual(
+      admittedJobs({
+        name: "pull_request",
+        action: "opened",
+        headRef: "experiment/flake-update-runner-diagnostics",
+      }),
+      { validation: false, publish: false },
+    );
+  });
 
   it("receives the pull-request lifecycle events", () => {
     assert.deepEqual(record(record(caller.on).pull_request).types, [

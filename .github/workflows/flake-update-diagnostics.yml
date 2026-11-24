@@ -1,0 +1,76 @@
+name: flake update diagnostics
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flake-update-diagnostics-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'experiment/flake-update-runner-diagnostics'
+    name: Update (${{ matrix.memory_gib }} GiB, repeat ${{ matrix.repeat }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        memory_gib: [8, 12]
+        repeat: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # v35
+      - uses: "nixbuild/nix-quick-install-action@\
+          9f63be77f412a248c9d9a65a4c82cf066cdf8f0c"
+
+      - name: Trust the update workflow's binary caches
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.config/nix"
+          {
+            printf '\n'
+            nix eval --raw .#.nix.substituterConfig
+          } >> "${HOME}/.config/nix/nix.conf"
+
+      - name: Set up read-only access to the private flake input
+        env:
+          DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_KEY}"
+          key="${RUNNER_TEMP}/secrets_deploy_key"
+          install -m 600 /dev/null "${key}"
+          printf '%s\n' "${DEPLOY_KEY}" > "${key}"
+          ssh_command="ssh -i ${key} -o IdentitiesOnly=yes"
+          ssh_command+=" -o StrictHostKeyChecking=accept-new"
+          ssh_command+=" -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts"
+          echo "GIT_SSH_COMMAND=${ssh_command}" >> "${GITHUB_ENV}"
+
+      - name: Measure the transactional update in a bounded scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MEMORY_GIB: ${{ matrix.memory_gib }}
+        run: |
+          bash scripts/measure-flake-update.bash \
+            "${MEMORY_GIB}" "${RUNNER_TEMP}/update-diagnostics"
+
+      # v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: ${{ !cancelled() }}
+        with:
+          name: update-diag-${{ matrix.memory_gib }}g-${{ matrix.repeat }}
+          path: ${{ runner.temp }}/update-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
