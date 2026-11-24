@@ -797,6 +797,7 @@ def codex_isolated_features() -> dict[str, bool]:
         "code_mode_host": True,
         "codex_apps_mcp_2026_07_28": False,
         "computer_use": False,
+        "daybreak_program_propagation": False,
         # A `request_user_input` call arrives as a server request, and the
         # session ends the child on a server request. The judge has no
         # operator to answer one.
@@ -808,6 +809,8 @@ def codex_isolated_features() -> dict[str, bool]:
         "memories": False,
         "mcp_2026_07_28": False,
         "mcp_connection_sharing": False,
+        "mcp_lazy_stdio_startup": False,
+        "mcp_shared_repl_cwd": False,
         "mentions_v2": False,
         "multi_agent": False,
         "plugins": False,
