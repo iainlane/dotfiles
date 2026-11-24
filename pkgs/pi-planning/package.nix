@@ -10,7 +10,7 @@
   pname = "pi-planning";
   directory = ./.;
   pnpm = pnpm_10;
-  dependencyHash = "sha256-O743vaGzyTo+j4DljsZAC8L8bvekunNHtN2t+MGz/FY=";
+  dependencyHash = "sha256-fAR71GT0DuaTUWOAYtB/qOcPwtSP9oC+aRrzjd3eG84=";
   environment = {
     PI_TEST_HOST = "${pi}/bin/pi";
     PI_TEST_PRETTY = "${pi-pretty}/${pi-pretty.packageRoot}";
