@@ -1,4 +1,5 @@
 testinvalid.md:1:32:Prose.ZeroRelative:This noun phrase has a clause squeezed inside it, so the relationship between the two nouns is left for the reader to reconstruct. State the relationship as a plain clause, a prepositional phrase or its own sentence.
+testinvalid.md:1:35:Prose.ZeroRelativeShort:A noun followed by a determiner, a noun and a verb reads as a clause squeezed into a noun phrase. State the relationship as a plain clause, a prepositional phrase or its own sentence.
 testinvalid.md:3:23:Prose.ZeroRelative:This noun phrase has a clause squeezed inside it, so the relationship between the two nouns is left for the reader to reconstruct. State the relationship as a plain clause, a prepositional phrase or its own sentence.
 testinvalid.md:5:11:Prose.WarningVerbs:Replace 'holds' with the verb for the actual relationship: 'contains' for data, 'specifies' for configuration, or 'owns' for a lock.
 testinvalid.md:7:21:Prose.AbstractAbsence:'nothing to reformat' describes an exception as an abstract absence; say what happens instead.

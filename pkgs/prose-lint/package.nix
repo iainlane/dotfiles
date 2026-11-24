@@ -1,6 +1,7 @@
 {
   basedpyright,
   diffutils,
+  fetchurl,
   gitMinimal,
   lib,
   makeWrapper,
@@ -9,6 +10,7 @@
   ruff,
   runCommandLocal,
   stdenvNoCC,
+  unzip,
   vale,
 }: let
   version = "0.1.0";
@@ -44,6 +46,36 @@
   goldens = ./scripts/goldens.bash;
 
   lexicon = "${prose-lint-lexicon}/share/prose-lint-lexicon/english.dict";
+
+  # Since Vale 3.27 the comment parsers ship as separate WebAssembly modules.
+  grammars = lib.mapAttrsToList (name: hash:
+    fetchurl {
+      url = "https://github.com/vale-cli/vale/releases/download/v3.27.0/grammar-${name}.zip";
+      sha256 = hash;
+    }) {
+    bash = "383f41dac7ba7ff6b62310ae90fbecad5872b421e16362428e85f6d3383282a4";
+    c = "0e4d8e14893f8f20dccf7ee85c79c6beeeac4c77f032551a237067a93b450b0d";
+    cpp = "0f550858aa68c02663362631dc64d40e7b1a28aa48379fa5d55c0dfc3bf905f7";
+    csharp = "1c5ef2dc517dcd7fad2c7e6d1e2b5c8a60690b10d34a22cb3b108d98b3b73898";
+    css = "efc982ba928828df69d3a0a8d17ff4095b5890d9f918c41ce34adff940d31529";
+    elixir = "3beddaad99e1f3069948d5233709feb1ce8aaeab5b5a8333de3dc5e32659ecb0";
+    elm = "baedd9bdc51c76883a7d5f81e340e210f117e4355bc2fd479ae4b11ce8041ff1";
+    go = "c188c53747864bff9849cc39eaac51393c3264be8ae3c67c12edb2ccc94eb130";
+    java = "fc65e8426fe7116ef941b227520beb542cd2f6c8cf0789d28b63b370e8d36827";
+    javascript = "448d9a94d558b4e2e62c929b815378337ea5a151fc12e1f8277c853314c9e1d4";
+    julia = "edc4dbc9cfb3dc06f72c1820a7bd16d481a4c492efa35f9dd7a23a7c876d29f8";
+    kotlin = "58b5e2d01f1920cb2fb908863a477b6cd14cc0e3cf8a36fc4413191b709f4926";
+    lua = "10c94b27ea4d6cf4779be2bcf57accf256b1c752b57fcf27ff56be297ad9178f";
+    php = "326f84f19873498972a9b606b4af4c5e4cfa77a75a45bb1ac6c29801bf9c16f2";
+    proto = "4262870472d181b4bbc6afb3df39d81de13f84910d6f87a4032d66d346c17bef";
+    python = "cd369ca78cb327534bfab0eefb710b38115e0644cda04709da174f675c28a1b2";
+    ruby = "a31c8e1f88bab718794f281cbf6b7b4c5cfaf3526e379da1ba53ca7d3cfe6548";
+    rust = "040788500c7414b3e789f08f0281e4d12fdcf197720beb238e27139bde511631";
+    toml = "8a66d9450aba2f7d1423d16ed6bdc84a2d14dbb6eb26cd75a476128d5bdd2912";
+    tsx = "b051dedfe0ad634a6689c7d328f5df61b2a44fe120cf93146c2d4185fb43f5bc";
+    typescript = "d127e82362d35ec0d8945049b9f51735e0db10091b7d884f47ce2f6aebe7a162";
+    yaml = "8184a6cf2329f6cbc6748fbf8807ae5b58de7ab20f9a19f1301efd1c36a4b971";
+  };
 
   application = python3Packages.buildPythonApplication {
     pname = "prose-lint-cli";
@@ -83,7 +115,7 @@
     dontUnpack = true;
     dontBuild = true;
 
-    nativeBuildInputs = [makeWrapper];
+    nativeBuildInputs = [makeWrapper unzip];
 
     installPhase = ''
       runHook preInstall
@@ -93,6 +125,10 @@
 
       cp -r ${styleSource}/styles "$share/styles"
       chmod -R u+w "$share/styles"
+      mkdir -p "$share/styles/config/grammars"
+      for grammar in ${lib.escapeShellArgs grammars}; do
+        unzip -j "$grammar" '*/styles/config/grammars/*.wasm' -d "$share/styles/config/grammars"
+      done
       install -Dm644 ${styleSource}/tiers.toml "$share/tiers.toml"
       install -Dm755 ${goldens} "$share/goldens.bash"
 
