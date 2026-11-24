@@ -19,7 +19,8 @@ in {
     };
     shfmt = {
       enable = true;
-      useEditorConfig = true;
+      indent_size = null;
+      simplify = false;
     };
     statix.enable = true;
     stylua.enable = true;
