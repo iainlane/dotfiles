@@ -16,14 +16,30 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.head_ref == 'experiment/flake-update-runner-diagnostics'
-    name: Evaluate (${{ matrix.strategy }})
+    name: Evaluate (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        strategy: [full, full-gc, system, cohort]
+        include:
+          - label: x86-48-8g
+            strategy: x86-split
+            chunk_size: 48
+            memory_gib: 8
+          - label: x86-24-8g
+            strategy: x86-split
+            chunk_size: 24
+            memory_gib: 8
+          - label: x86-48-12g
+            strategy: x86-split
+            chunk_size: 48
+            memory_gib: 12
+          - label: x86-packages-8g
+            strategy: x86-packages
+            chunk_size: 1
+            memory_gib: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,21 +80,23 @@ jobs:
           ssh_command+=" -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts"
           echo "GIT_SSH_COMMAND=${ssh_command}" >> "${GITHUB_ENV}"
 
-      - name: Measure evaluation in a 12 GiB scope
+      - name: Measure evaluation in a bounded scope
         working-directory: candidate
         env:
           GATE_STRATEGY: ${{ matrix.strategy }}
+          GATE_CHUNK_SIZE: ${{ matrix.chunk_size }}
+          MEMORY_GIB: ${{ matrix.memory_gib }}
         run: |
           export GATE_BENCHMARK="$GITHUB_WORKSPACE/diagnostics"
           GATE_BENCHMARK+="/scripts/benchmark-evaluation.bash"
           helper="$GITHUB_WORKSPACE/diagnostics/scripts/measure-flake-update.bash"
-          bash "$helper" 12 "${RUNNER_TEMP}/update-diagnostics"
+          bash "$helper" "$MEMORY_GIB" "${RUNNER_TEMP}/update-diagnostics"
 
       # v7.0.2
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: ${{ !cancelled() }}
         with:
-          name: evaluation-${{ matrix.strategy }}
+          name: evaluation-${{ matrix.label }}
           path: ${{ runner.temp }}/update-diagnostics
           if-no-files-found: warn
           retention-days: 7

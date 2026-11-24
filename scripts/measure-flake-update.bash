@@ -138,7 +138,7 @@ monitor=$!
 trap 'kill "$monitor" 2>/dev/null || true' EXIT
 status=0
 preserve=RUNNER_TEMP,GIT_SSH_COMMAND,GH_TOKEN,GITHUB_TOKEN,CI,NIX_SSL_CERT_FILE,PROFILE_GATE
-preserve+=,GATE_STRATEGY,GATE_BENCHMARK,GITHUB_STEP_SUMMARY
+preserve+=,GATE_STRATEGY,GATE_BENCHMARK,GATE_CHUNK_SIZE,GITHUB_STEP_SUMMARY
 sudo -n --preserve-env="$preserve" systemd-run --scope --quiet --unit="$unit" \
 	--property=MemoryMax="$budget" --property=MemorySwapMax=0 \
 	sudo -n --preserve-env="$preserve" -u "#$UID" -- env "HOME=$HOME" "PATH=$PATH" \
