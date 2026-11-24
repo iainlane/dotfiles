@@ -14,6 +14,7 @@
   openssl,
   pkg-config,
   rustPlatform,
+  sqlite,
   voxtype-onnx,
   wrapGAppsHook4,
 }:
@@ -39,6 +40,7 @@ rustPlatform.buildRustPackage {
     alsa-lib
     gtk4-layer-shell
     openssl
+    sqlite
   ];
 
   env.LIBCLANG_PATH = "${lib.getLib libclang}/lib";

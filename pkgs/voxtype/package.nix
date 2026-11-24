@@ -21,6 +21,7 @@
   libnotify,
   openssl,
   pciutils,
+  sqlite,
   wl-clipboard,
   wtype,
   which,
@@ -138,7 +139,7 @@ in
       ];
 
     buildInputs =
-      [openssl]
+      [openssl sqlite]
       ++ lib.optionals stdenv.hostPlatform.isLinux [alsa-lib]
       ++ lib.optionals vulkanSupport [
         vulkan-headers
