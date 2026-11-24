@@ -255,10 +255,11 @@ async function footer(
 async function restored(
   terminal: PiTerminal,
   expected: string[],
+  ready: (screen: string[]) => void = overlayClosed,
 ): Promise<void> {
   const rows = await terminal.settled(
     (screen) => composerStatusRows(screen, expected[1] === ""),
-    overlayClosed,
+    ready,
   );
 
   expect(rows).toStrictEqual(expected);
@@ -512,9 +513,14 @@ it.each([
       expect(visibleWidth(composerTop(screen))).toBe(72);
     });
 
-    terminal.resize(220);
+    const wideColumns = 220;
+    terminal.resize(wideColumns);
 
-    await restored(terminal, wide);
+    // The terminal can still show the narrow frame until Pi redraws.
+    await restored(terminal, wide, (screen) => {
+      overlayClosed(screen);
+      expect(visibleWidth(composerTop(screen))).toBe(wideColumns);
+    });
 
     terminal.input("/footer explain quota\r");
 
