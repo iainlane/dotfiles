@@ -7,6 +7,8 @@
   gitMinimal,
   importNpmLock,
   lib,
+  nix-update,
+  nodejs,
   stdenv,
   updaters,
 }: let
@@ -65,11 +67,16 @@ in
     '';
     passthru = {
       packageRoot = "lib/node_modules/@heyhuynhgiabuu/pi-diff";
-      updateScript = updaters.mkNixUpdateUpdater {
-        refresh = true;
-        attr = "pi-diff";
-        extraFlags = ["--version=branch=pi-integration-fixes"];
-        npmLockfile = "pkgs/pi-diff/npm-deps/package-lock.json";
+      updateScript = updaters.mkScriptUpdater {
+        pname = "pi-diff";
+        script = ./update.bash;
+        extraRuntimeInputs = [nix-update nodejs];
+        refreshInputs = ["llm-agents" "nixpkgs"];
+      };
+      tests.updater = updaters.mkScriptUpdaterTest {
+        pname = "pi-diff";
+        script = ./update.bash;
+        test = ./update.test.bash;
       };
     };
     meta = {
