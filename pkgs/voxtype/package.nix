@@ -146,8 +146,9 @@ in
         vulkan-headers
         vulkan-loader
       ]
-      ++ lib.optionals dynamicOnnxSupport [onnxruntime oniguruma]
-      ++ lib.optionals webgpuOnnxSupport [webgpuRuntime];
+      ++ lib.optional dynamicOnnxSupport onnxruntime
+      ++ lib.optional onnxSupport oniguruma
+      ++ lib.optional webgpuOnnxSupport webgpuRuntime;
 
     env =
       {
