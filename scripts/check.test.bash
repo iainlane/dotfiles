@@ -8,7 +8,7 @@ trap 'rm -rf "${test_dir}"' EXIT
 
 mkdir -p "${test_dir}/bin" "${test_dir}/scripts" "${test_dir}/lib/nix"
 cp "${source_root}/justfile" "${test_dir}/justfile"
-cp "${source_root}/scripts/check-evaluation.bash" "${test_dir}/scripts/"
+cp "${source_root}/scripts/check-evaluation.bash" "${source_root}/scripts/evaluation-shards.nix" "${test_dir}/scripts/"
 cp "${source_root}/lib/nix/evaluation.conf" "${test_dir}/lib/nix/"
 
 # The Linux build sandbox has no /usr/bin/env.
@@ -29,7 +29,35 @@ fi
 [[ "${NIX_CONFIG}" == *'allow-import-from-derivation = false'* ]]
 
 if [[ "${1}" == eval ]]; then
-	printf 'evaluate %s\n' "${3}" >>"${CHECK_TEST_LOG}"
+	[[ "${*: -3}" == '--option allow-import-from-derivation false' ]]
+	if [[ "${3}" != .#.cupboardOutputs ]]; then
+		printf 'evaluate %s\n' "${3}" >>"${CHECK_TEST_LOG}"
+		exit 0
+	fi
+	case "${5}" in
+	*'shard = null;'*)
+		printf 'inventory\n' >>"${CHECK_TEST_LOG}"
+		printf 'system-aarch64-linux\taarch64-linux/checks-first\n'
+		if [[ "${CHECK_TEST_MODE:-}" == duplicate ]]; then
+			printf 'system-aarch64-linux\taarch64-linux/checks-first\n'
+		fi
+		printf 'system-aarch64-linux\taarch64-linux/checks-second\n'
+		printf 'x86_64-linux-packages\tx86_64-linux/packages\n'
+		;;
+	*'shard = "system-aarch64-linux";'*)
+		printf 'shard system-aarch64-linux\n' >>"${CHECK_TEST_LOG}"
+		[[ "${CHECK_TEST_MODE:-}" != failed-shard ]] || exit 17
+		printf 'system-aarch64-linux\taarch64-linux/checks-first\t/nix/store/first.drv\n'
+		if [[ "${CHECK_TEST_MODE:-}" != missing-target ]]; then
+			printf 'system-aarch64-linux\taarch64-linux/checks-second\t/nix/store/second.drv\n'
+		fi
+		;;
+	*'shard = "x86_64-linux-packages";'*)
+		printf 'shard x86_64-linux-packages\n' >>"${CHECK_TEST_LOG}"
+		printf 'x86_64-linux-packages\tx86_64-linux/packages\t/nix/store/packages.drv\n'
+		;;
+	*) exit 2 ;;
+	esac
 	exit 0
 fi
 
@@ -43,7 +71,9 @@ PATH="${test_dir}/bin:${PATH}" \
 	check --keep-going
 
 actual="$(<"${test_dir}/commands")"
-expected='evaluate .#.cupboardOutputs
+expected='inventory
+shard system-aarch64-linux
+shard x86_64-linux-packages
 evaluate .#.checks
 flake check --keep-going --option allow-import-from-derivation false'
 
@@ -53,3 +83,22 @@ if [[ "${actual}" != "${expected}" ]]; then
 fi
 
 printf 'All systems are evaluated; only native checks are built.\n'
+
+export PATH="${test_dir}/bin:${PATH}"
+export CHECK_TEST_LOG="${test_dir}/commands"
+manifest="$(bash "${test_dir}/scripts/check-evaluation.bash" --manifest)"
+expected="$(printf '%s\t%s\n' \
+	aarch64-linux/checks-first /nix/store/first.drv \
+	aarch64-linux/checks-second /nix/store/second.drv \
+	x86_64-linux/packages /nix/store/packages.drv)"
+[[ "${manifest}" == "${expected}" ]]
+
+for failure in duplicate failed-shard missing-target; do
+	if CHECK_TEST_MODE="${failure}" bash "${test_dir}/scripts/check-evaluation.bash" >"${test_dir}/output"; then
+		printf 'The gate accepted fixture failure: %s\n' "${failure}" >&2
+		exit 1
+	fi
+	[[ ! -s "${test_dir}/output" ]]
+done
+
+printf 'A complete manifest passes; duplicate targets, failed shards and incomplete shards are rejected.\n'
