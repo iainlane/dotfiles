@@ -6,6 +6,7 @@
       ../../../scripts/check-evaluation.bash
       ../../../scripts/check-evaluation.test.bash
       ../../../scripts/check.test.bash
+      ../../../scripts/evaluation-shards.nix
       ../../../flake/fixtures/evaluation.nix
       ../../../lib/nix/evaluation.conf
     ];
