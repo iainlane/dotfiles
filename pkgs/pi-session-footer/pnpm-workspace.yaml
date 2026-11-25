@@ -7,8 +7,8 @@ managePackageManagerVersions: false
 overrides:
   "pi-prs>@earendil-works/pi-coding-agent": "-"
   "pi-prs>@earendil-works/pi-tui": "-"
-  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
-  "@mariozechner/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.5.2.tgz
+  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz
+  "@mariozechner/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz
   "@juicesharp/rpiv-btw": file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
   "@marckrenn/pi-sub-core": file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
   pi-prs: file:.nix-providers/pi-prs-0.6.0.tgz

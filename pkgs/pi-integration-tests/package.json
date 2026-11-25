@@ -15,9 +15,9 @@
     "!dist/*.test.d.ts"
   ],
   "devDependencies": {
-    "@earendil-works/pi-ai": "1.5.2",
-    "@earendil-works/pi-coding-agent": "^1.5.2",
-    "@earendil-works/pi-tui": "1.5.2",
+    "@earendil-works/pi-ai": "1.6.1",
+    "@earendil-works/pi-coding-agent": "^1.6.1",
+    "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "^24.19.2",
     "oxlint": "^1.89.0",
     "oxlint-tsgolint": "^7.0.2004",
