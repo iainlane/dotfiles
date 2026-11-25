@@ -3,6 +3,7 @@
   pkgs,
   pkgs-unstable,
   config,
+  flakeContext,
   flakePath,
   inputs,
   system,
@@ -13,6 +14,7 @@
   };
   toolsSpec = import ./tools.nix {
     inherit pkgs;
+    inherit (flakeContext) pkgs-stable;
   };
 
   normaliseLspEntry = packageName: spec: let

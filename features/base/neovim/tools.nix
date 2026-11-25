@@ -1,4 +1,7 @@
-{pkgs}: {
+{
+  pkgs,
+  pkgs-stable,
+}: {
   inherit
     (pkgs)
     alejandra
@@ -8,7 +11,6 @@
     delve
     gofumpt
     golangci-lint
-    hadolint
     markdown-toc
     markdownlint-cli2
     oxfmt
@@ -23,6 +25,7 @@
     zizmor
     ;
 
+  inherit (pkgs-stable) hadolint;
   inherit (pkgs.rubyPackages) htmlbeautifier;
 
   codelldb = pkgs.vscode-extensions.vadimcn.vscode-lldb;
