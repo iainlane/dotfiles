@@ -21,7 +21,7 @@
     "test:integration": "node scripts/prepare-fixtures.ts && vitest run --project integration"
   },
   "dependencies": {
-    "pi-prs": "^0.6.0"
+    "pi-prs": "^0.7.1"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "1.6.1",
@@ -29,7 +29,7 @@
     "@earendil-works/pi-coding-agent": "^1.6.1",
     "@earendil-works/pi-tui": "1.6.1",
     "@homebridge/node-pty-prebuilt-multiarch": "^0.15.0",
-    "@juicesharp/rpiv-btw": "^2.15.0",
+    "@juicesharp/rpiv-btw": "^2.16.0",
     "@marckrenn/pi-sub-core": "^1.5.0",
     "@mariozechner/pi-coding-agent": "npm:@earendil-works/pi-coding-agent@^1.6.1",
     "@types/node": "^24.19.2",
