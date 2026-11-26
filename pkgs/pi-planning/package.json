@@ -21,7 +21,7 @@
     "src"
   ],
   "dependencies": {
-    "unbash": "^6.0.1"
+    "unbash": "^6.0.5"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "1.6.1",
