@@ -41,7 +41,7 @@ if [[ "$#" -eq 0 ]]; then
 	source_lock="${source}/package-lock.json"
 fi
 
-cp "${source_lock}" "${scratch}/package-lock.json"
+install -m 0644 "${source_lock}" "${scratch}/package-lock.json"
 jq -e '.packages[""] | objects' "${source_lock}" >"${scratch}/package.json"
 (
 	cd "${scratch}"
