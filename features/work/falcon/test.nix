@@ -71,7 +71,19 @@ pkgs.testers.runNixOSTest {
             timeout=60,
         )
         assert machine.succeed("/opt/CrowdStrike/falconctl -g --rfm-state").strip() == "rfm-state=false."
-        assert machine.succeed("/opt/CrowdStrike/falconctl -g --backend").strip() == "backend=bpf."
+        control_group = machine.succeed(
+            "systemctl show --property=ControlGroup --value falcon-sensor.service"
+        ).strip()
+        assert control_group.startswith("/")
+        pids = machine.succeed(
+            f'find "/sys/fs/cgroup{control_group}" -name cgroup.procs -exec cat {{}} +'
+        ).split()
+        processes = {
+            machine.execute(f"cat /proc/{pid}/comm 2>/dev/null")[1].strip()
+            for pid in pids
+        }
+        # Linux truncates comm to 15 bytes.
+        assert "falcon-sensor-b" in processes, processes
     except Exception:
         print(machine.execute("/opt/CrowdStrike/falconctl -g --version --rfm-state --rfm-reason"))
         print(machine.execute("journalctl -b -u falcon-sensor.service --no-pager"))
