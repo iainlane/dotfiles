@@ -47,6 +47,10 @@ npm() {
 		;;
 	"install --package-lock-only --ignore-scripts --no-audit --no-fund --save-dev --save-exact @earendil-works/pi-coding-agent@1.6.1 @earendil-works/pi-ai@1.6.2 @earendil-works/pi-tui@1.6.3")
 		[[ "${FAIL_NPM:-}" != 1 ]] || return 1
+		if [[ ! -w package-lock.json ]]; then
+			printf 'npm needs a writable package-lock.json.\n' >&2
+			return 1
+		fi
 		diff -u <(jq -S '.packages[""]' package-lock.json) <(jq -S . package.json)
 		jq '.packages[""].devDependencies += {
 			"@earendil-works/pi-coding-agent": "1.6.1",
@@ -65,6 +69,7 @@ cd "${fixture}/pkgs/pi-diff"
 lock=npm-deps/package-lock.json
 printf '%s\n' '{"packages":{"":{"version":"0.9.3","devDependencies":{"@earendil-works/pi-coding-agent":"1.6.0","@earendil-works/pi-ai":"1.6.0","@earendil-works/pi-tui":"1.6.0"}},"node_modules/diff":{"version":"8.0.4"}}}' >"${lock}"
 jq '.packages[""].version = "0.9.4" | .packages["node_modules/diff"].version = "8.0.5"' "${lock}" >"${fixture}/upstream/package-lock.json"
+chmod 0444 "${fixture}/upstream/package-lock.json"
 
 printf '%s\n' '{"packages":{"":{"version":"0.9.3","devDependencies":{"@earendil-works/pi-coding-agent":"1.6.1","@earendil-works/pi-ai":"1.6.2","@earendil-works/pi-tui":"1.6.3"}},"node_modules/diff":{"version":"8.0.4"}}}' >expected-refresh.json
 printf '%s\n' '{"packages":{"":{"version":"0.9.4","devDependencies":{"@earendil-works/pi-coding-agent":"1.6.1","@earendil-works/pi-ai":"1.6.2","@earendil-works/pi-tui":"1.6.3"}},"node_modules/diff":{"version":"8.0.5"}}}' >expected-update.json
