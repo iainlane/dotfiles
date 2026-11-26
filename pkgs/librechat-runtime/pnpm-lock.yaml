@@ -66,7 +66,7 @@ importers:
         specifier: workspace:*
         version: link:../codeapi-bridge
       '@grpc/grpc-js':
-        specifier: ^1.14.6
+        specifier: ^1.14.7
         version: 1.14.7
       '@grpc/proto-loader':
         specifier: ^0.8.1
