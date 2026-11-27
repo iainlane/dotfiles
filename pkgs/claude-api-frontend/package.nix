@@ -10,7 +10,7 @@
   pname = "claude-api-frontend";
   directory = ./.;
   pnpm = pnpm_10;
-  dependencyHash = "sha256-mjZcgtLvwwOYHCBtlMKmgtH1Tjs0KIWyZ9opdx4Q620=";
+  dependencyHash = "sha256-kcj8+kdqrGoO/aCTuS1+KTT8P8llTPSeg3ENf9d78Wc=";
   packageRoot = "lib/claude-api-frontend";
   npmTarball = false;
   shellPackages = [openssl];

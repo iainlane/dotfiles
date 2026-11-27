@@ -84,7 +84,7 @@ it("replaces only explicit regions and permits cross-region repetition", () => {
     persistence: "local",
   });
 });
-it.each([
+it.each<{ value: unknown; error: Error }>([
   { value: null, error: new ExpectedObjectError("settings") },
   { value: [], error: new ExpectedObjectError("settings") },
   { value: { preset: "other" }, error: new UnknownPresetError() },
