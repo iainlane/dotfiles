@@ -1564,29 +1564,34 @@ done
 
 # A Renovate relock uses the branch's exact versions even when the proposed
 # ranges admit a newer release. The branch also updates a catalogue alias and
-# an unused catalogue entry, which pnpm omits from the lockfile.
-project '{"package.json": {"devDependencies": {"@scope/tui": "1.0.0", "other": "4.0.0"}},
-  "packages/member/package.json": {"dependencies": {"@scope/tui": "catalog:", "tui-alias": "catalog:tooling"}}}' 'packages:
+# an unused catalogue entry. The direct and catalogue aliases for leaf both
+# use the package's own name.
+project '{"package.json": {"devDependencies": {"@scope/tui": "1.0.0", "leaf": "npm:leaf@1.0.0", "other": "4.0.0"}},
+  "packages/member/package.json": {"dependencies": {"@scope/tui": "catalog:", "leaf": "catalog:tooling", "tui-alias": "catalog:tooling"}}}' 'packages:
   - "packages/*"
 catalog:
   "@scope/tui": "1.0.0"
   leaf: "1.0.0"
 catalogs:
   tooling:
+    leaf: "npm:leaf@1.0.0"
     tui-alias: "npm:@scope/tui@1.0.0"'
 update
-printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "other": "4.0.0"}}' >"$root/scenario/package.json"
+printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "leaf": "npm:leaf@^1.1.0", "other": "4.0.0"}}' >"$root/scenario/package.json"
 yq -i '
   .catalog["@scope/tui"] = "^1.1.0" |
   .catalog.leaf = "^1.1.0" |
+  .catalogs.tooling.leaf = "npm:leaf@^1.1.0" |
   .catalogs.tooling."tui-alias" = "npm:@scope/tui@^1.1.0"
 ' "$root/scenario/pnpm-workspace.yaml"
 renovate_data="$root/renovate data.json"
 cat >"$renovate_data" <<'JSON'
 [
   {"manager": "npm", "packageFile": "scenario/package.json", "depType": "devDependencies", "depName": "@scope/tui", "newVersion": "1.1.0"},
+  {"manager": "npm", "packageFile": "scenario/package.json", "depType": "devDependencies", "depName": "leaf", "newVersion": "1.1.0"},
   {"manager": "npm", "packageFile": "scenario/pnpm-workspace.yaml", "depType": "pnpm.catalog.default", "depName": "@scope/tui", "newVersion": "1.1.0"},
   {"manager": "npm", "packageFile": "scenario/pnpm-workspace.yaml", "depType": "pnpm.catalog.default", "depName": "leaf", "newVersion": "1.1.0"},
+  {"manager": "npm", "packageFile": "scenario/pnpm-workspace.yaml", "depType": "pnpm.catalog.tooling", "depName": "leaf", "newVersion": "1.1.0"},
   {"manager": "npm", "packageFile": "scenario/pnpm-workspace.yaml", "depType": "pnpm.catalog.tooling", "depName": "tui-alias", "newVersion": "1.1.0"}
 ]
 JSON
@@ -1597,17 +1602,20 @@ state | jq -e '
   and .workspace.catalog["@scope/tui"] == "^1.1.0"
   and .lockfile.importers["."].devDependencies["@scope/tui"] == {specifier: "^1.1.0", version: "1.1.0"}
   and .lockfile.importers["."].devDependencies.other.version == "4.0.0"
+  and .lockfile.importers["."].devDependencies.leaf == {specifier: "npm:leaf@^1.1.0", version: "1.1.0"}
   and .lockfile.importers["packages/member"].dependencies["@scope/tui"] == {specifier: "catalog:", version: "1.1.0"}
   and .lockfile.catalogs.default["@scope/tui"] == {specifier: "^1.1.0", version: "1.1.0"}
   and .workspace.catalog.leaf == "^1.1.0"
   and (.lockfile.catalogs.default | has("leaf") | not)
+  and .lockfile.catalogs.tooling.leaf == {specifier: "npm:leaf@^1.1.0", version: "1.1.0"}
+  and .lockfile.importers["packages/member"].dependencies.leaf == {specifier: "catalog:tooling", version: "1.1.0"}
   and .workspace.catalogs.tooling["tui-alias"] == "npm:@scope/tui@^1.1.0"
   and .lockfile.catalogs.tooling["tui-alias"] == {specifier: "npm:@scope/tui@^1.1.0", version: "1.1.0"}
   and .lockfile.importers["packages/member"].dependencies["tui-alias"] == {specifier: "catalog:tooling", version: "@scope/tui@1.1.0"}
 ' >/dev/null
 
 # A direct registry upgrade outside the branch plan must stop the updater.
-printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "other": "^4.1.0"}}' >"$root/scenario/package.json"
+printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "leaf": "npm:leaf@^1.1.0", "other": "^4.1.0"}}' >"$root/scenario/package.json"
 if update --renovate "$renovate_data" 2>"$root/renovate.log"; then
 	echo 'An unrequested direct upgrade must stop the updater.' >&2
 	exit 1

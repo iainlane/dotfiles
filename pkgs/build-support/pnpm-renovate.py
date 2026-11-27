@@ -192,7 +192,10 @@ def relock(upgrades: Path, directory: Path, manifests: set[Path]) -> None:
         locked = entry(after, target.lock_path)
         expected = target.version
         if specifier.startswith("npm:"):
-            expected = f"{specifier[4:].rsplit('@', 1)[0]}@{expected}"
+            package = specifier[4:].rsplit("@", 1)[0]
+            # pnpm prefixes the importer version only when the names differ.
+            if package != target.path[-1]:
+                expected = f"{package}@{expected}"
         if target.file == WORKSPACE:
             _, catalog, name = target.lock_path
             consumers = tuple(catalog_consumers(after, catalog, name))
