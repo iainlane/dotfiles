@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
-    "oxlint": "^1.89.0",
+    "oxlint": "^1.95.0",
     "oxlint-tsgolint": "^7.0.2008",
     "recheck": "^4.6.2",
     "syncpack": "^15.3.4",
