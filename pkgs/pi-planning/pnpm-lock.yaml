@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       unbash:
-        specifier: ^6.0.1
-        version: 6.0.4
+        specifier: ^6.0.5
+        version: 6.0.5
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: 1.6.1
@@ -1228,8 +1228,8 @@ packages:
     engines: {node: '>=16.20.0'}
     hasBin: true
 
-  unbash@6.0.4:
-    resolution: {integrity: sha512-t3OptUArewg9OpYGDskTSlxhyLDahfmZ4d36hE44Efb1y3HRLLpzsVqwH+AwBVymP4t7pP71xN+nnduudn2awA==}
+  unbash@6.0.5:
+    resolution: {integrity: sha512-5P8o+nYRueKpHxmemofYqZRZCSWAi+Tqy31MQS8l/sT54Z+Axn55N9CnWPo19BxxJD4wYYf6RqlcURhWkrFXew==}
     engines: {node: '>=14'}
 
   undici-types@7.24.6:
@@ -2466,7 +2466,7 @@ snapshots:
       '@typescript/typescript-win32-arm64': 7.0.2
       '@typescript/typescript-win32-x64': 7.0.2
 
-  unbash@6.0.4: {}
+  unbash@6.0.5: {}
 
   undici-types@7.24.6: {}
 
