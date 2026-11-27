@@ -280,7 +280,7 @@ in {
         refreshInputs = ["nixpkgs"];
         lockfileMaintenance = true;
       };
-      runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update yq-go];
+      runtimeInputs = [bash coreutils findutils git jq pnpm nix nix-update python3 yq-go];
       text = ''
         arguments=()
         case "$*" in
@@ -289,15 +289,19 @@ in {
         --maintain-lockfile)
           arguments=(--maintain-lockfile)
           ;;
+        --renovate\ *)
+          if (($# != 2)); then echo "Expected a Renovate upgrade data file." >&2; exit 1; fi
+          arguments=("$@")
+          ;;
         *)
-          echo ${lib.escapeShellArg "Usage: update-${pname} [--refresh | --maintain-lockfile]"} >&2
+          echo ${lib.escapeShellArg "Usage: update-${pname} [--refresh | --maintain-lockfile | --renovate DATA]"} >&2
           exit 1
           ;;
         esac
 
         root="$(git rev-parse --show-toplevel)"
         cd "$root/${directory}"
-        bash ${./pnpm-lock-updater.bash} ${packages} ${./pnpm-providers.bash} "$root" "''${arguments[@]}"
+        bash ${./pnpm-lock-updater.bash} ${packages} ${./pnpm-providers.bash} "$root" ${./pnpm-renovate.py} "''${arguments[@]}"
         cd "$root"
         nix-update --flake --override-filename ${lib.escapeShellArg "${directory}/package.nix"} --version=skip ${lib.escapeShellArg pname}
       '';

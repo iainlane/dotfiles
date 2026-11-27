@@ -61,6 +61,7 @@
       skipArtifactsUpdate: true,
       postUpgradeTasks: {
         commands: ["bash .github/renovate-post-upgrade.bash"],
+        dataFileTemplate: "{{{toJSON upgrades}}}",
         executionMode: "branch",
         fileFilters: ["pkgs/**"],
       },

@@ -3,7 +3,9 @@ set -euo pipefail
 catalogue="$1"
 providers="$2"
 root="$3"
-mode="${4:-}"
+renovate_helper="$4"
+mode="${5:-}"
+renovate_data="${6:-}"
 
 staged=''
 trap 'rm -f "$staged"' EXIT
@@ -236,10 +238,14 @@ override() {
 # repository's formatter rewrites them as double quotes. Writing double quotes
 # here leaves the working tree clean after an update that changes nothing.
 relock() {
-	if (($# == 0)); then
-		set -- install --lockfile-only --no-frozen-lockfile --ignore-scripts
+	if [[ "$mode" == --renovate ]]; then
+		python3 "$renovate_helper" "$root" "$renovate_data" "${manifests[@]}"
+	else
+		if (($# == 0)); then
+			set -- install --lockfile-only --no-frozen-lockfile --ignore-scripts
+		fi
+		pnpm "$@"
 	fi
-	pnpm "$@"
 	yq -i '(... | select(style == "single")) style = "double"' pnpm-workspace.yaml
 }
 
