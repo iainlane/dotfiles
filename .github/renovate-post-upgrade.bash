@@ -37,6 +37,8 @@ if ((${#manifests[@]} == 0)); then
 	exit 0
 fi
 
+renovate_data="${RENOVATE_POST_UPGRADE_COMMAND_DATA_FILE:?Missing Renovate upgrade data}"
+
 printf '%s\n' "${manifests[@]}" | cut -d / -f 2 | LC_ALL=C sort -u >"$scratch/packages"
 mapfile -t packages <"$scratch/packages"
 
@@ -53,7 +55,7 @@ git worktree add --quiet --detach "$checkout" HEAD
 	export NIX_CONFIG
 
 	for package in "${packages[@]}"; do
-		nix run ".#${package}.passthru.updateScript"
+		nix run ".#${package}.passthru.updateScript" -- --renovate "$renovate_data"
 	done
 
 	git add -A -- pkgs

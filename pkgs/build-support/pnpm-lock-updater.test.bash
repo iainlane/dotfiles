@@ -1562,6 +1562,42 @@ for case in conflict syncpack persistent; do
 	printf '%s\n' "$expected" | diff -u - "$root/$case.log"
 done
 
+# A Renovate relock uses the branch's exact versions even when the proposed
+# ranges admit a newer release. This includes entries in a workspace catalog.
+project '{"package.json": {"devDependencies": {"@scope/tui": "1.0.0", "other": "4.0.0"}},
+  "packages/member/package.json": {"dependencies": {"@scope/tui": "catalog:"}}}' 'packages:
+  - "packages/*"
+catalog:
+  "@scope/tui": "1.0.0"'
+update
+printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "other": "4.0.0"}}' >"$root/scenario/package.json"
+yq -i '.catalog["@scope/tui"] = "^1.1.0"' "$root/scenario/pnpm-workspace.yaml"
+renovate_data="$root/renovate data.json"
+cat >"$renovate_data" <<'JSON'
+[
+  {"manager": "npm", "packageFile": "scenario/package.json", "depType": "devDependencies", "depName": "@scope/tui", "newVersion": "1.1.0"},
+  {"manager": "npm", "packageFile": "scenario/pnpm-workspace.yaml", "depType": "pnpm.catalog.default", "depName": "@scope/tui", "newVersion": "1.1.0"}
+]
+JSON
+update --renovate "$renovate_data"
+state | jq -e '
+  .hashed
+  and .manifests["package.json"].devDependencies["@scope/tui"] == "^1.1.0"
+  and .workspace.catalog["@scope/tui"] == "^1.1.0"
+  and .lockfile.importers["."].devDependencies["@scope/tui"] == {specifier: "^1.1.0", version: "1.1.0"}
+  and .lockfile.importers["."].devDependencies.other.version == "4.0.0"
+  and .lockfile.importers["packages/member"].dependencies["@scope/tui"] == {specifier: "catalog:", version: "1.1.0"}
+  and .lockfile.catalogs.default["@scope/tui"] == {specifier: "^1.1.0", version: "1.1.0"}
+' >/dev/null
+
+# A direct registry upgrade outside the branch plan must stop the updater.
+printf '%s\n' '{"devDependencies": {"@scope/tui": "^1.1.0", "other": "^4.1.0"}}' >"$root/scenario/package.json"
+if update --renovate "$renovate_data" 2>"$root/renovate.log"; then
+	echo 'An unrequested direct upgrade must stop the updater.' >&2
+	exit 1
+fi
+grep -Fq 'other changed from 4.0.0 to 4.1.0 without a Renovate upgrade' "$root/renovate.log"
+
 # Any other argument stops the updater before it changes anything.
 project '{"package.json": {"devDependencies": {"linked": "^0"}}}' "$workspace"
 cp -R "$root/scenario" "$root/before"
@@ -1569,5 +1605,5 @@ if update --unknown 2>"$root/usage.log"; then
 	echo 'An unknown argument must stop the update.' >&2
 	exit 1
 fi
-printf '%s\n' 'Usage: update-scenario [--refresh | --maintain-lockfile]' | diff -u - "$root/usage.log"
+printf '%s\n' 'Usage: update-scenario [--refresh | --maintain-lockfile | --renovate DATA]' | diff -u - "$root/usage.log"
 diff -r -u "$root/before" "$root/scenario"
