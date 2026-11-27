@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
+from collections.abc import Iterator
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
@@ -134,6 +135,28 @@ def registry_resolution(resolution: dict) -> str | None:
     return None
 
 
+def catalog_name(specifier: str) -> str | None:
+    if specifier.startswith("catalog:"):
+        return specifier.removeprefix("catalog:") or "default"
+    return None
+
+
+def catalog_consumers(lockfile: dict, catalog: str, name: str) -> Iterator[dict]:
+    for importer in lockfile.get("importers", {}).values():
+        for field in DEPENDENCY_FIELDS:
+            dependency = importer.get(field, {}).get(name, {})
+            if catalog_name(dependency.get("specifier", "")) == catalog:
+                yield dependency
+
+
+def check_version(target: Target, locked: dict, expected: str) -> None:
+    if registry_resolution(locked) != expected:
+        raise ValueError(
+            f"{target.file}: {target.path[-1]} resolved to "
+            f"{locked.get('version', 'nothing')}, expected {expected}"
+        )
+
+
 def check_other_versions(
     before: dict, after: dict, updated: set[tuple[str, ...]]
 ) -> None:
@@ -142,12 +165,8 @@ def check_other_versions(
             for name, old in previous.get(field, {}).items():
                 path = ("importers", importer, field, name)
                 current = entry(after, path)
-                specifier = old.get("specifier", "")
-                if specifier.startswith("catalog:"):
-                    catalog = specifier.removeprefix("catalog:") or "default"
-                    if ("catalogs", catalog, name) in updated:
-                        continue
-                if path in updated:
+                catalog = catalog_name(old.get("specifier", ""))
+                if path in updated or ("catalogs", catalog, name) in updated:
                     continue
                 old_version, current_version = map(registry_resolution, (old, current))
                 if old_version and current_version and old_version != current_version:
@@ -174,11 +193,18 @@ def relock(upgrades: Path, directory: Path, manifests: set[Path]) -> None:
         expected = target.version
         if specifier.startswith("npm:"):
             expected = f"{specifier[4:].rsplit('@', 1)[0]}@{expected}"
-        if registry_resolution(locked) != expected:
-            raise ValueError(
-                f"{target.file}: {target.path[-1]} resolved to "
-                f"{locked.get('version', 'nothing')}, expected {expected}"
-            )
+        if target.file == WORKSPACE:
+            _, catalog, name = target.lock_path
+            consumers = tuple(catalog_consumers(after, catalog, name))
+            # pnpm writes catalogue snapshots only for entries in use. The
+            # snapshot records a bare version, even for an alias.
+            if not locked and not consumers:
+                continue
+            check_version(target, locked, target.version)
+            for consumer in consumers:
+                check_version(target, consumer, expected)
+        else:
+            check_version(target, locked, expected)
         if locked["specifier"] != specifier:
             changes.append(
                 {"path": (*target.lock_path, "specifier"), "value": specifier}
