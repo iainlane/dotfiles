@@ -20,8 +20,8 @@
     "@earendil-works/pi-tui": "1.6.1",
     "@types/node": "^24.19.2",
     "oxlint": "^1.89.0",
-    "oxlint-tsgolint": "^7.0.2004",
-    "syncpack": "^15.3.3",
+    "oxlint-tsgolint": "^7.0.2008",
+    "syncpack": "^15.3.4",
     "typescript": "^7.0.2"
   },
   "dependencies": {
