@@ -1,0 +1,55 @@
+name: Recalculate dependency hashes
+on:
+  push:
+    branches: [codex/validate-pr-399-405]
+permissions:
+  contents: read
+jobs:
+  hashes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c
+      - name: Recalculate and verify pnpm dependency hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/nix"
+          ./scripts/check-evaluation.bash --raw .#.nix.ciConfig >> "$HOME/.config/nix/nix.conf"
+          packages=(claude-api-frontend librechat-runtime pi-openai-context pi-planning pi-session-footer teamclaude-provision)
+          targets=()
+          for package in "${packages[@]}"; do
+            sed -i -E 's~(dependencyHash = ")[^"]+(";)~\1sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\2~' "pkgs/$package/package.nix"
+            targets+=(".#legacyPackages.x86_64-linux.localPackages.$package.pnpmDeps")
+          done
+          if nix build --keep-going --max-jobs 4 --no-link -L "${targets[@]}" > "$RUNNER_TEMP/hashes.log" 2>&1; then
+            echo "Expected the initial builds to report dependency hashes"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/hashes.log"
+          python3 - "$RUNNER_TEMP/hashes.log" "${packages[@]}" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          log = Path(sys.argv[1]).read_text()
+          for name in sys.argv[2:]:
+              match = re.search(
+                  rf"error: hash mismatch[^\n]*-{name}-pnpm-deps\.drv[^\n]*\n"
+                  r"[^\n]*specified:[^\n]*\n\s*got:\s*(sha256-\S+)",
+                  log,
+              )
+              if match is None:
+                  raise SystemExit(f"No dependency hash for {name}")
+              digest = match[1]
+              package = Path("pkgs") / name / "package.nix"
+              package.write_text(package.read_text().replace(
+                  "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", digest
+              ))
+              print(f"DOTFILES_HASH {name} {digest}")
+          PY
+          nix build --keep-going --max-jobs 4 --no-link "${targets[@]}"
+          nix build --no-link -L .#pi-session-footer

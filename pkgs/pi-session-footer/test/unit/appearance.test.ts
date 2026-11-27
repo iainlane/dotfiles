@@ -35,7 +35,7 @@ it.each([
   expect(parseSymbol(value, "symbol")).toStrictEqual(expected);
 });
 
-it.each([
+it.each<{ value: unknown; error: Error }>([
   {
     value: { text: "x", alias: "git" },
     error: new SymbolTextAndAliasError("symbol"),
