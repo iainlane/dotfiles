@@ -21,13 +21,13 @@ importers:
         version: 24.19.2
       oxlint:
         specifier: ^1.89.0
-        version: 1.94.0(oxlint-tsgolint@7.0.2007)
+        version: 1.94.0(oxlint-tsgolint@7.0.2009)
       oxlint-tsgolint:
-        specifier: ^7.0.2004
-        version: 7.0.2007
+        specifier: ^7.0.2008
+        version: 7.0.2009
       syncpack:
-        specifier: ^15.3.3
-        version: 15.3.3
+        specifier: ^15.3.4
+        version: 15.3.4
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -69,33 +69,33 @@ packages:
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
 
-  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
-    resolution: {integrity: sha512-bjNxPFyu1wNK74epHzXrtVLrj7oEuB8jQvJZDSia2d5EZ/0YgnyhI37E9U530IUZlNCqlTWjko1iT3CKAYF9+A==}
+  '@oxlint-tsgolint/darwin-arm64@7.0.2009':
+    resolution: {integrity: sha512-yPUFODKwEHNvSI54M6samyEAkjwe+Tt+MgPy5k6f2tojZ1YIEufwubkY7B8Ry2EJ3uOBGwO+lrHTfd3d3/LNeg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@oxlint-tsgolint/darwin-x64@7.0.2007':
-    resolution: {integrity: sha512-dCd7mzk2FeTaU46LLeXy5mQyEFICaPqlew/LpehNzEuL86D0jTYlwZHbibRqdRrvkSNgq1szz/7014FIHgyV1g==}
+  '@oxlint-tsgolint/darwin-x64@7.0.2009':
+    resolution: {integrity: sha512-D2LJsW2RaIcG3bi0qL3e1VMIx6xEM6xeYaoXBScOCdxsJNkaGTOMfGOgZcTlm8vk2HnsCU4DPS10MgV1PMhxAw==}
     cpu: [x64]
     os: [darwin]
 
-  '@oxlint-tsgolint/linux-arm64@7.0.2007':
-    resolution: {integrity: sha512-qb0XUQXuTmQ8H++zsx/tQitG0/fU3BE16KGp1qXExeDgRzEc7WIlCuN1i+rmA40lty9gQs+x3a73BFODVhTZqA==}
+  '@oxlint-tsgolint/linux-arm64@7.0.2009':
+    resolution: {integrity: sha512-8rKl7j0naU4pIU7+N5hk3S6TLqQLP46LLnNcj5x5P2eDEjL8CpBsWMmuEB/NdYKV3R8CQ/RZuO8dr8TXXvvLmg==}
     cpu: [arm64]
     os: [linux]
 
-  '@oxlint-tsgolint/linux-x64@7.0.2007':
-    resolution: {integrity: sha512-75vx0067HSgxq/HEZzlHwqhcujn3bshg43fVLTx604jZdZZMQfPVCcxTh2RTEShP7ACT1PRty6vboZlWh5RtEA==}
+  '@oxlint-tsgolint/linux-x64@7.0.2009':
+    resolution: {integrity: sha512-VHD84yifxfJuaDq51SHWxqBfZ7h2JJ1HCvk8nKTOBtWmkFeBBLgh29gHdHrZVitR39FO07mdSatne6VUyCATfQ==}
     cpu: [x64]
     os: [linux]
 
-  '@oxlint-tsgolint/win32-arm64@7.0.2007':
-    resolution: {integrity: sha512-6zl7I+BvScfOPtnPtSEP5JA+z8NkDPGd47YnQChL5lLF/Dzs7Rasr1G+q0zGlQcP8OEgW43hW4QlUTXxPfD13Q==}
+  '@oxlint-tsgolint/win32-arm64@7.0.2009':
+    resolution: {integrity: sha512-2P7oJtofm6NJZ62TaEB89sexWDom0kpExL6ILBKN+F1Vwwrog1vrobeNQqCBwMSZw0kN0Uvfb711xUVidLqv0Q==}
     cpu: [arm64]
     os: [win32]
 
-  '@oxlint-tsgolint/win32-x64@7.0.2007':
-    resolution: {integrity: sha512-VptFHYhBm0SIWCUkx89hmTrKVOQsDg0iB1YE3EBlvRRtCHGUd3pU1kMxPBg1wOd83ZMmIn7zB6maBROtpmrP5g==}
+  '@oxlint-tsgolint/win32-x64@7.0.2009':
+    resolution: {integrity: sha512-DoJefH72ocXA2URCd07or65X0bR0UV1nTaJd6zFL6g3rHW3t4Ob/hsvRFRAPT4N/ufrfGXkcXxOEWUTsh6U5yg==}
     cpu: [x64]
     os: [win32]
 
@@ -599,8 +599,8 @@ packages:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
 
-  oxlint-tsgolint@7.0.2007:
-    resolution: {integrity: sha512-i8X2qf6VVqFzoNVP34joMKuZpO6T2uXMOgKJaSPFc6p+E3FTnbIGPRbI8K4ZApmtDTMu2CIeGfpzeK1zzGwfnA==}
+  oxlint-tsgolint@7.0.2009:
+    resolution: {integrity: sha512-KlIxq6cR8+O71Q9iUyFbkFat98FPfKwXMUIYXl91sdD2Cb4vBCDzviB9Yafk9OyUmYMGpqiDegn+aaGwHYCiog==}
     hasBin: true
 
   oxlint@1.94.0:
@@ -639,48 +639,48 @@ packages:
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
 
-  syncpack-darwin-arm64@15.3.3:
-    resolution: {integrity: sha512-sFnHOUT7ZYShxAXfzK8zIxNvY5ciW6c71fHYOJIgZ8Ry25IMWkaGfyLc894wxIPaYTbgEmeeZN6BV7G5Gu27mA==}
+  syncpack-darwin-arm64@15.3.4:
+    resolution: {integrity: sha512-hkajipwYSSS6ngwfBOR5ei3ObZ0sE9Qb1VWpR/m+PF8s8OMUc0icxhCH8u5Ctz04vFBKh/vcPuKoiH3V2fff8w==}
     cpu: [arm64]
     os: [darwin]
 
-  syncpack-darwin-x64@15.3.3:
-    resolution: {integrity: sha512-gtWysFMwG3W8ieF8+aLMy1qVkehdy40hc02LGEjckmejZxtjDbTKE9vDhBAaXcLbqIsvQ1ImEymHU5N2I4llWQ==}
+  syncpack-darwin-x64@15.3.4:
+    resolution: {integrity: sha512-FrxMjCH5pFPQTGxYJkrONkiea+VFyv/WmBUAeYI7VZ+yE8RJQIE0DU7jz1x803+boksIbIjARiAes8E+p5v9LQ==}
     cpu: [x64]
     os: [darwin]
 
-  syncpack-linux-arm64-musl@15.3.3:
-    resolution: {integrity: sha512-mvj6TGhdwO5bHo1cM638esCx9+7ur0BA+RTdg+YiOD/CZJMP8iMj6ruF8htFNPEOKpAEOmfkOVKNs4yCbvkgyQ==}
+  syncpack-linux-arm64-musl@15.3.4:
+    resolution: {integrity: sha512-HswAwaVtFUw/DpC6cmZzN64/J538LWqypMekesTpTKjapMy53zHqe1j9mnx/0vSMePZUfvg588p8kOp9yQV+KQ==}
     cpu: [arm64]
     os: [linux]
 
-  syncpack-linux-arm64@15.3.3:
-    resolution: {integrity: sha512-6hlHPrG+V457fpKEURqshNLaFQENkC416IZ4ngFY+2uBjFsmlA7ax4p4EJlFsxuHiQbx/4Yo27pVXmNJEs/bZQ==}
+  syncpack-linux-arm64@15.3.4:
+    resolution: {integrity: sha512-dD7fevAPTb+LCtwJqxKO1E9P6cnty6XwGy0EllFAdporJgKwdJ25CJXNhlTC9A4wbjjk+FJHPrqo+0r0eLWB6A==}
     cpu: [arm64]
     os: [linux]
 
-  syncpack-linux-x64-musl@15.3.3:
-    resolution: {integrity: sha512-7KHIb9b9VCSyQq2GwoshVU9Pt/2qCqhOPusuwkXadI+p1qW7fK5FukjZbG0Y4VRa6mszrD2W28OxWAswwrn1lQ==}
+  syncpack-linux-x64-musl@15.3.4:
+    resolution: {integrity: sha512-E0lvelfYwCNtP8rGeq3Fj26NFS+MibjtUQSxsProUCCS7/9XV61Lo5ptx2zD2ux2rSpiBdLzPT5vGJ1mpj49bA==}
     cpu: [x64]
     os: [linux]
 
-  syncpack-linux-x64@15.3.3:
-    resolution: {integrity: sha512-DcnZPKFGEFoktzIrufGGwk2ARTEhlvII6yQsETCaO/Z1xagOjJquxiDvagKnb4GQsQQCuih2ouzQZFCiKImrXA==}
+  syncpack-linux-x64@15.3.4:
+    resolution: {integrity: sha512-Ep7jAeFwS5GUTzeb981ixsPiPoHjzKE6YBT0WriyfB21Tg2z1qaFHZrShAYALjOL31BMH8MCJHvZUAblwAt41Q==}
     cpu: [x64]
     os: [linux]
 
-  syncpack-windows-arm64@15.3.3:
-    resolution: {integrity: sha512-6pPWh3+uTO7g1FF8ugC+UqektaNXphdmDXqG3rWepFdCS+DrWj/7Gfbtlx/zISTdx//T7zoZZ2fvW4fzN/6ztQ==}
+  syncpack-windows-arm64@15.3.4:
+    resolution: {integrity: sha512-UcB72GOXMPogye2gswk/Z3cXuWvYZMLbaZpScLddUUvsmU5gNkJge6KUFCvhi5EO6DMT7DO2uq4Qf8JJXF0z2w==}
     cpu: [arm64]
     os: [win32]
 
-  syncpack-windows-x64@15.3.3:
-    resolution: {integrity: sha512-9CrrEzXE/MdWJuxyB7JvR1b6kiTNQPZh1dDJbWiRgtpNyCbEiddM1/viOsyaufftWDrQFV6RCGQzqCvWEas45g==}
+  syncpack-windows-x64@15.3.4:
+    resolution: {integrity: sha512-nqSEAPNPMNrnQKkJXRIxLBUZkj0Uc6m9HwEuHP7mC2crlD1uxxN6ovMRTxRYPc4MOUlLGz0jKsgIVF8svK4UTw==}
     cpu: [x64]
     os: [win32]
 
-  syncpack@15.3.3:
-    resolution: {integrity: sha512-MC99meBhgc/E5xbB5mFUS99wj4bquTbKLKHLXYh3qPbmPZl2HD8KA4ls29a9Xv67oZ03isCaJaqSl+JIfXIfpA==}
+  syncpack@15.3.4:
+    resolution: {integrity: sha512-QbCyCAscOKrp1wmF1zqA1jEgsGiPNjogMVn/S5wRC9Jtvljkeq2kebWtvgzAIRl48ukEzE88uCHF0NwnNq6o/w==}
     engines: {node: '>=14.17.0'}
     hasBin: true
 
@@ -835,22 +835,22 @@ snapshots:
 
   '@oxc-project/types@0.156.0': {}
 
-  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+  '@oxlint-tsgolint/darwin-arm64@7.0.2009':
     optional: true
 
-  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+  '@oxlint-tsgolint/darwin-x64@7.0.2009':
     optional: true
 
-  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+  '@oxlint-tsgolint/linux-arm64@7.0.2009':
     optional: true
 
-  '@oxlint-tsgolint/linux-x64@7.0.2007':
+  '@oxlint-tsgolint/linux-x64@7.0.2009':
     optional: true
 
-  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+  '@oxlint-tsgolint/win32-arm64@7.0.2009':
     optional: true
 
-  '@oxlint-tsgolint/win32-x64@7.0.2007':
+  '@oxlint-tsgolint/win32-x64@7.0.2009':
     optional: true
 
   '@oxlint/binding-android-arm-eabi@1.94.0':
@@ -1133,16 +1133,16 @@ snapshots:
 
   obug@3.0.0: {}
 
-  oxlint-tsgolint@7.0.2007:
+  oxlint-tsgolint@7.0.2009:
     optionalDependencies:
-      '@oxlint-tsgolint/darwin-arm64': 7.0.2007
-      '@oxlint-tsgolint/darwin-x64': 7.0.2007
-      '@oxlint-tsgolint/linux-arm64': 7.0.2007
-      '@oxlint-tsgolint/linux-x64': 7.0.2007
-      '@oxlint-tsgolint/win32-arm64': 7.0.2007
-      '@oxlint-tsgolint/win32-x64': 7.0.2007
+      '@oxlint-tsgolint/darwin-arm64': 7.0.2009
+      '@oxlint-tsgolint/darwin-x64': 7.0.2009
+      '@oxlint-tsgolint/linux-arm64': 7.0.2009
+      '@oxlint-tsgolint/linux-x64': 7.0.2009
+      '@oxlint-tsgolint/win32-arm64': 7.0.2009
+      '@oxlint-tsgolint/win32-x64': 7.0.2009
 
-  oxlint@1.94.0(oxlint-tsgolint@7.0.2007):
+  oxlint@1.94.0(oxlint-tsgolint@7.0.2009):
     optionalDependencies:
       '@oxlint/binding-android-arm-eabi': 1.94.0
       '@oxlint/binding-android-arm64': 1.94.0
@@ -1163,7 +1163,7 @@ snapshots:
       '@oxlint/binding-win32-arm64-msvc': 1.94.0
       '@oxlint/binding-win32-ia32-msvc': 1.94.0
       '@oxlint/binding-win32-x64-msvc': 1.94.0
-      oxlint-tsgolint: 7.0.2007
+      oxlint-tsgolint: 7.0.2009
 
   picocolors@1.1.1: {}
 
@@ -1201,40 +1201,40 @@ snapshots:
 
   std-env@4.3.0: {}
 
-  syncpack-darwin-arm64@15.3.3:
+  syncpack-darwin-arm64@15.3.4:
     optional: true
 
-  syncpack-darwin-x64@15.3.3:
+  syncpack-darwin-x64@15.3.4:
     optional: true
 
-  syncpack-linux-arm64-musl@15.3.3:
+  syncpack-linux-arm64-musl@15.3.4:
     optional: true
 
-  syncpack-linux-arm64@15.3.3:
+  syncpack-linux-arm64@15.3.4:
     optional: true
 
-  syncpack-linux-x64-musl@15.3.3:
+  syncpack-linux-x64-musl@15.3.4:
     optional: true
 
-  syncpack-linux-x64@15.3.3:
+  syncpack-linux-x64@15.3.4:
     optional: true
 
-  syncpack-windows-arm64@15.3.3:
+  syncpack-windows-arm64@15.3.4:
     optional: true
 
-  syncpack-windows-x64@15.3.3:
+  syncpack-windows-x64@15.3.4:
     optional: true
 
-  syncpack@15.3.3:
+  syncpack@15.3.4:
     optionalDependencies:
-      syncpack-darwin-arm64: 15.3.3
-      syncpack-darwin-x64: 15.3.3
-      syncpack-linux-arm64: 15.3.3
-      syncpack-linux-arm64-musl: 15.3.3
-      syncpack-linux-x64: 15.3.3
-      syncpack-linux-x64-musl: 15.3.3
-      syncpack-windows-arm64: 15.3.3
-      syncpack-windows-x64: 15.3.3
+      syncpack-darwin-arm64: 15.3.4
+      syncpack-darwin-x64: 15.3.4
+      syncpack-linux-arm64: 15.3.4
+      syncpack-linux-arm64-musl: 15.3.4
+      syncpack-linux-x64: 15.3.4
+      syncpack-linux-x64-musl: 15.3.4
+      syncpack-windows-arm64: 15.3.4
+      syncpack-windows-x64: 15.3.4
 
   tinybench@6.2.3: {}
 
