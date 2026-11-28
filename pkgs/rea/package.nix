@@ -17,17 +17,17 @@
 }:
 buildNpmPackage (finalAttrs: {
   pname = "rea";
-  version = "6.9.0";
+  version = "6.10.1";
   __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "morluto";
     repo = "rea";
-    rev = "rea-agents-6.9.0";
-    hash = "sha256-n96fXl7OKRIlQ/nKGBDjN8kT4RIr2atgrQAU379lsoQ=";
+    rev = "rea-agents-6.10.1";
+    hash = "sha256-2ulhZ2GXe1xOHKLNuJo9mTivy4OTiWP9VLHEXnpn5YI=";
   };
 
-  patches = [./external-tools.patch ./ghidra-version-policy.patch];
+  patches = [./external-tools.patch];
 
   # Starting the packaged JVM can exceed five seconds on a cold runner.
   postPatch = ''
@@ -36,7 +36,7 @@ buildNpmPackage (finalAttrs: {
       --replace-fail 'timeoutMs: options.timeoutMs ?? 5000' 'timeoutMs: options.timeoutMs ?? 30_000'
   '';
 
-  npmDepsHash = "sha256-xFNYn2vxfk8unZyJQ3YWOO3fFb3iJVU6Alav0A+TiSI=";
+  npmDepsHash = "sha256-cXQSwTmmu0sDcnFjpmdmaj01PU6gB0UZ+kp0T8EHKH4=";
   npmDeps = fetchNpmDeps {
     name = "${finalAttrs.pname}-${finalAttrs.version}-npm-deps";
     inherit (finalAttrs) src;
