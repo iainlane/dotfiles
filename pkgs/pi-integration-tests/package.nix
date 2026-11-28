@@ -6,5 +6,5 @@
   pname = "pi-integration-tests";
   directory = ./.;
   pnpm = pnpm_10;
-  dependencyHash = "sha256-V0nfxyAj4QFAzVFbDneFUQyrw7mP9IPPNgy2PK4vDcU=";
+  dependencyHash = "sha256-353xinb/ws8/YQkztEA6rD8OtPLpLI1tWdqX2X/eRsI=";
 }
