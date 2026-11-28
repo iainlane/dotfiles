@@ -16,7 +16,7 @@
   gh,
   python3,
 }: let
-  version = "0.47.0";
+  version = "0.49.0";
   php = php84.buildEnv {
     extensions = {
       enabled,
@@ -33,15 +33,15 @@
     src = fetchFromGitHub {
       owner = "usetrmnl";
       repo = "larapaper";
-      rev = "9a04039d4676bc0c8ba92288f776b46dae6b5bd1";
-      hash = "sha256-Y/FPOEFvd/2lxrwtOJoCjsgt4nMeX8r4ZkP9eMFWjwM=";
+      rev = "2347971ffb75a58aeca3eb01a04c55511b0b2276";
+      hash = "sha256-pXZDvEm5eh47pWLh9QEdD+T4/KcCyYZBKthgpuXmCRE=";
     };
     patches = [./recipe-chart-assets.patch];
   };
   composerVendor = php.mkComposerVendor {
     pname = "larapaper";
     inherit version src;
-    vendorHash = "sha256-2faVFXQserQoNAQcwZQfn8WrvoQXK2APbJVpckWTKYE=";
+    vendorHash = "sha256-Inr0XQWsCDesHqsCnWtenycpbkxCcTdOahKNgpY2XYk=";
     postBuild = ''
       find vendor -type d -name .git -prune -exec rm -rf {} +
     '';
@@ -50,7 +50,7 @@
     pname = "larapaper-frontend";
     inherit version src;
     nodejs = nodejs_24;
-    npmDepsHash = "sha256-09O433OvGtBWZiskyWXrYkc+l+thLKknUPoYSwo9gJY=";
+    npmDepsHash = "sha256-8xsz99hhTKYvdG7XJsT7Hlrs5xmhwwfAluS9uJ1SSqA=";
     env.PUPPETEER_SKIP_DOWNLOAD = "true";
     nativeBuildInputs = lib.optionals stdenv.hostPlatform.isLinux [autoPatchelfHook];
     buildInputs = lib.optionals stdenv.hostPlatform.isLinux [stdenv.cc.cc.lib];

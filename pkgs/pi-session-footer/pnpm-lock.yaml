@@ -10,17 +10,17 @@ overrides:
   pi-prs>@earendil-works/pi-tui: '-'
   '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz
   '@mariozechner/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz
-  '@juicesharp/rpiv-btw': file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
+  '@juicesharp/rpiv-btw': file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz
   '@marckrenn/pi-sub-core': file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
-  pi-prs: file:.nix-providers/pi-prs-0.6.0.tgz
+  pi-prs: file:.nix-providers/pi-prs-0.7.1.tgz
 
 importers:
 
   .:
     dependencies:
       pi-prs:
-        specifier: file:.nix-providers/pi-prs-0.6.0.tgz
-        version: file:.nix-providers/pi-prs-0.6.0.tgz
+        specifier: file:.nix-providers/pi-prs-0.7.1.tgz
+        version: file:.nix-providers/pi-prs-0.7.1.tgz
     devDependencies:
       '@earendil-works/pi-agent-core':
         specifier: 1.7.0
@@ -38,8 +38,8 @@ importers:
         specifier: ^0.15.0
         version: 0.15.0
       '@juicesharp/rpiv-btw':
-        specifier: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz
-        version: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27)
+        specifier: file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz
+        version: file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27)
       '@marckrenn/pi-sub-core':
         specifier: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz
         version: file:.nix-providers/marckrenn-pi-sub-core-1.5.0.tgz(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))
@@ -281,9 +281,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz':
-    resolution: {integrity: sha512-ta738gkuNZRtB8l3o9VLSfb8NTRo5vPIoP9gtiTm1/NIyyh1T8VWJK8pilpLHerWQQYyBtBYQFSfnmqrElnX/g==, tarball: file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz}
-    version: 2.15.0
+  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz':
+    resolution: {integrity: sha512-3FIt5A7oTOx4bhtc7IGFl0rtl3Pskh6WNWROGFl0quu+vj2kqagEoljGi26f1th2KO9MiJHewzpXGWG07ncong==, tarball: file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz}
+    version: 2.16.0
     peerDependencies:
       '@earendil-works/pi-ai': ^1.4.0
       '@earendil-works/pi-coding-agent': ^1.4.0
@@ -1246,9 +1246,9 @@ packages:
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
-  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
-    resolution: {integrity: sha512-SF5Qac1Yd54YBgkRVFcxc+LqcWvJcd/BL7WlmT3tNQdlpEmmiCbDDdSsOt90CWZrQIUCSU9A6m92YgcgixK1Vg==, tarball: file:.nix-providers/pi-prs-0.6.0.tgz}
-    version: 0.6.0
+  pi-prs@file:.nix-providers/pi-prs-0.7.1.tgz:
+    resolution: {integrity: sha512-+478WuQWJN6f4p/uL3LTQRiVZ9vyfpvOLCz+Blaa0ycyvw9wuNpUR4KCY+icAduBv2CwdrUwcXea/XGNY0Hryg==, tarball: file:.nix-providers/pi-prs-0.7.1.tgz}
+    version: 0.7.1
     engines: {node: '>=24.0.0'}
 
   picocolors@1.1.1:
@@ -1961,7 +1961,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.3
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.15.0.tgz(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27)':
+  '@juicesharp/rpiv-btw@file:.nix-providers/juicesharp-rpiv-btw-2.16.0.tgz(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27)':
     dependencies:
       '@earendil-works/pi-ai': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
       '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)
@@ -2681,7 +2681,7 @@ snapshots:
 
   path-to-regexp@6.3.0: {}
 
-  pi-prs@file:.nix-providers/pi-prs-0.6.0.tgz:
+  pi-prs@file:.nix-providers/pi-prs-0.7.1.tgz:
     dependencies:
       turndown: 7.2.5
       turndown-plugin-gfm: 1.0.2

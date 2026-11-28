@@ -5,15 +5,15 @@
   updaters,
   lib,
 }: let
-  version = "0.65.0";
+  version = "0.66.0";
 in
   assert lib.assertMsg (lib.versionOlder upstreamPackage.version version) "nixpkgs now provides Melange ${upstreamPackage.version}. Review whether the local version override is still needed.";
     (upstreamPackage.override {
       buildGoModule = buildGoLatestModule;
     }).overrideAttrs (_finalAttrs: prevAttrs: {
       inherit version;
-      src = prevAttrs.src.overrideAttrs {outputHash = "sha256-3egTGgi64FwYo+G1sZxdxO1hRDsG8pvNI0wr5IWmFUw=";};
-      vendorHash = "sha256-oBc0PQyw8Fk5sQwzNErJmLpGS7a/NXMxRw3fomiwsVg=";
+      src = prevAttrs.src.overrideAttrs {outputHash = "sha256-f4C037cdEdpc9SX2ZpczpErdfgmcOSd0Vf6zr7nqtfw=";};
+      vendorHash = "sha256-sz72TwdkTiMl5LOusXTgSd6UV+cheNt/6CSVy4lyOQs=";
 
       passthru =
         (prevAttrs.passthru or {})
