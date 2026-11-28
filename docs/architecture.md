@@ -419,9 +419,10 @@ Renovate bumps registry dependencies. The dependency update workflow runs the
 package updaters, which relock a package after a local provider changes, and
 once a week it also maintains the pnpm lockfiles. The two open separate
 branches, so a Renovate branch and the dependency update branch can both
-relock the same package. Both change its pnpm-lock.yaml and its dependency hash, and the
-branch that merges second then conflicts. Renovate rebases its branch and runs
-the updater again. The workflow recreates its branch from main on its next run.
+relock the same package. Both change its pnpm-lock.yaml and its dependency hash,
+so the branch that merges second can conflict. Renovate rebases its branch and
+runs the updater again. The workflow recreates its branch from main on its next
+run.
 
 [renovate-workflow]:
   https://github.com/underwhelmingperformance/.github/blob/main/.github/workflows/renovate.yml
