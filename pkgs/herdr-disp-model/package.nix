@@ -1,7 +1,6 @@
 {
   fetchFromGitHub,
   lib,
-  nix-update,
   python3,
   stdenvNoCC,
   updaters,
@@ -78,7 +77,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     updateScript = updaters.mkScriptUpdater {
       pname = "herdr-disp-model";
       script = ./update.bash;
-      extraRuntimeInputs = [nix-update];
+      extraRuntimeInputs = [updaters.nix-update];
     };
     tests.updater = updaters.mkScriptUpdaterTest {
       pname = "herdr-disp-model";

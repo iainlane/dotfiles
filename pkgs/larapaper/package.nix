@@ -15,7 +15,6 @@
   updaters,
   gh,
   python3,
-  nix-update,
 }: let
   version = "0.47.0";
   php = php84.buildEnv {
@@ -73,7 +72,7 @@
     refreshInputs = ["nixpkgs" "nixpkgs-stable"];
     pname = "larapaper";
     script = ./update.bash;
-    extraRuntimeInputs = [gh python3 nix-update];
+    extraRuntimeInputs = [gh python3 updaters.nix-update];
   };
 in
   php.buildComposerProject2 {

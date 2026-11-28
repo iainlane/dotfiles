@@ -7,7 +7,6 @@
   gitMinimal,
   importNpmLock,
   lib,
-  nix-update,
   nodejs,
   stdenv,
   updaters,
@@ -70,7 +69,7 @@ in
       updateScript = updaters.mkScriptUpdater {
         pname = "pi-diff";
         script = ./update.bash;
-        extraRuntimeInputs = [nix-update nodejs];
+        extraRuntimeInputs = [updaters.nix-update nodejs];
         refreshInputs = ["llm-agents" "nixpkgs"];
       };
       tests.updater = updaters.mkScriptUpdaterTest {
