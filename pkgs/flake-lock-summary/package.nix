@@ -1,4 +1,4 @@
-# Summarises flake input changes for the automated flake-update pull request.
+# Summarises flake input changes for the automated dependency update pull request.
 {
   bash,
   jq,

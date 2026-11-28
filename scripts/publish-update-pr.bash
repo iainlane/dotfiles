@@ -1,21 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-workflow=$1
-case "${workflow}" in
-flake-update)
-	title='chore(flake): update inputs'
-	intro="Automated relock of the flake inputs from the scheduled \`flake-update\` workflow (\`nix flake update\`)."
-	;;
-package-update)
-	title='chore(pkgs): update packages'
-	intro="Automated package bumps from the scheduled \`package-update\` workflow."
-	;;
-*)
-	printf 'Unknown update workflow: %s\n' "${workflow}" >&2
-	exit 2
-	;;
-esac
+workflow=dependency-update
+title='chore(deps): update flake inputs and packages'
+intro="Automated flake input and package updates from the \`dependency-update\` workflow."
 
 if git diff --cached --quiet; then
 	echo 'No changes to propose.'
@@ -25,14 +13,15 @@ fi
 report="${RUNNER_TEMP}/update-report.md"
 body="${RUNNER_TEMP}/body.md"
 run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
-if [[ "${workflow}" == flake-update ]]; then
-	summary="$("${RUNNER_TEMP}/flake-lock-summary/bin/flake-lock-summary" <(git show HEAD:flake.lock) flake.lock)"
+summary=''
+if ! git diff --cached --quiet -- flake.lock; then
+	summary="$("${RUNNER_TEMP}/flake-lock-summary/bin/flake-lock-summary" <(git show HEAD:flake.lock) <(git show :flake.lock))"
 fi
 
 {
 	printf '%s\n\n' "${intro}"
 	{
-		if [[ "${workflow}" == flake-update ]]; then
+		if [[ -n "${summary}" ]]; then
 			printf 'Updated inputs:\n\n%s\n\n' "${summary}"
 		fi
 		awk '!/^  > /' "${report}"

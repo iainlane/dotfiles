@@ -1,24 +1,15 @@
-# Bump the locally packaged tools and the selected flake inputs, gathering
-# every bump from one run into a single pull request. Each updater is
-# `nix run .#update-<name>`, defined in `pkgs/build-support/updaters.nix` and
-# exported by `flake/updaters/outputs.nix`. The updaters run in the order that
-# `update-plan order` prints. The Tuesday run also passes `--maintain-lockfiles`,
-# so the updaters of the pnpm packages and the Pi extensions move every locked
-# dependency to the newest version that its range allows.
+# Relock flake inputs, refresh their dependents and then bump local packages
+# on the same checkout. The update runner stages the accepted changes as one
+# candidate. The Tuesday run also maintains dependency lockfiles.
 #
-# `flake-update.yml` handles the mutable inputs that `nix flake update` can move
-# on its own; this workflow updates the `pkgs/` packages, release-tag inputs
-# and the Hermes integration branch.
-#
-# As with `flake-update.yml`, a PR opened with the default `GITHUB_TOKEN` does
-# not trigger other workflows. Set a `FLAKE_UPDATE_TOKEN` secret to have the PR
-# run CI like any other.
-name: package update
+# A PR opened with the default `GITHUB_TOKEN` needs a maintainer's approval
+# to start CI. A `FLAKE_UPDATE_TOKEN` secret lets the PR start CI automatically.
+name: dependency update
 
 on:
   schedule:
-    - cron: "20 4 * * 2" # Tuesdays, 04:20 UTC
-    - cron: "20 4 * * 4" # Thursdays, 04:20 UTC
+    - cron: "0 5 * * 0,1,3,4,5,6" # 05:00 UTC, except Tuesday
+    - cron: "0 5 * * 2" # Tuesdays, 05:00 UTC, with lockfile maintenance
   workflow_dispatch:
     inputs:
       maintain-lockfiles:
@@ -30,16 +21,16 @@ on:
 permissions: {}
 
 concurrency:
-  group: package-update
-  cancel-in-progress: true
+  group: dependency-update
+  cancel-in-progress: false
 
 jobs:
   update:
-    name: Update packages
+    name: Update inputs and packages
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: write # push the package-update branch with the bumps
-      pull-requests: write # open or refresh the package-update pull request
+      contents: write # push the dependency-update branch with the bumps
+      pull-requests: write # open the candidate and retire the previous one
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,8 +51,7 @@ jobs:
 
       # The `secrets` input lives in the private dotfiles-secrets repo, reachable
       # only over SSH. Configure the read-only deploy key, the same one that the
-      # cupboard and flake-update workflows use, so evaluating the flake (and any
-      # re-lock by an updater) can read it.
+      # Cupboard uses, so evaluating and relocking the flake can read it.
       - name: Set up secrets access
         env:
           DEPLOY_KEY: ${{ secrets.SECRETS_DEPLOY_KEY }}
@@ -73,19 +63,24 @@ jobs:
           printf '%s\n' "${DEPLOY_KEY}" > "${key}"
           echo "GIT_SSH_COMMAND=ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" >> "${GITHUB_ENV}"
 
-      - name: Run transactional package updates
+      - name: Build the flake lock summariser
+        run: |
+          set -euo pipefail
+          nix build .#flake-lock-summary --out-link "${RUNNER_TEMP}/flake-lock-summary"
+
+      - name: Run transactional dependency updates
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           MAINTAIN_LOCKFILES:
-            ${{ github.event.schedule == '20 4 * * 2' ||
+            ${{ github.event.schedule == '0 5 * * 2' ||
             inputs.maintain-lockfiles }}
         run: |
           set -euo pipefail
           nix build .#update-runner --out-link "${RUNNER_TEMP}/update-runner"
           runner="${RUNNER_TEMP}/update-runner/bin/update-runner"
           report="${RUNNER_TEMP}/update-report.md"
-          arguments=(packages --stage)
+          arguments=(combined --stage)
           if [[ "${MAINTAIN_LOCKFILES:-}" == true ]]; then
             arguments+=(--maintain-lockfiles)
           fi
@@ -97,4 +92,4 @@ jobs:
       - name: Publish the update pull request
         env:
           GH_TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
-        run: exec bash scripts/publish-update-pr.bash package-update
+        run: exec bash scripts/publish-update-pr.bash

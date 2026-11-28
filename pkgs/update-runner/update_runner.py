@@ -551,15 +551,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--system", required=True)
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ["package", "packages", "inputs"]:
+    for command in ["package", "packages", "inputs", "combined"]:
         subparser = commands.add_parser(command)
         subparser.add_argument("--stage", action="store_true")
         if command == "package":
             subparser.add_argument("name")
             subparser.add_argument("arguments", nargs=argparse.REMAINDER)
-        if command == "packages":
+        if command in {"packages", "combined"}:
             modes = subparser.add_mutually_exclusive_group()
-            modes.add_argument("--refresh", action="store_true")
+            if command == "packages":
+                modes.add_argument("--refresh", action="store_true")
             modes.add_argument("--maintain-lockfiles", action="store_true")
         if command == "inputs":
             subparser.add_argument("names", nargs="*")
@@ -575,8 +576,10 @@ def main() -> int:
         refresh_names = [
             name for name, operation in metadata.items() if operation["refresh"]
         ]
-        if arguments.command == "inputs":
-            selected = refresh_names
+        if arguments.command in {"inputs", "combined"}:
+            selected = (
+                refresh_names if arguments.command == "inputs" else list(metadata)
+            )
             scopes = ["flake.lock", "flake.nix"]
         elif arguments.command == "package" and metadata[arguments.name]["input"]:
             selected = [arguments.name, *refresh_names]
@@ -597,11 +600,15 @@ def main() -> int:
                 if notice.message:
                     print(f"{notice.name}: {notice.message}")
             return 1 if result.status else 0
-        if arguments.command == "inputs":
+        if arguments.command in {"inputs", "combined"}:
             lock = json.loads((root / "flake.lock").read_text())
-            runner.update_inputs(input_groups(lock, arguments.names))
-        else:
-            runner.packages(arguments.refresh, arguments.maintain_lockfiles)
+            names = arguments.names if arguments.command == "inputs" else []
+            runner.update_inputs(input_groups(lock, names))
+        if arguments.command in {"packages", "combined"}:
+            runner.packages(
+                arguments.command == "packages" and arguments.refresh,
+                arguments.maintain_lockfiles,
+            )
         sys.stdout.write(render(runner.outcomes))
         return int(any(result.status for result in runner.outcomes))
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:

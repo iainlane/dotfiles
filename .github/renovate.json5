@@ -68,7 +68,7 @@
     },
 
     // Renovate's lock-file maintenance changes files only through the relock
-    // that `skipArtifactsUpdate` turns off. The package-update workflow
+    // that `skipArtifactsUpdate` turns off. The dependency-update workflow
     // maintains the pnpm lockfiles instead.
     {
       matchManagers: ["npm"],
