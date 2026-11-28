@@ -282,6 +282,12 @@ type CodexFilesystemPermission = (
 )
 
 
+class CodexCredentialPermissions(
+    msgspec.Struct, frozen=True, forbid_unknown_fields=True
+):
+    """The empty credential policy allowed for an isolated judge."""
+
+
 class CodexPermissionProfile(msgspec.Struct, frozen=True, forbid_unknown_fields=True):
     """Isolation-sensitive fields of the selected judge permission profile."""
 
@@ -290,6 +296,11 @@ class CodexPermissionProfile(msgspec.Struct, frozen=True, forbid_unknown_fields=
     description: str | None = None
     extends: str | None = None
     workspace_roots: dict[str, bool] | None = None
+    credentials: CodexCredentialPermissions | None = None
+
+    def __post_init__(self) -> None:
+        if self.credentials is not None:
+            msgspec.structs.force_setattr(self, "credentials", None)
 
 
 class CodexPromptIsolation(msgspec.Struct, frozen=True):

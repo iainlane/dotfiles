@@ -6,7 +6,7 @@ settings:
   injectWorkspacePackages: true
 
 overrides:
-  '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz
+  '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz
 
 importers:
 
@@ -17,17 +17,17 @@ importers:
         version: 6.0.5
     devDependencies:
       '@earendil-works/pi-agent-core':
-        specifier: 1.6.1
-        version: 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+        specifier: 1.7.0
+        version: 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
       '@earendil-works/pi-ai':
-        specifier: 1.6.1
-        version: 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+        specifier: 1.7.0
+        version: 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
       '@earendil-works/pi-coding-agent':
-        specifier: file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz
-        version: file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)
+        specifier: file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz
+        version: file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)
       '@earendil-works/pi-tui':
-        specifier: 1.6.1
-        version: 1.6.1
+        specifier: 1.7.0
+        version: 1.7.0
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
@@ -38,8 +38,8 @@ importers:
         specifier: ^7.0.2008
         version: 7.0.2009
       pi-subagents:
-        specifier: file:.nix-providers/pi-subagents-0.85.0.tgz
-        version: file:.nix-providers/pi-subagents-0.85.0.tgz(@earendil-works/pi-agent-core@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-ai@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.6.1)(typebox@1.3.27)
+        specifier: file:.nix-providers/pi-subagents-0.90.0.tgz
+        version: file:.nix-providers/pi-subagents-0.90.0.tgz(@earendil-works/pi-agent-core@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27)
       syncpack:
         specifier: ^15.3.4
         version: 15.3.4
@@ -155,39 +155,39 @@ packages:
     resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
     engines: {node: '>=6.9.0'}
 
-  '@earendil-works/pi-agent-core@1.6.1':
-    resolution: {integrity: sha512-1pkZKTaO1sSY0xVw/W45ULLQRg0rOOt6oJdeTG06upAeIq1UGHA0o+MR9UN6efPi7yW48uVinlFId7fwQilxvg==}
+  '@earendil-works/pi-agent-core@1.7.0':
+    resolution: {integrity: sha512-pLs/wTAcrUnKDILPHjnd7RiDZSotAhJ965LwVc8x37TeWF+k+vKPMmAW6Z1T8XMQuICbIYusjkT7K0lmjgQwrg==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-ai@1.6.1':
-    resolution: {integrity: sha512-EyorgVyA2s4MxNl7YOapzOpdxrc8HUgxHEIOo8QRMK35P7PCOsSiWzMLf6ixKl3/obkg7I3wGJWHq+FdbUz43g==}
-    engines: {node: '>=22.19.0'}
-    hasBin: true
-
-  '@earendil-works/pi-codemode@1.6.1':
-    resolution: {integrity: sha512-xogcFe38Ek/9cabCz6sP52FjUKtuNDwLmqeM1aQiwOF5rg7jZ//FRpnMeYyhvRyod2UYhhf/ojfg6rRdXi0peQ==}
-    engines: {node: '>=22.19.0'}
-
-  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz':
-    resolution: {integrity: sha512-LsnXp5VftyPkbLtF0gdD9kP+E/RcLfjw0eS2lkDZGF4u8OS39XlkR8XY3mJ0jKTU3tZkr5YwR81ZwujM2s81/w==, tarball: file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz}
-    version: 1.6.1
+  '@earendil-works/pi-ai@1.7.0':
+    resolution: {integrity: sha512-iKryMlUYniwWbU7YU0uS7W0+cGd9c6oJ6PzRLOn8j4+1njG4c+BQq1cNawctx/npDqGeOx8ME7Gkgl6K6arPuw==}
     engines: {node: '>=22.19.0'}
     hasBin: true
 
-  '@earendil-works/pi-mcp@1.6.1':
-    resolution: {integrity: sha512-qGdAuqMsXjvOURevlc5alxPO1tRthTumFiSHU+QtNfCQpFIEMaec3RZC3mdjqLxRTKHjPBkJXzYPBGdB8bf1Zg==}
+  '@earendil-works/pi-codemode@1.7.0':
+    resolution: {integrity: sha512-fhCoh8TLxhdRTOWSEplwp39Uv+JTsu9pCqtgu9gorO8zcaw92vsbVI/G89yFs92csTo2+yB7EsJq/+725Vj+eA==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-schema@1.6.1':
-    resolution: {integrity: sha512-Q/6W4IiDdIQUochCuvXFpglTByNTFTuMYvMqXjcRiOnxOl/3mQYLAZpZTpBSRWiS4WgeV7NyH/8dQp6ipYZeNg==}
+  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz':
+    resolution: {integrity: sha512-131q7HCX0PgeRnYoc9c9b3B1NHncGqpjovud2G1glZpfNdDgd6ThaN+RYKO4PgEJ5Cn9qeVorfzLOlLG7uSdRg==, tarball: file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz}
+    version: 1.7.0
+    engines: {node: '>=22.19.0'}
+    hasBin: true
+
+  '@earendil-works/pi-mcp@1.7.0':
+    resolution: {integrity: sha512-ScsDjuFXjT9eKioD5oyZqofDXtaWCMhCBa+1aDSh7WmRACLsohfGQJtAX1rv5OmEbaerrRPgyD5jgwJFBjTFNw==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-telemetry@1.6.1':
-    resolution: {integrity: sha512-3gyjVQlVrPwEq7ZCea8++prMwUkuNXM3v/mzTJ9knJAhqrYLxSVAjYzA1iC3KLq8ismmSQIcnFp++qTwQwNToA==}
+  '@earendil-works/pi-schema@1.7.0':
+    resolution: {integrity: sha512-skji4McLg9jum3NFWzFa/4QRGEZhMGnSi3QL8b9VljJkc/QopH2/BFuGKI+VcEwYzKGwsd0I8RzvXGnZGfGltQ==}
     engines: {node: '>=22.19.0'}
 
-  '@earendil-works/pi-tui@1.6.1':
-    resolution: {integrity: sha512-6WQPbhuoQKCIiu5Jp4S/cFdeqdm4SbAXlgCytsY/4ycR1sqHY4nB8xPTfGUucn61hVnN7hkOzI1CWNmE8UDQ3A==}
+  '@earendil-works/pi-telemetry@1.7.0':
+    resolution: {integrity: sha512-QZkngqktohuFZ2TZuJSXDuUntld4sCMW1tkUPaD4moMEX/z1lwcjycXnd9ChO9HNxm/Jfo+UTiC+N2hkAF9b0w==}
+    engines: {node: '>=22.19.0'}
+
+  '@earendil-works/pi-tui@1.7.0':
+    resolution: {integrity: sha512-C6vkUYGTeDdl/cMIbFOabSEPMRy9HuaUV76PS2BhvSmWifO5y8Rz8/LgFWqGIIFS7RMqu0gdeEpdXfH8jIp05g==}
     engines: {node: '>=22.19.0'}
 
   '@emnapi/core@2.0.0-beta.2':
@@ -1063,9 +1063,9 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
-  pi-subagents@file:.nix-providers/pi-subagents-0.85.0.tgz:
-    resolution: {integrity: sha512-Xw+L3Bi2S6pTO7R37/DHKTELMRq/dWwcj9NgfVZpjW6QEtinHSV7m7AHS5Y+efSdX0wmtIO3bVwqurGZIg740Q==, tarball: file:.nix-providers/pi-subagents-0.85.0.tgz}
-    version: 0.85.0
+  pi-subagents@file:.nix-providers/pi-subagents-0.90.0.tgz:
+    resolution: {integrity: sha512-G8+Ya0mQRTz/GBt3lA4E2VF6TTUBZouBqquqwsJbu4ATd9HPyGoWIL8fwnteGZrcRZiShT8COuRkgg9Ai9GmMw==, tarball: file:.nix-providers/pi-subagents-0.90.0.tgz}
+    version: 0.90.0
     hasBin: true
     peerDependencies:
       '@earendil-works/pi-agent-core': '*'
@@ -1234,10 +1234,6 @@ packages:
 
   undici-types@7.24.6:
     resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
-
-  undici@8.12.3:
-    resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
-    engines: {node: '>=22.19.0'}
 
   undici@8.12.4:
     resolution: {integrity: sha512-8Mx+uNKKER2bA4AdtedkqRbwUCIJFr2nJckXRe5yrDqzePqwLP7VNcctN8/XdmDSbF7mS+jJKIszlL+vbam1VA==}
@@ -1568,10 +1564,10 @@ snapshots:
 
   '@babel/runtime@7.29.14': {}
 
-  '@earendil-works/pi-agent-core@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)':
+  '@earendil-works/pi-agent-core@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)':
     dependencies:
-      '@earendil-works/pi-ai': 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
-      '@earendil-works/pi-schema': 1.6.1
+      '@earendil-works/pi-ai': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+      '@earendil-works/pi-schema': 1.7.0
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - '@smithy/hash-node'
@@ -1585,13 +1581,13 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)':
+  '@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@aws-sdk/credential-provider-node': 3.972.82
-      '@earendil-works/pi-schema': 1.6.1
-      '@earendil-works/pi-telemetry': 1.6.1
+      '@earendil-works/pi-schema': 1.7.0
+      '@earendil-works/pi-telemetry': 1.7.0
       '@google/genai': 3.6.1
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0
@@ -1611,17 +1607,17 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-codemode@1.6.1':
+  '@earendil-works/pi-codemode@1.7.0':
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)':
+  '@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
-      '@earendil-works/pi-ai': 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
-      '@earendil-works/pi-codemode': 1.6.1
-      '@earendil-works/pi-mcp': 1.6.1
-      '@earendil-works/pi-tui': 1.6.1
+      '@earendil-works/pi-agent-core': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+      '@earendil-works/pi-ai': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+      '@earendil-works/pi-codemode': 1.7.0
+      '@earendil-works/pi-mcp': 1.7.0
+      '@earendil-works/pi-tui': 1.7.0
       '@silvia-odwyer/photon-node': 0.3.4
       brace-expansion: 5.0.12
       chalk: 6.0.0
@@ -1651,15 +1647,15 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-mcp@1.6.1':
+  '@earendil-works/pi-mcp@1.7.0':
     dependencies:
       cross-spawn: 7.0.6
 
-  '@earendil-works/pi-schema@1.6.1': {}
+  '@earendil-works/pi-schema@1.7.0': {}
 
-  '@earendil-works/pi-telemetry@1.6.1': {}
+  '@earendil-works/pi-telemetry@1.7.0': {}
 
-  '@earendil-works/pi-tui@1.6.1':
+  '@earendil-works/pi-tui@1.7.0':
     dependencies:
       get-east-asian-width: 1.6.0
       marked: 18.0.11
@@ -2298,18 +2294,18 @@ snapshots:
 
   path-key@3.1.1: {}
 
-  pi-subagents@file:.nix-providers/pi-subagents-0.85.0.tgz(@earendil-works/pi-agent-core@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-ai@1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.6.1)(typebox@1.3.27):
+  pi-subagents@file:.nix-providers/pi-subagents-0.90.0.tgz(@earendil-works/pi-agent-core@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-ai@1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0))(@earendil-works/pi-coding-agent@file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0))(@earendil-works/pi-tui@1.7.0)(typebox@1.3.27):
     dependencies:
       '@js-temporal/polyfill': 0.5.1
       acorn: 8.18.0
       jiti: 2.7.0
-      undici: 8.12.3
+      undici: 8.12.4
       yaml: 2.8.3
     optionalDependencies:
-      '@earendil-works/pi-agent-core': 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
-      '@earendil-works/pi-ai': 1.6.1(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
-      '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)
-      '@earendil-works/pi-tui': 1.6.1
+      '@earendil-works/pi-agent-core': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+      '@earendil-works/pi-ai': 1.7.0(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(undici@8.12.4)(ws@8.23.0)
+      '@earendil-works/pi-coding-agent': file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz(@smithy/signature-v4@5.7.5)(google-auth-library@10.9.1)(ws@8.23.0)
+      '@earendil-works/pi-tui': 1.7.0
       typebox: 1.3.27
 
   picocolors@1.1.1: {}
@@ -2469,8 +2465,6 @@ snapshots:
   unbash@6.0.5: {}
 
   undici-types@7.24.6: {}
-
-  undici@8.12.3: {}
 
   undici@8.12.4: {}
 

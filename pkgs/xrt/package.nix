@@ -5,7 +5,6 @@
   callPackage,
   updaters,
   gh,
-  nix-update,
   python3,
   cmake,
   pkg-config,
@@ -102,7 +101,7 @@ stdenv.mkDerivation (finalAttrs: {
     updateScript = updaters.mkScriptUpdater {
       pname = "xrt";
       script = ./update.bash;
-      extraRuntimeInputs = [gh nix-update];
+      extraRuntimeInputs = [gh updaters.nix-update];
     };
     tests.updater = updaters.mkScriptUpdaterTest {
       pname = "xrt";

@@ -33,7 +33,7 @@
   # Darwin, and their updaters still have to run there.
   localPackagesAttr = "legacyPackages.${stdenv.hostPlatform.system}.localPackages";
 in {
-  inherit localPackagesAttr;
+  inherit localPackagesAttr nix-update;
 
   # Run a package's own update script from its directory in the working tree.
   # Use it when the upstream's release metadata needs more than a version

@@ -6,15 +6,15 @@
 }:
 buildGoLatestModule (finalAttrs: {
   pname = "iron-proxy";
-  version = "0.56.0";
+  version = "0.61.0";
   src = fetchFromGitHub {
     owner = "paradigmxyz";
     repo = "iron-proxy";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-1njtrSk7wqWCZQGGpRmlb/gbVmP64Lg1wXBZKxpEol4=";
+    hash = "sha256-Pggh5nK/jmzkLQPwCOfu6zJpK5pDWBbE7HdOCm7Mg0Y=";
   };
   proxyVendor = true;
-  vendorHash = "sha256-VmQLytOqbZi5Yht+2TmyOgm/lk/K+ikFdS/g/k8jEfg=";
+  vendorHash = "sha256-NlRUbMmwcLevg6hhS3p26ZzXOy6Svya5JKuAjHXoqM0=";
   subPackages = ["cmd/iron-proxy"];
   ldflags = ["-s" "-w"];
   checkFlags = ["-short"];

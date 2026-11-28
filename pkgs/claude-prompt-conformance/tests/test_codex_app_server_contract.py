@@ -112,6 +112,26 @@ class ExternalLoginContractSession(ProcessSession):
         return ProcessExchange(close_input=True)
 
 
+def test_empty_credential_permissions_keep_isolation_strict() -> None:
+    baseline = {"filesystem": {":root": "deny"}, "network": {"enabled": False}}
+    expected = msgspec.json.decode(
+        msgspec.json.encode(baseline), type=CodexPermissionProfile
+    )
+    for credentials in (None, {}):
+        assert (
+            msgspec.json.decode(
+                msgspec.json.encode({**baseline, "credentials": credentials}),
+                type=CodexPermissionProfile,
+            )
+            == expected
+        )
+    with pytest.raises(msgspec.ValidationError, match="unknown field"):
+        msgspec.json.decode(
+            msgspec.json.encode({**baseline, "credentials": {"unexpected": True}}),
+            type=CodexPermissionProfile,
+        )
+
+
 @pytest.mark.host_integration
 @pytest.mark.timeout(180)
 def test_pinned_codex_app_server_reports_the_protocol_contract(

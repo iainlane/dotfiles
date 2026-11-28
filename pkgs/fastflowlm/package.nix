@@ -36,7 +36,7 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "fastflowlm";
-    version = "1.0.13";
+    version = "1.0.14";
 
     __structuredAttrs = true;
     strictDeps = true;
@@ -47,7 +47,7 @@ in
       tag = "v${finalAttrs.version}";
       # v1.0.11 builds flm_xgrammar from the third_party/xgrammar submodule.
       fetchSubmodules = true;
-      hash = "sha256-4HFqZrHGo1Kpeyku6LRqWrDnrCb31fbhmBDVGRkdxDg=";
+      hash = "sha256-Tr07spJwrazpKkGId2/ARInaNGGvfWk8U0mFIk/6amU=";
     };
 
     sourceRoot = "${finalAttrs.src.name}/src";

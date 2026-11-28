@@ -6,4 +6,4 @@ ignoreScripts: true
 managePackageManagerVersions: false
 overrides:
   "@dotfiles/pi-integration-tests": file:.nix-providers/dotfiles-pi-integration-tests-0.1.0.tgz
-  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.6.1.tgz
+  "@earendil-works/pi-coding-agent": file:.nix-providers/earendil-works-pi-coding-agent-1.7.0.tgz

@@ -29,12 +29,13 @@ const {
   unverifiedGhidraBuildLimitation,
 } = await load("ghidra/GhidraReleasePolicy.js");
 for (const [raw, major, minor, patch, status] of [
-  ["12.1.4", 12, 1, 4, "verified"],
-  ["12.2", 12, 2, 0, "compatible"],
-  ["13.0.1", 13, 0, 1, "compatible"],
-  ["11.4", 11, 4, 0, "compatible"],
+  ["12.2", 12, 2, 0, "verified"],
+  ["12.2.1", 12, 2, 1, "compatible"],
+  ["12.3", 12, 3, 0, "compatible"],
+  ["12.1.4", 12, 1, 4, "unsupported"],
+  ["13.0.1", 13, 0, 1, "unsupported"],
 ]) {
-  assert.equal(ghidraReleaseAccepted(raw), true);
+  assert.equal(ghidraReleaseAccepted(raw), status !== "unsupported");
   assert.deepEqual(ghidraReleaseCompatibility(raw), {
     status,
     version: { major, minor, patch, suffix: "" },
@@ -49,6 +50,6 @@ for (const raw of [null, undefined, "", "invalid"]) {
   });
 }
 assert.equal(
-  unverifiedGhidraBuildLimitation("12.2"),
-  "This session uses Ghidra 12.2. The bridge is verified against 12.1.4; the observed version is reported and output validation remains enabled.",
+  unverifiedGhidraBuildLimitation("12.2.1"),
+  "This session uses Ghidra 12.2.1. The bridge is verified against 12.2; other 12.x (>=12.2) builds are accepted and the observed version is reported.",
 );

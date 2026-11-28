@@ -1,21 +1,21 @@
 --- a/bridge/mitmproxy/capture.py
 +++ b/bridge/mitmproxy/capture.py
-@@ -325,2 +324,0 @@
+@@ -325,2 +324,0 @@ def decode(request):
 -    if version.VERSION != PROFILE:
 -        raise CaptureFailure("unsupported", "Expected mitmproxy " + PROFILE + "; observed " + version.VERSION + ".")
-@@ -345 +343 @@
+@@ -345 +343 @@ def decode(request):
 -    return {"decoder": {"id": "mitmproxy-native-tnetstring", "name": "REA offline native mitmproxy adapter", "version": PROFILE}, "container": {"reported": None, "numeric_literals": [], "redactions": [], "records_pointer": None}, "total_records": len(records), "records": records}
 +    return {"decoder": {"id": "mitmproxy-native-tnetstring", "name": "REA offline native mitmproxy adapter", "version": version.VERSION}, "container": {"reported": None, "numeric_literals": [], "redactions": [], "records_pointer": None}, "total_records": len(records), "records": records}
 --- a/bridge/pwntools/decoder_runtime.py
 +++ b/bridge/pwntools/decoder_runtime.py
-@@ -44 +44,3 @@
+@@ -44 +44,3 @@ def main(request_path, inspect, failure_type, profile):
 -        reply = {"ok": True, "profile": profile, "value": value}
 +        observed_profile = profile() if callable(profile) else profile
 +        value["limitations"].append("Observed Python packages: " + observed_profile + ".")
 +        reply = {"ok": True, "profile": observed_profile, "value": value}
 --- a/bridge/pwntools/layout_impl.py
 +++ b/bridge/pwntools/layout_impl.py
-@@ -15,2 +15,5 @@
+@@ -14,2 +14,5 @@ import sys
 -PROFILE = "pwntools@4.15.0;pyelftools@0.33;unicorn@2.1.2"
 -PACKAGES = {"pwntools": "4.15.0", "pyelftools": "0.33", "unicorn": "2.1.2"}
 +def observed_profile():
@@ -23,111 +23,120 @@
 +                    for package in ("pwntools", "pyelftools", "unicorn"))
 +
 +PACKAGES = ("pwntools", "pyelftools", "unicorn")
-@@ -112 +115 @@
+@@ -111 +114 @@ def inspect_elf(path, cache):
 -    for package, expected in PACKAGES.items():
 +    for package in PACKAGES:
-@@ -114 +117 @@
+@@ -113 +116 @@ def inspect_elf(path, cache):
 -            version = importlib.metadata.version(package)
 +            importlib.metadata.version(package)
-@@ -116,3 +119 @@
+@@ -115,3 +118 @@ def inspect_elf(path, cache):
 -            raise LayoutFailure("unavailable", "Selected Python lacks " + package + " " + expected + ".") from error
 -        if version != expected:
 -            raise LayoutFailure("unsupported", "Expected " + package + " " + expected + "; selected Python reports " + version + ".")
 +            raise LayoutFailure("unavailable", "Selected Python lacks " + package + ".") from error
-@@ -364 +365 @@
+@@ -363 +364 @@ if __name__ == "__main__":
 -    runtime["main"](sys.argv[-1], inspect_elf, LayoutFailure, PROFILE)
 +    runtime["main"](sys.argv[-1], inspect_elf, LayoutFailure, observed_profile)
 --- a/bridge/pwntools/recorded_crash_impl.py
 +++ b/bridge/pwntools/recorded_crash_impl.py
-@@ -12 +12,4 @@
+@@ -12 +12,4 @@ import sys
 -PROFILE = "pwntools@4.15.0;pyelftools@0.33;unicorn@2.1.2"
 +def observed_profile():
 +    return ";".join(package + "@" + importlib.metadata.version(package)
 +                    for package in ("pwntools", "pyelftools", "unicorn"))
 +
-@@ -38 +41 @@
+@@ -38 +41 @@ def inspect_core(path, cache):
 -    for package, required in {"pwntools": "4.15.0", "pyelftools": "0.33", "unicorn": "2.1.2"}.items():
 +    for package in ("pwntools", "pyelftools", "unicorn"):
-@@ -40 +43 @@
+@@ -40 +43 @@ def inspect_core(path, cache):
 -            actual = importlib.metadata.version(package)
 +            importlib.metadata.version(package)
-@@ -42,3 +45 @@
+@@ -42,3 +45 @@ def inspect_core(path, cache):
 -            raise CoreFailure("unavailable", "Selected Python lacks " + package + " " + required + ".") from error
 -        if actual != required:
 -            raise CoreFailure("unsupported", "Expected " + package + " " + required + "; selected Python reports " + actual + ".")
 +            raise CoreFailure("unavailable", "Selected Python lacks " + package + ".") from error
-@@ -174 +175 @@
+@@ -174 +175 @@ if __name__ == "__main__":
 -    runtime["main"](sys.argv[-1], inspect_core, CoreFailure, PROFILE)
 +    runtime["main"](sys.argv[-1], inspect_core, CoreFailure, observed_profile)
 --- a/src/application/CapabilityInventory.ts
 +++ b/src/application/CapabilityInventory.ts
-@@ -633 +633 @@
+@@ -686 +686 @@ const HOST_FEATURES: Readonly<
 -      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru ^1.13.0 (verified with 1.14.0) and util-linux prlimit; see docs/guides/javascript/javascript-recovery.md#install-wakaru. No binary target is required.",
 +      "On Linux x64, provide an absolute REA_WAKARU_COMMAND for Wakaru (verified with 1.14.0) and util-linux prlimit; see docs/guides/javascript/javascript-recovery.md#install-wakaru. No binary target is required.",
 --- a/src/browser/history/HarSchema.ts
 +++ b/src/browser/history/HarSchema.ts
-@@ -37 +37 @@
--  { name: "Playwright", version: "1.58.2", label: "Playwright 1.58.2" },
-+  { name: "Playwright", version: null, label: "Playwright" },
-@@ -119,4 +119,10 @@
--): string | null =>
--  BRACKETED_IPV6_PRODUCERS.find(
+@@ -35 +35 @@ interface HarProducerProfile {
+-  readonly version: string;
++  readonly version: string | null;
+@@ -42,2 +42,3 @@ interface HarProducerProfile {
+-// Match exact observed profiles. Chromium DevTools declares WebInspector with
+-// the frozen AppleWebKit version from its user agent.
++// Match version-specific observations before matching a producer by name.
++// Chromium DevTools declares WebInspector with the frozen AppleWebKit version
++// from its user agent.
+@@ -45,5 +45,0 @@ const HAR_PRODUCER_PROFILES: readonly HarProducerProfile[] = [
+-  {
+-    name: "Playwright",
+-    version: "1.58.2",
+-    bracketedIpv6: true,
+-  },
+@@ -55,0 +52 @@ const HAR_PRODUCER_PROFILES: readonly HarProducerProfile[] = [
++  { name: "Playwright", version: null, bracketedIpv6: true },
+@@ -62 +59 @@ const HAR_PRODUCER_PROFILES: readonly HarProducerProfile[] = [
+-  { name: "mitmproxy", version: "12.2.3", nullPostDataText: true },
++  { name: "mitmproxy", version: null, nullPostDataText: true },
+@@ -151 +148,2 @@ const allowObservedProducerRepresentations = (
 -    ({ name, version }) => creator.name === name && creator.version === version,
--  )?.label ?? null;
-+): string | null => {
-+  const producer = BRACKETED_IPV6_PRODUCERS.find(
 +    ({ name, version }) =>
 +      creator.name === name && (version === null || creator.version === version),
-+  );
-+  if (producer === undefined) return null;
-+  if (producer.version !== null || typeof creator.version !== "string")
-+    return producer.label;
-+  return `${producer.label} ${creator.version}`;
-+};
-@@ -131,2 +137 @@
--  const mitmproxy =
--    log.creator.name === "mitmproxy" && log.creator.version === "12.2.3";
-+  const mitmproxy = log.creator.name === "mitmproxy";
+@@ -197 +195,5 @@ const allowObservedProducerRepresentations = (
+-  const producer = profile.label ?? `${profile.name} ${profile.version}`;
++  const producer =
++    profile.label ??
++    (typeof creator.version === "string"
++      ? `${profile.name} ${creator.version}`
++      : profile.name);
 --- a/src/browser/history/HistoricalCaptureDecoder.ts
 +++ b/src/browser/history/HistoricalCaptureDecoder.ts
-@@ -333 +333,2 @@
+@@ -329 +329,2 @@ export class HistoricalCaptureDecoder {
 -        reply.value.decoder.version !== adapter.identity.version
 +        (input.format !== "mitmproxy" &&
 +          reply.value.decoder.version !== adapter.identity.version)
 --- a/src/browser/history/MitmproxyCaptureAdapter.ts
 +++ b/src/browser/history/MitmproxyCaptureAdapter.ts
-@@ -11 +11 @@
+@@ -12 +12 @@ const MITMDUMP_REQUIREMENT =
 -  "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump 12.2.3; HAR needs no external engine.";
 +  "Native capture decoding requires Linux and an absolute REA_MITMDUMP_COMMAND path to caller-supplied mitmdump; HAR needs no external engine.";
 --- a/src/contracts/firmware/firmwareToolRequirements.ts
 +++ b/src/contracts/firmware/firmwareToolRequirements.ts
-@@ -20 +20 @@
+@@ -20 +20 @@ const defineToolRequirement = (release: {
 -    requirement: `${release.name} ${line} (verified with ${version})`,
 +    requirement: `${release.name} (report parser verified with ${version}; installed version observed at runtime)`,
 --- a/src/contracts/javascript/javascriptRecoveryToolContracts.ts
 +++ b/src/contracts/javascript/javascriptRecoveryToolContracts.ts
-@@ -16 +16 @@
+@@ -26 +26 @@ export const JAVASCRIPT_RECOVERY_TOOL_CONTRACTS = [
 -      "Recover readable modules from local UTF-8 JavaScript bundles into an absent output_directory, without executing application code. Requires caller-supplied Wakaru ^1.13.0 (verified 1.14.0), Linux x64 and util-linux prlimit. additional_paths includes related chunks, preserving each input’s snapshot/provenance. Returns original/derived digests, extraction ranges, source maps, warnings and analysis_input for analyze_javascript_application. Splitting may fall back to one module; original names and runtime equivalence remain unknown. One worker has a fixed 120-second deadline and bounded input/output/report admission; limit failures are explicit and roll back output.",
 +      "Recover readable modules from local UTF-8 JavaScript bundles into an absent output_directory, without executing application code. Requires caller-supplied Wakaru (verified 1.14.0), Linux x64 and util-linux prlimit. additional_paths includes related chunks, preserving each input’s snapshot/provenance. Returns original/derived digests, extraction ranges, source maps, warnings and analysis_input for analyze_javascript_application. Splitting may fall back to one module; original names and runtime equivalence remain unknown. One worker has a fixed 120-second deadline and bounded input/output/report admission; limit failures are explicit and roll back output.",
 --- a/src/contracts/native/binaryDiagnosticsToolContracts.ts
 +++ b/src/contracts/native/binaryDiagnosticsToolContracts.ts
-@@ -358 +358 @@
+@@ -478 +478 @@ export const BINARY_DIAGNOSTICS_TOOL_CONTRACTS = [
 -      "Inspect static ELF section/segment, symbol, relocation, linkage and mitigation facts with artifact SHA-256 Evidence, without launching the image. Linux x64 requires caller-supplied pwntools 4.15.0/pyelftools 0.33/Unicorn 2.1.2; supports ELF64 x86-64/little-endian AArch64 and ELF32 i386/little-endian ARM/little- or big-endian MIPS. Unicorn may emulate PLT instructions for derived maps. Runtime addresses/paths and complete relocation/GOT/PLT discovery remain unknown; RELR per-word locations/addends can be unknown. detail summary retains full Evidence for layout section/symbol/mitigation/linkage views. pwntools_timeout_ms bounds each command independently of producer_limits and inherited OS limits. Unsupported, malformed or oversized inputs fail without partial success.",
 +      "Inspect static ELF section/segment, symbol, relocation, linkage and mitigation facts with artifact SHA-256 Evidence, without launching the image. Linux x64 requires caller-supplied pwntools/pyelftools/Unicorn; supports ELF64 x86-64/little-endian AArch64 and ELF32 i386/little-endian ARM/little- or big-endian MIPS. Unicorn may emulate PLT instructions for derived maps. Runtime addresses/paths and complete relocation/GOT/PLT discovery remain unknown; RELR per-word locations/addends can be unknown. detail summary retains full Evidence for layout section/symbol/mitigation/linkage views. pwntools_timeout_ms bounds each command independently of producer_limits and inherited OS limits. Unsupported, malformed or oversized inputs fail without partial success.",
 --- a/src/contracts/webNetworkCaptureToolContracts.ts
 +++ b/src/contracts/webNetworkCaptureToolContracts.ts
-@@ -19 +19 @@
+@@ -27 +27 @@ export const WEB_NETWORK_CAPTURE_TOOL_CONTRACTS = [
 -      "Inspect a saved local HAR 1.2, mitmproxy, Fiddler SAZ or supported aioquic qlog capture without contacting recorded URLs. Returns source-linked records, preserved producer fields, precise numbers, exposed bytes and explicit coverage/limitations; transport credentials and explicitly marked sensitive values are excluded. Use inspect_web_page for a live CDP page. Preserve capture_path exactly as supplied; it names a path on the REA host, not a path to rebase onto the client workspace. Select format; record_ordinals selects records after full decoding and also decodes recognized protobuf/gRPC bodies. Optional protobuf selects body_pointers, framing and a local FileDescriptorSet/message_type; native gRPC and gRPC-web remain distinct, ambiguous readings stay candidates and compressed payloads stay unknown. Default complete delivery is inline. detail summary retains Evidence for inspect_analysis_view kind capture (preview/complete), protobuf (bodies/frames/fields), or qlog; large text/schema values require explicit fields. Qlog supports aioquic 1.5.0 JSON qlog 0.3 and reports STREAM interval unions/endpoint loss declarations, not recovered bodies or proved network loss. SAZ preserves encoded bytes without replay/HAR conversion; encrypted archives are unsupported. Mitmproxy requires caller-supplied mitmdump 12.2.3 on Linux. Malformed or oversized captures return no partial success; browser transaction attribution and HAR text’s original bytes remain unknown.",
 +      "Inspect a saved local HAR 1.2, mitmproxy, Fiddler SAZ or supported aioquic qlog capture without contacting recorded URLs. Returns source-linked records, preserved producer fields, precise numbers, exposed bytes and explicit coverage/limitations; transport credentials and explicitly marked sensitive values are excluded. Use inspect_web_page for a live CDP page. Preserve capture_path exactly as supplied; it names a path on the REA host, not a path to rebase onto the client workspace. Select format; record_ordinals selects records after full decoding and also decodes recognized protobuf/gRPC bodies. Optional protobuf selects body_pointers, framing and a local FileDescriptorSet/message_type; native gRPC and gRPC-web remain distinct, ambiguous readings stay candidates and compressed payloads stay unknown. Default complete delivery is inline. detail summary retains Evidence for inspect_analysis_view kind capture (preview/complete), protobuf (bodies/frames/fields), or qlog; large text/schema values require explicit fields. Qlog supports aioquic 1.5.0 JSON qlog 0.3 and reports STREAM interval unions/endpoint loss declarations, not recovered bodies or proved network loss. SAZ preserves encoded bytes without replay/HAR conversion; encrypted archives are unsupported. Mitmproxy requires caller-supplied mitmdump on Linux. Malformed or oversized captures return no partial success; browser transaction attribution and HAR text’s original bytes remain unknown.",
 --- a/src/firmware/FirmwareVersion.test.ts
 +++ b/src/firmware/FirmwareVersion.test.ts
-@@ -17,0 +18,2 @@
+@@ -17,0 +18,2 @@ describe("firmware release lines", () => {
 +    ["binwalk", "binwalk 4.0.0", "4.0.0"],
 +    ["unblob", "27.0.0", "27.0.0"],
-@@ -21 +23 @@
+@@ -21 +23 @@ describe("firmware release lines", () => {
 -    "accepts %s %s on the verified line",
 +    "accepts %s %s and reports the observed version",
-@@ -35,5 +37,3 @@
+@@ -35,5 +37,3 @@ describe("firmware release lines", () => {
 -    ["binwalk", "binwalk 3.2.0", "Binwalk 3.1.x"],
 -    ["binwalk", "unsupported", "Binwalk 3.1.x"],
 -    ["binwalk", "3.1.2", "Binwalk 3.1.x"],
@@ -138,23 +147,23 @@
 +    ["unblob", "unblob 26.6.4", "Unblob"],
 --- a/src/firmware/FirmwareVersion.ts
 +++ b/src/firmware/FirmwareVersion.ts
-@@ -53,5 +52,0 @@
+@@ -53,5 +52,0 @@ export const admitFirmwareVersion = (
 -  if (parsed.major !== verified.major || parsed.minor !== verified.minor)
 -    return {
 -      status: "unsupported",
 -      message: `Unsupported tool version ${banner}; ${accepted}.`,
 -    };
-@@ -63 +58 @@
+@@ -63 +58 @@ export const admitFirmwareVersion = (
 -    limitation: `This session uses ${verified.name} ${parsed.token}. The report parser is verified against ${verified.version}; other ${verified.line} builds are accepted and the observed version is reported.`,
 +    limitation: `This session uses ${verified.name} ${parsed.token}. The report parser is verified against ${verified.version}; the observed version is reported and output validation remains enabled.`,
 --- a/src/javascript/recovery/WakaruCommand.ts
 +++ b/src/javascript/recovery/WakaruCommand.ts
-@@ -40 +40 @@
+@@ -45 +45 @@ const WAKARU_REQUIREMENT =
 -  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru ^1.13.0 Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/guides/javascript/javascript-recovery.md#install-wakaru.";
 +  "Provide an absolute REA_WAKARU_COMMAND pointing to a Wakaru Linux x64 binary (verified with 1.14.0); no tool is installed by REA. See docs/guides/javascript/javascript-recovery.md#install-wakaru.";
 --- a/src/javascript/recovery/WakaruRelease.ts
 +++ b/src/javascript/recovery/WakaruRelease.ts
-@@ -3,7 +3,2 @@
+@@ -3,7 +3,2 @@ import { BOUNDED_PRODUCER_LIMITS } from "../../domain/producerResourceLimits.js"
 -/**
 - * Releases the report parser accepts. Wakaru changes `--version`, `--json`
 - * and `provenance.json` only by addition within a major version
@@ -166,15 +175,15 @@
 +export const WAKARU_ACCEPTED_RANGE = "*";
 --- a/src/javascript/recovery/WakaruVersion.test.ts
 +++ b/src/javascript/recovery/WakaruVersion.test.ts
-@@ -15,0 +16,3 @@
+@@ -15,0 +16,3 @@ describe("Wakaru release range", () => {
 +    ["wakaru 1.12.0", "1.12.0"],
 +    ["wakaru 2.0.0", "2.0.0"],
 +    ["wakaru 1.15.0-rc.1", "1.15.0-rc.1"],
-@@ -26,3 +28,0 @@
+@@ -26,3 +28,0 @@ describe("Wakaru release range", () => {
 -    ["wakaru 1.12.0", "wakaru 1.12.0"],
 -    ["wakaru 2.0.0", "wakaru 2.0.0"],
 -    ["wakaru 1.15.0-rc.1", "wakaru 1.15.0-rc.1"],
-@@ -37 +37 @@
+@@ -37 +37 @@ describe("Wakaru release range", () => {
 -    expect(admitted.message).toContain("^1.13.0");
 +    expect(admitted.message).toContain("*");
 --- a/src/javascript/recovery/WakaruVersion.ts
@@ -182,47 +191,47 @@
 @@ -1 +1 @@
 -import { satisfies, valid } from "semver";
 +import { valid } from "semver";
-@@ -24,5 +24 @@
+@@ -24,5 +24 @@ export const admitWakaruVersion = (banner: string): WakaruVersionAdmission => {
 -  if (
 -    token === undefined ||
 -    valid(token) !== token ||
 -    !satisfies(token, WAKARU_ACCEPTED_RANGE)
 -  )
 +  if (token === undefined || valid(token) !== token)
-@@ -38 +34 @@
+@@ -38 +34 @@ export const admitWakaruVersion = (banner: string): WakaruVersionAdmission => {
 -    limitation: `This session uses Wakaru ${token}. The report parser is verified against ${WAKARU_RELEASE.version}; other ${WAKARU_ACCEPTED_RANGE} releases are accepted and the observed version is reported.`,
 +    limitation: `This session uses Wakaru ${token}. The report parser is verified against ${WAKARU_RELEASE.version}; the observed version is reported and output validation remains enabled.`,
 --- a/src/native/pwntools/PwntoolsDecoder.ts
 +++ b/src/native/pwntools/PwntoolsDecoder.ts
-@@ -77 +76,0 @@
+@@ -85 +84,0 @@ import { analysisInputErrorFromIssues } from "../../domain/inputIssueProjection.
 -import { PWNTOOLS_PROVIDER_IDENTITY } from "./PwntoolsProviderIdentity.js";
-@@ -156 +155,4 @@
+@@ -165 +164,4 @@ export class PwntoolsDecoder<
 -  readonly identity: ProviderIdentity;
 +  #observedVersion: string | null = null;
 +  get identity(): ProviderIdentity {
 +    return { ...this.profile.identity, version: this.#observedVersion };
 +  }
-@@ -187,3 +189 @@
+@@ -198,3 +200 @@ export class PwntoolsDecoder<
 -  ) {
 -    this.identity = profile.identity;
 -  }
 +  ) {}
-@@ -301 +301,3 @@
+@@ -308 +308,3 @@ export class PwntoolsDecoder<
 -        profile: z.literal(PWNTOOLS_PROVIDER_IDENTITY.version),
 +        profile: z
 +          .string()
 +          .regex(/^pwntools@[^;]+;pyelftools@[^;]+;unicorn@[^;]+$/u),
-@@ -355 +357 @@
+@@ -361 +363 @@ export class PwntoolsDecoder<
 -          "Set REA_PWNTOOLS_PYTHON to an absolute caller-supplied Python executable with pwntools 4.15.0, pyelftools 0.33 and Unicorn 2.1.2; REA never installs Python or packages.",
 +          "Set REA_PWNTOOLS_PYTHON to an absolute caller-supplied Python executable with pwntools, pyelftools and Unicorn; REA never installs Python or packages.",
-@@ -617,0 +620 @@
+@@ -620,0 +623 @@ export class PwntoolsDecoder<
 +      this.#observedVersion = reply.profile;
 --- a/src/pcap/PcapConfiguration.test.ts
 +++ b/src/pcap/PcapConfiguration.test.ts
-@@ -145 +145 @@
+@@ -191 +191 @@ describe("parseWiresharkVersion", () => {
 -  it("admits Wireshark 4.x banners for either tool and rejects other majors", () => {
 +  it("admits Wireshark banners for either tool across release numbers", () => {
-@@ -156,3 +156,3 @@
+@@ -202,3 +202,3 @@ describe("parseWiresharkVersion", () => {
 -    expect(() =>
 -      parseWiresharkVersion("TShark (Wireshark) 3.6.2\n", "tshark"),
 -    ).toThrow(/requires Wireshark 4\.x/u);
@@ -231,15 +240,15 @@
 +    );
 --- a/src/pcap/PcapConfiguration.ts
 +++ b/src/pcap/PcapConfiguration.ts
-@@ -51 +51 @@
+@@ -55 +55 @@ export const CAPINFOS_COMMAND_ENV = "REA_CAPINFOS_COMMAND";
 -export const PCAP_TOOL_REMEDIATION = `Supply Wireshark 4.x tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
 +export const PCAP_TOOL_REMEDIATION = `Supply Wireshark tshark and capinfos on PATH or through absolute ${TSHARK_COMMAND_ENV} and ${CAPINFOS_COMMAND_ENV}; REA does not install them.`;
-@@ -185,2 +185,2 @@
+@@ -228,2 +228,2 @@ export class PcapConfigurationFailure extends Error {
 - * Recognize the selected Wireshark tool's version banner: null when the first
 - * line is not a Wireshark banner, a failure when its major version is not 4.
 + * Recognize the selected Wireshark tool's version banner, or return null when
 + * its first non-empty line is not a Wireshark banner.
-@@ -203,6 +202,0 @@
+@@ -246,6 +245,0 @@ export const parseWiresharkVersion = (
 -  if (parsed[1] !== "4")
 -    throw new PcapConfigurationFailure(
 -      `${tool}_version_unsupported`,

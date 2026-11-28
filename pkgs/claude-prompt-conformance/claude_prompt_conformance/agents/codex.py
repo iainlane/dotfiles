@@ -814,6 +814,7 @@ def codex_isolated_features() -> dict[str, bool]:
         "mentions_v2": False,
         "multi_agent": False,
         "plugins": False,
+        "realtime_frames_local": False,
         "remote_control": False,
         "remote_plugin": False,
         "shell_snapshot": False,
