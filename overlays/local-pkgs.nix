@@ -31,7 +31,11 @@ in
       # Update-script generators the package definitions pull in via
       # callPackage. `flake.packages` is built from `names`, so this helper
       # stays internal to the package set.
-      updaters = final.callPackage (pkgsDir + "/build-support/updaters.nix") {};
+      updaters = final.callPackage (pkgsDir + "/build-support/updaters.nix") {
+        nix-update = final.callPackage (pkgsDir + "/build-support/nix-update.nix") {
+          nixpkgsPath = inputs.nixpkgs.outPath;
+        };
+      };
 
       # The local packages that build npm packages, keyed by npm name. Every
       # channel takes them from the flake's own package set, which uses
