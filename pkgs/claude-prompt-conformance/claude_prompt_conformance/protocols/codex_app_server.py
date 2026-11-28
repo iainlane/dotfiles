@@ -290,6 +290,8 @@ class CodexPermissionProfile(msgspec.Struct, frozen=True, forbid_unknown_fields=
     description: str | None = None
     extends: str | None = None
     workspace_roots: dict[str, bool] | None = None
+    # Isolated profiles do not grant any credential permissions.
+    credentials: None = None
 
 
 class CodexPromptIsolation(msgspec.Struct, frozen=True):

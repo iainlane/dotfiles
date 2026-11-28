@@ -8,12 +8,13 @@
     '';
   };
   nix-update = pkgs.callPackage ./nix-update.nix {
-    nix-update = command // {
-      version = "1.16.0";
-      overridePythonAttrs = override:
-        assert (override {}).version == "1.17.0";
-          command;
-    };
+    nix-update =
+      command
+      // {
+        version = "1.16.0";
+        overridePythonAttrs = override:
+          assert (override {}).version == "1.17.0"; command;
+      };
     nixpkgsPath = "/fixture/nixpkgs";
   };
   updaters = pkgs.callPackage ./updaters.nix {inherit nix-update;};
