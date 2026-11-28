@@ -55,7 +55,7 @@ multilingual font loading, production rendering, Chromium rendering, Imagick,
 Liquid and persistent images after a restart.
 
 Run `nix run .#update-larapaper` to update the release pin and both dependency
-hashes. The package-update workflow discovers this updater automatically.
+hashes. The dependency update workflow discovers this updater automatically.
 `nix run .#update-larapaper -- --force` refreshes the hashes for the current
 release. Both commands preserve the pinned patches and restore the package file
 if an update fails. `nix run .#update-trmnl-framework` updates the framework
@@ -74,4 +74,4 @@ provenance record. Extraction uses a Linux Nix builder, including when the
 updater runs on macOS.
 
 The library updaters and the Liquid updater accept `--force` to refresh the
-current pins, and all of them run in the package-update workflow.
+current pins, and all of them run in the dependency update workflow.

@@ -4,7 +4,10 @@ import subprocess
 import tempfile
 import unittest
 from collections.abc import Callable
+from contextlib import chdir, redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from update_runner import (
     DirtyPathsError,
@@ -13,6 +16,7 @@ from update_runner import (
     Runner,
     Snapshot,
     input_groups,
+    main,
     render,
     require_clean,
 )
@@ -275,6 +279,59 @@ class TransactionTest(unittest.TestCase):
 
     def write(self, name: str, source: str) -> None:
         (self.root / f"pkgs/{name}/source").write_text(source)
+
+    def test_combined_run_stages_flake_refresh_before_package_maintenance(self) -> None:
+        def update(args: list[str]) -> tuple[int, str]:
+            self.assertEqual(self.lock(), {"nixpkgs": "new", "llm-agents": "new"})
+            if args == ["--refresh"]:
+                self.assertEqual(self.source("pi"), "old")
+                self.write("pi", "refreshed")
+            else:
+                self.assertEqual(args, ["--maintain-lockfile"])
+                self.assertEqual(self.source("pi"), "refreshed")
+                self.assertEqual(
+                    subprocess.check_output(
+                        ["git", "show", ":pkgs/pi/source"], text=True
+                    ),
+                    "refreshed",
+                )
+                self.write("pi", "maintained")
+            return 0, ""
+
+        nix = FakeNix(
+            self.root,
+            {"order": ["pi"], "refreshOrder": ["pi"], "dependencies": {"pi": []}},
+            {"pi": update},
+            maintained=("pi",),
+        )
+        arguments = [
+            "update-runner",
+            "--system",
+            SYSTEM,
+            "combined",
+            "--stage",
+            "--maintain-lockfiles",
+        ]
+        with (
+            chdir(self.root),
+            patch("sys.argv", arguments),
+            patch("update_runner.Processes", return_value=nix),
+            redirect_stdout(StringIO()) as report,
+        ):
+            self.assertEqual(main(), 0)
+            self.assertEqual(
+                subprocess.check_output(["git", "show", ":pkgs/pi/source"], text=True),
+                "maintained",
+            )
+            self.assertEqual(
+                subprocess.check_output(
+                    ["git", "diff", "--cached", "--name-only"], text=True
+                ).splitlines(),
+                ["flake.lock", "pkgs/pi/source"],
+            )
+        self.assertEqual(
+            report.getvalue(), "## Updated\n\n- llm-agents\n- nixpkgs\n- pi\n"
+        )
 
     def test_successful_batch_relocks_refreshes_and_validates_once(self) -> None:
         def refresh(args: list[str]) -> tuple[int, str]:

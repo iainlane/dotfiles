@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
 # Summarise the top-level input changes between two flake.lock files as a
-# Markdown list, for the body of the automated flake-update pull request.
+# Markdown list, for the body of the automated dependency update pull request.
 #
 # Usage: flake-lock-summary <before.json> <after.json>
 

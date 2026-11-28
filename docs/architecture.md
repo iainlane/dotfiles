@@ -346,7 +346,7 @@ alone until the extension has a new release. In this mode, every dependency,
 direct and transitive, moves to the newest version that its range allows.
 `update-all --maintain-lockfiles` passes the flag to each updater whose
 `maintenance.lockfileMaintenance` is true and runs the other updaters as usual.
-The scheduled package-update workflow uses it once a week.
+The scheduled dependency update workflow uses it on Tuesdays.
 
 Generic Nix updaters read their package from
 `legacyPackages.<system>.localPackages`, which contains every local package for
@@ -367,6 +367,12 @@ It snapshots operation-owned files and restores a failed update without deleting
 unrelated files or changing the caller's existing index. Local updates refuse
 pre-existing staged or unstaged changes in their ownership scopes. CI stages
 only accepted changes.
+
+The dependency update workflow runs daily at 05:00 UTC and can also be started
+manually. It checks for a clean checkout once, relocks flake inputs and
+refreshes affected packages, then runs package upgrades against that same
+checkout. Both phases contribute to one pull request. A manual run can opt in
+to lockfile maintenance.
 
 Flake updates first try to relock all requested inputs in one batch. The runner
 compares the two lock graphs, including transitive inputs and `follows`
@@ -409,11 +415,11 @@ updater of each package whose package.json or pnpm-workspace.yaml changed.
 Self-hosted Renovate runs the script only when its global `allowedCommands`
 allows it.
 
-Renovate bumps registry dependencies. The scheduled package-update workflow runs
-the package updaters, which relock a package after a local provider changes, and
+Renovate bumps registry dependencies. The dependency update workflow runs the
+package updaters, which relock a package after a local provider changes, and
 once a week it also maintains the pnpm lockfiles. The two open separate
-branches, so a Renovate branch and the package-update branch can both relock the
-same package. Both change its pnpm-lock.yaml and its dependency hash, and the
+branches, so a Renovate branch and the dependency update branch can both
+relock the same package. Both change its pnpm-lock.yaml and its dependency hash, and the
 branch that merges second then conflicts. Renovate rebases its branch and runs
 the updater again. The workflow recreates its branch from main on its next run.
 

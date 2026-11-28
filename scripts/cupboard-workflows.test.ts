@@ -511,15 +511,15 @@ fi
   }
 }
 
+const dependencyWorkflow = "dependency-update.yml";
+const dependencySummary =
+  "Automated flake input and package updates from the `dependency-update` workflow.";
 const relockSummary = [
-  "Automated relock of the flake inputs from the scheduled `flake-update` workflow (`nix flake update`).",
+  dependencySummary,
   "",
   "Updated inputs:",
   "",
   "before=before; after=after",
-];
-const packageSummary = [
-  "Automated package bumps from the scheduled `package-update` workflow.",
 ];
 const reportLink =
   "[Full update report](https://github.example.invalid/fixture/dotfiles/actions/runs/123/attempts/2).";
@@ -531,127 +531,104 @@ const cupboardFooter = [
 const bot =
   "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>\n";
 const manualRun: Trigger = { event: "workflow_dispatch" };
+const candidateRef = "refs/heads/dependency-update/2026-11-04-123-2";
+const candidateSubject = "chore(deps): update flake inputs and packages\n";
+const previousCandidate = "dependency-update/2026-11-03-122-1";
 
 describe("Scheduled maintenance workflows", () => {
-  for (const [filename, prefix, branch, stale, subject] of [
-    [
-      "flake-update.yml",
-      "flake",
-      "flake-update/2026-11-04-123-2",
-      "flake-update/2026-11-03-122",
-      "chore(flake): update inputs",
-    ],
-    [
-      "package-update.yml",
-      "pkgs",
-      "package-update/2026-11-04-123-2",
-      "package-update/2026-11-03",
-      "chore(pkgs): update packages",
-    ],
-  ] as const) {
-    it(`${filename} publishes a short PR body and keeps the full report in the job summary`, () => {
-      const reportSections = [
-        "## Updated\n\n- independent",
-        "## Update notices\n\n- teamclaude",
-        "## Failed or skipped updates\n\n- nixpkgs",
-      ];
-      const report =
-        [
-          reportSections[0],
-          `${reportSections[1]}\n  > Review the newer upstream release.`,
-          `${reportSections[2]}\n  > ${"Caddy could not refresh. ".repeat(3000)}\n- ${"a".repeat(9000)}`,
-        ].join("\n\n") + "\n";
-      const run = runUpdateWorkflow(
-        filename,
-        manualRun,
-        `
-case "$1" in
-  inputs)
-    printf 'after\\n' > flake.lock
-    ;;
-  packages)
-    ;;
-  *)
-    exit 2
-    ;;
-esac
+  it("publishes both updates together and keeps the full report in the job summary", () => {
+    const reportSections = [
+      "## Updated\n\n- independent",
+      "## Update notices\n\n- teamclaude",
+      "## Failed or skipped updates\n\n- nixpkgs",
+    ];
+    const report =
+      [
+        reportSections[0],
+        `${reportSections[1]}\n  > Review the newer upstream release.`,
+        `${reportSections[2]}\n  > ${"Caddy could not refresh. ".repeat(3000)}\n- ${"a".repeat(9000)}`,
+      ].join("\n\n") + "\n";
+    const run = runUpdateWorkflow(
+      dependencyWorkflow,
+      manualRun,
+      `
+if [ "$*" != 'combined --stage' ]; then exit 2; fi
+printf 'after\\n' > flake.lock
 printf 'locked\\n' > pkgs/fixture/new-lock.json
-if [ "$2" = --stage ]; then
-  git add -- flake.lock pkgs/fixture/new-lock.json
-fi
+git add -- flake.lock pkgs/fixture/new-lock.json
+printf 'unstaged\\n' > flake.lock
 printf '%s' ${quote(report)}
 exit 1
 `,
-        { "flake.lock": "before\n", "pkgs/fixture/version": "unchanged\n" },
-        { branches: [stale] },
-      );
-      assert.deepEqual(run, {
-        status: 0,
-        stderr: "",
-        body: [
-          ...(prefix === "flake" ? relockSummary : packageSummary),
-          "",
-          reportSections.join("\n\n"),
-          "",
-          "The summary was shortened.",
-          "",
-          reportLink,
-          ...cupboardFooter,
-        ].join("\n"),
-        summary: report,
-        pushed: {
-          [`refs/heads/${branch}`]: {
-            author: bot,
-            subject: `${subject}\n`,
-            files: {
-              "flake.lock": prefix === "flake" ? "after\n" : "before\n",
-              "pkgs/fixture/version": "unchanged\n",
-              "pkgs/fixture/new-lock.json": "locked\n",
-            },
+      { "flake.lock": "before\n", "pkgs/fixture/version": "unchanged\n" },
+      { branches: [previousCandidate] },
+    );
+    assert.deepEqual(run, {
+      status: 0,
+      stderr: "",
+      body: [
+        ...relockSummary,
+        "",
+        reportSections.join("\n\n"),
+        "",
+        "The summary was shortened.",
+        "",
+        reportLink,
+        ...cupboardFooter,
+      ].join("\n"),
+      summary: report,
+      pushed: {
+        [candidateRef]: {
+          author: bot,
+          subject: candidateSubject,
+          files: {
+            "flake.lock": "after\n",
+            "pkgs/fixture/version": "unchanged\n",
+            "pkgs/fixture/new-lock.json": "locked\n",
           },
         },
-      });
+      },
     });
+  });
 
-    it(`${filename} removes the failed PR branch and preserves the previous branch`, () => {
-      const report = "## Updated\n\n- fixture\n";
-      const run = runUpdateWorkflow(
-        filename,
-        manualRun,
-        `
+  it("removes a failed publication branch and preserves the previous candidate", () => {
+    const report = "## Updated\n\n- fixture\n";
+    const run = runUpdateWorkflow(
+      dependencyWorkflow,
+      manualRun,
+      `
 printf 'after\\n' > flake.lock
 if [ "$2" = --stage ]; then git add -- flake.lock; fi
 printf '%s' ${quote(report)}
 `,
-        { "flake.lock": "before\n" },
-        { branches: [stale], createStatus: 42 },
-      );
-      assert.deepEqual(run, {
-        status: 42,
-        stderr: "",
-        body: [
-          ...(prefix === "flake" ? relockSummary : packageSummary),
-          "",
-          report.trimEnd(),
-          "",
-          reportLink,
-          ...cupboardFooter,
-        ].join("\n"),
-        summary: report,
-        pushed: {
-          [`refs/heads/${stale}`]: {
-            author: "fixture <fixture@example.invalid>\n",
-            subject: "fixture\n",
-            files: { "flake.lock": "before\n" },
-          },
+      { "flake.lock": "before\n" },
+      { branches: [previousCandidate], createStatus: 42 },
+    );
+    assert.deepEqual(run, {
+      status: 42,
+      stderr: "",
+      body: [
+        ...relockSummary,
+        "",
+        report.trimEnd(),
+        "",
+        reportLink,
+        ...cupboardFooter,
+      ].join("\n"),
+      summary: report,
+      pushed: {
+        [`refs/heads/${previousCandidate}`]: {
+          author: "fixture <fixture@example.invalid>\n",
+          subject: "fixture\n",
+          files: { "flake.lock": "before\n" },
         },
-      });
+      },
     });
-  }
+  });
 
   it("does not create a PR for a message-only run", () => {
     const run = runUpdateWorkflow(
-      "package-update.yml",
+      dependencyWorkflow,
       manualRun,
       `
 printf '%s\\n' 'Review the newer upstream release.'
@@ -668,8 +645,11 @@ printf '%s\\n' 'Review the newer upstream release.'
   });
 
   // The Tuesday run and a manual run with the input maintain the lock files.
-  const packageUpdate = workflow("package-update.yml");
-  const schedules = record(packageUpdate.on).schedule;
+  const schedules = record(workflow(dependencyWorkflow).on).schedule;
+  assert.deepEqual(schedules, [
+    { cron: "0 5 * * 0,1,3,4,5,6" },
+    { cron: "0 5 * * 2" },
+  ]);
   assert.ok(Array.isArray(schedules));
   for (const [trigger, maintained] of [
     ...schedules.map((schedule): [Trigger, boolean] => {
@@ -686,10 +666,10 @@ printf '%s\\n' 'Review the newer upstream release.'
   ]) {
     it(`${maintained ? "maintains" : "keeps"} the lock files on ${JSON.stringify(trigger)}`, () => {
       const run = runUpdateWorkflow(
-        "package-update.yml",
+        dependencyWorkflow,
         trigger,
         `
-if [ "$1" != packages ]; then
+if [ "$1" != combined ]; then
   exit 2
 fi
 shift
@@ -728,7 +708,7 @@ printf '## Updated\\n\\n- fixture\\n'
         status: 0,
         stderr: "",
         body: [
-          ...packageSummary,
+          dependencySummary,
           "",
           "## Updated\n\n- fixture",
           "",
@@ -737,9 +717,9 @@ printf '## Updated\\n\\n- fixture\\n'
         ].join("\n"),
         summary: "## Updated\n\n- fixture\n",
         pushed: {
-          "refs/heads/package-update/2026-11-04-123-2": {
+          [candidateRef]: {
             author: bot,
-            subject: "chore(pkgs): update packages\n",
+            subject: candidateSubject,
             files: {
               "flake.lock": "before\n",
               "pkgs/fixture/version": "updated\n",
